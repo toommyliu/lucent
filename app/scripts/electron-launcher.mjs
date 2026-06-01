@@ -16,7 +16,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const LAUNCHER_VERSION = 2;
+const LAUNCHER_VERSION = 3;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const appDir = resolve(__dirname, "..");
@@ -90,6 +90,32 @@ function readJson(path) {
   }
 }
 
+function getMissingMacAppBundlePath(appBundlePath) {
+  const requiredPaths = [
+    join(appBundlePath, "Contents", "Info.plist"),
+    join(appBundlePath, "Contents", "Resources"),
+    join(appBundlePath, "Contents", "Frameworks"),
+    join(appBundlePath, "Contents", "MacOS", "Electron"),
+  ];
+
+  return requiredPaths.find((requiredPath) => !existsSync(requiredPath));
+}
+
+function assertCompleteMacAppBundle(appBundlePath, context) {
+  const missingPath = getMissingMacAppBundlePath(appBundlePath);
+  if (!missingPath) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `${context} Electron app bundle is incomplete at ${appBundlePath}.`,
+      `Missing required path: ${missingPath}.`,
+      "Remove packages/electron/dist and packages/electron/path.txt, then run pnpm install again.",
+    ].join(" "),
+  );
+}
+
 function resolveDevIconPngPath() {
   if (existsSync(devIconPngPath)) {
     return devIconPngPath;
@@ -129,6 +155,7 @@ function compileIconComposerAssets(sourceAppBundlePath) {
   const generatedIconPath = join(generatedRoot, "icon.icns");
   const generatedAssetCatalogPath = join(generatedRoot, "Assets.car");
   const sourceMtimeMs = getTreeMtimeMs(devIconComposerPath);
+  mkdirSync(runtimeDir, { recursive: true });
 
   if (
     existsSync(generatedIconPath) &&
@@ -320,6 +347,8 @@ function hasExpectedFrameworkSymlinks(appBundlePath) {
 
 function buildMacLauncher(electronBinaryPath) {
   const sourceAppBundlePath = resolve(electronBinaryPath, "../../..");
+  assertCompleteMacAppBundle(sourceAppBundlePath, "Source");
+
   const targetAppBundlePath = join(
     runtimeDir,
     `${appBranding.dev.displayName}.app`,
@@ -362,6 +391,7 @@ function buildMacLauncher(electronBinaryPath) {
     recursive: true,
     verbatimSymlinks: true,
   });
+  assertCompleteMacAppBundle(targetAppBundlePath, "Copied runtime");
   patchMainBundleInfoPlist(targetAppBundlePath, iconAssets);
   writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
 
