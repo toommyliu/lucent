@@ -70,6 +70,11 @@ const isWindowPresented = (
 ): window is BrowserWindow =>
   Boolean(isWindowUsable(window) && window.isVisible() && !window.isMinimized());
 
+const isWindowHidden = (
+  window: BrowserWindow | null | undefined,
+): window is BrowserWindow =>
+  Boolean(isWindowUsable(window) && !window.isVisible() && !window.isMinimized());
+
 const createLoadFailure = (
   target: string,
   kind: "file" | "url",
@@ -295,6 +300,7 @@ export const makeWindowService = (
       if (lastFocusedPrimaryWindowId === gameWindowId) {
         lastFocusedPrimaryWindowId = null;
       }
+      quitIfOnlyHiddenAccountManagerRemains();
     });
   };
 
@@ -402,6 +408,16 @@ export const makeWindowService = (
     }
 
     return false;
+  };
+
+  const quitIfOnlyHiddenAccountManagerRemains = (): void => {
+    if (isQuitting || hasUsableGameWindow()) {
+      return;
+    }
+
+    if (isWindowHidden(resolveAccountManagerWindow())) {
+      config.quitApp();
+    }
   };
 
   const requireWindowDefinition = (

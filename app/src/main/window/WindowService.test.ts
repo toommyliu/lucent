@@ -458,6 +458,60 @@ describe("window service", () => {
     expect(harness.quitCalls).toBe(0);
   });
 
+  it("quits when the last game window closes with only a hidden account manager remaining", async () => {
+    const harness = createHarness();
+    const accountManager = (await run(
+      harness.service.openWindow(WindowIds.AccountManager),
+    )) as unknown as FakeWindow;
+    const gameWindow = (await run(
+      harness.service.openGameWindow(),
+    )) as unknown as FakeWindow;
+    accountManager.emit("ready-to-show");
+    gameWindow.emit("ready-to-show");
+
+    expect(accountManager.close()).toBe(true);
+    expect(gameWindow.close()).toBe(false);
+
+    expect(accountManager.hidden).toBe(true);
+    expect(harness.quitCalls).toBe(1);
+  });
+
+  it("keeps running when the last game window closes with a visible account manager", async () => {
+    const harness = createHarness();
+    const accountManager = (await run(
+      harness.service.openWindow(WindowIds.AccountManager),
+    )) as unknown as FakeWindow;
+    const gameWindow = (await run(
+      harness.service.openGameWindow(),
+    )) as unknown as FakeWindow;
+    accountManager.emit("ready-to-show");
+    gameWindow.emit("ready-to-show");
+
+    expect(gameWindow.close()).toBe(false);
+
+    expect(accountManager.visible).toBe(true);
+    expect(harness.quitCalls).toBe(0);
+  });
+
+  it("keeps running when the last game window closes with a minimized account manager", async () => {
+    const harness = createHarness();
+    const accountManager = (await run(
+      harness.service.openWindow(WindowIds.AccountManager),
+    )) as unknown as FakeWindow;
+    const gameWindow = (await run(
+      harness.service.openGameWindow(),
+    )) as unknown as FakeWindow;
+    accountManager.emit("ready-to-show");
+    gameWindow.emit("ready-to-show");
+    accountManager.visible = false;
+    accountManager.minimized = true;
+
+    expect(gameWindow.close()).toBe(false);
+
+    expect(accountManager.minimized).toBe(true);
+    expect(harness.quitCalls).toBe(0);
+  });
+
   it("lets the account manager close while quitting without requesting quit again", async () => {
     const harness = createHarness();
     const accountManager = (await run(
