@@ -1,0 +1,6 @@
+{
+  "installCommand": "pnpm --filter @lucent/docs... install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @lucent/docs build && if [ -d docs/dist ]; then rm -rf dist && cp -R docs/dist dist; elif [ -d dist ]; then true; else echo \"Docs build output not found\" >&2; exit 1; fi",
+  "outputDirectory": "dist",
+  "ignoreCommand": "git rev-parse --verify HEAD^ >/dev/null 2>&1 || exit 1; git diff HEAD^ HEAD --quiet -- docs/ scripts/docgen.ts scripts/gen-script-types.ts scripts/ts-ast-utils.ts app/src/renderer/windows/game/ app/src/shared/ packages/game/src/ packages/collection/src/"
+}

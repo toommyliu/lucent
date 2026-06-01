@@ -1,0 +1,14 @@
+{
+  "production": {
+    "displayName": "Lucent",
+    "bundleId": "com.app.lucent",
+    "iconPng": "icon.png",
+    "userDataDirName": "lucent"
+  },
+  "dev": {
+    "displayName": "Lucent (Dev)",
+    "bundleId": "com.app.lucent.dev",
+    "iconPng": "icon-dev.png",
+    "userDataDirName": "lucent-dev"
+  }
+}

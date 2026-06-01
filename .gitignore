@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+app/.electron-runtime/
+.astro/
+.DS_Store
+.vscode/settings.json
+*.lock

@@ -1,0 +1,1233 @@
+import { Server, type ServerData } from "@lucent/game";
+import { Effect, Exit, Fiber, Layer } from "effect";
+import { expect, test, vi } from "vitest";
+import { SwfCallError } from "../../flash/Errors";
+import {
+  Auth,
+  type AuthConnectOutcome,
+  type AuthShape,
+} from "../../flash/Services/Auth";
+import { Bridge, type BridgeShape } from "../../flash/Services/Bridge";
+import {
+  Jobs,
+  type JobsShape,
+  type PeriodicJobDefinition,
+} from "../../jobs/Services/Jobs";
+import { Player, type PlayerShape } from "../../flash/Services/Player";
+import { Settings, type SettingsShape } from "../../flash/Services/Settings";
+import { WaitLive } from "../../flash/Layers/Wait";
+import {
+  AutoRelogin,
+  type AutoReloginShape,
+  type AutoReloginState,
+} from "../Services/AutoRelogin";
+import { AutoReloginLive } from "./AutoRelogin";
+
+const twigServer: ServerData = {
+  bOnline: 1,
+  bUpg: 0,
+  iChat: 0,
+  iCount: 212,
+  iLevel: 0,
+  iMax: 1000,
+  iPort: 5589,
+  sIP: "sock8.aq.com",
+  sLang: "xx",
+  sName: "Twig",
+};
+
+const yorumiServer: ServerData = {
+  ...twigServer,
+  sName: "Yorumi",
+};
+
+const connectedOutcome = (serverName: string): AuthConnectOutcome => ({
+  status: "connected",
+  message: "connected",
+  retryable: false,
+  serverName,
+});
+
+const invalidCredentialsDetail =
+  "The username and password you entered did not match.\rPlease check the spelling and try again.";
+const authenticatingAccountDetail = "Authenticating Account Info...";
+
+type HarnessOptions = {
+  readonly bridgeLoggedIn?: boolean;
+  readonly connectOutcome?: AuthConnectOutcome;
+  readonly emitConnectionOnConnect?: boolean;
+  readonly iUpgDays?: number;
+  readonly invalidCredentials?: boolean;
+  readonly loginStalls?: boolean;
+  readonly logoutFails?: boolean;
+  readonly password?: string;
+  readonly playerReadyAfterConnectDelayMs?: number;
+  readonly playerReadyOnConnectOutcomes?: readonly boolean[];
+  readonly playerReadyFailures?: number;
+  readonly playerReadyOnConnect?: boolean;
+  readonly serverInfo?: string;
+  readonly serverSelectStalls?: boolean;
+  readonly servers?: readonly ServerData[];
+  readonly settingsApplyFails?: boolean;
+};
+
+type Harness = {
+  readonly authCalls: string[];
+  readonly jobsState: {
+    readonly definition: PeriodicJobDefinition | undefined;
+    readonly task: Effect.Effect<void, unknown> | undefined;
+  };
+  readonly emitConnection: (status: ConnectionStatus) => void;
+  readonly manualLogin: (server?: ServerData) => void;
+  readonly settingsPatches: readonly unknown[];
+};
+
+const withAutoRelogin = async <A>(
+  options: HarnessOptions,
+  body: (
+    autoRelogin: AutoReloginShape,
+    harness: Harness,
+  ) => Effect.Effect<A, unknown>,
+): Promise<A> => {
+  const authCalls: string[] = [];
+  const settingsPatches: unknown[] = [];
+  const connectionHandlers = new Set<(status: ConnectionStatus) => void>();
+  const jobsState: {
+    definition: PeriodicJobDefinition | undefined;
+    task: Effect.Effect<void, unknown> | undefined;
+  } = {
+    definition: undefined,
+    task: undefined,
+  };
+  let phase: "login" | "servers" | "game" = "login";
+  let playerReady = false;
+
+  const bridgeLoggedIn = options.bridgeLoggedIn ?? true;
+  let serverInfo = options.serverInfo ?? JSON.stringify(twigServer);
+  const iUpgDays = options.iUpgDays ?? 30;
+  const password = options.password ?? "secret-password";
+  const servers = options.servers ?? [twigServer];
+  let remainingPlayerReadyFailures = options.playerReadyFailures ?? 0;
+  const playerReadyOnConnectOutcomes = [
+    ...(options.playerReadyOnConnectOutcomes ?? []),
+  ];
+
+  const bridge = {
+    call<K extends keyof Window["swf"]>(
+      path: K,
+      args?: Parameters<Window["swf"][K]>,
+    ) {
+      return Effect.sync(() => {
+        if (path === "auth.isLoggedIn") {
+          return bridgeLoggedIn as ReturnType<Window["swf"][K]>;
+        }
+
+        if (path === "flash.getGameObject") {
+          const key = args?.[0];
+          if (key === "objServerInfo") {
+            return serverInfo as ReturnType<Window["swf"][K]>;
+          }
+
+          if (key === "mcLogin.currentLabel") {
+            return (
+              phase === "servers" && options.serverSelectStalls !== true
+                ? "Servers"
+                : "Login"
+            ) as ReturnType<Window["swf"][K]>;
+          }
+
+          if (key === "mcConnDetail.txtDetail.text") {
+            const detail =
+              options.invalidCredentials === true
+                ? invalidCredentialsDetail
+                : options.loginStalls === true
+                  ? authenticatingAccountDetail
+                  : "";
+            return detail as ReturnType<Window["swf"][K]>;
+          }
+
+          if (key === "currentLabel") {
+            return (phase === "game" ? "Game" : "Login") as ReturnType<
+              Window["swf"][K]
+            >;
+          }
+        }
+
+        if (path === "flash.isNull") {
+          return true as ReturnType<Window["swf"][K]>;
+        }
+
+        if (path === "flash.getConnMcText") {
+          const detail =
+            options.invalidCredentials === true
+              ? invalidCredentialsDetail
+              : options.loginStalls === true
+                ? authenticatingAccountDetail
+                : "loading";
+          return detail as ReturnType<Window["swf"][K]>;
+        }
+
+        if (path === "flash.isConnMcBackButtonVisible") {
+          return (options.loginStalls === true) as ReturnType<Window["swf"][K]>;
+        }
+
+        throw new Error(`unexpected bridge call: ${String(path)}`);
+      });
+    },
+    callGameFunction() {
+      return Effect.void;
+    },
+    onConnection(handler: (status: ConnectionStatus) => void) {
+      connectionHandlers.add(handler);
+      return Effect.succeed(() => {
+        connectionHandlers.delete(handler);
+      });
+    },
+  } satisfies BridgeShape;
+
+  const auth = {
+    connectTo(server: string) {
+      return Effect.gen(function* () {
+        authCalls.push(`connectTo:${server}`);
+        if (options.connectOutcome !== undefined) {
+          return options.connectOutcome;
+        }
+
+        phase = "game";
+        if (options.emitConnectionOnConnect === true) {
+          for (const handler of connectionHandlers) {
+            handler("OnConnection");
+          }
+        }
+
+        if (options.playerReadyAfterConnectDelayMs !== undefined) {
+          yield* Effect.sleep(
+            `${options.playerReadyAfterConnectDelayMs} millis`,
+          );
+        }
+        const readyOnConnect =
+          playerReadyOnConnectOutcomes.shift() ??
+          options.playerReadyOnConnect !== false;
+        if (readyOnConnect) {
+          playerReady = true;
+        }
+        return connectedOutcome(server);
+      });
+    },
+    getServers() {
+      return Effect.succeed(servers.map((server) => new Server(server)));
+    },
+    getUsername() {
+      return Effect.succeed("Hero");
+    },
+    getPassword() {
+      return Effect.succeed(password);
+    },
+    getLoginSession() {
+      return Effect.succeed({
+        ...twigServer,
+        bSuccess: 1,
+        iUpgDays,
+        iUpg: 1,
+        servers: [],
+        sToken: "",
+        unm: "Hero",
+      });
+    },
+    isLoggedIn() {
+      return Effect.succeed(bridgeLoggedIn);
+    },
+    isTemporarilyKicked() {
+      return Effect.succeed(false);
+    },
+    login(username: string, loginPassword: string) {
+      authCalls.push(`login:${username}:${loginPassword}`);
+      phase =
+        options.invalidCredentials === true || options.loginStalls === true
+          ? "login"
+          : "servers";
+      return Effect.void;
+    },
+    logout() {
+      authCalls.push("logout");
+      if (options.logoutFails === true) {
+        return Effect.fail(
+          new SwfCallError({
+            method: "auth.logout",
+            cause: "logout failed",
+          }),
+        );
+      }
+      return Effect.void;
+    },
+  } satisfies AuthShape;
+
+  const jobs = {
+    start() {
+      return Effect.succeed(true);
+    },
+    startPeriodic() {
+      return Effect.succeed(true);
+    },
+    startPeriodicJob(definition: PeriodicJobDefinition) {
+      jobsState.definition = definition;
+      jobsState.task = definition.task;
+      return Effect.succeed(true);
+    },
+    stop() {
+      jobsState.definition = undefined;
+      return Effect.succeed(true);
+    },
+    stopAll() {
+      jobsState.definition = undefined;
+      return Effect.void;
+    },
+    isRunning() {
+      return Effect.succeed(jobsState.definition !== undefined);
+    },
+    getRunningKeys() {
+      return Effect.succeed(
+        jobsState.definition === undefined ? [] : [jobsState.definition.key],
+      );
+    },
+  } satisfies JobsShape;
+
+  const player = {
+    isReady() {
+      return Effect.gen(function* () {
+        if (remainingPlayerReadyFailures > 0) {
+          remainingPlayerReadyFailures -= 1;
+          return yield* new SwfCallError({
+            method: "player.isLoaded",
+            cause: "player not ready",
+          });
+        }
+        return playerReady;
+      });
+    },
+  } as unknown as PlayerShape;
+
+  const settings = {
+    getState() {
+      return Effect.succeed({
+        collisionsEnabled: true,
+        deathAdsVisible: true,
+        effectsEnabled: true,
+        enemyMagnetEnabled: false,
+        frameRate: 24,
+        infiniteRangeEnabled: false,
+        lagKillerEnabled: true,
+        otherPlayersVisible: true,
+        provokeCellEnabled: false,
+        skipCutscenesEnabled: true,
+        walkSpeed: 8,
+      });
+    },
+    apply(patch: unknown) {
+      settingsPatches.push(patch);
+      if (options.settingsApplyFails === true) {
+        return Effect.fail(
+          new SwfCallError({
+            method: "settings.setLagKillerEnabled",
+            cause: "world unavailable",
+          }),
+        );
+      }
+      return Effect.void;
+    },
+  } as unknown as SettingsShape;
+
+  return await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const autoRelogin = yield* AutoRelogin;
+        return yield* body(autoRelogin, {
+          authCalls,
+          emitConnection(status) {
+            for (const handler of connectionHandlers) {
+              handler(status);
+            }
+          },
+          jobsState,
+          manualLogin(server = twigServer) {
+            serverInfo = JSON.stringify(server);
+            phase = "game";
+            playerReady = true;
+            for (const handler of connectionHandlers) {
+              handler("OnConnection");
+            }
+          },
+          settingsPatches,
+        });
+      }),
+    ).pipe(
+      Effect.provide(
+        AutoReloginLive.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(Auth)(auth),
+              Layer.succeed(Bridge)(bridge),
+              Layer.succeed(Jobs)(jobs),
+              Layer.succeed(Player)(player),
+              Layer.succeed(Settings)(settings),
+              WaitLive.pipe(Layer.provide(Layer.succeed(Bridge)(bridge))),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+};
+
+test("captures current session from objServerInfo without exposing password", async () => {
+  const state = await withAutoRelogin({}, (autoRelogin) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      return yield* autoRelogin.getState();
+    }),
+  );
+
+  expect(state).toMatchObject({
+    captured: true,
+    enabled: true,
+    server: "Twig",
+    username: "Hero",
+  });
+  expect(JSON.stringify(state)).not.toContain("secret-password");
+});
+
+test("enabling preserves a selected target server", async () => {
+  const result = await withAutoRelogin(
+    { servers: [twigServer, yorumiServer] },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.captureCurrentSession();
+        yield* autoRelogin.setServer("Yorumi");
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.state).toMatchObject({
+    captured: true,
+    enabled: true,
+    server: "Yorumi",
+    username: "Hero",
+  });
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Yorumi",
+  ]);
+});
+
+test("ignores null objServerInfo", async () => {
+  const state = await withAutoRelogin({ serverInfo: "null" }, (autoRelogin) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      return yield* autoRelogin.getState();
+    }),
+  );
+
+  expect(state.captured).toBe(false);
+  expect(state.lastError).toBe("current session is not capturable");
+});
+
+test("captures current session automatically on connection", async () => {
+  const state = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      harness.emitConnection("OnConnection");
+      yield* Effect.sleep("10 millis");
+      return yield* autoRelogin.getState();
+    }),
+  );
+
+  expect(state).toMatchObject({
+    captured: true,
+    enabled: false,
+    server: "Twig",
+    username: "Hero",
+  });
+});
+
+test("removes listener when initial state emit throws", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin) =>
+    Effect.gen(function* () {
+      let failingCalls = 0;
+      const exit = yield* Effect.exit(
+        autoRelogin.onState(() => {
+          failingCalls += 1;
+          throw new Error("listener failed");
+        }),
+      );
+
+      yield* autoRelogin.enable();
+
+      return {
+        failed: Exit.isFailure(exit),
+        failingCalls,
+      };
+    }),
+  );
+
+  expect(result.failed).toBe(true);
+  expect(result.failingCalls).toBe(1);
+});
+
+test("successful task logs in and connects to captured server", async () => {
+  const harness = await withAutoRelogin({}, (autoRelogin, currentHarness) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      yield* autoRelogin.setDelay(0);
+      yield* currentHarness.jobsState.task!;
+      return currentHarness;
+    }),
+  );
+
+  expect(harness.authCalls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(harness.settingsPatches).toEqual([
+    { lagKillerEnabled: false, skipCutscenesEnabled: false },
+    { lagKillerEnabled: true, skipCutscenesEnabled: true },
+  ]);
+});
+
+test("direct login without a server stops at server selection", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      const outcome = yield* autoRelogin.login({
+        username: "Hero",
+        password: "secret-password",
+      });
+      return {
+        calls: harness.authCalls,
+        outcome,
+        patches: harness.settingsPatches,
+      };
+    }),
+  );
+
+  expect(result.outcome).toEqual({ stage: "server-select" });
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.patches).toEqual([
+    { lagKillerEnabled: false, skipCutscenesEnabled: false },
+    { lagKillerEnabled: true, skipCutscenesEnabled: true },
+  ]);
+});
+
+test("direct login server selection prevents background relogin retry", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      yield* autoRelogin.setDelay(0);
+      harness.emitConnection("OnConnectionLost");
+      yield* Effect.sleep("10 millis");
+
+      const outcome = yield* autoRelogin.login({
+        username: "Hero",
+        password: "secret-password",
+      });
+      yield* harness.jobsState.task!;
+
+      return {
+        calls: harness.authCalls,
+        outcome,
+        state: yield* autoRelogin.getState(),
+      };
+    }),
+  );
+
+  expect(result.outcome).toEqual({ stage: "server-select" });
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state.attempting).toBe(false);
+  expect(result.state.waitingDelay).toBe(false);
+});
+
+test("direct login with a server waits for player readiness", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      const outcome = yield* autoRelogin.login({
+        username: "Hero",
+        password: "secret-password",
+        server: "Twig",
+      });
+      return {
+        calls: harness.authCalls,
+        outcome,
+      };
+    }),
+  );
+
+  expect(result.outcome).toEqual({ stage: "player-ready" });
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+});
+
+test("direct login publishes busy and success state", async () => {
+  const states: AutoReloginState[] = [];
+  const result = await withAutoRelogin(
+    { playerReadyAfterConnectDelayMs: 10 },
+    (autoRelogin) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.onState((state) => {
+          states.push(state);
+        });
+
+        const outcome = yield* autoRelogin.login({
+          username: "Hero",
+          password: "secret-password",
+          server: "Twig",
+        });
+
+        return {
+          outcome,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.outcome).toEqual({ stage: "player-ready" });
+  expect(states.some((state) => state.attempting)).toBe(true);
+  expect(result.state.attempting).toBe(false);
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("direct login publishes failed state", async () => {
+  const states: AutoReloginState[] = [];
+  const result = await withAutoRelogin(
+    { invalidCredentials: true },
+    (autoRelogin) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.onState((state) => {
+          states.push(state);
+        });
+
+        const exit = yield* Effect.exit(
+          autoRelogin.login({
+            username: "Hero",
+            password: "wrong-password",
+            server: "Twig",
+          }),
+        );
+
+        return {
+          exit,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(Exit.isFailure(result.exit)).toBe(true);
+  expect(states.some((state) => state.attempting)).toBe(true);
+  expect(result.state.attempting).toBe(false);
+  expect(result.state.lastError).toBe("invalid username or password");
+});
+
+test("direct login fails explicitly when credentials are invalid", async () => {
+  const result = await withAutoRelogin(
+    { invalidCredentials: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          autoRelogin.login({
+            username: "Hero",
+            password: "wrong-password",
+            server: "Twig",
+          }),
+        );
+        return {
+          calls: harness.authCalls,
+          exit,
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:wrong-password"]);
+  expect(Exit.isFailure(result.exit)).toBe(true);
+  expect(
+    Exit.match(result.exit, {
+      onFailure: (cause) => String(cause),
+      onSuccess: () => "",
+    }),
+  ).toContain("invalid username or password");
+});
+
+test("direct login cancels and fails explicitly when authentication stalls", async () => {
+  const result = await withAutoRelogin(
+    { loginStalls: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          autoRelogin.login({
+            username: "Hero",
+            password: "secret-password",
+            server: "Twig",
+          }),
+        );
+        return {
+          calls: harness.authCalls,
+          exit,
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password", "logout"]);
+  expect(Exit.isFailure(result.exit)).toBe(true);
+  expect(
+    Exit.match(result.exit, {
+      onFailure: (cause) => String(cause),
+      onSuccess: () => "",
+    }),
+  ).toContain(
+    "login did not reach server select: Authenticating Account Info...",
+  );
+});
+
+test("direct login retries after connected player stays unready", async () => {
+  const result = await withAutoRelogin(
+    {
+      playerReadyOnConnectOutcomes: [false, true],
+    },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        const outcome = yield* autoRelogin.login({
+          username: "Hero",
+          password: "secret-password",
+          server: "Twig",
+        });
+        return {
+          calls: harness.authCalls,
+          outcome,
+        };
+      }),
+  );
+
+  expect(result.outcome).toEqual({ stage: "player-ready" });
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+    "logout",
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+}, 25_000);
+
+test("socket connection during relogin does not interrupt before player ready", async () => {
+  const result = await withAutoRelogin(
+    {
+      emitConnectionOnConnect: true,
+      playerReadyAfterConnectDelayMs: 150,
+    },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(result.state).toMatchObject({
+    attempting: false,
+    server: "Twig",
+  });
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("waits delayMs after logout before attempting", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      yield* autoRelogin.setDelay(50);
+      yield* harness.jobsState.task!;
+      const beforeDelay = [...harness.authCalls];
+      yield* Effect.sleep("60 millis");
+      yield* harness.jobsState.task!;
+      return {
+        beforeDelay,
+        calls: harness.authCalls,
+      };
+    }),
+  );
+
+  expect(result.beforeDelay).toEqual([]);
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+});
+
+test("does not logout steady-state connected player while still loading", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  try {
+    const harness = await withAutoRelogin({}, (autoRelogin, currentHarness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        currentHarness.emitConnection("OnConnection");
+        yield* Effect.sleep("10 millis");
+
+        now.mockReturnValue(11_000);
+        yield* currentHarness.jobsState.task!;
+        return currentHarness;
+      }),
+    );
+
+    expect(harness.authCalls).toEqual([]);
+  } finally {
+    now.mockRestore();
+  }
+});
+
+test("connected unready session waits before logout", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  try {
+    const result = await withAutoRelogin(
+      { playerReadyOnConnect: false },
+      (autoRelogin, harness) =>
+        Effect.gen(function* () {
+          yield* autoRelogin.enable();
+          yield* autoRelogin.setDelay(0);
+          harness.emitConnection("OnConnectionLost");
+          yield* Effect.sleep("10 millis");
+          harness.emitConnection("OnConnection");
+          yield* Effect.sleep("10 millis");
+
+          now.mockReturnValue(10_999);
+          yield* harness.jobsState.task!;
+          return {
+            calls: harness.authCalls,
+            state: yield* autoRelogin.getState(),
+          };
+        }),
+    );
+
+    expect(result.calls).toEqual([]);
+    expect(result.state.lastError).toBeUndefined();
+  } finally {
+    now.mockRestore();
+  }
+});
+
+test("connected unready missing capture reports once", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  const states: AutoReloginState[] = [];
+  try {
+    const result = await withAutoRelogin(
+      { serverInfo: "null" },
+      (autoRelogin, harness) =>
+        Effect.gen(function* () {
+          yield* autoRelogin.onState((state) => {
+            states.push(state);
+          });
+          yield* autoRelogin.enable();
+          yield* autoRelogin.setDelay(0);
+          harness.emitConnection("OnConnectionLost");
+          yield* Effect.sleep("10 millis");
+          harness.emitConnection("OnConnection");
+          yield* Effect.sleep("10 millis");
+          states.length = 0;
+
+          now.mockReturnValue(11_000);
+          yield* harness.jobsState.task!;
+          const emittedAfterFirstRun = states.length;
+
+          now.mockReturnValue(12_000);
+          yield* harness.jobsState.task!;
+          return {
+            emittedAfterFirstRun,
+            emittedAfterSecondRun: states.length,
+            state: yield* autoRelogin.getState(),
+          };
+        }),
+    );
+
+    expect(result.emittedAfterFirstRun).toBe(1);
+    expect(result.emittedAfterSecondRun).toBe(1);
+    expect(result.state.lastError).toBe("current session is not capturable");
+  } finally {
+    now.mockRestore();
+  }
+});
+
+test("connected unready session logs out and retries relogin after timeout", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  try {
+    const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        harness.emitConnection("OnConnectionLost");
+        yield* Effect.sleep("10 millis");
+        harness.emitConnection("OnConnection");
+        yield* Effect.sleep("10 millis");
+
+        now.mockReturnValue(11_000);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+    );
+
+    expect(result.calls).toEqual([
+      "logout",
+      "login:Hero:secret-password",
+      "connectTo:Twig",
+    ]);
+    expect(result.state.lastError).toBeUndefined();
+    expect(result.state.attempting).toBe(false);
+  } finally {
+    now.mockRestore();
+  }
+});
+
+test("connected unready session stops when recovery logout fails", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  try {
+    const result = await withAutoRelogin(
+      { logoutFails: true },
+      (autoRelogin, harness) =>
+        Effect.gen(function* () {
+          yield* autoRelogin.enable();
+          yield* autoRelogin.setDelay(0);
+          harness.emitConnection("OnConnectionLost");
+          yield* Effect.sleep("10 millis");
+          harness.emitConnection("OnConnection");
+          yield* Effect.sleep("10 millis");
+
+          now.mockReturnValue(11_000);
+          yield* harness.jobsState.task!;
+          return {
+            calls: harness.authCalls,
+            state: yield* autoRelogin.getState(),
+          };
+        }),
+    );
+
+    expect(result.calls).toEqual(["logout"]);
+    expect(result.state.enabled).toBe(false);
+    expect(result.state.lastError).toBe("logout failed");
+  } finally {
+    now.mockRestore();
+  }
+});
+
+test("starts delay from connection lost event", async () => {
+  const result = await withAutoRelogin({}, (autoRelogin, harness) =>
+    Effect.gen(function* () {
+      yield* autoRelogin.enable();
+      yield* autoRelogin.setDelay(50);
+      harness.emitConnection("OnConnection");
+      yield* Effect.sleep("10 millis");
+      harness.emitConnection("OnConnectionLost");
+      yield* Effect.sleep("60 millis");
+      yield* harness.jobsState.task!;
+      return harness.authCalls;
+    }),
+  );
+
+  expect(result).toEqual(["login:Hero:secret-password", "connectTo:Twig"]);
+});
+
+test("transient player readiness bridge failures do not fail relogin", async () => {
+  const result = await withAutoRelogin(
+    { playerReadyFailures: 2 },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("temporary setting failures do not block relogin", async () => {
+  const result = await withAutoRelogin(
+    { settingsApplyFails: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("non-retryable connect outcome stops relogin after one attempt", async () => {
+  const result = await withAutoRelogin(
+    {
+      connectOutcome: {
+        status: "member-only",
+        message: "account is not authorized for member-only servers",
+        retryable: false,
+        serverName: "Twig",
+      },
+    },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(result.state.lastError).toContain("member-only");
+});
+
+test("invalid captured credentials stop relogin without retrying", async () => {
+  const result = await withAutoRelogin(
+    { invalidCredentials: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state).toMatchObject({
+    enabled: false,
+    attempting: false,
+    lastError: "invalid username or password",
+  });
+  expect(result.state.attemptsRemaining).toBeUndefined();
+});
+
+test("server selection during attempt is ignored", async () => {
+  const result = await withAutoRelogin(
+    { serverSelectStalls: true, servers: [twigServer, yorumiServer] },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task!, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("10 millis");
+        const selectedState = yield* autoRelogin.setServer("Yorumi");
+        yield* autoRelogin.disable();
+        yield* Fiber.join(fiber);
+        return {
+          calls: harness.authCalls,
+          selectedState,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.selectedState).toMatchObject({
+    attempting: true,
+    server: "Twig",
+    lastError: "cannot change server while reconnecting",
+  });
+  expect(result.state).toMatchObject({
+    attempting: false,
+    server: "Twig",
+  });
+});
+
+test("manual login during attempt interrupts without reconnecting captured server", async () => {
+  const result = await withAutoRelogin(
+    { serverSelectStalls: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task!, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("10 millis");
+        harness.manualLogin(yorumiServer);
+        yield* Fiber.join(fiber);
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state).toMatchObject({
+    attempting: false,
+    server: "Yorumi",
+  });
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("manual login during owned connection interrupts when server changes", async () => {
+  const result = await withAutoRelogin(
+    {
+      emitConnectionOnConnect: true,
+      playerReadyAfterConnectDelayMs: 500,
+    },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task!, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("1100 millis");
+        harness.manualLogin(yorumiServer);
+        yield* Fiber.join(fiber);
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual([
+    "login:Hero:secret-password",
+    "connectTo:Twig",
+  ]);
+  expect(result.state).toMatchObject({
+    attempting: false,
+    server: "Yorumi",
+  });
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("disable during attempt interrupts without reconnecting", async () => {
+  const result = await withAutoRelogin(
+    { serverSelectStalls: true },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task!, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("10 millis");
+        yield* autoRelogin.disable();
+        yield* Fiber.join(fiber);
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state).toMatchObject({
+    attempting: false,
+    enabled: false,
+  });
+  expect(result.state.lastError).toBeUndefined();
+});
+
+test("does not choose another server when captured server is unavailable", async () => {
+  const result = await withAutoRelogin(
+    { servers: [yorumiServer] },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state.lastError).toContain("Cannot use Twig");
+  expect(result.state.lastError).toContain("server unavailable");
+});
+
+test("rejects member-only server when iUpgDays is negative", async () => {
+  const memberServer = {
+    ...twigServer,
+    bUpg: 1,
+  };
+
+  const result = await withAutoRelogin(
+    {
+      iUpgDays: -1,
+      serverInfo: JSON.stringify(memberServer),
+      servers: [memberServer],
+    },
+    (autoRelogin, harness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* harness.jobsState.task!;
+        return {
+          calls: harness.authCalls,
+          state: yield* autoRelogin.getState(),
+        };
+      }),
+  );
+
+  expect(result.calls).toEqual(["login:Hero:secret-password"]);
+  expect(result.state.lastError).toContain("Cannot use Twig");
+  expect(result.state.lastError).toContain("member-only");
+});
+
+test("missing captured session does not attempt login", async () => {
+  const harness = await withAutoRelogin(
+    { serverInfo: "null" },
+    (autoRelogin, currentHarness) =>
+      Effect.gen(function* () {
+        yield* autoRelogin.enable();
+        yield* autoRelogin.setDelay(0);
+        yield* currentHarness.jobsState.task!;
+        return currentHarness;
+      }),
+  );
+
+  expect(harness.authCalls).toEqual([]);
+});

@@ -1,0 +1,48 @@
+{
+  "name": "lucent",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "as3": "pnpm run as3:bridge && pnpm run as3:build",
+    "as3:bridge": "tsx scripts/gen-as3-bridge.ts",
+    "as3:build": "tsx scripts/build-as3-swf.ts",
+    "clean": "tsx scripts/clean.ts",
+    "dev": "tsx scripts/dev-runner.ts dev",
+    "dev:app": "tsx scripts/dev-runner.ts app",
+    "dev:docs": "tsx scripts/dev-runner.ts docs",
+    "dist:app": "tsx scripts/build-desktop-artifact.ts",
+    "dist:app:all": "tsx scripts/build-desktop-artifact.ts --platform all",
+    "dist:app:linux": "tsx scripts/build-desktop-artifact.ts --platform linux",
+    "dist:app:mac": "tsx scripts/build-desktop-artifact.ts --platform mac",
+    "dist:app:win": "tsx scripts/build-desktop-artifact.ts --platform win",
+    "docgen": "tsx scripts/docgen.ts && tsx scripts/gen-script-types.ts",
+    "icons:build": "tsx scripts/build-icons.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --check",
+    "format:write": "oxfmt",
+    "prepare": "effect-language-service patch && effect-tsgo patch",
+    "release": "tsx scripts/release.ts",
+    "test": "pnpm -r --if-present test",
+    "test:watch": "pnpm -r --if-present test:watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.43"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.84.3",
+    "@effect/platform-node": "4.0.0-beta.43",
+    "@effect/tsgo": "0.11.0",
+    "@types/node": "^24.12.2",
+    "@typescript/native-preview": "7.0.0-dev.20260524.1",
+    "asconfigc": "^1.9.0",
+    "git-cliff": "^2.9.1",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
+    "tsx": "^4.21.0",
+    "typedoc": "^0.28.19",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

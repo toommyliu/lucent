@@ -1,0 +1,79 @@
+import type {
+  Aura,
+  Avatar,
+  AvatarData,
+  Monster,
+  MonsterData,
+} from "@lucent/game";
+import type { Collection } from "@lucent/collection";
+import { ServiceMap } from "effect";
+import type { Effect, Option } from "effect";
+import type { BridgeEffect } from "./Bridge";
+
+export interface WorldMapShape {
+  // Bridge methods
+  getCellMonsters(): BridgeEffect<Monster[]>;
+  getCells(): BridgeEffect<string[]>;
+  getCellPads(): BridgeEffect<string[]>;
+  isLoaded(): BridgeEffect<boolean>;
+  getMapItem(itemId: number): BridgeEffect<void>;
+  loadSwf(path: string): BridgeEffect<void>;
+  reload(): BridgeEffect<void>;
+  setSpawnPoint(cell?: string, pad?: string): BridgeEffect<void>;
+
+  // State methods
+  getName(): Effect.Effect<string>;
+  getId(): Effect.Effect<number>;
+  getRoomNumber(): Effect.Effect<number>;
+  setName(name: string): Effect.Effect<void>;
+  setId(id: number): Effect.Effect<void>;
+  setRoomNumber(roomNumber: number): Effect.Effect<void>;
+  reset(): Effect.Effect<void>;
+}
+
+export interface WorldPlayersShape {
+  register(username: string, entId: number): Effect.Effect<void>;
+  unregister(username: string): Effect.Effect<void>;
+  add(data: AvatarData): Effect.Effect<void>;
+  remove(username: string): Effect.Effect<void>;
+  setSelf(username: string): Effect.Effect<void>;
+  getAll(): Effect.Effect<Collection<string, Avatar>>;
+  getSelf(): Effect.Effect<Option.Option<Avatar>>;
+  withSelf<A>(f: (self: Avatar) => A): Effect.Effect<Option.Option<A>>;
+  get(username: string): Effect.Effect<Option.Option<Avatar>>;
+  getByName(name: string): Effect.Effect<Option.Option<Avatar>>;
+  addAura(entId: number, aura: Aura): Effect.Effect<void>;
+  updateAura(entId: number, aura: Aura): Effect.Effect<void>;
+  removeAura(entId: number, auraName: string): Effect.Effect<void>;
+  getAuras(entId: number): Effect.Effect<readonly Aura[]>;
+  getAura(entId: number, auraName: string): Effect.Effect<Option.Option<Aura>>;
+  clearAuras(entId: number): Effect.Effect<void>;
+}
+
+export interface WorldMonstersShape {
+  getAll(): Effect.Effect<Collection<number, Monster>>;
+  add(data: MonsterData): Effect.Effect<void>;
+  get(monMapId: number): Effect.Effect<Option.Option<Monster>>;
+  findByName(
+    name: string,
+    cell?: string,
+  ): Effect.Effect<Option.Option<Monster>>;
+  addAura(monMapId: number, aura: Aura): Effect.Effect<void>;
+  updateAura(monMapId: number, aura: Aura): Effect.Effect<void>;
+  removeAura(monMapId: number, auraName: string): Effect.Effect<void>;
+  getAura(
+    monMapId: number,
+    auraName: string,
+  ): Effect.Effect<Option.Option<Aura>>;
+  clearAuras(monMapId: number): Effect.Effect<void>;
+}
+
+export interface WorldShape {
+  map: WorldMapShape;
+  players: WorldPlayersShape;
+  monsters: WorldMonstersShape;
+}
+
+export class World extends ServiceMap.Service<World, WorldShape>()(
+  "flash/Services/World",
+) {}
