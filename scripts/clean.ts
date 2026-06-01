@@ -1,4 +1,4 @@
-import { readdir, readFile, rm } from "node:fs/promises";
+import { access, readdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -9,7 +9,13 @@ import { Command, Flag } from "effect/unstable/cli";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
-const CLEAN_DIRECTORY_NAMES = new Set(["node_modules", "dist", "build"]);
+const CLEAN_DIRECTORY_NAMES = new Set([
+  ".electron-runtime",
+  "node_modules",
+  "dist",
+  "build",
+]);
+const CLEAN_FILE_PATHS = [join(REPO_ROOT, "packages", "electron", "path.txt")];
 
 type CliInput = {
   dryRun: boolean;
@@ -91,6 +97,17 @@ const findCleanTargets = (): Effect.Effect<ReadonlyArray<string>, CleanError> =>
       });
 
     yield* visit(REPO_ROOT);
+    for (const path of CLEAN_FILE_PATHS) {
+      const exists = yield* Effect.promise(() =>
+        access(path).then(
+          () => true,
+          () => false,
+        ),
+      );
+      if (exists) {
+        targets.push(path);
+      }
+    }
 
     return targets.sort((left, right) =>
       toRelativePath(left).localeCompare(toRelativePath(right)),
