@@ -22,7 +22,7 @@ const base = {
 const solidRendererTargets = [
   {
     name: "game",
-    entryPoint: "./src/renderer/windows/game/App.tsx",
+    entryPoint: "./src/renderer/windows/game/index.ts",
     html: "src/renderer/windows/game/index.html",
   },
   {
@@ -124,7 +124,9 @@ function selectDevBuildNotifyLabel(labels) {
 
   if (
     labels.length > 0 &&
-    labels.every((label) => label === "renderer" || label === "renderer-html")
+    labels.every((label) =>
+      ["renderer", "renderer-bootstrap", "renderer-html"].includes(label),
+    )
   ) {
     return "renderer";
   }
@@ -282,6 +284,19 @@ function createPreloadBuildOptions() {
   };
 }
 
+function createAppearanceBootstrapBuildOptions() {
+  return {
+    ...base,
+    entryPoints: ["./src/renderer/appearance-bootstrap.ts"],
+    bundle: true,
+    platform: "browser",
+    target: "chrome87",
+    format: "iife",
+    outfile: "dist/renderer/appearance-bootstrap.js",
+    plugins: [createDevBuildNotifyPlugin("renderer-bootstrap")],
+  };
+}
+
 function createRendererBuildOptions() {
   return {
     ...base,
@@ -289,9 +304,12 @@ function createRendererBuildOptions() {
     bundle: true,
     platform: "browser",
     target: "chrome87",
+    format: "esm",
+    splitting: true,
     conditions: ["solid", "browser"],
     outdir: "dist/renderer",
     entryNames: "[dir]/[name]",
+    chunkNames: "chunks/[name]-[hash]",
     assetNames: "assets/[name]-[hash]",
     loader: {
       ".woff2": "file",
@@ -331,6 +349,7 @@ async function buildOnce() {
   await Promise.all([
     build(createMainBuildOptions()),
     build(createPreloadBuildOptions()),
+    build(createAppearanceBootstrapBuildOptions()),
     build(createRendererBuildOptions()),
   ]);
   console.log("Build complete.");
@@ -340,6 +359,9 @@ async function watchBuild() {
   const parentPid = process.ppid;
   const mainContext = await context(createMainBuildOptions());
   const preloadContext = await context(createPreloadBuildOptions());
+  const appearanceBootstrapContext = await context(
+    createAppearanceBootstrapBuildOptions(),
+  );
   const rendererContext = await context(createRendererBuildOptions());
 
   copyRendererHtml();
@@ -347,6 +369,7 @@ async function watchBuild() {
   await Promise.all([
     mainContext.watch({ delay: 100 }),
     preloadContext.watch({ delay: 100 }),
+    appearanceBootstrapContext.watch({ delay: 100 }),
     rendererContext.watch({ delay: 100 }),
   ]);
 
@@ -389,6 +412,7 @@ async function watchBuild() {
     await Promise.allSettled([
       mainContext.dispose(),
       preloadContext.dispose(),
+      appearanceBootstrapContext.dispose(),
       rendererContext.dispose(),
     ]);
     clearTimeout(forceExitTimer);

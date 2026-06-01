@@ -6,9 +6,12 @@ import {
 import { pathToFileURL } from "url";
 import { Effect, Layer } from "effect";
 import {
+  appendAppearanceSnapshotToUrl,
   serializeAppearanceSnapshotArgument,
   type AppearanceSnapshot,
 } from "../../shared/appearance-snapshot";
+import { serializeSettingsSnapshotArgument } from "../../shared/settings-snapshot";
+import type { AppSettings } from "../../shared/settings";
 import {
   getWindowDefinition,
   isAppWindowDefinition,
@@ -30,6 +33,7 @@ import {
   type ElectronWindowRuntime,
   type WindowManagerConfig,
   type WindowServiceShape,
+  type WindowStartupContext,
 } from "./WindowTypes";
 
 export {
@@ -48,6 +52,7 @@ export {
   type ElectronWindowRuntime,
   type WindowEffectRunner,
   type WindowManagerConfig,
+  type WindowStartupContext,
   type WindowServiceShape,
 } from "./WindowTypes";
 
@@ -102,6 +107,7 @@ const getWindowDimensions = (definition: WindowDefinition) =>
 const createWebPreferences = (
   config: WindowManagerConfig,
   appearanceSnapshot: AppearanceSnapshot,
+  settingsSnapshot: AppSettings,
   options?: { readonly plugins?: boolean },
 ): NonNullable<BrowserWindowConstructorOptions["webPreferences"]> => ({
   preload: config.preloadPath,
@@ -109,6 +115,7 @@ const createWebPreferences = (
   contextIsolation: true,
   additionalArguments: [
     serializeAppearanceSnapshotArgument(appearanceSnapshot),
+    serializeSettingsSnapshotArgument(settingsSnapshot),
   ],
   ...(options?.plugins ? { plugins: true } : {}),
 });
@@ -132,27 +139,33 @@ const denyRendererWindowOpen = (window: BrowserWindow): void => {
 
 const createGameWindowOptions = (
   config: WindowManagerConfig,
+  appearanceSnapshot: AppearanceSnapshot,
+  settingsSnapshot: AppSettings,
 ): BrowserWindowConstructorOptions => {
-  const appearanceSnapshot = config.getAppearanceSnapshot();
-
   return {
     backgroundColor: appearanceSnapshot.backgroundColor,
     ...(config.platform === "linux" ? { icon: config.appIconPath } : {}),
     width: 1024,
     height: 768,
     show: false,
-    webPreferences: createWebPreferences(config, appearanceSnapshot, {
-      plugins: true,
-    }),
+    webPreferences: createWebPreferences(
+      config,
+      appearanceSnapshot,
+      settingsSnapshot,
+      {
+        plugins: true,
+      },
+    ),
   };
 };
 
 const createCatalogWindowOptions = (
   config: WindowManagerConfig,
   definition: WindowDefinition,
+  appearanceSnapshot: AppearanceSnapshot,
+  settingsSnapshot: AppSettings,
 ): BrowserWindowConstructorOptions => {
   const dimensions = getWindowDimensions(definition);
-  const appearanceSnapshot = config.getAppearanceSnapshot();
   const options: BrowserWindowConstructorOptions = {
     backgroundColor: appearanceSnapshot.backgroundColor,
     ...(config.platform === "linux" ? { icon: config.appIconPath } : {}),
@@ -160,7 +173,11 @@ const createCatalogWindowOptions = (
     width: dimensions.width,
     height: dimensions.height,
     show: false,
-    webPreferences: createWebPreferences(config, appearanceSnapshot),
+    webPreferences: createWebPreferences(
+      config,
+      appearanceSnapshot,
+      settingsSnapshot,
+    ),
   };
 
   if (typeof dimensions.minWidth === "number") {
@@ -185,6 +202,21 @@ export const makeWindowService = (
   let isQuitting = false;
   let lastFocusedGameWindowId: number | null = null;
   let lastFocusedPrimaryWindowId: number | null = null;
+
+  const createStartupSnapshots = () => {
+    const settingsSnapshot = config.getSettingsSnapshot();
+    return {
+      appearanceSnapshot: config.getAppearanceSnapshot(settingsSnapshot),
+      settingsSnapshot,
+    };
+  };
+
+  const notifyWindowCreated = (
+    window: BrowserWindow,
+    context: WindowStartupContext,
+  ): void => {
+    config.onWindowCreated?.(window, context);
+  };
 
   const getGameWindowIdSync = (windowId: number): number | undefined => {
     if (gameWindows.has(windowId)) {
@@ -445,28 +477,42 @@ export const makeWindowService = (
 
   const loadGameRenderer = (
     window: BrowserWindow,
+    appearanceSnapshot: AppearanceSnapshot,
   ): Effect.Effect<void, WindowManagerError> =>
-    loadWindow(window, config.gameWindowHtmlPath, "file");
+    loadWindow(
+      window,
+      appendAppearanceSnapshotToUrl(
+        pathToFileURL(config.gameWindowHtmlPath),
+        appearanceSnapshot,
+      ),
+      "url",
+    );
 
   const loadCatalogRenderer = (
     window: BrowserWindow,
     definition: WindowDefinition,
+    appearanceSnapshot: AppearanceSnapshot,
   ): Effect.Effect<void, WindowManagerError> => {
-    const url = pathToFileURL(config.windowHtmlPath(definition.id));
-    return loadWindow(window, url.toString(), "url");
+    const url = appendAppearanceSnapshotToUrl(
+      pathToFileURL(config.windowHtmlPath(definition.id)),
+      appearanceSnapshot,
+    );
+    return loadWindow(window, url, "url");
   };
 
   const openGameWindow: WindowServiceShape["openGameWindow"] = () =>
     Effect.gen(function* () {
+      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
       const window = yield* createManagedWindow(
-        createGameWindowOptions(config),
+        createGameWindowOptions(config, appearanceSnapshot, settingsSnapshot),
       );
 
+      notifyWindowCreated(window, { kind: "game", label: "Game" });
       config.onGameWindowCreated?.(window);
       registerGameWindow(window);
       revealWhenReady(window);
 
-      yield* loadGameRenderer(window).pipe(
+      yield* loadGameRenderer(window, appearanceSnapshot).pipe(
         Effect.catch((error: WindowManagerError) =>
           Effect.sync(() => {
             unregisterGameWindow(window);
@@ -507,11 +553,22 @@ export const makeWindowService = (
         return existing;
       }
 
+      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
       const childWindow = yield* createManagedWindow(
-        createCatalogWindowOptions(config, definition),
+        createCatalogWindowOptions(
+          config,
+          definition,
+          appearanceSnapshot,
+          settingsSnapshot,
+        ),
       );
       const childWindowId = childWindow.id;
 
+      notifyWindowCreated(childWindow, {
+        kind: "game-child",
+        id: definition.id,
+        label: definition.label,
+      });
       entry.childWindows.set(definition.id, childWindow);
       parentGameWindowIds.set(childWindowId, gameWindowId);
       revealWhenReady(childWindow);
@@ -531,7 +588,11 @@ export const makeWindowService = (
         cleanupDestroyedChild(gameWindowId, definition.id, childWindowId);
       });
 
-      yield* loadCatalogRenderer(childWindow, definition).pipe(
+      yield* loadCatalogRenderer(
+        childWindow,
+        definition,
+        appearanceSnapshot,
+      ).pipe(
         Effect.catch((error: WindowManagerError) =>
           Effect.sync(() => {
             cleanupDestroyedChild(gameWindowId, definition.id, childWindowId);
@@ -553,10 +614,21 @@ export const makeWindowService = (
         return existing;
       }
 
+      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
       const appWindow = yield* createManagedWindow(
-        createCatalogWindowOptions(config, definition),
+        createCatalogWindowOptions(
+          config,
+          definition,
+          appearanceSnapshot,
+          settingsSnapshot,
+        ),
       );
 
+      notifyWindowCreated(appWindow, {
+        kind: "app",
+        id: definition.id,
+        label: definition.label,
+      });
       appWindows.set(definition.id, appWindow);
       revealWhenReady(appWindow);
 
@@ -595,7 +667,11 @@ export const makeWindowService = (
         }
       });
 
-      yield* loadCatalogRenderer(appWindow, definition).pipe(
+      yield* loadCatalogRenderer(
+        appWindow,
+        definition,
+        appearanceSnapshot,
+      ).pipe(
         Effect.catch((error: WindowManagerError) =>
           Effect.sync(() => {
             appWindows.delete(definition.id);

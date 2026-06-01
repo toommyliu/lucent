@@ -674,6 +674,7 @@ export interface SettingsRendererEventChannels {
 }
 
 export interface SettingsBridge {
+  readonly initial: AppSettings | null;
   get(): Promise<AppSettings>;
   updatePreferences(patch: PreferencesPatch): Promise<AppSettings>;
   updateAppearance(patch: AppearancePatch): Promise<AppSettings>;

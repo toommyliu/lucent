@@ -5,10 +5,13 @@ import {
   type Appearance,
 } from "./settings";
 import {
+  appendAppearanceSnapshotToUrl,
   applyAppearanceSnapshotToDocument,
   createAppearanceSnapshot,
   readAppearanceSnapshotArgument,
+  readAppearanceSnapshotSearchParams,
   serializeAppearanceSnapshotArgument,
+  serializeAppearanceSnapshotSearchParam,
 } from "./appearance-snapshot";
 
 const lightAppearance: Appearance = {
@@ -129,6 +132,44 @@ describe("appearance snapshot", () => {
         "electron",
         `--appearance-snapshot=${encodeURIComponent("{}")}`,
       ]),
+    ).toBeNull();
+  });
+
+  it("serializes and reads an appearance snapshot URL search param", () => {
+    const snapshot = createAppearanceSnapshot(lightAppearance, false);
+    const searchParam = serializeAppearanceSnapshotSearchParam(snapshot);
+
+    expect(readAppearanceSnapshotSearchParams(`?${searchParam}`)).toEqual(
+      snapshot,
+    );
+    expect(
+      readAppearanceSnapshotSearchParams(
+        new URLSearchParams(`other=value&${searchParam}`),
+      ),
+    ).toEqual(snapshot);
+  });
+
+  it("appends an appearance snapshot to a URL", () => {
+    const snapshot = createAppearanceSnapshot(lightAppearance, false);
+    const url = appendAppearanceSnapshotToUrl(
+      "file:///renderer/settings/index.html?existing=true",
+      snapshot,
+    );
+    const parsed = new URL(url);
+
+    expect(parsed.searchParams.get("existing")).toBe("true");
+    expect(readAppearanceSnapshotSearchParams(parsed.search)).toEqual(snapshot);
+  });
+
+  it("ignores missing or malformed appearance snapshot URL search params", () => {
+    expect(readAppearanceSnapshotSearchParams("")).toBeNull();
+    expect(
+      readAppearanceSnapshotSearchParams("?appearance-snapshot=%"),
+    ).toBeNull();
+    expect(
+      readAppearanceSnapshotSearchParams(
+        `?appearance-snapshot=${encodeURIComponent("{}")}`,
+      ),
     ).toBeNull();
   });
 

@@ -4,10 +4,20 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createAppearanceSnapshot,
+  readAppearanceSnapshotSearchParams,
   serializeAppearanceSnapshotArgument,
   type AppearanceSnapshot,
 } from "../../shared/appearance-snapshot";
-import { DEFAULT_APPEARANCE } from "../../shared/settings";
+import {
+  DEFAULT_APPEARANCE,
+  DEFAULT_HOTKEYS,
+  DEFAULT_PREFERENCES,
+  type AppSettings,
+} from "../../shared/settings";
+import {
+  readSettingsSnapshotArgument,
+  serializeSettingsSnapshotArgument,
+} from "../../shared/settings-snapshot";
 import { WindowIds, type WindowId } from "../../shared/windows";
 import {
   WindowManagerError,
@@ -47,6 +57,8 @@ class FakeWindow extends EventEmitter {
   public hidden = false;
   public readonly webContents = new FakeWebContents();
   public failLoad = false;
+  public loadedFile: string | null = null;
+  public loadedUrl: string | null = null;
   public closeCalls = 0;
 
   public constructor(
@@ -117,19 +129,21 @@ class FakeWindow extends EventEmitter {
     return prevented;
   }
 
-  public async loadURL(): Promise<void> {
+  public async loadURL(url: string): Promise<void> {
     if (this.failLoad) {
       throw new Error("load failed");
     }
 
+    this.loadedUrl = url;
     this.webContents.emit("did-finish-load");
   }
 
-  public async loadFile(): Promise<void> {
+  public async loadFile(file: string): Promise<void> {
     if (this.failLoad) {
       throw new Error("load failed");
     }
 
+    this.loadedFile = file;
     this.webContents.emit("did-finish-load");
   }
 }
@@ -137,17 +151,28 @@ class FakeWindow extends EventEmitter {
 interface Harness {
   readonly runtime: ElectronWindowRuntime;
   readonly service: ReturnType<typeof makeWindowService>;
+  readonly settingsSnapshot: AppSettings;
   readonly windows: FakeWindow[];
   readonly quitCalls: number;
   failNextLoad(): void;
 }
 
+const defaultSettingsSnapshot: AppSettings = {
+  preferences: DEFAULT_PREFERENCES,
+  appearance: DEFAULT_APPEARANCE,
+  hotkeys: DEFAULT_HOTKEYS,
+};
+
 const createHarness = (
   platform: NodeJS.Platform = "darwin",
+  settingsSnapshot: AppSettings = defaultSettingsSnapshot,
   appearanceSnapshot: AppearanceSnapshot = createAppearanceSnapshot(
-    DEFAULT_APPEARANCE,
+    settingsSnapshot.appearance,
     true,
   ),
+  options: {
+    readonly onWindowCreated?: WindowManagerConfig["onWindowCreated"];
+  } = {},
 ): Harness => {
   const windows: FakeWindow[] = [];
   let nextId = 1;
@@ -183,15 +208,23 @@ const createHarness = (
     platform,
     preloadPath: "/preload/index.js",
     windowHtmlPath: (id: WindowId) => `/renderer/${id}/index.html`,
-    getAppearanceSnapshot: () => appearanceSnapshot,
+    getSettingsSnapshot: () => settingsSnapshot,
+    getAppearanceSnapshot: (settings) =>
+      settings === settingsSnapshot
+        ? appearanceSnapshot
+        : createAppearanceSnapshot(settings.appearance, true),
     quitApp: () => {
       quitCalls += 1;
     },
+    ...(options.onWindowCreated
+      ? { onWindowCreated: options.onWindowCreated }
+      : {}),
   };
 
   return {
     runtime,
     service: makeWindowService(config, runtime),
+    settingsSnapshot,
     windows,
     get quitCalls() {
       return quitCalls;
@@ -260,11 +293,12 @@ describe("window reveal", () => {
 
 describe("window service", () => {
   it("creates game windows with the pre-paint appearance snapshot", async () => {
-    const snapshot = createAppearanceSnapshot(
-      { ...DEFAULT_APPEARANCE, themeMode: "light" },
-      false,
-    );
-    const harness = createHarness("darwin", snapshot);
+    const settingsSnapshot = {
+      ...defaultSettingsSnapshot,
+      appearance: { ...DEFAULT_APPEARANCE, themeMode: "light" },
+    } satisfies AppSettings;
+    const snapshot = createAppearanceSnapshot(settingsSnapshot.appearance, false);
+    const harness = createHarness("darwin", settingsSnapshot, snapshot);
 
     const gameWindow = (await run(
       harness.service.openGameWindow(),
@@ -273,6 +307,51 @@ describe("window service", () => {
     expect(gameWindow.options.backgroundColor).toBe(snapshot.backgroundColor);
     expect(gameWindow.options.webPreferences?.additionalArguments).toEqual([
       serializeAppearanceSnapshotArgument(snapshot),
+      serializeSettingsSnapshotArgument(settingsSnapshot),
+    ]);
+    expect(
+      readSettingsSnapshotArgument(
+        gameWindow.options.webPreferences?.additionalArguments ?? [],
+      ),
+    ).toEqual(settingsSnapshot);
+    expect(gameWindow.loadedFile).toBeNull();
+    expect(gameWindow.loadedUrl).not.toBeNull();
+    expect(
+      readAppearanceSnapshotSearchParams(
+        new URL(gameWindow.loadedUrl ?? "").search,
+      ),
+    ).toEqual(snapshot);
+  });
+
+  it("notifies startup observation for every created renderer window", async () => {
+    const created: Array<{
+      readonly id: number;
+      readonly kind: string;
+      readonly windowId?: WindowId;
+    }> = [];
+    const harness = createHarness(
+      "darwin",
+      defaultSettingsSnapshot,
+      createAppearanceSnapshot(defaultSettingsSnapshot.appearance, true),
+      {
+        onWindowCreated: (window, context) => {
+          created.push({
+            id: window.id,
+            kind: context.kind,
+            ...(context.kind === "game" ? {} : { windowId: context.id }),
+          });
+        },
+      },
+    );
+
+    const gameWindow = await run(harness.service.openGameWindow());
+    await run(harness.service.openWindow(WindowIds.Settings));
+    await run(harness.service.openWindow(WindowIds.Skills, gameWindow.id));
+
+    expect(created).toEqual([
+      { id: 1, kind: "game" },
+      { id: 2, kind: "app", windowId: WindowIds.Settings },
+      { id: 3, kind: "game-child", windowId: WindowIds.Skills },
     ]);
   });
 
@@ -305,11 +384,12 @@ describe("window service", () => {
   });
 
   it("creates catalog windows with the pre-paint appearance snapshot", async () => {
-    const snapshot = createAppearanceSnapshot(
-      { ...DEFAULT_APPEARANCE, themeMode: "light" },
-      false,
-    );
-    const harness = createHarness("darwin", snapshot);
+    const settingsSnapshot = {
+      ...defaultSettingsSnapshot,
+      appearance: { ...DEFAULT_APPEARANCE, themeMode: "light" },
+    } satisfies AppSettings;
+    const snapshot = createAppearanceSnapshot(settingsSnapshot.appearance, false);
+    const harness = createHarness("darwin", settingsSnapshot, snapshot);
 
     const settingsWindow = (await run(
       harness.service.openWindow(WindowIds.Settings),
@@ -320,7 +400,20 @@ describe("window service", () => {
     );
     expect(settingsWindow.options.webPreferences?.additionalArguments).toEqual([
       serializeAppearanceSnapshotArgument(snapshot),
+      serializeSettingsSnapshotArgument(settingsSnapshot),
     ]);
+    expect(
+      readSettingsSnapshotArgument(
+        settingsWindow.options.webPreferences?.additionalArguments ?? [],
+      ),
+    ).toEqual(settingsSnapshot);
+    expect(settingsWindow.loadedFile).toBeNull();
+    expect(settingsWindow.loadedUrl).not.toBeNull();
+    expect(
+      readAppearanceSnapshotSearchParams(
+        new URL(settingsWindow.loadedUrl ?? "").search,
+      ),
+    ).toEqual(snapshot);
   });
 
   it("reuses app windows and hides them on close", async () => {

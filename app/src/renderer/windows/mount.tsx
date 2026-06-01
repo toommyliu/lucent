@@ -1,9 +1,13 @@
 import { render } from "solid-js/web";
 import type { JSX } from "solid-js";
 import { installSettingsSync } from "../theme";
+import {
+  durationSince,
+  startupNow,
+  writeRendererStartupTiming,
+} from "../startup-timing";
 import type { AppPlatform } from "../../shared/ipc";
 import type { AppSettings } from "../../shared/settings";
-import "../styles.css";
 
 export interface WindowMountContext {
   readonly initialSettings: AppSettings | null;
@@ -17,6 +21,7 @@ const markReady = (): void => {
 export function mountWindow(
   App: (context: WindowMountContext) => JSX.Element,
 ): void {
+  const mountStartedAt = startupNow();
   const root = document.getElementById("root");
   const settingsSync = installSettingsSync();
   let disposed = false;
@@ -38,24 +43,39 @@ export function mountWindow(
   if (!root) {
     cleanup();
     markReady();
+    writeRendererStartupTiming("renderer-startup", "Renderer mount skipped", {
+      reason: "missing-root",
+      totalMs: durationSince(mountStartedAt),
+    });
     return;
   }
 
-  void settingsSync.ready
-    .then((initialSettings) => {
-      if (disposed) {
-        return;
-      }
-
-      disposeRender = render(
-        () => App({ initialSettings, platform: window.ipc.platform.os }),
-        root,
-      );
-      markReady();
-    })
-    .catch((error: unknown) => {
-      console.error("Failed to mount renderer window:", error);
-      cleanup();
-      markReady();
+  let renderMs: number | undefined;
+  let mounted = false;
+  try {
+    const renderStartedAt = startupNow();
+    disposeRender = render(
+      () =>
+        App({
+          initialSettings: window.ipc.settings.initial,
+          platform: window.ipc.platform.os,
+        }),
+      root,
+    );
+    renderMs = durationSince(renderStartedAt);
+    mounted = true;
+  } catch (error: unknown) {
+    console.error("Failed to mount renderer window:", error);
+    cleanup();
+  } finally {
+    const initialSettings = window.ipc?.settings?.initial;
+    markReady();
+    writeRendererStartupTiming("renderer-startup", "Renderer mount completed", {
+      initialSettingsPresent:
+        initialSettings !== null && initialSettings !== undefined,
+      mounted,
+      renderMs,
+      totalMs: durationSince(mountStartedAt),
     });
+  }
 }

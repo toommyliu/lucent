@@ -89,6 +89,10 @@ const sendToOpenDevConsole = (
     stream.write(`[${record.source}:${record.component}] ${record.message}\n`);
   });
 
+const timingNow = (): number => performance.now();
+
+const roundTimingMs = (value: number): number => Number(value.toFixed(2));
+
 export const makeObservability = (
   logDir: string,
   options: {
@@ -234,6 +238,47 @@ export const makeObservability = (
       const component = options?.component ?? `window:${window.id}`;
       const source = options?.source ?? "electron";
       const webContents = window.webContents as WebContents;
+      const observedAt = timingNow();
+
+      const writeLifecycleEvent = (
+        message: string,
+        data?: Record<string, unknown>,
+      ): void => {
+        void Effect.runPromise(
+          write({
+            level: "info",
+            source,
+            component,
+            message,
+            data: {
+              windowId: window.id,
+              webContentsId: webContents.id,
+              sinceObservedMs: roundTimingMs(timingNow() - observedAt),
+              visible: window.isVisible(),
+              minimized: window.isMinimized(),
+              ...data,
+            },
+          }),
+        );
+      };
+
+      writeLifecycleEvent("Window observed");
+
+      webContents.once("dom-ready", () => {
+        writeLifecycleEvent("Window DOM ready");
+      });
+
+      webContents.once("did-finish-load", () => {
+        writeLifecycleEvent("Window load finished");
+      });
+
+      window.once("ready-to-show", () => {
+        writeLifecycleEvent("Window ready to show");
+      });
+
+      window.once("show", () => {
+        writeLifecycleEvent("Window shown");
+      });
 
       webContents.on(
         "console-message",

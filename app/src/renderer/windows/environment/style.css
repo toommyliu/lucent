@@ -1,3 +1,5 @@
+@import "../../styles.css";
+
 .environment-app {
   --environment-gap: 0.75rem;
   --environment-panel-min: 15.5rem;

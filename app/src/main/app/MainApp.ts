@@ -9,7 +9,7 @@ import {
 } from "electron";
 import { Effect, Scope, ServiceMap } from "effect";
 import { createAppearanceSnapshot } from "../../shared/appearance-snapshot";
-import type { Appearance } from "../../shared/settings";
+import type { AppSettings } from "../../shared/settings";
 import { WindowIds } from "../../shared/windows";
 import {
   getArtixLauncherRequestHeaders,
@@ -34,7 +34,7 @@ import { WorkspaceFiles } from "../workspace/WorkspaceFiles";
 
 const gameUserAgent = getArtixLauncherUserAgent();
 
-let latestAppearance: Appearance | null = null;
+let latestSettings: AppSettings | null = null;
 
 export type EarlyFlashSetupResult =
   | {
@@ -207,9 +207,9 @@ export const makeProgram = (
 
       const loadedSettings = yield* settings.load;
       yield* settings.installNativeThemeChangeBroadcast;
-      latestAppearance = loadedSettings.appearance;
+      latestSettings = loadedSettings;
       yield* settings.onChanged((nextSettings) => {
-        latestAppearance = nextSettings.appearance;
+        latestSettings = nextSettings;
       });
 
       const services = yield* Effect.services<WindowService>();
@@ -336,26 +336,39 @@ const createApplicationMenuEffect = (
     );
   });
 
-export const getLatestAppearanceSnapshot = () => {
-  if (latestAppearance === null) {
+export const getLatestSettingsSnapshot = () => {
+  if (latestSettings === null) {
     throw new Error("Settings have not been loaded");
   }
 
+  return latestSettings;
+};
+
+export const getLatestAppearanceSnapshot = (settings: AppSettings) => {
   return createAppearanceSnapshot(
-    latestAppearance,
+    settings.appearance,
     nativeTheme.shouldUseDarkColors,
   );
 };
 
 export const configureGameWindow = (
-  observability: ObservabilityShape,
   win: ElectronBrowserWindow,
 ): void => {
   win.webContents.setUserAgent(gameUserAgent);
+};
+
+export const observeRendererWindow = (
+  observability: ObservabilityShape,
+  win: ElectronBrowserWindow,
+  options: {
+    readonly component: string;
+    readonly source?: "electron" | "game";
+  },
+): void => {
   void Effect.runPromise(
     observability.observeWindow(win, {
-      source: "game",
-      component: `game-window:${win.id}`,
+      source: options.source ?? "electron",
+      component: options.component,
     }),
   ).catch(() => undefined);
 };

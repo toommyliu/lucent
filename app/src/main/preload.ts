@@ -3,6 +3,7 @@ import {
   applyAppearanceSnapshotToDocument,
   readAppearanceSnapshotArgument,
 } from "../shared/appearance-snapshot";
+import { readSettingsSnapshotArgument } from "../shared/settings-snapshot";
 import {
   AccountManagerIpcChannels,
   ArmyIpcChannels,
@@ -87,6 +88,8 @@ const applyInitialAppearanceSnapshot = (): void => {
 };
 
 applyInitialAppearanceSnapshot();
+
+const initialSettings = readSettingsSnapshotArgument(process.argv);
 
 const platform: AppPlatform =
   process.platform === "darwin"
@@ -923,6 +926,7 @@ const bridge: AppBridge = {
     },
   },
   settings: {
+    initial: initialSettings,
     get: async () => {
       return (await ipcRenderer.invoke(SettingsIpcChannels.get)) as AppSettings;
     },

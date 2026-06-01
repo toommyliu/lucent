@@ -10,7 +10,11 @@ import {
   AccountManagerIpcChannels,
   type AccountGameLaunchPayload,
 } from "../../../shared/ipc";
-import { DEFAULT_APPEARANCE } from "../../../shared/settings";
+import {
+  DEFAULT_APPEARANCE,
+  DEFAULT_HOTKEYS,
+  DEFAULT_PREFERENCES,
+} from "../../../shared/settings";
 import type { AccountManagerRepositoryShape } from "../../persistence/accounts/AccountRepository";
 import type { AccountManagerStorage } from "../../persistence/accounts/AccountStore";
 import {
@@ -128,8 +132,13 @@ const makeHarness = (): {
     platform: "darwin",
     preloadPath: "/preload.js",
     windowHtmlPath: (id) => `/renderer/${id}/index.html`,
-    getAppearanceSnapshot: () =>
-      createAppearanceSnapshot(DEFAULT_APPEARANCE, true),
+    getSettingsSnapshot: () => ({
+      preferences: DEFAULT_PREFERENCES,
+      appearance: DEFAULT_APPEARANCE,
+      hotkeys: DEFAULT_HOTKEYS,
+    }),
+    getAppearanceSnapshot: (settings) =>
+      createAppearanceSnapshot(settings.appearance, true),
     quitApp: () => undefined,
   };
   const runtime: ElectronWindowRuntime = {
