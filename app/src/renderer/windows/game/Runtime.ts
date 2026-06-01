@@ -1,4 +1,5 @@
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
+import { markGameStartup } from "./startupTelemetry";
 import { ArmyLive } from "./army/Layers/Army";
 import { EnvironmentLive } from "./environment/Layers/Environment";
 import { FeaturesLive } from "./features/Layers/Features";
@@ -47,4 +48,10 @@ const ScriptRunnerRuntimeLive = ScriptRunnerLive.pipe(
 
 const GameLive = Layer.mergeAll(GameServicesLive, ScriptRunnerRuntimeLive);
 
+markGameStartup("runtime-module-evaluated");
 export const runtime = ManagedRuntime.make(GameLive);
+markGameStartup("runtime-created");
+
+export const keepGameRuntimeAlive = (): void => {
+  runtime.runFork(Effect.never);
+};

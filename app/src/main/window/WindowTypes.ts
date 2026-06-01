@@ -1,6 +1,7 @@
 import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
 import { Data, Effect, ServiceMap } from "effect";
 import type { AppearanceSnapshot } from "../../shared/appearance-snapshot";
+import type { AppSettings } from "../../shared/settings";
 import type { WindowId } from "../../shared/windows";
 
 export class WindowManagerError extends Data.TaggedError("WindowManagerError")<{
@@ -15,10 +16,26 @@ export interface WindowManagerConfig {
   readonly platform: NodeJS.Platform;
   readonly preloadPath: string;
   readonly windowHtmlPath: (id: WindowId) => string;
-  readonly getAppearanceSnapshot: () => AppearanceSnapshot;
+  readonly getSettingsSnapshot: () => AppSettings;
+  readonly getAppearanceSnapshot: (settings: AppSettings) => AppearanceSnapshot;
   readonly quitApp: () => void;
+  readonly onWindowCreated?: (
+    window: BrowserWindow,
+    context: WindowStartupContext,
+  ) => void;
   readonly onGameWindowCreated?: (window: BrowserWindow) => void;
 }
+
+export type WindowStartupContext =
+  | {
+      readonly kind: "game";
+      readonly label: "Game";
+    }
+  | {
+      readonly kind: "app" | "game-child";
+      readonly id: WindowId;
+      readonly label: string;
+    };
 
 export interface WindowServiceShape {
   readonly openGameWindow: () => Effect.Effect<

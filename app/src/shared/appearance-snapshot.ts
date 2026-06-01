@@ -10,6 +10,7 @@ import {
 } from "./settings";
 
 export const APPEARANCE_SNAPSHOT_ARGUMENT = "--appearance-snapshot";
+export const APPEARANCE_SNAPSHOT_SEARCH_PARAM = "appearance-snapshot";
 
 const radiusBaseRem = {
   "--radius": 0.625,
@@ -195,6 +196,51 @@ export const readAppearanceSnapshotArgument = (
   } catch {
     return null;
   }
+};
+
+const parseSerializedAppearanceSnapshot = (
+  value: string,
+): AppearanceSnapshot | null => {
+  try {
+    const parsed = JSON.parse(value);
+    return isAppearanceSnapshot(parsed) ? parsed : null;
+  } catch {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(value));
+      return isAppearanceSnapshot(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+};
+
+export const serializeAppearanceSnapshotSearchParam = (
+  snapshot: AppearanceSnapshot,
+): string =>
+  `${APPEARANCE_SNAPSHOT_SEARCH_PARAM}=${encodeURIComponent(
+    JSON.stringify(snapshot),
+  )}`;
+
+export const readAppearanceSnapshotSearchParams = (
+  search: string | URLSearchParams,
+): AppearanceSnapshot | null => {
+  const params =
+    typeof search === "string" ? new URLSearchParams(search) : search;
+  const raw = params.get(APPEARANCE_SNAPSHOT_SEARCH_PARAM);
+
+  return raw === null ? null : parseSerializedAppearanceSnapshot(raw);
+};
+
+export const appendAppearanceSnapshotToUrl = (
+  url: string | URL,
+  snapshot: AppearanceSnapshot,
+): string => {
+  const nextUrl = typeof url === "string" ? new URL(url) : new URL(url.href);
+  nextUrl.searchParams.set(
+    APPEARANCE_SNAPSHOT_SEARCH_PARAM,
+    JSON.stringify(snapshot),
+  );
+  return nextUrl.toString();
 };
 
 const applyRounding = (

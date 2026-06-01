@@ -1,7 +1,8 @@
-/* @refresh reload */
-import "../../polyfills";
-import "./entrypoint";
-import "./style.css";
+import {
+  markGameStartup,
+  writeGameStartupTiming,
+  writeGameStartupTimingOnce,
+} from "./startupTelemetry";
 import {
   Button,
   Spinner,
@@ -98,6 +99,8 @@ import {
   DEBUG_EVAL_SOURCE_NAME,
   createDebugScriptSource,
 } from "./debugEval";
+
+markGameStartup("app-module-evaluated");
 
 declare global {
   namespace NodeJS {
@@ -725,6 +728,7 @@ ${source}
 export default function App(props: {
   readonly initialSettings?: AppSettings | null;
 }): JSX.Element {
+  markGameStartup("app-component-created");
   const initialSettings = props.initialSettings ?? defaultSettings;
   const [settings, setSettings] = createSignal<AppSettings>(initialSettings);
   const [gameLoaded, setGameLoaded] = createSignal(getGameLoadState().loaded);
@@ -1974,6 +1978,12 @@ export default function App(props: {
   };
 
   onMount(() => {
+    markGameStartup("app-mounted");
+    writeGameStartupTiming("Game app mounted", {
+      initialSettingsPresent:
+        props.initialSettings !== undefined && props.initialSettings !== null,
+    });
+
     const unsubscribeAppSettings =
       window.ipc.settings.onChanged(applyAppSettings);
     const unsubscribeAccountLaunch =
@@ -2034,6 +2044,12 @@ export default function App(props: {
 
     const disposeGameLoadState = subscribeGameLoadState((state) => {
       setGameLoaded(state.loaded);
+      if (state.loaded) {
+        writeGameStartupTimingOnce(
+          "game-load-state-loaded",
+          "Game load state marked loaded",
+        );
+      }
       if (!state.loaded) {
         setPlayerReady(false);
         packetsBridge.stopActive("Game reloaded");

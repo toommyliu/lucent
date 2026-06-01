@@ -9,7 +9,9 @@ import appBranding from "../../appBranding.json";
 import {
   configureGameWindow,
   getLatestAppearanceSnapshot,
+  getLatestSettingsSnapshot,
   makeProgram,
+  observeRendererWindow,
 } from "./app/MainApp";
 import {
   MainEnvironment,
@@ -227,10 +229,18 @@ const windowLayer = Layer.effect(WindowService)(
       platform: process.platform,
       preloadPath: envConfig.preloadPath,
       windowHtmlPath: (id) => getRendererWindowPath(envConfig.rendererDir, id),
+      getSettingsSnapshot: getLatestSettingsSnapshot,
       getAppearanceSnapshot: getLatestAppearanceSnapshot,
       quitApp: () => app.quit(),
-      onGameWindowCreated: (window) =>
-        configureGameWindow(observability, window),
+      onWindowCreated: (window, context) =>
+        observeRendererWindow(observability, window, {
+          source: context.kind === "game" ? "game" : "electron",
+          component:
+            context.kind === "game"
+              ? `game-window:${window.id}`
+              : `window:${context.id}:${window.id}`,
+        }),
+      onGameWindowCreated: (window) => configureGameWindow(window),
     };
 
     return makeWindowService(config, makeElectronWindowRuntime());

@@ -10,7 +10,6 @@ import type { Appearance, AppSettings, ThemeVariant } from "../shared/settings";
 let activeAppearance: Appearance | null = null;
 
 export interface RendererSettingsSync {
-  readonly ready: Promise<AppSettings | null>;
   readonly dispose: () => void;
 }
 
@@ -44,15 +43,12 @@ export const installSettingsSync = (): RendererSettingsSync => {
   const bridge = window.ipc?.settings;
   if (!bridge) {
     return {
-      ready: Promise.resolve(null),
       dispose: () => {},
     };
   }
 
   let disposed = false;
-  let initialSettled = false;
   let changedDuringInitialLoad = false;
-  let latestSettings: AppSettings | null = null;
   const media = globalThis.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
   const mediaListener = () => {
     if (activeAppearance?.themeMode === "system") {
@@ -68,30 +64,26 @@ export const installSettingsSync = (): RendererSettingsSync => {
     }
   }
 
+  if (bridge.initial) {
+    applySettings(bridge.initial);
+  }
+
   const unsubscribeSettings = bridge.onChanged((settings) => {
-    latestSettings = settings;
-    if (!initialSettled) {
+    if (!disposed) {
       changedDuringInitialLoad = true;
+      applySettings(settings);
     }
-    applySettings(settings);
   });
 
-  const ready = bridge
+  void bridge
     .get()
     .then((settings) => {
-      latestSettings = changedDuringInitialLoad ? latestSettings : settings;
-
       if (!changedDuringInitialLoad && !disposed) {
         applySettings(settings);
       }
-
-      initialSettled = true;
-      return latestSettings;
     })
     .catch((error: unknown) => {
-      initialSettled = true;
       console.error("Failed to load settings:", error);
-      return null;
     });
 
   const dispose = () => {
@@ -113,5 +105,5 @@ export const installSettingsSync = (): RendererSettingsSync => {
     }
   };
 
-  return { ready, dispose };
+  return { dispose };
 };

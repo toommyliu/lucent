@@ -1,3 +1,5 @@
+@import "../../styles.css";
+
 .fast-travels-app {
   --fast-travels-gap: 0.75rem;
   --fast-travels-row-min: 4.5rem;

@@ -1,6 +1,8 @@
+import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { BrowserWindow } from "electron";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +18,23 @@ vi.mock("electron", () => ({
 import { makeObservability } from "./MainObservability";
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
+
+class FakeObservedWindow extends EventEmitter {
+  public readonly id = 9;
+  public visible = false;
+  public minimized = false;
+  public readonly webContents = Object.assign(new EventEmitter(), {
+    id: 10,
+  });
+
+  public isVisible(): boolean {
+    return this.visible;
+  }
+
+  public isMinimized(): boolean {
+    return this.minimized;
+  }
+}
 
 describe("main observability", () => {
   let testDir: string;
@@ -86,6 +105,50 @@ describe("main observability", () => {
     ).resolves.toMatchObject({
       level: "error",
       message: "Unable to write log",
+    });
+  });
+
+  it("records window lifecycle timing points", async () => {
+    const observability = makeObservability(testDir, {
+      runId: "run-1",
+      now: () => new Date("2026-05-22T12:00:00.000Z"),
+    });
+    const window = new FakeObservedWindow();
+
+    await run(
+      observability.observeWindow(window as unknown as BrowserWindow, {
+        source: "game",
+        component: "game-window:9",
+      }),
+    );
+
+    window.webContents.emit("dom-ready");
+    window.webContents.emit("did-finish-load");
+    window.emit("ready-to-show");
+    window.visible = true;
+    window.emit("show");
+
+    await vi.waitFor(async () => {
+      const snapshot = await run(observability.snapshot);
+      expect(snapshot.records.map((record) => record.message)).toEqual([
+        "Window observed",
+        "Window DOM ready",
+        "Window load finished",
+        "Window ready to show",
+        "Window shown",
+      ]);
+    });
+
+    const snapshot = await run(observability.snapshot);
+    expect(snapshot.records.at(-1)).toMatchObject({
+      source: "game",
+      component: "game-window:9",
+      data: {
+        windowId: 9,
+        webContentsId: 10,
+        visible: true,
+        minimized: false,
+      },
     });
   });
 });

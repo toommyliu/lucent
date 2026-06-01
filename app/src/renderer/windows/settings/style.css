@@ -1,3 +1,5 @@
+@import "../../styles.css";
+
 .settings-app {
   background: rgb(var(--background));
   display: flex;
