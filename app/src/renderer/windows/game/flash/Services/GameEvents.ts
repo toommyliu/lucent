@@ -24,6 +24,7 @@ export type GameEvent =
   | "antiCounterEnd"
   | "loopTauntClientCastAttempt"
   | "loopTauntServerCastConfirmed"
+  | "playerDeath"
   | "playerLocation";
 
 export type GamePacketEvent =
@@ -111,6 +112,16 @@ export interface GamePlayerLocationEvent {
   readonly packet: ExtensionPacket;
 }
 
+export interface GamePlayerDeathEvent {
+  readonly username: string;
+  readonly entId: number;
+  readonly cell?: string;
+  readonly pad?: string;
+  readonly hp: number;
+  readonly state: number;
+  readonly packet: ServerPacket;
+}
+
 export interface GameLoopTauntClientCastAttemptEvent {
   readonly itemId: number;
   readonly monMapId: number;
@@ -140,6 +151,7 @@ export interface GameEventMap {
   antiCounterEnd: GameAntiCounterEvent;
   loopTauntClientCastAttempt: GameLoopTauntClientCastAttemptEvent;
   loopTauntServerCastConfirmed: GameLoopTauntServerCastConfirmedEvent;
+  playerDeath: GamePlayerDeathEvent;
   playerLocation: GamePlayerLocationEvent;
 }
 

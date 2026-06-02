@@ -3,6 +3,7 @@ import type { ScriptEventsApi } from "./ScriptApi";
 
 const assertEventTypes = (events: ScriptEventsApi) => {
   const monsterDeath = events.waitFor("monsterDeath");
+  const playerDeath = events.waitFor("playerDeath");
   const questComplete = events.waitFor("questComplete");
   const afk = events.waitFor("afk");
 
@@ -14,6 +15,7 @@ const assertEventTypes = (events: ScriptEventsApi) => {
   const extensionResponse = events.waitFor("extensionResponse");
 
   void monsterDeath;
+  void playerDeath;
   void questComplete;
   void afk;
   void packetFromClient;

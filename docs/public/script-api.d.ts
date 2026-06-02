@@ -827,6 +827,7 @@ interface ScriptEventMap {
   afk: ScriptEventAfkEvent;
   antiCounterStart: ScriptEventAntiCounterEvent;
   antiCounterEnd: Omit<ScriptEventAntiCounterEvent, "durationMs">;
+  playerDeath: ScriptEventPlayerDeathEvent;
   playerLocation: ScriptEventPlayerLocationEvent;
 }
 type ScriptEventName = keyof ScriptEventMap;
@@ -1162,6 +1163,14 @@ interface ScriptEventAntiCounterEvent {
   readonly triggerId: string;
   readonly triggerText: string;
   readonly durationMs?: number;
+}
+interface ScriptEventPlayerDeathEvent {
+  readonly username: string;
+  readonly entId: number;
+  readonly cell?: string;
+  readonly pad?: string;
+  readonly hp: number;
+  readonly state: number;
 }
 interface ScriptEventPlayerLocationEvent {
   readonly username: string;

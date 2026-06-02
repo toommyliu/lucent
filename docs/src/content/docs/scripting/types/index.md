@@ -82,6 +82,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/script-event-listener/" data-script-type="script-event-listener"><code>ScriptEventListener</code></a> | type alias |  |
 | <a href="/scripting/types/script-event-map/" data-script-type="script-event-map"><code>ScriptEventMap</code></a> | interface |  |
 | <a href="/scripting/types/script-event-monster-death-event/" data-script-type="script-event-monster-death-event"><code>ScriptEventMonsterDeathEvent</code></a> | interface |  |
+| <a href="/scripting/types/script-event-player-death-event/" data-script-type="script-event-player-death-event"><code>ScriptEventPlayerDeathEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-player-location-event/" data-script-type="script-event-player-location-event"><code>ScriptEventPlayerLocationEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-predicate/" data-script-type="script-event-predicate"><code>ScriptEventPredicate</code></a> | type alias |  |
 | <a href="/scripting/types/script-event-quest-complete-event/" data-script-type="script-event-quest-complete-event"><code>ScriptEventQuestCompleteEvent</code></a> | interface |  |

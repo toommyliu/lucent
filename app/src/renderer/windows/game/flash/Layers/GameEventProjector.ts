@@ -988,34 +988,42 @@ const make = Effect.gen(function* () {
             continue;
           }
 
-          let deadPlayerEntityId: number | undefined;
+          const player = yield* world.players.getByName(playerName);
+          if (Option.isNone(player)) {
+            continue;
+          }
 
-          yield* withPlayerByName(playerName, (player) => {
-            const intState = asNumber(update["intState"]);
-            if (intState !== undefined) {
-              player.data.intState = intState;
-            }
+          const playerData = player.value.data;
+          const wasDead = player.value.isDead();
+          const intState = asNumber(update["intState"]);
+          if (intState !== undefined) {
+            playerData.intState = intState;
+          }
 
-            const intHP = asNumber(update["intHP"]);
-            if (intHP !== undefined) {
-              player.data.intHP = intHP;
-            }
+          const intHP = asNumber(update["intHP"]);
+          if (intHP !== undefined) {
+            playerData.intHP = intHP;
+          }
 
-            const intMP = asNumber(update["intMP"]);
-            if (intMP !== undefined) {
-              player.data.intMP = intMP;
-            }
+          const intMP = asNumber(update["intMP"]);
+          if (intMP !== undefined) {
+            playerData.intMP = intMP;
+          }
 
-            if (
-              player.data.intState === EntityState.Dead &&
-              player.data.intHP === 0
-            ) {
-              deadPlayerEntityId = player.data.entID;
-            }
-          });
+          const isDead =
+            playerData.intState === EntityState.Dead && playerData.intHP === 0;
 
-          if (deadPlayerEntityId !== undefined) {
-            yield* world.players.clearAuras(deadPlayerEntityId);
+          if (isDead && !wasDead) {
+            yield* world.players.clearAuras(playerData.entID);
+            yield* gameEvents.emit("playerDeath", {
+              username: playerData.strUsername || playerName,
+              entId: playerData.entID,
+              cell: playerData.strFrame,
+              pad: playerData.strPad,
+              hp: playerData.intHP,
+              state: playerData.intState,
+              packet,
+            });
           }
         }
       }

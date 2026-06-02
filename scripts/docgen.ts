@@ -1915,6 +1915,11 @@ const SCRIPT_EVENT_REFERENCE: readonly ScriptEventReference[] = [
     payload: 'Omit<ScriptEventAntiCounterEvent, "durationMs">',
   },
   {
+    name: "playerDeath",
+    waitFor: true,
+    payload: "ScriptEventPlayerDeathEvent",
+  },
+  {
     name: "playerLocation",
     waitFor: true,
     payload: "ScriptEventPlayerLocationEvent",
