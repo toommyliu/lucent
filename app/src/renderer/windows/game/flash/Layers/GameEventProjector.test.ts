@@ -372,6 +372,61 @@ test("game event projector emits monster death from addGoldExp packets", async (
   expect(event.monMapId).toBe(10);
 });
 
+test("game event projector emits player death once per alive-to-dead transition", async () => {
+  const events = await withGameEvents((gameEvents, world) =>
+    Effect.gen(function* () {
+      yield* world.players.add(
+        avatar("Hero", {
+          entID: 9,
+          intHP: 120,
+          intState: 2,
+          strFrame: "Boss",
+          strPad: "Left",
+        }),
+      );
+
+      const observed: GameEventMap["playerDeath"][] = [];
+      let resolveDeath:
+        | ((event: GameEventMap["playerDeath"]) => void)
+        | undefined;
+      const firstDeath = new Promise<GameEventMap["playerDeath"]>(
+        (resolve) => {
+          resolveDeath = resolve;
+        },
+      );
+
+      yield* gameEvents.on("playerDeath", (death) =>
+        Effect.sync(() => {
+          observed.push(death);
+          resolveDeath?.(death);
+        }),
+      );
+
+      emitServerPacket(
+        '{"t":"xt","b":{"o":{"cmd":"ct","p":{"Hero":{"intState":0,"intHP":0}}}}}',
+      );
+      yield* waitForEvent(firstDeath);
+
+      emitServerPacket(
+        '{"t":"xt","b":{"o":{"cmd":"ct","p":{"Hero":{"intState":0,"intHP":0}}}}}',
+      );
+      yield* Effect.sleep("10 millis");
+
+      return observed;
+    }),
+  );
+
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    cell: "Boss",
+    entId: 9,
+    hp: 0,
+    pad: "Left",
+    state: 0,
+    username: "Hero",
+  });
+});
+
 test("game event projector emits quest completion from successful ccqr packets", async () => {
   const events = await withGameEvents((gameEvents) =>
     Effect.gen(function* () {

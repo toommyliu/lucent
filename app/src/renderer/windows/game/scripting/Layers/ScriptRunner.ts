@@ -115,6 +115,7 @@ const SCRIPT_EVENT_NAMES = new Set<ScriptEventName>([
   "afk",
   "antiCounterStart",
   "antiCounterEnd",
+  "playerDeath",
   "playerLocation",
 ]);
 
@@ -129,6 +130,7 @@ const SCRIPT_SEMANTIC_EVENT_NAMES = new Set<ScriptSemanticEventName>([
   "afk",
   "antiCounterStart",
   "antiCounterEnd",
+  "playerDeath",
   "playerLocation",
 ]);
 
@@ -760,6 +762,17 @@ const make = Effect.gen(function* () {
             source: payload.source,
             triggerId: payload.triggerId,
             triggerText: payload.triggerText,
+          } as ScriptEventMap[E];
+        }
+        case "playerDeath": {
+          const payload = event as GameEventMap["playerDeath"];
+          return {
+            username: payload.username,
+            entId: payload.entId,
+            ...(payload.cell === undefined ? {} : { cell: payload.cell }),
+            ...(payload.pad === undefined ? {} : { pad: payload.pad }),
+            hp: payload.hp,
+            state: payload.state,
           } as ScriptEventMap[E];
         }
         case "playerLocation": {

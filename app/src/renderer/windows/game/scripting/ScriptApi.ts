@@ -102,6 +102,15 @@ export interface ScriptEventPlayerLocationEvent {
   readonly y?: number;
 }
 
+export interface ScriptEventPlayerDeathEvent {
+  readonly username: string;
+  readonly entId: number;
+  readonly cell?: string;
+  readonly pad?: string;
+  readonly hp: number;
+  readonly state: number;
+}
+
 export interface ScriptEventMap {
   packetFromClient: string;
   packetFromServer: string;
@@ -116,6 +125,7 @@ export interface ScriptEventMap {
   afk: ScriptEventAfkEvent;
   antiCounterStart: ScriptEventAntiCounterEvent;
   antiCounterEnd: Omit<ScriptEventAntiCounterEvent, "durationMs">;
+  playerDeath: ScriptEventPlayerDeathEvent;
   playerLocation: ScriptEventPlayerLocationEvent;
 }
 

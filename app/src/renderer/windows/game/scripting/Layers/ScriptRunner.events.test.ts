@@ -289,6 +289,81 @@ module.exports = function* run() {
   expect(diagnosticMessages(diagnostics)).toContain("death:7");
 });
 
+test("script events expose normalized player death payloads", async () => {
+  const diagnostics = await withRunnerEvents((runner, events) =>
+    Effect.gen(function* () {
+      yield* runner.run(
+        `
+const { Option } = require("effect");
+const { api, script } = require("lucent");
+
+module.exports = function* run() {
+  yield* api.events.on("playerDeath", (event) => {
+    script.log(
+      "player-death:" +
+        event.username +
+        ":" +
+        event.entId +
+        ":" +
+        event.cell +
+        ":" +
+        event.pad +
+        ":" +
+        event.hp +
+        ":" +
+        event.state,
+    );
+  });
+  script.log("ready");
+  const death = yield* api.events.waitFor("playerDeath", {
+    timeout: "200 millis",
+  });
+  script.log(
+    Option.isSome(death)
+      ? "wait-player-death:" + death.value.username
+      : "wait-player-death:timeout",
+  );
+  yield* script.sleep(200);
+};
+`,
+        { name: "events-player-death" },
+      );
+
+      yield* waitForDiagnostics(runner, (diagnostics) =>
+        diagnosticMessages(diagnostics).includes("ready"),
+      );
+      yield* events.emit("playerDeath", {
+        cell: "Boss",
+        entId: 9,
+        hp: 0,
+        packet: {
+          cmd: "ct",
+          data: {},
+          raw: "",
+          type: "server",
+        },
+        pad: "Left",
+        state: 0,
+        username: "Hero",
+      });
+
+      const diagnostics = yield* waitForDiagnostics(runner, (diagnostics) =>
+        diagnosticMessages(diagnostics).includes(
+          "player-death:Hero:9:Boss:Left:0:0",
+        ) &&
+        diagnosticMessages(diagnostics).includes("wait-player-death:Hero"),
+      );
+      yield* runner.stop("test complete");
+      return diagnostics;
+    }),
+  );
+
+  expect(diagnosticMessages(diagnostics)).toContain(
+    "player-death:Hero:9:Boss:Left:0:0",
+  );
+  expect(diagnosticMessages(diagnostics)).toContain("wait-player-death:Hero");
+});
+
 test("script events once disposes after the first matching event", async () => {
   const diagnostics = await withRunnerEvents((runner, events) =>
     Effect.gen(function* () {
