@@ -175,6 +175,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     "background-color": value(),
     "border-color": contrastBorderColor(),
     color: contrastColor(),
+    "--color-picker-bg": value(),
   }));
 
   const swatchStyle = createMemo<JSX.CSSProperties>(() => ({
