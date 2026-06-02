@@ -608,8 +608,8 @@ body::-webkit-scrollbar-corner,
 .color-picker__trigger:focus-visible .color-picker__swatch,
 .color-picker__trigger[data-focus] .color-picker__swatch {
   box-shadow:
-    0 0 0 2px rgb(var(--background)),
-    0 0 0 4px rgba(var(--ring), 0.52);
+    0 0 0 2px var(--color-picker-bg, rgb(var(--background))),
+    0 0 0 4px rgba(var(--ring), 0.42);
 }
 
 .color-picker__value {
@@ -659,6 +659,9 @@ body::-webkit-scrollbar-corner,
 }
 
 .color-picker__positioner {
+  --x: 0px;
+  --y: -100vh;
+
   outline: none;
   z-index: 70;
 }

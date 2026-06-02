@@ -132,6 +132,14 @@ const themeModes: ReadonlyArray<{
   { label: "System", value: "system" },
 ];
 
+const themeVariants: ReadonlyArray<{
+  readonly label: string;
+  readonly value: ThemeVariant;
+}> = [
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+];
+
 const motionModes: ReadonlyArray<{
   readonly label: string;
   readonly value: MotionMode;
@@ -942,18 +950,12 @@ function AppearanceSettings(props: {
           </CardDescription>
           <CardAction>
             <div class="theme-profile__actions">
-              <Tabs
+              <SegmentedControl
                 aria-label="Theme profile"
-                onValueChange={(details) =>
-                  setActiveThemeVariant(details.value as ThemeVariant)
-                }
+                onChange={(value) => setActiveThemeVariant(value)}
+                options={themeVariants}
                 value={activeThemeVariant()}
-              >
-                <TabsList variant="underline">
-                  <TabsTrigger value="light">Light</TabsTrigger>
-                  <TabsTrigger value="dark">Dark</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              />
               <ResetButton
                 confirmLabel="Reset"
                 description={`This restores the ${variant} theme fonts, font sizes, rounding, and color token overrides.`}
