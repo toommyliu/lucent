@@ -51,6 +51,7 @@ const createStore = (): HandlerStore => ({
   monsterDeath: new Set(),
   packetFromClient: new Set(),
   packetFromServer: new Set(),
+  playerDeath: new Set(),
   playerLocation: new Set(),
   questComplete: new Set(),
   zone: new Set(),

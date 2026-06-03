@@ -1,4 +1,8 @@
-import { BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import {
+  BrowserWindow,
+  type IpcMainInvokeEvent,
+  type Rectangle,
+} from "electron";
 import { get } from "https";
 import type { ServerData } from "@lucent/game";
 import { Data, Effect, Scope } from "effect";
@@ -10,6 +14,8 @@ import {
   type AccountGameServersResult,
   type AccountLaunchResult,
   type AccountLaunchRequest,
+  type AccountLaunchTilingAlgorithm,
+  type AccountLaunchTilingPlacement,
   type AccountManagerState,
   type AccountScriptSession,
   type AccountScriptStatusUpdate,
@@ -57,8 +63,20 @@ let lastServerFetchTime = 0;
 
 const sessions = new Map<number, AccountScriptSession>();
 const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
+const launchTilingAlgorithms = new Set<AccountLaunchTilingAlgorithm>([
+  "none",
+  "auto-grid",
+  "horizontal",
+  "vertical",
+]);
 
 const now = (): number => Date.now();
+
+const isLaunchTilingAlgorithm = (
+  value: unknown,
+): value is AccountLaunchTilingAlgorithm =>
+  typeof value === "string" &&
+  launchTilingAlgorithms.has(value as AccountLaunchTilingAlgorithm);
 
 class AccountServersFetchError extends Data.TaggedError(
   "AccountServersFetchError",
@@ -499,7 +517,9 @@ const isScriptPayload = (value: unknown): value is ScriptExecutePayload => {
   );
 };
 
-const normalizeLaunchRequest = (request: unknown): AccountLaunchRequest => {
+export const normalizeLaunchRequest = (
+  request: unknown,
+): AccountLaunchRequest => {
   if (typeof request !== "object" || request === null) {
     throw new Error("Launch request must be an object");
   }
@@ -522,6 +542,43 @@ const normalizeLaunchRequest = (request: unknown): AccountLaunchRequest => {
     username,
     script,
     ...(server === "" ? {} : { server }),
+    ...(input.tiling === undefined
+      ? {}
+      : { tiling: normalizeLaunchTilingPlacement(input.tiling) }),
+  };
+};
+
+const normalizeLaunchTilingPlacement = (
+  value: unknown,
+): AccountLaunchTilingPlacement => {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Launch tiling must be an object");
+  }
+
+  const input = value as Partial<AccountLaunchTilingPlacement>;
+  if (!isLaunchTilingAlgorithm(input.algorithm)) {
+    throw new Error("Invalid launch tiling algorithm");
+  }
+
+  const count = input.count;
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 1) {
+    throw new Error("Launch tiling count must be a positive integer");
+  }
+
+  const index = input.index;
+  if (
+    typeof index !== "number" ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= count
+  ) {
+    throw new Error("Launch tiling index is out of range");
+  }
+
+  return {
+    algorithm: input.algorithm,
+    index,
+    count,
   };
 };
 
@@ -602,6 +659,7 @@ export interface AccountGameLaunchInput {
   readonly account: ManagedAccount;
   readonly script?: ScriptExecutePayload | null;
   readonly server?: string;
+  readonly tiling?: AccountLaunchTilingPlacement;
 }
 
 export interface AccountGameLaunchDependencies {
@@ -610,6 +668,104 @@ export interface AccountGameLaunchDependencies {
   readonly workspace: WorkspaceFilesShape;
   readonly observability: Pick<ObservabilityShape, "error">;
 }
+
+interface TileGridPlacement {
+  readonly columns: number;
+  readonly rows: number;
+  readonly column: number;
+  readonly row: number;
+}
+
+const resolveAutoGridPlacement = (
+  index: number,
+  count: number,
+): TileGridPlacement => {
+  const columns = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / columns);
+  return {
+    columns,
+    rows,
+    column: index % columns,
+    row: Math.floor(index / columns),
+  };
+};
+
+const resolveTilePlacement = (
+  tiling: AccountLaunchTilingPlacement,
+): TileGridPlacement | null => {
+  if (tiling.algorithm === "none") {
+    return null;
+  }
+
+  if (tiling.algorithm === "horizontal") {
+    return {
+      columns: tiling.count,
+      rows: 1,
+      column: tiling.index,
+      row: 0,
+    };
+  }
+
+  if (tiling.algorithm === "vertical") {
+    return {
+      columns: 1,
+      rows: tiling.count,
+      column: 0,
+      row: tiling.index,
+    };
+  }
+
+  return resolveAutoGridPlacement(tiling.index, tiling.count);
+};
+
+export const resolveAccountLaunchTileBounds = (
+  workArea: Rectangle,
+  tiling: AccountLaunchTilingPlacement,
+): Rectangle | null => {
+  const placement = resolveTilePlacement(tiling);
+  if (placement === null) {
+    return null;
+  }
+
+  const workAreaRight = workArea.x + workArea.width;
+  const workAreaBottom = workArea.y + workArea.height;
+  const x = Math.floor(
+    workArea.x + (workArea.width * placement.column) / placement.columns,
+  );
+  const y = Math.floor(
+    workArea.y + (workArea.height * placement.row) / placement.rows,
+  );
+  const nextX = Math.floor(
+    workArea.x + (workArea.width * (placement.column + 1)) / placement.columns,
+  );
+  const nextY = Math.floor(
+    workArea.y + (workArea.height * (placement.row + 1)) / placement.rows,
+  );
+
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(nextX, workAreaRight) - x),
+    height: Math.max(1, Math.min(nextY, workAreaBottom) - y),
+  };
+};
+
+const resolveAccountLaunchInitialBounds = async (
+  tiling: AccountLaunchTilingPlacement | undefined,
+  runWindowEffect: WindowEffectRunner,
+): Promise<Rectangle | undefined> => {
+  if (tiling === undefined || tiling.algorithm === "none") {
+    return undefined;
+  }
+
+  const workArea = await runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.getCursorDisplayWorkArea();
+    }),
+  );
+  return resolveAccountLaunchTileBounds(workArea, tiling) ?? undefined;
+};
 
 export const startAccountGameLaunch = async (
   input: AccountGameLaunchInput,
@@ -624,10 +780,16 @@ export const startAccountGameLaunch = async (
           requestedScript,
         );
 
+  const initialBounds = await resolveAccountLaunchInitialBounds(
+    input.tiling,
+    dependencies.runWindowEffect,
+  );
   const gameWindow = await dependencies.runWindowEffect(
     Effect.gen(function* () {
       const windows = yield* WindowService;
-      return yield* windows.openGameWindow();
+      return yield* windows.openGameWindow(
+        initialBounds === undefined ? undefined : { bounds: initialBounds },
+      );
     }),
   );
   const gameWindowId = gameWindow.id;
@@ -1024,6 +1186,9 @@ export const registerAccountManagerIpcHandlers = (
             ...(launchRequest.server === undefined
               ? {}
               : { server: launchRequest.server }),
+            ...(launchRequest.tiling === undefined
+              ? {}
+              : { tiling: launchRequest.tiling }),
           },
           {
             runWindowEffect,

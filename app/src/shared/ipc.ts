@@ -492,10 +492,23 @@ export interface AccountManagerState {
   readonly storagePath: string;
 }
 
+export type AccountLaunchTilingAlgorithm =
+  | "none"
+  | "auto-grid"
+  | "horizontal"
+  | "vertical";
+
+export interface AccountLaunchTilingPlacement {
+  readonly algorithm: AccountLaunchTilingAlgorithm;
+  readonly index: number;
+  readonly count: number;
+}
+
 export interface AccountLaunchRequest {
   readonly username: string;
   readonly script?: ScriptExecutePayload | null;
   readonly server?: string;
+  readonly tiling?: AccountLaunchTilingPlacement;
 }
 
 export interface AccountLaunchResult {
