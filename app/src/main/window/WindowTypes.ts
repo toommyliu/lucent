@@ -1,4 +1,8 @@
-import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
+import type {
+  BrowserWindow,
+  BrowserWindowConstructorOptions,
+  Rectangle,
+} from "electron";
 import { Data, Effect, ServiceMap } from "effect";
 import type { AppearanceSnapshot } from "../../shared/appearance-snapshot";
 import type { AppSettings } from "../../shared/settings";
@@ -38,15 +42,18 @@ export type WindowStartupContext =
     };
 
 export interface WindowServiceShape {
-  readonly openGameWindow: () => Effect.Effect<
-    BrowserWindow,
-    WindowManagerError
-  >;
+  readonly openGameWindow: (options?: {
+    readonly bounds?: Rectangle;
+  }) => Effect.Effect<BrowserWindow, WindowManagerError>;
   readonly openWindow: (
     id: WindowId,
     senderWindowId?: number,
   ) => Effect.Effect<BrowserWindow, WindowManagerError>;
   readonly getOpenWindow: (id: WindowId) => Effect.Effect<BrowserWindow | null>;
+  readonly getCursorDisplayWorkArea: () => Effect.Effect<
+    Rectangle,
+    WindowManagerError
+  >;
   readonly revealGameWindow: () => Effect.Effect<void, WindowManagerError>;
   readonly revealWindowForAppActivation: () => Effect.Effect<
     void,
@@ -90,5 +97,6 @@ export interface ElectronWindowRuntime {
     width: number,
     height: number,
   ) => { readonly x: number; readonly y: number };
+  readonly getCursorDisplayWorkArea: () => Rectangle;
   readonly focusApp: () => void;
 }

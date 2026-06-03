@@ -500,11 +500,18 @@ export const makeWindowService = (
     return loadWindow(window, url, "url");
   };
 
-  const openGameWindow: WindowServiceShape["openGameWindow"] = () =>
+  const openGameWindow: WindowServiceShape["openGameWindow"] = (options) =>
     Effect.gen(function* () {
       const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
       const window = yield* createManagedWindow(
-        createGameWindowOptions(config, appearanceSnapshot, settingsSnapshot),
+        {
+          ...createGameWindowOptions(
+            config,
+            appearanceSnapshot,
+            settingsSnapshot,
+          ),
+          ...options?.bounds,
+        },
       );
 
       notifyWindowCreated(window, { kind: "game", label: "Game" });
@@ -523,6 +530,17 @@ export const makeWindowService = (
 
       return window;
     });
+
+  const getCursorDisplayWorkArea: WindowServiceShape["getCursorDisplayWorkArea"] =
+    () =>
+      Effect.try({
+        try: () => runtime.getCursorDisplayWorkArea(),
+        catch: (cause) =>
+          new WindowManagerError({
+            message: "Failed to resolve cursor display work area",
+            cause,
+          }),
+      });
 
   const resolveOrCreateGameWindow = (
     senderWindowId?: number,
@@ -761,6 +779,7 @@ export const makeWindowService = (
     openGameWindow,
     openWindow,
     getOpenWindow,
+    getCursorDisplayWorkArea,
     revealGameWindow,
     revealWindowForAppActivation,
     getGameWindowId: (windowId) =>

@@ -30,11 +30,10 @@ interface ComboboxContextValue {
 
 const ComboboxItemsContext = createContext<ComboboxContextValue>();
 
-export interface ComboboxProps
-  extends Omit<
-    Parameters<typeof ComboboxPrimitive.Root<ComboboxOption>>[0],
-    "collection"
-  > {
+export interface ComboboxProps extends Omit<
+  Parameters<typeof ComboboxPrimitive.Root<ComboboxOption>>[0],
+  "collection"
+> {
   readonly items?: ReadonlyArray<ComboboxOption>;
 }
 
@@ -123,11 +122,11 @@ export function Combobox(props: ComboboxProps): JSX.Element {
   );
 }
 
-export interface ComboboxInputProps
-  extends Omit<
-    Parameters<typeof ComboboxPrimitive.Input>[0],
-    "class" | "size"
-  > {
+export interface ComboboxInputProps extends Omit<
+  Parameters<typeof ComboboxPrimitive.Input>[0],
+  "class" | "size"
+> {
+  readonly children?: JSX.Element;
   readonly class?: string;
   readonly clearProps?: ComboboxClearProps;
   readonly showClear?: boolean;
@@ -138,6 +137,7 @@ export interface ComboboxInputProps
 
 export function ComboboxInput(props: ComboboxInputProps): JSX.Element {
   const [local, rest] = splitProps(props, [
+    "children",
     "class",
     "clearProps",
     "showClear",
@@ -163,6 +163,7 @@ export function ComboboxInput(props: ComboboxInputProps): JSX.Element {
               class={cn("combobox__input", local.class)}
               data-slot="combobox-input"
             />
+            {local.children}
             {showClear() && (
               <ComboboxClear class="combobox__clear" {...local.clearProps}>
                 <Icon icon="x" />
@@ -198,8 +199,10 @@ export function ComboboxTrigger(props: ComboboxTriggerProps): JSX.Element {
   );
 }
 
-export interface ComboboxContentProps
-  extends Omit<Parameters<typeof ComboboxPrimitive.Content>[0], "class"> {
+export interface ComboboxContentProps extends Omit<
+  Parameters<typeof ComboboxPrimitive.Content>[0],
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -236,8 +239,10 @@ export function ComboboxList(props: ComboboxListProps): JSX.Element {
   );
 }
 
-export interface ComboboxItemProps
-  extends Omit<Parameters<typeof ComboboxPrimitive.Item>[0], "class" | "item"> {
+export interface ComboboxItemProps extends Omit<
+  Parameters<typeof ComboboxPrimitive.Item>[0],
+  "class" | "item"
+> {
   readonly class?: string;
   readonly disabled?: boolean;
   readonly item?: ComboboxOption;
@@ -318,8 +323,10 @@ export function ComboboxGroupLabel(
   );
 }
 
-export interface ComboboxSeparatorProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface ComboboxSeparatorProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -348,8 +355,10 @@ export function ComboboxEmpty(props: ComboboxEmptyProps): JSX.Element {
   );
 }
 
-export interface ComboboxValueProps
-  extends Omit<JSX.HTMLAttributes<HTMLSpanElement>, "class"> {
+export interface ComboboxValueProps extends Omit<
+  JSX.HTMLAttributes<HTMLSpanElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

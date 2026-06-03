@@ -69,8 +69,12 @@ function renderUi(element: () => JSX.Element) {
 }
 
 function pressItem(element: HTMLElement | null) {
-  element?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-  element?.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  element?.dispatchEvent(
+    new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
+  );
+  element?.dispatchEvent(
+    new MouseEvent("pointerup", { bubbles: true, button: 0 }),
+  );
   element?.click();
 }
 
@@ -500,6 +504,43 @@ describe("Dialog", () => {
 });
 
 describe("Select", () => {
+  it("opens portal content from the trigger", async () => {
+    renderUi(() => (
+      <Select value={["solid"]}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select framework" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="solid">Solid</SelectItem>
+          <SelectItem value="svelte">Svelte</SelectItem>
+        </SelectContent>
+      </Select>
+    ));
+
+    const trigger = document.body.querySelector<HTMLElement>(
+      "[data-slot='select-trigger']",
+    );
+    const content = document.body.querySelector<HTMLElement>(
+      "[data-slot='select-content']",
+    );
+
+    expect(content).not.toBeNull();
+    expect(content?.hidden).toBe(true);
+
+    pressItem(trigger);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      document.body.querySelector("[data-slot='select-positioner']"),
+    ).not.toBeNull();
+    const openContent = document.body.querySelector<HTMLElement>(
+      "[data-slot='select-content']",
+    );
+    expect(openContent?.hidden).toBe(false);
+    expect(openContent?.getAttribute("data-state")).toBe("open");
+  });
+
   it("renders selected item labels instead of raw selected values", () => {
     renderUi(() => (
       <Select open value={["solid"]}>

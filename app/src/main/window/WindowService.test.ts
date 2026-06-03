@@ -198,6 +198,12 @@ const createHarness = (
     getAllWindows: () => windows as unknown as BrowserWindow[],
     getFocusedWindow: () => focusedWindow as unknown as BrowserWindow | null,
     getCenteredPosition: () => ({ x: 10, y: 20 }),
+    getCursorDisplayWorkArea: () => ({
+      x: 0,
+      y: 0,
+      width: 1_920,
+      height: 1_080,
+    }),
     focusApp: () => {},
   };
 

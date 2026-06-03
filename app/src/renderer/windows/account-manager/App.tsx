@@ -49,6 +49,10 @@ import {
   Kbd,
   KbdGroup,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
   Spinner,
   Tooltip,
   TooltipContent,
@@ -67,6 +71,7 @@ import {
 import {
   ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
   type AccountGameServer,
+  type AccountLaunchTilingAlgorithm,
   type AccountManagerState,
   type AccountScriptSession,
   type ManagedAccount,
@@ -79,6 +84,7 @@ import {
   resolveAccountLoginServerPreference,
   writeStoredAccountLoginServerPreference,
 } from "../../lib/accountLoginServerSelection";
+import { resolveSelectedAccountUsernames } from "../../lib/accountSelection";
 import { mountWindow } from "../mount";
 
 interface AccountFormState {
@@ -101,6 +107,11 @@ interface GroupFormState {
   readonly usernames: ReadonlySet<string>;
 }
 
+interface LaunchTilingOption {
+  readonly value: AccountLaunchTilingAlgorithm;
+  readonly label: string;
+}
+
 const NO_SERVER_VALUE = "__no_server__";
 const MANUAL_GROUP_VALUE = "__manual_selection__";
 const LAUNCH_WITH_SCRIPT_CHECKBOX_ID = "account-manager-launch-with-script";
@@ -113,11 +124,23 @@ const NEW_ACCOUNT_HOTKEY = "Mod+N";
 const LOGIN_SERVER_HOTKEY = "Mod+L";
 const SELECT_SCRIPT_HOTKEY = "Mod+O";
 const TOGGLE_LAUNCH_WITH_SCRIPT_HOTKEY = "Mod+Shift+S";
+const LAUNCH_TILING_HOTKEY = "Mod+T";
 const START_SELECTED_HOTKEY = "Mod+Enter";
 const TOGGLE_VISIBLE_SELECTION_HOTKEY = "Mod+A";
+const LAUNCH_TILING_OPTIONS: readonly LaunchTilingOption[] = [
+  { value: "none", label: "None" },
+  { value: "auto-grid", label: "Auto grid" },
+  { value: "horizontal", label: "Horizontal" },
+  { value: "vertical", label: "Vertical" },
+];
 
 const hasOpenAlertDialog = (): boolean =>
   document.querySelector("[data-slot='alert-dialog-content']") !== null;
+
+const isAccountLaunchTilingAlgorithm = (
+  value: string | undefined,
+): value is AccountLaunchTilingAlgorithm =>
+  LAUNCH_TILING_OPTIONS.some((option) => option.value === value);
 
 const emptyState: AccountManagerState = {
   accounts: [],
@@ -384,6 +407,7 @@ function App(): JSX.Element {
   let accountSearchInput: HTMLInputElement | undefined;
   let serverFieldElement: HTMLDivElement | undefined;
   let serverComboboxInput: HTMLInputElement | undefined;
+  let launchTilingTrigger: HTMLButtonElement | undefined;
   let groupFieldElement: HTMLDivElement | undefined;
   let groupComboboxInput: HTMLInputElement | undefined;
   let groupSearchInput: HTMLInputElement | undefined;
@@ -421,6 +445,8 @@ function App(): JSX.Element {
   );
   const [scriptError, setScriptError] = createSignal("");
   const [launchServer, setLaunchServer] = createSignal("");
+  const [launchTilingAlgorithm, setLaunchTilingAlgorithm] =
+    createSignal<AccountLaunchTilingAlgorithm>("none");
   const [serverComboboxOpen, setServerComboboxOpen] = createSignal(false);
   const [serverInputFocused, setServerInputFocused] = createSignal(false);
   const [serverInputValue, setServerInputValue] = createSignal("");
@@ -469,7 +495,10 @@ function App(): JSX.Element {
     return sessions;
   });
   const selectedLaunchUsernames = createMemo(() => {
-    return [...selectedAccountUsernames()];
+    return resolveSelectedAccountUsernames(
+      accounts(),
+      selectedAccountUsernames(),
+    );
   });
   const selectedAccountCount = createMemo(
     () => selectedAccountUsernames().size,
@@ -518,17 +547,8 @@ function App(): JSX.Element {
       ? undefined
       : serverOptions().find((server) => server.name === serverName);
   });
-  const selectedServerDisplayValue = createMemo(() => {
-    const serverName = launchServer();
-    return serverName === ""
-      ? ""
-      : serverDisplayLabel(selectedLaunchServer(), serverName);
-  });
-  const selectedServerInputValue = createMemo(() =>
-    serverComboboxOpen() || serverInputFocused()
-      ? launchServer()
-      : selectedServerDisplayValue(),
-  );
+  const selectedServerDisplayValue = createMemo(() => launchServer());
+  const selectedServerInputValue = createMemo(() => launchServer());
   const filteredServerOptions = createMemo(() => {
     const query = serverSearchQuery().trim().toLowerCase();
     if (query === "") {
@@ -555,6 +575,12 @@ function App(): JSX.Element {
     const payload = selectedScript();
     return payload?.name ?? payload?.path ?? "";
   });
+  const selectedTilingAlgorithmLabel = createMemo(
+    () =>
+      LAUNCH_TILING_OPTIONS.find(
+        (option) => option.value === launchTilingAlgorithm(),
+      )?.label ?? "None",
+  );
   const selectedGroupLabel = createMemo(
     () => selectedGroupName() || "Manual selection",
   );
@@ -588,6 +614,12 @@ function App(): JSX.Element {
       window.ipc.platform.os,
     ),
   );
+  const launchTilingHotkeyDisplay = createMemo(() =>
+    formatHotkeyDisplay(LAUNCH_TILING_HOTKEY, window.ipc.platform.os),
+  );
+  const launchTilingHotkeyDisplayParts = createMemo(() =>
+    formatHotkeyDisplayParts(LAUNCH_TILING_HOTKEY, window.ipc.platform.os),
+  );
   const startSelectedHotkeyDisplay = createMemo(() =>
     formatHotkeyDisplay(START_SELECTED_HOTKEY, window.ipc.platform.os),
   );
@@ -617,6 +649,7 @@ function App(): JSX.Element {
   const toggleLaunchWithScriptAriaKeyshortcuts = createMemo(
     () => `${modAriaKey()}+Shift+S`,
   );
+  const launchTilingAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+T`);
   const startSelectedAriaKeyshortcuts = createMemo(
     () => `${modAriaKey()}+Enter`,
   );
@@ -752,7 +785,7 @@ function App(): JSX.Element {
     {
       eventType: "keydown",
       conflictBehavior: "replace",
-      ignoreInputs: true,
+      ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
     },
@@ -771,7 +804,7 @@ function App(): JSX.Element {
     {
       eventType: "keydown",
       conflictBehavior: "replace",
-      ignoreInputs: true,
+      ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
     },
@@ -796,7 +829,27 @@ function App(): JSX.Element {
     {
       eventType: "keydown",
       conflictBehavior: "replace",
-      ignoreInputs: true,
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
+
+  createHotkey(
+    LAUNCH_TILING_HOTKEY,
+    (event) => {
+      if (ignoreAccountManagerShortcut(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      launchTilingTrigger?.focus();
+      launchTilingTrigger?.click();
+    },
+    {
+      eventType: "keydown",
+      conflictBehavior: "replace",
+      ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
     },
@@ -818,7 +871,7 @@ function App(): JSX.Element {
     {
       eventType: "keydown",
       conflictBehavior: "replace",
-      ignoreInputs: true,
+      ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
     },
@@ -837,7 +890,7 @@ function App(): JSX.Element {
     {
       eventType: "keydown",
       conflictBehavior: "replace",
-      ignoreInputs: true,
+      ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
     },
@@ -969,16 +1022,8 @@ function App(): JSX.Element {
           nextLaunchServerResolution.type === "server"
             ? nextLaunchServerResolution.name
             : "";
-        const nextLaunchServer =
-          nextLaunchServerResolution.type === "server"
-            ? nextServers.servers.find(
-                (server) => server.name === nextLaunchServerResolution.name,
-              )
-            : undefined;
         setLaunchServer(nextLaunchServerName);
-        setServerInputValue(
-          serverDisplayLabel(nextLaunchServer, nextLaunchServerName),
-        );
+        setServerInputValue(nextLaunchServerName);
         setServerSelectionInitialized(true);
       }
     } catch (error) {
@@ -1258,12 +1303,23 @@ function App(): JSX.Element {
     setBusy(true);
     const script = launchScriptPayload();
     const server = launchServer();
+    const tilingAlgorithm = launchTilingAlgorithm();
+    const shouldTile = tilingAlgorithm !== "none" && usernames.length > 1;
     try {
-      for (const username of usernames) {
+      for (const [index, username] of usernames.entries()) {
         await window.ipc.accounts.launch({
           username,
           script,
           ...(server === "" ? {} : { server }),
+          ...(shouldTile
+            ? {
+                tiling: {
+                  algorithm: tilingAlgorithm,
+                  index,
+                  count: usernames.length,
+                },
+              }
+            : {}),
         });
       }
     } catch (error) {
@@ -1507,6 +1563,11 @@ function App(): JSX.Element {
                 label={selectScriptHotkeyDisplay()}
                 parts={selectScriptHotkeyDisplayParts()}
               />
+              <span>Choose window tiling</span>
+              <ShortcutKbd
+                label={launchTilingHotkeyDisplay()}
+                parts={launchTilingHotkeyDisplayParts()}
+              />
               <span>Toggle launch with script</span>
               <ShortcutKbd
                 label={toggleLaunchWithScriptHotkeyDisplay()}
@@ -1594,11 +1655,7 @@ function App(): JSX.Element {
                   onOpenChange={(details) => {
                     setServerComboboxOpen(details.open);
                     setServerSearchQuery("");
-                    if (details.open) {
-                      setServerInputValue(launchServer());
-                    } else {
-                      setServerInputValue(selectedServerDisplayValue());
-                    }
+                    setServerInputValue(launchServer());
                   }}
                   onValueChange={(details) => {
                     const value = details.value[0] ?? NO_SERVER_VALUE;
@@ -1608,18 +1665,7 @@ function App(): JSX.Element {
                       nextLaunchServer === "" ? null : nextLaunchServer,
                     );
                     setLaunchServer(nextLaunchServer);
-                    setServerInputValue(
-                      serverComboboxOpen() || serverInputFocused()
-                        ? nextLaunchServer
-                        : nextLaunchServer === ""
-                          ? ""
-                          : serverDisplayLabel(
-                              serverOptions().find(
-                                (server) => server.name === nextLaunchServer,
-                              ),
-                              nextLaunchServer,
-                            ),
-                    );
+                    setServerInputValue(nextLaunchServer);
                     setServerSearchQuery("");
                     setServerSelectionInitialized(true);
                   }}
@@ -1632,6 +1678,8 @@ function App(): JSX.Element {
                     classList={{
                       "account-manager__server-input--settling":
                         serversLoading() || serverSelectionSettling(),
+                      "account-manager__server-input--closed":
+                        !serverComboboxOpen(),
                     }}
                     placeholder="Choose server..."
                     showClear={false}
@@ -1649,6 +1697,7 @@ function App(): JSX.Element {
 
                       setServerSearchQuery("");
                       setServerInputValue(selectedServerInputValue());
+                      event.currentTarget.blur();
                     }}
                     onFocus={() => {
                       setServerInputFocused(true);
@@ -1658,10 +1707,19 @@ function App(): JSX.Element {
                       setServerInputFocused(false);
                       if (!serverComboboxOpen()) {
                         setServerSearchQuery("");
-                        setServerInputValue(selectedServerDisplayValue());
+                        setServerInputValue(launchServer());
                       }
                     }}
-                  />
+                  >
+                    <Show when={!serverComboboxOpen() && selectedLaunchServer() !== undefined}>
+                      <span class="account-manager__server-overlay">
+                        {launchServer()}
+                        <span class="account-manager__server-overlay-meta">
+                          {serverMeta(selectedLaunchServer()!)}
+                        </span>
+                      </span>
+                    </Show>
+                  </ComboboxInput>
                   <ComboboxContent class="account-manager__server-content">
                     <Show
                       when={
@@ -1822,6 +1880,7 @@ function App(): JSX.Element {
                   </InputGroupAddon>
                 </InputGroup>
               </div>
+
             </div>
             <Show when={serverError()}>
               <small class="account-manager__server-error">
@@ -1836,8 +1895,8 @@ function App(): JSX.Element {
           </div>
 
           <div class="account-manager__selection-bar">
-            <div class="account-manager__selection-context">
-              <div class="account-manager__group-row">
+            <div class="account-manager__selection-row account-manager__selection-row--config">
+              <div class="account-manager__group-selector">
                 <div class="account-manager__group-label">
                   <span>Groups</span>
                   <Tooltip closeDelay={0} openDelay={200}>
@@ -1863,115 +1922,178 @@ function App(): JSX.Element {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <div
-                  ref={(element) => {
-                    groupFieldElement = element;
-                  }}
-                  class="account-manager__group-field"
-                  aria-keyshortcuts="G"
-                >
-                  <Combobox
-                    class="account-manager__group-combobox"
-                    value={[selectedGroupName() || MANUAL_GROUP_VALUE]}
-                    inputBehavior="autohighlight"
-                    openOnClick
-                    positioning={{ fitViewport: true, sameWidth: false }}
-                    onValueChange={(details) => {
-                      const value = details.value[0] ?? MANUAL_GROUP_VALUE;
-                      selectGroup(
-                        value === MANUAL_GROUP_VALUE ? "" : value,
-                        groups(),
-                      );
+                <div class="account-manager__group-controls">
+                  <div
+                    ref={(element) => {
+                      groupFieldElement = element;
                     }}
+                    class="account-manager__group-field"
+                    aria-keyshortcuts="G"
                   >
-                    <ComboboxInput
-                      ref={(element) => {
-                        groupComboboxInput = element;
+                    <Combobox
+                      class="account-manager__group-combobox"
+                      value={[selectedGroupName() || MANUAL_GROUP_VALUE]}
+                      inputBehavior="autohighlight"
+                      openOnClick
+                      positioning={{ fitViewport: true, sameWidth: false }}
+                      onValueChange={(details) => {
+                        const value = details.value[0] ?? MANUAL_GROUP_VALUE;
+                        selectGroup(
+                          value === MANUAL_GROUP_VALUE ? "" : value,
+                          groups(),
+                        );
                       }}
-                      value={selectedGroupLabel()}
-                      readOnly
-                      showClear={false}
-                      size="lg"
-                      placeholder="Choose group..."
-                    />
-                    <ComboboxContent class="account-manager__group-content">
-                      <ComboboxList>
-                        <ComboboxItem
-                          value={MANUAL_GROUP_VALUE}
-                          label="Manual selection"
-                        >
-                          Manual selection
-                        </ComboboxItem>
-                        <For each={groupEntries()}>
-                          {([name, usernames]) => (
-                            <ComboboxItem value={name} label={name}>
-                              <span class="account-group-option">
-                                <span class="account-group-option__name">
-                                  {name}
+                    >
+                      <ComboboxInput
+                        ref={(element) => {
+                          groupComboboxInput = element;
+                        }}
+                        value={selectedGroupLabel()}
+                        readOnly
+                        showClear={false}
+                        size="lg"
+                        placeholder="Choose group..."
+                      />
+                      <ComboboxContent class="account-manager__group-content">
+                        <ComboboxList>
+                          <ComboboxItem
+                            value={MANUAL_GROUP_VALUE}
+                            label="Manual selection"
+                          >
+                            Manual selection
+                          </ComboboxItem>
+                          <For each={groupEntries()}>
+                            {([name, usernames]) => (
+                              <ComboboxItem value={name} label={name}>
+                                <span class="account-group-option">
+                                  <span class="account-group-option__name">
+                                    {name}
+                                  </span>
+                                  <span class="account-group-option__meta">
+                                    {usernames.length}
+                                  </span>
                                 </span>
-                                <span class="account-group-option__meta">
-                                  {usernames.length}
-                                </span>
-                              </span>
-                            </ComboboxItem>
-                          )}
-                        </For>
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
+                              </ComboboxItem>
+                            )}
+                          </For>
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </div>
+                  <div class="account-manager__group-actions">
+                    <Button
+                      variant="secondary"
+                      onClick={openCreateGroupDialog}
+                      disabled={busy()}
+                    >
+                      <Icon icon="plus" class="button__icon" />
+                      New Group
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={openEditGroupDialog}
+                      disabled={busy() || selectedGroupName() === ""}
+                    >
+                      <Icon icon="pencil" class="button__icon" />
+                      Edit
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger
+                        asChild={(triggerProps) => (
+                          <Button
+                            {...(triggerProps({
+                              variant: "destructive-outline",
+                              disabled: busy() || selectedGroupName() === "",
+                            } as ButtonProps) as ButtonProps)}
+                          >
+                            <Icon icon="trash_2" class="button__icon" />
+                            Delete
+                          </Button>
+                        )}
+                      />
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Group</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Delete {selectedGroupName()}? Accounts in this group
+                            will stay saved.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => void handleDeleteGroup()}
+                            variant="destructive"
+                          >
+                            Delete group
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
-                <div class="account-manager__group-actions">
-                  <Button
-                    variant="secondary"
-                    onClick={openCreateGroupDialog}
-                    disabled={busy()}
-                  >
-                    <Icon icon="plus" class="button__icon" />
-                    New Group
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={openEditGroupDialog}
-                    disabled={busy() || selectedGroupName() === ""}
-                  >
-                    <Icon icon="pencil" class="button__icon" />
-                    Edit
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger
+              </div>
+              <div class="account-manager__tiling-selector">
+                <div class="account-manager__tiling-label">
+                  <span>Tile</span>
+                  <Tooltip closeDelay={0} openDelay={200}>
+                    <TooltipTrigger
                       asChild={(triggerProps) => (
                         <Button
                           {...(triggerProps({
-                            variant: "destructive-outline",
-                            disabled: busy() || selectedGroupName() === "",
+                            "aria-label": "What is window tiling?",
+                            size: "icon-sm",
+                            type: "button",
+                            variant: "ghost",
                           } as ButtonProps) as ButtonProps)}
                         >
-                          <Icon icon="trash_2" class="button__icon" />
-                          Delete
+                          <Icon
+                            icon="circle_question_mark"
+                            class="button__icon"
+                          />
                         </Button>
                       )}
                     />
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Group</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Delete {selectedGroupName()}? Accounts in this group
-                          will stay saved.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => void handleDeleteGroup()}
-                          variant="destructive"
-                        >
-                          Delete group
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    <TooltipContent>
+                      Tiling automatically arranges launched game windows across your screen.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
+                <Select
+                  value={[launchTilingAlgorithm()]}
+                  disabled={busy()}
+                  onValueChange={(details) => {
+                    const value = details.value[0];
+                    if (isAccountLaunchTilingAlgorithm(value)) {
+                      setLaunchTilingAlgorithm(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    ref={(element) => {
+                      launchTilingTrigger = element;
+                    }}
+                    aria-keyshortcuts={launchTilingAriaKeyshortcuts()}
+                    class="account-manager__selection-tiling"
+                  >
+                    <span class="select__value">
+                      {selectedTilingAlgorithmLabel()}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <For each={LAUNCH_TILING_OPTIONS}>
+                      {(option) => (
+                        <SelectItem value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      )}
+                    </For>
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+
+            <div class="account-manager__selection-row">
               <span class="account-manager__selection-count">
                 {selectedAccountCount()} selected
                 <Show when={filteredAccounts().length !== accounts().length}>
@@ -1979,92 +2101,92 @@ function App(): JSX.Element {
                   ({filteredAccounts().length} visible)
                 </Show>
               </span>
-            </div>
-            <div class="account-manager__selection-actions">
-              <Tooltip closeDelay={0} openDelay={200}>
-                <TooltipTrigger
-                  asChild={(triggerProps) => (
-                    <Button
-                      {...(triggerProps({
-                        "aria-keyshortcuts":
-                          toggleVisibleSelectionAriaKeyshortcuts(),
-                        disabled: !canSelectVisibleAccounts(),
-                        onClick: toggleVisibleAccounts,
-                        variant: "secondary",
-                      } as ButtonProps) as ButtonProps)}
-                    >
-                      {allVisibleAccountsSelected() ? "None" : "All"}
-                    </Button>
-                  )}
-                />
-                <TooltipContent>
-                  Toggle visible accounts{" "}
-                  <ShortcutKbd
-                    label={toggleVisibleSelectionHotkeyDisplay()}
-                    parts={toggleVisibleSelectionHotkeyDisplayParts()}
+              <div class="account-manager__actions-row">
+                <Tooltip closeDelay={0} openDelay={200}>
+                  <TooltipTrigger
+                    asChild={(triggerProps) => (
+                      <Button
+                        {...(triggerProps({
+                          "aria-keyshortcuts":
+                            toggleVisibleSelectionAriaKeyshortcuts(),
+                          disabled: !canSelectVisibleAccounts(),
+                          onClick: toggleVisibleAccounts,
+                          variant: "secondary",
+                        } as ButtonProps) as ButtonProps)}
+                      >
+                        {allVisibleAccountsSelected() ? "None" : "All"}
+                      </Button>
+                    )}
                   />
-                </TooltipContent>
-              </Tooltip>
-              <Button variant="secondary" onClick={invertVisibleSelection}>
-                Invert
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger
-                  asChild={(triggerProps) => (
-                    <Button
-                      {...(triggerProps({
-                        variant: "destructive-outline",
-                        disabled:
-                          busy() || selectedAccountUsernames().size === 0,
-                      } as ButtonProps) as ButtonProps)}
-                    >
-                      <Icon icon="trash_2" class="button__icon" />
-                      Remove
-                    </Button>
-                  )}
-                />
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{selectedDeleteLabel()}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {confirmDeleteSelectedDescription()}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => void handleRemoveSelected()}
-                      variant="destructive"
-                    >
-                      {selectedDeleteConfirmLabel()}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Tooltip closeDelay={0} openDelay={200}>
-                <TooltipTrigger
-                  asChild={(triggerProps) => (
-                    <Button
-                      {...(triggerProps({
-                        "aria-keyshortcuts":
-                          startSelectedAriaKeyshortcuts(),
-                        disabled: !canStartSelected(),
-                        onClick: handleLaunch,
-                      } as ButtonProps) as ButtonProps)}
-                    >
-                      <Icon icon="play" class="button__icon" />
-                      Start
-                    </Button>
-                  )}
-                />
-                <TooltipContent>
-                  Start selected accounts{" "}
-                  <ShortcutKbd
-                    label={startSelectedHotkeyDisplay()}
-                    parts={startSelectedHotkeyDisplayParts()}
+                  <TooltipContent>
+                    Toggle visible accounts{" "}
+                    <ShortcutKbd
+                      label={toggleVisibleSelectionHotkeyDisplay()}
+                      parts={toggleVisibleSelectionHotkeyDisplayParts()}
+                    />
+                  </TooltipContent>
+                </Tooltip>
+                <Button variant="secondary" onClick={invertVisibleSelection}>
+                  Invert
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    asChild={(triggerProps) => (
+                      <Button
+                        {...(triggerProps({
+                          variant: "destructive-outline",
+                          disabled:
+                            busy() || selectedAccountUsernames().size === 0,
+                        } as ButtonProps) as ButtonProps)}
+                      >
+                        <Icon icon="trash_2" class="button__icon" />
+                        Remove
+                      </Button>
+                    )}
                   />
-                </TooltipContent>
-              </Tooltip>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{selectedDeleteLabel()}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {confirmDeleteSelectedDescription()}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => void handleRemoveSelected()}
+                        variant="destructive"
+                      >
+                        {selectedDeleteConfirmLabel()}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Tooltip closeDelay={0} openDelay={200}>
+                  <TooltipTrigger
+                    asChild={(triggerProps) => (
+                      <Button
+                        {...(triggerProps({
+                          "aria-keyshortcuts":
+                            startSelectedAriaKeyshortcuts(),
+                          disabled: !canStartSelected(),
+                          onClick: handleLaunch,
+                        } as ButtonProps) as ButtonProps)}
+                      >
+                        <Icon icon="play" class="button__icon" />
+                        Start
+                      </Button>
+                    )}
+                  />
+                  <TooltipContent>
+                    Start selected accounts{" "}
+                    <ShortcutKbd
+                      label={startSelectedHotkeyDisplay()}
+                      parts={startSelectedHotkeyDisplayParts()}
+                    />
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </div>
 

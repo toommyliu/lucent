@@ -2,7 +2,11 @@ import { EventEmitter } from "events";
 import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
+import type {
+  BrowserWindow,
+  BrowserWindowConstructorOptions,
+  Rectangle,
+} from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Layer } from "effect";
 import { createAppearanceSnapshot } from "../../../shared/appearance-snapshot";
@@ -25,7 +29,11 @@ import {
   type WindowManagerConfig,
 } from "../../window/WindowService";
 import type { WorkspaceFilesShape } from "../../workspace/WorkspaceFiles";
-import { startAccountGameLaunch } from "./accounts";
+import {
+  normalizeLaunchRequest,
+  resolveAccountLaunchTileBounds,
+  startAccountGameLaunch,
+} from "./accounts";
 
 class FakeWebContents extends EventEmitter {
   public readonly sent: {
@@ -46,6 +54,7 @@ class FakeWindow extends EventEmitter {
   public readonly webContents = new FakeWebContents();
   public visible = false;
   public destroyed = false;
+  public bounds: Rectangle | null = null;
 
   public constructor(
     public readonly id: number,
@@ -74,6 +83,10 @@ class FakeWindow extends EventEmitter {
 
   public focus(): void {
     this.emit("focus");
+  }
+
+  public setBounds(bounds: Rectangle): void {
+    this.bounds = bounds;
   }
 
   public destroy(): void {
@@ -119,12 +132,20 @@ const makeWorkspace = (scriptsDir: string): WorkspaceFilesShape => ({
   readArmyConfig: () => Effect.die("not used"),
 });
 
-const makeHarness = (): {
+const makeHarness = (options?: {
+  readonly cursorDisplayWorkArea?: Rectangle;
+}): {
   readonly runWindowEffect: WindowEffectRunner;
   readonly windows: readonly FakeWindow[];
 } => {
   const windows: FakeWindow[] = [];
   let nextId = 1;
+  const cursorDisplayWorkArea = options?.cursorDisplayWorkArea ?? {
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
+  };
   const config: WindowManagerConfig = {
     appIconPath: "/assets/icon.png",
     gameWindowHtmlPath: "/renderer/game/index.html",
@@ -154,6 +175,7 @@ const makeHarness = (): {
     getAllWindows: () => windows as unknown as BrowserWindow[],
     getFocusedWindow: () => null,
     getCenteredPosition: () => ({ x: 0, y: 0 }),
+    getCursorDisplayWorkArea: () => cursorDisplayWorkArea,
     focusApp: () => {},
   };
   const service = makeWindowService(config, runtime);
@@ -165,6 +187,81 @@ const makeHarness = (): {
     windows,
   };
 };
+
+describe("account launch tiling", () => {
+  const workArea: Rectangle = {
+    x: 10,
+    y: 20,
+    width: 1_000,
+    height: 800,
+  };
+
+  it.each([
+    [
+      "horizontal splits 2 accounts into columns",
+      { algorithm: "horizontal", index: 1, count: 2 },
+      { x: 510, y: 20, width: 500, height: 800 },
+    ],
+    [
+      "vertical splits 3 accounts into rows",
+      { algorithm: "vertical", index: 2, count: 3 },
+      { x: 10, y: 553, width: 1_000, height: 267 },
+    ],
+    [
+      "auto grid places 4 accounts in corner order",
+      { algorithm: "auto-grid", index: 2, count: 4 },
+      { x: 10, y: 420, width: 500, height: 400 },
+    ],
+    [
+      "auto grid makes a near-square grid for 5 accounts",
+      { algorithm: "auto-grid", index: 4, count: 5 },
+      { x: 343, y: 420, width: 333, height: 400 },
+    ],
+    [
+      "auto grid makes a near-square grid for 3 accounts",
+      { algorithm: "auto-grid", index: 2, count: 3 },
+      { x: 10, y: 420, width: 500, height: 400 },
+    ],
+  ] as const)(
+    "%s",
+    (_name, tiling, expected) => {
+      expect(resolveAccountLaunchTileBounds(workArea, tiling)).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it("does not resolve bounds when tiling is none", () => {
+    expect(
+      resolveAccountLaunchTileBounds(workArea, {
+        algorithm: "none",
+        index: 0,
+        count: 1,
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects invalid launch tiling payloads during request normalization", () => {
+    expect(() =>
+      normalizeLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "diagonal", index: 0, count: 2 },
+      }),
+    ).toThrow("Invalid launch tiling algorithm");
+    expect(() =>
+      normalizeLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", index: 0, count: 0 },
+      }),
+    ).toThrow("Launch tiling count must be a positive integer");
+    expect(() =>
+      normalizeLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", index: 2, count: 2 },
+      }),
+    ).toThrow("Launch tiling index is out of range");
+  });
+});
 
 describe("account game launch", () => {
   it("delivers the same refreshed launch payload shape the game renderer consumes", async () => {
@@ -213,6 +310,7 @@ describe("account game launch", () => {
     const payload = sentLaunch?.args[0] as AccountGameLaunchPayload | undefined;
 
     expect(result.gameWindowId).toBe(gameWindow.id);
+    expect(gameWindow.bounds).toBeNull();
     expect(payload).toMatchObject({
       account: {
         label: "Hero",
@@ -225,6 +323,53 @@ describe("account game launch", () => {
         source: "module.exports = 'fresh';\n",
         name: "farm.js",
       },
+    });
+    gameWindow.destroy();
+  });
+
+  it("creates tiled game windows with initial bounds", async () => {
+    if (tempDir === undefined) {
+      throw new Error("Missing temp directory");
+    }
+
+    const harness = makeHarness({
+      cursorDisplayWorkArea: { x: 0, y: 0, width: 1_200, height: 800 },
+    });
+
+    await startAccountGameLaunch(
+      {
+        account: {
+          label: "Hero",
+          username: "Hero",
+          password: "secret",
+        },
+        tiling: {
+          algorithm: "auto-grid",
+          index: 1,
+          count: 4,
+        },
+      },
+      {
+        runWindowEffect: harness.runWindowEffect,
+        repository: makeRepository(),
+        workspace: makeWorkspace(tempDir),
+        observability: {
+          error: vi.fn(() => Effect.succeed({} as never)),
+        },
+      },
+    );
+
+    const [gameWindow] = harness.windows;
+    if (gameWindow === undefined) {
+      throw new Error("Missing game window");
+    }
+
+    expect(gameWindow.bounds).toBeNull();
+    expect(gameWindow.options).toMatchObject({
+      x: 600,
+      y: 0,
+      width: 600,
+      height: 400,
     });
     gameWindow.destroy();
   });

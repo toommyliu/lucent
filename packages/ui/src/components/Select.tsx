@@ -6,10 +6,10 @@ import {
 } from "@ark-ui/solid/select";
 import {
   createContext,
+  createEffect,
   createMemo,
   createSignal,
   onCleanup,
-  onMount,
   splitProps,
   useContext,
   type JSX,
@@ -232,8 +232,12 @@ export function SelectItem(props: SelectItemProps): JSX.Element {
     ...(local.disabled === undefined ? {} : { disabled: local.disabled }),
   }));
 
-  onMount(() => context?.registerItem(item()));
-  onCleanup(() => context?.unregisterItem(item().value));
+  createEffect(() => {
+    const registeredItem = item();
+
+    context?.registerItem(registeredItem);
+    onCleanup(() => context?.unregisterItem(registeredItem.value));
+  });
 
   return (
     <SelectPrimitive.Item
