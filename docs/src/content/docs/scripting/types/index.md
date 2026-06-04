@@ -31,12 +31,15 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/avatar-data/" data-script-type="avatar-data"><code>AvatarData</code></a> | type alias |  |
 | <a href="/scripting/types/base-entity/" data-script-type="base-entity"><code>BaseEntity</code></a> | class | Base class for entities in the game world. |
 | <a href="/scripting/types/base-entity-data/" data-script-type="base-entity-data"><code>BaseEntityData</code></a> | type alias |  |
+| <a href="/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
 | <a href="/scripting/types/bridge-effect/" data-script-type="bridge-effect"><code>BridgeEffect</code></a> | type alias |  |
 | <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a> | type alias |  |
 | <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
 | <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a> | class | A Map with additional utility methods. |
 | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
 | <a href="/scripting/types/comparator/" data-script-type="comparator"><code>Comparator</code></a> | type alias |  |
+| <a href="/scripting/types/connect-to-selection-status/" data-script-type="connect-to-selection-status"><code>ConnectToSelectionStatus</code></a> | type alias |  |
+| <a href="/scripting/types/consumable-skill-item/" data-script-type="consumable-skill-item"><code>ConsumableSkillItem</code></a> | type alias |  |
 | <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | enumeration |  |
 | <a href="/scripting/types/environment-drop-policy/" data-script-type="environment-drop-policy"><code>EnvironmentDropPolicy</code></a> | interface | Handling options for drops that are not registered by name. |
 | <a href="/scripting/types/environment-item-rules/" data-script-type="environment-item-rules"><code>EnvironmentItemRules</code></a> | interface |  |
@@ -100,9 +103,13 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/script-wait-predicate/" data-script-type="script-wait-predicate"><code>ScriptWaitPredicate</code></a> | type alias |  |
 | <a href="/scripting/types/server/" data-script-type="server"><code>Server</code></a> | class | Represents a game server. |
 | <a href="/scripting/types/server-packet-send-type/" data-script-type="server-packet-send-type"><code>ServerPacketSendType</code></a> | type alias |  |
+| <a href="/scripting/types/shop-info/" data-script-type="shop-info"><code>ShopInfo</code></a> | type alias |  |
 | <a href="/scripting/types/shop-item/" data-script-type="shop-item"><code>ShopItem</code></a> | class | The base class for all-things item related. |
 | <a href="/scripting/types/shop-item-data/" data-script-type="shop-item-data"><code>ShopItemData</code></a> | type alias | Represents the data structure for an item. |
+| <a href="/scripting/types/shop-item-match-summary/" data-script-type="shop-item-match-summary"><code>ShopItemMatchSummary</code></a> | interface |  |
+| <a href="/scripting/types/shop-item-selection-effect/" data-script-type="shop-item-selection-effect"><code>ShopItemSelectionEffect</code></a> | type alias |  |
 | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
+| <a href="/scripting/types/shop-item-selector-ambiguous-error/" data-script-type="shop-item-selector-ambiguous-error"><code>ShopItemSelectorAmbiguousError</code></a> | interface |  |
 | <a href="/scripting/types/shop-quantity-options/" data-script-type="shop-quantity-options"><code>ShopQuantityOptions</code></a> | interface |  |
 | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
 | <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> | type alias |  |

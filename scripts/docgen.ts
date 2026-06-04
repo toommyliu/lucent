@@ -20,6 +20,7 @@ import {
   getPropertyName,
   parseTypeReference,
   resolveOmitInterfaceAlias,
+  type TypeReferenceInfo,
 } from "./ts-ast-utils";
 
 const execFileAsync = promisify(execFile);
@@ -584,6 +585,47 @@ const parseInterfaceShape = (
     : null;
 };
 
+const expressionNameText = (node: ts.Expression): string | null => {
+  if (ts.isIdentifier(node)) {
+    return node.text;
+  }
+
+  if (ts.isPropertyAccessExpression(node)) {
+    const left = expressionNameText(node.expression);
+    return left === null ? node.name.text : `${left}.${node.name.text}`;
+  }
+
+  return null;
+};
+
+const unqualifiedExpressionName = (node: ts.Expression): string | null => {
+  if (ts.isIdentifier(node)) {
+    return node.text;
+  }
+
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text;
+  }
+
+  return null;
+};
+
+const parseHeritageReference = (
+  node: ts.ExpressionWithTypeArguments,
+): TypeReferenceInfo | null => {
+  const name = expressionNameText(node.expression);
+  const unqualifiedName = unqualifiedExpressionName(node.expression);
+  if (name === null || unqualifiedName === null) {
+    return null;
+  }
+
+  return {
+    name,
+    unqualifiedName,
+    args: Array.from(node.typeArguments ?? []),
+  };
+};
+
 const formatType = (
   checker: ts.TypeChecker,
   node: ts.TypeNode | undefined,
@@ -751,6 +793,65 @@ const resolveNestedInterface = (
     : null;
 };
 
+const resolveInheritedInterface = (
+  declarations: ReadonlyMap<
+    string,
+    ts.InterfaceDeclaration | ts.TypeAliasDeclaration
+  >,
+  heritage: ts.ExpressionWithTypeArguments,
+): ts.InterfaceDeclaration | null => {
+  const reference = parseHeritageReference(heritage);
+  if (reference === null) {
+    return null;
+  }
+
+  const omitted = resolveOmitInterfaceAlias(
+    reference,
+    (targetName) => getInterface(declarations, targetName),
+    { referenceName: "unqualifiedName" },
+  );
+  if (omitted !== null) {
+    return omitted;
+  }
+
+  if (reference.unqualifiedName === "Pick") {
+    return null;
+  }
+
+  const declaration = declarations.get(reference.unqualifiedName);
+  if (declaration === undefined) {
+    return null;
+  }
+
+  return ts.isInterfaceDeclaration(declaration)
+    ? declaration
+    : getInterface(declarations, reference.unqualifiedName);
+};
+
+const collectInterfaceMemberNames = (
+  declaration: ts.InterfaceDeclaration,
+): ReadonlySet<string> => {
+  const names = new Set<string>();
+  for (const member of declaration.members) {
+    if (!ts.isMethodSignature(member) && !ts.isPropertySignature(member)) {
+      continue;
+    }
+
+    const name = getPropertyName(member.name);
+    if (name !== null) {
+      names.add(name);
+    }
+  }
+  return names;
+};
+
+const topLevelPathMember = (basePath: string, path: string): string => {
+  const prefix = `${basePath}.`;
+  return path.startsWith(prefix)
+    ? (path.slice(prefix.length).split(".")[0] ?? path)
+    : path;
+};
+
 const collectMembersFromInterface = (
   checker: ts.TypeChecker,
   declarations: ReadonlyMap<
@@ -771,6 +872,39 @@ const collectMembersFromInterface = (
   const nextSeen = new Set(seenInterfaces);
   nextSeen.add(declaration.name.text);
   const docs: MemberDoc[] = [];
+  const ownMemberNames = collectInterfaceMemberNames(declaration);
+
+  for (const heritageClause of declaration.heritageClauses ?? []) {
+    if (heritageClause.token !== ts.SyntaxKind.ExtendsKeyword) {
+      continue;
+    }
+
+    for (const heritage of heritageClause.types) {
+      const inheritedInterface = resolveInheritedInterface(
+        declarations,
+        heritage,
+      );
+      if (inheritedInterface === null) {
+        continue;
+      }
+
+      docs.push(
+        ...collectMembersFromInterface(
+          checker,
+          declarations,
+          options,
+          git,
+          inheritedInterface,
+          basePath,
+          typeReferences,
+          nextSeen,
+        ).filter(
+          (doc) =>
+            !ownMemberNames.has(topLevelPathMember(basePath, doc.path)),
+        ),
+      );
+    }
+  }
 
   for (const member of declaration.members) {
     if (ts.isMethodSignature(member)) {
