@@ -10,6 +10,7 @@ import { World, type WorldShape } from "./flash/Services/World";
 import {
   castNextCombatProfileStep,
   makeCombatProfileCursor,
+  resetCombatProfileCursor,
 } from "./combatProfiles";
 
 const profile = (
@@ -116,4 +117,75 @@ test("combat profile step cooldown mode overrides the profile mode", async () =>
     ),
   ).resolves.toBe(true);
   expect(calls).toEqual(["can:1", "use:2:false:true"]);
+});
+
+test("combat profile cursor advances and can be reset", async () => {
+  const calls: string[] = [];
+  const combat = {
+    canUseSkill: () => Effect.succeed(true),
+    useSkill: (skill: number | string, force?: boolean, wait?: boolean) =>
+      Effect.sync(() => {
+        calls.push(`use:${String(skill)}:${String(force)}:${String(wait)}`);
+      }),
+  } as unknown as CombatShape;
+  const combatProfile = profile("use-if-ready", [
+    { id: "one", skill: 1, conditions: [] },
+    { id: "two", skill: 2, conditions: [] },
+  ]);
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const cursor = yield* makeCombatProfileCursor();
+      yield* castNextCombatProfileStep(combatProfile, cursor);
+      yield* castNextCombatProfileStep(combatProfile, cursor);
+      yield* resetCombatProfileCursor(cursor);
+      yield* castNextCombatProfileStep(combatProfile, cursor);
+    }).pipe(
+      Effect.provideService(Combat, combat),
+      Effect.provideService(Player, {} as unknown as PlayerShape),
+      Effect.provideService(World, {} as unknown as WorldShape),
+    ),
+  );
+
+  expect(calls).toEqual([
+    "use:1:false:false",
+    "use:2:false:false",
+    "use:1:false:false",
+  ]);
+});
+
+test("combat profile reset during skill use wins over post-cast cursor advance", async () => {
+  const calls: string[] = [];
+  const combatProfile = profile("use-if-ready", [
+    { id: "one", skill: 1, conditions: [] },
+    { id: "two", skill: 2, conditions: [] },
+  ]);
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const cursor = yield* makeCombatProfileCursor();
+      const combat = {
+        canUseSkill: () => Effect.succeed(true),
+        useSkill: (skill: number | string) =>
+          Effect.gen(function* () {
+            calls.push(`use:${String(skill)}`);
+            if (skill === 1 && calls.length === 1) {
+              yield* resetCombatProfileCursor(cursor);
+            }
+          }),
+      } as unknown as CombatShape;
+
+      yield* castNextCombatProfileStep(combatProfile, cursor).pipe(
+        Effect.provideService(Combat, combat),
+      );
+      yield* castNextCombatProfileStep(combatProfile, cursor).pipe(
+        Effect.provideService(Combat, combat),
+      );
+    }).pipe(
+      Effect.provideService(Player, {} as unknown as PlayerShape),
+      Effect.provideService(World, {} as unknown as WorldShape),
+    ),
+  );
+
+  expect(calls).toEqual(["use:1", "use:1"]);
 });

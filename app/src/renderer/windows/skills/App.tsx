@@ -22,6 +22,7 @@ import {
   CardFrame,
   CardFrameHeader,
   CardFrameTitle,
+  Checkbox,
   Input,
   Label,
   Select,
@@ -186,6 +187,10 @@ function App(): JSX.Element {
   );
   const [cooldownMode, setCooldownMode] =
     createSignal<CombatProfileCooldownMode>("use-if-ready");
+  const [
+    resetSkillIndexOnMonsterDeath,
+    setResetSkillIndexOnMonsterDeath,
+  ] = createSignal(false);
   const [draftSteps, setDraftSteps] = createSignal<
     readonly CombatProfileStep[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.steps ?? []);
@@ -235,6 +240,9 @@ function App(): JSX.Element {
     setRole(profile.role);
     setDelayMs(String(profile.delayMs));
     setCooldownMode(profile.cooldownMode);
+    setResetSkillIndexOnMonsterDeath(
+      profile.resetSkillIndexOnMonsterDeath === true,
+    );
     setDraftSteps(profile.steps.map((step) => ({ ...step })));
     setDraftAnimationTriggers(
       (profile.animationTriggers ?? []).map((trigger) => ({ ...trigger })),
@@ -309,6 +317,9 @@ function App(): JSX.Element {
       delayMs: profile.delayMs,
       cooldownMode: selectedCooldownMode,
       timeoutMs: profile.timeoutMs,
+      ...(resetSkillIndexOnMonsterDeath()
+        ? { resetSkillIndexOnMonsterDeath: true }
+        : {}),
       steps: draftSteps().map((step) => {
         if (step.cooldownMode === selectedCooldownMode) {
           const { cooldownMode: _cooldownMode, ...rest } = step;
@@ -680,6 +691,26 @@ function App(): JSX.Element {
                       </SelectContent>
                     </Select>
                   </Label>
+                  <div class="skills-checkbox-field">
+                    <Checkbox
+                      checked={resetSkillIndexOnMonsterDeath()}
+                      onChange={(event) =>
+                        setResetSkillIndexOnMonsterDeath(
+                          event.currentTarget.checked,
+                        )
+                      }
+                    >
+                      Reset rotation on monster death
+                    </Checkbox>
+                    <TooltipIconButton
+                      aria-label="Reset rotation on monster death help"
+                      class="skills-help-button"
+                      size="icon-sm"
+                      tooltip="Start the rotation from the first matching skill after a monster death."
+                    >
+                      <Icon icon="help_circle" class="button__icon" />
+                    </TooltipIconButton>
+                  </div>
                 </CardContent>
               </Card>
             </CardFrame>

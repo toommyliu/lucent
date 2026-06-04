@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_COMBAT_PROFILE_ID,
   autoAttackStateToProfileRef,
+  cloneCombatProfileLibrary,
   findCombatProfileByRef,
   normalizeCombatProfileLibrary,
   parseCombatProfileAutoAttackState,
@@ -37,6 +38,7 @@ describe("combat profile library", () => {
           delayMs: 250.9,
           cooldownMode: "wait-for-cooldown",
           timeoutMs: 20_500.5,
+          resetSkillIndexOnMonsterDeath: true,
           steps: [
             {
               id: "heal",
@@ -87,6 +89,7 @@ describe("combat profile library", () => {
       delayMs: 250,
       cooldownMode: "wait-for-cooldown",
       timeoutMs: 20_500,
+      resetSkillIndexOnMonsterDeath: true,
       steps: [
         {
           id: "heal",
@@ -122,6 +125,34 @@ describe("combat profile library", () => {
       mode: "selected",
       profileId: "vhl-solo",
     });
+  });
+
+  it("defaults reset-on-death to disabled and clones enabled profiles", () => {
+    const library = normalizeCombatProfileLibrary({
+      profiles: [
+        {
+          id: "default-reset",
+          label: "Default Reset",
+          resetSkillIndexOnMonsterDeath: "true",
+          steps: [{ skill: 1 }],
+        },
+        {
+          id: "enabled-reset",
+          label: "Enabled Reset",
+          resetSkillIndexOnMonsterDeath: true,
+          steps: [{ skill: 2 }],
+        },
+      ],
+    });
+
+    expect(library.profiles[1]).not.toHaveProperty(
+      "resetSkillIndexOnMonsterDeath",
+    );
+    expect(library.profiles[2]?.resetSkillIndexOnMonsterDeath).toBe(true);
+    expect(
+      cloneCombatProfileLibrary(library).profiles[2]
+        ?.resetSkillIndexOnMonsterDeath,
+    ).toBe(true);
   });
 
   it("falls back to generic when a selected profile no longer exists", () => {
