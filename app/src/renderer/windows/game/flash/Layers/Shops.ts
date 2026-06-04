@@ -10,10 +10,12 @@ import { Packet } from "../Services/Packet";
 import { Shops } from "../Services/Shops";
 import type {
   InventoryItemSelector,
+  ShopItemMatchSummary,
   ShopItemSelector,
   ShopsShape,
   ShopQuantityOptions,
 } from "../Services/Shops";
+import { ShopItemSelectorAmbiguous } from "../Services/Shops";
 import { Wait } from "../Services/Wait";
 
 const asShopInfo = (value: unknown): ShopInfo | null => {
@@ -76,6 +78,16 @@ const matchesShopItemSelector = (
   }
 
   return true;
+};
+
+const toShopItemMatchSummary = (item: ShopItem): ShopItemMatchSummary => {
+  const shopItemId = getShopItemId(item);
+
+  return {
+    name: item.name,
+    itemId: item.id,
+    ...(shopItemId !== undefined ? { shopItemId } : null),
+  };
 };
 
 const toShopItemsCollection = (
@@ -167,15 +179,27 @@ const make = Effect.gen(function* () {
     );
 
   const getSingleShopItem = (selector: ShopItemSelector) =>
-    Effect.map(getMatchingShopItems(selector), (items) => {
+    Effect.flatMap(getMatchingShopItems(selector), (items) => {
       const item = items[0];
-      return items.length === 1 && item !== undefined
-        ? Option.some(item)
-        : Option.none<ShopItem>();
+      if (items.length === 0 || item === undefined) {
+        return Effect.succeed(Option.none<ShopItem>());
+      }
+
+      if (items.length === 1) {
+        return Effect.succeed(Option.some(item));
+      }
+
+      return Effect.fail(
+        new ShopItemSelectorAmbiguous({
+          message: "Shop item selector matched multiple items.",
+          selector,
+          matches: items.map(toShopItemMatchSummary),
+        }),
+      );
     });
 
-  const getItems: ShopsShape["getItems"] = (selector) =>
-    Effect.map(getMatchingShopItems(selector), toShopItemsCollection);
+  const getItems: ShopsShape["getItems"] = () =>
+    Effect.map(getShopItems(), toShopItemsCollection);
 
   const getItem: ShopsShape["getItem"] = (selector) =>
     getSingleShopItem(selector);

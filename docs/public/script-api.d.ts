@@ -368,12 +368,12 @@ interface SettingsApi {
     setFrameRate(fps: number): Effect<void, BridgeError>;
 }
 interface ShopsApi {
-    getItem(selector: ShopItemSelector): Effect<ShopItem | null, BridgeError>;
-    getItems(selector?: ShopItemSelector): Effect<Collection<string, ShopItem>, BridgeError>;
-    buy(selector: ShopItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
+    getItem(selector: ShopItemSelector): ShopItemSelectionEffect<ShopItem | null>;
+    getItems(): Effect<Collection<string, ShopItem>, BridgeError>;
+    buy(selector: ShopItemSelector, options?: ShopQuantityOptions): ShopItemSelectionEffect<boolean>;
     sell(selector: InventoryItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
-    canBuy(selector: ShopItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
-    getMaxBuyQuantity(selector: ShopItemSelector): Effect<number, BridgeError>;
+    canBuy(selector: ShopItemSelector, options?: ShopQuantityOptions): ShopItemSelectionEffect<boolean>;
+    getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
 }
 interface TempInventoryApi {
     contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
@@ -860,6 +860,10 @@ type ServerPacketSendType = "String" | "Json";
 interface ShopItem extends Item {
   data: ShopItemData;
 }
+type ShopItemSelectionEffect<A> = Effect<
+  A,
+  BridgeError | ShopItemSelectorAmbiguousError
+>;
 type ShopItemSelector =
   | {
       readonly name: string;
@@ -1245,6 +1249,12 @@ type ShopItemData = ItemData & {
     sName: string;
   }[];
 };
+interface ShopItemSelectorAmbiguousError {
+  readonly _tag: "ShopItemSelectorAmbiguousError";
+  readonly message: string;
+  readonly selector: ShopItemSelector;
+  readonly matches: readonly ShopItemMatchSummary[];
+}
 type WorldEntityKey = `player:${number}` | `monster:${number}`;
 type ArmyLoopTauntNoEligiblePolicy = "throw" | "cast-scheduled";
 type ArmyLoopTauntPlayer = number | string;
@@ -1355,6 +1365,12 @@ type QuestTurnInData = {
 };
 interface ItemProcID { readonly [key: string]: unknown; }
 interface ShopItemID { readonly [key: string]: unknown; }
+interface _tag { readonly [key: string]: unknown; }
+interface ShopItemMatchSummary {
+  readonly name: string;
+  readonly itemId: number;
+  readonly shopItemId?: string;
+}
 interface ArmyLoopTauntTurnContext {
   readonly id: string;
   readonly target: {

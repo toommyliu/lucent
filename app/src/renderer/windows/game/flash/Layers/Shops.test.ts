@@ -88,7 +88,7 @@ const withShops = <A>(
   );
 };
 
-test("shop selectors preserve duplicate-name ambiguity and key items by ShopItemID", async () => {
+test("shop items are keyed by ShopItemID and precise selectors resolve one item", async () => {
   const bridge = {
     call() {
       return Effect.void as never;
@@ -107,10 +107,6 @@ test("shop selectors preserve duplicate-name ambiguity and key items by ShopItem
 
       return {
         allKeys: Array.from((yield* shops.getItems()).keys()),
-        potionKeys: Array.from(
-          (yield* shops.getItems({ name: "Potion" })).keys(),
-        ),
-        ambiguousPotion: yield* shops.getItem({ name: "Potion" }),
         precisePotion: yield* shops.getItem({
           name: "Potion",
           shopItemId: "s2",
@@ -120,13 +116,41 @@ test("shop selectors preserve duplicate-name ambiguity and key items by ShopItem
   );
 
   expect(result.allKeys).toEqual(["s1", "s2", "s3"]);
-  expect(result.potionKeys).toEqual(["s1", "s2"]);
-  expect(Option.isNone(result.ambiguousPotion)).toBe(true);
   expect(
     Option.isSome(result.precisePotion)
       ? result.precisePotion.value.data.ShopItemID
       : null,
   ).toBe("s2");
+});
+
+test("ambiguous shop selectors fail with matching item identities", async () => {
+  const bridge = {
+    call() {
+      return Effect.void as never;
+    },
+    callGameFunction() {
+      return Effect.void;
+    },
+    onConnection() {
+      return Effect.succeed(() => {});
+    },
+  } as BridgeShape;
+
+  await expect(
+    withShops(bridge, (shops, loadShop) =>
+      Effect.gen(function* () {
+        yield* loadShop(loadShopPacket);
+        yield* shops.buy({ name: "Potion" });
+      }),
+    ),
+  ).rejects.toMatchObject({
+    _tag: "ShopItemSelectorAmbiguousError",
+    selector: { name: "Potion" },
+    matches: [
+      { name: "Potion", itemId: 100, shopItemId: "s1" },
+      { name: "Potion", itemId: 101, shopItemId: "s2" },
+    ],
+  });
 });
 
 test("buy, canBuy, and max quantity resolve through unique ShopItemID", async () => {
@@ -164,7 +188,6 @@ test("buy, canBuy, and max quantity resolve through unique ShopItemID", async ()
       yield* loadShop(loadShopPacket);
 
       return {
-        ambiguousBuy: yield* shops.buy({ name: "Potion" }),
         preciseBuy: yield* shops.buy(
           { shopItemId: "s2" },
           { quantity: 3 },
@@ -175,7 +198,6 @@ test("buy, canBuy, and max quantity resolve through unique ShopItemID", async ()
     }),
   );
 
-  expect(result.ambiguousBuy).toBe(false);
   expect(result.preciseBuy).toBe(true);
   expect(result.canBuy).toBe(true);
   expect(result.max).toBe(7);

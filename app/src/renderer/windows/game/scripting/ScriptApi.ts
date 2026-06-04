@@ -32,6 +32,7 @@ import type { PlayerShape } from "../flash/Services/Player";
 import type { QuestsShape } from "../flash/Services/Quests";
 import type {
   InventoryItemSelector,
+  ShopItemSelectionEffect,
   ShopItemSelector,
   ShopQuantityOptions,
   ShopsShape,
@@ -495,14 +496,12 @@ export interface ScriptCombatTargetAurasShape {
 
 export interface ScriptShopsShape
   extends Omit<ShopsShape, "getItem"> {
-  getItem(selector: ShopItemSelector): BridgeEffect<ShopItem | null>;
-  getItems(
-    selector?: ShopItemSelector,
-  ): BridgeEffect<Collection<string, ShopItem>>;
+  getItem(selector: ShopItemSelector): ShopItemSelectionEffect<ShopItem | null>;
+  getItems(): BridgeEffect<Collection<string, ShopItem>>;
   buy(
     selector: ShopItemSelector,
     options?: ShopQuantityOptions,
-  ): BridgeEffect<boolean>;
+  ): ShopItemSelectionEffect<boolean>;
   sell(
     selector: InventoryItemSelector,
     options?: ShopQuantityOptions,
@@ -510,8 +509,8 @@ export interface ScriptShopsShape
   canBuy(
     selector: ShopItemSelector,
     options?: ShopQuantityOptions,
-  ): BridgeEffect<boolean>;
-  getMaxBuyQuantity(selector: ShopItemSelector): BridgeEffect<number>;
+  ): ShopItemSelectionEffect<boolean>;
+  getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
 }
 
 export interface ScriptAutoReloginShape {

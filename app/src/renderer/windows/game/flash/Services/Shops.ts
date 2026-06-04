@@ -1,8 +1,9 @@
-import { ServiceMap } from "effect";
+import { Data, Effect, ServiceMap } from "effect";
 import type { ShopInfo, ShopItem } from "@lucent/game";
 import type { Collection } from "@lucent/collection";
 import type { Option } from "effect";
 import type { BridgeEffect } from "./Bridge";
+import type { BridgeError } from "./Bridge";
 
 export type ShopItemSelector =
   | {
@@ -35,20 +36,44 @@ export interface ShopQuantityOptions {
   readonly quantity?: number;
 }
 
+export interface ShopItemMatchSummary {
+  readonly name: string;
+  readonly itemId: number;
+  readonly shopItemId?: string;
+}
+
+export interface ShopItemSelectorAmbiguousError {
+  readonly _tag: "ShopItemSelectorAmbiguousError";
+  readonly message: string;
+  readonly selector: ShopItemSelector;
+  readonly matches: readonly ShopItemMatchSummary[];
+}
+
+export class ShopItemSelectorAmbiguous extends Data.TaggedError(
+  "ShopItemSelectorAmbiguousError",
+)<Omit<ShopItemSelectorAmbiguousError, "_tag">> {}
+
+export type ShopItemSelectionEffect<A> = Effect.Effect<
+  A,
+  BridgeError | ShopItemSelectorAmbiguousError
+>;
+
 export interface ShopsShape {
   buy(
     selector: ShopItemSelector,
     options?: ShopQuantityOptions,
-  ): BridgeEffect<boolean>;
+  ): ShopItemSelectionEffect<boolean>;
   canBuy(
     selector: ShopItemSelector,
     options?: ShopQuantityOptions,
-  ): BridgeEffect<boolean>;
+  ): ShopItemSelectionEffect<boolean>;
   close(shopId?: number): BridgeEffect<boolean>;
   getInfo(): BridgeEffect<ShopInfo | null>;
-  getItem(selector: ShopItemSelector): BridgeEffect<Option.Option<ShopItem>>;
-  getItems(selector?: ShopItemSelector): BridgeEffect<Collection<string, ShopItem>>;
-  getMaxBuyQuantity(selector: ShopItemSelector): BridgeEffect<number>;
+  getItem(
+    selector: ShopItemSelector,
+  ): ShopItemSelectionEffect<Option.Option<ShopItem>>;
+  getItems(): BridgeEffect<Collection<string, ShopItem>>;
+  getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
   isOpen(shopId?: number): BridgeEffect<boolean>;
   isMergeShop(): BridgeEffect<boolean>;
   load(shopId: number): BridgeEffect<void>;
