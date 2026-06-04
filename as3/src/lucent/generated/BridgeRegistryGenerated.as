@@ -141,10 +141,13 @@ package lucent.generated
       external.externalize("settings.skipCutscenes", Settings.skipCutscenes);
       external.externalize("shops.buyById", Shops.buyById);
       external.externalize("shops.buyByName", Shops.buyByName);
+      external.externalize("shops.buyByShopItemId", Shops.buyByShopItemId);
+      external.externalize("shops.canBuyByShopItemId", Shops.canBuyByShopItemId);
       external.externalize("shops.canBuyItem", Shops.canBuyItem);
       external.externalize("shops.close", Shops.close);
       external.externalize("shops.getItem", Shops.getItem);
       external.externalize("shops.getMaxBuyQuantity", Shops.getMaxBuyQuantity);
+      external.externalize("shops.getMaxBuyQuantityByShopItemId", Shops.getMaxBuyQuantityByShopItemId);
       external.externalize("shops.isMergeShop", Shops.isMergeShop);
       external.externalize("shops.isOpen", Shops.isOpen);
       external.externalize("shops.load", Shops.load);
@@ -155,6 +158,7 @@ package lucent.generated
       external.externalize("tempInventory.contains", TempInventory.contains);
       external.externalize("tempInventory.getItem", TempInventory.getItem);
       external.externalize("tempInventory.getItems", TempInventory.getItems);
+      external.externalize("world.getAvailableMonsterMapIds", World.getAvailableMonsterMapIds);
       external.externalize("world.getCellPads", World.getCellPads);
       external.externalize("world.getCells", World.getCells);
       external.externalize("world.getMapItem", World.getMapItem);

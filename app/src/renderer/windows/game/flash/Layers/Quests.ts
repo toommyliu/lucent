@@ -1,6 +1,6 @@
 import { Collection } from "@lucent/collection";
 import { Quest, type QuestInfo } from "@lucent/game";
-import { Effect, Layer, SynchronizedRef } from "effect";
+import { Effect, Layer, Option, SynchronizedRef } from "effect";
 import { asNumber, asRecord } from "../PacketPayload";
 import { positiveInt, uniquePositiveInts } from "@lucent/shared/number";
 import { Bridge } from "../Services/Bridge";
@@ -201,7 +201,15 @@ const make = Effect.gen(function* () {
     );
   };
 
-  const getTree: QuestsShape["getTree"] = () => SynchronizedRef.get(quests);
+  const getAll: QuestsShape["getAll"] = () => SynchronizedRef.get(quests);
+
+  const get: QuestsShape["get"] = (questId) =>
+    SynchronizedRef.get(quests).pipe(
+      Effect.map((tree) => {
+        const quest = tree.get(questId);
+        return quest === undefined ? Option.none() : Option.some(quest);
+      }),
+    );
 
   const onLoaded: QuestsShape["onLoaded"] = (listener) =>
     Effect.sync(() => {
@@ -244,7 +252,8 @@ const make = Effect.gen(function* () {
     getMaxTurnIns,
     load,
     loadMany,
-    getTree,
+    getAll,
+    get,
     onLoaded,
     has,
     getAccepted,

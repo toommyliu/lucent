@@ -669,18 +669,6 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/types/BaseEntityData.ts#L1"
       }
     },
-    "boost-type": {
-      "name": "BoostType",
-      "slug": "boost-type",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type BoostType = Schema.Schema.Type<typeof BoostType>",
-      "keys": [],
-      "source": {
-        "path": "packages/game/src/types/BoostType.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/types/BoostType.ts#L3"
-      }
-    },
     "bridge-effect": {
       "name": "BridgeEffect",
       "slug": "bridge-effect",
@@ -1333,8 +1321,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/flash/Services/Combat.ts:6",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Combat.ts#L6"
+        "path": "app/src/renderer/windows/game/flash/Services/Combat.ts:10",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Combat.ts#L10"
       }
     },
     "comparator": {
@@ -1347,43 +1335,6 @@
       "source": {
         "path": "packages/collection/src/index.ts:1296",
         "url": "https://github.com/toommyliu/lucent/blob/dev/packages/collection/src/index.ts#L1296"
-      }
-    },
-    "connect-to-selection-status": {
-      "name": "ConnectToSelectionStatus",
-      "slug": "connect-to-selection-status",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type ConnectToSelectionStatus = \"selected\" | \"not-ready\" | \"offline\" | \"full\" | \"member-only\" | \"chat-restricted\" | \"underage-chat\" | \"email-unconfirmed\" | \"test-client-required\" | \"not-found\"",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/windows/game/flash/Types.ts:35",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Types.ts#L35"
-      }
-    },
-    "consumable-skill-item": {
-      "name": "ConsumableSkillItem",
-      "slug": "consumable-skill-item",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type ConsumableSkillItem = unknown",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "itemId",
-          "signature": "itemId?: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "name",
-          "signature": "name?: string",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/windows/game/flash/Types.ts:77",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Types.ts#L77"
       }
     },
     "entity-state": {
@@ -1740,6 +1691,18 @@
       "source": {
         "path": "packages/game/src/types/GameAction.ts:3",
         "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/types/GameAction.ts#L3"
+      }
+    },
+    "inventory-item-selector": {
+      "name": "InventoryItemSelector",
+      "slug": "inventory-item-selector",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type InventoryItemSelector = { itemId?: number; name: string } | { itemId: number; name?: string }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/Shops.ts:24",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Shops.ts#L24"
       }
     },
     "item": {
@@ -2393,6 +2356,43 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/global.d.ts#L11"
       }
     },
+    "monster-selector": {
+      "name": "MonsterSelector",
+      "slug": "monster-selector",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type MonsterSelector = MonsterIdentifierToken | MonsterSelectorObject",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L25"
+      }
+    },
+    "monster-selector-object": {
+      "name": "MonsterSelectorObject",
+      "slug": "monster-selector-object",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface MonsterSelectorObject",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "monMapId",
+          "signature": "readonly monMapId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name?: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:20",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L20"
+      }
+    },
     "outfit": {
       "name": "Outfit",
       "slug": "outfit",
@@ -2414,8 +2414,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/flash/Services/Outfits.ts:4",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Outfits.ts#L4"
+        "path": "app/src/renderer/windows/game/flash/Services/Outfits.ts:6",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Outfits.ts#L6"
       }
     },
     "outfit-equip-options": {
@@ -2433,8 +2433,45 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/flash/Services/Outfits.ts:9",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Outfits.ts#L9"
+        "path": "app/src/renderer/windows/game/flash/Services/Outfits.ts:11",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Outfits.ts#L11"
+      }
+    },
+    "player-selector": {
+      "name": "PlayerSelector",
+      "slug": "player-selector",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type PlayerSelector = string | number | PlayerSelectorObject",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:18",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L18"
+      }
+    },
+    "player-selector-object": {
+      "name": "PlayerSelectorObject",
+      "slug": "player-selector-object",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface PlayerSelectorObject",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "entId",
+          "signature": "readonly entId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "username",
+          "signature": "readonly username?: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:13",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L13"
       }
     },
     "quest": {
@@ -2971,8 +3008,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:92",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L92"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:116",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L116"
       }
     },
     "script-event-animation-message-event": {
@@ -3008,8 +3045,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:77",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L77"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:101",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L101"
       }
     },
     "script-event-anti-counter-event": {
@@ -3051,8 +3088,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:41",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L41"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:65",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L65"
       }
     },
     "script-event-aura-event": {
@@ -3094,8 +3131,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:84",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L84"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:108",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L108"
       }
     },
     "script-event-disposer": {
@@ -3106,8 +3143,8 @@
       "definition": "type ScriptEventDisposer = () => void",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:158",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L158"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:182",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L182"
       }
     },
     "script-event-join-map-event": {
@@ -3137,8 +3174,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:71",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L71"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:95",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L95"
       }
     },
     "script-event-listener": {
@@ -3149,8 +3186,8 @@
       "definition": "type ScriptEventListener<E> = (event: ScriptEventMap[E]) => void | Effect.Effect<unknown, unknown> | Generator<Effect.Yieldable<any, any, never, never>, unknown, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:144",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L144"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:168",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L168"
       }
     },
     "script-event-map": {
@@ -3252,8 +3289,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:114",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L114"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:138",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L138"
       }
     },
     "script-event-monster-death-event": {
@@ -3271,8 +3308,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:49",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L49"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:73",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L73"
       }
     },
     "script-event-player-death-event": {
@@ -3320,8 +3357,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:105",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L105"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:129",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L129"
       }
     },
     "script-event-player-location-event": {
@@ -3363,8 +3400,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:97",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L97"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:121",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L121"
       }
     },
     "script-event-predicate": {
@@ -3375,8 +3412,8 @@
       "definition": "type ScriptEventPredicate<E> = (event: ScriptEventMap[E]) => boolean | Effect.Effect<boolean, unknown> | Generator<Effect.Yieldable<any, any, never, never>, boolean, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:151",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L151"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:175",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L175"
       }
     },
     "script-event-quest-complete-event": {
@@ -3412,8 +3449,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:53",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L53"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:77",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L77"
       }
     },
     "script-event-wait-options": {
@@ -3443,8 +3480,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:160",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L160"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:184",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L184"
       }
     },
     "script-event-zone-event": {
@@ -3468,8 +3505,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:66",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L66"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:90",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L90"
       }
     },
     "script-exit-options": {
@@ -3493,8 +3530,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:482",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L482"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:586",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L586"
       }
     },
     "script-item-wait-options": {
@@ -3524,8 +3561,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:242",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L242"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:269",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L269"
       }
     },
     "script-monster-wait-options": {
@@ -3561,8 +3598,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:237",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L237"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:264",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L264"
       }
     },
     "script-options": {
@@ -3611,8 +3648,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:233",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L233"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:260",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L260"
       }
     },
     "script-recipe-effect": {
@@ -3648,8 +3685,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:228",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L228"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:255",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L255"
       }
     },
     "script-wait-predicate": {
@@ -3660,8 +3697,8 @@
       "definition": "type ScriptWaitPredicate = () => boolean | Effect.Effect<boolean, unknown> | Generator<Effect.Yieldable<any, any, never, never>, boolean, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:246",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L246"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:273",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L273"
       }
     },
     "server": {
@@ -3753,73 +3790,6 @@
       "source": {
         "path": "app/src/renderer/windows/game/flash/Services/Packet.ts:26",
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Packet.ts#L26"
-      }
-    },
-    "shop-info": {
-      "name": "ShopInfo",
-      "slug": "shop-info",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type ShopInfo = unknown",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "bHouse",
-          "signature": "bHouse: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "bStaff",
-          "signature": "bStaff: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "bUpgrd",
-          "signature": "bUpgrd: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "iIndex",
-          "signature": "iIndex: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "items",
-          "signature": "items: ShopItemData[]",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "Location",
-          "signature": "Location: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "sField",
-          "signature": "sField: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "ShopID",
-          "signature": "ShopID: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "sName",
-          "signature": "sName: string",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "packages/game/src/types/ShopInfo.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/types/ShopInfo.ts#L3"
       }
     },
     "shop-item": {
@@ -4027,6 +3997,37 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/types/ShopItemData.ts#L6"
       }
     },
+    "shop-item-selector": {
+      "name": "ShopItemSelector",
+      "slug": "shop-item-selector",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ShopItemSelector = { itemId?: number; name: string; shopItemId?: string | number } | { itemId: number; name?: string; shopItemId?: string | number } | { itemId?: number; name?: string; shopItemId: string | number }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/Shops.ts:7",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Shops.ts#L7"
+      }
+    },
+    "shop-quantity-options": {
+      "name": "ShopQuantityOptions",
+      "slug": "shop-quantity-options",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ShopQuantityOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "quantity",
+          "signature": "readonly quantity?: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/Shops.ts:34",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Shops.ts#L34"
+      }
+    },
     "skill": {
       "name": "Skill",
       "slug": "skill",
@@ -4037,6 +4038,42 @@
       "source": {
         "path": "app/src/renderer/windows/game/global.d.ts:19",
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/global.d.ts#L19"
+      }
+    },
+    "world-entity": {
+      "name": "WorldEntity",
+      "slug": "world-entity",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type WorldEntity = { entId: number; entity: Avatar; key: WorldEntityKey; type: \"player\"; username: string } | { entity: Monster; key: WorldEntityKey; monMapId: number; name: string; type: \"monster\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:29",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L29"
+      }
+    },
+    "world-entity-key": {
+      "name": "WorldEntityKey",
+      "slug": "world-entity-key",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type WorldEntityKey = `player:${number}` | `monster:${number}`",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:27",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L27"
+      }
+    },
+    "world-entity-selector": {
+      "name": "WorldEntitySelector",
+      "slug": "world-entity-selector",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type WorldEntitySelector = { type: \"self\" } | { type: \"player\" } & PlayerSelectorObject | { type: \"monster\" } & MonsterSelectorObject",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:45",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L45"
       }
     }
   }

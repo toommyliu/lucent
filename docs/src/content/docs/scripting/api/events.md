@@ -40,7 +40,7 @@ See <a href="/scripting/types/script-event-map/" data-script-type="script-event-
 
 <a id="member-api-events-on"></a>
 
-### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L184" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:184" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L208" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:208" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Subscribes to an event.
 
@@ -59,7 +59,7 @@ api.events.on(eventName: E, handler: ScriptEventListener<E>): Effect.Effect<Scri
 
 <a id="member-api-events-once"></a>
 
-### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L194" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:194" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L218" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:218" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Subscribes once, then disposes the listener.
 
@@ -78,12 +78,12 @@ api.events.once(eventName: E, handler: ScriptEventListener<E>): Effect.Effect<Sc
 
 <a id="member-api-events-waitfor"></a>
 
-### `api.events.waitFor()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L204" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:204" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.waitFor()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L228" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:228" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Waits for the next matching game event. Packet events are not supported.
 
 ```ts
-api.events.waitFor(eventName: E, options?: ScriptEventWaitOptions<E>): Effect.Effect<Option.Option<ScriptEventMap[E]>, unknown, never>
+api.events.waitFor(eventName: E, options?: ScriptEventWaitOptions<E>): Effect.Effect<ScriptEventMap[E] | null, unknown, never>
 ```
 
 | Name | Type | Required | Description |
@@ -91,6 +91,6 @@ api.events.waitFor(eventName: E, options?: ScriptEventWaitOptions<E>): Effect.Ef
 | `eventName` | `E` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `options` | <a href="/scripting/types/script-event-wait-options/" data-script-type="script-event-wait-options"><code>ScriptEventWaitOptions</code></a>&lt;`E`&gt; |  |  |
 
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/script-event-map/" data-script-type="script-event-map"><code>ScriptEventMap</code></a>[`E`]&gt;
+**Yields:** <a href="/scripting/types/script-event-map/" data-script-type="script-event-map"><code>ScriptEventMap</code></a>[`E`] \| `null`
 
 **Errors:** `ScriptNotReadyError` \| `unknown`

@@ -380,7 +380,7 @@ const ensureLifeSteal = (
 
     yield* deps.player.joinMap("arcangrove", "Potion", "Right");
     yield* loadShopById(deps, 211);
-    yield* deps.shops.buyByName(itemName, needed);
+    yield* deps.shops.buy({ name: itemName }, { quantity: needed });
   });
 
 const ensureScrollOfEnrage = (
@@ -422,21 +422,21 @@ const ensureScrollOfEnrage = (
         if ((yield* deps.player.getGold()) < 100_000) {
           return;
         }
-        yield* deps.shops.buyByName("Gold Voucher 100k", 1);
+        yield* deps.shops.buy({ name: "Gold Voucher 100k" }, { quantity: 1 });
       }
 
       if (!(yield* deps.inventory.contains("Arcane Quill", 1))) {
         if ((yield* deps.player.getGold()) < 100_000) {
           return;
         }
-        yield* deps.shops.buyByName("Arcane Quill", 1);
+        yield* deps.shops.buy({ name: "Arcane Quill" }, { quantity: 1 });
       }
 
       if (!(yield* deps.inventory.contains("Zealous Ink", 5))) {
         if (!(yield* deps.inventory.contains("Arcane Quill", 1))) {
           return;
         }
-        yield* deps.shops.buyByName("Zealous Ink", 5);
+        yield* deps.shops.buy({ name: "Zealous Ink" }, { quantity: 5 });
       }
 
       if (!(yield* deps.quests.canComplete(SCROLL_OF_ENRAGE_QUEST_ID))) {

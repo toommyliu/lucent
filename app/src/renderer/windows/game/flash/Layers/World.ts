@@ -1,5 +1,5 @@
 import { Collection } from "@lucent/collection";
-import { Avatar, Monster } from "@lucent/game";
+import { Avatar, Monster, parseMonsterMapIdToken } from "@lucent/game";
 import type { Aura } from "@lucent/game";
 import { equalsIgnoreCase, includesIgnoreCase } from "@lucent/shared/string";
 import {
@@ -14,6 +14,12 @@ import { Bridge } from "../Services/Bridge";
 import { Wait } from "../Services/Wait";
 import { World } from "../Services/World";
 import type {
+  MonsterSelector,
+  PlayerSelector,
+  WorldEntitiesShape,
+  WorldEntity,
+  WorldEntityKey,
+  WorldEntitySelector,
   WorldMapShape,
   WorldMonstersShape,
   WorldPlayersShape,
@@ -23,6 +29,7 @@ import type {
 type RuntimeState = {
   readonly players: Collection<string, Avatar>;
   readonly playerEntityIds: Map<string, number>;
+  readonly playerNamesByEntityId: Map<number, string>;
   meUsername: string | undefined;
   readonly monsters: Collection<number, Monster>;
   readonly playerAuras: Collection<number, Collection<string, Aura>>;
@@ -34,6 +41,7 @@ const normalize = (value: string) => value.toLowerCase();
 const initialState = (): RuntimeState => ({
   players: new Collection<string, Avatar>(),
   playerEntityIds: new Map<string, number>(),
+  playerNamesByEntityId: new Map<number, string>(),
   meUsername: undefined,
   monsters: new Collection<number, Monster>(),
   playerAuras: new Collection<number, Collection<string, Aura>>(),
@@ -131,10 +139,156 @@ const removeAuraFromTarget = (
 const clearRuntimeState = (state: RuntimeState): void => {
   state.players.clear();
   state.playerEntityIds.clear();
+  state.playerNamesByEntityId.clear();
   state.meUsername = undefined;
   state.monsters.clear();
   state.playerAuras.clear();
   state.monsterAuras.clear();
+};
+
+const optionFromNullable = <A>(value: A | undefined): Option.Option<A> =>
+  value === undefined ? Option.none() : Option.some(value);
+
+const cloneAuras = (
+  auras: Collection<string, Aura> | undefined,
+): Collection<string, Aura> =>
+  new Collection(
+    auras === undefined
+      ? []
+      : Array.from(auras, ([key, aura]) => [key, { ...aura }] as const),
+  );
+
+const normalizeMinStacks = (minStacks?: number): number =>
+  minStacks === undefined || !Number.isFinite(minStacks)
+    ? 1
+    : Math.max(1, Math.trunc(minStacks));
+
+const hasAuraStacks = (
+  aura: Aura | undefined,
+  minStacks?: number,
+): boolean => aura !== undefined && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
+
+const getPlayerByEntId = (
+  state: RuntimeState,
+  entId: number,
+): Avatar | undefined => {
+  const key = state.playerNamesByEntityId.get(entId);
+  if (key !== undefined) {
+    return state.players.get(key);
+  }
+
+  return state.players.find((player) => player.data.entID === entId);
+};
+
+const getPlayerBySelector = (
+  state: RuntimeState,
+  selector: PlayerSelector,
+): Avatar | undefined => {
+  if (typeof selector === "string") {
+    return state.players.get(normalize(selector));
+  }
+
+  if (typeof selector === "number") {
+    return Number.isFinite(selector) ? getPlayerByEntId(state, selector) : undefined;
+  }
+
+  const byUsername =
+    selector.username === undefined
+      ? undefined
+      : state.players.get(normalize(selector.username));
+  const byEntId =
+    selector.entId === undefined
+      ? undefined
+      : getPlayerByEntId(state, selector.entId);
+
+  if (selector.username !== undefined && selector.entId !== undefined) {
+    return byUsername !== undefined && byUsername === byEntId
+      ? byUsername
+      : undefined;
+  }
+
+  return byUsername ?? byEntId;
+};
+
+const getMonsterByName = (
+  monsters: Collection<number, Monster>,
+  name: string,
+): Monster | undefined =>
+  monsters.find(
+    (candidate) => name === "*" || includesIgnoreCase(candidate.name, name),
+  );
+
+const monsterMatchesName = (monster: Monster, name: string): boolean =>
+  name === "*" || includesIgnoreCase(monster.name, name);
+
+const getMonsterBySelector = (
+  state: RuntimeState,
+  selector: MonsterSelector,
+): Monster | undefined => {
+  if (typeof selector === "number" || typeof selector === "string") {
+    const monMapId = parseMonsterMapIdToken(selector);
+    if (monMapId !== undefined) {
+      return state.monsters.get(monMapId);
+    }
+
+    return typeof selector === "string"
+      ? getMonsterByName(state.monsters, selector)
+      : undefined;
+  }
+
+  const byMonMapId =
+    selector.monMapId === undefined
+      ? undefined
+      : state.monsters.get(selector.monMapId);
+  const byName =
+    selector.name === undefined
+      ? undefined
+      : getMonsterByName(state.monsters, selector.name);
+
+  if (selector.monMapId !== undefined && selector.name !== undefined) {
+    return byMonMapId !== undefined &&
+      monsterMatchesName(byMonMapId, selector.name)
+      ? byMonMapId
+      : undefined;
+  }
+
+  return byMonMapId ?? byName;
+};
+
+const toPlayerEntity = (player: Avatar): WorldEntity => ({
+  type: "player",
+  key: `player:${player.data.entID}`,
+  entId: player.data.entID,
+  username: player.username,
+  entity: player,
+});
+
+const toMonsterEntity = (monster: Monster): WorldEntity => ({
+  type: "monster",
+  key: `monster:${monster.monMapId}`,
+  monMapId: monster.monMapId,
+  name: monster.name,
+  entity: monster,
+});
+
+const getEntityBySelector = (
+  state: RuntimeState,
+  selector: WorldEntitySelector,
+): WorldEntity | undefined => {
+  if (selector.type === "self") {
+    const player = state.meUsername
+      ? state.players.get(state.meUsername)
+      : undefined;
+    return player === undefined ? undefined : toPlayerEntity(player);
+  }
+
+  if (selector.type === "player") {
+    const player = getPlayerBySelector(state, selector);
+    return player === undefined ? undefined : toPlayerEntity(player);
+  }
+
+  const monster = getMonsterBySelector(state, selector);
+  return monster === undefined ? undefined : toMonsterEntity(monster);
 };
 
 const make = Effect.gen(function* () {
@@ -149,31 +303,6 @@ const make = Effect.gen(function* () {
   const roomNumberRef = yield* Ref.make<number | null>(null);
 
   // Bridge methods
-  const getCellMonsters: WorldMapShape["getCellMonsters"] = () =>
-    Effect.gen(function* () {
-      const list = yield* monsters.getAll();
-      const myCellOption = yield* players.withSelf((player) => player.cell);
-
-      if (Option.isNone(myCellOption)) {
-        return [];
-      }
-
-      const myCell = myCellOption.value;
-      const filtered = list.filter((mon) => mon.isInCell(myCell));
-
-      const available: Monster[] = [];
-      for (const mon of filtered.values()) {
-        const isAvailable = yield* bridge.call("world.isMonsterAvailable", [
-          mon.monMapId,
-        ]);
-        if (isAvailable) {
-          available.push(mon);
-        }
-      }
-
-      return available;
-    });
-
   const getCells: WorldMapShape["getCells"] = () =>
     Effect.map(bridge.call("world.getCells"), (cells) =>
       cells.filter((cell): cell is string => typeof cell === "string"),
@@ -251,12 +380,19 @@ const make = Effect.gen(function* () {
   // Player state methods
   const registerPlayer: WorldPlayersShape["register"] = (username, entId) =>
     mutate(stateRef, (state) => {
-      state.playerEntityIds.set(normalize(username), entId);
+      const key = normalize(username);
+      state.playerEntityIds.set(key, entId);
+      state.playerNamesByEntityId.set(entId, key);
     }).pipe(Effect.asVoid);
 
   const unregisterPlayer: WorldPlayersShape["unregister"] = (username) =>
     mutate(stateRef, (state) => {
-      state.playerEntityIds.delete(normalize(username));
+      const key = normalize(username);
+      const entId = state.playerEntityIds.get(key);
+      state.playerEntityIds.delete(key);
+      if (entId !== undefined) {
+        state.playerNamesByEntityId.delete(entId);
+      }
     }).pipe(Effect.asVoid);
 
   const addPlayer: WorldPlayersShape["add"] = (data) =>
@@ -264,6 +400,7 @@ const make = Effect.gen(function* () {
       const key = normalize(data.uoName || data.strUsername);
       state.players.set(key, new Avatar(data));
       state.playerEntityIds.set(key, data.entID);
+      state.playerNamesByEntityId.set(data.entID, key);
     }).pipe(Effect.asVoid);
 
   const removePlayer: WorldPlayersShape["remove"] = (username) =>
@@ -273,6 +410,7 @@ const make = Effect.gen(function* () {
       state.players.delete(key);
       state.playerEntityIds.delete(key);
       if (entId !== undefined) {
+        state.playerNamesByEntityId.delete(entId);
         state.playerAuras.delete(entId);
       }
     }).pipe(Effect.asVoid);
@@ -305,10 +443,9 @@ const make = Effect.gen(function* () {
       return me ? Option.some(f(me)) : Option.none();
     });
 
-  const getPlayer: WorldPlayersShape["get"] = (username) =>
+  const getPlayer: WorldPlayersShape["get"] = (selector) =>
     mutate(stateRef, (state) => {
-      const player = state.players.get(normalize(username));
-      return player ? Option.some(player) : Option.none();
+      return optionFromNullable(getPlayerBySelector(state, selector));
     });
 
   const getPlayerByName: WorldPlayersShape["getByName"] = (name) =>
@@ -344,12 +481,7 @@ const make = Effect.gen(function* () {
 
   const getPlayerAuras: WorldPlayersShape["getAuras"] = (entId) =>
     mutate(stateRef, (state) => {
-      const auras = state.playerAuras.get(entId);
-      if (!auras) {
-        return [];
-      }
-
-      return Array.from(auras.values(), (aura) => ({ ...aura }));
+      return cloneAuras(state.playerAuras.get(entId));
     });
 
   const clearPlayerAuras: WorldPlayersShape["clearAuras"] = (entId) =>
@@ -366,10 +498,9 @@ const make = Effect.gen(function* () {
       state.monsters.set(data.monMapId, new Monster(data));
     }).pipe(Effect.asVoid);
 
-  const getMonster: WorldMonstersShape["get"] = (monMapId) =>
+  const getMonster: WorldMonstersShape["get"] = (selector) =>
     mutate(stateRef, (state) => {
-      const monster = state.monsters.get(monMapId);
-      return monster ? Option.some(monster) : Option.none();
+      return optionFromNullable(getMonsterBySelector(state, selector));
     });
 
   const findMonsterByName: WorldMonstersShape["findByName"] = (name, cell) =>
@@ -383,6 +514,36 @@ const make = Effect.gen(function* () {
       });
 
       return monster ? Option.some(monster) : Option.none();
+    });
+
+  const getAvailableMonsters: WorldMonstersShape["getAvailable"] = () =>
+    Effect.gen(function* () {
+      const rawIds = yield* bridge.call("world.getAvailableMonsterMapIds");
+      const ids = rawIds.filter(
+        (id): id is number => Number.isFinite(id) && id > 0,
+      );
+      const allMonsters = yield* getMonsters();
+      const available = new Collection<number, Monster>();
+      for (const id of ids) {
+        const monster = allMonsters.get(id);
+        if (monster !== undefined) {
+          available.set(id, monster);
+        }
+      }
+
+      return available;
+    });
+
+  const isMonsterAvailable: WorldMonstersShape["isAvailable"] = (selector) =>
+    Effect.gen(function* () {
+      const monster = yield* getMonster(selector);
+      if (Option.isNone(monster)) {
+        return false;
+      }
+
+      return yield* bridge.call("world.isMonsterAvailable", [
+        monster.value.monMapId,
+      ]);
     });
 
   const addMonsterAura: WorldMonstersShape["addAura"] = (monMapId, aura) =>
@@ -414,13 +575,93 @@ const make = Effect.gen(function* () {
       return aura ? Option.some(aura) : Option.none();
     });
 
+  const getMonsterAuras: WorldMonstersShape["getAuras"] = (monMapId) =>
+    mutate(stateRef, (state) => cloneAuras(state.monsterAuras.get(monMapId)));
+
   const clearMonsterAuras: WorldMonstersShape["clearAuras"] = (monMapId) =>
     mutate(stateRef, (state) => {
       state.monsterAuras.delete(monMapId);
     }).pipe(Effect.asVoid);
 
+  const playerAuras: WorldPlayersShape["auras"] = {
+    getAll: (selector) =>
+      Effect.gen(function* () {
+        const player = yield* getPlayer(selector);
+        if (Option.isNone(player)) {
+          return new Collection<string, Aura>();
+        }
+
+        return yield* getPlayerAuras(player.value.data.entID);
+      }),
+    get: (selector, auraName) =>
+      Effect.gen(function* () {
+        const player = yield* getPlayer(selector);
+        if (Option.isNone(player)) {
+          return Option.none<Aura>();
+        }
+
+        return yield* getPlayerAura(player.value.data.entID, auraName);
+      }),
+    has: (selector, auraName, minStacks) =>
+      Effect.gen(function* () {
+        const aura = yield* playerAuras.get(selector, auraName);
+        return hasAuraStacks(Option.isSome(aura) ? aura.value : undefined, minStacks);
+      }),
+  };
+
+  const monsterAuras: WorldMonstersShape["auras"] = {
+    getAll: (selector) =>
+      Effect.gen(function* () {
+        const monster = yield* getMonster(selector);
+        if (Option.isNone(monster)) {
+          return new Collection<string, Aura>();
+        }
+
+        return yield* getMonsterAuras(monster.value.monMapId);
+      }),
+    get: (selector, auraName) =>
+      Effect.gen(function* () {
+        const monster = yield* getMonster(selector);
+        if (Option.isNone(monster)) {
+          return Option.none<Aura>();
+        }
+
+        return yield* getMonsterAura(monster.value.monMapId, auraName);
+      }),
+    has: (selector, auraName, minStacks) =>
+      Effect.gen(function* () {
+        const aura = yield* monsterAuras.get(selector, auraName);
+        return hasAuraStacks(Option.isSome(aura) ? aura.value : undefined, minStacks);
+      }),
+  };
+
+  const entities: WorldEntitiesShape = {
+    getAll: () =>
+      mutate(stateRef, (state) => {
+        const all = new Collection<WorldEntityKey, WorldEntity>();
+        for (const player of state.players.values()) {
+          const entity = toPlayerEntity(player);
+          all.set(entity.key, entity);
+        }
+
+        for (const monster of state.monsters.values()) {
+          const entity = toMonsterEntity(monster);
+          all.set(entity.key, entity);
+        }
+
+        return all;
+      }),
+    getMe: () =>
+      mutate(stateRef, (state) =>
+        optionFromNullable(getEntityBySelector(state, { type: "self" })),
+      ),
+    get: (selector) =>
+      mutate(stateRef, (state) =>
+        optionFromNullable(getEntityBySelector(state, selector)),
+      ),
+  };
+
   const map: WorldMapShape = {
-    getCellMonsters,
     getCells,
     getCellPads,
     isLoaded,
@@ -454,6 +695,7 @@ const make = Effect.gen(function* () {
     getAuras: getPlayerAuras,
     getAura: getPlayerAura,
     clearAuras: clearPlayerAuras,
+    auras: playerAuras,
   };
 
   const monsters: WorldMonstersShape = {
@@ -461,17 +703,22 @@ const make = Effect.gen(function* () {
     add: addMonster,
     get: getMonster,
     findByName: findMonsterByName,
+    getAvailable: getAvailableMonsters,
+    isAvailable: isMonsterAvailable,
     addAura: addMonsterAura,
     updateAura: updateMonsterAura,
     removeAura: removeMonsterAura,
+    getAuras: getMonsterAuras,
     getAura: getMonsterAura,
     clearAuras: clearMonsterAuras,
+    auras: monsterAuras,
   };
 
   return {
     map,
     players,
     monsters,
+    entities,
   } satisfies WorldShape;
 });
 

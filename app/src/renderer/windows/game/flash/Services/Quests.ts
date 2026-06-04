@@ -1,6 +1,6 @@
-import { Collection } from "@lucent/collection";
+import type { Collection } from "@lucent/collection";
 import { ServiceMap } from "effect";
-import type { Effect } from "effect";
+import type { Effect, Option } from "effect";
 import type { BridgeEffect } from "./Bridge";
 import type { Quest } from "@lucent/game";
 
@@ -21,7 +21,8 @@ export interface QuestsShape {
   getMaxTurnIns(questId: number): BridgeEffect<number>;
   load(questId: number, silent?: boolean): BridgeEffect<void>;
   loadMany(questIds: number[], silent?: boolean): BridgeEffect<void>;
-  getTree(): Effect.Effect<Collection<number, Quest>>;
+  getAll(): Effect.Effect<Collection<number, Quest>>;
+  get(questId: number): Effect.Effect<Option.Option<Quest>>;
   onLoaded(listener: QuestLoadedListener): Effect.Effect<() => void>;
   has(questId: number): Effect.Effect<boolean>;
   getAccepted(): BridgeEffect<Quest[]>;

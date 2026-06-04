@@ -196,7 +196,7 @@ const make = Effect.gen(function* () {
       return currentTarget.monMapId;
     }
 
-    const monsters = yield* world.map.getCellMonsters();
+    const monsters = yield* world.monsters.getAvailable();
     const next = monsters.find(isAttackableMonster);
     return next?.monMapId;
   });

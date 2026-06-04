@@ -1,4 +1,6 @@
+import { Collection } from "@lucent/collection";
 import { Monster, parseMonsterMapIdToken } from "@lucent/game";
+import type { Aura } from "@lucent/game";
 import { Effect, Layer, Option, Schedule } from "effect";
 import { splitCsv } from "@lucent/shared/csv";
 import { Bridge } from "../Services/Bridge";
@@ -109,6 +111,16 @@ const normalizeItemQuantity = (quantity?: number): number | undefined => {
   const normalized = Math.trunc(quantity);
   return normalized > 0 ? normalized : undefined;
 };
+
+const normalizeMinStacks = (minStacks?: number): number =>
+  minStacks === undefined || !Number.isFinite(minStacks)
+    ? 1
+    : Math.max(1, Math.trunc(minStacks));
+
+const hasAuraStacks = (
+  aura: Aura | undefined,
+  minStacks?: number,
+): boolean => aura !== undefined && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
 
 const toValidSkill = (value: Skill): Skill | undefined => {
   if (typeof value === "number") {
@@ -1237,6 +1249,102 @@ const make = Effect.gen(function* () {
       return bestCell;
     });
 
+  const getTargetEntity: CombatShape["target"]["get"] = () =>
+    Effect.gen(function* () {
+      const target = yield* bridge
+        .call("combat.getTarget")
+        .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
+      if (!target) {
+        return Option.none();
+      }
+
+      const maybeWorld = yield* Effect.serviceOption(World);
+      if (Option.isNone(maybeWorld)) {
+        return Option.none();
+      }
+
+      const world = maybeWorld.value;
+      if (target.type === "monster") {
+        const monsterTarget = target as MonsterTargetInfo;
+        if (!Number.isFinite(monsterTarget.MonMapID)) {
+          return Option.none();
+        }
+
+        return yield* world.entities.get({
+          type: "monster",
+          monMapId: monsterTarget.MonMapID,
+        });
+      }
+
+      const playerTarget = target as PlayerTargetInfo;
+      return yield* world.entities.get({
+        type: "player",
+        username: playerTarget.strUsername,
+        entId: playerTarget.entID,
+      });
+    });
+
+  const target: CombatShape["target"] = {
+    get: getTargetEntity,
+    auras: {
+      getAll: () =>
+        Effect.gen(function* () {
+          const target = yield* getTargetEntity();
+          if (Option.isNone(target)) {
+            return new Collection<string, Aura>();
+          }
+
+          if (target.value.type === "player") {
+            const maybeWorld = yield* Effect.serviceOption(World);
+            return Option.isSome(maybeWorld)
+              ? yield* maybeWorld.value.players.auras.getAll({
+                  entId: target.value.entId,
+                })
+              : new Collection<string, Aura>();
+          }
+
+          const maybeWorld = yield* Effect.serviceOption(World);
+          return Option.isSome(maybeWorld)
+            ? yield* maybeWorld.value.monsters.auras.getAll({
+                monMapId: target.value.monMapId,
+              })
+            : new Collection<string, Aura>();
+        }),
+      get: (auraName) =>
+        Effect.gen(function* () {
+          const target = yield* getTargetEntity();
+          if (Option.isNone(target)) {
+            return Option.none<Aura>();
+          }
+
+          const maybeWorld = yield* Effect.serviceOption(World);
+          if (Option.isNone(maybeWorld)) {
+            return Option.none<Aura>();
+          }
+
+          if (target.value.type === "player") {
+            return yield* maybeWorld.value.players.auras.get(
+              { entId: target.value.entId },
+              auraName,
+            );
+          }
+
+          return yield* maybeWorld.value.monsters.auras.get(
+            { monMapId: target.value.monMapId },
+            auraName,
+          );
+        }),
+      has: (auraName, minStacks) =>
+        Effect.gen(function* () {
+          const aura = yield* target.auras.get(auraName);
+          return hasAuraStacks(
+            Option.isSome(aura) ? aura.value : undefined,
+            minStacks,
+          );
+        }),
+    },
+  };
+
   return {
     attackMonster,
     cancelAutoAttack,
@@ -1247,6 +1355,7 @@ const make = Effect.gen(function* () {
     getConsumableSkillItem,
     getTarget,
     hasTarget,
+    target,
     kill,
     killForItem,
     killForTempItem,

@@ -235,7 +235,7 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      const tree = yield* quests.getTree();
+      const tree = yield* quests.getAll();
       const quest = tree.get(questId);
       if (!quest) {
         return;
@@ -288,7 +288,7 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      const tree = yield* quests.getTree();
+      const tree = yield* quests.getAll();
       for (const questId of tree.keys()) {
         yield* registerQuestDropTargets(state, questId).pipe(
           Effect.catchCause((cause) =>
@@ -312,7 +312,7 @@ const make = Effect.gen(function* () {
 
   const loadRegisteredQuestData = (state: EnvironmentState) =>
     Effect.gen(function* () {
-      const tree = yield* quests.getTree();
+      const tree = yield* quests.getAll();
       const unloadedQuestIds = state.questIds.filter(
         (questId) => !tree.has(questId),
       );

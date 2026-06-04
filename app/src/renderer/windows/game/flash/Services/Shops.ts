@@ -1,26 +1,63 @@
 import { ServiceMap } from "effect";
 import type { ShopInfo, ShopItem } from "@lucent/game";
+import type { Collection } from "@lucent/collection";
+import type { Option } from "effect";
 import type { BridgeEffect } from "./Bridge";
 
+export type ShopItemSelector =
+  | {
+      readonly name: string;
+      readonly itemId?: number;
+      readonly shopItemId?: string | number;
+    }
+  | {
+      readonly itemId: number;
+      readonly name?: string;
+      readonly shopItemId?: string | number;
+    }
+  | {
+      readonly shopItemId: string | number;
+      readonly name?: string;
+      readonly itemId?: number;
+    };
+
+export type InventoryItemSelector =
+  | {
+      readonly name: string;
+      readonly itemId?: number;
+    }
+  | {
+      readonly itemId: number;
+      readonly name?: string;
+    };
+
+export interface ShopQuantityOptions {
+  readonly quantity?: number;
+}
+
 export interface ShopsShape {
-  buyById(id: number, quantity?: number): BridgeEffect<boolean>;
-  buyByName(name: string, quantity?: number): BridgeEffect<boolean>;
-  canBuyItem(
-    key: ItemIdentifierToken,
-    quantity?: number,
+  buy(
+    selector: ShopItemSelector,
+    options?: ShopQuantityOptions,
+  ): BridgeEffect<boolean>;
+  canBuy(
+    selector: ShopItemSelector,
+    options?: ShopQuantityOptions,
   ): BridgeEffect<boolean>;
   close(shopId?: number): BridgeEffect<boolean>;
   getInfo(): BridgeEffect<ShopInfo | null>;
-  getItem(key: ItemIdentifierToken): BridgeEffect<ShopItem | null>;
-  getItems(): BridgeEffect<readonly ShopItem[]>;
-  getMaxBuyQuantity(key: ItemIdentifierToken): BridgeEffect<number>;
+  getItem(selector: ShopItemSelector): BridgeEffect<Option.Option<ShopItem>>;
+  getItems(selector?: ShopItemSelector): BridgeEffect<Collection<string, ShopItem>>;
+  getMaxBuyQuantity(selector: ShopItemSelector): BridgeEffect<number>;
   isOpen(shopId?: number): BridgeEffect<boolean>;
   isMergeShop(): BridgeEffect<boolean>;
   load(shopId: number): BridgeEffect<void>;
   loadArmorCustomize(): BridgeEffect<void>;
   loadHairShop(shopId: number): BridgeEffect<void>;
-  sellById(id: number, quantity?: number): BridgeEffect<boolean>;
-  sellByName(name: string, quantity?: number): BridgeEffect<boolean>;
+  sell(
+    selector: InventoryItemSelector,
+    options?: ShopQuantityOptions,
+  ): BridgeEffect<boolean>;
 }
 
 export class Shops extends ServiceMap.Service<Shops, ShopsShape>()(

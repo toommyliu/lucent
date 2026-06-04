@@ -24,6 +24,20 @@ package lucent.game {
       return info.items;
     }
 
+    private static function getItemByShopItemId(shopItemId:String):Object {
+      if (!shopItemId) {
+        return null;
+      }
+
+      for each (var item:Object in getShopItems()) {
+        if (item && "ShopItemID" in item && String(item.ShopItemID) == shopItemId) {
+          return item;
+        }
+      }
+
+      return null;
+    }
+
     private static function getInventoryItem(key:*):Object {
       var item:Object = Inventory.getItem(key);
       if (item || !(key is String)) {
@@ -95,6 +109,20 @@ package lucent.game {
       }
 
       var item:Object = getItem(key);
+      if (!item) {
+        return 0;
+      }
+
+      return game.world.maximumShopBuys(item);
+    }
+
+    [BridgeExport]
+    public static function getMaxBuyQuantityByShopItemId(shopItemId:String):int {
+      if (!getShopInfo()) {
+        return 0;
+      }
+
+      var item:Object = getItemByShopItemId(shopItemId);
       if (!item) {
         return 0;
       }
@@ -174,6 +202,21 @@ package lucent.game {
     }
 
     [BridgeExport]
+    public static function buyByShopItemId(shopItemId:String, quantity:int = 1):Boolean {
+      if (!shopItemId || quantity <= 0) {
+        return false;
+      }
+
+      var item:Object = getItemByShopItemId(shopItemId);
+      if (!item) {
+        return false;
+      }
+
+      sendBuy(item, quantity);
+      return true;
+    }
+
+    [BridgeExport]
     public static function sellByName(name:String, quantity:int = -1):Boolean {
       if (!name || (quantity !== -1 && quantity <= 0)) {
         return false;
@@ -235,6 +278,20 @@ package lucent.game {
       }
 
       var item:Object = getItem(key);
+      if (!item) {
+        return false;
+      }
+
+      return canBuyQuantity(item, quantity);
+    }
+
+    [BridgeExport]
+    public static function canBuyByShopItemId(shopItemId:String, quantity:int = 1):Boolean {
+      if (!getShopInfo()) {
+        return false;
+      }
+
+      var item:Object = getItemByShopItemId(shopItemId);
       if (!item) {
         return false;
       }

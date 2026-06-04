@@ -4,7 +4,7 @@ import {
   createEmptyEnvironmentState,
   type EnvironmentState,
 } from "../../../../../shared/environment";
-import { Effect, Layer, Logger } from "effect";
+import { Effect, Layer, Logger, Option } from "effect";
 import { describe, expect, test } from "vitest";
 import { Drops, type DropsShape } from "../../flash/Services/Drops";
 import { Inventory, type InventoryShape } from "../../flash/Services/Inventory";
@@ -167,7 +167,9 @@ const withEnvironment = (
     complete: () => Effect.void,
     getAccepted: () => Effect.succeed([]),
     getMaxTurnIns: () => Effect.succeed(1),
-    getTree: () => Effect.succeed(questTree),
+    getAll: () => Effect.succeed(questTree),
+    get: (questId: number) =>
+      Effect.succeed(Option.fromNullishOr(questTree.get(questId))),
     has: (questId: number) => Effect.succeed(questTree.has(questId)),
     isAvailable: () =>
       Effect.sync(() => availableResults.shift() ?? false),

@@ -1,4 +1,5 @@
-import { parseMonsterMapIdToken } from "@lucent/game";
+import { Collection } from "@lucent/collection";
+import { parseMonsterMapIdToken, type Aura } from "@lucent/game";
 import { equalsIgnoreCase } from "@lucent/shared/string";
 import {
   Cause,
@@ -69,6 +70,10 @@ import type {
   ScriptMain,
   ScriptRuntimeApi,
   ScriptSettingsShape,
+  ScriptCombatShape,
+  ScriptPlayerShape,
+  ScriptQuestsShape,
+  ScriptShopsShape,
   ScriptWaitOptions,
   ScriptWaitPredicate,
   ScriptWaitShape,
@@ -423,6 +428,25 @@ const make = Effect.gen(function* () {
           ),
         );
       });
+
+    const optionToNullable = <A>(option: Option.Option<A>): A | null =>
+      Option.isSome(option) ? option.value : null;
+
+    const nullableOptionEffect = <A, E>(
+      effect: Effect.Effect<Option.Option<A>, E, never>,
+    ): Effect.Effect<A | null, E, never> =>
+      Effect.map(effect, optionToNullable);
+
+    const normalizeMinStacks = (minStacks?: number): number =>
+      minStacks === undefined || !Number.isFinite(minStacks)
+        ? 1
+        : Math.max(1, Math.trunc(minStacks));
+
+    const hasAuraStacks = (
+      aura: { readonly stack?: number } | null,
+      minStacks?: number,
+    ): boolean =>
+      aura !== null && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
 
     const wrapValue = (
       value: unknown,
@@ -1073,9 +1097,12 @@ const make = Effect.gen(function* () {
 
           const waitForResult =
             options?.timeout === undefined
-              ? Deferred.await(result).pipe(Effect.map(Option.some))
+              ? Deferred.await(result).pipe(
+                  Effect.map((payload) => payload as ScriptEventMap[E] | null),
+                )
               : Deferred.await(result).pipe(
                   Effect.timeoutOption(options.timeout),
+                  Effect.map(optionToNullable),
                 );
 
           return yield* waitForResult.pipe(Effect.ensuring(cleanup));
@@ -1539,59 +1566,8 @@ const make = Effect.gen(function* () {
         };
       })();
 
-    const getScriptPlayer = (username: string) =>
-      Effect.gen(function* () {
-        const exact = yield* world.players.get(username);
-        if (Option.isSome(exact)) {
-          return exact;
-        }
-
-        return yield* world.players.getByName(username);
-      });
-
-    const getScriptPlayerAuras = (username: string) =>
-      Effect.gen(function* () {
-        const target = yield* getScriptPlayer(username);
-        if (Option.isNone(target)) {
-          return [];
-        }
-
-        return yield* world.players.getAuras(target.value.data.entID);
-      });
-
-    const getScriptPlayerAura = (username: string, auraName: string) =>
-      Effect.gen(function* () {
-        const target = yield* getScriptPlayer(username);
-        if (Option.isNone(target)) {
-          return Option.none();
-        }
-
-        return yield* world.players.getAura(target.value.data.entID, auraName);
-      });
-
-    const getScriptSelfAuras = () =>
-      Effect.gen(function* () {
-        const me = yield* world.players.getSelf();
-        if (Option.isNone(me)) {
-          return [];
-        }
-
-        return yield* world.players.getAuras(me.value.data.entID);
-      });
-
-    const getScriptSelfAura = (auraName: string) =>
-      Effect.gen(function* () {
-        const me = yield* world.players.getSelf();
-        if (Option.isNone(me)) {
-          return Option.none();
-        }
-
-        return yield* world.players.getAura(me.value.data.entID, auraName);
-      });
-
     const scriptWorld: ScriptWorldShape = {
       map: {
-        getCellMonsters: world.map.getCellMonsters,
         getCells: world.map.getCells,
         getCellPads: world.map.getCellPads,
         isLoaded: world.map.isLoaded,
@@ -1604,22 +1580,32 @@ const make = Effect.gen(function* () {
         getRoomNumber: world.map.getRoomNumber,
       },
       players: {
-        me: {
-          get: world.players.getSelf,
-          getAuras: getScriptSelfAuras,
-          getAura: getScriptSelfAura,
-        },
         getAll: world.players.getAll,
-        get: getScriptPlayer,
-        getByName: world.players.getByName,
-        getAuras: getScriptPlayerAuras,
-        getAura: getScriptPlayerAura,
+        getMe: () => nullableOptionEffect(world.players.getSelf()),
+        get: (selector) => nullableOptionEffect(world.players.get(selector)),
+        auras: {
+          getAll: world.players.auras.getAll,
+          get: (selector, auraName) =>
+            nullableOptionEffect(world.players.auras.get(selector, auraName)),
+          has: world.players.auras.has,
+        },
       },
       monsters: {
         getAll: world.monsters.getAll,
-        get: world.monsters.get,
-        findByName: world.monsters.findByName,
-        getAura: world.monsters.getAura,
+        get: (selector) => nullableOptionEffect(world.monsters.get(selector)),
+        getAvailable: world.monsters.getAvailable,
+        isAvailable: world.monsters.isAvailable,
+        auras: {
+          getAll: world.monsters.auras.getAll,
+          get: (selector, auraName) =>
+            nullableOptionEffect(world.monsters.auras.get(selector, auraName)),
+          has: world.monsters.auras.has,
+        },
+      },
+      entities: {
+        getAll: world.entities.getAll,
+        getMe: () => nullableOptionEffect(world.entities.getMe()),
+        get: (selector) => nullableOptionEffect(world.entities.get(selector)),
       },
     };
 
@@ -1671,6 +1657,93 @@ const make = Effect.gen(function* () {
           const targetMap = yield* resolveScriptJoinMap(map);
           yield* player.joinMap(targetMap, cell, pad);
         }),
+    };
+
+    const { getFactions: _getFactions, ...scriptPlayerBase } =
+      scriptPlayerService;
+
+    const getScriptSelfAuras = () =>
+      Effect.gen(function* () {
+        const me = yield* world.players.getSelf();
+        if (Option.isNone(me)) {
+          return new Collection<string, Aura>();
+        }
+
+        return yield* world.players.auras.getAll({ entId: me.value.data.entID });
+      });
+
+    const getScriptSelfAura = (auraName: string) =>
+      Effect.gen(function* () {
+        const me = yield* world.players.getSelf();
+        if (Option.isNone(me)) {
+          return null;
+        }
+
+        return yield* nullableOptionEffect(
+          world.players.auras.get({ entId: me.value.data.entID }, auraName),
+        );
+      });
+
+    const getScriptFaction = (name: string) =>
+      Effect.gen(function* () {
+        const factions = yield* player.getFactions();
+        return (
+          factions.get(name.toLowerCase()) ??
+          factions.find((faction) => equalsIgnoreCase(faction.name, name)) ??
+          null
+        );
+      });
+
+    const scriptPlayer: ScriptPlayerShape = {
+      ...scriptPlayerBase,
+      auras: {
+        getAll: getScriptSelfAuras,
+        get: getScriptSelfAura,
+        has: (auraName, minStacks) =>
+          Effect.map(getScriptSelfAura(auraName), (aura) =>
+            hasAuraStacks(aura, minStacks),
+          ),
+      },
+      factions: {
+        getAll: player.getFactions,
+        get: getScriptFaction,
+        hasRank: (name, rank) =>
+          Effect.map(getScriptFaction(name), (faction) =>
+            faction === null ? false : faction.rank >= rank,
+          ),
+      },
+      outfits: {
+        getAll: outfits.getAll,
+        get: (name) => nullableOptionEffect(outfits.get(name)),
+        equip: outfits.equip,
+        wear: outfits.wear,
+      },
+    };
+
+    const { onLoaded: _onQuestLoaded, get: _getQuest, ...scriptQuestsBase } =
+      quests;
+    const scriptQuests: ScriptQuestsShape = {
+      ...scriptQuestsBase,
+      get: (questId) => nullableOptionEffect(quests.get(questId)),
+    };
+
+    const { getItem: _getShopItem, ...scriptShopsBase } = shops;
+    const scriptShops: ScriptShopsShape = {
+      ...scriptShopsBase,
+      getItem: (selector) => nullableOptionEffect(shops.getItem(selector)),
+    };
+
+    const scriptCombat: ScriptCombatShape = {
+      ...combat,
+      target: {
+        get: () => nullableOptionEffect(combat.target.get()),
+        auras: {
+          getAll: combat.target.auras.getAll,
+          get: (auraName) =>
+            nullableOptionEffect(combat.target.auras.get(auraName)),
+          has: combat.target.auras.has,
+        },
+      },
     };
 
     const scriptAutoRelogin: ScriptAutoReloginShape = {
@@ -1761,13 +1834,12 @@ const make = Effect.gen(function* () {
       army: scriptArmy,
       auth: wrapValue(scriptAuth) as ScriptApi["auth"],
       bank: wrapValue(bank) as ScriptApi["bank"],
-      combat: wrapValue(combat) as ScriptApi["combat"],
+      combat: wrapValue(scriptCombat) as ScriptApi["combat"],
       drops: wrapValue(drops) as ScriptApi["drops"],
       environment: wrapValue(environment) as ScriptApi["environment"],
       events: scriptEvents,
       house: wrapValue(house) as ScriptApi["house"],
       inventory: wrapValue(inventory) as ScriptApi["inventory"],
-      outfits: wrapValue(outfits) as ScriptApi["outfits"],
       packet: {
         sendClient: ((...args) =>
           wrapScriptEffect(
@@ -1778,11 +1850,11 @@ const make = Effect.gen(function* () {
             packet.sendServer(...args),
           )) as ScriptApi["packet"]["sendServer"],
       },
-      player: wrapValue(scriptPlayerService) as ScriptApi["player"],
-      quests: wrapValue(quests) as ScriptApi["quests"],
+      player: wrapValue(scriptPlayer) as ScriptApi["player"],
+      quests: wrapValue(scriptQuests) as ScriptApi["quests"],
       recipes: wrapValue(recipes) as ScriptApi["recipes"],
       settings: wrapValue(scriptSettings) as ScriptApi["settings"],
-      shops: wrapValue(shops) as ScriptApi["shops"],
+      shops: wrapValue(scriptShops) as ScriptApi["shops"],
       tempInventory: wrapValue(tempInventory) as ScriptApi["tempInventory"],
       wait: wrapValue(scriptWait) as ScriptApi["wait"],
       world: wrapValue(scriptWorld) as ScriptApi["world"],

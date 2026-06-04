@@ -12,21 +12,37 @@ tableOfContents:
 
 ## Members
 
-<a id="member-api-world-map-getcellmonsters"></a>
+<a id="member-api-world-entities-get"></a>
 
-### `api.world.map.getCellMonsters()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L362" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:362" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.entities.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L452" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:452" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.map.getCellMonsters(): BridgeEffect<Monster[]>
+api.world.entities.get(selector: WorldEntitySelector): Effect.Effect<WorldEntity | null, never, never>
 ```
 
-**Yields:** <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>[]
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `selector` | <a href="/scripting/types/world-entity-selector/" data-script-type="world-entity-selector"><code>WorldEntitySelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Yields:** <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> \| `null`
+
+**Errors:** `never`
+
+<a id="member-api-world-entities-getme"></a>
+
+### `api.world.entities.getMe()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L451" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:451" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.entities.getMe(): Effect.Effect<WorldEntity | null, never, never>
+```
+
+**Yields:** <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> \| `null`
+
+**Errors:** `never`
 
 <a id="member-api-world-map-getcellpads"></a>
 
-### `api.world.map.getCellPads()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L364" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:364" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getCellPads()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L390" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:390" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getCellPads(): BridgeEffect<string[]>
@@ -38,7 +54,7 @@ api.world.map.getCellPads(): BridgeEffect<string[]>
 
 <a id="member-api-world-map-getcells"></a>
 
-### `api.world.map.getCells()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L363" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:363" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getCells()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L389" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:389" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getCells(): BridgeEffect<string[]>
@@ -50,7 +66,7 @@ api.world.map.getCells(): BridgeEffect<string[]>
 
 <a id="member-api-world-map-getid"></a>
 
-### `api.world.map.getId()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L372" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:372" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getId()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L398" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:398" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getId(): Effect.Effect<number, never, never>
@@ -62,7 +78,7 @@ api.world.map.getId(): Effect.Effect<number, never, never>
 
 <a id="member-api-world-map-getmapitem"></a>
 
-### `api.world.map.getMapItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L366" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:366" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getMapItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L392" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:392" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getMapItem(itemId: number): BridgeEffect<void>
@@ -78,7 +94,7 @@ api.world.map.getMapItem(itemId: number): BridgeEffect<void>
 
 <a id="member-api-world-map-getname"></a>
 
-### `api.world.map.getName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L371" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:371" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L397" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:397" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getName(): Effect.Effect<string, never, never>
@@ -90,7 +106,7 @@ api.world.map.getName(): Effect.Effect<string, never, never>
 
 <a id="member-api-world-map-getroomnumber"></a>
 
-### `api.world.map.getRoomNumber()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L373" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:373" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.getRoomNumber()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L399" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:399" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.getRoomNumber(): Effect.Effect<number, never, never>
@@ -102,7 +118,7 @@ api.world.map.getRoomNumber(): Effect.Effect<number, never, never>
 
 <a id="member-api-world-map-isloaded"></a>
 
-### `api.world.map.isLoaded()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L365" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:365" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.isLoaded()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L391" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:391" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.isLoaded(): BridgeEffect<boolean>
@@ -114,7 +130,7 @@ api.world.map.isLoaded(): BridgeEffect<boolean>
 
 <a id="member-api-world-map-loadswf"></a>
 
-### `api.world.map.loadSwf()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L367" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:367" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.loadSwf()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L393" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:393" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.loadSwf(path: string): BridgeEffect<void>
@@ -130,7 +146,7 @@ api.world.map.loadSwf(path: string): BridgeEffect<void>
 
 <a id="member-api-world-map-reload"></a>
 
-### `api.world.map.reload()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L368" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:368" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.reload()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L394" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:394" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.reload(): BridgeEffect<void>
@@ -142,7 +158,7 @@ api.world.map.reload(): BridgeEffect<void>
 
 <a id="member-api-world-map-setspawnpoint"></a>
 
-### `api.world.map.setSpawnPoint()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L369" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:369" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.map.setSpawnPoint()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L395" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:395" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.map.setSpawnPoint(cell?: string, pad?: string): BridgeEffect<void>
@@ -157,42 +173,76 @@ api.world.map.setSpawnPoint(cell?: string, pad?: string): BridgeEffect<void>
 
 **Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
 
-<a id="member-api-world-monsters-findbyname"></a>
+<a id="member-api-world-monsters-auras-get"></a>
 
-### `api.world.monsters.findByName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L397" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:397" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.monsters.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L423" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:423" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.monsters.findByName(name: string, cell?: string): Effect.Effect<Option.Option<Monster>, never, never>
+api.world.monsters.auras.get(monster: MonsterSelector, auraName: string): Effect.Effect<Aura | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `cell` | `string` |  |  |
+| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>&gt;
+**Yields:** <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> \| `null`
+
+**Errors:** `never`
+
+<a id="member-api-world-monsters-auras-getall"></a>
+
+### `api.world.monsters.auras.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L422" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:422" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.monsters.auras.getAll(monster: MonsterSelector): Effect.Effect<Collection<string, Aura>, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a>&lt;`string`, <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>&gt;
+
+**Errors:** `never`
+
+<a id="member-api-world-monsters-auras-has"></a>
+
+### `api.world.monsters.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L427" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:427" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.monsters.auras.has(monster: MonsterSelector, auraName: string, minStacks?: number): Effect.Effect<boolean, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `minStacks` | `number` |  |  |
+
+**Yields:** `boolean`
 
 **Errors:** `never`
 
 <a id="member-api-world-monsters-get"></a>
 
-### `api.world.monsters.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L396" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:396" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.monsters.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L443" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:443" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.monsters.get(monMapId: number): Effect.Effect<Option.Option<Monster>, never, never>
+api.world.monsters.get(selector: MonsterSelector): Effect.Effect<Monster | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `monMapId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>&gt;
+**Yields:** <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-world-monsters-getall"></a>
 
-### `api.world.monsters.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L395" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:395" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.monsters.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L442" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:442" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.monsters.getAll(): Effect.Effect<Collection<number, Monster>, never, never>
@@ -202,42 +252,104 @@ api.world.monsters.getAll(): Effect.Effect<Collection<number, Monster>, never, n
 
 **Errors:** `never`
 
-<a id="member-api-world-monsters-getaura"></a>
+<a id="member-api-world-monsters-getavailable"></a>
 
-### `api.world.monsters.getAura()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L401" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:401" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.monsters.getAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L444" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:444" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.monsters.getAura(monMapId: number, auraName: string): Effect.Effect<Option.Option<Aura>, never, never>
+api.world.monsters.getAvailable(): BridgeEffect<Collection<number, Monster>>
+```
+
+**Yields:** <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a>&lt;`number`, <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>&gt;
+
+**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+
+<a id="member-api-world-monsters-isavailable"></a>
+
+### `api.world.monsters.isAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L445" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:445" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.monsters.isAvailable(selector: MonsterSelector): BridgeEffect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `monMapId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** `boolean`
+
+**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+
+<a id="member-api-world-players-auras-get"></a>
+
+### `api.world.players.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L410" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:410" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.players.auras.get(player: PlayerSelector, auraName: string): Effect.Effect<Aura | null, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `player` | <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>&gt;
+**Yields:** <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> \| `null`
+
+**Errors:** `never`
+
+<a id="member-api-world-players-auras-getall"></a>
+
+### `api.world.players.auras.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L409" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:409" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.players.auras.getAll(player: PlayerSelector): Effect.Effect<Collection<string, Aura>, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `player` | <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a>&lt;`string`, <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>&gt;
+
+**Errors:** `never`
+
+<a id="member-api-world-players-auras-has"></a>
+
+### `api.world.players.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L414" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:414" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.world.players.auras.has(player: PlayerSelector, auraName: string, minStacks?: number): Effect.Effect<boolean, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `player` | <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `minStacks` | `number` |  |  |
+
+**Yields:** `boolean`
 
 **Errors:** `never`
 
 <a id="member-api-world-players-get"></a>
 
-### `api.world.players.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L379" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:379" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.players.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L437" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:437" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.players.get(username: string): Effect.Effect<Option.Option<Avatar>, never, never>
+api.world.players.get(selector: PlayerSelector): Effect.Effect<Avatar | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `username` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a>&gt;
+**Yields:** <a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-world-players-getall"></a>
 
-### `api.world.players.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L378" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:378" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.players.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L435" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:435" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.world.players.getAll(): Effect.Effect<Collection<string, Avatar>, never, never>
@@ -247,91 +359,14 @@ api.world.players.getAll(): Effect.Effect<Collection<string, Avatar>, never, nev
 
 **Errors:** `never`
 
-<a id="member-api-world-players-getaura"></a>
+<a id="member-api-world-players-getme"></a>
 
-### `api.world.players.getAura()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L382" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:382" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.world.players.getAura(username: string, auraName: string): Effect.Effect<Option.Option<Aura>, never, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `username` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>&gt;
-
-**Errors:** `never`
-
-<a id="member-api-world-players-getauras"></a>
-
-### `api.world.players.getAuras()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L381" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:381" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.world.players.getMe()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L436" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:436" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.world.players.getAuras(username: string): Effect.Effect<readonly Aura[], never, never>
+api.world.players.getMe(): Effect.Effect<Avatar | null, never, never>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `username` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `readonly` <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>[]
-
-**Errors:** `never`
-
-<a id="member-api-world-players-getbyname"></a>
-
-### `api.world.players.getByName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L380" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:380" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.world.players.getByName(name: string): Effect.Effect<Option.Option<Avatar>, never, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a>&gt;
-
-**Errors:** `never`
-
-<a id="member-api-world-players-me-get"></a>
-
-### `api.world.players.me.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L389" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:389" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.world.players.me.get(): Effect.Effect<Option.Option<Avatar>, never, never>
-```
-
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a>&gt;
-
-**Errors:** `never`
-
-<a id="member-api-world-players-me-getaura"></a>
-
-### `api.world.players.me.getAura()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L391" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:391" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.world.players.me.getAura(auraName: string): Effect.Effect<Option.Option<Aura>, never, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `Option`.`Option`&lt;<a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>&gt;
-
-**Errors:** `never`
-
-<a id="member-api-world-players-me-getauras"></a>
-
-### `api.world.players.me.getAuras()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L390" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:390" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.world.players.me.getAuras(): Effect.Effect<readonly Aura[], never, never>
-```
-
-**Yields:** `readonly` <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>[]
+**Yields:** <a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a> \| `null`
 
 **Errors:** `never`

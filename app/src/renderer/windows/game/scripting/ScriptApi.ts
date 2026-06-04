@@ -1,6 +1,15 @@
 import type { Collection } from "@lucent/collection";
-import type { Aura, Avatar, GameAction, Monster, Server } from "@lucent/game";
-import type { Duration, Effect, Option } from "effect";
+import type {
+  Aura,
+  Avatar,
+  Faction,
+  GameAction,
+  Monster,
+  Quest,
+  Server,
+  ShopItem,
+} from "@lucent/game";
+import type { Duration, Effect } from "effect";
 import type { ScriptOptions } from "../../../../shared/ipc";
 import type { ScriptExecutionError, ScriptNotReadyError } from "./Errors";
 import type { ScriptRecipesShape } from "./recipes";
@@ -14,12 +23,27 @@ import type { CombatShape } from "../flash/Services/Combat";
 import type { DropsShape } from "../flash/Services/Drops";
 import type { HouseShape } from "../flash/Services/House";
 import type { InventoryShape } from "../flash/Services/Inventory";
-import type { OutfitsShape } from "../flash/Services/Outfits";
+import type {
+  Outfit,
+  OutfitEquipOptions,
+} from "../flash/Services/Outfits";
 import type { PacketShape } from "../flash/Services/Packet";
 import type { PlayerShape } from "../flash/Services/Player";
 import type { QuestsShape } from "../flash/Services/Quests";
-import type { ShopsShape } from "../flash/Services/Shops";
+import type {
+  InventoryItemSelector,
+  ShopItemSelector,
+  ShopQuantityOptions,
+  ShopsShape,
+} from "../flash/Services/Shops";
 import type { TempInventoryShape } from "../flash/Services/TempInventory";
+import type {
+  MonsterSelector,
+  PlayerSelector,
+  WorldEntitiesShape,
+  WorldEntity,
+  WorldEntitySelector,
+} from "../flash/Services/World";
 
 type EffectValue<T> =
   T extends Effect.Effect<infer A, infer E, infer R>
@@ -204,7 +228,7 @@ export interface ScriptEventsApi {
   waitFor<E extends ScriptSemanticEventName>(
     eventName: E,
     options?: ScriptEventWaitOptions<E>,
-  ): Effect.Effect<Option.Option<ScriptEventMap[E]>, ScriptNotReadyError | unknown>;
+  ): Effect.Effect<ScriptEventMap[E] | null, ScriptNotReadyError | unknown>;
 }
 
 export interface ScriptSettingsShape {
@@ -223,7 +247,10 @@ export interface ScriptSettingsShape {
   setFrameRate(fps: number): BridgeEffect<void>;
 }
 
-export type ScriptQuestsShape = Omit<QuestsShape, "onLoaded">;
+export interface ScriptQuestsShape
+  extends Omit<QuestsShape, "get" | "onLoaded"> {
+  get(questId: number): Effect.Effect<Quest | null>;
+}
 
 export interface ScriptWaitOptions {
   readonly timeout?: Duration.Input;
@@ -359,7 +386,6 @@ export interface ScriptWaitShape {
 }
 
 export interface ScriptWorldMapShape {
-  getCellMonsters(): BridgeEffect<Monster[]>;
   getCells(): BridgeEffect<string[]>;
   getCellPads(): BridgeEffect<string[]>;
   isLoaded(): BridgeEffect<boolean>;
@@ -373,41 +399,119 @@ export interface ScriptWorldMapShape {
   getRoomNumber(): Effect.Effect<number>;
 }
 
-export interface ScriptWorldPlayersShape {
-  readonly me: ScriptWorldMeShape;
-  getAll(): Effect.Effect<Collection<string, Avatar>>;
-  get(username: string): Effect.Effect<Option.Option<Avatar>>;
-  getByName(name: string): Effect.Effect<Option.Option<Avatar>>;
-  getAuras(username: string): Effect.Effect<readonly Aura[]>;
-  getAura(
-    username: string,
-    auraName: string,
-  ): Effect.Effect<Option.Option<Aura>>;
+export interface ScriptAuraShape {
+  getAll(): Effect.Effect<Collection<string, Aura>>;
+  get(auraName: string): Effect.Effect<Aura | null>;
+  has(auraName: string, minStacks?: number): Effect.Effect<boolean>;
 }
 
-export interface ScriptWorldMeShape {
-  get(): Effect.Effect<Option.Option<Avatar>>;
-  getAuras(): Effect.Effect<readonly Aura[]>;
-  getAura(auraName: string): Effect.Effect<Option.Option<Aura>>;
+export interface ScriptWorldPlayerAurasShape {
+  getAll(player: PlayerSelector): Effect.Effect<Collection<string, Aura>>;
+  get(
+    player: PlayerSelector,
+    auraName: string,
+  ): Effect.Effect<Aura | null>;
+  has(
+    player: PlayerSelector,
+    auraName: string,
+    minStacks?: number,
+  ): Effect.Effect<boolean>;
+}
+
+export interface ScriptWorldMonsterAurasShape {
+  getAll(monster: MonsterSelector): Effect.Effect<Collection<string, Aura>>;
+  get(
+    monster: MonsterSelector,
+    auraName: string,
+  ): Effect.Effect<Aura | null>;
+  has(
+    monster: MonsterSelector,
+    auraName: string,
+    minStacks?: number,
+  ): Effect.Effect<boolean>;
+}
+
+export interface ScriptWorldPlayersShape {
+  getAll(): Effect.Effect<Collection<string, Avatar>>;
+  getMe(): Effect.Effect<Avatar | null>;
+  get(selector: PlayerSelector): Effect.Effect<Avatar | null>;
+  readonly auras: ScriptWorldPlayerAurasShape;
 }
 
 export interface ScriptWorldMonstersShape {
   getAll(): Effect.Effect<Collection<number, Monster>>;
-  get(monMapId: number): Effect.Effect<Option.Option<Monster>>;
-  findByName(
-    name: string,
-    cell?: string,
-  ): Effect.Effect<Option.Option<Monster>>;
-  getAura(
-    monMapId: number,
-    auraName: string,
-  ): Effect.Effect<Option.Option<Aura>>;
+  get(selector: MonsterSelector): Effect.Effect<Monster | null>;
+  getAvailable(): BridgeEffect<Collection<number, Monster>>;
+  isAvailable(selector: MonsterSelector): BridgeEffect<boolean>;
+  readonly auras: ScriptWorldMonsterAurasShape;
+}
+
+export interface ScriptWorldEntitiesShape
+  extends Omit<WorldEntitiesShape, "get" | "getMe"> {
+  getMe(): Effect.Effect<WorldEntity | null>;
+  get(selector: WorldEntitySelector): Effect.Effect<WorldEntity | null>;
 }
 
 export interface ScriptWorldShape {
   map: ScriptWorldMapShape;
   players: ScriptWorldPlayersShape;
   monsters: ScriptWorldMonstersShape;
+  entities: ScriptWorldEntitiesShape;
+}
+
+export interface ScriptPlayerFactionsShape {
+  getAll(): BridgeEffect<Collection<string, Faction>>;
+  get(name: string): BridgeEffect<Faction | null>;
+  hasRank(name: string, rank: number): BridgeEffect<boolean>;
+}
+
+export interface ScriptPlayerOutfitsShape {
+  getAll(): BridgeEffect<Collection<string, Outfit>>;
+  get(name: string): BridgeEffect<Outfit | null>;
+  equip(name: string, options?: OutfitEquipOptions): BridgeEffect<boolean>;
+  wear(name: string, options?: OutfitEquipOptions): BridgeEffect<boolean>;
+}
+
+export interface ScriptPlayerShape extends Omit<PlayerShape, "getFactions"> {
+  readonly auras: ScriptAuraShape;
+  readonly factions: ScriptPlayerFactionsShape;
+  readonly outfits: ScriptPlayerOutfitsShape;
+}
+
+export interface ScriptCombatTargetShape {
+  get(): BridgeEffect<WorldEntity | null>;
+  readonly auras: ScriptCombatTargetAurasShape;
+}
+
+export interface ScriptCombatShape extends Omit<CombatShape, "target"> {
+  readonly target: ScriptCombatTargetShape;
+}
+
+export interface ScriptCombatTargetAurasShape {
+  getAll(): BridgeEffect<Collection<string, Aura>>;
+  get(auraName: string): BridgeEffect<Aura | null>;
+  has(auraName: string, minStacks?: number): BridgeEffect<boolean>;
+}
+
+export interface ScriptShopsShape
+  extends Omit<ShopsShape, "getItem"> {
+  getItem(selector: ShopItemSelector): BridgeEffect<ShopItem | null>;
+  getItems(
+    selector?: ShopItemSelector,
+  ): BridgeEffect<Collection<string, ShopItem>>;
+  buy(
+    selector: ShopItemSelector,
+    options?: ShopQuantityOptions,
+  ): BridgeEffect<boolean>;
+  sell(
+    selector: InventoryItemSelector,
+    options?: ShopQuantityOptions,
+  ): BridgeEffect<boolean>;
+  canBuy(
+    selector: ShopItemSelector,
+    options?: ShopQuantityOptions,
+  ): BridgeEffect<boolean>;
+  getMaxBuyQuantity(selector: ShopItemSelector): BridgeEffect<number>;
 }
 
 export interface ScriptAutoReloginShape {
@@ -511,7 +615,7 @@ export interface ScriptApi {
   readonly army: EffectValue<ArmyShape>;
   readonly auth: EffectValue<ScriptAuthShape>;
   readonly bank: EffectValue<BankShape>;
-  readonly combat: EffectValue<CombatShape>;
+  readonly combat: EffectValue<ScriptCombatShape>;
   readonly drops: EffectValue<DropsShape>;
   readonly environment: EffectValue<ScriptEnvironmentShape>;
   /**
@@ -520,19 +624,15 @@ export interface ScriptApi {
   readonly events: ScriptEventsApi;
   readonly house: EffectValue<HouseShape>;
   readonly inventory: EffectValue<InventoryShape>;
-  /**
-   * The ingame Outfits feature.
-   */
-  readonly outfits: EffectValue<OutfitsShape>;
   readonly packet: ScriptPacketApi;
-  readonly player: EffectValue<PlayerShape>;
+  readonly player: EffectValue<ScriptPlayerShape>;
   readonly quests: EffectValue<ScriptQuestsShape>;
   /**
    * High-level helpers for multi-step gameplay actions.
    */
   readonly recipes: EffectValue<ScriptRecipesShape>;
   readonly settings: EffectValue<ScriptSettingsShape>;
-  readonly shops: EffectValue<ShopsShape>;
+  readonly shops: EffectValue<ScriptShopsShape>;
   readonly tempInventory: EffectValue<TempInventoryShape>;
   readonly wait: EffectValue<ScriptWaitShape>;
   readonly world: EffectValue<ScriptWorldShape>;

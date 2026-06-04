@@ -121,7 +121,6 @@ interface ScriptApi {
     readonly events: ScriptEventsApi;
     readonly house: HouseApi;
     readonly inventory: InventoryApi;
-    readonly outfits: OutfitsApi;
     readonly packet: ScriptPacketApi;
     readonly player: PlayerApi;
     readonly quests: QuestsApi;
@@ -204,19 +203,16 @@ interface BankApi {
     withdrawMany(...items: ItemIdentifierToken[]): Effect<void, BridgeError>;
 }
 interface CombatApi {
-    attackMonster(monster: MonsterIdentifierToken): Effect<boolean, BridgeError>;
-    cancelAutoAttack(): Effect<void, BridgeError>;
-    cancelTarget(): Effect<void, BridgeError>;
-    canUseSkill(index: string | number): Effect<boolean, BridgeError>;
-    exit(): Effect<boolean, BridgeError>;
-    getConsumableSkillItem(): Effect<ConsumableSkillItem | null, BridgeError>;
-    getTarget(): Effect<Monster | Avatar | null, BridgeError>;
-    hasTarget(): Effect<boolean, BridgeError>;
-    kill(target: MonsterIdentifierToken, options?: CombatKillOptions): Effect<void, BridgeError>;
-    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): Effect<void, BridgeError>;
-    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): Effect<void, BridgeError>;
-    useSkill(index: string | number, force?: boolean, wait?: boolean): Effect<void, BridgeError>;
-    hunt(target: MonsterIdentifierToken, findMost?: boolean): Effect<string, BridgeError>;
+    readonly target: CombatTargetApi;
+}
+interface CombatTargetApi {
+    get(): Effect<WorldEntity | null, BridgeError>;
+    readonly auras: CombatTargetAurasApi;
+}
+interface CombatTargetAurasApi {
+    getAll(): Effect<Collection<string, Aura>, BridgeError>;
+    get(auraName: string): Effect<Aura | null, BridgeError>;
+    has(auraName: string, minStacks?: number): Effect<boolean, BridgeError>;
 }
 interface DropsApi {
     acceptDrop(item: ItemIdentifierToken): Effect<void, BridgeError>;
@@ -275,52 +271,29 @@ interface InventoryApi {
     getUsedSlots(): Effect<number, BridgeError>;
     getAvailableSlots(): Effect<number, BridgeError>;
 }
-interface OutfitsApi {
-    getAll(): Effect<readonly Outfit[], BridgeError>;
+interface PlayerApi {
+    readonly auras: PlayerAurasApi;
+    readonly factions: PlayerFactionsApi;
+    readonly outfits: PlayerOutfitsApi;
+}
+interface PlayerAurasApi {
+    getAll(): Effect<Collection<string, Aura>, never>;
+    get(auraName: string): Effect<Aura | null, never>;
+    has(auraName: string, minStacks?: number): Effect<boolean, never>;
+}
+interface PlayerFactionsApi {
+    getAll(): Effect<Collection<string, Faction>, BridgeError>;
+    get(name: string): Effect<Faction | null, BridgeError>;
+    hasRank(name: string, rank: number): Effect<boolean, BridgeError>;
+}
+interface PlayerOutfitsApi {
+    getAll(): Effect<Collection<string, Outfit>, BridgeError>;
     get(name: string): Effect<Outfit | null, BridgeError>;
     equip(name: string, options?: OutfitEquipOptions): Effect<boolean, BridgeError>;
     wear(name: string, options?: OutfitEquipOptions): Effect<boolean, BridgeError>;
 }
-interface PlayerApi {
-    getCell(): Effect<string, BridgeError>;
-  /** Uppercased class name. */
-    getClassName(): Effect<string, BridgeError>;
-    getFactions(): Effect<Collection<string, Faction>, BridgeError>;
-    getGender(): Effect<string, BridgeError>;
-    getGold(): Effect<number, BridgeError>;
-    getHp(): Effect<number, BridgeError>;
-    getLevel(): Effect<number, BridgeError>;
-    getMaxHp(): Effect<number, BridgeError>;
-    getMaxMp(): Effect<number, BridgeError>;
-    getMp(): Effect<number, BridgeError>;
-    getPad(): Effect<string, BridgeError>;
-    getPosition(): Effect<[number, number], BridgeError>;
-    getState(): Effect<number, BridgeError>;
-    isAfk(): Effect<boolean, BridgeError>;
-    isReady(): Effect<boolean, BridgeError>;
-    isMember(): Effect<boolean, BridgeError>;
-    jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<void, BridgeError>;
-    joinMap(map: string, cell?: string, pad?: string): Effect<void, BridgeError>;
-    goToPlayer(name: string): Effect<void, BridgeError>;
-    rest(full?: boolean): Effect<void, BridgeError>;
-    useBoost(boost: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    hasActiveBoost(boostType: 'classPoints' | 'exp' | 'gold' | 'rep'): Effect<boolean, BridgeError>;
-    isAlive(): Effect<boolean, BridgeError>;
-    walkTo(x: number, y: number, walkSpeed?: number): Effect<boolean, BridgeError>;
-}
 interface QuestsApi {
-    abandon(questId: number): Effect<void, BridgeError>;
-    accept(questId: number, silent?: boolean): Effect<void, BridgeError>;
-    canComplete(questId: number): Effect<boolean, BridgeError>;
-    complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect<void, BridgeError>;
-    getMaxTurnIns(questId: number): Effect<number, BridgeError>;
-    load(questId: number, silent?: boolean): Effect<void, BridgeError>;
-    loadMany(questIds: number[], silent?: boolean): Effect<void, BridgeError>;
-    getTree(): Effect<Collection<number, Quest>, never>;
-    has(questId: number): Effect<boolean, never>;
-    getAccepted(): Effect<Quest[], BridgeError>;
-    isAvailable(questId: number): Effect<boolean, BridgeError>;
-    isInProgress(questId: number): Effect<boolean, BridgeError>;
+    get(questId: number): Effect<Quest | null, never>;
 }
 interface RecipesApi {
     buff(skillList?: readonly number[] | null, wait?: boolean): Effect<void, unknown>;
@@ -340,7 +313,7 @@ interface ScriptEventsApi {
   /** Subscribes once, then disposes the listener. */
     once<E extends ScriptEventName>(eventName: E, handler: ScriptEventListener<E>): Effect<ScriptEventDisposer, ScriptExecutionError | ScriptNotReadyError>;
   /** Waits for the next matching game event. Packet events are not supported. */
-    waitFor<E extends ScriptSemanticEventName>(eventName: E, options?: ScriptEventWaitOptions<E>): Effect<Option<ScriptEventMap[E]>, ScriptNotReadyError | unknown>;
+    waitFor<E extends ScriptSemanticEventName>(eventName: E, options?: ScriptEventWaitOptions<E>): Effect<ScriptEventMap[E] | null, ScriptNotReadyError | unknown>;
 }
 interface ScriptFeaturesAntiCounterApi {
     isEnabled(): Effect<boolean, never>;
@@ -395,21 +368,12 @@ interface SettingsApi {
     setFrameRate(fps: number): Effect<void, BridgeError>;
 }
 interface ShopsApi {
-    buyById(id: number, quantity?: number): Effect<boolean, BridgeError>;
-    buyByName(name: string, quantity?: number): Effect<boolean, BridgeError>;
-    canBuyItem(key: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
-    close(shopId?: number): Effect<boolean, BridgeError>;
-    getInfo(): Effect<ShopInfo | null, BridgeError>;
-    getItem(key: ItemIdentifierToken): Effect<ShopItem | null, BridgeError>;
-    getItems(): Effect<readonly ShopItem[], BridgeError>;
-    getMaxBuyQuantity(key: ItemIdentifierToken): Effect<number, BridgeError>;
-    isOpen(shopId?: number): Effect<boolean, BridgeError>;
-    isMergeShop(): Effect<boolean, BridgeError>;
-    load(shopId: number): Effect<void, BridgeError>;
-    loadArmorCustomize(): Effect<void, BridgeError>;
-    loadHairShop(shopId: number): Effect<void, BridgeError>;
-    sellById(id: number, quantity?: number): Effect<boolean, BridgeError>;
-    sellByName(name: string, quantity?: number): Effect<boolean, BridgeError>;
+    getItem(selector: ShopItemSelector): Effect<ShopItem | null, BridgeError>;
+    getItems(selector?: ShopItemSelector): Effect<Collection<string, ShopItem>, BridgeError>;
+    buy(selector: ShopItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
+    sell(selector: InventoryItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
+    canBuy(selector: ShopItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
+    getMaxBuyQuantity(selector: ShopItemSelector): Effect<number, BridgeError>;
 }
 interface TempInventoryApi {
     contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
@@ -463,9 +427,13 @@ interface WorldApi {
     readonly map: WorldMapApi;
     readonly players: WorldPlayersApi;
     readonly monsters: WorldMonstersApi;
+    readonly entities: WorldEntitiesApi;
+}
+interface WorldEntitiesApi {
+    getMe(): Effect<WorldEntity | null, never>;
+    get(selector: WorldEntitySelector): Effect<WorldEntity | null, never>;
 }
 interface WorldMapApi {
-    getCellMonsters(): Effect<Monster[], BridgeError>;
     getCells(): Effect<string[], BridgeError>;
     getCellPads(): Effect<string[], BridgeError>;
     isLoaded(): Effect<boolean, BridgeError>;
@@ -479,22 +447,26 @@ interface WorldMapApi {
 }
 interface WorldMonstersApi {
     getAll(): Effect<Collection<number, Monster>, never>;
-    get(monMapId: number): Effect<Option<Monster>, never>;
-    findByName(name: string, cell?: string): Effect<Option<Monster>, never>;
-    getAura(monMapId: number, auraName: string): Effect<Option<Aura>, never>;
+    get(selector: MonsterSelector): Effect<Monster | null, never>;
+    getAvailable(): Effect<Collection<number, Monster>, BridgeError>;
+    isAvailable(selector: MonsterSelector): Effect<boolean, BridgeError>;
+    readonly auras: WorldMonstersAurasApi;
+}
+interface WorldMonstersAurasApi {
+    getAll(monster: MonsterSelector): Effect<Collection<string, Aura>, never>;
+    get(monster: MonsterSelector, auraName: string): Effect<Aura | null, never>;
+    has(monster: MonsterSelector, auraName: string, minStacks?: number): Effect<boolean, never>;
 }
 interface WorldPlayersApi {
-    readonly me: WorldPlayersMeApi;
     getAll(): Effect<Collection<string, Avatar>, never>;
-    get(username: string): Effect<Option<Avatar>, never>;
-    getByName(name: string): Effect<Option<Avatar>, never>;
-    getAuras(username: string): Effect<readonly Aura[], never>;
-    getAura(username: string, auraName: string): Effect<Option<Aura>, never>;
+    getMe(): Effect<Avatar | null, never>;
+    get(selector: PlayerSelector): Effect<Avatar | null, never>;
+    readonly auras: WorldPlayersAurasApi;
 }
-interface WorldPlayersMeApi {
-    get(): Effect<Option<Avatar>, never>;
-    getAuras(): Effect<readonly Aura[], never>;
-    getAura(auraName: string): Effect<Option<Aura>, never>;
+interface WorldPlayersAurasApi {
+    getAll(player: PlayerSelector): Effect<Collection<string, Aura>, never>;
+    get(player: PlayerSelector, auraName: string): Effect<Aura | null, never>;
+    has(player: PlayerSelector, auraName: string, minStacks?: number): Effect<boolean, never>;
 }
 
 interface ArmyEquipSetOptions {
@@ -656,10 +628,6 @@ interface CombatKillOptions {
   readonly skillDelay?: number;
   readonly skillWait?: boolean;
 }
-type ConsumableSkillItem = {
-  itemId?: number;
-  name?: string;
-};
 interface EnvironmentDropPolicy {
   /** Accept member-only AC-tagged items. */
   readonly acceptAcMemberOnlyDrops: boolean;
@@ -704,6 +672,15 @@ interface Faction {
   readonly requiredRep: number;
   readonly remainingRep: number;
 }
+type InventoryItemSelector =
+  | {
+      readonly name: string;
+      readonly itemId?: number;
+    }
+  | {
+      readonly itemId: number;
+      readonly name?: string;
+    };
 interface Item {
   data: ItemData;
   readonly id: number;
@@ -784,6 +761,7 @@ interface Monster extends BaseEntity {
   readonly race: string;
   readonly name: string;
 }
+type MonsterSelector = MonsterIdentifierToken | MonsterSelectorObject;
 interface Outfit {
   readonly name: string;
   readonly data: Record<string, unknown>;
@@ -791,6 +769,7 @@ interface Outfit {
 interface OutfitEquipOptions {
   readonly keepColors?: boolean;
 }
+type PlayerSelector = string | number | PlayerSelectorObject;
 interface Quest {
   data: QuestInfo;
   readonly name: string;
@@ -878,20 +857,47 @@ interface Server {
   isFull(): boolean;
 }
 type ServerPacketSendType = "String" | "Json";
-type ShopInfo = {
-  Location: string;
-  ShopID: string;
-  bHouse: string;
-  bStaff: string;
-  bUpgrd: string;
-  iIndex: string;
-  items: ShopItemData[];
-  sField: string;
-  sName: string;
-};
 interface ShopItem extends Item {
   data: ShopItemData;
 }
+type ShopItemSelector =
+  | {
+      readonly name: string;
+      readonly itemId?: number;
+      readonly shopItemId?: string | number;
+    }
+  | {
+      readonly itemId: number;
+      readonly name?: string;
+      readonly shopItemId?: string | number;
+    }
+  | {
+      readonly shopItemId: string | number;
+      readonly name?: string;
+      readonly itemId?: number;
+    };
+interface ShopQuantityOptions {
+  readonly quantity?: number;
+}
+type WorldEntity =
+  | {
+      readonly type: "player";
+      readonly key: WorldEntityKey;
+      readonly entId: number;
+      readonly username: string;
+      readonly entity: Avatar;
+    }
+  | {
+      readonly type: "monster";
+      readonly key: WorldEntityKey;
+      readonly monMapId: number;
+      readonly name: string;
+      readonly entity: Monster;
+    };
+type WorldEntitySelector =
+  | { readonly type: "self" }
+  | ({ readonly type: "player" } & PlayerSelectorObject)
+  | ({ readonly type: "monster" } & MonsterSelectorObject);
 type ArmyEffect<A, E = never> = Effect<
   A,
   E | ArmyError | BridgeError
@@ -1012,6 +1018,14 @@ type MonsterData = BaseEntityData & {
   strFrame: string;
   strMonName: string;
 };
+interface MonsterSelectorObject {
+  readonly monMapId?: number;
+  readonly name?: string;
+}
+interface PlayerSelectorObject {
+  readonly username?: string;
+  readonly entId?: number;
+}
 type QuestInfo = {
   FactionID: string;
   /**
@@ -1190,8 +1204,6 @@ type ScriptPacketEventName =
   | "packetFromServer"
   | "extensionResponse";
 interface Json { readonly [key: string]: unknown; }
-interface Location { readonly [key: string]: unknown; }
-interface ShopID { readonly [key: string]: unknown; }
 type ShopItemData = ItemData & {
   /**
    * Faction ID associated with the item.
@@ -1233,6 +1245,7 @@ type ShopItemData = ItemData & {
     sName: string;
   }[];
 };
+type WorldEntityKey = `player:${number}` | `monster:${number}`;
 type ArmyLoopTauntNoEligiblePolicy = "throw" | "cast-scheduled";
 type ArmyLoopTauntPlayer = number | string;
 type ArmyLoopTauntShouldTaunt = (
@@ -1399,29 +1412,59 @@ interface WorldPlayersShape {
   getAll(): Effect<Collection<string, Avatar>>;
   getSelf(): Effect<Option<Avatar>>;
   withSelf<A>(f: (self: Avatar) => A): Effect<Option<A>>;
-  get(username: string): Effect<Option<Avatar>>;
+  get(selector: PlayerSelector): Effect<Option<Avatar>>;
   getByName(name: string): Effect<Option<Avatar>>;
   addAura(entId: number, aura: Aura): Effect<void>;
   updateAura(entId: number, aura: Aura): Effect<void>;
   removeAura(entId: number, auraName: string): Effect<void>;
-  getAuras(entId: number): Effect<readonly Aura[]>;
+  getAuras(entId: number): Effect<Collection<string, Aura>>;
   getAura(entId: number, auraName: string): Effect<Option<Aura>>;
   clearAuras(entId: number): Effect<void>;
+  readonly auras: WorldPlayerAurasShape;
 }
 interface WorldMonstersShape {
   getAll(): Effect<Collection<number, Monster>>;
   add(data: MonsterData): Effect<void>;
-  get(monMapId: number): Effect<Option<Monster>>;
+  get(selector: MonsterSelector): Effect<Option<Monster>>;
   findByName(
     name: string,
     cell?: string,
   ): Effect<Option<Monster>>;
+  getAvailable(): BridgeEffect<Collection<number, Monster>>;
+  isAvailable(monster: MonsterSelector): BridgeEffect<boolean>;
   addAura(monMapId: number, aura: Aura): Effect<void>;
   updateAura(monMapId: number, aura: Aura): Effect<void>;
   removeAura(monMapId: number, auraName: string): Effect<void>;
+  getAuras(monMapId: number): Effect<Collection<string, Aura>>;
   getAura(
     monMapId: number,
     auraName: string,
   ): Effect<Option<Aura>>;
   clearAuras(monMapId: number): Effect<void>;
+  readonly auras: WorldMonsterAurasShape;
+}
+interface WorldPlayerAurasShape {
+  getAll(player: PlayerSelector): Effect<Collection<string, Aura>>;
+  get(
+    player: PlayerSelector,
+    auraName: string,
+  ): Effect<Option<Aura>>;
+  has(
+    player: PlayerSelector,
+    auraName: string,
+    minStacks?: number,
+  ): Effect<boolean>;
+}
+type BridgeEffect<A> = Effect<A, BridgeError>;
+interface WorldMonsterAurasShape {
+  getAll(monster: MonsterSelector): Effect<Collection<string, Aura>>;
+  get(
+    monster: MonsterSelector,
+    auraName: string,
+  ): Effect<Option<Aura>>;
+  has(
+    monster: MonsterSelector,
+    auraName: string,
+    minStacks?: number,
+  ): Effect<boolean>;
 }

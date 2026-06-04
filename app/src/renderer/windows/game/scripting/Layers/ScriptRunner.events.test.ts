@@ -1,4 +1,5 @@
-import { Data, Effect, Layer } from "effect";
+import { Collection } from "@lucent/collection";
+import { Data, Effect, Layer, Option } from "effect";
 import { expect, test } from "vitest";
 import { Army } from "../../army/Services/Army";
 import { AutoRelogin } from "../../features/Services/AutoRelogin";
@@ -25,7 +26,7 @@ import { Settings } from "../../flash/Services/Settings";
 import { Shops } from "../../flash/Services/Shops";
 import { TempInventory } from "../../flash/Services/TempInventory";
 import { Wait } from "../../flash/Services/Wait";
-import { World } from "../../flash/Services/World";
+import { World, type WorldShape } from "../../flash/Services/World";
 import { ScriptRunner } from "../Services/ScriptRunner";
 import type { ScriptRunnerShape } from "../Services/ScriptRunner";
 import type { ScriptDiagnostic } from "../Types";
@@ -80,15 +81,28 @@ const makeGameEvents = (): GameEventsShape => {
   };
 };
 
-const makeEffectProxy = <A>(): A =>
-  new Proxy(
-    {},
-    {
-      get() {
-        return () => Effect.succeed(undefined);
-      },
+const makeEffectProxy = <A>(): A => {
+  const cache = new Map<PropertyKey, unknown>();
+  return new Proxy(() => Effect.succeed(undefined), {
+    apply() {
+      return Effect.succeed(undefined);
     },
-  ) as A;
+    get(_target, property) {
+      if (property === "then") {
+        return undefined;
+      }
+
+      const cached = cache.get(property);
+      if (cached !== undefined) {
+        return cached;
+      }
+
+      const value = makeEffectProxy<unknown>();
+      cache.set(property, value);
+      return value;
+    },
+  }) as A;
+};
 
 const extensionPacket = (cmd = "event") => ({
   cmd,
@@ -147,7 +161,12 @@ const makeWindow = () =>
     swf: {},
   }) as unknown as Window;
 
-const makeRuntimeLayer = (events: GameEventsShape) =>
+const makeRuntimeLayer = (
+  events: GameEventsShape,
+  overrides?: {
+    readonly world?: WorldShape;
+  },
+) =>
   ScriptRunnerLive.pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -171,7 +190,7 @@ const makeRuntimeLayer = (events: GameEventsShape) =>
         Layer.succeed(Shops)(makeEffectProxy()),
         Layer.succeed(TempInventory)(makeEffectProxy()),
         Layer.succeed(Wait)(makeEffectProxy()),
-        Layer.succeed(World)(makeEffectProxy()),
+        Layer.succeed(World)(overrides?.world ?? makeEffectProxy()),
       ),
     ),
   );
@@ -181,6 +200,9 @@ const withRunnerEvents = async <A>(
     runner: ScriptRunnerShape,
     events: GameEventsShape,
   ) => Effect.Effect<A, unknown>,
+  overrides?: {
+    readonly world?: WorldShape;
+  },
 ): Promise<A> => {
   const hadWindow = "window" in globalThis;
   const previousWindow = globalThis.window;
@@ -199,7 +221,7 @@ const withRunnerEvents = async <A>(
           yield* Effect.sleep("10 millis");
           return yield* body(runner, events);
         }),
-      ).pipe(Effect.provide(makeRuntimeLayer(events))),
+      ).pipe(Effect.provide(makeRuntimeLayer(events, overrides))),
     );
   } finally {
     if (hadWindow) {
@@ -252,6 +274,107 @@ const waitUntilNotRunning = (
 const diagnosticMessages = (diagnostics: readonly ScriptDiagnostic[]) =>
   diagnostics.map((diagnostic) => diagnostic.message);
 
+const makeMissingWorld = (): WorldShape =>
+  ({
+    map: {
+      getCells: () => Effect.succeed([]),
+      getCellPads: () => Effect.succeed([]),
+      getId: () => Effect.succeed(0),
+      getMapItem: () => Effect.void,
+      getName: () => Effect.succeed(""),
+      getRoomNumber: () => Effect.succeed(0),
+      isLoaded: () => Effect.succeed(true),
+      loadSwf: () => Effect.void,
+      reload: () => Effect.void,
+      reset: () => Effect.void,
+      setId: () => Effect.void,
+      setName: () => Effect.void,
+      setRoomNumber: () => Effect.void,
+      setSpawnPoint: () => Effect.void,
+    },
+    players: {
+      add: () => Effect.void,
+      addAura: () => Effect.void,
+      clearAuras: () => Effect.void,
+      getAura: () => Effect.succeed(Option.none()),
+      getAuras: () => Effect.succeed(new Collection()),
+      getAll: () => Effect.succeed(new Collection()),
+      getByName: () => Effect.succeed(Option.none()),
+      getSelf: () => Effect.succeed(Option.none()),
+      get: () => Effect.succeed(Option.none()),
+      register: () => Effect.void,
+      remove: () => Effect.void,
+      removeAura: () => Effect.void,
+      setSelf: () => Effect.void,
+      unregister: () => Effect.void,
+      updateAura: () => Effect.void,
+      withSelf: () => Effect.succeed(Option.none()),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
+    monsters: {
+      add: () => Effect.void,
+      addAura: () => Effect.void,
+      clearAuras: () => Effect.void,
+      findByName: () => Effect.succeed(Option.none()),
+      getAura: () => Effect.succeed(Option.none()),
+      getAuras: () => Effect.succeed(new Collection()),
+      getAll: () => Effect.succeed(new Collection()),
+      get: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
+      isAvailable: () => Effect.succeed(false),
+      removeAura: () => Effect.void,
+      updateAura: () => Effect.void,
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
+    entities: {
+      getAll: () => Effect.succeed(new Collection()),
+      getMe: () => Effect.succeed(Option.none()),
+      get: () => Effect.succeed(Option.none()),
+    },
+  }) as WorldShape;
+
+test("script facade converts missing lookups to null and removes top-level outfits", async () => {
+  const diagnostics = await withRunnerEvents(
+    (runner) =>
+      Effect.gen(function* () {
+        yield* runner.run(
+          `
+const { api, script } = require("lucent");
+
+module.exports = function* run() {
+  const missing = yield* api.world.players.get("Missing");
+  script.log("missing-player:" + (missing === null));
+  script.log("top-outfits:" + (api.outfits === undefined));
+  script.log("player-outfits:" + (api.player.outfits !== undefined));
+};
+`,
+          { name: "facade-null" },
+        );
+
+        return yield* waitForDiagnostics(
+          runner,
+          (diagnostics) =>
+            diagnosticMessages(diagnostics).includes("missing-player:true") &&
+            diagnosticMessages(diagnostics).includes("top-outfits:true") &&
+            diagnosticMessages(diagnostics).includes("player-outfits:true"),
+        );
+      }),
+    { world: makeMissingWorld() },
+  );
+
+  expect(diagnosticMessages(diagnostics)).toContain("missing-player:true");
+  expect(diagnosticMessages(diagnostics)).toContain("top-outfits:true");
+  expect(diagnosticMessages(diagnostics)).toContain("player-outfits:true");
+});
+
 test("script events on dispatches normalized semantic payloads", async () => {
   const diagnostics = await withRunnerEvents((runner, events) =>
     Effect.gen(function* () {
@@ -294,7 +417,6 @@ test("script events expose normalized player death payloads", async () => {
     Effect.gen(function* () {
       yield* runner.run(
         `
-const { Option } = require("effect");
 const { api, script } = require("lucent");
 
 module.exports = function* run() {
@@ -319,9 +441,9 @@ module.exports = function* run() {
     timeout: "200 millis",
   });
   script.log(
-    Option.isSome(death)
-      ? "wait-player-death:" + death.value.username
-      : "wait-player-death:timeout",
+    death === null
+      ? "wait-player-death:timeout"
+      : "wait-player-death:" + death.username,
   );
   yield* script.sleep(200);
 };
@@ -412,7 +534,6 @@ test("script events waitFor supports predicates and timeout", async () => {
       yield* runner.run(
         `
 const { api, script } = require("lucent");
-const { Option } = require("effect");
 
 module.exports = function* run() {
   script.log("ready");
@@ -420,10 +541,10 @@ module.exports = function* run() {
     timeout: "200 millis",
     predicate: (event) => event.QuestID === 42,
   });
-  script.log(Option.isSome(quest) ? "quest:" + quest.value.QuestID : "quest:timeout");
+  script.log(quest === null ? "quest:timeout" : "quest:" + quest.QuestID);
 
   const afk = yield* api.events.waitFor("afk", { timeout: "10 millis" });
-  script.log(Option.isNone(afk) ? "afk:timeout" : "afk:unexpected");
+  script.log(afk === null ? "afk:timeout" : "afk:unexpected");
 };
 `,
         { name: "events-wait-for" },

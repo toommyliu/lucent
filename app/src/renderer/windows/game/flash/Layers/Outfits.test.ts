@@ -75,13 +75,16 @@ test("getAll normalizes raw outfit records", async () => {
     }),
   );
 
-  expect(result).toEqual([
-    {
-      name: "Farm",
-      data: {
-        class: { ItemID: 1 },
+  expect(Array.from(result.entries())).toEqual([
+    [
+      "farm",
+      {
+        name: "Farm",
+        data: {
+          class: { ItemID: 1 },
+        },
       },
-    },
+    ],
   ]);
 });
 

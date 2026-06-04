@@ -94,7 +94,7 @@ const grabEffect = (
 
     if (request.type === "quest") {
       const quests = yield* Quests;
-      const tree = yield* quests.getTree();
+      const tree = yield* quests.getAll();
       return Array.from(tree.values(), (quest) => quest.data);
     }
 
@@ -118,8 +118,8 @@ const grabEffect = (
 
     const world = yield* World;
     if (request.type === "cell-monsters") {
-      const monsters = yield* world.map.getCellMonsters();
-      return monsters.map((monster) => monster.data);
+      const monsters = yield* world.monsters.getAvailable();
+      return Array.from(monsters.values(), (monster) => monster.data);
     }
 
     const monsters = yield* world.monsters.getAll();

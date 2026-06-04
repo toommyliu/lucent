@@ -81,7 +81,7 @@ const make = Effect.gen(function* () {
 
       yield* Ref.update(_factions, (cache) => {
         for (const factionData of validFactions) {
-          const key = factionData.sName;
+          const key = factionData.sName.toLowerCase();
           const existing = cache.get(key);
           if (existing) {
             existing.data = factionData;
