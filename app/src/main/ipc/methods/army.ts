@@ -9,6 +9,8 @@ import {
   type ArmyLoopTauntParticipantPayload,
   type ArmyLoopTauntStartPayload,
   type ArmyLoopTauntStopPayload,
+  type ArmyProgressPayload,
+  type ArmyProgressResult,
   type ArmySessionPayload,
   type ArmyStartPayload,
   type ArmyStatusPayload,
@@ -31,6 +33,13 @@ interface DeferredVoid {
   reject(error: Error): void;
 }
 
+interface DeferredProgress {
+  readonly complete: boolean;
+  readonly playerName: string;
+  resolve(result: ArmyProgressResult): void;
+  reject(error: Error): void;
+}
+
 interface PendingStart {
   readonly playerName: string;
   readonly senderWindow: BrowserWindow;
@@ -49,11 +58,22 @@ interface ArmyBarrierState {
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
+interface ArmyProgressState {
+  readonly key: string;
+  readonly step: number;
+  readonly label?: string;
+  readonly expectedPlayerKeys: ReadonlySet<string>;
+  readonly expectedPlayers: readonly string[];
+  readonly arrived: Map<string, DeferredProgress>;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
 interface ArmySessionState extends ArmyConfigPayload {
   readonly sessionId: string;
   readonly playerKeys: ReadonlySet<string>;
   readonly windows: Map<string, BrowserWindow>;
   readonly barriers: Map<string, ArmyBarrierState>;
+  readonly progressCheckpoints: Map<string, ArmyProgressState>;
   readonly loopTaunts: LoopTauntCoordinator;
 }
 
@@ -227,6 +247,85 @@ const parseBarrierPayload = (payload: unknown): ArmyBarrierPayload => {
     sessionId: record["sessionId"],
     playerName: record["playerName"],
     step: record["step"],
+    ...(typeof label === "string" && label.trim() !== ""
+      ? { label: label.trim() }
+      : null),
+    ...(players === undefined ? null : { players: normalizedPlayers }),
+    ...(typeof timeoutMs === "number" ? { timeoutMs } : null),
+  };
+};
+
+const parseProgressPayload = (payload: unknown): ArmyProgressPayload => {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    throw new Error("Invalid army progress payload");
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (
+    typeof record["sessionId"] !== "string" ||
+    record["sessionId"].trim() === "" ||
+    typeof record["playerName"] !== "string" ||
+    record["playerName"].trim() === "" ||
+    typeof record["step"] !== "number" ||
+    !Number.isInteger(record["step"]) ||
+    record["step"] < 0 ||
+    typeof record["complete"] !== "boolean"
+  ) {
+    throw new Error("Invalid army progress payload");
+  }
+
+  const label = record["label"];
+  const players = record["players"];
+  const timeoutMs = record["timeoutMs"];
+  if (label !== undefined && typeof label !== "string") {
+    throw new Error("Invalid army progress payload");
+  }
+
+  if (players !== undefined && !Array.isArray(players)) {
+    throw new Error("Invalid army progress payload");
+  }
+
+  if (
+    timeoutMs !== undefined &&
+    (typeof timeoutMs !== "number" ||
+      !Number.isFinite(timeoutMs) ||
+      timeoutMs <= 0)
+  ) {
+    throw new Error("Invalid army progress payload");
+  }
+
+  const normalizedPlayers: string[] = [];
+  if (players !== undefined) {
+    const seen = new Set<string>();
+    for (const player of players) {
+      if (typeof player !== "string" || player.trim() === "") {
+        throw new Error("Invalid army progress payload");
+      }
+
+      const normalized = player.trim();
+      const key = normalizePlayerName(normalized);
+      if (seen.has(key)) {
+        throw new Error("Invalid army progress payload");
+      }
+
+      seen.add(key);
+      normalizedPlayers.push(normalized);
+    }
+
+    if (normalizedPlayers.length === 0) {
+      throw new Error("Invalid army progress payload");
+    }
+  }
+
+  return {
+    sessionId: record["sessionId"],
+    playerName: record["playerName"],
+    step: record["step"],
+    complete: record["complete"],
     ...(typeof label === "string" && label.trim() !== ""
       ? { label: label.trim() }
       : null),
@@ -505,6 +604,17 @@ const rejectBarrier = (barrier: ArmyBarrierState, error: Error): void => {
   barrier.arrived.clear();
 };
 
+const rejectProgress = (
+  checkpoint: ArmyProgressState,
+  error: Error,
+): void => {
+  clearTimeout(checkpoint.timer);
+  for (const waiter of checkpoint.arrived.values()) {
+    waiter.reject(error);
+  }
+  checkpoint.arrived.clear();
+};
+
 const armyBarrierKey = (step: number, label?: string): string =>
   JSON.stringify([step, label ?? ""]);
 
@@ -519,6 +629,11 @@ const abortSession = (session: ArmySessionState, reason: string): void => {
     rejectBarrier(barrier, new Error(reason));
   }
   session.barriers.clear();
+
+  for (const checkpoint of session.progressCheckpoints.values()) {
+    rejectProgress(checkpoint, new Error(reason));
+  }
+  session.progressCheckpoints.clear();
 
   session.loopTaunts.clear();
 
@@ -657,6 +772,7 @@ const createSession = (
     playerKeys: new Set(config.players.map(normalizePlayerName)),
     windows: new Map<string, BrowserWindow>(),
     barriers: new Map<string, ArmyBarrierState>(),
+    progressCheckpoints: new Map<string, ArmyProgressState>(),
     loopTaunts,
   };
 
@@ -718,12 +834,50 @@ const releaseBarrierIfComplete = (
   barrier.arrived.clear();
 };
 
+const releaseProgressIfComplete = (
+  session: ArmySessionState,
+  checkpoint: ArmyProgressState,
+): void => {
+  if (checkpoint.arrived.size < checkpoint.expectedPlayerKeys.size) {
+    return;
+  }
+
+  const completedKeys = new Set<string>();
+  for (const [playerKey, waiter] of checkpoint.arrived) {
+    if (waiter.complete) {
+      completedKeys.add(playerKey);
+    }
+  }
+
+  const completedPlayers = checkpoint.expectedPlayers.filter((player) =>
+    completedKeys.has(normalizePlayerName(player)),
+  );
+  const pendingPlayers = checkpoint.expectedPlayers.filter(
+    (player) => !completedKeys.has(normalizePlayerName(player)),
+  );
+  const result = {
+    complete: pendingPlayers.length === 0,
+    completedPlayers,
+    pendingPlayers,
+  } satisfies ArmyProgressResult;
+
+  clearTimeout(checkpoint.timer);
+  session.progressCheckpoints.delete(checkpoint.key);
+  for (const waiter of checkpoint.arrived.values()) {
+    waiter.resolve(result);
+  }
+  checkpoint.arrived.clear();
+};
+
 const getBarrierTimeoutMs = (payload: ArmyBarrierPayload): number =>
+  Math.max(1, Math.trunc(payload.timeoutMs ?? ARMY_BARRIER_TIMEOUT_MS));
+
+const getProgressTimeoutMs = (payload: ArmyProgressPayload): number =>
   Math.max(1, Math.trunc(payload.timeoutMs ?? ARMY_BARRIER_TIMEOUT_MS));
 
 const resolveBarrierExpectedPlayers = (
   session: ArmySessionState,
-  payload: ArmyBarrierPayload,
+  payload: Pick<ArmyBarrierPayload, "players">,
 ): {
   readonly keys: ReadonlySet<string>;
   readonly players: readonly string[];
@@ -879,6 +1033,104 @@ const waitAtBarrier = (
   });
 };
 
+const waitAtProgress = (
+  session: ArmySessionState,
+  playerName: string,
+  payload: ArmyProgressPayload,
+): Promise<ArmyProgressResult> => {
+  const playerKey = normalizePlayerName(playerName);
+  if (!session.playerKeys.has(playerKey)) {
+    return Promise.reject(
+      new Error(`Player is not in army config: ${playerName}`),
+    );
+  }
+
+  if (!session.windows.has(playerKey)) {
+    return Promise.reject(
+      new Error(`Army player has not joined: ${playerName}`),
+    );
+  }
+
+  let expectedPlayers: {
+    readonly keys: ReadonlySet<string>;
+    readonly players: readonly string[];
+  };
+  try {
+    expectedPlayers = resolveBarrierExpectedPlayers(session, payload);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  if (!expectedPlayers.keys.has(playerKey)) {
+    return Promise.resolve({
+      complete: true,
+      completedPlayers: [],
+      pendingPlayers: [],
+    });
+  }
+
+  const key = armyBarrierKey(payload.step, payload.label);
+  let checkpoint = session.progressCheckpoints.get(key);
+  if (!checkpoint) {
+    const step = payload.step;
+    const timer = setTimeout(() => {
+      const current = session.progressCheckpoints.get(key);
+      if (!current) {
+        return;
+      }
+
+      const arrived = new Set(current.arrived.keys());
+      const missing = current.expectedPlayers.filter(
+        (player) => !arrived.has(normalizePlayerName(player)),
+      );
+      session.progressCheckpoints.delete(key);
+      rejectProgress(
+        current,
+        new Error(
+          `Timed out waiting for army progress ${step}${
+            current.label ? ` (${current.label})` : ""
+          }; missing: ${missing.join(", ")}`,
+        ),
+      );
+    }, getProgressTimeoutMs(payload));
+
+    checkpoint = {
+      key,
+      step,
+      ...(payload.label !== undefined ? { label: payload.label } : null),
+      expectedPlayerKeys: expectedPlayers.keys,
+      expectedPlayers: expectedPlayers.players,
+      arrived: new Map<string, DeferredProgress>(),
+      timer,
+    };
+    session.progressCheckpoints.set(key, checkpoint);
+  }
+
+  if (checkpoint.arrived.has(playerKey)) {
+    return Promise.reject(
+      new Error(
+        `Army player already reached progress ${payload.step}: ${playerName}`,
+      ),
+    );
+  }
+
+  if (!samePlayerSet(checkpoint.expectedPlayerKeys, expectedPlayers.keys)) {
+    return Promise.reject(
+      new Error(`Army progress player set mismatch for step ${payload.step}`),
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    checkpoint.arrived.set(playerKey, {
+      complete: payload.complete,
+      playerName,
+      resolve,
+      reject,
+    });
+    releaseProgressIfComplete(session, checkpoint);
+  });
+};
+
 export const registerArmyIpcHandlers = (): Effect.Effect<
   void,
   never,
@@ -969,6 +1221,20 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
       }),
     );
 
+    yield* ipc.handle(ArmyIpcChannels.progress, (_event, rawPayload) =>
+      Effect.gen(function* () {
+        const payload = parseProgressPayload(rawPayload);
+        const session = sessions.get(payload.sessionId);
+        if (!session) {
+          return yield* Effect.fail(new Error("Army session is not active"));
+        }
+
+        return yield* Effect.promise(() =>
+          waitAtProgress(session, payload.playerName, payload),
+        );
+      }),
+    );
+
     yield* ipc.handle(ArmyIpcChannels.status, (_event, rawPayload) =>
       Effect.sync(() => {
         const payload = parseStatusPayload(rawPayload);
@@ -982,7 +1248,8 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
           configName: session.configName,
           players: session.players,
           joinedPlayers: [...session.windows.keys()],
-          waitingBarriers: session.barriers.size,
+          waitingBarriers:
+            session.barriers.size + session.progressCheckpoints.size,
         } satisfies ArmyStatusResult;
       }),
     );

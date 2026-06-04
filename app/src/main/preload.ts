@@ -32,6 +32,8 @@ import {
   type ArmyLoopTauntObservationPayload,
   type ArmyLoopTauntStartPayload,
   type ArmyLoopTauntStopPayload,
+  type ArmyProgressPayload,
+  type ArmyProgressResult,
   type ArmySessionPayload,
   type ArmyStartPayload,
   type ArmyStatusPayload,
@@ -476,6 +478,12 @@ const bridge: AppBridge = {
     },
     barrier: async (payload: ArmyBarrierPayload) => {
       await ipcRenderer.invoke(ArmyIpcChannels.barrier, payload);
+    },
+    progress: async (payload: ArmyProgressPayload) => {
+      return (await ipcRenderer.invoke(
+        ArmyIpcChannels.progress,
+        payload,
+      )) as ArmyProgressResult;
     },
     status: async (payload: ArmyStatusPayload) => {
       return (await ipcRenderer.invoke(

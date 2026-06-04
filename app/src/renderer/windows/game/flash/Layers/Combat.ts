@@ -14,6 +14,10 @@ import { World } from "../Services/World";
 import { matchesAura } from "../auraMatching";
 import type { MonsterTargetInfo, PlayerTargetInfo } from "../Types";
 import { expiresAtMs as antiCounterExpiresAtMs } from "../antiCounter";
+import {
+  normalizeItemQuantity,
+  resolveItemIdentifier,
+} from "../itemIdentifiers";
 
 const DEFAULT_SKILL_ROTATION: readonly Skill[] = [1, 2, 3, 4];
 const DEFAULT_SKILL_DELAY_MS = 150;
@@ -82,35 +86,6 @@ const resolveKillTarget = (
   }
 
   return { kind: "name", name: String(target).trim() };
-};
-
-const resolveItemIdentifier = (
-  item: ItemIdentifierToken,
-): ItemIdentifierToken | undefined => {
-  if (typeof item === "number") {
-    return Number.isFinite(item) && item > 0 ? Math.trunc(item) : undefined;
-  }
-
-  const trimmed = item.trim();
-  if (trimmed === "") {
-    return undefined;
-  }
-
-  if (INTEGER_TOKEN_PATTERN.test(trimmed)) {
-    const itemId = Number.parseInt(trimmed, 10);
-    return Number.isFinite(itemId) && itemId > 0 ? itemId : undefined;
-  }
-
-  return trimmed;
-};
-
-const normalizeItemQuantity = (quantity?: number): number | undefined => {
-  if (quantity === undefined || !Number.isFinite(quantity)) {
-    return undefined;
-  }
-
-  const normalized = Math.trunc(quantity);
-  return normalized > 0 ? normalized : undefined;
 };
 
 const toValidSkill = (value: Skill): Skill | undefined => {

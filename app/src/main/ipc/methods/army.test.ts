@@ -9,6 +9,8 @@ import {
   type ArmyLoopTauntCommandPayload,
   type ArmyLoopTauntObservationPayload,
   type ArmyLoopTauntStartPayload,
+  type ArmyProgressPayload,
+  type ArmyProgressResult,
   type ArmySessionPayload,
   type ArmyStatusResult,
 } from "../../../shared/ipc";
@@ -101,6 +103,12 @@ interface ArmyIpcHarness {
   readonly status: (
     session: ArmySessionPayload,
   ) => Effect.Effect<ArmyStatusResult, unknown>;
+  readonly progress: (
+    session: ArmySessionPayload,
+    playerName: string,
+    payload: Omit<ArmyProgressPayload, "sessionId" | "playerName">,
+  ) => Effect.Effect<ArmyProgressResult, unknown>;
+  readonly leave: (session: ArmySessionPayload) => Effect.Effect<void, unknown>;
   readonly startLoopTaunt: (
     session: ArmySessionPayload,
     payload: Omit<ArmyLoopTauntStartPayload, "playerName" | "sessionId">,
@@ -218,6 +226,17 @@ const withArmyIpc = async <A>(
     status: (session) =>
       invoke<ArmyStatusResult>(ArmyIpcChannels.status, makeEvent(), {
         sessionId: session.sessionId,
+      }),
+    progress: (session, playerName, payload) =>
+      invoke<ArmyProgressResult>(ArmyIpcChannels.progress, makeEvent(), {
+        ...payload,
+        playerName,
+        sessionId: session.sessionId,
+      }),
+    leave: (session) =>
+      invoke<void>(ArmyIpcChannels.leave, makeEvent(), {
+        sessionId: session.sessionId,
+        playerName: session.playerName,
       }),
     startLoopTaunt: (
       session,
@@ -468,6 +487,232 @@ describe("army IPC barriers", () => {
       "Timed out waiting for army step 4 (right)",
     );
     expect(result.releasedStatus.waitingBarriers).toBe(0);
+  });
+});
+
+describe("army IPC progress checkpoints", () => {
+  beforeEach(() => {
+    electronMock.BrowserWindow.fromWebContents.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reports incomplete rounds when at least one expected player is pending", async () => {
+    const result = await withArmyIpc((harness) =>
+      Effect.gen(function* () {
+        const session = yield* startFullArmy(harness);
+        const main = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: false,
+            label: "drop",
+            players: ["Main", "Alt"],
+            step: 10,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const alt = yield* harness.progress(session, "Alt", {
+          complete: true,
+          label: "drop",
+          players: ["Main", "Alt"],
+          step: 10,
+        });
+        const mainResult = yield* Fiber.join(main);
+
+        return {
+          alt,
+          main: mainResult,
+          status: yield* harness.status(session),
+        };
+      }),
+    );
+
+    expect(result.main).toEqual({
+      complete: false,
+      completedPlayers: ["Alt"],
+      pendingPlayers: ["Main"],
+    });
+    expect(result.alt).toEqual(result.main);
+    expect(result.status.waitingBarriers).toBe(0);
+  });
+
+  it("reuses the same step and label after a round releases", async () => {
+    const result = await withArmyIpc((harness) =>
+      Effect.gen(function* () {
+        const session = yield* startFullArmy(harness);
+        const firstMain = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: false,
+            label: "temp",
+            players: ["Main", "Alt"],
+            step: 11,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const firstAlt = yield* harness.progress(session, "Alt", {
+          complete: true,
+          label: "temp",
+          players: ["Main", "Alt"],
+          step: 11,
+        });
+        yield* Fiber.join(firstMain);
+
+        const secondMain = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: true,
+            label: "temp",
+            players: ["Main", "Alt"],
+            step: 11,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const secondAlt = yield* harness.progress(session, "Alt", {
+          complete: true,
+          label: "temp",
+          players: ["Main", "Alt"],
+          step: 11,
+        });
+        const secondMainResult = yield* Fiber.join(secondMain);
+
+        return {
+          firstAlt,
+          secondAlt,
+          secondMain: secondMainResult,
+          status: yield* harness.status(session),
+        };
+      }),
+    );
+
+    expect(result.firstAlt.complete).toBe(false);
+    expect(result.secondAlt).toEqual({
+      complete: true,
+      completedPlayers: ["Main", "Alt"],
+      pendingPlayers: [],
+    });
+    expect(result.secondMain).toEqual(result.secondAlt);
+    expect(result.status.waitingBarriers).toBe(0);
+  });
+
+  it("rejects same-step same-label progress with different expected players", async () => {
+    const result = await withArmyIpc((harness) =>
+      Effect.gen(function* () {
+        const session = yield* startFullArmy(harness);
+        const main = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: true,
+            label: "same",
+            players: ["Main", "Alt"],
+            step: 12,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const exit = yield* Effect.exit(
+          harness.progress(session, "Third", {
+            complete: true,
+            label: "same",
+            players: ["Third", "Fourth"],
+            step: 12,
+          }),
+        );
+
+        yield* harness.progress(session, "Alt", {
+          complete: true,
+          label: "same",
+          players: ["Main", "Alt"],
+          step: 12,
+        });
+        yield* Fiber.join(main);
+
+        return {
+          exit,
+          status: yield* harness.status(session),
+        };
+      }),
+    );
+
+    expect(Exit.isFailure(result.exit)).toBe(true);
+    expect(exitString(result.exit)).toContain(
+      "Army progress player set mismatch",
+    );
+    expect(result.status.waitingBarriers).toBe(0);
+  });
+
+  it("times out missing progress players and clears checkpoint state", async () => {
+    const result = await withArmyIpc((harness) =>
+      Effect.gen(function* () {
+        const session = yield* startFullArmy(harness);
+        const main = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: true,
+            label: "timeout",
+            players: ["Main", "Alt"],
+            step: 13,
+            timeoutMs: 10,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const pendingStatus = yield* harness.status(session);
+        yield* Effect.sleep("20 millis");
+        const exit = yield* Effect.exit(Fiber.join(main));
+
+        return {
+          exit,
+          pendingStatus,
+          releasedStatus: yield* harness.status(session),
+        };
+      }),
+    );
+
+    expect(result.pendingStatus.waitingBarriers).toBe(1);
+    expect(Exit.isFailure(result.exit)).toBe(true);
+    expect(exitString(result.exit)).toContain(
+      "Timed out waiting for army progress 13 (timeout); missing: Alt",
+    );
+    expect(result.releasedStatus.waitingBarriers).toBe(0);
+  });
+
+  it("rejects pending progress checkpoints when the session aborts", async () => {
+    const result = await withArmyIpc((harness) =>
+      Effect.gen(function* () {
+        const session = yield* startFullArmy(harness);
+        const main = yield* Effect.forkDetach(
+          harness.progress(session, "Main", {
+            complete: true,
+            label: "abort",
+            players: ["Main", "Alt"],
+            step: 14,
+          }),
+          { startImmediately: true },
+        );
+
+        yield* Effect.sleep("1 millis");
+        const pendingStatus = yield* harness.status(session);
+        yield* harness.leave(session);
+        const exit = yield* Effect.exit(Fiber.join(main));
+
+        return {
+          exit,
+          pendingStatus,
+          releasedStatus: yield* harness.status(session),
+        };
+      }),
+    );
+
+    expect(result.pendingStatus.waitingBarriers).toBe(1);
+    expect(Exit.isFailure(result.exit)).toBe(true);
+    expect(exitString(result.exit)).toContain("Army player left: Main");
+    expect(result.releasedStatus.active).toBe(false);
   });
 });
 

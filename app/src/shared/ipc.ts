@@ -7,6 +7,8 @@ import type {
   ArmyLoopTauntObservationPayload,
   ArmyLoopTauntStartPayload,
   ArmyLoopTauntStopPayload,
+  ArmyProgressPayload,
+  ArmyProgressResult,
   ArmySessionPayload,
   ArmyStartPayload,
   ArmyStatusPayload,
@@ -61,6 +63,8 @@ export type {
   ArmyLoopTauntParticipantPayload,
   ArmyLoopTauntStartPayload,
   ArmyLoopTauntStopPayload,
+  ArmyProgressPayload,
+  ArmyProgressResult,
   ArmySessionPayload,
   ArmyStartPayload,
   ArmyStatusPayload,
@@ -194,6 +198,7 @@ export const ArmyIpcChannels = {
   start: "army:start",
   leave: "army:leave",
   barrier: "army:barrier",
+  progress: "army:progress",
   status: "army:status",
   loopTauntStart: "army:loop-taunt:start",
   loopTauntStop: "army:loop-taunt:stop",
@@ -714,6 +719,10 @@ export interface ArmyInvokeChannels {
     [payload: ArmyBarrierPayload],
     void
   >;
+  readonly [ArmyIpcChannels.progress]: IpcInvokeDefinition<
+    [payload: ArmyProgressPayload],
+    ArmyProgressResult
+  >;
   readonly [ArmyIpcChannels.status]: IpcInvokeDefinition<
     [payload: ArmyStatusPayload],
     ArmyStatusResult
@@ -743,6 +752,7 @@ export interface ArmyBridge {
   start(payload: ArmyStartPayload): Promise<ArmySessionPayload>;
   leave(payload: ArmyLeavePayload): Promise<void>;
   barrier(payload: ArmyBarrierPayload): Promise<void>;
+  progress(payload: ArmyProgressPayload): Promise<ArmyProgressResult>;
   status(payload: ArmyStatusPayload): Promise<ArmyStatusResult>;
   startLoopTaunt(payload: ArmyLoopTauntStartPayload): Promise<void>;
   stopLoopTaunt(payload: ArmyLoopTauntStopPayload): Promise<void>;

@@ -17,6 +17,7 @@ import type { ArmySession } from "../Services/Army";
 import { Army } from "../Services/Army";
 import { Auth, type AuthShape } from "../../flash/Services/Auth";
 import { Combat, type CombatShape } from "../../flash/Services/Combat";
+import { Drops, type DropsShape } from "../../flash/Services/Drops";
 import { Inventory, type InventoryShape } from "../../flash/Services/Inventory";
 import {
   GameEvents,
@@ -27,6 +28,10 @@ import {
 } from "../../flash/Services/GameEvents";
 import { Player, type PlayerShape } from "../../flash/Services/Player";
 import { Packet, type PacketShape } from "../../flash/Services/Packet";
+import {
+  TempInventory,
+  type TempInventoryShape,
+} from "../../flash/Services/TempInventory";
 import { Wait, type WaitShape } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
 import { matchesAura } from "../../flash/auraMatching";
@@ -350,6 +355,21 @@ const inventory = {
   getUsedSlots: () => Effect.succeed(0),
 } satisfies InventoryShape;
 
+const drops = {
+  acceptDrop: () => Effect.void,
+  containsDrop: () => Effect.succeed(false),
+  getDrops: () => Effect.succeed([]),
+  isUsingCustomDrops: () => Effect.succeed(false),
+  rejectDrop: () => Effect.succeed(false),
+  toggleUi: () => Effect.void,
+} satisfies DropsShape;
+
+const tempInventory = {
+  contains: () => Effect.succeed(false),
+  getItem: () => Effect.succeed(null),
+  getItems: () => Effect.succeed([]),
+} satisfies TempInventoryShape;
+
 const jobGate = {
   isOpen: () => Effect.succeed(true),
 } satisfies JobGateShape;
@@ -643,10 +663,12 @@ const withArmy = async <A>(
         JobsLive.pipe(Layer.provide(Layer.succeed(JobGate)(jobGate))),
         Layer.succeed(Auth)(auth),
         Layer.succeed(Combat)(combat),
+        Layer.succeed(Drops)(drops),
         Layer.succeed(Inventory)(inventory),
         Layer.succeed(GameEvents)(packetDomain),
         Layer.succeed(Packet)(packet),
         Layer.succeed(Player)(player),
+        Layer.succeed(TempInventory)(tempInventory),
         Layer.succeed(Wait)(wait),
         Layer.succeed(World)(
           makeWorld(auras, session.players, options?.playerAuras),
