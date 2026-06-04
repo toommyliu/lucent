@@ -84,7 +84,7 @@ export const scriptSourceLinks: Record<string, { path: string; url: string }> = 
   "scripting/types/script-exit-options": { path: "app/src/renderer/windows/game/scripting/ScriptApi.ts:586", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L586" },
   "scripting/types/script-item-wait-options": { path: "app/src/renderer/windows/game/scripting/ScriptApi.ts:271", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L271" },
   "scripting/types/script-monster-wait-options": { path: "app/src/renderer/windows/game/scripting/ScriptApi.ts:266", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L266" },
-  "scripting/types/script-options": { path: "app/src/shared/ipc.ts:378", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L378" },
+  "scripting/types/script-options": { path: "app/src/shared/ipc.ts:383", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L383" },
   "scripting/types/script-player-count-wait-options": { path: "app/src/renderer/windows/game/scripting/ScriptApi.ts:262", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L262" },
   "scripting/types/script-recipe-effect": { path: "app/src/renderer/windows/game/scripting/recipes.ts:37", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L37" },
   "scripting/types/script-wait-options": { path: "app/src/renderer/windows/game/scripting/ScriptApi.ts:257", url: "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L257" },
