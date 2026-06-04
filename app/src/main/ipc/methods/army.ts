@@ -1114,18 +1114,6 @@ const waitAtProgress = (
     );
   }
 
-  if (
-    payload.label !== undefined &&
-    checkpoint.label !== undefined &&
-    payload.label !== checkpoint.label
-  ) {
-    return Promise.reject(
-      new Error(
-        `Army progress label mismatch for step ${payload.step}: expected ${checkpoint.label}, got ${payload.label}`,
-      ),
-    );
-  }
-
   if (!samePlayerSet(checkpoint.expectedPlayerKeys, expectedPlayers.keys)) {
     return Promise.reject(
       new Error(`Army progress player set mismatch for step ${payload.step}`),
