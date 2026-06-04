@@ -94,7 +94,7 @@ test("silent loadMany waits until fetched quests are in the local tree", async (
         yield* Fiber.join(fiber);
         expect(loadManyCompleted).toBe(true);
         expect(loadedEvents).toEqual([[609]]);
-        expect((yield* quests.getTree()).has(609)).toBe(true);
+        expect((yield* quests.getAll()).has(609)).toBe(true);
       }),
     ).pipe(
       Effect.provide(

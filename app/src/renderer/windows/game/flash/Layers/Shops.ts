@@ -1,13 +1,21 @@
-import type { GameAction, ShopInfo } from "@lucent/game";
+import { Collection } from "@lucent/collection";
+import type { GameAction, ShopInfo, ShopItem } from "@lucent/game";
 import { equalsIgnoreCase } from "@lucent/shared/string";
-import { Effect, Layer, Ref } from "effect";
+import { Effect, Layer, Option, Ref } from "effect";
 import { makeShopItemCache } from "../ItemCache";
-import { asNumber, asRecord } from "../PacketPayload";
+import { asNumber, asRecord, asString } from "../PacketPayload";
 import { Bridge } from "../Services/Bridge";
 import type { BridgeEffect } from "../Services/Bridge";
 import { Packet } from "../Services/Packet";
 import { Shops } from "../Services/Shops";
-import type { ShopsShape } from "../Services/Shops";
+import type {
+  InventoryItemSelector,
+  ShopItemMatchSummary,
+  ShopItemSelector,
+  ShopsShape,
+  ShopQuantityOptions,
+} from "../Services/Shops";
+import { ShopItemSelectorAmbiguous } from "../Services/Shops";
 import { Wait } from "../Services/Wait";
 
 const asShopInfo = (value: unknown): ShopInfo | null => {
@@ -29,29 +37,71 @@ const asShopInfo = (value: unknown): ShopInfo | null => {
   return shopinfo as ShopInfo;
 };
 
-const isItemMatch = (value: unknown, key: ItemIdentifierToken): boolean => {
-  const record = asRecord(value);
-  if (!record) {
+const normalizeQuantity = (
+  options: ShopQuantityOptions | undefined,
+): number | undefined => {
+  const quantity = options?.quantity;
+  if (quantity === undefined || !Number.isFinite(quantity)) {
+    return undefined;
+  }
+
+  const normalized = Math.trunc(quantity);
+  return normalized > 0 ? normalized : undefined;
+};
+
+const normalizeShopItemId = (value: string | number | undefined) =>
+  value === undefined ? undefined : String(value).trim();
+
+const getShopItemId = (item: ShopItem): string | undefined => {
+  const id = normalizeShopItemId(item.data.ShopItemID);
+  return id === "" ? undefined : id;
+};
+
+const matchesShopItemSelector = (
+  item: ShopItem,
+  selector: ShopItemSelector,
+): boolean => {
+  if (selector.name !== undefined && !equalsIgnoreCase(item.name, selector.name)) {
     return false;
   }
 
-  if (typeof key === "number") {
-    const itemId = asNumber(record["ItemID"]);
-    return itemId !== undefined && itemId === key;
-  }
-
-  const itemName = record["sName"];
-  if (typeof itemName === "string" && equalsIgnoreCase(itemName, key)) {
-    return true;
-  }
-
-  const keyAsNumber = asNumber(key);
-  if (keyAsNumber === undefined) {
+  if (selector.itemId !== undefined && item.id !== selector.itemId) {
     return false;
   }
 
-  const itemId = asNumber(record["ItemID"]);
-  return itemId !== undefined && itemId === keyAsNumber;
+  const selectorShopItemId = normalizeShopItemId(selector.shopItemId);
+  if (
+    selectorShopItemId !== undefined &&
+    getShopItemId(item) !== selectorShopItemId
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const toShopItemMatchSummary = (item: ShopItem): ShopItemMatchSummary => {
+  const shopItemId = getShopItemId(item);
+
+  return {
+    name: item.name,
+    itemId: item.id,
+    ...(shopItemId !== undefined ? { shopItemId } : null),
+  };
+};
+
+const toShopItemsCollection = (
+  items: Iterable<ShopItem>,
+): Collection<string, ShopItem> => {
+  const collection = new Collection<string, ShopItem>();
+  for (const item of items) {
+    const id = getShopItemId(item);
+    if (id !== undefined) {
+      collection.set(id, item);
+    }
+  }
+
+  return collection;
 };
 
 const make = Effect.gen(function* () {
@@ -104,27 +154,6 @@ const make = Effect.gen(function* () {
       return yield* operation;
     });
 
-  const buyById: ShopsShape["buyById"] = (id, quantity) =>
-    runWhenActionAvailable(
-      "buyItem",
-      quantity === undefined
-        ? bridge.call("shops.buyById", [id])
-        : bridge.call("shops.buyById", [id, quantity]),
-    );
-
-  const buyByName: ShopsShape["buyByName"] = (name, quantity) =>
-    runWhenActionAvailable(
-      "buyItem",
-      quantity === undefined
-        ? bridge.call("shops.buyByName", [name])
-        : bridge.call("shops.buyByName", [name, quantity]),
-    );
-
-  const canBuyItem: ShopsShape["canBuyItem"] = (key, quantity) =>
-    quantity === undefined
-      ? bridge.call("shops.canBuyItem", [key])
-      : bridge.call("shops.canBuyItem", [key, quantity]);
-
   const close: ShopsShape["close"] = (shopId) =>
     shopId === undefined
       ? bridge.call("shops.close")
@@ -132,31 +161,109 @@ const make = Effect.gen(function* () {
 
   const getInfo: ShopsShape["getInfo"] = () => Ref.get(shopInfoRef);
 
+  const getShopItems = () =>
+    Effect.gen(function* () {
+      const info = yield* getInfo();
+      if (!info) {
+        return [];
+      }
+
+      return yield* itemCache.fromUnknownArray(info.items);
+    });
+
+  const getMatchingShopItems = (selector?: ShopItemSelector) =>
+    Effect.map(getShopItems(), (items) =>
+      selector === undefined
+        ? Array.from(items)
+        : items.filter((item) => matchesShopItemSelector(item, selector)),
+    );
+
+  const getSingleShopItem = (selector: ShopItemSelector) =>
+    Effect.flatMap(getMatchingShopItems(selector), (items) => {
+      const item = items[0];
+      if (items.length === 0 || item === undefined) {
+        return Effect.succeed(Option.none<ShopItem>());
+      }
+
+      if (items.length === 1) {
+        return Effect.succeed(Option.some(item));
+      }
+
+      return Effect.fail(
+        new ShopItemSelectorAmbiguous({
+          message: "Shop item selector matched multiple items.",
+          selector,
+          matches: items.map(toShopItemMatchSummary),
+        }),
+      );
+    });
+
   const getItems: ShopsShape["getItems"] = () =>
-    getInfo().pipe(
-      Effect.flatMap((info) =>
-        info ? itemCache.fromUnknownArray(info.items) : Effect.succeed([]),
-      ),
-    );
+    Effect.map(getShopItems(), toShopItemsCollection);
 
-  const getItem: ShopsShape["getItem"] = (key) =>
-    getInfo().pipe(
-      Effect.flatMap((info) => {
-        if (!info) {
-          return Effect.succeed(null);
-        }
+  const getItem: ShopsShape["getItem"] = (selector) =>
+    getSingleShopItem(selector);
 
-        const item = info.items.find((item) => isItemMatch(item, key));
-        if (!item) {
-          return Effect.succeed(null);
-        }
+  const getMaxBuyQuantity: ShopsShape["getMaxBuyQuantity"] = (selector) =>
+    Effect.gen(function* () {
+      const item = yield* getSingleShopItem(selector);
+      if (Option.isNone(item)) {
+        return 0;
+      }
 
-        return itemCache.fromUnknown(item);
-      }),
-    );
+      const shopItemId = getShopItemId(item.value);
+      if (shopItemId === undefined) {
+        return 0;
+      }
 
-  const getMaxBuyQuantity: ShopsShape["getMaxBuyQuantity"] = (key) =>
-    bridge.call("shops.getMaxBuyQuantity", [key]);
+      return yield* bridge.call("shops.getMaxBuyQuantityByShopItemId", [
+        shopItemId,
+      ]);
+    });
+
+  const canBuy: ShopsShape["canBuy"] = (selector, options) =>
+    Effect.gen(function* () {
+      const item = yield* getSingleShopItem(selector);
+      if (Option.isNone(item)) {
+        return false;
+      }
+
+      const shopItemId = getShopItemId(item.value);
+      if (shopItemId === undefined) {
+        return false;
+      }
+
+      const quantity = normalizeQuantity(options);
+      if (quantity === undefined) {
+        return yield* bridge.call("shops.canBuyByShopItemId", [shopItemId]);
+      }
+
+      return yield* bridge.call("shops.canBuyByShopItemId", [
+        shopItemId,
+        quantity,
+      ]);
+    });
+
+  const buy: ShopsShape["buy"] = (selector, options) =>
+    Effect.gen(function* () {
+      const item = yield* getSingleShopItem(selector);
+      if (Option.isNone(item)) {
+        return false;
+      }
+
+      const shopItemId = getShopItemId(item.value);
+      if (shopItemId === undefined) {
+        return false;
+      }
+
+      const quantity = normalizeQuantity(options);
+      return yield* runWhenActionAvailable(
+        "buyItem",
+        quantity === undefined
+          ? bridge.call("shops.buyByShopItemId", [shopItemId])
+          : bridge.call("shops.buyByShopItemId", [shopItemId, quantity]),
+      );
+    });
 
   const isOpen: ShopsShape["isOpen"] = (shopId) =>
     shopId === undefined
@@ -183,26 +290,67 @@ const make = Effect.gen(function* () {
   const loadHairShop: ShopsShape["loadHairShop"] = (shopId) =>
     bridge.call("shops.loadHairShop", [shopId]);
 
-  const sellById: ShopsShape["sellById"] = (id, quantity) =>
-    runWhenActionAvailable(
-      "sellItem",
-      quantity === undefined
-        ? bridge.call("shops.sellById", [id])
-        : bridge.call("shops.sellById", [id, quantity]),
-    );
+  const selectorMatchesInventoryItem = (
+    item: unknown,
+    selector: InventoryItemSelector,
+  ) => {
+    const record = asRecord(item);
+    if (!record) {
+      return false;
+    }
 
-  const sellByName: ShopsShape["sellByName"] = (name, quantity) =>
-    runWhenActionAvailable(
-      "sellItem",
-      quantity === undefined
-        ? bridge.call("shops.sellByName", [name])
-        : bridge.call("shops.sellByName", [name, quantity]),
-    );
+    const itemId = asNumber(record["ItemID"]);
+    if (selector.itemId !== undefined && itemId !== selector.itemId) {
+      return false;
+    }
+
+    const name = asString(record["sName"]);
+    if (
+      selector.name !== undefined &&
+      (name === undefined || !equalsIgnoreCase(name, selector.name))
+    ) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const sell: ShopsShape["sell"] = (selector, options) =>
+    Effect.gen(function* () {
+      const quantity = normalizeQuantity(options);
+      if (selector.name !== undefined && selector.itemId !== undefined) {
+        const item = yield* bridge.call("inventory.getItem", [
+          selector.itemId,
+        ]);
+        if (!selectorMatchesInventoryItem(item, selector)) {
+          return false;
+        }
+      }
+
+      if (selector.itemId !== undefined) {
+        return yield* runWhenActionAvailable(
+          "sellItem",
+          quantity === undefined
+            ? bridge.call("shops.sellById", [selector.itemId])
+            : bridge.call("shops.sellById", [selector.itemId, quantity]),
+        );
+      }
+
+      if (selector.name === undefined) {
+        return false;
+      }
+
+      return yield* runWhenActionAvailable(
+        "sellItem",
+        quantity === undefined
+          ? bridge.call("shops.sellByName", [selector.name])
+          : bridge.call("shops.sellByName", [selector.name, quantity]),
+      );
+    });
 
   return {
-    buyById,
-    buyByName,
-    canBuyItem,
+    buy,
+    canBuy,
     close,
     getInfo,
     getItem,
@@ -213,8 +361,7 @@ const make = Effect.gen(function* () {
     load,
     loadArmorCustomize,
     loadHairShop,
-    sellById,
-    sellByName,
+    sell,
   } satisfies ShopsShape;
 });
 

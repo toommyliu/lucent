@@ -14,14 +14,13 @@ Scripts export a CommonJS generator function and import script APIs from `requir
 
 ```js
 const { features, script, api } = require("lucent")
-const { Option } = require("effect")
 
 module.exports = function* run() {
   script.log("started")
   yield* script.options.setUsePrivateRooms(true)
   yield* api.player.joinMap("battleon")
-  const me = yield* api.world.players.me.get()
-  if (Option.isSome(me)) script.log(`Logged in as ${me.value.username}`)
+  const me = yield* api.world.players.getMe()
+  if (me !== null) script.log(`Logged in as ${me.username}`)
 }
 ```
 
@@ -50,13 +49,12 @@ Download the generated declaration file [`script-api.d.ts`](/script-api.d.ts) an
 /// <reference path="./script-api.d.ts" />
 
 const { features, script, api } = require("lucent")
-const { Option } = require("effect")
 
 module.exports = function* run() {
   yield* script.options.setUsePrivateRooms(true)
   yield* api.player.joinMap("battleon")
-  const me = yield* api.world.players.me.get()
-  if (Option.isSome(me)) script.log(me.value.username)
+  const me = yield* api.world.players.getMe()
+  if (me !== null) script.log(me.username)
 }
 ```
 

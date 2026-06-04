@@ -1,4 +1,5 @@
-import { Effect, Layer } from "effect";
+import { Collection } from "@lucent/collection";
+import { Effect, Layer, Option } from "effect";
 import { asRecord, asString } from "../PacketPayload";
 import { Bridge } from "../Services/Bridge";
 import { Outfits } from "../Services/Outfits";
@@ -27,6 +28,8 @@ const normalizeOutfit = (value: unknown): Outfit | null => {
 const keepColors = (options: OutfitEquipOptions | undefined): boolean =>
   options?.keepColors === true;
 
+const normalizeKey = (value: string): string => value.toLowerCase();
+
 const make = Effect.gen(function* () {
   const bridge = yield* Bridge;
   const wait = yield* Wait;
@@ -35,15 +38,28 @@ const make = Effect.gen(function* () {
     bridge
       .call("outfits.getAll")
       .pipe(
-        Effect.map((outfits) =>
-          outfits
-            .map(normalizeOutfit)
-            .filter((outfit): outfit is Outfit => outfit !== null),
-        ),
+        Effect.map((outfits) => {
+          const collection = new Collection<string, Outfit>();
+          for (const outfit of outfits) {
+            const normalized = normalizeOutfit(outfit);
+            if (normalized !== null) {
+              collection.set(normalizeKey(normalized.name), normalized);
+            }
+          }
+
+          return collection;
+        }),
       );
 
   const get: OutfitsShape["get"] = (name) =>
-    bridge.call("outfits.get", [name]).pipe(Effect.map(normalizeOutfit));
+    bridge
+      .call("outfits.get", [name])
+      .pipe(
+        Effect.map((outfit) => {
+          const normalized = normalizeOutfit(outfit);
+          return normalized === null ? Option.none() : Option.some(normalized);
+        }),
+      );
 
   const equip: OutfitsShape["equip"] = (name, options) =>
     Effect.gen(function* () {

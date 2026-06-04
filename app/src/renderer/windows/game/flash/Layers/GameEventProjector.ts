@@ -56,9 +56,7 @@ const parseMonsterMapIdFromEntityInfo = (
   return undefined;
 };
 
-const parseLoopTauntScrollTarget = (
-  token: unknown,
-): number | undefined => {
+const parseLoopTauntScrollTarget = (token: unknown): number | undefined => {
   const text = asString(token);
   if (!text?.startsWith("i1>m:")) {
     return undefined;
@@ -268,8 +266,7 @@ const make = Effect.gen(function* () {
       }
 
       const players = yield* world.players.getAll();
-      return players.find((player) => player.data.entID === targetId)
-        ?.username;
+      return players.find((player) => player.data.entID === targetId)?.username;
     });
 
   const withMonster = (
@@ -905,13 +902,11 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      yield* gameEvents.emit("loopTauntClientCastAttempt",
-        {
-          itemId,
-          monMapId,
-          packet,
-        },
-      );
+      yield* gameEvents.emit("loopTauntClientCastAttempt", {
+        itemId,
+        monMapId,
+        packet,
+      });
     }),
   );
 
@@ -924,14 +919,12 @@ const make = Effect.gen(function* () {
 
       const loopTauntConfirmation = getServerLoopTauntConfirmation(payload);
       if (loopTauntConfirmation !== undefined) {
-        yield* gameEvents.emit("loopTauntServerCastConfirmed",
-          {
-            auraIcon: loopTauntConfirmation.auraIcon,
-            auraName: loopTauntConfirmation.auraName,
-            monMapId: loopTauntConfirmation.monMapId,
-            packet,
-          },
-        );
+        yield* gameEvents.emit("loopTauntServerCastConfirmed", {
+          auraIcon: loopTauntConfirmation.auraIcon,
+          auraName: loopTauntConfirmation.auraName,
+          monMapId: loopTauntConfirmation.monMapId,
+          packet,
+        });
       }
 
       for (const rawAnimation of asArray(payload["anims"])) {
@@ -1099,16 +1092,14 @@ const make = Effect.gen(function* () {
                 const antiCounterMatch = matchAntiCounterAura(aura.name);
                 if (antiCounterMatch) {
                   const durationMs = durationMsFromAura(aura.duration);
-                  yield* gameEvents.emit("antiCounterStart",
-                    {
-                      monMapId: targetId,
-                      source: "aura",
-                      triggerId: antiCounterMatch.triggerId,
-                      triggerText: antiCounterMatch.triggerText,
-                      ...(durationMs === undefined ? {} : { durationMs }),
-                      packet,
-                    },
-                  );
+                  yield* gameEvents.emit("antiCounterStart", {
+                    monMapId: targetId,
+                    source: "aura",
+                    triggerId: antiCounterMatch.triggerId,
+                    triggerText: antiCounterMatch.triggerText,
+                    ...(durationMs === undefined ? {} : { durationMs }),
+                    packet,
+                  });
                 }
               } else {
                 yield* world.monsters.updateAura(targetId, aura);

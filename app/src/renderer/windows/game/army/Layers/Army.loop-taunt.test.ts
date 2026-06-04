@@ -29,6 +29,7 @@ import { Player, type PlayerShape } from "../../flash/Services/Player";
 import { Packet, type PacketShape } from "../../flash/Services/Packet";
 import { Wait, type WaitShape } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
+import { matchesAura } from "../../flash/auraMatching";
 import { JobGate, type JobGateShape } from "../../jobs/Services/JobGate";
 import { JobsLive } from "../../jobs/Layers/Jobs";
 import { ArmyLive } from "./Army";
@@ -116,13 +117,35 @@ const otherMonster = new Monster({
 
 const auraKey = (auraName: string): string => auraName.trim().toLowerCase();
 
+const makeAvatar = (name: string, index: number): Avatar =>
+  new Avatar({
+    afk: false,
+    entID: index + 1,
+    entType: "player",
+    intHP: 100,
+    intHPMax: 100,
+    intLevel: 100,
+    intMP: 100,
+    intMPMax: 100,
+    intState: EntityState.Idle,
+    strFrame: "Boss",
+    strPad: "Spawn",
+    strUsername: name,
+    tx: 0,
+    ty: 0,
+    uoName: name.toLowerCase(),
+  });
+
+const auraCollection = (
+  auras: ReadonlyMap<string, Aura> | undefined,
+): Collection<string, Aura> => new Collection(Array.from(auras ?? []));
+
 const makeWorld = (
   auras: Map<string, Aura>,
   playerNames: readonly string[],
   playerAuras: ReadonlyMap<number, ReadonlyMap<string, Aura>> = new Map(),
 ): WorldShape => ({
   map: {
-    getCellMonsters: () => Effect.succeed([monster]),
     getCells: () => Effect.succeed(["Enter", "Boss"]),
     getCellPads: () => Effect.succeed(["Spawn"]),
     getId: () => Effect.succeed(1),
@@ -142,58 +165,39 @@ const makeWorld = (
     add: () => Effect.void,
     addAura: () => Effect.void,
     clearAuras: () => Effect.void,
-    get: (username) =>
-      Effect.succeed(
-        Option.fromNullishOr(
-          playerNames
-            .map(
-              (name, index) =>
-                new Avatar({
-                  afk: false,
-                  entID: index + 1,
-                  entType: "player",
-                  intHP: 100,
-                  intHPMax: 100,
-                  intLevel: 100,
-                  intMP: 100,
-                  intMPMax: 100,
-                  intState: EntityState.Idle,
-                  strFrame: "Boss",
-                  strPad: "Spawn",
-                  strUsername: name,
-                  tx: 0,
-                  ty: 0,
-                  uoName: name.toLowerCase(),
-                }),
-            )
-            .find(
-              (player) =>
-                player.username.toLowerCase() === username.toLowerCase(),
-            ),
-        ),
-      ),
+    get: (selector) => {
+      const players = playerNames.map(makeAvatar);
+      const player =
+        typeof selector === "number"
+          ? players.find((player) => player.data.entID === selector)
+          : typeof selector === "string"
+            ? players.find(
+                (player) =>
+                  player.username.toLowerCase() === selector.toLowerCase(),
+              )
+            : players.find((player) => {
+                if (
+                  selector.entId !== undefined &&
+                  player.data.entID !== selector.entId
+                ) {
+                  return false;
+                }
+
+                return (
+                  selector.username === undefined ||
+                  player.username.toLowerCase() ===
+                    selector.username.toLowerCase()
+                );
+              });
+
+      return Effect.succeed(Option.fromNullishOr(player));
+    },
     getAll: () =>
       Effect.succeed(
         new Collection(
           playerNames.map((name, index) => [
             name.toLowerCase(),
-            new Avatar({
-              afk: false,
-              entID: index + 1,
-              entType: "player",
-              intHP: 100,
-              intHPMax: 100,
-              intLevel: 100,
-              intMP: 100,
-              intMPMax: 100,
-              intState: EntityState.Idle,
-              strFrame: "Boss",
-              strPad: "Spawn",
-              strUsername: name,
-              tx: 0,
-              ty: 0,
-              uoName: name.toLowerCase(),
-            }),
+            makeAvatar(name, index),
           ]),
         ),
       ),
@@ -202,7 +206,7 @@ const makeWorld = (
         Option.fromNullishOr(playerAuras.get(entId)?.get(auraKey(auraName))),
       ),
     getAuras: (entId) =>
-      Effect.succeed(Array.from(playerAuras.get(entId)?.values() ?? [])),
+      Effect.succeed(auraCollection(playerAuras.get(entId))),
     getByName: (name) =>
       Effect.succeed(
         Option.fromNullishOr(
@@ -240,6 +244,41 @@ const makeWorld = (
     unregister: () => Effect.void,
     updateAura: () => Effect.void,
     withSelf: () => Effect.succeed(Option.none()),
+    auras: {
+      getAll: (selector) =>
+        Effect.gen(function* () {
+          const player = yield* makeWorld(
+            auras,
+            playerNames,
+            playerAuras,
+          ).players.get(selector);
+          return Option.isSome(player)
+            ? auraCollection(playerAuras.get(player.value.data.entID))
+            : new Collection<string, Aura>();
+        }),
+      get: (selector, auraName) =>
+        Effect.gen(function* () {
+          const player = yield* makeWorld(
+            auras,
+            playerNames,
+            playerAuras,
+          ).players.get(selector);
+          return Option.isSome(player)
+            ? Option.fromNullishOr(
+                playerAuras.get(player.value.data.entID)?.get(auraKey(auraName)),
+              )
+            : Option.none<Aura>();
+        }),
+      has: (selector, auraName, options) =>
+        Effect.gen(function* () {
+          const aura = yield* makeWorld(
+            auras,
+            playerNames,
+            playerAuras,
+          ).players.auras.get(selector, auraName);
+          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+        }),
+    },
   },
   monsters: {
     add: () => Effect.void,
@@ -249,15 +288,26 @@ const makeWorld = (
       Effect.succeed(
         name === "Ultra Boss" ? Option.some(monster) : Option.none(),
       ),
-    get: (monMapId) =>
-      Effect.succeed(
-        Option.fromNullishOr(
-          new Map([
-            [7, monster],
-            [8, otherMonster],
-          ]).get(monMapId),
-        ),
-      ),
+    get: (selector) => {
+      const monsters = new Map([
+        [7, monster],
+        [8, otherMonster],
+      ]);
+      const match =
+        typeof selector === "number"
+          ? monsters.get(selector)
+          : typeof selector === "string"
+            ? selector === "Ultra Boss"
+              ? monster
+              : undefined
+            : selector.monMapId !== undefined
+              ? monsters.get(selector.monMapId)
+              : selector.name === "Ultra Boss"
+                ? monster
+                : undefined;
+
+      return Effect.succeed(Option.fromNullishOr(match));
+    },
     getAll: () =>
       Effect.succeed(
         new Collection([
@@ -265,10 +315,28 @@ const makeWorld = (
           [8, otherMonster],
         ]),
       ),
+    getAvailable: () => Effect.succeed(new Collection([[7, monster]])),
+    isAvailable: () => Effect.succeed(true),
+    getAuras: () => Effect.succeed(auraCollection(auras)),
     getAura: (_monMapId, auraName) =>
       Effect.succeed(Option.fromNullishOr(auras.get(auraKey(auraName)))),
     removeAura: () => Effect.void,
     updateAura: () => Effect.void,
+    auras: {
+      getAll: () => Effect.succeed(auraCollection(auras)),
+      get: (_selector, auraName) =>
+        Effect.succeed(Option.fromNullishOr(auras.get(auraKey(auraName)))),
+      has: (_selector, auraName, options) =>
+        Effect.sync(() => {
+          const aura = auras.get(auraKey(auraName));
+          return matchesAura(aura, options);
+        }),
+    },
+  },
+  entities: {
+    getAll: () => Effect.succeed(new Collection()),
+    getMe: () => Effect.succeed(Option.none()),
+    get: () => Effect.succeed(Option.none()),
   },
 });
 
@@ -442,15 +510,33 @@ const withArmy = async <A>(
     canUseSkill: () => Effect.succeed(true),
     exit: () => Effect.succeed(true),
     getConsumableSkillItem: () => Effect.succeed(null),
-    getTarget: () =>
-      Effect.succeed(
-        currentTargetMonMapId === 7
-          ? monster
-          : currentTargetMonMapId === 8
-            ? otherMonster
-            : null,
-      ),
-    hasTarget: () => Effect.succeed(false),
+    target: {
+      get: () =>
+        Effect.succeed(
+          currentTargetMonMapId === 7
+            ? Option.some({
+                entity: monster,
+                key: "monster:7" as const,
+                monMapId: 7,
+                name: monster.name,
+                type: "monster" as const,
+              })
+            : currentTargetMonMapId === 8
+              ? Option.some({
+                  entity: otherMonster,
+                  key: "monster:8" as const,
+                  monMapId: 8,
+                  name: otherMonster.name,
+                  type: "monster" as const,
+                })
+              : Option.none(),
+        ),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
     hunt: () => Effect.succeed(""),
     kill: () => Effect.void,
     killForItem: () => Effect.void,

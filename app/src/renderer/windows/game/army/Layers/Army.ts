@@ -96,7 +96,10 @@ const readPlayerActionLockCategory = (
 
     const auras = yield* world.players
       .getAuras(self.value.data.entID)
-      .pipe(Effect.catchCause(() => Effect.succeed([] as readonly Aura[])));
+      .pipe(
+        Effect.map((auras) => Array.from(auras.values())),
+        Effect.catchCause(() => Effect.succeed([] as readonly Aura[])),
+      );
     return getLoopTauntActionLockCategory(auras);
   });
 
@@ -572,12 +575,12 @@ const make = Effect.gen(function* () {
 
   const waitForLoopTauntCombatTarget = (monMapId: number) =>
     wait.until(
-      combat.getTarget().pipe(
+      combat.target.get().pipe(
         Effect.map(
           (target) =>
-            target !== null &&
-            "monMapId" in target &&
-            target.monMapId === monMapId,
+            Option.isSome(target) &&
+            target.value.type === "monster" &&
+            target.value.monMapId === monMapId,
         ),
         Effect.catchCause(() => Effect.succeed(false)),
       ),

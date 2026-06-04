@@ -48,22 +48,22 @@ const getTargetAura = (condition: CombatProfileAuraCondition) =>
   Effect.gen(function* () {
     const combat = yield* Combat;
     const world = yield* World;
-    const target = yield* combat.getTarget();
+    const target = yield* combat.target.get();
 
-    if (!target) {
+    if (Option.isNone(target)) {
       return 0;
     }
 
-    if (target.isMonster()) {
+    if (target.value.type === "monster") {
       const aura = yield* world.monsters.getAura(
-        target.monMapId,
+        target.value.monMapId,
         condition.auraName,
       );
       return auraValue(Option.isSome(aura) ? aura.value : undefined);
     }
 
     const aura = yield* world.players.getAura(
-      target.data.entID,
+      target.value.entId,
       condition.auraName,
     );
     return auraValue(Option.isSome(aura) ? aura.value : undefined);

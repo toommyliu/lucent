@@ -44,12 +44,12 @@ module.exports = function* run() {
 
 ```js
 const { features, script, api } = require("lucent")
-const { Effect, Option, pipe } = require("effect")
+const { Effect, pipe } = require("effect")
 
 module.exports = function* run() {
-  const me = yield* api.world.players.me.get()
-  if (Option.isSome(me)) {
-    script.log(me.value.username)
+  const me = yield* api.world.players.getMe()
+  if (me !== null) {
+    script.log(me.username)
   }
 }
 ```

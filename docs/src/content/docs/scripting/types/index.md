@@ -24,6 +24,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
 | <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
 | <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | type alias |  |
+| <a href="/scripting/types/aura-match-options/" data-script-type="aura-match-options"><code>AuraMatchOptions</code></a> | interface |  |
 | <a href="/scripting/types/auth-connect-failure-status/" data-script-type="auth-connect-failure-status"><code>AuthConnectFailureStatus</code></a> | type alias |  |
 | <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | type alias |  |
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
@@ -51,6 +52,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/faction/" data-script-type="faction"><code>Faction</code></a> | class | Represents a game faction. |
 | <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | type alias |  |
 | <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |
+| <a href="/scripting/types/inventory-item-selector/" data-script-type="inventory-item-selector"><code>InventoryItemSelector</code></a> | type alias |  |
 | <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> | class | The base class for all-things item related. |
 | <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | type alias |  |
 | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | type alias |  |
@@ -60,8 +62,12 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | type alias |  |
 | <a href="/scripting/types/monster-map-id/" data-script-type="monster-map-id"><code>MonsterMapID</code></a> | type alias |  |
 | <a href="/scripting/types/monster-name/" data-script-type="monster-name"><code>MonsterName</code></a> | type alias |  |
+| <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
+| <a href="/scripting/types/monster-selector-object/" data-script-type="monster-selector-object"><code>MonsterSelectorObject</code></a> | interface |  |
 | <a href="/scripting/types/outfit/" data-script-type="outfit"><code>Outfit</code></a> | interface |  |
 | <a href="/scripting/types/outfit-equip-options/" data-script-type="outfit-equip-options"><code>OutfitEquipOptions</code></a> | interface |  |
+| <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | type alias |  |
+| <a href="/scripting/types/player-selector-object/" data-script-type="player-selector-object"><code>PlayerSelectorObject</code></a> | interface |  |
 | <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> | class | Represents a quest. |
 | <a href="/scripting/types/quest-bonus-reward-data/" data-script-type="quest-bonus-reward-data"><code>QuestBonusRewardData</code></a> | type alias | Represents the raw data structure for additional quest rewards. |
 | <a href="/scripting/types/quest-info/" data-script-type="quest-info"><code>QuestInfo</code></a> | type alias | Represents the main quest information structure. |
@@ -101,4 +107,12 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/shop-info/" data-script-type="shop-info"><code>ShopInfo</code></a> | type alias |  |
 | <a href="/scripting/types/shop-item/" data-script-type="shop-item"><code>ShopItem</code></a> | class | The base class for all-things item related. |
 | <a href="/scripting/types/shop-item-data/" data-script-type="shop-item-data"><code>ShopItemData</code></a> | type alias | Represents the data structure for an item. |
+| <a href="/scripting/types/shop-item-match-summary/" data-script-type="shop-item-match-summary"><code>ShopItemMatchSummary</code></a> | interface |  |
+| <a href="/scripting/types/shop-item-selection-effect/" data-script-type="shop-item-selection-effect"><code>ShopItemSelectionEffect</code></a> | type alias |  |
+| <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
+| <a href="/scripting/types/shop-item-selector-ambiguous-error/" data-script-type="shop-item-selector-ambiguous-error"><code>ShopItemSelectorAmbiguousError</code></a> | interface |  |
+| <a href="/scripting/types/shop-quantity-options/" data-script-type="shop-quantity-options"><code>ShopQuantityOptions</code></a> | interface |  |
 | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
+| <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> | type alias |  |
+| <a href="/scripting/types/world-entity-key/" data-script-type="world-entity-key"><code>WorldEntityKey</code></a> | type alias |  |
+| <a href="/scripting/types/world-entity-selector/" data-script-type="world-entity-selector"><code>WorldEntitySelector</code></a> | type alias |  |

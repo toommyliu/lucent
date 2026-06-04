@@ -1,7 +1,9 @@
+import { Collection } from "@lucent/collection";
 import { Monster, parseMonsterMapIdToken } from "@lucent/game";
+import type { Aura } from "@lucent/game";
 import { Effect, Layer, Option, Schedule } from "effect";
 import { splitCsv } from "@lucent/shared/csv";
-import { Bridge } from "../Services/Bridge";
+import { Bridge, type BridgeEffect } from "../Services/Bridge";
 import { Combat } from "../Services/Combat";
 import type { CombatKillOptions, CombatShape } from "../Services/Combat";
 import { Drops } from "../Services/Drops";
@@ -9,6 +11,7 @@ import { GameEvents } from "../Services/GameEvents";
 import { Player } from "../Services/Player";
 import { Settings } from "../Services/Settings";
 import { World } from "../Services/World";
+import { matchesAura } from "../auraMatching";
 import type { MonsterTargetInfo, PlayerTargetInfo } from "../Types";
 import { expiresAtMs as antiCounterExpiresAtMs } from "../antiCounter";
 
@@ -262,11 +265,14 @@ const make = Effect.gen(function* () {
     ? maybeGameEvents.value
     : undefined;
 
+  const readTargetInfo = () =>
+    bridge
+      .call("combat.getTarget")
+      .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
+
   const getCurrentTargetMonMapId = () =>
     Effect.gen(function* () {
-      const target = yield* bridge
-        .call("combat.getTarget")
-        .pipe(Effect.catch(() => Effect.succeed(null)));
+      const target = yield* readTargetInfo();
 
       if (!target || target.type !== "monster") {
         return undefined;
@@ -708,38 +714,6 @@ const make = Effect.gen(function* () {
   const getConsumableSkillItem: CombatShape["getConsumableSkillItem"] = () =>
     bridge.call("combat.getConsumableSkillItem");
 
-  const hasTarget: CombatShape["hasTarget"] = () =>
-    bridge
-      .call("combat.hasTarget")
-      .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(false)));
-
-  const getTarget: CombatShape["getTarget"] = () =>
-    Effect.gen(function* () {
-      const target = yield* bridge
-        .call("combat.getTarget")
-        .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
-      if (!target) {
-        return null;
-      }
-
-      const maybeWorld = yield* Effect.serviceOption(World);
-      if (Option.isNone(maybeWorld)) {
-        return null;
-      }
-
-      const world = maybeWorld.value;
-
-      if (target.type === "monster") {
-        const monsterTarget = target as MonsterTargetInfo;
-        const monster = yield* world.monsters.get(monsterTarget.MonMapID);
-        return Option.isSome(monster) ? monster.value : null;
-      }
-
-      const playerTarget = target as PlayerTargetInfo;
-      const player = yield* world.players.get(playerTarget.strUsername);
-      return Option.isSome(player) ? player.value : null;
-    });
-
   const kill: CombatShape["kill"] = (target, options) => {
     let disposeMonsterDeathListener: (() => void) | undefined;
     const normalizedKillOptions = normalizeKillOptions(options);
@@ -1108,7 +1082,7 @@ const make = Effect.gen(function* () {
 
   const killUntil = (
     target: MonsterIdentifierToken,
-    shouldStop: () => ReturnType<typeof hasTarget>,
+    shouldStop: () => BridgeEffect<boolean>,
     options?: CombatKillOptions,
   ) =>
     Effect.gen(function* () {
@@ -1237,6 +1211,97 @@ const make = Effect.gen(function* () {
       return bestCell;
     });
 
+  const getTargetEntity: CombatShape["target"]["get"] = () =>
+    Effect.gen(function* () {
+      const target = yield* readTargetInfo();
+      if (!target) {
+        return Option.none();
+      }
+
+      const maybeWorld = yield* Effect.serviceOption(World);
+      if (Option.isNone(maybeWorld)) {
+        return Option.none();
+      }
+
+      const world = maybeWorld.value;
+      if (target.type === "monster") {
+        const monsterTarget = target as MonsterTargetInfo;
+        if (!Number.isFinite(monsterTarget.MonMapID)) {
+          return Option.none();
+        }
+
+        return yield* world.entities.get({
+          type: "monster",
+          monMapId: monsterTarget.MonMapID,
+        });
+      }
+
+      const playerTarget = target as PlayerTargetInfo;
+      return yield* world.entities.get({
+        type: "player",
+        username: playerTarget.strUsername,
+        entId: playerTarget.entID,
+      });
+    });
+
+  const target: CombatShape["target"] = {
+    get: getTargetEntity,
+    auras: {
+      getAll: () =>
+        Effect.gen(function* () {
+          const target = yield* getTargetEntity();
+          if (Option.isNone(target)) {
+            return new Collection<string, Aura>();
+          }
+
+          if (target.value.type === "player") {
+            const maybeWorld = yield* Effect.serviceOption(World);
+            return Option.isSome(maybeWorld)
+              ? yield* maybeWorld.value.players.auras.getAll({
+                  entId: target.value.entId,
+                })
+              : new Collection<string, Aura>();
+          }
+
+          const maybeWorld = yield* Effect.serviceOption(World);
+          return Option.isSome(maybeWorld)
+            ? yield* maybeWorld.value.monsters.auras.getAll({
+                monMapId: target.value.monMapId,
+              })
+            : new Collection<string, Aura>();
+        }),
+      get: (auraName) =>
+        Effect.gen(function* () {
+          const target = yield* getTargetEntity();
+          if (Option.isNone(target)) {
+            return Option.none<Aura>();
+          }
+
+          const maybeWorld = yield* Effect.serviceOption(World);
+          if (Option.isNone(maybeWorld)) {
+            return Option.none<Aura>();
+          }
+
+          if (target.value.type === "player") {
+            return yield* maybeWorld.value.players.auras.get(
+              { entId: target.value.entId },
+              auraName,
+            );
+          }
+
+          return yield* maybeWorld.value.monsters.auras.get(
+            { monMapId: target.value.monMapId },
+            auraName,
+          );
+        }),
+      has: (auraName, options) =>
+        Effect.gen(function* () {
+          const aura = yield* target.auras.get(auraName);
+          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+        }),
+    },
+  };
+
   return {
     attackMonster,
     cancelAutoAttack,
@@ -1245,8 +1310,7 @@ const make = Effect.gen(function* () {
     canUseSkill,
     exit,
     getConsumableSkillItem,
-    getTarget,
-    hasTarget,
+    target,
     kill,
     killForItem,
     killForTempItem,

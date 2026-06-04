@@ -25,7 +25,6 @@ tableOfContents:
 | [`api.events`](/scripting/api/events/) | Events APIs. |
 | [`api.house`](/scripting/api/house/) | House APIs. |
 | [`api.inventory`](/scripting/api/inventory/) | Inventory APIs. |
-| [`api.outfits`](/scripting/api/outfits/) | Outfits APIs. |
 | [`api.packet`](/scripting/api/packet/) | Packet APIs. |
 | [`api.player`](/scripting/api/player/) | Player APIs. |
 | [`api.quests`](/scripting/api/quests/) | Quests APIs. |

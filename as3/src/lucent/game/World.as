@@ -90,6 +90,29 @@ public class World
     }
 
     [BridgeExport]
+    [BridgeTsReturnType("number[]")]
+    public static function getAvailableMonsterMapIds():Array
+    {
+      var ids:Array = [];
+
+      for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
+      {
+        if (!mon || !mon.dataLeaf)
+        {
+          continue;
+        }
+
+        var monMapId:Number = Number(mon.dataLeaf.MonMapID);
+        if (!isNaN(monMapId) && isMonsterAvailable(monMapId))
+        {
+          ids.push(monMapId);
+        }
+      }
+
+      return ids;
+    }
+
+    [BridgeExport]
     public static function getMonsterByName(name:String):Object
     {
       if (!name)

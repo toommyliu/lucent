@@ -5,6 +5,7 @@ import {
 } from "./startupTelemetry";
 import {
   Button,
+  Icon,
   Spinner,
   Textarea,
   Toaster,
@@ -246,6 +247,7 @@ script.log(\`Cell: \${cell}\`);`;
         );
         const [status, setStatus] = createSignal("Idle");
         const [output, setOutput] = createSignal("");
+        const [outputCopied, setOutputCopied] = createSignal(false);
         const [running, setRunning] = createSignal(false);
         const clampPanelFrame = (frame: DebugPanelFrame): DebugPanelFrame => {
           const maxWidth = Math.max(
@@ -313,6 +315,7 @@ script.log(\`Cell: \${cell}\`);`;
         let panelElement: HTMLDivElement | undefined;
         let panelResizeObserver: ResizeObserver | undefined;
         let cleanupPanelPointer: (() => void) | undefined;
+        let outputCopiedTimer: number | undefined;
 
         const currentSource = () =>
           mode() === "script" ? scriptSource() : internalSource();
@@ -349,6 +352,9 @@ script.log(\`Cell: \${cell}\`);`;
           window.addEventListener("resize", handleResize);
           onCleanup(() => {
             cleanupPanelPointer?.();
+            if (outputCopiedTimer !== undefined) {
+              window.clearTimeout(outputCopiedTimer);
+            }
             panelResizeObserver?.disconnect();
             window.removeEventListener("resize", handleResize);
           });
@@ -450,7 +456,35 @@ ${source}
           );
           setStatus("Loaded into script runner");
           setOutput("");
+          setOutputCopied(false);
           void props.refreshScriptMeta();
+        };
+
+        const markOutputCopied = () => {
+          if (outputCopiedTimer !== undefined) {
+            window.clearTimeout(outputCopiedTimer);
+          }
+
+          setOutputCopied(true);
+          outputCopiedTimer = window.setTimeout(() => {
+            setOutputCopied(false);
+            outputCopiedTimer = undefined;
+          }, 900);
+        };
+
+        const copyOutput = async () => {
+          const value = output();
+          if (value === "") {
+            return;
+          }
+
+          try {
+            await navigator.clipboard.writeText(value);
+            setStatus("Output copied");
+            markOutputCopied();
+          } catch {
+            setStatus("Copy failed");
+          }
         };
 
         const runEval = () => {
@@ -469,6 +503,7 @@ ${source}
           setRunning(true);
           setStatus(`Running ${evalMode} eval`);
           setOutput("");
+          setOutputCopied(false);
 
           const task =
             evalMode === "script"
@@ -689,15 +724,30 @@ ${source}
                     Load
                   </Button>
                 </div>
-                <div
-                  style={{
-                    color: "var(--color-muted-foreground)",
-                    display: "grid",
-                    "font-size": "var(--text-xs)",
-                    gap: "0.375rem",
-                  }}
-                >
-                  <span>{status()}</span>
+                <div class="game-debug-eval__output">
+                  <div class="game-debug-eval__status-row">
+                    <span>{status()}</span>
+                    <Show when={output() !== ""}>
+                      <Button
+                        aria-label={
+                          outputCopied()
+                            ? "Debug eval output copied"
+                            : "Copy debug eval output"
+                        }
+                        class="game-debug-eval__copy-output"
+                        onClick={() => void copyOutput()}
+                        size="sm"
+                        title={outputCopied() ? "Copied" : "Copy output"}
+                        variant="outline"
+                      >
+                        <Icon
+                          icon={outputCopied() ? "check" : "copy"}
+                          class="button__icon"
+                        />
+                        {outputCopied() ? "Copied" : "Copy"}
+                      </Button>
+                    </Show>
+                  </div>
                   <Show when={output() !== ""}>
                     <pre
                       style={{

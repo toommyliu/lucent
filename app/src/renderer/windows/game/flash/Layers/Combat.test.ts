@@ -163,7 +163,6 @@ const makeKillWorld = (
   },
 ): WorldShape => ({
   map: {
-    getCellMonsters: () => Effect.succeed([monster]),
     getCells: () => Effect.succeed(["Enter", "Boss"]),
     getCellPads: () => Effect.succeed(["Spawn", "Left"]),
     isLoaded: () => Effect.succeed(true),
@@ -206,9 +205,14 @@ const makeKillWorld = (
     addAura: () => Effect.void,
     updateAura: () => Effect.void,
     removeAura: () => Effect.void,
-    getAuras: () => Effect.succeed([]),
+    getAuras: () => Effect.succeed(new Collection()),
     getAura: () => Effect.succeed(Option.none()),
     clearAuras: () => Effect.void,
+    auras: {
+      getAll: () => Effect.succeed(new Collection()),
+      get: () => Effect.succeed(Option.none()),
+      has: () => Effect.succeed(false),
+    },
   },
   monsters: {
     getAll: () => Effect.succeed(new Collection([[monster.monMapId, monster]])),
@@ -218,11 +222,25 @@ const makeKillWorld = (
         monMapId === monster.monMapId ? Option.some(monster) : Option.none(),
       ),
     findByName: () => Effect.succeed(Option.some(monster)),
+    getAvailable: () =>
+      Effect.succeed(new Collection([[monster.monMapId, monster]])),
+    isAvailable: () => Effect.succeed(true),
     addAura: () => Effect.void,
     updateAura: () => Effect.void,
     removeAura: () => Effect.void,
+    getAuras: () => Effect.succeed(new Collection()),
     getAura: () => Effect.succeed(Option.none()),
     clearAuras: () => Effect.void,
+    auras: {
+      getAll: () => Effect.succeed(new Collection()),
+      get: () => Effect.succeed(Option.none()),
+      has: () => Effect.succeed(false),
+    },
+  },
+  entities: {
+    getAll: () => Effect.succeed(new Collection()),
+    getMe: () => Effect.succeed(Option.none()),
+    get: () => Effect.succeed(Option.none()),
   },
 });
 
@@ -268,7 +286,7 @@ test("target reads treat transient swf call failures as no target", async () => 
       path: K,
       _args?: Parameters<Window["swf"][K]>,
     ) {
-      if (path === "combat.getTarget" || path === "combat.hasTarget") {
+      if (path === "combat.getTarget") {
         calls.push(path);
         return Effect.fail(
           new SwfCallError({
@@ -292,13 +310,13 @@ test("target reads treat transient swf call failures as no target", async () => 
     bridge,
     (combat) =>
       Effect.gen(function* () {
-        expect(yield* combat.getTarget()).toBeNull();
-        expect(yield* combat.hasTarget()).toBe(false);
+        const target = yield* combat.target.get();
+        expect(Option.isNone(target)).toBe(true);
       }),
     { world },
   );
 
-  expect(calls).toEqual(["combat.getTarget", "combat.hasTarget"]);
+  expect(calls).toEqual(["combat.getTarget"]);
 });
 
 test("useSkill is a no-op when the player is dead", async () => {

@@ -129,7 +129,7 @@ export abstract class BaseEntity {
    * @returns True if the entity is a monster, false otherwise.
    */
   public isMonster(): this is Monster {
-    return "MonMapID" in this.data;
+    return "monMapId" in this.data;
   }
 
   /**

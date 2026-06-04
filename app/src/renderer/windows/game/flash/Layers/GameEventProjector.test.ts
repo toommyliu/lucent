@@ -301,20 +301,40 @@ test("game event projector updates player afk state and emits afk events", async
   const result = await withGameEvents((gameEvents, world) =>
     Effect.gen(function* () {
       yield* world.players.add(avatar("Hero", { afk: false }));
-      let resolveAfk:
+      let resolveAfkTrue:
         | ((event: GameEventMap["afk"]) => void)
         | undefined;
-      const observedAfk = new Promise<GameEventMap["afk"]>((resolve) => {
-        resolveAfk = resolve;
+      let resolveAfkFalse:
+        | ((event: GameEventMap["afk"]) => void)
+        | undefined;
+      const observedAfkTrue = new Promise<GameEventMap["afk"]>((resolve) => {
+        resolveAfkTrue = resolve;
+      });
+      const observedAfkFalse = new Promise<GameEventMap["afk"]>((resolve) => {
+        resolveAfkFalse = resolve;
       });
 
       yield* gameEvents.on("afk", (event) =>
-        Effect.sync(() => resolveAfk?.(event)),
+        Effect.sync(() => {
+          if (event.afk) {
+            resolveAfkTrue?.(event);
+          } else {
+            resolveAfkFalse?.(event);
+          }
+        }),
       );
 
       emitExtensionPacket(
         JSON.stringify({
           dataObj: ["uotls", "-1", "Hero", "afk:true"],
+          type: "str",
+        }),
+      );
+      const afkTrue = yield* waitForEvent(observedAfkTrue);
+
+      emitExtensionPacket(
+        JSON.stringify({
+          dataObj: ["uotls", "-1", "Hero", "afk:false"],
           type: "str",
         }),
       );
@@ -326,14 +346,19 @@ test("game event projector updates player afk state and emits afk events", async
 
       return {
         afk: player.value.data.afk,
-        event: yield* waitForEvent(observedAfk),
+        afkTrue,
+        afkFalse: yield* waitForEvent(observedAfkFalse),
       };
     }),
   );
 
-  expect(result.afk).toBe(true);
-  expect(result.event).toMatchObject({
+  expect(result.afk).toBe(false);
+  expect(result.afkTrue).toMatchObject({
     afk: true,
+    username: "Hero",
+  });
+  expect(result.afkFalse).toMatchObject({
+    afk: false,
     username: "Hero",
   });
 });

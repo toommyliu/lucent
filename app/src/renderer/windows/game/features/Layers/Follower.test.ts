@@ -1,3 +1,4 @@
+import { Collection } from "@lucent/collection";
 import { Avatar } from "@lucent/game";
 import { Effect, Fiber, Layer, Option } from "effect";
 import { expect, test } from "vitest";
@@ -99,7 +100,14 @@ const withFollower = async <A>(
       cancelAutoAttack: () => Effect.void,
       cancelTarget: () => Effect.void,
       exit: () => Effect.void,
-      getTarget: () => Effect.succeed(null),
+      target: {
+        get: () => Effect.succeed(Option.none()),
+        auras: {
+          getAll: () => Effect.succeed(new Collection()),
+          get: () => Effect.succeed(Option.none()),
+          has: () => Effect.succeed(false),
+        },
+      },
     } as unknown as CombatShape);
   const packet =
     services?.packet ??
@@ -164,12 +172,11 @@ const avatar = (
 
 const makeWorld = (self: Avatar, target: Avatar): WorldShape =>
   ({
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -374,12 +381,11 @@ test("locked-zone detection suppresses repeated goto attempts", async () => {
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -456,12 +462,11 @@ test("ignored goto requests suppress repeated goto attempts", async () => {
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -519,12 +524,11 @@ test("locked-zone fallbacks are ignored when retries are disabled", async () => 
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -610,12 +614,11 @@ test("locked-zone room override is applied unless the fallback map has a room", 
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -706,12 +709,11 @@ test("room-full warnings consume a retry attempt after locked-zone fallback fail
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.some(self)),
@@ -767,7 +769,14 @@ test("animation message triggers cast profile skill while follower combat is ena
     cancelAutoAttack: () => Effect.void,
     cancelTarget: () => Effect.void,
     exit: () => Effect.void,
-    getTarget: () => Effect.succeed(null),
+    target: {
+      get: () => Effect.succeed(Option.none()),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
     useSkill: (skill: number | string, force?: boolean, wait?: boolean) =>
       Effect.sync(() => {
         useSkillCalls.push(`${String(skill)}:${String(force)}:${String(wait)}`);
@@ -843,12 +852,11 @@ test("player not ready is ignored without consuming attempts", async () => {
     walkTo: () => Effect.succeed(true),
   } as unknown as PlayerShape;
   const world = {
-    map: {
-      getCellMonsters: () => Effect.succeed([]),
-    },
+    map: {},
     monsters: {
       get: () => Effect.succeed(Option.none()),
       findByName: () => Effect.succeed(Option.none()),
+      getAvailable: () => Effect.succeed(new Collection()),
     },
     players: {
       getSelf: () => Effect.succeed(Option.none()),

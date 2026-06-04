@@ -127,10 +127,13 @@ declare global {
       "settings.skipCutscenes": () => void;
       "shops.buyById": (id: number, quantity?: number) => boolean;
       "shops.buyByName": (name: string, quantity?: number) => boolean;
+      "shops.buyByShopItemId": (shopItemId: string, quantity?: number) => boolean;
+      "shops.canBuyByShopItemId": (shopItemId: string, quantity?: number) => boolean;
       "shops.canBuyItem": (key: unknown, quantity?: number) => boolean;
       "shops.close": (shopId?: number) => boolean;
       "shops.getItem": (key: unknown) => Record<string, unknown>;
       "shops.getMaxBuyQuantity": (key: unknown) => number;
+      "shops.getMaxBuyQuantityByShopItemId": (shopItemId: string) => number;
       "shops.isMergeShop": () => boolean;
       "shops.isOpen": (shopId?: number) => boolean;
       "shops.load": (shopId: number) => void;
@@ -141,6 +144,7 @@ declare global {
       "tempInventory.contains": (item: unknown, quantity?: number) => boolean;
       "tempInventory.getItem": (item: unknown) => Record<string, unknown>;
       "tempInventory.getItems": () => unknown[];
+      "world.getAvailableMonsterMapIds": () => number[];
       "world.getCellPads": () => unknown[];
       "world.getCells": () => unknown[];
       "world.getMapItem": (itemId: number) => void;
