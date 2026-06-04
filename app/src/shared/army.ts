@@ -37,6 +37,22 @@ export interface ArmyBarrierPayload {
   readonly timeoutMs?: number;
 }
 
+export interface ArmyProgressPayload {
+  readonly sessionId: string;
+  readonly playerName: string;
+  readonly step: number;
+  readonly label?: string;
+  readonly players?: readonly string[];
+  readonly timeoutMs?: number;
+  readonly complete: boolean;
+}
+
+export interface ArmyProgressResult {
+  readonly complete: boolean;
+  readonly completedPlayers: readonly string[];
+  readonly pendingPlayers: readonly string[];
+}
+
 export interface ArmyStatusPayload {
   readonly sessionId: string;
 }

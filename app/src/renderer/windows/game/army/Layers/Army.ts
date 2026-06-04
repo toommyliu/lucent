@@ -36,12 +36,18 @@ import {
 } from "../LoopTaunt";
 import { Auth } from "../../flash/Services/Auth";
 import { Combat } from "../../flash/Services/Combat";
+import { Drops } from "../../flash/Services/Drops";
 import { Inventory } from "../../flash/Services/Inventory";
 import { GameEvents } from "../../flash/Services/GameEvents";
 import { Packet } from "../../flash/Services/Packet";
 import { Player } from "../../flash/Services/Player";
+import { TempInventory } from "../../flash/Services/TempInventory";
 import { Wait } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
+import {
+  normalizeItemQuantity,
+  resolveItemIdentifier,
+} from "../../flash/itemIdentifiers";
 import { Jobs } from "../../jobs/Services/Jobs";
 
 interface ArmyState {
@@ -183,11 +189,13 @@ const loopTauntJobKey = (id: string): string => `army:loop-taunt:${id}`;
 const make = Effect.gen(function* () {
   const auth = yield* Auth;
   const combat = yield* Combat;
+  const drops = yield* Drops;
   const inventory = yield* Inventory;
   const jobs = yield* Jobs;
   const packetDomain = yield* GameEvents;
   const packet = yield* Packet;
   const player = yield* Player;
+  const tempInventory = yield* TempInventory;
   const wait = yield* Wait;
   const world = yield* World;
   const runFork = Effect.runFork;
@@ -300,6 +308,31 @@ const make = Effect.gen(function* () {
       }),
     );
 
+  const waitAtProgressCheckpoint = (
+    session: ArmySession,
+    step: number,
+    label: string,
+    complete: boolean,
+    options?: ArmyRunStepOptions & {
+      readonly players?: readonly string[];
+    },
+  ) =>
+    fromArmyIpc("Failed to synchronize army progress", () =>
+      window.ipc.army.progress({
+        sessionId: session.sessionId,
+        playerName: session.playerName,
+        step,
+        label,
+        complete,
+        ...(options?.players !== undefined
+          ? { players: options.players }
+          : null),
+        ...(options?.timeoutMs !== undefined
+          ? { timeoutMs: options.timeoutMs }
+          : null),
+      }),
+    );
+
   const sendAntiAfk = () =>
     Effect.gen(function* () {
       const ready = yield* player
@@ -351,6 +384,34 @@ const make = Effect.gen(function* () {
 
   const sync: ArmyShape["sync"] = (label = "sync", options) =>
     runStep(label, Effect.void, options).pipe(Effect.asVoid);
+
+  const runUntilArmyProgressComplete = <E>(args: {
+    readonly label: string;
+    readonly isComplete: () => Effect.Effect<boolean, E>;
+    readonly action: () => Effect.Effect<void, E>;
+    readonly options?: ArmyRunStepOptions;
+  }) =>
+    Effect.gen(function* () {
+      const step = yield* nextBarrierStep();
+      const session = yield* getState.pipe(Effect.flatMap(assertStarted));
+
+      while (true) {
+        const complete = yield* args.isComplete();
+        const progress = yield* waitAtProgressCheckpoint(
+          session,
+          step,
+          args.label,
+          complete,
+          args.options,
+        );
+        if (progress.complete) {
+          return;
+        }
+
+        yield* args.action();
+        yield* Effect.sleep("100 millis");
+      }
+    });
 
   const executeWithArmy: ArmyShape["executeWithArmy"] = (action) =>
     runStep("execute", action);
@@ -410,22 +471,48 @@ const make = Effect.gen(function* () {
     item,
     quantity,
     options,
-  ) =>
-    runStep(
-      `kill-item:${String(item)}`,
-      combat.killForItem(target, item, quantity, options),
-    ).pipe(Effect.asVoid);
+  ) => {
+    const label = `kill-item:${String(item)}`;
+    const resolvedItem = resolveItemIdentifier(item);
+    if (resolvedItem === undefined) {
+      return runStep(label, Effect.void).pipe(Effect.asVoid);
+    }
+
+    const normalizedQuantity = normalizeItemQuantity(quantity);
+    return runUntilArmyProgressComplete({
+      label,
+      isComplete: () =>
+        Effect.gen(function* () {
+          const hasDrop = yield* drops.containsDrop(resolvedItem);
+          if (hasDrop) {
+            yield* drops.acceptDrop(resolvedItem);
+          }
+          return yield* inventory.contains(resolvedItem, normalizedQuantity);
+        }),
+      action: () => combat.kill(target, options),
+    }).pipe(Effect.asVoid);
+  };
 
   const killForTempItem: ArmyShape["killForTempItem"] = (
     target,
     item,
     quantity,
     options,
-  ) =>
-    runStep(
-      `kill-temp:${String(item)}`,
-      combat.killForTempItem(target, item, quantity, options),
-    ).pipe(Effect.asVoid);
+  ) => {
+    const label = `kill-temp:${String(item)}`;
+    const resolvedItem = resolveItemIdentifier(item);
+    if (resolvedItem === undefined) {
+      return runStep(label, Effect.void).pipe(Effect.asVoid);
+    }
+
+    const normalizedQuantity = normalizeItemQuantity(quantity);
+    return runUntilArmyProgressComplete({
+      label,
+      isComplete: () =>
+        tempInventory.contains(resolvedItem, normalizedQuantity),
+      action: () => combat.kill(target, options),
+    }).pipe(Effect.asVoid);
+  };
 
   const resolveItem = (item: string | undefined, resolveItems: boolean) =>
     Effect.gen(function* () {
