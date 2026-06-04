@@ -1,11 +1,11 @@
 import { ServiceMap } from "effect";
-import type { Avatar, Monster } from "@lucent/game";
 import type { Collection } from "@lucent/collection";
 import type { Aura } from "@lucent/game";
 import type { Option } from "effect";
 import type { BridgeEffect } from "./Bridge";
 import type { ConsumableSkillItem } from "../Types";
 import type { WorldEntity } from "./World";
+import type { AuraMatchOptions } from "../auraMatching";
 
 export interface CombatKillOptions {
   readonly killPriority?: readonly MonsterIdentifierToken[] | string;
@@ -17,7 +17,7 @@ export interface CombatKillOptions {
 export interface CombatTargetAurasShape {
   getAll(): BridgeEffect<Collection<string, Aura>>;
   get(auraName: string): BridgeEffect<Option.Option<Aura>>;
-  has(auraName: string, minStacks?: number): BridgeEffect<boolean>;
+  has(auraName: string, options?: AuraMatchOptions): BridgeEffect<boolean>;
 }
 
 export interface CombatTargetShape {
@@ -32,8 +32,6 @@ export interface CombatShape {
   canUseSkill(index: number | string): BridgeEffect<boolean>;
   exit(): BridgeEffect<boolean>;
   getConsumableSkillItem(): BridgeEffect<ConsumableSkillItem | null>;
-  getTarget(): BridgeEffect<Monster | Avatar | null>;
-  hasTarget(): BridgeEffect<boolean>;
   readonly target: CombatTargetShape;
   kill(
     target: MonsterIdentifierToken,

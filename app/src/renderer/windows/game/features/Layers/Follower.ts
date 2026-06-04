@@ -663,13 +663,14 @@ const make = Effect.gen(function* () {
         }
       }
 
-      const currentTarget = yield* combat.getTarget();
+      const currentTarget = yield* combat.target.get();
       if (
-        currentTarget?.isMonster() &&
-        isMonsterInCell(currentTarget, self.cell) &&
-        isAttackableMonster(currentTarget)
+        Option.isSome(currentTarget) &&
+        currentTarget.value.type === "monster" &&
+        isMonsterInCell(currentTarget.value.entity, self.cell) &&
+        isAttackableMonster(currentTarget.value.entity)
       ) {
-        return currentTarget;
+        return currentTarget.value.entity;
       }
 
       const monsters = yield* world.monsters.getAvailable();

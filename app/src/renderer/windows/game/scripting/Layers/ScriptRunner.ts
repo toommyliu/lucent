@@ -44,6 +44,7 @@ import { Shops } from "../../flash/Services/Shops";
 import { TempInventory } from "../../flash/Services/TempInventory";
 import { Wait } from "../../flash/Services/Wait";
 import { World } from "../../flash/Services/World";
+import { matchesAura } from "../../flash/auraMatching";
 import {
   ScriptExecutionError,
   ScriptLoadError,
@@ -436,17 +437,6 @@ const make = Effect.gen(function* () {
       effect: Effect.Effect<Option.Option<A>, E, never>,
     ): Effect.Effect<A | null, E, never> =>
       Effect.map(effect, optionToNullable);
-
-    const normalizeMinStacks = (minStacks?: number): number =>
-      minStacks === undefined || !Number.isFinite(minStacks)
-        ? 1
-        : Math.max(1, Math.trunc(minStacks));
-
-    const hasAuraStacks = (
-      aura: { readonly stack?: number } | null,
-      minStacks?: number,
-    ): boolean =>
-      aura !== null && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
 
     const wrapValue = (
       value: unknown,
@@ -1699,9 +1689,9 @@ const make = Effect.gen(function* () {
       auras: {
         getAll: getScriptSelfAuras,
         get: getScriptSelfAura,
-        has: (auraName, minStacks) =>
+        has: (auraName, options) =>
           Effect.map(getScriptSelfAura(auraName), (aura) =>
-            hasAuraStacks(aura, minStacks),
+            matchesAura(aura, options),
           ),
       },
       factions: {

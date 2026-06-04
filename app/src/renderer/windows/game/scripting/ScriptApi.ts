@@ -39,6 +39,7 @@ import type {
 } from "../flash/Services/Shops";
 import type { TempInventoryShape } from "../flash/Services/TempInventory";
 import type {
+  AuraMatchOptions,
   MonsterSelector,
   PlayerSelector,
   WorldEntitiesShape,
@@ -403,7 +404,7 @@ export interface ScriptWorldMapShape {
 export interface ScriptAuraShape {
   getAll(): Effect.Effect<Collection<string, Aura>>;
   get(auraName: string): Effect.Effect<Aura | null>;
-  has(auraName: string, minStacks?: number): Effect.Effect<boolean>;
+  has(auraName: string, options?: AuraMatchOptions): Effect.Effect<boolean>;
 }
 
 export interface ScriptWorldPlayerAurasShape {
@@ -415,7 +416,7 @@ export interface ScriptWorldPlayerAurasShape {
   has(
     player: PlayerSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect.Effect<boolean>;
 }
 
@@ -428,7 +429,7 @@ export interface ScriptWorldMonsterAurasShape {
   has(
     monster: MonsterSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect.Effect<boolean>;
 }
 
@@ -491,7 +492,7 @@ export interface ScriptCombatShape extends Omit<CombatShape, "target"> {
 export interface ScriptCombatTargetAurasShape {
   getAll(): BridgeEffect<Collection<string, Aura>>;
   get(auraName: string): BridgeEffect<Aura | null>;
-  has(auraName: string, minStacks?: number): BridgeEffect<boolean>;
+  has(auraName: string, options?: AuraMatchOptions): BridgeEffect<boolean>;
 }
 
 export interface ScriptShopsShape

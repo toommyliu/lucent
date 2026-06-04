@@ -191,9 +191,13 @@ const make = Effect.gen(function* () {
     });
 
   const selectTarget = Effect.gen(function* () {
-    const currentTarget = yield* combat.getTarget();
-    if (currentTarget?.isMonster() && isAttackableMonster(currentTarget)) {
-      return currentTarget.monMapId;
+    const currentTarget = yield* combat.target.get();
+    if (
+      Option.isSome(currentTarget) &&
+      currentTarget.value.type === "monster" &&
+      isAttackableMonster(currentTarget.value.entity)
+    ) {
+      return currentTarget.value.monMapId;
     }
 
     const monsters = yield* world.monsters.getAvailable();

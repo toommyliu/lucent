@@ -9,6 +9,9 @@ import type { Collection } from "@lucent/collection";
 import { ServiceMap } from "effect";
 import type { Effect, Option } from "effect";
 import type { BridgeEffect } from "./Bridge";
+import type { AuraMatchOptions } from "../auraMatching";
+
+export type { AuraMatchOptions };
 
 export interface PlayerSelectorObject {
   readonly username?: string;
@@ -56,7 +59,7 @@ export interface WorldPlayerAurasShape {
   has(
     player: PlayerSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect.Effect<boolean>;
 }
 
@@ -69,7 +72,7 @@ export interface WorldMonsterAurasShape {
   has(
     monster: MonsterSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect.Effect<boolean>;
 }
 

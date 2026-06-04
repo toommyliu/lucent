@@ -180,8 +180,17 @@ test("available monsters use native bridge ids and aura has checks min stacks", 
       yield* world.players.add(avatarData("Main", 1));
       yield* world.monsters.add(monsterData(7, "Ultra Boss"));
       yield* world.monsters.add(monsterData(8, "Other Boss"));
-      yield* world.players.addAura(1, { name: "Arcane Shield", stack: 2 });
-      yield* world.monsters.addAura(8, { name: "Enrage", stack: 3 });
+      yield* world.players.addAura(1, {
+        name: "Arcane Shield",
+        stack: 2,
+        value: 50,
+      });
+      yield* world.monsters.addAura(8, {
+        name: "Enrage",
+        stack: 3,
+        value: 20,
+      });
+      yield* world.monsters.addAura(8, { name: "Plain Aura" });
 
       const available = yield* world.monsters.getAvailable();
 
@@ -193,17 +202,43 @@ test("available monsters use native bridge ids and aura has checks min stacks", 
         playerAuraAtLeastTwo: yield* world.players.auras.has(
           "Main",
           "Arcane Shield",
-          2,
+          { minStacks: 2 },
         ),
         playerAuraAtLeastThree: yield* world.players.auras.has(
           "Main",
           "Arcane Shield",
-          3,
+          { minStacks: 3 },
+        ),
+        playerAuraValueAtLeastFifty: yield* world.players.auras.has(
+          "Main",
+          "Arcane Shield",
+          { minValue: 50 },
+        ),
+        playerAuraValueAtLeastFiftyOne: yield* world.players.auras.has(
+          "Main",
+          "Arcane Shield",
+          { minValue: 51 },
+        ),
+        playerAuraCombinedPass: yield* world.players.auras.has(
+          "Main",
+          "Arcane Shield",
+          { minStacks: 2, minValue: 50 },
+        ),
+        playerAuraCombinedFail: yield* world.players.auras.has(
+          "Main",
+          "Arcane Shield",
+          { minStacks: 2, minValue: 51 },
         ),
         monsterAuraAtLeastThree: yield* world.monsters.auras.has(
           8,
           "Enrage",
-          3,
+          { minStacks: 3 },
+        ),
+        monsterAuraPresent: yield* world.monsters.auras.has(8, "Plain Aura"),
+        monsterAuraMissingValue: yield* world.monsters.auras.has(
+          8,
+          "Plain Aura",
+          { minValue: 1 },
         ),
       };
     }),
@@ -214,5 +249,11 @@ test("available monsters use native bridge ids and aura has checks min stacks", 
   expect(availabilityChecks).toEqual([8]);
   expect(result.playerAuraAtLeastTwo).toBe(true);
   expect(result.playerAuraAtLeastThree).toBe(false);
+  expect(result.playerAuraValueAtLeastFifty).toBe(true);
+  expect(result.playerAuraValueAtLeastFiftyOne).toBe(false);
+  expect(result.playerAuraCombinedPass).toBe(true);
+  expect(result.playerAuraCombinedFail).toBe(false);
   expect(result.monsterAuraAtLeastThree).toBe(true);
+  expect(result.monsterAuraPresent).toBe(true);
+  expect(result.monsterAuraMissingValue).toBe(false);
 });

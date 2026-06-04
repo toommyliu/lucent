@@ -100,7 +100,14 @@ const withFollower = async <A>(
       cancelAutoAttack: () => Effect.void,
       cancelTarget: () => Effect.void,
       exit: () => Effect.void,
-      getTarget: () => Effect.succeed(null),
+      target: {
+        get: () => Effect.succeed(Option.none()),
+        auras: {
+          getAll: () => Effect.succeed(new Collection()),
+          get: () => Effect.succeed(Option.none()),
+          has: () => Effect.succeed(false),
+        },
+      },
     } as unknown as CombatShape);
   const packet =
     services?.packet ??
@@ -762,7 +769,14 @@ test("animation message triggers cast profile skill while follower combat is ena
     cancelAutoAttack: () => Effect.void,
     cancelTarget: () => Effect.void,
     exit: () => Effect.void,
-    getTarget: () => Effect.succeed(null),
+    target: {
+      get: () => Effect.succeed(Option.none()),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
     useSkill: (skill: number | string, force?: boolean, wait?: boolean) =>
       Effect.sync(() => {
         useSkillCalls.push(`${String(skill)}:${String(force)}:${String(wait)}`);

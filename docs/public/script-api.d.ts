@@ -212,7 +212,7 @@ interface CombatTargetApi {
 interface CombatTargetAurasApi {
     getAll(): Effect<Collection<string, Aura>, BridgeError>;
     get(auraName: string): Effect<Aura | null, BridgeError>;
-    has(auraName: string, minStacks?: number): Effect<boolean, BridgeError>;
+    has(auraName: string, options?: AuraMatchOptions): Effect<boolean, BridgeError>;
 }
 interface DropsApi {
     acceptDrop(item: ItemIdentifierToken): Effect<void, BridgeError>;
@@ -279,7 +279,7 @@ interface PlayerApi {
 interface PlayerAurasApi {
     getAll(): Effect<Collection<string, Aura>, never>;
     get(auraName: string): Effect<Aura | null, never>;
-    has(auraName: string, minStacks?: number): Effect<boolean, never>;
+    has(auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
 }
 interface PlayerFactionsApi {
     getAll(): Effect<Collection<string, Faction>, BridgeError>;
@@ -455,7 +455,7 @@ interface WorldMonstersApi {
 interface WorldMonstersAurasApi {
     getAll(monster: MonsterSelector): Effect<Collection<string, Aura>, never>;
     get(monster: MonsterSelector, auraName: string): Effect<Aura | null, never>;
-    has(monster: MonsterSelector, auraName: string, minStacks?: number): Effect<boolean, never>;
+    has(monster: MonsterSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
 }
 interface WorldPlayersApi {
     getAll(): Effect<Collection<string, Avatar>, never>;
@@ -466,7 +466,7 @@ interface WorldPlayersApi {
 interface WorldPlayersAurasApi {
     getAll(player: PlayerSelector): Effect<Collection<string, Aura>, never>;
     get(player: PlayerSelector, auraName: string): Effect<Aura | null, never>;
-    has(player: PlayerSelector, auraName: string, minStacks?: number): Effect<boolean, never>;
+    has(player: PlayerSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
 }
 
 interface ArmyEquipSetOptions {
@@ -512,6 +512,10 @@ type Aura = {
    */
   value?: number;
 };
+interface AuraMatchOptions {
+  readonly minStacks?: number;
+  readonly minValue?: number;
+}
 type AuthConnectOutcome =
   | {
       readonly status: "connected";
@@ -1468,7 +1472,7 @@ interface WorldPlayerAurasShape {
   has(
     player: PlayerSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect<boolean>;
 }
 type BridgeEffect<A> = Effect<A, BridgeError>;
@@ -1481,6 +1485,6 @@ interface WorldMonsterAurasShape {
   has(
     monster: MonsterSelector,
     auraName: string,
-    minStacks?: number,
+    options?: AuraMatchOptions,
   ): Effect<boolean>;
 }

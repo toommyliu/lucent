@@ -3,7 +3,7 @@ import { Monster, parseMonsterMapIdToken } from "@lucent/game";
 import type { Aura } from "@lucent/game";
 import { Effect, Layer, Option, Schedule } from "effect";
 import { splitCsv } from "@lucent/shared/csv";
-import { Bridge } from "../Services/Bridge";
+import { Bridge, type BridgeEffect } from "../Services/Bridge";
 import { Combat } from "../Services/Combat";
 import type { CombatKillOptions, CombatShape } from "../Services/Combat";
 import { Drops } from "../Services/Drops";
@@ -11,6 +11,7 @@ import { GameEvents } from "../Services/GameEvents";
 import { Player } from "../Services/Player";
 import { Settings } from "../Services/Settings";
 import { World } from "../Services/World";
+import { matchesAura } from "../auraMatching";
 import type { MonsterTargetInfo, PlayerTargetInfo } from "../Types";
 import { expiresAtMs as antiCounterExpiresAtMs } from "../antiCounter";
 
@@ -111,16 +112,6 @@ const normalizeItemQuantity = (quantity?: number): number | undefined => {
   const normalized = Math.trunc(quantity);
   return normalized > 0 ? normalized : undefined;
 };
-
-const normalizeMinStacks = (minStacks?: number): number =>
-  minStacks === undefined || !Number.isFinite(minStacks)
-    ? 1
-    : Math.max(1, Math.trunc(minStacks));
-
-const hasAuraStacks = (
-  aura: Aura | undefined,
-  minStacks?: number,
-): boolean => aura !== undefined && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
 
 const toValidSkill = (value: Skill): Skill | undefined => {
   if (typeof value === "number") {
@@ -274,11 +265,14 @@ const make = Effect.gen(function* () {
     ? maybeGameEvents.value
     : undefined;
 
+  const readTargetInfo = () =>
+    bridge
+      .call("combat.getTarget")
+      .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
+
   const getCurrentTargetMonMapId = () =>
     Effect.gen(function* () {
-      const target = yield* bridge
-        .call("combat.getTarget")
-        .pipe(Effect.catch(() => Effect.succeed(null)));
+      const target = yield* readTargetInfo();
 
       if (!target || target.type !== "monster") {
         return undefined;
@@ -720,38 +714,6 @@ const make = Effect.gen(function* () {
   const getConsumableSkillItem: CombatShape["getConsumableSkillItem"] = () =>
     bridge.call("combat.getConsumableSkillItem");
 
-  const hasTarget: CombatShape["hasTarget"] = () =>
-    bridge
-      .call("combat.hasTarget")
-      .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(false)));
-
-  const getTarget: CombatShape["getTarget"] = () =>
-    Effect.gen(function* () {
-      const target = yield* bridge
-        .call("combat.getTarget")
-        .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
-      if (!target) {
-        return null;
-      }
-
-      const maybeWorld = yield* Effect.serviceOption(World);
-      if (Option.isNone(maybeWorld)) {
-        return null;
-      }
-
-      const world = maybeWorld.value;
-
-      if (target.type === "monster") {
-        const monsterTarget = target as MonsterTargetInfo;
-        const monster = yield* world.monsters.get(monsterTarget.MonMapID);
-        return Option.isSome(monster) ? monster.value : null;
-      }
-
-      const playerTarget = target as PlayerTargetInfo;
-      const player = yield* world.players.get(playerTarget.strUsername);
-      return Option.isSome(player) ? player.value : null;
-    });
-
   const kill: CombatShape["kill"] = (target, options) => {
     let disposeMonsterDeathListener: (() => void) | undefined;
     const normalizedKillOptions = normalizeKillOptions(options);
@@ -1120,7 +1082,7 @@ const make = Effect.gen(function* () {
 
   const killUntil = (
     target: MonsterIdentifierToken,
-    shouldStop: () => ReturnType<typeof hasTarget>,
+    shouldStop: () => BridgeEffect<boolean>,
     options?: CombatKillOptions,
   ) =>
     Effect.gen(function* () {
@@ -1251,9 +1213,7 @@ const make = Effect.gen(function* () {
 
   const getTargetEntity: CombatShape["target"]["get"] = () =>
     Effect.gen(function* () {
-      const target = yield* bridge
-        .call("combat.getTarget")
-        .pipe(Effect.catchTag("SwfCallError", () => Effect.succeed(null)));
+      const target = yield* readTargetInfo();
       if (!target) {
         return Option.none();
       }
@@ -1334,13 +1294,10 @@ const make = Effect.gen(function* () {
             auraName,
           );
         }),
-      has: (auraName, minStacks) =>
+      has: (auraName, options) =>
         Effect.gen(function* () {
           const aura = yield* target.auras.get(auraName);
-          return hasAuraStacks(
-            Option.isSome(aura) ? aura.value : undefined,
-            minStacks,
-          );
+          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
         }),
     },
   };
@@ -1353,8 +1310,6 @@ const make = Effect.gen(function* () {
     canUseSkill,
     exit,
     getConsumableSkillItem,
-    getTarget,
-    hasTarget,
     target,
     kill,
     killForItem,

@@ -575,12 +575,12 @@ const make = Effect.gen(function* () {
 
   const waitForLoopTauntCombatTarget = (monMapId: number) =>
     wait.until(
-      combat.getTarget().pipe(
+      combat.target.get().pipe(
         Effect.map(
           (target) =>
-            target !== null &&
-            "monMapId" in target &&
-            target.monMapId === monMapId,
+            Option.isSome(target) &&
+            target.value.type === "monster" &&
+            target.value.monMapId === monMapId,
         ),
         Effect.catchCause(() => Effect.succeed(false)),
       ),

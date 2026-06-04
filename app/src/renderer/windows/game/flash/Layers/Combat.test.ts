@@ -286,7 +286,7 @@ test("target reads treat transient swf call failures as no target", async () => 
       path: K,
       _args?: Parameters<Window["swf"][K]>,
     ) {
-      if (path === "combat.getTarget" || path === "combat.hasTarget") {
+      if (path === "combat.getTarget") {
         calls.push(path);
         return Effect.fail(
           new SwfCallError({
@@ -310,13 +310,13 @@ test("target reads treat transient swf call failures as no target", async () => 
     bridge,
     (combat) =>
       Effect.gen(function* () {
-        expect(yield* combat.getTarget()).toBeNull();
-        expect(yield* combat.hasTarget()).toBe(false);
+        const target = yield* combat.target.get();
+        expect(Option.isNone(target)).toBe(true);
       }),
     { world },
   );
 
-  expect(calls).toEqual(["combat.getTarget", "combat.hasTarget"]);
+  expect(calls).toEqual(["combat.getTarget"]);
 });
 
 test("useSkill is a no-op when the player is dead", async () => {

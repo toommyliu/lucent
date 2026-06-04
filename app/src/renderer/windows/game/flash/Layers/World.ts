@@ -13,6 +13,7 @@ import {
 import { Bridge } from "../Services/Bridge";
 import { Wait } from "../Services/Wait";
 import { World } from "../Services/World";
+import { matchesAura } from "../auraMatching";
 import type {
   MonsterSelector,
   PlayerSelector,
@@ -157,16 +158,6 @@ const cloneAuras = (
       ? []
       : Array.from(auras, ([key, aura]) => [key, { ...aura }] as const),
   );
-
-const normalizeMinStacks = (minStacks?: number): number =>
-  minStacks === undefined || !Number.isFinite(minStacks)
-    ? 1
-    : Math.max(1, Math.trunc(minStacks));
-
-const hasAuraStacks = (
-  aura: Aura | undefined,
-  minStacks?: number,
-): boolean => aura !== undefined && (aura.stack ?? 1) >= normalizeMinStacks(minStacks);
 
 const getPlayerByEntId = (
   state: RuntimeState,
@@ -602,10 +593,10 @@ const make = Effect.gen(function* () {
 
         return yield* getPlayerAura(player.value.data.entID, auraName);
       }),
-    has: (selector, auraName, minStacks) =>
+    has: (selector, auraName, options) =>
       Effect.gen(function* () {
         const aura = yield* playerAuras.get(selector, auraName);
-        return hasAuraStacks(Option.isSome(aura) ? aura.value : undefined, minStacks);
+        return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
       }),
   };
 
@@ -628,10 +619,10 @@ const make = Effect.gen(function* () {
 
         return yield* getMonsterAura(monster.value.monMapId, auraName);
       }),
-    has: (selector, auraName, minStacks) =>
+    has: (selector, auraName, options) =>
       Effect.gen(function* () {
         const aura = yield* monsterAuras.get(selector, auraName);
-        return hasAuraStacks(Option.isSome(aura) ? aura.value : undefined, minStacks);
+        return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
       }),
   };
 

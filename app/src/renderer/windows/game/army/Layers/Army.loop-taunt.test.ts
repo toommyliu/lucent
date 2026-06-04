@@ -29,6 +29,7 @@ import { Player, type PlayerShape } from "../../flash/Services/Player";
 import { Packet, type PacketShape } from "../../flash/Services/Packet";
 import { Wait, type WaitShape } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
+import { matchesAura } from "../../flash/auraMatching";
 import { JobGate, type JobGateShape } from "../../jobs/Services/JobGate";
 import { JobsLive } from "../../jobs/Layers/Jobs";
 import { ArmyLive } from "./Army";
@@ -268,14 +269,14 @@ const makeWorld = (
               )
             : Option.none<Aura>();
         }),
-      has: (selector, auraName, minStacks = 1) =>
+      has: (selector, auraName, options) =>
         Effect.gen(function* () {
           const aura = yield* makeWorld(
             auras,
             playerNames,
             playerAuras,
           ).players.auras.get(selector, auraName);
-          return Option.isSome(aura) && (aura.value.stack ?? 1) >= minStacks;
+          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
         }),
     },
   },
@@ -325,10 +326,10 @@ const makeWorld = (
       getAll: () => Effect.succeed(auraCollection(auras)),
       get: (_selector, auraName) =>
         Effect.succeed(Option.fromNullishOr(auras.get(auraKey(auraName)))),
-      has: (_selector, auraName, minStacks = 1) =>
+      has: (_selector, auraName, options) =>
         Effect.sync(() => {
           const aura = auras.get(auraKey(auraName));
-          return aura !== undefined && (aura.stack ?? 1) >= minStacks;
+          return matchesAura(aura, options);
         }),
     },
   },
@@ -509,17 +510,27 @@ const withArmy = async <A>(
     canUseSkill: () => Effect.succeed(true),
     exit: () => Effect.succeed(true),
     getConsumableSkillItem: () => Effect.succeed(null),
-    getTarget: () =>
-      Effect.succeed(
-        currentTargetMonMapId === 7
-          ? monster
-          : currentTargetMonMapId === 8
-            ? otherMonster
-            : null,
-      ),
-    hasTarget: () => Effect.succeed(false),
     target: {
-      get: () => Effect.succeed(Option.none()),
+      get: () =>
+        Effect.succeed(
+          currentTargetMonMapId === 7
+            ? Option.some({
+                entity: monster,
+                key: "monster:7" as const,
+                monMapId: 7,
+                name: monster.name,
+                type: "monster" as const,
+              })
+            : currentTargetMonMapId === 8
+              ? Option.some({
+                  entity: otherMonster,
+                  key: "monster:8" as const,
+                  monMapId: 8,
+                  name: otherMonster.name,
+                  type: "monster" as const,
+                })
+              : Option.none(),
+        ),
       auras: {
         getAll: () => Effect.succeed(new Collection()),
         get: () => Effect.succeed(Option.none()),

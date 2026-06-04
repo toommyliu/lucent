@@ -24,6 +24,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
 | <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
 | <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | type alias |  |
+| <a href="/scripting/types/aura-match-options/" data-script-type="aura-match-options"><code>AuraMatchOptions</code></a> | interface |  |
 | <a href="/scripting/types/auth-connect-failure-status/" data-script-type="auth-connect-failure-status"><code>AuthConnectFailureStatus</code></a> | type alias |  |
 | <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | type alias |  |
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
