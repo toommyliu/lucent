@@ -18,6 +18,7 @@ import {
   isAttackableMonster,
   makeCombatProfileCursor,
   matchesCombatProfileAnimationTriggerMessage,
+  resetCombatProfileCursor,
 } from "../../combatProfiles";
 import { Combat } from "../../flash/Services/Combat";
 import { GameEvents } from "../../flash/Services/GameEvents";
@@ -147,6 +148,9 @@ const make = Effect.gen(function* () {
   const animationTriggerLastCastRef = yield* Ref.make<
     ReadonlyMap<string, number>
   >(new Map());
+  const activeCombatCursorRef = yield* Ref.make<
+    CombatProfileCursor | undefined
+  >(undefined);
   const updateSemaphore = yield* Semaphore.make(1);
   const listeners = new Set<FollowerStateListener>();
 
@@ -793,6 +797,25 @@ const make = Effect.gen(function* () {
       }
     });
 
+  const handleMonsterDeath = Effect.gen(function* () {
+    const enabled = yield* Ref.get(enabledRef);
+    const running = yield* Ref.get(runningRef);
+    const config = yield* Ref.get(configRef);
+    const profile = yield* Ref.get(profileRef);
+    const cursor = yield* Ref.get(activeCombatCursorRef);
+    if (
+      !enabled ||
+      !running ||
+      config?.combatEnabled !== true ||
+      profile?.resetSkillIndexOnMonsterDeath !== true ||
+      cursor === undefined
+    ) {
+      return;
+    }
+
+    yield* resetCombatProfileCursor(cursor);
+  });
+
   const loop = (
     token: number,
     profile: CombatProfile,
@@ -800,6 +823,7 @@ const make = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const cursor = yield* makeCombatProfileCursor();
+      yield* Ref.set(activeCombatCursorRef, cursor);
 
       while (yield* Ref.get(enabledRef)) {
         yield* runCycle(profile, config, cursor);
@@ -815,6 +839,7 @@ const make = Effect.gen(function* () {
 
           yield* Ref.set(runningRef, false);
           yield* Ref.set(enabledRef, false);
+          yield* Ref.set(activeCombatCursorRef, undefined);
           yield* Ref.set(phaseRef, "stopped");
           yield* combat
             .cancelAutoAttack()
@@ -864,6 +889,7 @@ const make = Effect.gen(function* () {
         yield* Ref.set(gotoDeniedTargetNameRef, undefined);
         yield* Ref.set(lastCopyWalkTargetPositionRef, undefined);
         yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(activeCombatCursorRef, undefined);
 
         yield* jobs.start(
           FOLLOWER_JOB_KEY,
@@ -898,6 +924,7 @@ const make = Effect.gen(function* () {
         yield* Ref.set(gotoDeniedTargetNameRef, undefined);
         yield* Ref.set(lastCopyWalkTargetPositionRef, undefined);
         yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(activeCombatCursorRef, undefined);
         yield* combat.cancelAutoAttack().pipe(Effect.catch(() => Effect.void));
         yield* combat.cancelTarget().pipe(Effect.catch(() => Effect.void));
 
@@ -968,11 +995,15 @@ const make = Effect.gen(function* () {
         handleAnimationMessage(event.message),
       )
     : undefined;
+  const disposeMonsterDeath = Option.isSome(maybeGameEvents)
+    ? yield* maybeGameEvents.value.on("monsterDeath", () => handleMonsterDeath)
+    : undefined;
 
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       disposeTargetLocationWake?.();
       disposeAnimationMessage?.();
+      disposeMonsterDeath?.();
     }),
   );
   yield* Effect.addFinalizer(() => stop().pipe(Effect.asVoid));

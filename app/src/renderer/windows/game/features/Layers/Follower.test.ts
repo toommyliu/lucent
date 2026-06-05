@@ -1,5 +1,6 @@
 import { Collection } from "@lucent/collection";
-import { Avatar } from "@lucent/game";
+import { Avatar, EntityState, Monster } from "@lucent/game";
+import type { MonsterData } from "@lucent/game";
 import { Effect, Fiber, Layer, Option } from "effect";
 import { expect, test } from "vitest";
 import {
@@ -169,6 +170,21 @@ const avatar = (
     ty: position[1],
     uoName: username.toLowerCase(),
   });
+
+const monsterData = (overrides?: Partial<MonsterData>): MonsterData => ({
+  iLvl: 100,
+  intHP: 10_000,
+  intHPMax: 10_000,
+  intMP: 100,
+  intMPMax: 100,
+  intState: EntityState.Idle,
+  monId: 1,
+  monMapId: 7,
+  sRace: "Undead",
+  strFrame: "Boss",
+  strMonName: "Training Dummy",
+  ...overrides,
+});
 
 const makeWorld = (self: Avatar, target: Avatar): WorldShape =>
   ({
@@ -842,6 +858,225 @@ test("animation message triggers cast profile skill while follower combat is ena
   );
 
   expect(result).toEqual(["5:true:true"]);
+});
+
+test("monster death resets follower combat profile cursor when enabled", async () => {
+  let monsterDeathHandler:
+    | ((event: GameEventMap["monsterDeath"]) => Effect.Effect<void>)
+    | undefined;
+  const self = avatar("self", "Boss", "Left");
+  const target = avatar("hero", "Boss", "Left");
+  const monster = new Monster(monsterData());
+  const useSkillCalls: string[] = [];
+  const combat = {
+    attackMonster: () => Effect.succeed(true),
+    canUseSkill: () => Effect.succeed(true),
+    useSkill: (skill: number | string) =>
+      Effect.sync(() => {
+        useSkillCalls.push(String(skill));
+      }),
+    cancelAutoAttack: () => Effect.void,
+    cancelTarget: () => Effect.void,
+    exit: () => Effect.void,
+    target: {
+      get: () => Effect.succeed(Option.none()),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
+  } as unknown as CombatShape;
+  const player = {
+    goToPlayer: () => Effect.void,
+    isReady: () => Effect.succeed(true),
+    jumpToCell: () => Effect.void,
+    walkTo: () => Effect.succeed(true),
+  } as unknown as PlayerShape;
+  const world = {
+    ...makeWorld(self, target),
+    monsters: {
+      get: () => Effect.succeed(Option.some(monster)),
+      findByName: () => Effect.succeed(Option.some(monster)),
+      getAvailable: () =>
+        Effect.succeed(new Collection([[monster.monMapId, monster]])),
+    },
+  } as unknown as WorldShape;
+  const packetDomain = {
+    started: true,
+    emit: () => Effect.void,
+    on: (event: string, handler: unknown) =>
+      Effect.sync(() => {
+        if (event === "monsterDeath") {
+          monsterDeathHandler = handler as (
+            event: GameEventMap["monsterDeath"],
+          ) => Effect.Effect<void>;
+        }
+        return () => {};
+      }),
+  } as GameEventsShape;
+
+  const result = await withFollower(
+    (follower, harness) =>
+      Effect.gen(function* () {
+        yield* follower.start({
+          config: {
+            targetName: "hero",
+            selectedProfileId: "void-highlord",
+          },
+          library: {
+            ...library,
+            profiles: library.profiles.map((profile) =>
+              profile.id === "void-highlord"
+                ? {
+                    ...profile,
+                    resetSkillIndexOnMonsterDeath: true,
+                    steps: [
+                      { id: "one", skill: 1, conditions: [] },
+                      { id: "two", skill: 2, conditions: [] },
+                    ],
+                  }
+                : profile,
+            ),
+          },
+        });
+        if (harness.jobsState.task === undefined) {
+          throw new Error("Expected follower job task");
+        }
+        if (monsterDeathHandler === undefined) {
+          throw new Error("Expected monster death handler");
+        }
+
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("100 millis");
+        yield* monsterDeathHandler({
+          monMapId: 999,
+          packet: {} as GameEventMap["monsterDeath"]["packet"],
+        });
+        yield* Effect.sleep("550 millis");
+        yield* Fiber.interrupt(fiber);
+        return useSkillCalls;
+      }),
+    {
+      combat,
+      packetDomain,
+      player,
+      world,
+    },
+  );
+
+  expect(result.slice(0, 2)).toEqual(["1", "1"]);
+});
+
+test("monster death does not reset follower combat profile cursor when disabled", async () => {
+  let monsterDeathHandler:
+    | ((event: GameEventMap["monsterDeath"]) => Effect.Effect<void>)
+    | undefined;
+  const self = avatar("self", "Boss", "Left");
+  const target = avatar("hero", "Boss", "Left");
+  const monster = new Monster(monsterData());
+  const useSkillCalls: string[] = [];
+  const combat = {
+    attackMonster: () => Effect.succeed(true),
+    canUseSkill: () => Effect.succeed(true),
+    useSkill: (skill: number | string) =>
+      Effect.sync(() => {
+        useSkillCalls.push(String(skill));
+      }),
+    cancelAutoAttack: () => Effect.void,
+    cancelTarget: () => Effect.void,
+    exit: () => Effect.void,
+    target: {
+      get: () => Effect.succeed(Option.none()),
+      auras: {
+        getAll: () => Effect.succeed(new Collection()),
+        get: () => Effect.succeed(Option.none()),
+        has: () => Effect.succeed(false),
+      },
+    },
+  } as unknown as CombatShape;
+  const player = {
+    goToPlayer: () => Effect.void,
+    isReady: () => Effect.succeed(true),
+    jumpToCell: () => Effect.void,
+    walkTo: () => Effect.succeed(true),
+  } as unknown as PlayerShape;
+  const world = {
+    ...makeWorld(self, target),
+    monsters: {
+      get: () => Effect.succeed(Option.some(monster)),
+      findByName: () => Effect.succeed(Option.some(monster)),
+      getAvailable: () =>
+        Effect.succeed(new Collection([[monster.monMapId, monster]])),
+    },
+  } as unknown as WorldShape;
+  const packetDomain = {
+    started: true,
+    emit: () => Effect.void,
+    on: (event: string, handler: unknown) =>
+      Effect.sync(() => {
+        if (event === "monsterDeath") {
+          monsterDeathHandler = handler as (
+            event: GameEventMap["monsterDeath"],
+          ) => Effect.Effect<void>;
+        }
+        return () => {};
+      }),
+  } as GameEventsShape;
+
+  const result = await withFollower(
+    (follower, harness) =>
+      Effect.gen(function* () {
+        yield* follower.start({
+          config: {
+            targetName: "hero",
+            selectedProfileId: "void-highlord",
+          },
+          library: {
+            ...library,
+            profiles: library.profiles.map((profile) =>
+              profile.id === "void-highlord"
+                ? {
+                    ...profile,
+                    steps: [
+                      { id: "one", skill: 1, conditions: [] },
+                      { id: "two", skill: 2, conditions: [] },
+                    ],
+                  }
+                : profile,
+            ),
+          },
+        });
+        if (harness.jobsState.task === undefined) {
+          throw new Error("Expected follower job task");
+        }
+        if (monsterDeathHandler === undefined) {
+          throw new Error("Expected monster death handler");
+        }
+
+        const fiber = yield* Effect.forkDetach(harness.jobsState.task, {
+          startImmediately: true,
+        });
+        yield* Effect.sleep("100 millis");
+        yield* monsterDeathHandler({
+          monMapId: 999,
+          packet: {} as GameEventMap["monsterDeath"]["packet"],
+        });
+        yield* Effect.sleep("550 millis");
+        yield* Fiber.interrupt(fiber);
+        return useSkillCalls;
+      }),
+    {
+      combat,
+      packetDomain,
+      player,
+      world,
+    },
+  );
+
+  expect(result.slice(0, 2)).toEqual(["1", "2"]);
 });
 
 test("player not ready is ignored without consuming attempts", async () => {

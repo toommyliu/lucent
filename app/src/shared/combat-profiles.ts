@@ -66,6 +66,7 @@ export interface CombatProfile {
   readonly delayMs: number;
   readonly cooldownMode: CombatProfileCooldownMode;
   readonly timeoutMs: number;
+  readonly resetSkillIndexOnMonsterDeath?: boolean;
   readonly steps: readonly CombatProfileStep[];
   readonly animationTriggers?: readonly CombatProfileAnimationTrigger[];
 }
@@ -372,6 +373,9 @@ const normalizeProfile = (
       0,
       MAX_TIMEOUT_MS,
     ),
+    ...(value["resetSkillIndexOnMonsterDeath"] === true
+      ? { resetSkillIndexOnMonsterDeath: true }
+      : {}),
     steps:
       steps.length > 0
         ? steps

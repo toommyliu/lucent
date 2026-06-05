@@ -8,6 +8,7 @@ import {
   isAttackableMonster,
   makeCombatProfileCursor,
   matchesCombatProfileAnimationTriggerMessage,
+  resetCombatProfileCursor,
 } from "../../combatProfiles";
 import { Combat } from "../../flash/Services/Combat";
 import { GameEvents } from "../../flash/Services/GameEvents";
@@ -190,24 +191,96 @@ const make = Effect.gen(function* () {
       }
     });
 
-  const selectTarget = Effect.gen(function* () {
-    const currentTarget = yield* combat.target.get();
-    if (
-      Option.isSome(currentTarget) &&
-      currentTarget.value.type === "monster" &&
-      isAttackableMonster(currentTarget.value.entity)
-    ) {
-      return currentTarget.value.monMapId;
-    }
+  const loop = (profile: CombatProfile) => {
+    let disposeMonsterDeath: (() => void) | undefined;
 
-    const monsters = yield* world.monsters.getAvailable();
-    const next = monsters.find(isAttackableMonster);
-    return next?.monMapId;
-  });
-
-  const loop = (profile: CombatProfile) =>
-    Effect.gen(function* () {
+    return Effect.gen(function* () {
       const cursor = yield* makeCombatProfileCursor();
+      const lockedTargetMonMapIdRef = yield* Ref.make<number | undefined>(
+        undefined,
+      );
+      const lastAutoSelectedMonMapIdRef = yield* Ref.make<number | undefined>(
+        undefined,
+      );
+      disposeMonsterDeath = Option.isSome(maybeGameEvents)
+        ? yield* maybeGameEvents.value.on("monsterDeath", (event) =>
+            Effect.gen(function* () {
+              if (profile.resetSkillIndexOnMonsterDeath !== true) {
+                return;
+              }
+
+              const lockedTargetMonMapId = yield* Ref.get(
+                lockedTargetMonMapIdRef,
+              );
+              if (
+                lockedTargetMonMapId !== undefined &&
+                event.monMapId !== lockedTargetMonMapId
+              ) {
+                return;
+              }
+
+              yield* resetCombatProfileCursor(cursor);
+            }),
+          )
+        : undefined;
+
+      const selectTarget = Effect.gen(function* () {
+        const currentTarget = yield* combat.target.get();
+        const lastAutoSelectedMonMapId = yield* Ref.get(
+          lastAutoSelectedMonMapIdRef,
+        );
+        let lockedTargetMonMapId = yield* Ref.get(lockedTargetMonMapIdRef);
+
+        if (
+          Option.isSome(currentTarget) &&
+          currentTarget.value.type === "monster" &&
+          isAttackableMonster(currentTarget.value.entity) &&
+          (lockedTargetMonMapId === undefined
+            ? currentTarget.value.monMapId !== lastAutoSelectedMonMapId
+            : currentTarget.value.monMapId !== lockedTargetMonMapId)
+        ) {
+          lockedTargetMonMapId = currentTarget.value.monMapId;
+          yield* Ref.set(
+            lockedTargetMonMapIdRef,
+            lockedTargetMonMapId,
+          );
+        }
+
+        if (lockedTargetMonMapId !== undefined) {
+          const lockedTarget = yield* world.monsters.get(lockedTargetMonMapId);
+          if (
+            Option.isSome(lockedTarget) &&
+            isAttackableMonster(lockedTarget.value)
+          ) {
+            return {
+              locked: true,
+              monMapId: lockedTargetMonMapId,
+            };
+          }
+
+          return undefined;
+        }
+
+        if (
+          Option.isSome(currentTarget) &&
+          currentTarget.value.type === "monster" &&
+          isAttackableMonster(currentTarget.value.entity)
+        ) {
+          return {
+            locked: false,
+            monMapId: currentTarget.value.monMapId,
+          };
+        }
+
+        const monsters = yield* world.monsters.getAvailable();
+        const next = monsters.find(isAttackableMonster);
+        return next === undefined
+          ? undefined
+          : {
+              locked: false,
+              monMapId: next.monMapId,
+            };
+      });
 
       while (yield* Ref.get(enabledRef)) {
         const alive = yield* player
@@ -219,17 +292,26 @@ const make = Effect.gen(function* () {
           continue;
         }
 
-        const monMapId = yield* selectTarget.pipe(
-          Effect.catch(() => Effect.sync((): number | undefined => undefined)),
+        const target = yield* selectTarget.pipe(
+          Effect.catch(() =>
+            Effect.sync(
+              ():
+                | {
+                    readonly locked: boolean;
+                    readonly monMapId: number;
+                  }
+                | undefined => undefined,
+            ),
+          ),
         );
 
-        if (monMapId === undefined) {
+        if (target === undefined) {
           yield* Effect.sleep(`${IDLE_DELAY_MS} millis`);
           continue;
         }
 
         const { attacked, attackFailed } = yield* combat
-          .attackMonster(monMapId)
+          .attackMonster(target.monMapId)
           .pipe(
             Effect.map((attacked) => ({ attacked, attackFailed: false })),
             Effect.catch((error) =>
@@ -238,6 +320,10 @@ const make = Effect.gen(function* () {
               ).pipe(Effect.as({ attacked: false, attackFailed: true })),
             ),
           );
+
+        if (attacked && !target.locked) {
+          yield* Ref.set(lastAutoSelectedMonMapIdRef, target.monMapId);
+        }
 
         const { cast, castFailed } = attacked
           ? yield* castNextCombatProfileStep(profile, cursor).pipe(
@@ -264,12 +350,20 @@ const make = Effect.gen(function* () {
       }
     }).pipe(
       Effect.ensuring(
-        combat.cancelAutoAttack().pipe(
-          Effect.andThen(combat.cancelTarget()),
-          Effect.catch(() => Effect.void),
-        ),
+        Effect.gen(function* () {
+          yield* Effect.sync(() => {
+            disposeMonsterDeath?.();
+          });
+          yield* combat
+            .cancelAutoAttack()
+            .pipe(
+              Effect.andThen(combat.cancelTarget()),
+              Effect.catch(() => Effect.void),
+            );
+        }),
       ),
     );
+  };
 
   const resolveProfile = (options: AutoAttackStartOptions) =>
     Effect.gen(function* () {

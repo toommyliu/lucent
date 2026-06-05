@@ -12,11 +12,24 @@ import { Player } from "./flash/Services/Player";
 import { World } from "./flash/Services/World";
 
 export interface CombatProfileCursor {
-  readonly index: Ref.Ref<number>;
+  readonly state: Ref.Ref<CombatProfileCursorState>;
+}
+
+interface CombatProfileCursorState {
+  readonly index: number;
+  readonly resetVersion: number;
 }
 
 export const makeCombatProfileCursor = (): Effect.Effect<CombatProfileCursor> =>
-  Effect.map(Ref.make(0), (index) => ({ index }));
+  Effect.map(Ref.make({ index: 0, resetVersion: 0 }), (state) => ({ state }));
+
+export const resetCombatProfileCursor = (
+  cursor: CombatProfileCursor,
+): Effect.Effect<void> =>
+  Ref.update(cursor.state, (state) => ({
+    index: 0,
+    resetVersion: state.resetVersion + 1,
+  }));
 
 const compare = (
   actual: number,
@@ -189,7 +202,8 @@ export const castNextCombatProfileStep = (
       return false;
     }
 
-    const startIndex = yield* Ref.get(cursor.index);
+    const startState = yield* Ref.get(cursor.state);
+    const startIndex = startState.index;
 
     for (let offset = 0; offset < steps.length; offset += 1) {
       const stepIndex = (startIndex + offset) % steps.length;
@@ -205,8 +219,20 @@ export const castNextCombatProfileStep = (
         continue;
       }
 
+      const resetVersionBeforeCast = (yield* Ref.get(cursor.state))
+        .resetVersion;
       yield* combat.useSkill(step.skill, false, shouldWait);
-      yield* Ref.set(cursor.index, (stepIndex + 1) % steps.length);
+      const nextIndex = (stepIndex + 1) % steps.length;
+      yield* Ref.update(cursor.state, (state) => {
+        if (state.resetVersion !== resetVersionBeforeCast) {
+          return state;
+        }
+
+        return {
+          ...state,
+          index: nextIndex,
+        };
+      });
 
       if (step.waitMs !== undefined && step.waitMs > 0) {
         yield* Effect.sleep(`${step.waitMs} millis`);
