@@ -247,6 +247,7 @@ script.log(\`Cell: \${cell}\`);`;
         );
         const [status, setStatus] = createSignal("Idle");
         const [output, setOutput] = createSignal("");
+        const [copyableOutput, setCopyableOutput] = createSignal("");
         const [outputCopied, setOutputCopied] = createSignal(false);
         const [running, setRunning] = createSignal(false);
         const clampPanelFrame = (frame: DebugPanelFrame): DebugPanelFrame => {
@@ -456,6 +457,7 @@ ${source}
           );
           setStatus("Loaded into script runner");
           setOutput("");
+          setCopyableOutput("");
           setOutputCopied(false);
           void props.refreshScriptMeta();
         };
@@ -473,7 +475,7 @@ ${source}
         };
 
         const copyOutput = async () => {
-          const value = output();
+          const value = copyableOutput();
           if (value === "") {
             return;
           }
@@ -496,6 +498,7 @@ ${source}
           if (source === "") {
             setStatus("No code to evaluate");
             setOutput("");
+            setCopyableOutput("");
             return;
           }
 
@@ -503,6 +506,7 @@ ${source}
           setRunning(true);
           setStatus(`Running ${evalMode} eval`);
           setOutput("");
+          setCopyableOutput("");
           setOutputCopied(false);
 
           const task =
@@ -520,13 +524,17 @@ ${source}
 
           void task
             .then((value) => {
+              const formattedValue = formatEvalValue(value);
               setStatus("Eval complete");
-              setOutput(truncateOutput(formatEvalValue(value)));
+              setOutput(truncateOutput(formattedValue));
+              setCopyableOutput(formattedValue);
               void props.refreshScriptMeta();
             })
             .catch((error: unknown) => {
+              const formattedError = formatEvalError(error);
               setStatus("Eval failed");
-              setOutput(truncateOutput(formatEvalError(error)));
+              setOutput(truncateOutput(formattedError));
+              setCopyableOutput(formattedError);
               void props.refreshScriptMeta();
             })
             .finally(() => {
