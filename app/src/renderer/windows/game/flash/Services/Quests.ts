@@ -17,7 +17,7 @@ export interface QuestsShape {
     turnIns?: number,
     itemId?: number,
     special?: boolean,
-  ): BridgeEffect<void>;
+  ): BridgeEffect<boolean>;
   getMaxTurnIns(questId: number): BridgeEffect<number>;
   load(questId: number, silent?: boolean): BridgeEffect<void>;
   loadMany(questIds: number[], silent?: boolean): BridgeEffect<void>;

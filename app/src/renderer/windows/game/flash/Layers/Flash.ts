@@ -42,12 +42,18 @@ const CoreRuntimeLive = Layer.mergeAll(
   GameEventsLive,
 );
 
-const PlayerRuntimeLive = PlayerLive.pipe(Layer.provideMerge(InventoryLive));
+const InventoryRuntimeLive = InventoryLive.pipe(Layer.provide(CoreRuntimeLive));
+const PlayerRuntimeLive = PlayerLive.pipe(
+  Layer.provideMerge(InventoryRuntimeLive),
+);
+const ShopsRuntimeLive = ShopsLive.pipe(
+  Layer.provideMerge(InventoryRuntimeLive),
+);
 
 const DomainRuntimeLive = Layer.mergeAll(
   PlayerRuntimeLive,
   SettingsLive,
-  ShopsLive,
+  ShopsRuntimeLive,
   BankLive,
   HouseLive,
   DropsLive,

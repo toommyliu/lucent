@@ -1,9 +1,10 @@
 import { Collection } from "@lucent/collection";
 import { Quest, type QuestInfo } from "@lucent/game";
-import { Effect, Layer, Option, SynchronizedRef } from "effect";
+import { Deferred, Effect, Layer, Option, SynchronizedRef } from "effect";
 import { asNumber, asRecord } from "../PacketPayload";
 import { positiveInt, uniquePositiveInts } from "@lucent/shared/number";
 import { Bridge } from "../Services/Bridge";
+import type { BridgeEffect } from "../Services/Bridge";
 import { Packet } from "../Services/Packet";
 import { Quests } from "../Services/Quests";
 import type { QuestLoadedListener, QuestsShape } from "../Services/Quests";
@@ -37,6 +38,44 @@ const normalizeQuestIds = (questIds: readonly number[]): number[] =>
 
 const QUEST_LOAD_TIMEOUT = "5 seconds";
 const QUEST_ACCEPT_TIMEOUT = "5 seconds";
+const QUEST_COMPLETE_TIMEOUT = "5 seconds";
+
+interface QuestCompleteResponse {
+  readonly questId?: number;
+  readonly success: boolean;
+}
+
+const asQuestCompleteResponse = (
+  value: unknown,
+): QuestCompleteResponse | undefined => {
+  const payload = asRecord(value);
+  if (!payload) {
+    return undefined;
+  }
+
+  const bSuccess = asNumber(payload["bSuccess"]);
+  if (bSuccess === undefined) {
+    return undefined;
+  }
+
+  const questId = toQuestId(payload["QuestID"]);
+
+  return {
+    ...(questId !== undefined ? { questId } : null),
+    success: bSuccess === 1,
+  };
+};
+
+const responseMatchesQuestComplete = (
+  response: QuestCompleteResponse,
+  questId: number,
+): boolean => {
+  if (response.questId !== undefined) {
+    return response.questId === questId;
+  }
+
+  return !response.success;
+};
 
 const make = Effect.gen(function* () {
   const bridge = yield* Bridge;
@@ -118,6 +157,34 @@ const make = Effect.gen(function* () {
   const waitForQuestAccept = (questId: number) =>
     wait.until(isInProgress(questId), { timeout: QUEST_ACCEPT_TIMEOUT });
 
+  const confirmQuestCompleteResponse = (
+    questId: number,
+    request: BridgeEffect<void>,
+  ) =>
+    Effect.gen(function* () {
+      const result = yield* Deferred.make<QuestCompleteResponse>();
+      const dispose = yield* packets.json("ccqr", (packet) =>
+        Effect.gen(function* () {
+          const response = asQuestCompleteResponse(packet.data);
+          if (
+            response === undefined ||
+            !responseMatchesQuestComplete(response, questId)
+          ) {
+            return;
+          }
+
+          yield* Deferred.succeed(result, response).pipe(Effect.asVoid);
+        }),
+      );
+
+      return yield* Effect.gen(function* () {
+        yield* request;
+        return yield* Deferred.await(result).pipe(
+          Effect.timeoutOption(QUEST_COMPLETE_TIMEOUT),
+        );
+      }).pipe(Effect.ensuring(Effect.sync(dispose)));
+    });
+
   const abandon: QuestsShape["abandon"] = (questId) =>
     bridge.call("quests.abandon", [questId]);
 
@@ -137,6 +204,10 @@ const make = Effect.gen(function* () {
         }
       }
 
+      if (yield* isInProgress(questId)) {
+        return;
+      }
+
       yield* bridge.call("quests.accept", [questId]);
       yield* waitForQuestAccept(questId);
     });
@@ -152,12 +223,45 @@ const make = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const turnInsNumber = turnIns ?? (yield* getMaxTurnIns(questId));
-      yield* bridge.call("quests.complete", [
+      const actionAvailable = yield* wait.forGameAction("tryQuestComplete", {
+        timeout: QUEST_COMPLETE_TIMEOUT,
+      });
+      if (!actionAvailable) {
+        yield* Effect.logWarning({
+          message: "quest complete skipped: action unavailable",
+          questId,
+          turnIns: turnInsNumber,
+        });
+        return false;
+      }
+
+      const response = yield* confirmQuestCompleteResponse(
         questId,
-        turnInsNumber,
-        itemId,
-        special,
-      ]);
+        bridge.call("quests.complete", [
+          questId,
+          turnInsNumber,
+          itemId,
+          special,
+        ]),
+      );
+      if (Option.isNone(response)) {
+        yield* Effect.logWarning({
+          message: "quest complete response timed out or request was not sent",
+          questId,
+          turnIns: turnInsNumber,
+        });
+        return false;
+      }
+
+      if (!response.value.success) {
+        yield* Effect.logWarning({
+          message: "quest complete rejected",
+          questId,
+          turnIns: turnInsNumber,
+        });
+      }
+
+      return response.value.success;
     });
 
   const getMaxTurnIns: QuestsShape["getMaxTurnIns"] = (questId) =>

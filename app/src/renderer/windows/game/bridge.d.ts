@@ -125,9 +125,9 @@ declare global {
       "settings.setOtherPlayersVisible": (visible: boolean) => void;
       "settings.setWalkSpeed": (speed: number) => void;
       "settings.skipCutscenes": () => void;
-      "shops.buyById": (id: number, quantity?: number) => boolean;
-      "shops.buyByName": (name: string, quantity?: number) => boolean;
-      "shops.buyByShopItemId": (shopItemId: string, quantity?: number) => boolean;
+      "shops.buyById": (id: number, quantity?: number) => void;
+      "shops.buyByName": (name: string, quantity?: number) => void;
+      "shops.buyByShopItemId": (shopItemId: string, quantity?: number) => void;
       "shops.canBuyByShopItemId": (shopItemId: string, quantity?: number) => boolean;
       "shops.canBuyItem": (key: unknown, quantity?: number) => boolean;
       "shops.close": (shopId?: number) => boolean;

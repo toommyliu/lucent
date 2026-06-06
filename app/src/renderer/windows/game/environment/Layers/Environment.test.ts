@@ -4,7 +4,8 @@ import {
   createEmptyEnvironmentState,
   type EnvironmentState,
 } from "../../../../../shared/environment";
-import { Effect, Layer, Logger, Option } from "effect";
+import { Effect, Fiber, Layer, Logger, Option } from "effect";
+import { TestClock } from "effect/testing";
 import { describe, expect, test } from "vitest";
 import { Drops, type DropsShape } from "../../flash/Services/Drops";
 import { Inventory, type InventoryShape } from "../../flash/Services/Inventory";
@@ -27,11 +28,16 @@ const questInfo = (questId: number): QuestInfo =>
     sName: `Quest ${questId}`,
   }) as unknown as QuestInfo;
 
+const completeQuestSuccessfully: QuestsShape["complete"] = () =>
+  Effect.succeed(true);
+
 interface EnvironmentHarness {
   readonly acceptedQuestIds: readonly number[];
   readonly logs: readonly unknown[];
   readonly runQuestCycle: () => Effect.Effect<void, unknown>;
   readonly setAvailableResults: (results: readonly boolean[]) => void;
+  readonly setCanCompleteResults: (results: readonly boolean[]) => void;
+  readonly setCompleteEffect: (complete: QuestsShape["complete"]) => void;
   readonly setInProgress: (value: boolean) => void;
 }
 
@@ -45,6 +51,7 @@ const withEnvironment = (
   const logs: unknown[] = [];
   const periodicTasks = new Map<string, Effect.Effect<void, unknown>>();
   let availableResults: boolean[] = [];
+  let canCompleteResults: boolean[] = [];
   let inProgress = false;
   let state: EnvironmentState = {
     ...createEmptyEnvironmentState(),
@@ -156,6 +163,7 @@ const withEnvironment = (
     hasActiveBoost: () => Effect.succeed(true),
     useBoost: () => Effect.succeed(false),
   } as unknown as PlayerShape;
+  let completeQuest = completeQuestSuccessfully;
 
   const quests = {
     abandon: () => Effect.void,
@@ -163,8 +171,8 @@ const withEnvironment = (
       Effect.sync(() => {
         acceptedQuestIds.push(questId);
       }),
-    canComplete: () => Effect.succeed(false),
-    complete: () => Effect.void,
+    canComplete: () => Effect.sync(() => canCompleteResults.shift() ?? false),
+    complete: (...args) => completeQuest(...args),
     getAccepted: () => Effect.succeed([]),
     getMaxTurnIns: () => Effect.succeed(1),
     getAll: () => Effect.succeed(questTree),
@@ -196,12 +204,18 @@ const withEnvironment = (
     setAvailableResults(results) {
       availableResults = [...results];
     },
+    setCanCompleteResults(results) {
+      canCompleteResults = [...results];
+    },
+    setCompleteEffect(complete) {
+      completeQuest = complete;
+    },
     setInProgress(value) {
       inProgress = value;
     },
   };
 
-  const TestLive = Layer.merge(
+  const TestLive = Layer.mergeAll(
     Logger.layer([testLogger]),
     EnvironmentLive.pipe(
       Layer.provide(
@@ -214,6 +228,7 @@ const withEnvironment = (
         ),
       ),
     ),
+    TestClock.layer(),
   );
 
   return Effect.runPromise(
@@ -314,6 +329,35 @@ describe("environment quest automation", () => {
             questId: 609,
           },
         ]);
+      }),
+    );
+  });
+
+  test("complete mutation is not cut off by the accept action timeout", async () => {
+    await withEnvironment((_environment, harness) =>
+      Effect.gen(function* () {
+        const completedQuestIds: number[] = [];
+        harness.setInProgress(true);
+        harness.setCanCompleteResults([true]);
+        harness.setCompleteEffect((questId) =>
+          Effect.sleep("6 seconds").pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                completedQuestIds.push(questId);
+              }),
+            ),
+            Effect.as(true),
+          ),
+        );
+
+        const fiber = yield* Effect.forkDetach(harness.runQuestCycle(), {
+          startImmediately: true,
+        });
+        yield* Effect.yieldNow;
+        yield* TestClock.adjust("6 seconds");
+        yield* Fiber.join(fiber);
+
+        expect(completedQuestIds).toEqual([609]);
       }),
     );
   });
