@@ -366,6 +366,7 @@ describe("account game launch", () => {
 
     expect(gameWindow.bounds).toBeNull();
     expect(gameWindow.options).toMatchObject({
+      useContentSize: false,
       x: 600,
       y: 0,
       width: 600,

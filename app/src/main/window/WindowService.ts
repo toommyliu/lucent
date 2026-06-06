@@ -510,6 +510,7 @@ export const makeWindowService = (
             appearanceSnapshot,
             settingsSnapshot,
           ),
+          ...(options?.bounds === undefined ? {} : { useContentSize: false }),
           ...options?.bounds,
         },
       );
