@@ -311,6 +311,7 @@ describe("window service", () => {
     )) as unknown as FakeWindow;
 
     expect(gameWindow.options.backgroundColor).toBe(snapshot.backgroundColor);
+    expect(gameWindow.options.useContentSize).toBe(true);
     expect(gameWindow.options.webPreferences?.additionalArguments).toEqual([
       serializeAppearanceSnapshotArgument(snapshot),
       serializeSettingsSnapshotArgument(settingsSnapshot),
@@ -327,6 +328,24 @@ describe("window service", () => {
         new URL(gameWindow.loadedUrl ?? "").search,
       ),
     ).toEqual(snapshot);
+  });
+
+  it("creates explicitly bounded game windows with outer window bounds", async () => {
+    const harness = createHarness();
+
+    const gameWindow = (await run(
+      harness.service.openGameWindow({
+        bounds: { x: 600, y: 0, width: 600, height: 400 },
+      }),
+    )) as unknown as FakeWindow;
+
+    expect(gameWindow.options).toMatchObject({
+      useContentSize: false,
+      x: 600,
+      y: 0,
+      width: 600,
+      height: 400,
+    });
   });
 
   it("notifies startup observation for every created renderer window", async () => {
