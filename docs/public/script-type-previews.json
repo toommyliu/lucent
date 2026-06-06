@@ -3045,8 +3045,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:56",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L56"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:59",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L59"
       }
     },
     "script-equip-item-by-enhancement-options": {
@@ -3057,8 +3057,8 @@
       "definition": "type ScriptEquipItemByEnhancementOptions = EquipEnhancementSelector",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:61",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L61"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:64",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L64"
       }
     },
     "script-event-afk-event": {
@@ -3734,8 +3734,8 @@
       "definition": "type ScriptRecipeEffect<A> = Effect.Effect<A, unknown>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L37"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L40"
       }
     },
     "script-wait-options": {

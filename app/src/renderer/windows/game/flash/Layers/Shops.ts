@@ -1,11 +1,12 @@
 import { Collection } from "@lucent/collection";
 import type { GameAction, ShopInfo, ShopItem } from "@lucent/game";
 import { equalsIgnoreCase } from "@lucent/shared/string";
-import { Effect, Layer, Option, Ref } from "effect";
+import { Deferred, Effect, Layer, Option, Ref } from "effect";
 import { makeShopItemCache } from "../ItemCache";
 import { asNumber, asRecord, asString } from "../PacketPayload";
 import { Bridge } from "../Services/Bridge";
 import type { BridgeEffect } from "../Services/Bridge";
+import { Inventory } from "../Services/Inventory";
 import { Packet } from "../Services/Packet";
 import { Shops } from "../Services/Shops";
 import type {
@@ -17,6 +18,15 @@ import type {
 } from "../Services/Shops";
 import { ShopItemSelectorAmbiguous } from "../Services/Shops";
 import { Wait } from "../Services/Wait";
+
+const BUY_ITEM_RESPONSE_TIMEOUT = "5 seconds";
+const BUY_ITEM_SETTLEMENT_TIMEOUT = "5 seconds";
+
+interface BuyItemResponse {
+  readonly itemId?: number;
+  readonly quantity?: number;
+  readonly success: boolean;
+}
 
 const asShopInfo = (value: unknown): ShopInfo | null => {
   const record = asRecord(value);
@@ -104,9 +114,42 @@ const toShopItemsCollection = (
   return collection;
 };
 
+const asBuyItemResponse = (value: unknown): BuyItemResponse | undefined => {
+  const payload = asRecord(value);
+  if (!payload) {
+    return undefined;
+  }
+
+  const bitSuccess = asNumber(payload["bitSuccess"]);
+  if (bitSuccess === undefined) {
+    return undefined;
+  }
+
+  const itemId = asNumber(payload["ItemID"]);
+  const quantity = asNumber(payload["iQty"]);
+
+  return {
+    ...(itemId !== undefined ? { itemId } : null),
+    ...(quantity !== undefined ? { quantity } : null),
+    success: bitSuccess === 1,
+  };
+};
+
+const responseMatchesBuyItem = (
+  response: BuyItemResponse,
+  itemId: number,
+): boolean => {
+  if (response.itemId !== undefined) {
+    return response.itemId === itemId;
+  }
+
+  return !response.success;
+};
+
 const make = Effect.gen(function* () {
   const bridge = yield* Bridge;
-  const packet = yield* Packet;
+  const inventory = yield* Inventory;
+  const packets = yield* Packet;
   const wait = yield* Wait;
 
   const itemCache = yield* makeShopItemCache;
@@ -126,7 +169,7 @@ const make = Effect.gen(function* () {
       yield* itemCache.fromUnknownArray(info.items);
     });
 
-  yield* packet.jsonScoped("loadShop", (packet) => setShopInfo(packet.data));
+  yield* packets.jsonScoped("loadShop", (packet) => setShopInfo(packet.data));
 
   const dispose = yield* bridge.onConnection((status) => {
     if (status === "OnConnectionLost") {
@@ -244,6 +287,80 @@ const make = Effect.gen(function* () {
       ]);
     });
 
+  const confirmBuyItemResponse = (
+    itemId: number,
+    request: BridgeEffect<void>,
+  ) =>
+    Effect.gen(function* () {
+      const result = yield* Deferred.make<BuyItemResponse>();
+      let observedResponses = 0;
+      let lastResponse: BuyItemResponse | undefined;
+      const dispose = yield* packets.json("buyItem", (packet) =>
+        Effect.gen(function* () {
+          const response = asBuyItemResponse(packet.data);
+          if (response === undefined) {
+            return;
+          }
+
+          observedResponses++;
+          lastResponse = response;
+          if (!responseMatchesBuyItem(response, itemId)) {
+            return;
+          }
+
+          yield* Deferred.succeed(result, response).pipe(Effect.asVoid);
+        }),
+      );
+
+      return yield* Effect.gen(function* () {
+        yield* request;
+
+        const response = yield* Deferred.await(result).pipe(
+          Effect.timeoutOption(BUY_ITEM_RESPONSE_TIMEOUT),
+        );
+        if (Option.isNone(response)) {
+          yield* Effect.logWarning({
+            message: "shop buyItem response timed out",
+            expectedItemId: itemId,
+            observedResponses,
+            lastResponse: lastResponse ?? null,
+          });
+        }
+
+        return response;
+      }).pipe(Effect.ensuring(Effect.sync(dispose)));
+    });
+
+  const waitForBuySettlement = (
+    item: ShopItem,
+    response: BuyItemResponse,
+    currentQuantity: number,
+    buyQuantity: number,
+  ) =>
+    Effect.gen(function* () {
+      if (item.isTemp()) {
+        return;
+      }
+
+      const responseQuantity =
+        response.quantity !== undefined && response.quantity > 0
+          ? Math.trunc(response.quantity)
+          : buyQuantity;
+      const targetQuantity = currentQuantity + responseQuantity;
+      const settled = yield* wait.until(
+        inventory.contains(item.id, targetQuantity),
+        { timeout: BUY_ITEM_SETTLEMENT_TIMEOUT },
+      );
+      if (!settled) {
+        yield* Effect.logWarning({
+          message: "shop buy succeeded but inventory settlement timed out",
+          itemId: item.id,
+          itemName: item.name,
+          targetQuantity,
+        });
+      }
+    });
+
   const buy: ShopsShape["buy"] = (selector, options) =>
     Effect.gen(function* () {
       const item = yield* getSingleShopItem(selector);
@@ -257,12 +374,49 @@ const make = Effect.gen(function* () {
       }
 
       const quantity = normalizeQuantity(options);
-      return yield* runWhenActionAvailable(
-        "buyItem",
+      const buyQuantity = quantity ?? 1;
+      const actionAvailable = yield* wait.forGameAction("buyItem");
+      if (!actionAvailable) {
+        return false;
+      }
+
+      const buyable =
+        quantity === undefined
+          ? yield* bridge.call("shops.canBuyByShopItemId", [shopItemId])
+          : yield* bridge.call("shops.canBuyByShopItemId", [
+              shopItemId,
+              quantity,
+            ]);
+      if (!buyable) {
+        return false;
+      }
+
+      const currentItem = yield* inventory.getItem(item.value.id);
+      const cachedCurrentQuantity = currentItem?.quantity ?? 0;
+      const currentQuantity =
+        cachedCurrentQuantity > 0 &&
+        (yield* inventory.contains(item.value.id, cachedCurrentQuantity))
+          ? cachedCurrentQuantity
+          : 0;
+
+      const response = yield* confirmBuyItemResponse(
+        item.value.id,
         quantity === undefined
           ? bridge.call("shops.buyByShopItemId", [shopItemId])
           : bridge.call("shops.buyByShopItemId", [shopItemId, quantity]),
       );
+
+      if (Option.isNone(response) || !response.value.success) {
+        return false;
+      }
+
+      yield* waitForBuySettlement(
+        item.value,
+        response.value,
+        currentQuantity,
+        buyQuantity,
+      );
+      return true;
     });
 
   const isOpen: ShopsShape["isOpen"] = (shopId) =>

@@ -270,6 +270,154 @@ test("onExtensionResponse raw listener runs after internal extension handler", a
   expect(order).toEqual(["internal", "raw"]);
 });
 
+test("json buyItem handler receives gold voucher extension response", async () => {
+  const payload = await withPacket((packet) =>
+    Effect.gen(function* () {
+      let observed: unknown;
+      let resolveJson: () => void = () => undefined;
+      const jsonObserved = new Promise<void>((resolve) => {
+        resolveJson = resolve;
+      });
+
+      yield* packet.json("buyItem", (packet) =>
+        Effect.sync(() => {
+          observed = packet.data;
+          resolveJson();
+        }),
+      );
+
+      emitPacketWindowEvent(
+        "onExtensionResponse",
+        '{"type":"json","dataObj":{"CharItemID":123,"iQty":5,"bitSuccess":1,"ItemID":62749,"bBank":0,"cmd":"buyItem"}}',
+      );
+      yield* waitForRawHandler(jsonObserved);
+
+      return observed;
+    }),
+  );
+
+  expect(payload).toEqual({
+    bBank: 0,
+    bitSuccess: 1,
+    CharItemID: 123,
+    cmd: "buyItem",
+    ItemID: 62_749,
+    iQty: 5,
+  });
+});
+
+test("json buyItem handler receives arcane quill extension response", async () => {
+  const payload = await withPacket((packet) =>
+    Effect.gen(function* () {
+      let observed: unknown;
+      let resolveJson: () => void = () => undefined;
+      const jsonObserved = new Promise<void>((resolve) => {
+        resolveJson = resolve;
+      });
+
+      yield* packet.json("buyItem", (packet) =>
+        Effect.sync(() => {
+          observed = packet.data;
+          resolveJson();
+        }),
+      );
+
+      emitPacketWindowEvent(
+        "onExtensionResponse",
+        '{"type":"json","dataObj":{"CharItemID":456,"iQty":5,"bitSuccess":1,"ItemID":17391,"bBank":0,"cmd":"buyItem"}}',
+      );
+      yield* waitForRawHandler(jsonObserved);
+
+      return observed;
+    }),
+  );
+
+  expect(payload).toEqual({
+    bBank: 0,
+    bitSuccess: 1,
+    CharItemID: 456,
+    cmd: "buyItem",
+    ItemID: 17_391,
+    iQty: 5,
+  });
+});
+
+test("json balance handler receives provided balance extension response", async () => {
+  const payload = await withPacket((packet) =>
+    Effect.gen(function* () {
+      let observed: unknown;
+      let resolveJson: () => void = () => undefined;
+      const jsonObserved = new Promise<void>((resolve) => {
+        resolveJson = resolve;
+      });
+
+      yield* packet.json("balance", (packet) =>
+        Effect.sync(() => {
+          observed = packet.data;
+          resolveJson();
+        }),
+      );
+
+      emitPacketWindowEvent(
+        "onExtensionResponse",
+        '{"type":"json","dataObj":{"intCoins":1396,"iUpgDays":-935,"cmd":"balance","intExp":0,"intGold":97781783}}',
+      );
+      yield* waitForRawHandler(jsonObserved);
+
+      return observed;
+    }),
+  );
+
+  expect(payload).toEqual({
+    cmd: "balance",
+    intCoins: 1_396,
+    intExp: 0,
+    intGold: 97_781_783,
+    iUpgDays: -935,
+  });
+});
+
+test("json ccqr handler receives provided quest completion extension response", async () => {
+  const payload = await withPacket((packet) =>
+    Effect.gen(function* () {
+      let observed: unknown;
+      let resolveJson: () => void = () => undefined;
+      const jsonObserved = new Promise<void>((resolve) => {
+        resolveJson = resolve;
+      });
+
+      yield* packet.json("ccqr", (packet) =>
+        Effect.sync(() => {
+          observed = packet.data;
+          resolveJson();
+        }),
+      );
+
+      emitPacketWindowEvent(
+        "onExtensionResponse",
+        '{"type":"json","dataObj":{"QuestID":11,"sName":"Twilly\'s New Staff","rewardObj":{"iCP":0,"typ":"q","intCoins":0,"intExp":100,"intGold":100},"cmd":"ccqr","bSuccess":1}}',
+      );
+      yield* waitForRawHandler(jsonObserved);
+
+      return observed;
+    }),
+  );
+
+  expect(payload).toEqual({
+    QuestID: 11,
+    bSuccess: 1,
+    cmd: "ccqr",
+    rewardObj: {
+      iCP: 0,
+      intCoins: 0,
+      intExp: 100,
+      intGold: 100,
+      typ: "q",
+    },
+    sName: "Twilly's New Staff",
+  });
+});
+
 test("unparseable packets still reach raw listeners", async () => {
   const observed = await withPacket((packet) =>
     Effect.gen(function* () {
@@ -297,8 +445,10 @@ test("unparseable packets still reach raw listeners", async () => {
 });
 
 test("sendServer resolves supported placeholders before forwarding", async () => {
-  const calls: Array<{ readonly functionName: string; readonly args: unknown[] }> =
-    [];
+  const calls: Array<{
+    readonly functionName: string;
+    readonly args: unknown[];
+  }> = [];
   const capturingBridge = {
     ...bridge,
     callGameFunction(functionName: string, ...args: ReadonlyArray<unknown>) {
@@ -324,8 +474,10 @@ test("sendServer resolves supported placeholders before forwarding", async () =>
 });
 
 test("sendServer skips context lookups without supported placeholders", async () => {
-  const calls: Array<{ readonly functionName: string; readonly args: unknown[] }> =
-    [];
+  const calls: Array<{
+    readonly functionName: string;
+    readonly args: unknown[];
+  }> = [];
   const capturingBridge = {
     ...bridge,
     callGameFunction(functionName: string, ...args: ReadonlyArray<unknown>) {

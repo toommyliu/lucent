@@ -20,7 +20,10 @@ import type { InventoryShape } from "../flash/Services/Inventory";
 import type { PacketShape } from "../flash/Services/Packet";
 import type { PlayerShape } from "../flash/Services/Player";
 import type { QuestsShape } from "../flash/Services/Quests";
-import type { ShopsShape } from "../flash/Services/Shops";
+import type {
+  ShopItemSelector,
+  ShopsShape,
+} from "../flash/Services/Shops";
 import type { TempInventoryShape } from "../flash/Services/TempInventory";
 import type { WaitShape } from "../flash/Services/Wait";
 import type { WorldShape } from "../flash/Services/World";
@@ -88,8 +91,39 @@ const DEFAULT_BUFF_SKILLS = [1, 2, 3] as const;
 const CONSUMABLE_SKILL_INDEX = 5;
 const GEAR_OF_DOOM = "Gear of Doom";
 const TREASURE_POTION = "Treasure Potion";
+const SCROLL_OF_ENRAGE = "Scroll of Enrage";
+const GOLD_VOUCHER_100K = "Gold Voucher 100k";
+const ARCANE_QUILL = "Arcane Quill";
+const ZEALOUS_INK = "Zealous Ink";
+const GOLD_VOUCHER_100K_ITEM_ID = 62_749;
+const GOLD_VOUCHER_100K_SHOP_ITEM_ID = 7_681;
+const ARCANE_QUILL_ITEM_ID = 17_391;
+const ARCANE_QUILL_SHOP_ITEM_ID = 7_685;
+const ZEALOUS_INK_ITEM_ID = 13_286;
+const ZEALOUS_INK_SHOP_ITEM_ID = 10_371;
+const ZEALOUS_INK_QUEST_QUANTITY = 1;
+const ZEALOUS_INK_SHOP_QUANTITY = 5;
+const SCROLL_OF_ENRAGE_REWARD_QUANTITY = 40;
 const WHEEL_OF_DOOM_QUEST_ID = 3_076;
 const SCROLL_OF_ENRAGE_QUEST_ID = 2_330;
+
+const GOLD_VOUCHER_100K_SELECTOR = {
+  name: GOLD_VOUCHER_100K,
+  itemId: GOLD_VOUCHER_100K_ITEM_ID,
+  shopItemId: GOLD_VOUCHER_100K_SHOP_ITEM_ID,
+} as const satisfies ShopItemSelector;
+
+const ARCANE_QUILL_SELECTOR = {
+  name: ARCANE_QUILL,
+  itemId: ARCANE_QUILL_ITEM_ID,
+  shopItemId: ARCANE_QUILL_SHOP_ITEM_ID,
+} as const satisfies ShopItemSelector;
+
+const ZEALOUS_INK_SELECTOR = {
+  name: ZEALOUS_INK,
+  itemId: ZEALOUS_INK_ITEM_ID,
+  shopItemId: ZEALOUS_INK_SHOP_ITEM_ID,
+} as const satisfies ShopItemSelector;
 
 const requireFiniteNumber = (
   deps: ScriptRecipeDependencies,
@@ -383,6 +417,273 @@ const ensureLifeSteal = (
     yield* deps.shops.buy({ name: itemName }, { quantity: needed });
   });
 
+const getInventoryQuantity = (
+  deps: ScriptRecipeDependencies,
+  item: ItemIdentifierToken,
+): Effect.Effect<number, unknown> =>
+  Effect.map(deps.inventory.getItem(item), (inventoryItem) =>
+    Math.max(0, Math.trunc(inventoryItem?.quantity ?? 0)),
+  );
+
+const waitForInventoryQuantity = (
+  deps: ScriptRecipeDependencies,
+  item: ItemIdentifierToken,
+  quantity: number,
+): Effect.Effect<boolean, unknown> =>
+  deps.wait.until(deps.inventory.contains(item, quantity), {
+    timeout: "3 seconds",
+    interval: "100 millis",
+  });
+
+const getMaxBuyQuantityOrNull = (
+  deps: ScriptRecipeDependencies,
+  selector: ShopItemSelector,
+): Effect.Effect<number | null> =>
+  deps.shops
+    .getMaxBuyQuantity(selector)
+    .pipe(Effect.catch(() => Effect.succeed(null)));
+
+const ensureGoldVoucherQuantity = (
+  deps: ScriptRecipeDependencies,
+  targetQuantity: number,
+  iteration: number,
+  purpose: string,
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function* () {
+    let currentQuantity = yield* getInventoryQuantity(deps, GOLD_VOUCHER_100K);
+
+    while (currentQuantity < targetQuantity) {
+      const missingQuantity = targetQuantity - currentQuantity;
+      const gold = yield* deps.player.getGold();
+      if (gold < 100_000) {
+        return false;
+      }
+
+      const maxBuy = yield* getMaxBuyQuantityOrNull(
+        deps,
+        GOLD_VOUCHER_100K_SELECTOR,
+      );
+      const buyQuantity = Math.min(missingQuantity, maxBuy ?? missingQuantity);
+      if (buyQuantity <= 0) {
+        return false;
+      }
+
+      const expectedQuantity = Math.min(
+        targetQuantity,
+        currentQuantity + buyQuantity,
+      );
+      const bought = yield* deps.shops.buy(GOLD_VOUCHER_100K_SELECTOR, {
+        quantity: buyQuantity,
+      });
+      if (!bought) {
+        yield* waitForInventoryQuantity(
+          deps,
+          GOLD_VOUCHER_100K,
+          expectedQuantity,
+        );
+        currentQuantity = yield* getInventoryQuantity(deps, GOLD_VOUCHER_100K);
+        if (currentQuantity >= expectedQuantity) {
+          yield* logRecipeWarning(
+            "ensureScrollOfEnrage continuing after voucher buy response failed but inventory settled",
+            {
+              sourceName: deps.sourceName,
+              iteration,
+              purpose,
+              targetQuantity,
+              currentQuantity,
+              expectedQuantity,
+              requestedQuantity: buyQuantity,
+            },
+          );
+          continue;
+        }
+
+        return false;
+      }
+
+      yield* waitForInventoryQuantity(deps, GOLD_VOUCHER_100K, expectedQuantity);
+      currentQuantity = yield* getInventoryQuantity(deps, GOLD_VOUCHER_100K);
+      if (currentQuantity < expectedQuantity) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+const ensureArcaneQuillQuantity = (
+  deps: ScriptRecipeDependencies,
+  targetQuantity: number,
+  iteration: number,
+  purpose: string,
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function* () {
+    let currentQuantity = yield* getInventoryQuantity(deps, ARCANE_QUILL);
+
+    while (currentQuantity < targetQuantity) {
+      const missingQuantity = targetQuantity - currentQuantity;
+      const vouchersReady = yield* ensureGoldVoucherQuantity(
+        deps,
+        missingQuantity,
+        iteration,
+        `${purpose}: ${ARCANE_QUILL}`,
+      );
+      if (!vouchersReady) {
+        return false;
+      }
+
+      const maxBuy = yield* getMaxBuyQuantityOrNull(
+        deps,
+        ARCANE_QUILL_SELECTOR,
+      );
+      const buyQuantity = Math.min(missingQuantity, maxBuy ?? missingQuantity);
+      if (buyQuantity <= 0) {
+        return false;
+      }
+
+      const expectedQuantity = Math.min(
+        targetQuantity,
+        currentQuantity + buyQuantity,
+      );
+      const bought = yield* deps.shops.buy(ARCANE_QUILL_SELECTOR, {
+        quantity: buyQuantity,
+      });
+      if (!bought) {
+        yield* waitForInventoryQuantity(deps, ARCANE_QUILL, expectedQuantity);
+        currentQuantity = yield* getInventoryQuantity(deps, ARCANE_QUILL);
+        if (currentQuantity >= expectedQuantity) {
+          yield* logRecipeWarning(
+            "ensureScrollOfEnrage continuing after arcane quill buy response failed but inventory settled",
+            {
+              sourceName: deps.sourceName,
+              iteration,
+              purpose,
+              targetQuantity,
+              currentQuantity,
+              expectedQuantity,
+              requestedQuantity: buyQuantity,
+            },
+          );
+          continue;
+        }
+
+        return false;
+      }
+
+      yield* waitForInventoryQuantity(deps, ARCANE_QUILL, expectedQuantity);
+      currentQuantity = yield* getInventoryQuantity(deps, ARCANE_QUILL);
+      if (currentQuantity < expectedQuantity) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+const ensureZealousInkQuantity = (
+  deps: ScriptRecipeDependencies,
+  targetQuantity: number,
+  iteration: number,
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function* () {
+    let currentQuantity = yield* getInventoryQuantity(deps, ZEALOUS_INK);
+    if (currentQuantity >= targetQuantity) {
+      return true;
+    }
+
+    const missingQuantity = targetQuantity - currentQuantity;
+    const buyQuantity =
+      Math.ceil(missingQuantity / ZEALOUS_INK_SHOP_QUANTITY) *
+      ZEALOUS_INK_SHOP_QUANTITY;
+    const quillsNeeded = Math.ceil(buyQuantity / ZEALOUS_INK_SHOP_QUANTITY);
+    const quillsReady = yield* ensureArcaneQuillQuantity(
+      deps,
+      quillsNeeded,
+      iteration,
+      "zealous ink reagent",
+    );
+    if (!quillsReady) {
+      return false;
+    }
+
+    const maxBuy = yield* getMaxBuyQuantityOrNull(deps, ZEALOUS_INK_SELECTOR);
+    if (maxBuy !== null && maxBuy < buyQuantity) {
+      return false;
+    }
+
+    const bought = yield* deps.shops.buy(ZEALOUS_INK_SELECTOR, {
+      quantity: buyQuantity,
+    });
+    if (!bought) {
+      yield* waitForInventoryQuantity(deps, ZEALOUS_INK, targetQuantity);
+      currentQuantity = yield* getInventoryQuantity(deps, ZEALOUS_INK);
+      if (currentQuantity >= targetQuantity) {
+        yield* logRecipeWarning(
+          "ensureScrollOfEnrage continuing after zealous ink buy response failed but inventory settled",
+          {
+            sourceName: deps.sourceName,
+            iteration,
+            targetQuantity,
+            currentQuantity,
+            requestedQuantity: buyQuantity,
+          },
+        );
+        return true;
+      }
+
+      return false;
+    }
+
+    yield* waitForInventoryQuantity(deps, ZEALOUS_INK, targetQuantity);
+    currentQuantity = yield* getInventoryQuantity(deps, ZEALOUS_INK);
+    if (currentQuantity < targetQuantity) {
+      return false;
+    }
+
+    return true;
+  });
+
+const waitForScrollOfEnrageProgress = (
+  deps: ScriptRecipeDependencies,
+  expectedQuantity: number,
+  targetQuantity: number,
+): Effect.Effect<
+  {
+    readonly currentQuantity: number;
+    readonly dropAcceptAttempts: number;
+    readonly progressed: boolean;
+  },
+  unknown
+> =>
+  Effect.gen(function* () {
+    let dropAcceptAttempts = 0;
+    const progressed = yield* deps.wait.until(
+      Effect.gen(function* () {
+        const hasDrop = yield* deps.drops.containsDrop(SCROLL_OF_ENRAGE);
+        if (hasDrop && dropAcceptAttempts < 3) {
+          dropAcceptAttempts++;
+          yield* deps.drops.acceptDrop(SCROLL_OF_ENRAGE);
+        }
+
+        const currentQuantity = yield* getInventoryQuantity(
+          deps,
+          SCROLL_OF_ENRAGE,
+        );
+        return (
+          currentQuantity >= expectedQuantity || currentQuantity >= targetQuantity
+        );
+      }),
+      { timeout: "7 seconds", interval: "250 millis" },
+    );
+    const currentQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
+
+    return {
+      currentQuantity,
+      dropAcceptAttempts,
+      progressed,
+    };
+  });
+
 const ensureScrollOfEnrage = (
   deps: ScriptRecipeDependencies,
   quantity: number,
@@ -398,51 +699,105 @@ const ensureScrollOfEnrage = (
       minimum: 1,
       maximum: 1_000,
     });
-    const itemName = "Scroll of Enrage";
-    if (yield* deps.inventory.contains(itemName, targetQuantity)) {
+    const initialQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
+    const initiallySatisfied = yield* deps.inventory.contains(
+      SCROLL_OF_ENRAGE,
+      targetQuantity,
+    );
+
+    if (initiallySatisfied) {
       return;
     }
 
-    yield* deps.bank.withdrawMany(
-      "Gold Voucher 100k",
-      "Arcane Quill",
-      "Zealous Ink",
-    );
+    yield* deps.bank.withdrawMany(GOLD_VOUCHER_100K, ARCANE_QUILL, ZEALOUS_INK);
     yield* deps.player.joinMap("spellcraft");
     yield* loadShopById(deps, 693);
 
-    while (!(yield* deps.inventory.contains(itemName, targetQuantity))) {
-      if (yield* deps.drops.containsDrop(itemName)) {
-        yield* deps.drops.acceptDrop(itemName);
+    let iteration = 0;
+    let currentQuantity = initialQuantity;
+    let targetSatisfied = yield* deps.inventory.contains(
+      SCROLL_OF_ENRAGE,
+      targetQuantity,
+    );
+    while (!targetSatisfied) {
+      iteration++;
+
+      if (yield* deps.drops.containsDrop(SCROLL_OF_ENRAGE)) {
+        const dropProgress = yield* waitForScrollOfEnrageProgress(
+          deps,
+          currentQuantity + 1,
+          targetQuantity,
+        );
+        currentQuantity = dropProgress.currentQuantity;
+      }
+
+      targetSatisfied = yield* deps.inventory.contains(
+        SCROLL_OF_ENRAGE,
+        targetQuantity,
+      );
+      if (targetSatisfied) {
+        break;
       }
 
       yield* deps.quests.accept(SCROLL_OF_ENRAGE_QUEST_ID, true);
 
-      if (!(yield* deps.inventory.contains("Gold Voucher 100k", 1))) {
-        if ((yield* deps.player.getGold()) < 100_000) {
-          return;
-        }
-        yield* deps.shops.buy({ name: "Gold Voucher 100k" }, { quantity: 1 });
-      }
-
-      if (!(yield* deps.inventory.contains("Arcane Quill", 1))) {
-        if ((yield* deps.player.getGold()) < 100_000) {
-          return;
-        }
-        yield* deps.shops.buy({ name: "Arcane Quill" }, { quantity: 1 });
-      }
-
-      if (!(yield* deps.inventory.contains("Zealous Ink", 5))) {
-        if (!(yield* deps.inventory.contains("Arcane Quill", 1))) {
-          return;
-        }
-        yield* deps.shops.buy({ name: "Zealous Ink" }, { quantity: 5 });
-      }
-
-      if (!(yield* deps.quests.canComplete(SCROLL_OF_ENRAGE_QUEST_ID))) {
+      if (
+        !(yield* ensureZealousInkQuantity(
+          deps,
+          ZEALOUS_INK_QUEST_QUANTITY,
+          iteration,
+        ))
+      ) {
         return;
       }
-      yield* deps.quests.complete(SCROLL_OF_ENRAGE_QUEST_ID, 5);
+
+      const questReady = yield* deps.quests.canComplete(
+        SCROLL_OF_ENRAGE_QUEST_ID,
+      );
+      if (!questReady) {
+        return;
+      }
+
+      const beforeQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
+      const remainingQuantity = Math.max(0, targetQuantity - beforeQuantity);
+      const neededTurnIns = Math.max(
+        1,
+        Math.ceil(remainingQuantity / SCROLL_OF_ENRAGE_REWARD_QUANTITY),
+      );
+      const maxTurnIns = yield* deps.quests.getMaxTurnIns(
+        SCROLL_OF_ENRAGE_QUEST_ID,
+      );
+      if (maxTurnIns <= 0) {
+        return;
+      }
+
+      const turnIns = Math.max(1, Math.min(maxTurnIns, neededTurnIns));
+      const expectedQuantity = Math.min(
+        targetQuantity,
+        beforeQuantity + turnIns * SCROLL_OF_ENRAGE_REWARD_QUANTITY,
+      );
+      const completed = yield* deps.quests.complete(
+        SCROLL_OF_ENRAGE_QUEST_ID,
+        turnIns,
+      );
+      if (!completed) {
+        return;
+      }
+
+      const progress = yield* waitForScrollOfEnrageProgress(
+        deps,
+        expectedQuantity,
+        targetQuantity,
+      );
+      currentQuantity = progress.currentQuantity;
+      targetSatisfied = yield* deps.inventory.contains(
+        SCROLL_OF_ENRAGE,
+        targetQuantity,
+      );
+
+      if (!progress.progressed && !targetSatisfied) {
+        return;
+      }
     }
     yield* abandonQuestAfterClientSettle(deps, SCROLL_OF_ENRAGE_QUEST_ID);
   });
@@ -570,7 +925,11 @@ const completeWheelOfDoomAndReadRewards = (
     );
 
     return yield* Effect.gen(function* () {
-      yield* deps.quests.complete(WHEEL_OF_DOOM_QUEST_ID);
+      const completed = yield* deps.quests.complete(WHEEL_OF_DOOM_QUEST_ID);
+      if (!completed) {
+        return [];
+      }
+
       const rewards = yield* Deferred.await(result).pipe(
         Effect.timeoutOption("5 seconds"),
       );

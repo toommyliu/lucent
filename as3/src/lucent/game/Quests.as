@@ -17,6 +17,11 @@ package lucent.game
     [BridgeExport]
     public static function complete(questId:int, turnIns:int = 1, itemId:int = -1, special:Boolean = false /* idk */):void
     {
+      if (!game.world.coolDown("tryQuestComplete"))
+      {
+        return;
+      }
+
       game.world.tryQuestComplete(questId, itemId, special, turnIns);
     }
 

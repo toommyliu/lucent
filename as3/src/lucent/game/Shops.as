@@ -53,16 +53,26 @@ package lucent.game {
     }
 
     private static function sendBuy(item:Object, quantity:int):void {
-      if (quantity === 1) {
-        game.world.sendBuyItemRequest(item);
+      if (!game.world.coolDown("buyItem")) {
         return;
       }
 
-      game.world.sendBuyItemRequestWithQuantity({
-        accept: 1,
-        iQty: quantity,
-        iSel: item
-      });
+      game.world.shopBuyItem = item;
+      if (quantity === 1) {
+        game.sfc.sendXtMessage("zm", "buyItem", [
+          item.ItemID,
+          game.world.shopinfo.ShopID,
+          item.ShopItemID
+        ], "str", game.world.curRoom);
+        return;
+      }
+
+      game.sfc.sendXtMessage("zm", "buyItem", [
+        item.ItemID,
+        game.world.shopinfo.ShopID,
+        item.ShopItemID,
+        quantity
+      ], "str", game.world.curRoom);
     }
 
     private static function sendSell(item:Object, quantity:int):void {
@@ -172,48 +182,45 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function buyByName(name:String, quantity:int = 1):Boolean {
+    public static function buyByName(name:String, quantity:int = 1):void {
       if (!name || quantity <= 0) {
-        return false;
+        return;
       }
 
       var item:Object = getItem(name);
-      if (!item) {
-        return false;
+      if (!canBuyQuantity(item, quantity)) {
+        return;
       }
 
       sendBuy(item, quantity);
-      return true;
     }
 
     [BridgeExport]
-    public static function buyById(id:int, quantity:int = 1):Boolean {
+    public static function buyById(id:int, quantity:int = 1):void {
       if (id <= 0 || quantity <= 0) {
-        return false;
+        return;
       }
 
       var item:Object = getItem(id);
-      if (!item) {
-        return false;
+      if (!canBuyQuantity(item, quantity)) {
+        return;
       }
 
       sendBuy(item, quantity);
-      return true;
     }
 
     [BridgeExport]
-    public static function buyByShopItemId(shopItemId:String, quantity:int = 1):Boolean {
+    public static function buyByShopItemId(shopItemId:String, quantity:int = 1):void {
       if (!shopItemId || quantity <= 0) {
-        return false;
+        return;
       }
 
       var item:Object = getItemByShopItemId(shopItemId);
-      if (!item) {
-        return false;
+      if (!canBuyQuantity(item, quantity)) {
+        return;
       }
 
       sendBuy(item, quantity);
-      return true;
     }
 
     [BridgeExport]

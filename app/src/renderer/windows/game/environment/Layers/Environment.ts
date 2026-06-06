@@ -505,18 +505,20 @@ const make = Effect.gen(function* () {
             const startedAt = Date.now();
             yield* Ref.set(lastQuestMutationAtRef, startedAt);
 
-            const effect =
+            const mutation =
               intent.action === "accept"
-                ? quests.accept(intent.questId, true)
+                ? quests.accept(intent.questId, true).pipe(
+                    Effect.as(true),
+                    Effect.timeoutOption(QUEST_ACTION_TIMEOUT),
+                    Effect.map(Option.getOrElse(() => false)),
+                  )
                 : quests.complete(
                     intent.questId,
                     undefined,
                     intent.rewardItemId,
                   );
 
-            const completed = yield* effect.pipe(
-              Effect.timeoutOption(QUEST_ACTION_TIMEOUT),
-              Effect.map(Option.isSome),
+            const completed = yield* mutation.pipe(
               Effect.catchCause((cause) =>
                 Effect.logError({
                   message: "environment quest mutation failed",
