@@ -2,8 +2,10 @@ import { splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 import { isAriaInvalid } from "../lib/domState";
 
-export interface InputProps
-  extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "class" | "size"> {
+export interface InputProps extends Omit<
+  JSX.InputHTMLAttributes<HTMLInputElement>,
+  "class" | "size"
+> {
   readonly class?: string;
   readonly fullWidth?: boolean;
   readonly invalid?: boolean;

@@ -165,10 +165,7 @@ const earlyFlashSetup = (() => {
     flashPluginPath === null || !existsSync(flashPluginPath);
 
   if (flashPluginPath && !isFlashPluginMissing) {
-    app.commandLine.appendSwitch(
-      "ppapi-flash-path",
-      flashPluginPath,
-    );
+    app.commandLine.appendSwitch("ppapi-flash-path", flashPluginPath);
   }
 
   try {

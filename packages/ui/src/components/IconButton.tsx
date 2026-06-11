@@ -8,8 +8,10 @@ export type IconButtonSize =
   | "icon-lg"
   | "icon-xl";
 
-export interface IconButtonProps
-  extends Omit<ButtonProps, "children" | "size"> {
+export interface IconButtonProps extends Omit<
+  ButtonProps,
+  "children" | "size"
+> {
   readonly "aria-label": string;
   readonly children: JSX.Element;
   readonly size?: IconButtonSize;

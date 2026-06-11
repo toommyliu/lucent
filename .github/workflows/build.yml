@@ -34,6 +34,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify
+        run: |
+          pnpm format
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm audit --audit-level high
+
       - name: Build electron app
         run: pnpm run dist:app:all
         env:

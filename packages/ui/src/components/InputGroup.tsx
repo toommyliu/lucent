@@ -29,8 +29,10 @@ interface InputGroupContextValue {
 
 const InputGroupContext = createContext<InputGroupContextValue>();
 
-export interface InputGroupProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface InputGroupProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
   readonly disabled?: boolean;
   readonly invalid?: boolean;
@@ -85,8 +87,10 @@ export function InputGroup(props: InputGroupProps): JSX.Element {
   );
 }
 
-export interface InputGroupAddonProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface InputGroupAddonProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly align?: InputGroupAddonAlign;
   readonly class?: string;
 }

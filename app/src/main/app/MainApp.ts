@@ -351,9 +351,7 @@ export const getLatestAppearanceSnapshot = (settings: AppSettings) => {
   );
 };
 
-export const configureGameWindow = (
-  win: ElectronBrowserWindow,
-): void => {
+export const configureGameWindow = (win: ElectronBrowserWindow): void => {
   win.webContents.setUserAgent(gameUserAgent);
 };
 

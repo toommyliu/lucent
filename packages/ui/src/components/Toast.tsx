@@ -82,16 +82,20 @@ export interface CreateToastControllerOptions {
   readonly limit?: number;
 }
 
-export interface ToasterProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface ToasterProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
   readonly controller: ToastController;
   readonly placement?: ToastPlacement;
   readonly removeDelay?: number;
 }
 
-export interface ToastBannerProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface ToastBannerProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
   readonly controller: Pick<ToastController, "close" | "remove">;
   readonly removeDelay?: number;

@@ -71,7 +71,10 @@ const matchesShopItemSelector = (
   item: ShopItem,
   selector: ShopItemSelector,
 ): boolean => {
-  if (selector.name !== undefined && !equalsIgnoreCase(item.name, selector.name)) {
+  if (
+    selector.name !== undefined &&
+    !equalsIgnoreCase(item.name, selector.name)
+  ) {
     return false;
   }
 
@@ -473,9 +476,7 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const quantity = normalizeQuantity(options);
       if (selector.name !== undefined && selector.itemId !== undefined) {
-        const item = yield* bridge.call("inventory.getItem", [
-          selector.itemId,
-        ]);
+        const item = yield* bridge.call("inventory.getItem", [selector.itemId]);
         if (!selectorMatchesInventoryItem(item, selector)) {
           return false;
         }

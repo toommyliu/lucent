@@ -507,11 +507,13 @@ const make = Effect.gen(function* () {
 
             const mutation =
               intent.action === "accept"
-                ? quests.accept(intent.questId, true).pipe(
-                    Effect.as(true),
-                    Effect.timeoutOption(QUEST_ACTION_TIMEOUT),
-                    Effect.map(Option.getOrElse(() => false)),
-                  )
+                ? quests
+                    .accept(intent.questId, true)
+                    .pipe(
+                      Effect.as(true),
+                      Effect.timeoutOption(QUEST_ACTION_TIMEOUT),
+                      Effect.map(Option.getOrElse(() => false)),
+                    )
                 : quests.complete(
                     intent.questId,
                     undefined,

@@ -14,8 +14,10 @@ import {
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 
-export interface ColorPickerProps
-  extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "class" | "type"> {
+export interface ColorPickerProps extends Omit<
+  JSX.InputHTMLAttributes<HTMLInputElement>,
+  "class" | "type"
+> {
   readonly class?: string;
 }
 

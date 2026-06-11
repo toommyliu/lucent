@@ -55,11 +55,12 @@ describe("account login server preference storage", () => {
     const preference = readStoredAccountLoginServerPreference();
 
     expect(preference).toBeUndefined();
-    expect(resolveAccountLoginServerPreference([server("Twilly")], preference))
-      .toEqual({
-        type: "server",
-        name: "Twilly",
-      });
+    expect(
+      resolveAccountLoginServerPreference([server("Twilly")], preference),
+    ).toEqual({
+      type: "server",
+      name: "Twilly",
+    });
   });
 
   it("round-trips an explicit none preference", () => {
@@ -67,10 +68,11 @@ describe("account login server preference storage", () => {
     const preference = readStoredAccountLoginServerPreference();
 
     expect(preference).toBeNull();
-    expect(resolveAccountLoginServerPreference([server("Twilly")], preference))
-      .toEqual({
-        type: "none",
-      });
+    expect(
+      resolveAccountLoginServerPreference([server("Twilly")], preference),
+    ).toEqual({
+      type: "none",
+    });
   });
 
   it("round-trips a saved server name", () => {
@@ -94,11 +96,12 @@ describe("account login server preference storage", () => {
     const preference = readStoredAccountLoginServerPreference();
 
     expect(preference).toBeUndefined();
-    expect(resolveAccountLoginServerPreference([server("Twilly")], preference))
-      .toEqual({
-        type: "server",
-        name: "Twilly",
-      });
+    expect(
+      resolveAccountLoginServerPreference([server("Twilly")], preference),
+    ).toEqual({
+      type: "server",
+      name: "Twilly",
+    });
   });
 });
 

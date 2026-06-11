@@ -1,8 +1,7 @@
 import type { JSX } from "solid-js";
 import { cn } from "../lib/cn";
 
-export interface VisuallyHiddenProps
-  extends JSX.HTMLAttributes<HTMLSpanElement> {
+export interface VisuallyHiddenProps extends JSX.HTMLAttributes<HTMLSpanElement> {
   readonly class?: string;
 }
 

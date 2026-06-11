@@ -23,10 +23,7 @@ import type { CombatShape } from "../flash/Services/Combat";
 import type { DropsShape } from "../flash/Services/Drops";
 import type { HouseShape } from "../flash/Services/House";
 import type { InventoryShape } from "../flash/Services/Inventory";
-import type {
-  Outfit,
-  OutfitEquipOptions,
-} from "../flash/Services/Outfits";
+import type { Outfit, OutfitEquipOptions } from "../flash/Services/Outfits";
 import type { PacketShape } from "../flash/Services/Packet";
 import type { PlayerShape } from "../flash/Services/Player";
 import type { QuestsShape } from "../flash/Services/Quests";
@@ -183,8 +180,9 @@ export type ScriptEventPredicate<E extends ScriptSemanticEventName> = (
 
 export type ScriptEventDisposer = () => void;
 
-export interface ScriptEventWaitOptions<E extends ScriptSemanticEventName>
-  extends ScriptWaitOptions {
+export interface ScriptEventWaitOptions<
+  E extends ScriptSemanticEventName,
+> extends ScriptWaitOptions {
   readonly predicate?: ScriptEventPredicate<E>;
 }
 
@@ -199,9 +197,10 @@ export interface ScriptAuthShape {
   logout(): BridgeEffect<void>;
 }
 
-export interface ScriptPacketApi
-  extends Pick<EffectValue<PacketShape>, "sendClient" | "sendServer"> {
-}
+export interface ScriptPacketApi extends Pick<
+  EffectValue<PacketShape>,
+  "sendClient" | "sendServer"
+> {}
 
 export interface ScriptEventsApi {
   /**
@@ -249,8 +248,10 @@ export interface ScriptSettingsShape {
   setFrameRate(fps: number): BridgeEffect<void>;
 }
 
-export interface ScriptQuestsShape
-  extends Omit<QuestsShape, "get" | "onLoaded"> {
+export interface ScriptQuestsShape extends Omit<
+  QuestsShape,
+  "get" | "onLoaded"
+> {
   get(questId: number): Effect.Effect<Quest | null>;
 }
 
@@ -409,10 +410,7 @@ export interface ScriptAuraShape {
 
 export interface ScriptWorldPlayerAurasShape {
   getAll(player: PlayerSelector): Effect.Effect<Collection<string, Aura>>;
-  get(
-    player: PlayerSelector,
-    auraName: string,
-  ): Effect.Effect<Aura | null>;
+  get(player: PlayerSelector, auraName: string): Effect.Effect<Aura | null>;
   has(
     player: PlayerSelector,
     auraName: string,
@@ -422,10 +420,7 @@ export interface ScriptWorldPlayerAurasShape {
 
 export interface ScriptWorldMonsterAurasShape {
   getAll(monster: MonsterSelector): Effect.Effect<Collection<string, Aura>>;
-  get(
-    monster: MonsterSelector,
-    auraName: string,
-  ): Effect.Effect<Aura | null>;
+  get(monster: MonsterSelector, auraName: string): Effect.Effect<Aura | null>;
   has(
     monster: MonsterSelector,
     auraName: string,
@@ -448,8 +443,10 @@ export interface ScriptWorldMonstersShape {
   readonly auras: ScriptWorldMonsterAurasShape;
 }
 
-export interface ScriptWorldEntitiesShape
-  extends Omit<WorldEntitiesShape, "get" | "getMe"> {
+export interface ScriptWorldEntitiesShape extends Omit<
+  WorldEntitiesShape,
+  "get" | "getMe"
+> {
   getMe(): Effect.Effect<WorldEntity | null>;
   get(selector: WorldEntitySelector): Effect.Effect<WorldEntity | null>;
 }
@@ -495,8 +492,7 @@ export interface ScriptCombatTargetAurasShape {
   has(auraName: string, options?: AuraMatchOptions): BridgeEffect<boolean>;
 }
 
-export interface ScriptShopsShape
-  extends Omit<ShopsShape, "getItem"> {
+export interface ScriptShopsShape extends Omit<ShopsShape, "getItem"> {
   getItem(selector: ShopItemSelector): ShopItemSelectionEffect<ShopItem | null>;
   getItems(): BridgeEffect<Collection<string, ShopItem>>;
   buy(
@@ -511,7 +507,9 @@ export interface ScriptShopsShape
     selector: ShopItemSelector,
     options?: ShopQuantityOptions,
   ): ShopItemSelectionEffect<boolean>;
-  getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
+  getMaxBuyQuantity(
+    selector: ShopItemSelector,
+  ): ShopItemSelectionEffect<number>;
 }
 
 export interface ScriptAutoReloginShape {
@@ -580,9 +578,7 @@ export interface ScriptOptionsApi {
     enabled: boolean,
   ): Effect.Effect<void, ScriptExecutionError>;
   getSafeStartStop(): Effect.Effect<boolean>;
-  setSafeStartStop(
-    enabled: boolean,
-  ): Effect.Effect<void, ScriptExecutionError>;
+  setSafeStartStop(enabled: boolean): Effect.Effect<void, ScriptExecutionError>;
   getAll(): Effect.Effect<Readonly<ScriptOptions>>;
   reset(): Effect.Effect<void>;
 }

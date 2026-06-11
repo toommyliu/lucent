@@ -143,10 +143,12 @@ test("monster selectors resolve first matching name and precise monMapId", async
     }),
   );
 
-  expect(Option.isSome(result.byName) ? result.byName.value.monMapId : null).toBe(
-    7,
+  expect(
+    Option.isSome(result.byName) ? result.byName.value.monMapId : null,
+  ).toBe(7);
+  expect(Option.isSome(result.byId) ? result.byId.value.monMapId : null).toBe(
+    8,
   );
-  expect(Option.isSome(result.byId) ? result.byId.value.monMapId : null).toBe(8);
   expect(Option.isNone(result.mismatch)).toBe(true);
 });
 
@@ -229,11 +231,9 @@ test("available monsters use native bridge ids and aura has checks min stacks", 
           "Arcane Shield",
           { minStacks: 2, minValue: 51 },
         ),
-        monsterAuraAtLeastThree: yield* world.monsters.auras.has(
-          8,
-          "Enrage",
-          { minStacks: 3 },
-        ),
+        monsterAuraAtLeastThree: yield* world.monsters.auras.has(8, "Enrage", {
+          minStacks: 3,
+        }),
         monsterAuraPresent: yield* world.monsters.auras.has(8, "Plain Aura"),
         monsterAuraMissingValue: yield* world.monsters.auras.has(
           8,

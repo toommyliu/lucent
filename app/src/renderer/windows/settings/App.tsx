@@ -877,7 +877,6 @@ function HotkeySettingsSection(props: {
         </div>
       }
     >
-
       <div class="hotkey-layouts--continuous">
         <For each={commandCategories}>
           {(category) => (

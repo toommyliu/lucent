@@ -153,7 +153,11 @@ const createClearDataMenuItem = (
     void clearData()
       .then(() => showDataClearResult(dataName, "succeeded"))
       .catch((error) => {
-        dependencies.logError("menu", `Failed to clear ${dataName} data`, error);
+        dependencies.logError(
+          "menu",
+          `Failed to clear ${dataName} data`,
+          error,
+        );
         return showDataClearResult(dataName, "failed");
       });
   },
@@ -280,11 +284,7 @@ const installApplicationMenu = async (
         ] satisfies MenuItemConstructorOptions[])
       : []),
     createClearDataMenuItem("App", dependencies.clearAppData, dependencies),
-    createClearDataMenuItem(
-      "Flash",
-      dependencies.clearFlashData,
-      dependencies,
-    ),
+    createClearDataMenuItem("Flash", dependencies.clearFlashData, dependencies),
   ];
   const template: MenuItemConstructorOptions[] = [
     ...(isDarwin

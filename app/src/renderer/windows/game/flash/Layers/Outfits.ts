@@ -35,31 +35,27 @@ const make = Effect.gen(function* () {
   const wait = yield* Wait;
 
   const getAll: OutfitsShape["getAll"] = () =>
-    bridge
-      .call("outfits.getAll")
-      .pipe(
-        Effect.map((outfits) => {
-          const collection = new Collection<string, Outfit>();
-          for (const outfit of outfits) {
-            const normalized = normalizeOutfit(outfit);
-            if (normalized !== null) {
-              collection.set(normalizeKey(normalized.name), normalized);
-            }
+    bridge.call("outfits.getAll").pipe(
+      Effect.map((outfits) => {
+        const collection = new Collection<string, Outfit>();
+        for (const outfit of outfits) {
+          const normalized = normalizeOutfit(outfit);
+          if (normalized !== null) {
+            collection.set(normalizeKey(normalized.name), normalized);
           }
+        }
 
-          return collection;
-        }),
-      );
+        return collection;
+      }),
+    );
 
   const get: OutfitsShape["get"] = (name) =>
-    bridge
-      .call("outfits.get", [name])
-      .pipe(
-        Effect.map((outfit) => {
-          const normalized = normalizeOutfit(outfit);
-          return normalized === null ? Option.none() : Option.some(normalized);
-        }),
-      );
+    bridge.call("outfits.get", [name]).pipe(
+      Effect.map((outfit) => {
+        const normalized = normalizeOutfit(outfit);
+        return normalized === null ? Option.none() : Option.some(normalized);
+      }),
+    );
 
   const equip: OutfitsShape["equip"] = (name, options) =>
     Effect.gen(function* () {

@@ -218,11 +218,11 @@ test("packet domain updates remote player position from uotls move packets", asy
       let resolveLocation:
         | ((event: GameEventMap["playerLocation"]) => void)
         | undefined;
-      const observedLocation = new Promise<
-        GameEventMap["playerLocation"]
-      >((resolve) => {
-        resolveLocation = resolve;
-      });
+      const observedLocation = new Promise<GameEventMap["playerLocation"]>(
+        (resolve) => {
+          resolveLocation = resolve;
+        },
+      );
 
       yield* packetDomain.on("playerLocation", (event) =>
         Effect.sync(() => resolveLocation?.(event)),
@@ -230,12 +230,7 @@ test("packet domain updates remote player position from uotls move packets", asy
 
       emitExtensionPacket(
         JSON.stringify({
-          dataObj: [
-            "uotls",
-            "-1",
-            "Hero",
-            "tx:464,ty:445,sp:8,strFrame:Enter",
-          ],
+          dataObj: ["uotls", "-1", "Hero", "tx:464,ty:445,sp:8,strFrame:Enter"],
           type: "str",
         }),
       );
@@ -301,12 +296,8 @@ test("game event projector updates player afk state and emits afk events", async
   const result = await withGameEvents((gameEvents, world) =>
     Effect.gen(function* () {
       yield* world.players.add(avatar("Hero", { afk: false }));
-      let resolveAfkTrue:
-        | ((event: GameEventMap["afk"]) => void)
-        | undefined;
-      let resolveAfkFalse:
-        | ((event: GameEventMap["afk"]) => void)
-        | undefined;
+      let resolveAfkTrue: ((event: GameEventMap["afk"]) => void) | undefined;
+      let resolveAfkFalse: ((event: GameEventMap["afk"]) => void) | undefined;
       const observedAfkTrue = new Promise<GameEventMap["afk"]>((resolve) => {
         resolveAfkTrue = resolve;
       });
@@ -414,11 +405,9 @@ test("game event projector emits player death once per alive-to-dead transition"
       let resolveDeath:
         | ((event: GameEventMap["playerDeath"]) => void)
         | undefined;
-      const firstDeath = new Promise<GameEventMap["playerDeath"]>(
-        (resolve) => {
-          resolveDeath = resolve;
-        },
-      );
+      const firstDeath = new Promise<GameEventMap["playerDeath"]>((resolve) => {
+        resolveDeath = resolve;
+      });
 
       yield* gameEvents.on("playerDeath", (death) =>
         Effect.sync(() => {
@@ -605,12 +594,9 @@ test("packet domain parses monster ids from animation target lists", async () =>
 test("packet domain emits monster aura add and remove events", async () => {
   const events = await withGameEvents((packetDomain, world) =>
     Effect.gen(function* () {
-      const observed: Array<GameEventMap["auraAdded" | "auraRemoved"]> =
-        [];
+      const observed: Array<GameEventMap["auraAdded" | "auraRemoved"]> = [];
       let resolveEvents:
-        | ((
-            events: Array<GameEventMap["auraAdded" | "auraRemoved"]>,
-          ) => void)
+        | ((events: Array<GameEventMap["auraAdded" | "auraRemoved"]>) => void)
         | undefined;
       const done = new Promise<
         Array<GameEventMap["auraAdded" | "auraRemoved"]>
@@ -618,9 +604,7 @@ test("packet domain emits monster aura add and remove events", async () => {
         resolveEvents = resolve;
       });
 
-      const pushEvent = (
-        event: GameEventMap["auraAdded" | "auraRemoved"],
-      ) => {
+      const pushEvent = (event: GameEventMap["auraAdded" | "auraRemoved"]) => {
         observed.push(event);
         if (observed.length === 2) {
           resolveEvents?.(observed);
@@ -667,7 +651,9 @@ test("packet domain emits player aura target names", async () => {
     Effect.gen(function* () {
       yield* world.players.add(avatar("Hero", { entID: 9 }));
 
-      let resolveEvent: ((event: GameEventMap["auraAdded"]) => void) | undefined;
+      let resolveEvent:
+        | ((event: GameEventMap["auraAdded"]) => void)
+        | undefined;
       const observed = new Promise<GameEventMap["auraAdded"]>((resolve) => {
         resolveEvent = resolve;
       });

@@ -73,12 +73,16 @@ const isWindowUsable = (
 const isWindowPresented = (
   window: BrowserWindow | null | undefined,
 ): window is BrowserWindow =>
-  Boolean(isWindowUsable(window) && window.isVisible() && !window.isMinimized());
+  Boolean(
+    isWindowUsable(window) && window.isVisible() && !window.isMinimized(),
+  );
 
 const isWindowHidden = (
   window: BrowserWindow | null | undefined,
 ): window is BrowserWindow =>
-  Boolean(isWindowUsable(window) && !window.isVisible() && !window.isMinimized());
+  Boolean(
+    isWindowUsable(window) && !window.isVisible() && !window.isMinimized(),
+  );
 
 const createLoadFailure = (
   target: string,
@@ -550,17 +554,15 @@ export const makeWindowService = (
   const openGameWindow: WindowServiceShape["openGameWindow"] = (options) =>
     Effect.gen(function* () {
       const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
-      const window = yield* createManagedWindow(
-        {
-          ...createGameWindowOptions(
-            config,
-            appearanceSnapshot,
-            settingsSnapshot,
-          ),
-          ...(options?.bounds === undefined ? {} : { useContentSize: false }),
-          ...options?.bounds,
-        },
-      );
+      const window = yield* createManagedWindow({
+        ...createGameWindowOptions(
+          config,
+          appearanceSnapshot,
+          settingsSnapshot,
+        ),
+        ...(options?.bounds === undefined ? {} : { useContentSize: false }),
+        ...options?.bounds,
+      });
 
       notifyWindowCreated(window, { kind: "game", label: "Game" });
       config.onGameWindowCreated?.(window);

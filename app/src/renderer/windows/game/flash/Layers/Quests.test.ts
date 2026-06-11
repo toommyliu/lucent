@@ -28,10 +28,7 @@ const questInfo = (questId: number): QuestInfo =>
     sName: `Quest ${questId}`,
   }) as unknown as QuestInfo;
 
-const makeQuestPacket = (
-  cmd: string,
-  data: Record<string, unknown>,
-) =>
+const makeQuestPacket = (cmd: string, data: Record<string, unknown>) =>
   ({
     type: "extension",
     raw: JSON.stringify({ dataObj: data, type: "json" }),
@@ -196,12 +193,16 @@ test("silent loadMany waits until fetched quests are in the local tree", async (
 });
 
 test("accept does not resend when quest is already in progress", async () => {
-  const bridgeCalls: Array<{ readonly path: string; readonly args?: unknown[] }> =
-    [];
+  const bridgeCalls: Array<{
+    readonly path: string;
+    readonly args?: unknown[];
+  }> = [];
   const bridge = {
     call(path, args) {
       bridgeCalls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "world.isActionAvailable") {
         return Effect.succeed(true) as never;
@@ -248,13 +249,17 @@ test("accept does not resend when quest is already in progress", async () => {
 });
 
 test("complete waits for matching ccqr response before returning", async () => {
-  const bridgeCalls: Array<{ readonly path: string; readonly args?: unknown[] }> =
-    [];
+  const bridgeCalls: Array<{
+    readonly path: string;
+    readonly args?: unknown[];
+  }> = [];
   let completed = false;
   const bridge = {
     call(path, args) {
       bridgeCalls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "world.isActionAvailable") {
         return Effect.succeed(true) as never;
@@ -359,12 +364,16 @@ test("complete eventually returns when ccqr response is missing", async () => {
 });
 
 test("complete does not send when quest complete action is unavailable", async () => {
-  const bridgeCalls: Array<{ readonly path: string; readonly args?: unknown[] }> =
-    [];
+  const bridgeCalls: Array<{
+    readonly path: string;
+    readonly args?: unknown[];
+  }> = [];
   const bridge = {
     call(path, args) {
       bridgeCalls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "world.isActionAvailable") {
         return Effect.succeed(false) as never;

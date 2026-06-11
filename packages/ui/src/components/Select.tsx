@@ -30,11 +30,10 @@ interface SelectContextValue {
 
 const SelectItemsContext = createContext<SelectContextValue>();
 
-export interface SelectProps
-  extends Omit<
-    Parameters<typeof SelectPrimitive.Root<SelectOption>>[0],
-    "collection"
-  > {
+export interface SelectProps extends Omit<
+  Parameters<typeof SelectPrimitive.Root<SelectOption>>[0],
+  "collection"
+> {
   readonly items?: ReadonlyArray<SelectOption>;
 }
 
@@ -88,8 +87,10 @@ export function Select(props: SelectProps): JSX.Element {
   );
 }
 
-export interface SelectButtonProps
-  extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "class" | "size"> {
+export interface SelectButtonProps extends Omit<
+  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
+  "class" | "size"
+> {
   readonly class?: string;
   readonly size?: "sm" | "default" | "lg";
 }
@@ -110,8 +111,10 @@ export function SelectButton(props: SelectButtonProps): JSX.Element {
   );
 }
 
-export interface SelectTriggerProps
-  extends Omit<Parameters<typeof SelectPrimitive.Trigger>[0], "class"> {
+export interface SelectTriggerProps extends Omit<
+  Parameters<typeof SelectPrimitive.Trigger>[0],
+  "class"
+> {
   readonly class?: string;
   readonly size?: "sm" | "default" | "lg";
 }
@@ -131,8 +134,10 @@ export function SelectTrigger(props: SelectTriggerProps): JSX.Element {
   );
 }
 
-export interface SelectValueProps
-  extends Omit<Parameters<typeof SelectPrimitive.ValueText>[0], "children"> {
+export interface SelectValueProps extends Omit<
+  Parameters<typeof SelectPrimitive.ValueText>[0],
+  "children"
+> {
   readonly placeholder?: string;
 }
 
@@ -162,8 +167,10 @@ export function SelectValue(props: SelectValueProps): JSX.Element {
   );
 }
 
-export interface SelectContentProps
-  extends Omit<Parameters<typeof SelectPrimitive.Content>[0], "class"> {
+export interface SelectContentProps extends Omit<
+  Parameters<typeof SelectPrimitive.Content>[0],
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -189,8 +196,10 @@ export function SelectContent(props: SelectContentProps): JSX.Element {
   );
 }
 
-export interface SelectItemProps
-  extends Omit<Parameters<typeof SelectPrimitive.Item>[0], "class" | "item"> {
+export interface SelectItemProps extends Omit<
+  Parameters<typeof SelectPrimitive.Item>[0],
+  "class" | "item"
+> {
   readonly class?: string;
   readonly disabled?: boolean;
   readonly item?: SelectOption;
@@ -297,8 +306,10 @@ export function SelectLabel(props: SelectLabelProps): JSX.Element {
   );
 }
 
-export interface SelectSeparatorProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface SelectSeparatorProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

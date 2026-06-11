@@ -1272,7 +1272,10 @@ const make = Effect.gen(function* () {
       has: (auraName, options) =>
         Effect.gen(function* () {
           const aura = yield* target.auras.get(auraName);
-          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+          return matchesAura(
+            Option.isSome(aura) ? aura.value : undefined,
+            options,
+          );
         }),
     },
   };

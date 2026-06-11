@@ -180,7 +180,9 @@ const getPlayerBySelector = (
   }
 
   if (typeof selector === "number") {
-    return Number.isFinite(selector) ? getPlayerByEntId(state, selector) : undefined;
+    return Number.isFinite(selector)
+      ? getPlayerByEntId(state, selector)
+      : undefined;
   }
 
   const byUsername =
@@ -596,7 +598,10 @@ const make = Effect.gen(function* () {
     has: (selector, auraName, options) =>
       Effect.gen(function* () {
         const aura = yield* playerAuras.get(selector, auraName);
-        return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+        return matchesAura(
+          Option.isSome(aura) ? aura.value : undefined,
+          options,
+        );
       }),
   };
 
@@ -622,7 +627,10 @@ const make = Effect.gen(function* () {
     has: (selector, auraName, options) =>
       Effect.gen(function* () {
         const aura = yield* monsterAuras.get(selector, auraName);
-        return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+        return matchesAura(
+          Option.isSome(aura) ? aura.value : undefined,
+          options,
+        );
       }),
   };
 

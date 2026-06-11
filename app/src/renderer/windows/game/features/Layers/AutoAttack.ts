@@ -240,10 +240,7 @@ const make = Effect.gen(function* () {
             : currentTarget.value.monMapId !== lockedTargetMonMapId)
         ) {
           lockedTargetMonMapId = currentTarget.value.monMapId;
-          yield* Ref.set(
-            lockedTargetMonMapIdRef,
-            lockedTargetMonMapId,
-          );
+          yield* Ref.set(lockedTargetMonMapIdRef, lockedTargetMonMapId);
         }
 
         if (lockedTargetMonMapId !== undefined) {
@@ -354,12 +351,10 @@ const make = Effect.gen(function* () {
           yield* Effect.sync(() => {
             disposeMonsterDeath?.();
           });
-          yield* combat
-            .cancelAutoAttack()
-            .pipe(
-              Effect.andThen(combat.cancelTarget()),
-              Effect.catch(() => Effect.void),
-            );
+          yield* combat.cancelAutoAttack().pipe(
+            Effect.andThen(combat.cancelTarget()),
+            Effect.catch(() => Effect.void),
+          );
         }),
       ),
     );

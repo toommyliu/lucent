@@ -17,8 +17,10 @@ export function Tabs(props: TabsProps): JSX.Element {
 
 export type TabsVariant = "default" | "underline";
 
-export interface TabsListProps
-  extends Omit<Parameters<typeof TabsPrimitive.List>[0], "class"> {
+export interface TabsListProps extends Omit<
+  Parameters<typeof TabsPrimitive.List>[0],
+  "class"
+> {
   readonly class?: string;
   readonly variant?: TabsVariant;
 }

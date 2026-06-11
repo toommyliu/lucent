@@ -210,8 +210,7 @@ const makeWorld = (
       Effect.succeed(
         Option.fromNullishOr(playerAuras.get(entId)?.get(auraKey(auraName))),
       ),
-    getAuras: (entId) =>
-      Effect.succeed(auraCollection(playerAuras.get(entId))),
+    getAuras: (entId) => Effect.succeed(auraCollection(playerAuras.get(entId))),
     getByName: (name) =>
       Effect.succeed(
         Option.fromNullishOr(
@@ -270,7 +269,9 @@ const makeWorld = (
           ).players.get(selector);
           return Option.isSome(player)
             ? Option.fromNullishOr(
-                playerAuras.get(player.value.data.entID)?.get(auraKey(auraName)),
+                playerAuras
+                  .get(player.value.data.entID)
+                  ?.get(auraKey(auraName)),
               )
             : Option.none<Aura>();
         }),
@@ -281,7 +282,10 @@ const makeWorld = (
             playerNames,
             playerAuras,
           ).players.auras.get(selector, auraName);
-          return matchesAura(Option.isSome(aura) ? aura.value : undefined, options);
+          return matchesAura(
+            Option.isSome(aura) ? aura.value : undefined,
+            options,
+          );
         }),
     },
   },
@@ -453,7 +457,8 @@ const withArmy = async <A>(
 
             loopTaunt = {
               ...loopTaunt,
-              nextIndex: (loopTaunt.nextIndex + 1) % loopTaunt.participants.length,
+              nextIndex:
+                (loopTaunt.nextIndex + 1) % loopTaunt.participants.length,
             };
 
             const command: ArmyLoopTauntCommandPayload = {
@@ -628,10 +633,7 @@ const withArmy = async <A>(
     walkTo: () => Effect.succeed(true),
   } satisfies PlayerShape;
 
-  const emit = <E extends GameEvent>(
-    event: E,
-    payload: GameEventMap[E],
-  ) =>
+  const emit = <E extends GameEvent>(event: E, payload: GameEventMap[E]) =>
     Effect.gen(function* () {
       if (event === "auraAdded" || event === "auraRemoved") {
         const auraPayload = payload as GameEventMap[
@@ -1203,8 +1205,7 @@ test("Loop Taunt renderer does not run local recovery timers", async () => {
   vi.useFakeTimers();
   try {
     const delayMs = 1_000;
-    const beforeRecoveryMs =
-      delayMs + DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS - 1;
+    const beforeRecoveryMs = delayMs + DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS - 1;
     const recoveryMs =
       DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS +
       DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS +

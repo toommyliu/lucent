@@ -335,16 +335,13 @@ test("useSkill is a no-op when the player is dead", async () => {
 
 test("anti-counter start stops auto attack and clears the target when enabled", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);
@@ -400,17 +397,14 @@ test("anti-counter start stops auto attack and clears the target when enabled", 
 
 test("anti-counter end resumes a target stopped by anti-counter", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   let antiCounterEnd: GameEventHandler<"antiCounterEnd"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       } else if (event === "antiCounterEnd") {
         antiCounterEnd = handler as GameEventHandler<"antiCounterEnd">;
       }
@@ -477,17 +471,14 @@ test("anti-counter end resumes a target stopped by anti-counter", async () => {
 test("anti-counter end does not resume while another anti-counter is active", async () => {
   const calls: string[] = [];
   let targetReadCount = 0;
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   let antiCounterEnd: GameEventHandler<"antiCounterEnd"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       } else if (event === "antiCounterEnd") {
         antiCounterEnd = handler as GameEventHandler<"antiCounterEnd">;
       }
@@ -564,16 +555,13 @@ test("anti-counter end does not resume while another anti-counter is active", as
 
 test("anti-counter start does not cancel the current target when disabled", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);
@@ -607,16 +595,13 @@ test("anti-counter start does not cancel the current target when disabled", asyn
 
 test("useSkill ignores tracked anti-counters when anti-counter is disabled", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);
@@ -671,16 +656,13 @@ test("useSkill ignores tracked anti-counters when anti-counter is disabled", asy
 test("useSkill stops auto attack and does not cast while anti-counter is active", async () => {
   const calls: string[] = [];
   let targetReadCount = 0;
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);
@@ -735,16 +717,13 @@ test("useSkill stops auto attack and does not cast while anti-counter is active"
 
 test("attackMonster does not hit while anti-counter is active", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);
@@ -801,16 +780,13 @@ test("attackMonster does not hit while anti-counter is active", async () => {
 
 test("attackMonster ignores tracked anti-counters when anti-counter is disabled", async () => {
   const calls: string[] = [];
-  let antiCounterStart:
-    | GameEventHandler<"antiCounterStart">
-    | undefined;
+  let antiCounterStart: GameEventHandler<"antiCounterStart"> | undefined;
   const packetDomain = {
     started: true,
     emit: () => Effect.void,
     on(event, handler) {
       if (event === "antiCounterStart") {
-        antiCounterStart =
-          handler as GameEventHandler<"antiCounterStart">;
+        antiCounterStart = handler as GameEventHandler<"antiCounterStart">;
       }
 
       return Effect.succeed(() => undefined);

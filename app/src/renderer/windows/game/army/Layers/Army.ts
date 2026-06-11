@@ -100,12 +100,10 @@ const readPlayerActionLockCategory = (
       return undefined;
     }
 
-    const auras = yield* world.players
-      .getAuras(self.value.data.entID)
-      .pipe(
-        Effect.map((auras) => Array.from(auras.values())),
-        Effect.catchCause(() => Effect.succeed([] as readonly Aura[])),
-      );
+    const auras = yield* world.players.getAuras(self.value.data.entID).pipe(
+      Effect.map((auras) => Array.from(auras.values())),
+      Effect.catchCause(() => Effect.succeed([] as readonly Aura[])),
+    );
     return getLoopTauntActionLockCategory(auras);
   });
 
@@ -723,7 +721,10 @@ const make = Effect.gen(function* () {
   const runMainCoordinatedAuraLoopTaunt = (
     session: ArmySession,
     options: NormalizedLoopTauntOptions & {
-      readonly trigger: Extract<NormalizedLoopTauntOptions["trigger"], { type: "aura" }>;
+      readonly trigger: Extract<
+        NormalizedLoopTauntOptions["trigger"],
+        { type: "aura" }
+      >;
     },
     initialTargetMonMapId: number,
     armedStep: number,
@@ -1116,9 +1117,7 @@ const make = Effect.gen(function* () {
         const lastMessageTriggerAtByMonMapId = new Map<number, number>();
         const pendingTauntFibers = new Set<ReturnType<typeof runFork>>();
         let reconciliationToken = 0;
-        let pendingReconciliationFiber:
-          | ReturnType<typeof runFork>
-          | undefined;
+        let pendingReconciliationFiber: ReturnType<typeof runFork> | undefined;
 
         const log = (message: string, details?: Record<string, unknown>) =>
           Effect.logInfo({
@@ -1267,14 +1266,18 @@ const make = Effect.gen(function* () {
           selected: ResolvedArmyPlayer,
         ) =>
           Effect.gen(function* () {
-            const deadline = Date.now() + DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS;
+            const deadline =
+              Date.now() + DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS;
 
             while (Date.now() < deadline) {
               if (!isReconciliationCurrent(token)) {
                 return false;
               }
 
-              if (targetAuraActive || (yield* refreshTargetAuraActive(monMapId))) {
+              if (
+                targetAuraActive ||
+                (yield* refreshTargetAuraActive(monMapId))
+              ) {
                 return false;
               }
 
@@ -1336,7 +1339,10 @@ const make = Effect.gen(function* () {
                   return;
                 }
 
-                if (targetAuraActive || (yield* refreshTargetAuraActive(monMapId))) {
+                if (
+                  targetAuraActive ||
+                  (yield* refreshTargetAuraActive(monMapId))
+                ) {
                   return;
                 }
 
@@ -1371,7 +1377,10 @@ const make = Effect.gen(function* () {
                   return;
                 }
 
-                if (targetAuraActive || (yield* refreshTargetAuraActive(monMapId))) {
+                if (
+                  targetAuraActive ||
+                  (yield* refreshTargetAuraActive(monMapId))
+                ) {
                   return;
                 }
 
@@ -1382,7 +1391,10 @@ const make = Effect.gen(function* () {
                   triggerCount: turn.triggerCount,
                 });
                 yield* clearCurrentReconciliation(token);
-                yield* triggerNextTurn(monMapId, "missed cast recovery expired");
+                yield* triggerNextTurn(
+                  monMapId,
+                  "missed cast recovery expired",
+                );
               }).pipe(
                 Effect.catchCause((cause) =>
                   Effect.logError({
@@ -1985,7 +1997,8 @@ const make = Effect.gen(function* () {
         monMapId,
       });
       const loopTauntEffect =
-        normalized.trigger.type === "aura" && normalized.shouldTaunt === undefined
+        normalized.trigger.type === "aura" &&
+        normalized.shouldTaunt === undefined
           ? runMainCoordinatedAuraLoopTaunt(
               session,
               normalized as NormalizedLoopTauntOptions & {
@@ -1999,13 +2012,9 @@ const make = Effect.gen(function* () {
               armed,
             )
           : runLoopTaunt(session, normalized, monMapId, armedStep, armed);
-      yield* jobs.start(
-        key,
-        loopTauntEffect,
-        {
-          replace: true,
-        },
-      );
+      yield* jobs.start(key, loopTauntEffect, {
+        replace: true,
+      });
       yield* Deferred.await(armed).pipe(
         Effect.onInterrupt(() =>
           stopLoopTaunt(normalized.id).pipe(Effect.asVoid),

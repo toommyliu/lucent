@@ -150,8 +150,10 @@ export function DialogTrigger(props: DialogTriggerProps): JSX.Element {
   );
 }
 
-export interface DialogContentProps
-  extends Omit<Parameters<typeof DialogPrimitive.Content>[0], "class"> {
+export interface DialogContentProps extends Omit<
+  Parameters<typeof DialogPrimitive.Content>[0],
+  "class"
+> {
   readonly bottomStickOnMobile?: boolean;
   readonly class?: string;
   readonly closeProps?: DialogCloseProps;
@@ -236,8 +238,10 @@ export function DialogContent(props: DialogContentProps): JSX.Element {
   );
 }
 
-export interface DialogHeaderProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface DialogHeaderProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -327,8 +331,10 @@ export function DialogClose(props: DialogCloseProps): JSX.Element {
   );
 }
 
-export interface DialogPanelProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface DialogPanelProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

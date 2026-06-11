@@ -4,11 +4,10 @@ import { isAriaInvalid } from "../lib/domState";
 
 export type SwitchSize = "sm" | "default" | "lg";
 
-export interface SwitchProps
-  extends Omit<
-    JSX.InputHTMLAttributes<HTMLInputElement>,
-    "class" | "size" | "type"
-  > {
+export interface SwitchProps extends Omit<
+  JSX.InputHTMLAttributes<HTMLInputElement>,
+  "class" | "size" | "type"
+> {
   readonly class?: string;
   readonly invalid?: boolean;
   readonly size?: SwitchSize;

@@ -34,7 +34,9 @@ export type GamePacketEvent =
 
 export type GameSemanticEvent = Exclude<
   GameEvent,
-  GamePacketEvent | "loopTauntClientCastAttempt" | "loopTauntServerCastConfirmed"
+  | GamePacketEvent
+  | "loopTauntClientCastAttempt"
+  | "loopTauntServerCastConfirmed"
 >;
 
 export interface GameMonsterDeathEvent {

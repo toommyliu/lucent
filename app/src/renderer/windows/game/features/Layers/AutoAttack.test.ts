@@ -181,9 +181,7 @@ const withAutoAttack = async <A>(
   );
 };
 
-const monsterDeathEvent = (
-  monMapId: number,
-): GameEventMap["monsterDeath"] => ({
+const monsterDeathEvent = (monMapId: number): GameEventMap["monsterDeath"] => ({
   monMapId,
   packet: {} as GameEventMap["monsterDeath"]["packet"],
 });
@@ -439,7 +437,10 @@ test("auto attack locks manual targets, waits for respawn, and resets locked cur
         locked.data.intHP = 0;
         locked.data.intState = EntityState.Dead;
         currentTargetId = undefined;
-        yield* gameEvents.emit("monsterDeath", monsterDeathEvent(locked.monMapId));
+        yield* gameEvents.emit(
+          "monsterDeath",
+          monsterDeathEvent(locked.monMapId),
+        );
         yield* Effect.sleep("70 millis");
         locked.data.intHP = locked.data.intHPMax;
         locked.data.intState = EntityState.Idle;
@@ -579,7 +580,10 @@ test("auto attack can replace a dead lock with a previously auto-selected monste
         second.data.intHP = 0;
         second.data.intState = EntityState.Dead;
         currentTargetId = undefined;
-        yield* gameEvents.emit("monsterDeath", monsterDeathEvent(second.monMapId));
+        yield* gameEvents.emit(
+          "monsterDeath",
+          monsterDeathEvent(second.monMapId),
+        );
         yield* Effect.sleep("70 millis");
         currentTargetId = first.monMapId;
         yield* Effect.sleep("320 millis");

@@ -27,8 +27,8 @@ const electronMock = vi.hoisted(() => {
   return {
     windowsByWebContents,
     BrowserWindow: {
-      fromWebContents: vi.fn((webContents: object) =>
-        windowsByWebContents.get(webContents) ?? null,
+      fromWebContents: vi.fn(
+        (webContents: object) => windowsByWebContents.get(webContents) ?? null,
       ),
     },
   };
@@ -244,23 +244,35 @@ const withArmyIpc = async <A>(
       playerName = session.playerName,
       senderPlayerName = playerName,
     ) =>
-      invoke<void>(ArmyIpcChannels.loopTauntStart, makePlayerEvent(senderPlayerName), {
-        ...payload,
-        playerName,
-        sessionId: session.sessionId,
-      }),
+      invoke<void>(
+        ArmyIpcChannels.loopTauntStart,
+        makePlayerEvent(senderPlayerName),
+        {
+          ...payload,
+          playerName,
+          sessionId: session.sessionId,
+        },
+      ),
     publishLoopTauntObservation: (
       session,
       payload,
       playerName = session.playerName,
       senderPlayerName = playerName,
     ) =>
-      invoke<void>(ArmyIpcChannels.loopTauntObservation, makePlayerEvent(senderPlayerName), {
-        ...payload,
-        playerName,
-        sessionId: session.sessionId,
-      }),
-    detachedStartLoopTaunt: (session, payload, playerName = session.playerName) =>
+      invoke<void>(
+        ArmyIpcChannels.loopTauntObservation,
+        makePlayerEvent(senderPlayerName),
+        {
+          ...payload,
+          playerName,
+          sessionId: session.sessionId,
+        },
+      ),
+    detachedStartLoopTaunt: (
+      session,
+      payload,
+      playerName = session.playerName,
+    ) =>
       invoke<void>(ArmyIpcChannels.loopTauntStart, makeEvent(), {
         ...payload,
         playerName,
@@ -827,11 +839,7 @@ describe("army loop taunt coordinator", () => {
     await withArmyIpc((harness) =>
       Effect.gen(function* () {
         const session = yield* startFullArmy(harness);
-        yield* harness.startLoopTaunt(
-          session,
-          loopTauntStartPayload(),
-          "Main",
-        );
+        yield* harness.startLoopTaunt(session, loopTauntStartPayload(), "Main");
         yield* harness.publishLoopTauntObservation(session, {
           auraName: "Focus",
           id: "focus",
@@ -900,9 +908,7 @@ describe("army loop taunt coordinator", () => {
         yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
         expect(harness.commandsFor("Main")).toHaveLength(1);
 
-        yield* Effect.promise(() =>
-          vi.advanceTimersByTimeAsync(1_500 + 2_500),
-        );
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(1_500 + 2_500));
         expect(harness.commandsFor("Main")).toHaveLength(2);
         expect(harness.commandsFor("Main")[1]?.attempt).toBe(2);
 

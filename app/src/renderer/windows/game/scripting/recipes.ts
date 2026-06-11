@@ -20,10 +20,7 @@ import type { InventoryShape } from "../flash/Services/Inventory";
 import type { PacketShape } from "../flash/Services/Packet";
 import type { PlayerShape } from "../flash/Services/Player";
 import type { QuestsShape } from "../flash/Services/Quests";
-import type {
-  ShopItemSelector,
-  ShopsShape,
-} from "../flash/Services/Shops";
+import type { ShopItemSelector, ShopsShape } from "../flash/Services/Shops";
 import type { TempInventoryShape } from "../flash/Services/TempInventory";
 import type { WaitShape } from "../flash/Services/Wait";
 import type { WorldShape } from "../flash/Services/World";
@@ -501,7 +498,11 @@ const ensureGoldVoucherQuantity = (
         return false;
       }
 
-      yield* waitForInventoryQuantity(deps, GOLD_VOUCHER_100K, expectedQuantity);
+      yield* waitForInventoryQuantity(
+        deps,
+        GOLD_VOUCHER_100K,
+        expectedQuantity,
+      );
       currentQuantity = yield* getInventoryQuantity(deps, GOLD_VOUCHER_100K);
       if (currentQuantity < expectedQuantity) {
         return false;
@@ -670,7 +671,8 @@ const waitForScrollOfEnrageProgress = (
           SCROLL_OF_ENRAGE,
         );
         return (
-          currentQuantity >= expectedQuantity || currentQuantity >= targetQuantity
+          currentQuantity >= expectedQuantity ||
+          currentQuantity >= targetQuantity
         );
       }),
       { timeout: "7 seconds", interval: "250 millis" },
@@ -758,7 +760,10 @@ const ensureScrollOfEnrage = (
         return;
       }
 
-      const beforeQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
+      const beforeQuantity = yield* getInventoryQuantity(
+        deps,
+        SCROLL_OF_ENRAGE,
+      );
       const remainingQuantity = Math.max(0, targetQuantity - beforeQuantity);
       const neededTurnIns = Math.max(
         1,

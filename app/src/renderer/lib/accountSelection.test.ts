@@ -14,9 +14,9 @@ describe("resolveSelectedAccountUsernames", () => {
     const selectedUsernames = new Set(["alpha", "charlie"]);
 
     expect(filteredAccounts).toEqual([{ username: "bravo" }]);
-    expect(resolveSelectedAccountUsernames(accounts, selectedUsernames)).toEqual(
-      ["alpha", "charlie"],
-    );
+    expect(
+      resolveSelectedAccountUsernames(accounts, selectedUsernames),
+    ).toEqual(["alpha", "charlie"]);
   });
 
   it("preserves account order and ignores stale selections", () => {

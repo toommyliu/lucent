@@ -13,8 +13,7 @@ export interface CardTitleProps extends JSX.HTMLAttributes<HTMLHeadingElement> {
   readonly class?: string;
 }
 
-export interface CardDescriptionProps
-  extends JSX.HTMLAttributes<HTMLParagraphElement> {
+export interface CardDescriptionProps extends JSX.HTMLAttributes<HTMLParagraphElement> {
   readonly class?: string;
 }
 
@@ -38,28 +37,23 @@ export interface CardFrameProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface CardFrameHeaderProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface CardFrameHeaderProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface CardFrameTitleProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface CardFrameTitleProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface CardFrameDescriptionProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface CardFrameDescriptionProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface CardFrameActionProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface CardFrameActionProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface CardFrameFooterProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface CardFrameFooterProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 

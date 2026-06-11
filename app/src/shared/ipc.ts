@@ -704,7 +704,9 @@ export interface AccountManagerBridge {
     listener: (payload: AccountGameLaunchPayload) => void,
   ): () => void;
   onGameWindowShutdownRequest(
-    listener: (request: AccountGameWindowShutdownRequest) => Promise<void> | void,
+    listener: (
+      request: AccountGameWindowShutdownRequest,
+    ) => Promise<void> | void,
   ): () => void;
 }
 

@@ -23,8 +23,10 @@ export type ButtonSize =
   | "icon-lg"
   | "icon-xl";
 
-export interface ButtonProps
-  extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "class"> {
+export interface ButtonProps extends Omit<
+  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
+  "class"
+> {
   readonly as?: "button" | "a";
   readonly class?: string;
   readonly href?: string;
