@@ -3604,8 +3604,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:586",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L586"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:590",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L590"
       }
     },
     "script-item-wait-options": {
@@ -3685,14 +3685,20 @@
       "keys": [
         {
           "kind": "property",
+          "name": "safeStartStop",
+          "signature": "readonly safeStartStop: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "usePrivateRooms",
           "signature": "readonly usePrivateRooms: boolean",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/shared/ipc.ts:383",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L383"
+        "path": "app/src/shared/ipc.ts:387",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L387"
       }
     },
     "script-player-count-wait-options": {

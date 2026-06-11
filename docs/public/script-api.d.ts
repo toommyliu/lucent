@@ -349,6 +349,8 @@ interface ScriptPacketApi {
 interface ScriptRuntimeOptionsApi {
     getUsePrivateRooms(): Effect<boolean, never>;
     setUsePrivateRooms(enabled: boolean): Effect<void, ScriptExecutionError>;
+    getSafeStartStop(): Effect<boolean, never>;
+    setSafeStartStop(enabled: boolean): Effect<void, ScriptExecutionError>;
     getAll(): Effect<Readonly<ScriptOptions>, never>;
     reset(): Effect<void, never>;
 }
@@ -831,6 +833,7 @@ interface ScriptMonsterWaitOptions extends ScriptWaitOptions {
 }
 interface ScriptOptions {
   readonly usePrivateRooms: boolean;
+  readonly safeStartStop: boolean;
 }
 interface ScriptPlayerCountWaitOptions extends ScriptWaitOptions {
   readonly exact?: boolean;
