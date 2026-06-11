@@ -2,8 +2,10 @@ import { splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 import { isAriaInvalid } from "../lib/domState";
 
-export interface TextareaProps
-  extends Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>, "class"> {
+export interface TextareaProps extends Omit<
+  JSX.TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "class"
+> {
   readonly class?: string;
   readonly fullWidth?: boolean;
   readonly invalid?: boolean;

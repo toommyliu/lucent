@@ -4,7 +4,9 @@ import {
 } from "../shared/appearance-snapshot";
 
 try {
-  const snapshot = readAppearanceSnapshotSearchParams(globalThis.location.search);
+  const snapshot = readAppearanceSnapshotSearchParams(
+    globalThis.location.search,
+  );
   if (snapshot) {
     applyAppearanceSnapshotToDocument(document.documentElement, snapshot);
   }

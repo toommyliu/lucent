@@ -6,6 +6,9 @@
     "dist",
     "build",
     "scripts",
+    "docs/.astro",
+    "docs/public/script-api.d.ts",
+    "docs/src/generated",
     "**/*.css",
     "**/*.html",
     "**/*.json",
@@ -14,8 +17,6 @@
     "**/*.toml",
     "**/*.yaml",
     "**/*.yml",
-    "**/*.ts",
-    "**/*.tsx",
     "*.tsbuildinfo"
   ],
   "printWidth": 80,

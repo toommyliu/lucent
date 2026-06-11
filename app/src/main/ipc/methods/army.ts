@@ -378,10 +378,8 @@ const parseLoopTauntParticipant = (
   };
 };
 
-const hasOwn = (
-  record: Record<string, unknown>,
-  key: string,
-): boolean => Object.prototype.hasOwnProperty.call(record, key);
+const hasOwn = (record: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(record, key);
 
 const parseLoopTauntSkill = (skill: unknown): number | string => {
   if (typeof skill === "number") {
@@ -604,10 +602,7 @@ const rejectBarrier = (barrier: ArmyBarrierState, error: Error): void => {
   barrier.arrived.clear();
 };
 
-const rejectProgress = (
-  checkpoint: ArmyProgressState,
-  error: Error,
-): void => {
+const rejectProgress = (checkpoint: ArmyProgressState, error: Error): void => {
   clearTimeout(checkpoint.timer);
   for (const waiter of checkpoint.arrived.values()) {
     waiter.reject(error);

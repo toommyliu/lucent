@@ -311,8 +311,7 @@ export function TopNavOptionsMenuContent(
   );
 }
 
-export interface TopNavHiddenOptionsMenuProps
-  extends TopNavOptionsMenuContentProps {
+export interface TopNavHiddenOptionsMenuProps extends TopNavOptionsMenuContentProps {
   readonly open: Accessor<boolean>;
   readonly setOpen: (open: boolean) => void;
 }

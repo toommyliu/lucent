@@ -15,8 +15,10 @@ export type BadgeSize = "sm" | "default" | "lg";
 
 export type BadgeElement = "span" | "button" | "a";
 
-export interface BadgeProps
-  extends Omit<JSX.HTMLAttributes<HTMLElement>, "class"> {
+export interface BadgeProps extends Omit<
+  JSX.HTMLAttributes<HTMLElement>,
+  "class"
+> {
   readonly as?: BadgeElement;
   readonly size?: BadgeSize;
   readonly variant?: BadgeVariant;

@@ -187,10 +187,8 @@ function App(): JSX.Element {
   );
   const [cooldownMode, setCooldownMode] =
     createSignal<CombatProfileCooldownMode>("use-if-ready");
-  const [
-    resetSkillIndexOnMonsterDeath,
-    setResetSkillIndexOnMonsterDeath,
-  ] = createSignal(false);
+  const [resetSkillIndexOnMonsterDeath, setResetSkillIndexOnMonsterDeath] =
+    createSignal(false);
   const [draftSteps, setDraftSteps] = createSignal<
     readonly CombatProfileStep[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.steps ?? []);

@@ -111,10 +111,14 @@ export default defineConfig({
             {
               label: "Types",
               collapsed: true,
-              autogenerate: {
-                directory: "scripting/types",
-                collapsed: true,
-              },
+              items: [
+                {
+                  autogenerate: {
+                    directory: "scripting/types",
+                    collapsed: true,
+                  },
+                },
+              ],
             },
           ],
         },

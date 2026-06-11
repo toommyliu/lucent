@@ -51,9 +51,7 @@ test("builds quest rewards from reward rows and oRewards metadata", () => {
   expect(reward?.name).toBe("Shark Bait's Armor");
   expect(reward ? childValue(reward, "ID") : undefined).toBe("2476");
   expect(reward ? childValue(reward, "Quantity") : undefined).toBe("1");
-  expect(reward ? childValue(reward, "Drop chance") : undefined).toBe(
-    "2.00%",
-  );
+  expect(reward ? childValue(reward, "Drop chance") : undefined).toBe("2.00%");
 });
 
 test("builds quest requirements from turnin rows and oItems metadata", () => {
@@ -94,7 +92,9 @@ test("builds quest requirements from turnin rows and oItems metadata", () => {
   expect(requiredItem ? childValue(requiredItem, "Temporary") : undefined).toBe(
     "Yes",
   );
-  expect(child(requiredItem ?? { name: "missing" }, "Description")).toBeUndefined();
+  expect(
+    child(requiredItem ?? { name: "missing" }, "Description"),
+  ).toBeUndefined();
 });
 
 test("omits empty quest item sections", () => {

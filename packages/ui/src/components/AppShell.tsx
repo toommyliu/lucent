@@ -25,18 +25,15 @@ export interface AppShellHeaderProps extends JSX.HTMLAttributes<HTMLElement> {
   readonly class?: string;
 }
 
-export interface AppShellHeaderLeftProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface AppShellHeaderLeftProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface AppShellHeaderRightProps
-  extends JSX.HTMLAttributes<HTMLDivElement> {
+export interface AppShellHeaderRightProps extends JSX.HTMLAttributes<HTMLDivElement> {
   readonly class?: string;
 }
 
-export interface AppShellTitleProps
-  extends JSX.HTMLAttributes<HTMLHeadingElement> {
+export interface AppShellTitleProps extends JSX.HTMLAttributes<HTMLHeadingElement> {
   readonly class?: string;
 }
 

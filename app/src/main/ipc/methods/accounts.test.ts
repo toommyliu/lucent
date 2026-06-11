@@ -142,10 +142,11 @@ const makeWorkspace = (scriptsDir: string): WorkspaceFilesShape => ({
   readArmyConfig: () => Effect.die("not used"),
 });
 
-const makeObservability = () => ({
-  warn: vi.fn(() => Effect.succeed({} as never)),
-  error: vi.fn(() => Effect.succeed({} as never)),
-}) as unknown as ObservabilityShape;
+const makeObservability = () =>
+  ({
+    warn: vi.fn(() => Effect.succeed({} as never)),
+    error: vi.fn(() => Effect.succeed({} as never)),
+  }) as unknown as ObservabilityShape;
 
 const waitForScheduledClose = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -259,14 +260,9 @@ describe("account launch tiling", () => {
       { algorithm: "auto-grid", index: 2, count: 3 },
       { x: 10, y: 420, width: 500, height: 400 },
     ],
-  ] as const)(
-    "%s",
-    (_name, tiling, expected) => {
-      expect(resolveAccountLaunchTileBounds(workArea, tiling)).toEqual(
-        expected,
-      );
-    },
-  );
+  ] as const)("%s", (_name, tiling, expected) => {
+    expect(resolveAccountLaunchTileBounds(workArea, tiling)).toEqual(expected);
+  });
 
   it("does not resolve bounds when tiling is none", () => {
     expect(

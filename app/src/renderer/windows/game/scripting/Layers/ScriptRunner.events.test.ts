@@ -387,10 +387,7 @@ module.exports = function* run() {
         const falseOptionMessages = messages.filter((message) =>
           message.includes('"safeStartStop":false'),
         );
-        return (
-          messages.includes("true") &&
-          falseOptionMessages.length >= 2
-        );
+        return messages.includes("true") && falseOptionMessages.length >= 2;
       });
       yield* waitUntilNotRunning(runner);
       return diagnostics;
@@ -429,10 +426,7 @@ module.exports = function* run() {
     makeSafeStartStopOverrides(calls, { leaveHouseAfterTransfer: true }),
   );
 
-  expect(calls).toEqual([
-    "%xt%zm%house%1%Hero%",
-    "%xt%zm%house%1%Hero%",
-  ]);
+  expect(calls).toEqual(["%xt%zm%house%1%Hero%", "%xt%zm%house%1%Hero%"]);
 });
 
 test("safeStartStop records house failures as warnings and continues", async () => {
@@ -469,9 +463,11 @@ module.exports = function* run() {
 
   const messages = diagnosticMessages(diagnostics);
   expect(messages).toContain("body");
-  expect(messages.some((message) =>
-    message.includes("Safe start failed to move to house"),
-  )).toBe(true);
+  expect(
+    messages.some((message) =>
+      message.includes("Safe start failed to move to house"),
+    ),
+  ).toBe(true);
 });
 
 const makeMissingWorld = (): WorldShape =>
@@ -669,11 +665,13 @@ module.exports = function* run() {
         username: "Hero",
       });
 
-      const diagnostics = yield* waitForDiagnostics(runner, (diagnostics) =>
-        diagnosticMessages(diagnostics).includes(
-          "player-death:Hero:9:Boss:Left:0:0",
-        ) &&
-        diagnosticMessages(diagnostics).includes("wait-player-death:Hero"),
+      const diagnostics = yield* waitForDiagnostics(
+        runner,
+        (diagnostics) =>
+          diagnosticMessages(diagnostics).includes(
+            "player-death:Hero:9:Boss:Left:0:0",
+          ) &&
+          diagnosticMessages(diagnostics).includes("wait-player-death:Hero"),
       );
       yield* runner.stop("test complete");
       return diagnostics;
@@ -723,9 +721,11 @@ module.exports = function* run() {
     }),
   );
 
-  expect(diagnosticMessages(diagnostics).filter((message) =>
-    message.startsWith("once:"),
-  )).toEqual(["once:1"]);
+  expect(
+    diagnosticMessages(diagnostics).filter((message) =>
+      message.startsWith("once:"),
+    ),
+  ).toEqual(["once:1"]);
 });
 
 test("script events waitFor supports predicates and timeout", async () => {
@@ -776,7 +776,9 @@ module.exports = function* run() {
 
       return yield* waitForDiagnostics(runner, (diagnostics) => {
         const messages = diagnosticMessages(diagnostics);
-        return messages.includes("quest:42") && messages.includes("afk:timeout");
+        return (
+          messages.includes("quest:42") && messages.includes("afk:timeout")
+        );
       });
     }),
   );
@@ -868,9 +870,11 @@ module.exports = function* run() {
 
   const messages = diagnosticMessages(diagnostics);
   expect(messages).toEqual(expect.arrayContaining(["attempt:1", "attempt:2"]));
-  expect(messages.some((message) =>
-    message.includes("api.events.monsterDeath event handler failed"),
-  )).toBe(true);
+  expect(
+    messages.some((message) =>
+      message.includes("api.events.monsterDeath event handler failed"),
+    ),
+  ).toBe(true);
 });
 
 test("script event queues drop overflow with diagnostics", async () => {
@@ -901,7 +905,9 @@ module.exports = function* run() {
 
       const diagnostics = yield* waitForDiagnostics(runner, (diagnostics) =>
         diagnosticMessages(diagnostics).some((message) =>
-          message.includes("Dropped api.events.packetFromClient callback event"),
+          message.includes(
+            "Dropped api.events.packetFromClient callback event",
+          ),
         ),
       );
       yield* runner.stop("test complete");
@@ -909,7 +915,9 @@ module.exports = function* run() {
     }),
   );
 
-  expect(diagnosticMessages(diagnostics).some((message) =>
-    message.includes("Dropped api.events.packetFromClient callback event"),
-  )).toBe(true);
+  expect(
+    diagnosticMessages(diagnostics).some((message) =>
+      message.includes("Dropped api.events.packetFromClient callback event"),
+    ),
+  ).toBe(true);
 });

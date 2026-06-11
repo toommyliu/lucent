@@ -3,8 +3,10 @@ import { cn } from "../lib/cn";
 
 export type AlertVariant = "default" | "error" | "info" | "success" | "warning";
 
-export interface AlertProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface AlertProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
   readonly variant?: AlertVariant;
 }
@@ -21,8 +23,10 @@ export function Alert(props: AlertProps): JSX.Element {
   );
 }
 
-export interface AlertTitleProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface AlertTitleProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -37,8 +41,10 @@ export function AlertTitle(props: AlertTitleProps): JSX.Element {
   );
 }
 
-export interface AlertDescriptionProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface AlertDescriptionProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -53,8 +59,10 @@ export function AlertDescription(props: AlertDescriptionProps): JSX.Element {
   );
 }
 
-export interface AlertActionProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface AlertActionProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

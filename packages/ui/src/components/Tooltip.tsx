@@ -30,8 +30,10 @@ export function TooltipTrigger(props: TooltipTriggerProps): JSX.Element {
   );
 }
 
-export interface TooltipContentProps
-  extends Omit<Parameters<typeof TooltipPrimitive.Content>[0], "class"> {
+export interface TooltipContentProps extends Omit<
+  Parameters<typeof TooltipPrimitive.Content>[0],
+  "class"
+> {
   readonly class?: string;
   readonly portal?: boolean;
 }

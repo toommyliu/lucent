@@ -5,11 +5,10 @@ import { isAriaInvalid } from "../lib/domState";
 
 export type CheckboxSize = "sm" | "default" | "lg";
 
-export interface CheckboxProps
-  extends Omit<
-    JSX.InputHTMLAttributes<HTMLInputElement>,
-    "class" | "size" | "type"
-  > {
+export interface CheckboxProps extends Omit<
+  JSX.InputHTMLAttributes<HTMLInputElement>,
+  "class" | "size" | "type"
+> {
   readonly class?: string;
   readonly invalid?: boolean;
   readonly size?: CheckboxSize;

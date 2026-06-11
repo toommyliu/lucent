@@ -71,10 +71,7 @@ import { SectionPanel } from "../../components/SectionPanel";
 import { downloadText } from "../../lib/download";
 import { mountWindow } from "../mount";
 import { splitTextMatches } from "../../lib/text";
-import {
-  formatPacketLogEntries,
-  formatPacketTimestamp,
-} from "./logFormatting";
+import { formatPacketLogEntries, formatPacketTimestamp } from "./logFormatting";
 import {
   QUEUE_PACKET_EMPTY_ERROR,
   isValidQueuePacketDraft,

@@ -10,11 +10,10 @@ import { cn } from "../lib/cn";
 
 type ComboboxRootProps = ComboboxProps;
 
-export interface DropdownProps
-  extends Omit<
-    ComboboxRootProps,
-    "class" | "multiple" | "onOpenChange" | "onValueChange" | "value"
-  > {
+export interface DropdownProps extends Omit<
+  ComboboxRootProps,
+  "class" | "multiple" | "onOpenChange" | "onValueChange" | "value"
+> {
   readonly class?: string;
   readonly inputClass?: string;
   readonly open?: boolean;

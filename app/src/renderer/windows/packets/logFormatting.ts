@@ -27,6 +27,6 @@ export const formatPacketLogEntries = (
   entries: readonly PacketLogFormatEntry[],
   includeTimestamp: boolean,
 ): string =>
-  entries.map((entry) => formatPacketLogEntry(entry, includeTimestamp)).join(
-    "\n",
-  );
+  entries
+    .map((entry) => formatPacketLogEntry(entry, includeTimestamp))
+    .join("\n");

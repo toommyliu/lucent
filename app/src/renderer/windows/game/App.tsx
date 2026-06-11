@@ -97,10 +97,7 @@ import {
   type TopNavOptionItem,
 } from "./topNavOptions";
 import { ScriptRunner } from "./scripting/Services/ScriptRunner";
-import {
-  DEBUG_EVAL_SOURCE_NAME,
-  createDebugScriptSource,
-} from "./debugEval";
+import { DEBUG_EVAL_SOURCE_NAME, createDebugScriptSource } from "./debugEval";
 
 markGameStartup("app-module-evaluated");
 
@@ -942,7 +939,12 @@ export default function App(props: {
     }
 
     lastSyncedAccountLaunchStatusKey = key;
-    void updateAccountLaunchStatus(payload, status, message, scriptNameOverride);
+    void updateAccountLaunchStatus(
+      payload,
+      status,
+      message,
+      scriptNameOverride,
+    );
   };
 
   const syncAccountLaunchRuntimeStatus = (options?: {
@@ -959,7 +961,8 @@ export default function App(props: {
     }
 
     const currentScriptName = scriptName().trim();
-    const launchedScriptName = payload.script?.name ?? payload.script?.path ?? "";
+    const launchedScriptName =
+      payload.script?.name ?? payload.script?.path ?? "";
     const name = currentScriptName || launchedScriptName || "script";
     const hasScript = scriptLoaded() || payload.script !== undefined;
 
@@ -1021,7 +1024,11 @@ export default function App(props: {
         setScriptStatus(nextMessage);
 
         if (nextMessage !== lastMessage) {
-          yield* updateAccountLaunchStatusEffect(payload, "running", nextMessage);
+          yield* updateAccountLaunchStatusEffect(
+            payload,
+            "running",
+            nextMessage,
+          );
           lastMessage = nextMessage;
         }
       }
@@ -1029,11 +1036,7 @@ export default function App(props: {
 
   const runAccountLaunch = (payload: AccountGameLaunchPayload) =>
     Effect.gen(function* () {
-      yield* updateAccountLaunchStatusEffect(
-        payload,
-        "starting",
-        "Waiting...",
-      );
+      yield* updateAccountLaunchStatusEffect(payload, "starting", "Waiting...");
       yield* Effect.promise(() => waitForLoadedGame());
 
       const autoRelogin = yield* AutoRelogin;
@@ -1059,7 +1062,11 @@ export default function App(props: {
         setScriptRunning(false);
         setScriptStatus("Player ready");
         lastSyncedAccountLaunchStatusKey = "";
-        yield* updateAccountLaunchStatusEffect(payload, "running", "Player ready");
+        yield* updateAccountLaunchStatusEffect(
+          payload,
+          "running",
+          "Player ready",
+        );
         void refreshScriptMeta();
         return;
       }
@@ -1070,7 +1077,11 @@ export default function App(props: {
       yield* Effect.sync(() => {
         applyLoadedScript(script.source, name);
       });
-      yield* updateAccountLaunchStatusEffect(payload, "running", `Running ${name}`);
+      yield* updateAccountLaunchStatusEffect(
+        payload,
+        "running",
+        `Running ${name}`,
+      );
       yield* runner
         .run(script.source, {
           name,
@@ -1085,7 +1096,11 @@ export default function App(props: {
         );
       setScriptRunning(true);
       setScriptStatus(`Running ${name}`);
-      yield* updateAccountLaunchStatusEffect(payload, "running", `Running ${name}`);
+      yield* updateAccountLaunchStatusEffect(
+        payload,
+        "running",
+        `Running ${name}`,
+      );
       yield* waitForAccountScriptStopEffect(payload, name);
       void refreshScriptMeta();
     }).pipe(

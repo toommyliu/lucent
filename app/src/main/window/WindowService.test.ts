@@ -303,7 +303,10 @@ describe("window service", () => {
       ...defaultSettingsSnapshot,
       appearance: { ...DEFAULT_APPEARANCE, themeMode: "light" },
     } satisfies AppSettings;
-    const snapshot = createAppearanceSnapshot(settingsSnapshot.appearance, false);
+    const snapshot = createAppearanceSnapshot(
+      settingsSnapshot.appearance,
+      false,
+    );
     const harness = createHarness("darwin", settingsSnapshot, snapshot);
 
     const gameWindow = (await run(
@@ -413,7 +416,10 @@ describe("window service", () => {
       ...defaultSettingsSnapshot,
       appearance: { ...DEFAULT_APPEARANCE, themeMode: "light" },
     } satisfies AppSettings;
-    const snapshot = createAppearanceSnapshot(settingsSnapshot.appearance, false);
+    const snapshot = createAppearanceSnapshot(
+      settingsSnapshot.appearance,
+      false,
+    );
     const harness = createHarness("darwin", settingsSnapshot, snapshot);
 
     const settingsWindow = (await run(

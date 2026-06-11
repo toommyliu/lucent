@@ -1,8 +1,10 @@
 import { splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 
-export interface EmptyProps
-  extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "class"> {
+export interface EmptyProps extends Omit<
+  JSX.HTMLAttributes<HTMLDivElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -66,8 +68,10 @@ export function EmptyTitle(props: EmptyProps): JSX.Element {
   );
 }
 
-export interface EmptyDescriptionProps
-  extends Omit<JSX.HTMLAttributes<HTMLParagraphElement>, "class"> {
+export interface EmptyDescriptionProps extends Omit<
+  JSX.HTMLAttributes<HTMLParagraphElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

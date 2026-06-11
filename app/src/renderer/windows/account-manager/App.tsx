@@ -369,7 +369,8 @@ function App(): JSX.Element {
   const [selectedAccountUsernames, setSelectedAccountUsernames] = createSignal<
     ReadonlySet<string>
   >(new Set());
-  const [accountToDelete, setAccountToDelete] = createSignal<ManagedAccount | null>(null);
+  const [accountToDelete, setAccountToDelete] =
+    createSignal<ManagedAccount | null>(null);
   const [sessionToClose, setSessionToClose] = createSignal<{
     readonly accountLabel: string;
     readonly session: AccountScriptSession;
@@ -382,9 +383,8 @@ function App(): JSX.Element {
   const [editingGroupName, setEditingGroupName] = createSignal<string | null>(
     null,
   );
-  const [groupForm, setGroupForm] = createSignal<GroupFormState>(
-    emptyGroupForm(),
-  );
+  const [groupForm, setGroupForm] =
+    createSignal<GroupFormState>(emptyGroupForm());
   const [groupDialogError, setGroupDialogError] = createSignal("");
   const [groupSearchQuery, setGroupSearchQuery] = createSignal("");
   const [form, setForm] = createSignal<AccountFormState>(emptyForm());
@@ -624,9 +624,7 @@ function App(): JSX.Element {
   );
   const newAccountAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+N`);
   const loginServerAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+L`);
-  const selectScriptAriaKeyshortcuts = createMemo(
-    () => `${modAriaKey()}+O`,
-  );
+  const selectScriptAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+O`);
   const toggleLaunchWithScriptAriaKeyshortcuts = createMemo(
     () => `${modAriaKey()}+Shift+S`,
   );
@@ -839,10 +837,7 @@ function App(): JSX.Element {
   createHotkey(
     TOGGLE_LAUNCH_WITH_SCRIPT_HOTKEY,
     (event) => {
-      if (
-        ignoreAccountManagerShortcut(event) ||
-        !canToggleLaunchWithScript()
-      ) {
+      if (ignoreAccountManagerShortcut(event) || !canToggleLaunchWithScript()) {
         return;
       }
 
@@ -1487,7 +1482,7 @@ function App(): JSX.Element {
 
   return (
     <AppShell>
-        <AppShell.Header>
+      <AppShell.Header>
         <AppShell.HeaderLeft>
           <AppShell.Title>Account Manager</AppShell.Title>
           <Tooltip
@@ -1541,7 +1536,8 @@ function App(): JSX.Element {
                     "aria-label": "Active game windows",
                     class: "account-manager__active-windows-trigger",
                     classList: {
-                      "account-manager__active-windows-trigger--active": activeWindowSessions().length > 0,
+                      "account-manager__active-windows-trigger--active":
+                        activeWindowSessions().length > 0,
                     },
                     disabled: activeWindowSessions().length === 0,
                     type: "button",
@@ -1555,7 +1551,10 @@ function App(): JSX.Element {
                     <span class="active-dot" />
                   </Show>
                   Active Windows
-                  <Badge variant="outline" class="account-manager__active-windows-count">
+                  <Badge
+                    variant="outline"
+                    class="account-manager__active-windows-count"
+                  >
                     {activeWindowSessions().length}
                   </Badge>
                 </Button>
@@ -1576,7 +1575,9 @@ function App(): JSX.Element {
                       const gameWindowId = () => session().gameWindowId;
                       const isClosing = () => {
                         const id = gameWindowId();
-                        return id !== undefined && closingGameWindowIds().has(id);
+                        return (
+                          id !== undefined && closingGameWindowIds().has(id)
+                        );
                       };
                       const focusSession = () => {
                         if (!isClosing()) {
@@ -1587,10 +1588,14 @@ function App(): JSX.Element {
                         <div
                           class="active-windows-menu__item"
                           classList={{
-                            "active-windows-menu__item--running": session().status === "running",
-                            "active-windows-menu__item--starting": session().status === "starting",
-                            "active-windows-menu__item--failed": session().status === "failed",
-                            "active-windows-menu__item--stopped": session().status === "stopped",
+                            "active-windows-menu__item--running":
+                              session().status === "running",
+                            "active-windows-menu__item--starting":
+                              session().status === "starting",
+                            "active-windows-menu__item--failed":
+                              session().status === "failed",
+                            "active-windows-menu__item--stopped":
+                              session().status === "stopped",
                             "active-windows-menu__item--disabled": isClosing(),
                           }}
                         >
@@ -1855,7 +1860,12 @@ function App(): JSX.Element {
                       }
                     }}
                   >
-                    <Show when={!serverComboboxOpen() && selectedLaunchServer() !== undefined}>
+                    <Show
+                      when={
+                        !serverComboboxOpen() &&
+                        selectedLaunchServer() !== undefined
+                      }
+                    >
                       <span class="account-manager__server-overlay">
                         {launchServer()}
                         <span class="account-manager__server-overlay-meta">
@@ -1959,7 +1969,8 @@ function App(): JSX.Element {
                           <Button
                             {...(triggerProps({
                               "aria-label": "Clear selected script",
-                              class: "account-manager__script-split-clear account-manager__script-split-clear--left",
+                              class:
+                                "account-manager__script-split-clear account-manager__script-split-clear--left",
                               disabled: busy(),
                               onClick: clearLaunchScript,
                               size: "lg",
@@ -1977,9 +1988,11 @@ function App(): JSX.Element {
                         asChild={(triggerProps) => (
                           <Button
                             {...(triggerProps({
-                              "aria-keyshortcuts": selectScriptAriaKeyshortcuts(),
+                              "aria-keyshortcuts":
+                                selectScriptAriaKeyshortcuts(),
                               "aria-label": "Choose a different script file",
-                              class: "account-manager__script-split-main account-manager__script-split-main--right",
+                              class:
+                                "account-manager__script-split-main account-manager__script-split-main--right",
                               disabled: busy(),
                               onClick: handleLoadScript,
                               size: "lg",
@@ -2003,7 +2016,6 @@ function App(): JSX.Element {
                   </div>
                 </Show>
               </div>
-
             </div>
             <Show when={serverError()}>
               <small class="account-manager__server-error">
@@ -2176,7 +2188,8 @@ function App(): JSX.Element {
                       )}
                     />
                     <TooltipContent>
-                      Tiling automatically arranges launched game windows across your screen.
+                      Tiling automatically arranges launched game windows across
+                      your screen.
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -2268,7 +2281,9 @@ function App(): JSX.Element {
                   />
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>{selectedDeleteLabel()}</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {selectedDeleteLabel()}
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
                         {confirmDeleteSelectedDescription()}
                       </AlertDialogDescription>
@@ -2289,8 +2304,7 @@ function App(): JSX.Element {
                     asChild={(triggerProps) => (
                       <Button
                         {...(triggerProps({
-                          "aria-keyshortcuts":
-                            startSelectedAriaKeyshortcuts(),
+                          "aria-keyshortcuts": startSelectedAriaKeyshortcuts(),
                           disabled: !canStartSelected(),
                           onClick: handleLaunch,
                         } as ButtonProps) as ButtonProps)}
@@ -2386,7 +2400,9 @@ function App(): JSX.Element {
                           aria-label={`Select ${account.label}`}
                         />
                         <div class="account-row__identity">
-                          <span class="account-row__title">{account.label}</span>
+                          <span class="account-row__title">
+                            {account.label}
+                          </span>
                           <span class="account-row__meta">
                             {account.username}
                           </span>
@@ -2787,7 +2803,8 @@ function App(): JSX.Element {
             <AlertDialogHeader>
               <AlertDialogTitle>Close Game Client</AlertDialogTitle>
               <AlertDialogDescription>
-                Stop the script, log out, and close {sessionToClose()?.accountLabel}?
+                Stop the script, log out, and close{" "}
+                {sessionToClose()?.accountLabel}?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

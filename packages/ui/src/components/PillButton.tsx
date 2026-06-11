@@ -1,8 +1,10 @@
 import { splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 
-export interface PillButtonProps
-  extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "class"> {
+export interface PillButtonProps extends Omit<
+  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
+  "class"
+> {
   readonly class?: string;
   readonly pressed?: boolean;
 }

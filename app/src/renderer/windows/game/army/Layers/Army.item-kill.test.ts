@@ -216,9 +216,7 @@ const withArmyItemHarness = async <A>(
   const tempInventory = {
     contains: (item, quantity) =>
       Effect.sync(() => {
-        tempChecks.push(
-          quantity === undefined ? { item } : { item, quantity },
-        );
+        tempChecks.push(quantity === undefined ? { item } : { item, quantity });
         const result = nextValue(
           options?.tempContains ?? [false],
           tempContainsIndex,

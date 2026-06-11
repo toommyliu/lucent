@@ -29,8 +29,10 @@ export function MenuTrigger(props: MenuTriggerProps): JSX.Element {
   );
 }
 
-export interface MenuContentProps
-  extends Omit<Parameters<typeof MenuPrimitive.Content>[0], "class"> {
+export interface MenuContentProps extends Omit<
+  Parameters<typeof MenuPrimitive.Content>[0],
+  "class"
+> {
   readonly class?: string;
   readonly onKeyDownCapture?: JSX.EventHandler<HTMLDivElement, KeyboardEvent>;
   readonly portal?: boolean;
@@ -58,8 +60,10 @@ export function MenuContent(props: MenuContentProps): JSX.Element {
   return local.portal === false ? content() : <Portal>{content()}</Portal>;
 }
 
-export interface MenuItemProps
-  extends Omit<Parameters<typeof MenuPrimitive.Item>[0], "class"> {
+export interface MenuItemProps extends Omit<
+  Parameters<typeof MenuPrimitive.Item>[0],
+  "class"
+> {
   readonly class?: string;
   readonly inset?: boolean;
   readonly variant?: "default" | "destructive";
@@ -103,8 +107,10 @@ export function MenuItem(props: MenuItemProps): JSX.Element {
   );
 }
 
-export interface MenuLabelProps
-  extends Omit<Parameters<typeof MenuPrimitive.ItemGroupLabel>[0], "class"> {
+export interface MenuLabelProps extends Omit<
+  Parameters<typeof MenuPrimitive.ItemGroupLabel>[0],
+  "class"
+> {
   readonly class?: string;
   readonly inset?: boolean;
 }
@@ -162,8 +168,10 @@ export function MenuShortcut(props: MenuShortcutProps): JSX.Element {
   );
 }
 
-export interface MenuCheckboxItemProps
-  extends Omit<Parameters<typeof MenuPrimitive.CheckboxItem>[0], "class"> {
+export interface MenuCheckboxItemProps extends Omit<
+  Parameters<typeof MenuPrimitive.CheckboxItem>[0],
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -193,8 +201,10 @@ export function MenuRadioGroup(props: MenuRadioGroupProps): JSX.Element {
   );
 }
 
-export interface MenuRadioItemProps
-  extends Omit<Parameters<typeof MenuPrimitive.RadioItem>[0], "class"> {
+export interface MenuRadioItemProps extends Omit<
+  Parameters<typeof MenuPrimitive.RadioItem>[0],
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -220,8 +230,10 @@ export function MenuSub(props: MenuSubProps): JSX.Element {
   return <Menu {...props} />;
 }
 
-export interface MenuSubTriggerProps
-  extends Omit<Parameters<typeof MenuPrimitive.TriggerItem>[0], "class"> {
+export interface MenuSubTriggerProps extends Omit<
+  Parameters<typeof MenuPrimitive.TriggerItem>[0],
+  "class"
+> {
   readonly class?: string;
   readonly inset?: boolean;
 }

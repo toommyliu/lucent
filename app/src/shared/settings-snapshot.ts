@@ -86,9 +86,7 @@ const isHotkeys = (value: unknown): boolean =>
       typeof binding["value"] === "string",
   );
 
-export const isAppSettingsSnapshot = (
-  value: unknown,
-): value is AppSettings =>
+export const isAppSettingsSnapshot = (value: unknown): value is AppSettings =>
   isRecord(value) &&
   isPreferences(value["preferences"]) &&
   isAppearance(value["appearance"]) &&

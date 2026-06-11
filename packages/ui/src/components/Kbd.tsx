@@ -1,8 +1,10 @@
 import { createMemo, splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 
-export interface KbdProps
-  extends Omit<JSX.HTMLAttributes<HTMLElement>, "class"> {
+export interface KbdProps extends Omit<
+  JSX.HTMLAttributes<HTMLElement>,
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -87,8 +89,10 @@ export function Kbd(props: KbdProps): JSX.Element {
   );
 }
 
-export interface KbdGroupProps
-  extends Omit<JSX.HTMLAttributes<HTMLElement>, "class"> {
+export interface KbdGroupProps extends Omit<
+  JSX.HTMLAttributes<HTMLElement>,
+  "class"
+> {
   readonly class?: string;
 }
 

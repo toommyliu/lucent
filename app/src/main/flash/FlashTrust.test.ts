@@ -130,7 +130,12 @@ describe("flash trust manager", () => {
     const root = await makeTempDir();
     const loaderPath = join(root, "loader.swf");
     const manager = initSync("lucent", { customFolder: root });
-    const configPath = join(root, "#Security", "FlashPlayerTrust", "lucent.cfg");
+    const configPath = join(
+      root,
+      "#Security",
+      "FlashPlayerTrust",
+      "lucent.cfg",
+    );
 
     expect(existsSync(configPath)).toBe(false);
     manager.add(loaderPath);
@@ -165,7 +170,12 @@ describe("flash trust manager", () => {
 
   it("replaces trusted paths and reads them back through the async manager", async () => {
     const root = await makeTempDir();
-    const configPath = join(root, "#Security", "FlashPlayerTrust", "lucent.cfg");
+    const configPath = join(
+      root,
+      "#Security",
+      "FlashPlayerTrust",
+      "lucent.cfg",
+    );
     const flashTrust = makeFlashTrust();
 
     await Effect.runPromise(
@@ -193,7 +203,12 @@ describe("flash trust manager", () => {
 
   it("replaces trusted paths during startup before Electron services are available", async () => {
     const root = await makeTempDir();
-    const configPath = join(root, "#Security", "FlashPlayerTrust", "lucent.cfg");
+    const configPath = join(
+      root,
+      "#Security",
+      "FlashPlayerTrust",
+      "lucent.cfg",
+    );
 
     trustOnlySync("lucent", ["/trusted/loader.swf"], { customFolder: root });
 

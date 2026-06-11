@@ -225,13 +225,17 @@ test("ambiguous shop selectors fail with matching item identities", async () => 
 });
 
 test("buy, canBuy, and max quantity resolve through unique ShopItemID", async () => {
-  const calls: Array<{ readonly path: string; readonly args?: readonly unknown[] }> =
-    [];
+  const calls: Array<{
+    readonly path: string;
+    readonly args?: readonly unknown[];
+  }> = [];
   let emitJson: EmitJsonPacket = emitNoJson;
   const bridge = {
     call(path, args) {
       calls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "shops.buyByShopItemId") {
         return Effect.suspend(() =>
@@ -270,10 +274,7 @@ test("buy, canBuy, and max quantity resolve through unique ShopItemID", async ()
       yield* loadShop(loadShopPacket);
 
       return {
-        preciseBuy: yield* shops.buy(
-          { shopItemId: "s2" },
-          { quantity: 3 },
-        ),
+        preciseBuy: yield* shops.buy({ shopItemId: "s2" }, { quantity: 3 }),
         canBuy: yield* shops.canBuy({ itemId: 101 }),
         max: yield* shops.getMaxBuyQuantity({ shopItemId: "s2" }),
       };
@@ -302,12 +303,16 @@ test("buy, canBuy, and max quantity resolve through unique ShopItemID", async ()
 });
 
 test("buy returns false without sending when item cannot be bought", async () => {
-  const calls: Array<{ readonly path: string; readonly args?: readonly unknown[] }> =
-    [];
+  const calls: Array<{
+    readonly path: string;
+    readonly args?: readonly unknown[];
+  }> = [];
   const bridge = {
     call(path, args) {
       calls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "shops.canBuyByShopItemId") {
         return Effect.succeed(false) as never;
@@ -346,12 +351,16 @@ test("buy returns false without sending when item cannot be bought", async () =>
 });
 
 test("buy returns false when command sends but no buyItem response arrives", async () => {
-  const calls: Array<{ readonly path: string; readonly args?: readonly unknown[] }> =
-    [];
+  const calls: Array<{
+    readonly path: string;
+    readonly args?: readonly unknown[];
+  }> = [];
   const bridge = {
     call(path, args) {
       calls.push(
-        args === undefined ? { path: String(path) } : { path: String(path), args },
+        args === undefined
+          ? { path: String(path) }
+          : { path: String(path), args },
       );
       if (path === "shops.canBuyByShopItemId") {
         return Effect.succeed(true) as never;
@@ -604,9 +613,12 @@ test("buy returns false when buyItem response times out", async () => {
     (shops, loadShop) =>
       Effect.gen(function* () {
         yield* loadShop(loadShopPacket);
-        const fiber = yield* Effect.forkDetach(shops.buy({ shopItemId: "s2" }), {
-          startImmediately: true,
-        });
+        const fiber = yield* Effect.forkDetach(
+          shops.buy({ shopItemId: "s2" }),
+          {
+            startImmediately: true,
+          },
+        );
         yield* Effect.yieldNow;
         yield* TestClock.adjust("6 seconds");
         return yield* Fiber.join(fiber);

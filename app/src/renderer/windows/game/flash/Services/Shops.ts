@@ -73,7 +73,9 @@ export interface ShopsShape {
     selector: ShopItemSelector,
   ): ShopItemSelectionEffect<Option.Option<ShopItem>>;
   getItems(): BridgeEffect<Collection<string, ShopItem>>;
-  getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
+  getMaxBuyQuantity(
+    selector: ShopItemSelector,
+  ): ShopItemSelectionEffect<number>;
   isOpen(shopId?: number): BridgeEffect<boolean>;
   isMergeShop(): BridgeEffect<boolean>;
   load(shopId: number): BridgeEffect<void>;

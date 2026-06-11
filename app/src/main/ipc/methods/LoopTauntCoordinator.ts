@@ -162,10 +162,13 @@ export class LoopTauntCoordinator {
     delayMs: number,
     callback: () => void,
   ): void {
-    const timer = setTimeout(() => {
-      state.timers.delete(timer);
-      callback();
-    }, Math.max(0, Math.trunc(delayMs)));
+    const timer = setTimeout(
+      () => {
+        state.timers.delete(timer);
+        callback();
+      },
+      Math.max(0, Math.trunc(delayMs)),
+    );
     state.timers.add(timer);
   }
 

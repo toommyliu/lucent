@@ -69,7 +69,7 @@ const sessions = new Map<number, AccountScriptSession>();
 const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
 const pendingGameWindowShutdowns = new Map<
   string,
- {
+  {
     readonly resolve: () => void;
     readonly reject: (error: Error) => void;
     readonly cleanup: () => void;
@@ -248,8 +248,9 @@ const normalizeGroupPatch = (
   };
 };
 
-const visibleSessions = (): readonly AccountScriptSession[] =>
-  [...sessions.values()];
+const visibleSessions = (): readonly AccountScriptSession[] => [
+  ...sessions.values(),
+];
 
 const toState = async (
   repository: AccountManagerRepositoryShape,
@@ -715,7 +716,8 @@ export const handleAccountGameWindowShutdownResponse = (
 
   pending.reject(
     new Error(
-      typeof shutdownResponse.error === "string" && shutdownResponse.error !== ""
+      typeof shutdownResponse.error === "string" &&
+        shutdownResponse.error !== ""
         ? shutdownResponse.error
         : "Game window shutdown request failed",
     ),

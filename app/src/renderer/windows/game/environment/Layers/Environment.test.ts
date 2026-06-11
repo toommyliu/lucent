@@ -179,8 +179,7 @@ const withEnvironment = (
     get: (questId: number) =>
       Effect.succeed(Option.fromNullishOr(questTree.get(questId))),
     has: (questId: number) => Effect.succeed(questTree.has(questId)),
-    isAvailable: () =>
-      Effect.sync(() => availableResults.shift() ?? false),
+    isAvailable: () => Effect.sync(() => availableResults.shift() ?? false),
     isInProgress: () => Effect.succeed(inProgress),
     load: () => Effect.void,
     loadMany: () => Effect.void,

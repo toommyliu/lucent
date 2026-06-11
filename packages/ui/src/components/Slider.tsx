@@ -2,8 +2,10 @@ import { Slider as SliderPrimitive } from "@ark-ui/solid/slider";
 import { Index, createMemo, splitProps, type JSX } from "solid-js";
 import { cn } from "../lib/cn";
 
-export interface SliderProps
-  extends Omit<Parameters<typeof SliderPrimitive.Root>[0], "class"> {
+export interface SliderProps extends Omit<
+  Parameters<typeof SliderPrimitive.Root>[0],
+  "class"
+> {
   readonly class?: string;
 }
 
@@ -58,8 +60,10 @@ export function Slider(props: SliderProps): JSX.Element {
   );
 }
 
-export interface SliderValueProps
-  extends Omit<Parameters<typeof SliderPrimitive.ValueText>[0], "class"> {
+export interface SliderValueProps extends Omit<
+  Parameters<typeof SliderPrimitive.ValueText>[0],
+  "class"
+> {
   readonly class?: string;
 }
 

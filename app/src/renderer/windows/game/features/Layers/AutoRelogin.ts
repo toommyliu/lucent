@@ -1159,10 +1159,7 @@ const make = Effect.gen(function* () {
           return [{ status: "wait" }, state] as const;
         }
 
-        if (
-          now <
-          state.connectedUnreadySince + PLAYER_READY_TIMEOUT_MS
-        ) {
+        if (now < state.connectedUnreadySince + PLAYER_READY_TIMEOUT_MS) {
           return [{ status: "wait" }, state] as const;
         }
 
