@@ -28,8 +28,11 @@ import {
   type WindowEffectRunner,
   type WindowManagerConfig,
 } from "../../window/WindowService";
+import type { ObservabilityShape } from "../../app/MainObservability";
 import type { WorkspaceFilesShape } from "../../workspace/WorkspaceFiles";
 import {
+  closeTrackedAccountGameWindow,
+  handleAccountGameWindowShutdownResponse,
   normalizeLaunchRequest,
   resolveAccountLaunchTileBounds,
   startAccountGameLaunch,
@@ -55,6 +58,7 @@ class FakeWindow extends EventEmitter {
   public visible = false;
   public destroyed = false;
   public bounds: Rectangle | null = null;
+  public closeCalls = 0;
 
   public constructor(
     public readonly id: number,
@@ -87,6 +91,12 @@ class FakeWindow extends EventEmitter {
 
   public setBounds(bounds: Rectangle): void {
     this.bounds = bounds;
+  }
+
+  public close(): boolean {
+    this.closeCalls += 1;
+    this.destroy();
+    return true;
   }
 
   public destroy(): void {
@@ -131,6 +141,33 @@ const makeWorkspace = (scriptsDir: string): WorkspaceFilesShape => ({
   readScript: () => Effect.die("not used"),
   readArmyConfig: () => Effect.die("not used"),
 });
+
+const makeObservability = () => ({
+  warn: vi.fn(() => Effect.succeed({} as never)),
+  error: vi.fn(() => Effect.succeed({} as never)),
+}) as unknown as ObservabilityShape;
+
+const waitForScheduledClose = async (): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
+const waitForSentMessage = async (
+  window: FakeWindow,
+  channel: string,
+): Promise<{ readonly channel: string; readonly args: readonly unknown[] }> => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const message = window.webContents.sent.find(
+      (message) => message.channel === channel,
+    );
+    if (message !== undefined) {
+      return message;
+    }
+
+    await Promise.resolve();
+  }
+
+  throw new Error(`Missing sent message: ${channel}`);
+};
 
 const makeHarness = (options?: {
   readonly cursorDisplayWorkArea?: Rectangle;
@@ -373,5 +410,194 @@ describe("account game launch", () => {
       height: 400,
     });
     gameWindow.destroy();
+  });
+
+  it("rejects close requests for untracked game windows", async () => {
+    const harness = makeHarness();
+
+    await expect(
+      closeTrackedAccountGameWindow(
+        { gameWindowId: 999 },
+        {
+          runWindowEffect: harness.runWindowEffect,
+          repository: makeRepository(),
+          observability: makeObservability(),
+        },
+      ),
+    ).rejects.toThrow("Tracked game window not found");
+  });
+
+  it("closes a tracked game window after graceful shutdown response", async () => {
+    if (tempDir === undefined) {
+      throw new Error("Missing temp directory");
+    }
+
+    const harness = makeHarness();
+    const repository = makeRepository();
+    const observability = makeObservability();
+    const result = await startAccountGameLaunch(
+      {
+        account: {
+          label: "Hero",
+          username: "Hero",
+          password: "secret",
+        },
+      },
+      {
+        runWindowEffect: harness.runWindowEffect,
+        repository,
+        workspace: makeWorkspace(tempDir),
+        observability,
+      },
+    );
+
+    const [gameWindow] = harness.windows;
+    if (gameWindow === undefined) {
+      throw new Error("Missing game window");
+    }
+
+    const closePromise = closeTrackedAccountGameWindow(
+      { gameWindowId: result.gameWindowId },
+      {
+        runWindowEffect: harness.runWindowEffect,
+        repository,
+        observability,
+      },
+    );
+
+    const shutdownRequest = await waitForSentMessage(
+      gameWindow,
+      AccountManagerIpcChannels.gameWindowShutdownRequest,
+    );
+    const request = shutdownRequest?.args[0] as
+      | { readonly requestId?: string }
+      | undefined;
+    if (typeof request?.requestId !== "string") {
+      throw new Error("Missing shutdown request");
+    }
+
+    handleAccountGameWindowShutdownResponse({
+      requestId: request.requestId,
+      ok: true,
+    });
+    await closePromise;
+    await waitForScheduledClose();
+
+    expect(gameWindow.closeCalls).toBe(1);
+    expect(gameWindow.destroyed).toBe(true);
+  });
+
+  it("closes a tracked game window when graceful shutdown times out", async () => {
+    if (tempDir === undefined) {
+      throw new Error("Missing temp directory");
+    }
+
+    vi.useFakeTimers();
+    try {
+      const harness = makeHarness();
+      const repository = makeRepository();
+      const observability = makeObservability();
+      const result = await startAccountGameLaunch(
+        {
+          account: {
+            label: "Hero",
+            username: "Hero",
+            password: "secret",
+          },
+        },
+        {
+          runWindowEffect: harness.runWindowEffect,
+          repository,
+          workspace: makeWorkspace(tempDir),
+          observability,
+        },
+      );
+
+      const [gameWindow] = harness.windows;
+      if (gameWindow === undefined) {
+        throw new Error("Missing game window");
+      }
+
+      const closePromise = closeTrackedAccountGameWindow(
+        { gameWindowId: result.gameWindowId },
+        {
+          runWindowEffect: harness.runWindowEffect,
+          repository,
+          observability,
+        },
+      );
+      await waitForSentMessage(
+        gameWindow,
+        AccountManagerIpcChannels.gameWindowShutdownRequest,
+      );
+
+      await vi.advanceTimersByTimeAsync(12_000);
+      await closePromise;
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(gameWindow.closeCalls).toBe(1);
+      expect(gameWindow.destroyed).toBe(true);
+      expect(observability.warn).toHaveBeenCalledWith(
+        "accounts",
+        "Graceful game window shutdown failed; closing anyway",
+        expect.objectContaining({ gameWindowId: result.gameWindowId }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("finishes close when the game window closes during graceful shutdown", async () => {
+    if (tempDir === undefined) {
+      throw new Error("Missing temp directory");
+    }
+
+    const harness = makeHarness();
+    const repository = makeRepository();
+    const observability = makeObservability();
+    const result = await startAccountGameLaunch(
+      {
+        account: {
+          label: "Hero",
+          username: "Hero",
+          password: "secret",
+        },
+      },
+      {
+        runWindowEffect: harness.runWindowEffect,
+        repository,
+        workspace: makeWorkspace(tempDir),
+        observability,
+      },
+    );
+
+    const [gameWindow] = harness.windows;
+    if (gameWindow === undefined) {
+      throw new Error("Missing game window");
+    }
+
+    const closePromise = closeTrackedAccountGameWindow(
+      { gameWindowId: result.gameWindowId },
+      {
+        runWindowEffect: harness.runWindowEffect,
+        repository,
+        observability,
+      },
+    );
+    await waitForSentMessage(
+      gameWindow,
+      AccountManagerIpcChannels.gameWindowShutdownRequest,
+    );
+
+    gameWindow.destroy();
+    await closePromise;
+
+    expect(gameWindow.closeCalls).toBe(0);
+    expect(gameWindow.destroyed).toBe(true);
+    expect(observability.warn).toHaveBeenCalledWith(
+      "accounts",
+      "Graceful game window shutdown failed; closing anyway",
+      expect.objectContaining({ gameWindowId: result.gameWindowId }),
+    );
   });
 });

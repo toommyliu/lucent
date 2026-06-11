@@ -37,6 +37,7 @@ import {
   type CombatProfileLibrary,
 } from "../../../shared/combat-profiles";
 import type {
+  AccountGameWindowShutdownRequest,
   AccountGameLaunchPayload,
   FastTravelsRequestMessage,
   FollowerStartPayload,
@@ -805,6 +806,7 @@ export default function App(props: {
   const [scriptStatus, setScriptStatus] = createSignal("No script loaded");
   const [scriptDiagnosticsCount, setScriptDiagnosticsCount] = createSignal(0);
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(false);
+  const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(false);
 
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
@@ -865,6 +867,8 @@ export default function App(props: {
   let autoAttackToggleInFlight = false;
   let fastTravelRequestChain = Promise.resolve();
   let cleanedUp = false;
+  let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
+  let lastSyncedAccountLaunchStatusKey = "";
   const accountLaunchFibers = new Set<Fiber.Fiber<void, unknown>>();
   const assignDisposer =
     (slot: "settings" | "autoAttack" | "autoZone" | "autoRelogin") =>
@@ -891,24 +895,85 @@ export default function App(props: {
     });
   };
 
-  const updateAccountLaunchStatus = (
+  const updateAccountLaunchStatus = async (
     payload: AccountGameLaunchPayload,
     status: "starting" | "running" | "stopped" | "failed",
     message: string,
-  ) => {
-    void window.ipc.accounts
-      .updateScriptStatus({
+    scriptNameOverride?: string,
+  ): Promise<void> => {
+    const nextScriptName =
+      scriptNameOverride ?? payload.script?.name ?? payload.script?.path;
+    try {
+      await window.ipc.accounts.updateScriptStatus({
         username: payload.account.username,
         gameWindowId: payload.gameWindowId,
         status,
         message,
-        ...(payload.script === undefined
-          ? {}
-          : { scriptName: payload.script.name ?? payload.script.path }),
-      })
-      .catch((error: unknown) => {
-        console.error("Failed to update account launch status:", error);
+        ...(nextScriptName === undefined ? {} : { scriptName: nextScriptName }),
       });
+    } catch (error: unknown) {
+      console.error("Failed to update account launch status:", error);
+    }
+  };
+
+  const updateAccountLaunchStatusEffect = (
+    payload: AccountGameLaunchPayload,
+    status: "starting" | "running" | "stopped" | "failed",
+    message: string,
+    scriptNameOverride?: string,
+  ) =>
+    Effect.promise(() =>
+      updateAccountLaunchStatus(payload, status, message, scriptNameOverride),
+    );
+
+  const syncAccountLaunchWindowStatus = (
+    status: "starting" | "running" | "stopped" | "failed",
+    message: string,
+    scriptNameOverride?: string,
+  ): void => {
+    const payload = activeAccountLaunchPayload;
+    if (payload === null) {
+      return;
+    }
+
+    const key = `${payload.gameWindowId}:${status}:${message}:${scriptNameOverride ?? ""}`;
+    if (key === lastSyncedAccountLaunchStatusKey) {
+      return;
+    }
+
+    lastSyncedAccountLaunchStatusKey = key;
+    void updateAccountLaunchStatus(payload, status, message, scriptNameOverride);
+  };
+
+  const syncAccountLaunchRuntimeStatus = (options?: {
+    readonly scriptRunning?: boolean;
+  }): void => {
+    const payload = activeAccountLaunchPayload;
+    if (payload === null) {
+      return;
+    }
+
+    if (!getGameLoadState().loaded || !playerReady()) {
+      syncAccountLaunchWindowStatus("starting", "Waiting...");
+      return;
+    }
+
+    const currentScriptName = scriptName().trim();
+    const launchedScriptName = payload.script?.name ?? payload.script?.path ?? "";
+    const name = currentScriptName || launchedScriptName || "script";
+    const hasScript = scriptLoaded() || payload.script !== undefined;
+
+    if (options?.scriptRunning ?? scriptRunning()) {
+      syncAccountLaunchWindowStatus("running", `Running ${name}`, name);
+      return;
+    }
+
+    if (hasScript) {
+      syncAccountLaunchWindowStatus("stopped", `Stopped ${name}`, name);
+      return;
+    }
+
+    syncAccountLaunchWindowStatus("running", "Player ready");
   };
 
   const waitForLoadedGame = (): Promise<void> => {
@@ -943,7 +1008,11 @@ export default function App(props: {
         if (!isRunning) {
           setScriptRunning(false);
           setScriptStatus(`Stopped ${name}`);
-          updateAccountLaunchStatus(payload, "stopped", `Stopped ${name}`);
+          yield* updateAccountLaunchStatusEffect(
+            payload,
+            "stopped",
+            `Stopped ${name}`,
+          );
           return;
         }
 
@@ -952,7 +1021,7 @@ export default function App(props: {
         setScriptStatus(nextMessage);
 
         if (nextMessage !== lastMessage) {
-          updateAccountLaunchStatus(payload, "running", nextMessage);
+          yield* updateAccountLaunchStatusEffect(payload, "running", nextMessage);
           lastMessage = nextMessage;
         }
       }
@@ -960,7 +1029,11 @@ export default function App(props: {
 
   const runAccountLaunch = (payload: AccountGameLaunchPayload) =>
     Effect.gen(function* () {
-      updateAccountLaunchStatus(payload, "starting", "Waiting for game loader");
+      yield* updateAccountLaunchStatusEffect(
+        payload,
+        "starting",
+        "Waiting...",
+      );
       yield* Effect.promise(() => waitForLoadedGame());
 
       const autoRelogin = yield* AutoRelogin;
@@ -971,7 +1044,7 @@ export default function App(props: {
       });
 
       if (outcome.stage === "server-select") {
-        updateAccountLaunchStatus(
+        yield* updateAccountLaunchStatusEffect(
           payload,
           "stopped",
           payload.script
@@ -985,7 +1058,8 @@ export default function App(props: {
       if (!payload.script) {
         setScriptRunning(false);
         setScriptStatus("Player ready");
-        updateAccountLaunchStatus(payload, "running", "Player ready");
+        lastSyncedAccountLaunchStatusKey = "";
+        yield* updateAccountLaunchStatusEffect(payload, "running", "Player ready");
         void refreshScriptMeta();
         return;
       }
@@ -996,7 +1070,7 @@ export default function App(props: {
       yield* Effect.sync(() => {
         applyLoadedScript(script.source, name);
       });
-      updateAccountLaunchStatus(payload, "running", `Running ${name}`);
+      yield* updateAccountLaunchStatusEffect(payload, "running", `Running ${name}`);
       yield* runner
         .run(script.source, {
           name,
@@ -1011,14 +1085,14 @@ export default function App(props: {
         );
       setScriptRunning(true);
       setScriptStatus(`Running ${name}`);
-      updateAccountLaunchStatus(payload, "running", `Running ${name}`);
+      yield* updateAccountLaunchStatusEffect(payload, "running", `Running ${name}`);
       yield* waitForAccountScriptStopEffect(payload, name);
       void refreshScriptMeta();
     }).pipe(
       Effect.catch((error: unknown) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           console.error("Failed to run account launch:", error);
-          updateAccountLaunchStatus(
+          yield* updateAccountLaunchStatusEffect(
             payload,
             "failed",
             formatAccountLaunchError(error),
@@ -1029,6 +1103,9 @@ export default function App(props: {
     );
 
   const handleAccountLaunch = (payload: AccountGameLaunchPayload) => {
+    activeAccountLaunchPayload = payload;
+    lastSyncedAccountLaunchStatusKey = "";
+    syncAccountLaunchRuntimeStatus();
     const fiber = runtime.runFork(runAccountLaunch(payload));
     accountLaunchFibers.add(fiber);
     let removeObserver: (() => void) | undefined;
@@ -1078,10 +1155,13 @@ export default function App(props: {
       setScriptRunning(isRunning);
       setScriptDiagnosticsCount(diagnostics.length);
       setScriptUsePrivateRooms(options.usePrivateRooms);
+      setScriptSafeStartStop(options.safeStartStop);
       setScriptStatus(formatScriptStatus(scriptLoaded(), isRunning));
+      syncAccountLaunchRuntimeStatus({ scriptRunning: isRunning });
     } catch (error) {
       console.error("Failed to refresh script metadata", error);
       setScriptStatus("Failed to refresh script state");
+      syncAccountLaunchRuntimeStatus({ scriptRunning: false });
     }
   };
 
@@ -1168,6 +1248,71 @@ export default function App(props: {
       });
   };
 
+  const handleToggleScriptSafeStartStop = () => {
+    const nextEnabled = !scriptSafeStartStop();
+    setScriptSafeStartStop(nextEnabled);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          yield* runner.setSafeStartStop(nextEnabled);
+        }),
+      )
+      .catch((error) => {
+        console.error("Failed to update script safe start/stop option", error);
+        setScriptSafeStartStop(!nextEnabled);
+      })
+      .finally(() => {
+        void refreshScriptMeta();
+      });
+  };
+
+  const handleAccountGameWindowShutdownRequest = async (
+    _request: AccountGameWindowShutdownRequest,
+  ): Promise<void> => {
+    setScriptStatus("Close requested");
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        const auth = yield* Auth;
+
+        yield* runner.stop("account manager close request").pipe(
+          Effect.catchCause((cause) =>
+            Effect.sync(() => {
+              console.error("Failed to stop script during client close", cause);
+            }),
+          ),
+        );
+
+        const loggedIn = yield* auth.isLoggedIn().pipe(
+          Effect.catchCause((cause) =>
+            Effect.sync(() => {
+              console.error(
+                "Failed to inspect login state during client close",
+                cause,
+              );
+              return false;
+            }),
+          ),
+        );
+
+        if (loggedIn) {
+          yield* auth.logout().pipe(
+            Effect.catchCause((cause) =>
+              Effect.sync(() => {
+                console.error("Failed to logout during client close", cause);
+              }),
+            ),
+          );
+        }
+      }),
+    );
+
+    setScriptRunning(false);
+    setScriptStatus("Closing game client");
+    void refreshScriptMeta();
+  };
+
   const canApplyGameSettings = () => gameLoaded() && playerReady();
 
   const runSettingsEffect = (
@@ -1193,6 +1338,7 @@ export default function App(props: {
   const refreshPlayerReadyState = () => {
     if (!getGameLoadState().loaded) {
       setPlayerReady(false);
+      syncAccountLaunchRuntimeStatus({ scriptRunning: false });
       packetsBridgeController?.stopActive("Game is not loaded");
       return;
     }
@@ -1207,6 +1353,7 @@ export default function App(props: {
       .then((isReady) => {
         const wasReady = playerReady();
         setPlayerReady(isReady);
+        syncAccountLaunchRuntimeStatus();
         if (isReady && !wasReady) {
           refreshTravelOptions();
         } else if (!isReady && wasReady) {
@@ -1215,6 +1362,7 @@ export default function App(props: {
       })
       .catch((error) => {
         setPlayerReady(false);
+        syncAccountLaunchRuntimeStatus({ scriptRunning: false });
         packetsBridgeController?.stopActive("Player readiness check failed");
         console.error("Refresh player ready state error:", error);
       });
@@ -2046,6 +2194,10 @@ export default function App(props: {
       window.ipc.settings.onChanged(applyAppSettings);
     const unsubscribeAccountLaunch =
       window.ipc.accounts.onGameLaunch(handleAccountLaunch);
+    const unsubscribeGameWindowShutdown =
+      window.ipc.accounts.onGameWindowShutdownRequest(
+        handleAccountGameWindowShutdownRequest,
+      );
     const unsubscribeCombatProfiles = window.ipc.combatProfiles.onChanged(
       applyCombatProfileLibrary,
     );
@@ -2110,6 +2262,7 @@ export default function App(props: {
       }
       if (!state.loaded) {
         setPlayerReady(false);
+        syncAccountLaunchRuntimeStatus({ scriptRunning: false });
         packetsBridge.stopActive("Game reloaded");
       }
     });
@@ -2213,6 +2366,7 @@ export default function App(props: {
     onCleanup(() => {
       unsubscribeAppSettings();
       unsubscribeAccountLaunch();
+      unsubscribeGameWindowShutdown();
       unsubscribeCombatProfiles();
       unsubscribeScriptExecute();
       unsubscribeScriptStop();
@@ -2309,10 +2463,12 @@ export default function App(props: {
           scriptStatus={scriptStatus}
           scriptDiagnosticsCount={scriptDiagnosticsCount}
           scriptUsePrivateRooms={scriptUsePrivateRooms}
+          scriptSafeStartStop={scriptSafeStartStop}
           loadScript={loadScript}
           startScript={startScript}
           stopScript={stopScript}
           handleToggleScriptPrivateRooms={handleToggleScriptPrivateRooms}
+          handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
           optionItems={topNavOptionsMenuProps.optionItems}
           walkSpeed={topNavOptionsMenuProps.walkSpeed}
           setWalkSpeed={topNavOptionsMenuProps.setWalkSpeed}

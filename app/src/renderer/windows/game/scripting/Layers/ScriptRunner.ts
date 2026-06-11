@@ -141,19 +141,27 @@ const SCRIPT_SEMANTIC_EVENT_NAMES = new Set<ScriptSemanticEventName>([
 ]);
 
 const DEFAULT_SCRIPT_OPTIONS: ScriptOptions = {
+  safeStartStop: false,
   usePrivateRooms: false,
 };
 
 const normalizeScriptOptionsPatch = (
   patch: Partial<ScriptOptions> | undefined,
 ): Partial<ScriptOptions> => {
-  if (patch?.usePrivateRooms === undefined) {
-    return {};
+  const output: {
+    safeStartStop?: boolean;
+    usePrivateRooms?: boolean;
+  } = {};
+
+  if (patch?.safeStartStop !== undefined) {
+    output.safeStartStop = patch.safeStartStop === true;
   }
 
-  return {
-    usePrivateRooms: patch.usePrivateRooms === true,
-  };
+  if (patch?.usePrivateRooms !== undefined) {
+    output.usePrivateRooms = patch.usePrivateRooms === true;
+  }
+
+  return output;
 };
 
 const applyScriptOptionsPatch = (
@@ -882,10 +890,7 @@ const make = Effect.gen(function* () {
       mode: "on" | "once",
       eventName: E,
       handler: ScriptEventListener<E>,
-    ): Effect.Effect<
-      () => void,
-      ScriptExecutionError | ScriptNotReadyError
-    > =>
+    ): Effect.Effect<() => void, ScriptExecutionError | ScriptNotReadyError> =>
       wrapScriptEffect(
         Effect.uninterruptible(
           Effect.gen(function* () {
@@ -1622,6 +1627,28 @@ const make = Effect.gen(function* () {
             usePrivateRooms: enabled,
           }));
         }),
+      getSafeStartStop: () =>
+        Ref.get(scriptOptionsRef).pipe(
+          Effect.map((options) => options.safeStartStop),
+        ),
+      setSafeStartStop: (enabled) =>
+        Effect.suspend(() => {
+          if (typeof enabled !== "boolean") {
+            return Effect.fail(
+              new ScriptExecutionError({
+                sourceName,
+                message:
+                  "script.options.setSafeStartStop(enabled) expects a boolean",
+                cause: enabled,
+              }),
+            );
+          }
+
+          return Ref.update(scriptOptionsRef, (options) => ({
+            ...options,
+            safeStartStop: enabled,
+          }));
+        }),
       getAll: () =>
         Ref.get(scriptOptionsRef).pipe(
           Effect.map((options) => ({ ...options })),
@@ -1659,7 +1686,9 @@ const make = Effect.gen(function* () {
           return new Collection<string, Aura>();
         }
 
-        return yield* world.players.auras.getAll({ entId: me.value.data.entID });
+        return yield* world.players.auras.getAll({
+          entId: me.value.data.entID,
+        });
       });
 
     const getScriptSelfAura = (auraName: string) =>
@@ -1710,8 +1739,11 @@ const make = Effect.gen(function* () {
       },
     };
 
-    const { onLoaded: _onQuestLoaded, get: _getQuest, ...scriptQuestsBase } =
-      quests;
+    const {
+      onLoaded: _onQuestLoaded,
+      get: _getQuest,
+      ...scriptQuestsBase
+    } = quests;
     const scriptQuests: ScriptQuestsShape = {
       ...scriptQuestsBase,
       get: (questId) => nullableOptionEffect(quests.get(questId)),
@@ -1802,6 +1834,23 @@ const make = Effect.gen(function* () {
       world,
     });
 
+    const runSafeStartStop = (phase: "start" | "stop") =>
+      Effect.gen(function* () {
+        const options = yield* Ref.get(scriptOptionsRef);
+        if (!options.safeStartStop) {
+          return;
+        }
+
+        yield* recipes.goToHouse().pipe(
+          Effect.catchCause((cause) =>
+            appendDiagnostic(sourceName, {
+              severity: "warning",
+              message: `Safe ${phase} failed to move to house: ${causeMessage(cause)}`,
+            }),
+          ),
+        );
+      });
+
     const script: ScriptRuntimeApi = {
       signal: scriptScope.signal,
       options: scriptOptions,
@@ -1887,6 +1936,9 @@ const make = Effect.gen(function* () {
         });
       }
 
+      yield* runSafeStartStop("start").pipe(
+        Effect.catchCause(() => Effect.void),
+      );
       yield* Effect.gen(() => generator);
     }).pipe(
       Effect.catchCause((cause) =>
@@ -1903,7 +1955,12 @@ const make = Effect.gen(function* () {
             ),
       ),
       Effect.ensuring(
-        scriptScope.close("script finished").pipe(
+        Effect.gen(function* () {
+          yield* runSafeStartStop("stop").pipe(
+            Effect.catchCause(() => Effect.void),
+          );
+          yield* scriptScope.close("script finished");
+        }).pipe(
           Effect.ensuring(
             Effect.sync(() => {
               runtime.clearContext();
@@ -2033,6 +2090,12 @@ const make = Effect.gen(function* () {
       usePrivateRooms: enabled,
     }));
 
+  const setSafeStartStop: ScriptRunnerShape["setSafeStartStop"] = (enabled) =>
+    Ref.update(scriptOptionsRef, (options) => ({
+      ...options,
+      safeStartStop: enabled,
+    }));
+
   return {
     run,
     stop,
@@ -2040,6 +2103,7 @@ const make = Effect.gen(function* () {
     diagnostics,
     getOptions,
     setUsePrivateRooms,
+    setSafeStartStop,
   } satisfies ScriptRunnerShape;
 });
 

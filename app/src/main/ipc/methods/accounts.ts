@@ -12,6 +12,8 @@ import {
   type AccountGameLaunchPayload,
   type AccountGameServer,
   type AccountGameServersResult,
+  type AccountGameWindowShutdownResponse,
+  type AccountGameWindowTargetRequest,
   type AccountLaunchResult,
   type AccountLaunchRequest,
   type AccountLaunchTilingAlgorithm,
@@ -27,6 +29,7 @@ import {
   type ManagedAccountPatch,
   type ScriptExecutePayload,
 } from "../../../shared/ipc";
+import { makeRandomId } from "../../../shared/random-id";
 import { WindowIds } from "../../../shared/windows";
 import {
   type AccountManagerRepositoryShape,
@@ -56,6 +59,7 @@ import { refreshScriptPayload } from "../../workspace/scripting";
 const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
 const SERVER_REQUEST_TIMEOUT_MS = 10_000;
+const ACCOUNT_GAME_WINDOW_SHUTDOWN_TIMEOUT_MS = 12_000;
 
 let lastServerRefreshRequestTime = 0;
 let cachedServers: ServerData[] = [];
@@ -63,6 +67,14 @@ let lastServerFetchTime = 0;
 
 const sessions = new Map<number, AccountScriptSession>();
 const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
+const pendingGameWindowShutdowns = new Map<
+  string,
+ {
+    readonly resolve: () => void;
+    readonly reject: (error: Error) => void;
+    readonly cleanup: () => void;
+  }
+>();
 const launchTilingAlgorithms = new Set<AccountLaunchTilingAlgorithm>([
   "none",
   "auto-grid",
@@ -236,18 +248,8 @@ const normalizeGroupPatch = (
   };
 };
 
-const visibleSessions = (): readonly AccountScriptSession[] => {
-  const latestByUsername = new Map<string, AccountScriptSession>();
-
-  for (const session of sessions.values()) {
-    const current = latestByUsername.get(session.username);
-    if (current === undefined || session.updatedAt >= current.updatedAt) {
-      latestByUsername.set(session.username, session);
-    }
-  }
-
-  return [...latestByUsername.values()];
-};
+const visibleSessions = (): readonly AccountScriptSession[] =>
+  [...sessions.values()];
 
 const toState = async (
   repository: AccountManagerRepositoryShape,
@@ -590,6 +592,19 @@ const normalizeGameWindowId = (value: unknown): number => {
   return value as number;
 };
 
+const normalizeGameWindowTargetRequest = (
+  request: unknown,
+): AccountGameWindowTargetRequest => {
+  if (typeof request !== "object" || request === null) {
+    throw new Error("Game window target request must be an object");
+  }
+
+  const input = request as Partial<AccountGameWindowTargetRequest>;
+  return {
+    gameWindowId: normalizeGameWindowId(input.gameWindowId),
+  };
+};
+
 const setSession = async (
   update: AccountScriptStatusUpdate,
   runWindowEffect: WindowEffectRunner,
@@ -632,6 +647,79 @@ const sendGameLaunchPayload = (
   }
 
   window.webContents.send(AccountManagerIpcChannels.gameLaunch, payload);
+};
+
+const shutdownErrorMessage = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ""
+    ? cause.message
+    : "Game window shutdown request failed";
+
+const requestGameWindowShutdown = (
+  window: BrowserWindow,
+  gameWindowId: number,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const requestId = makeRandomId();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const handleClosed = () => {
+      cleanup();
+      reject(
+        new Error("Game window closed before responding to shutdown request"),
+      );
+    };
+    const cleanup = () => {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
+      window.removeListener("closed", handleClosed);
+      pendingGameWindowShutdowns.delete(requestId);
+    };
+
+    timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Game window did not respond to shutdown request"));
+    }, ACCOUNT_GAME_WINDOW_SHUTDOWN_TIMEOUT_MS);
+
+    pendingGameWindowShutdowns.set(requestId, { resolve, reject, cleanup });
+    window.once("closed", handleClosed);
+
+    window.webContents.send(
+      AccountManagerIpcChannels.gameWindowShutdownRequest,
+      { requestId, gameWindowId },
+    );
+  });
+
+export const handleAccountGameWindowShutdownResponse = (
+  response: unknown,
+): void => {
+  const shutdownResponse = response as Partial<
+    AccountGameWindowShutdownResponse & { readonly error?: unknown }
+  >;
+  const requestId = shutdownResponse.requestId;
+  if (typeof requestId !== "string") {
+    return;
+  }
+
+  const pending = pendingGameWindowShutdowns.get(requestId);
+  if (!pending) {
+    return;
+  }
+
+  pendingGameWindowShutdowns.delete(requestId);
+  pending.cleanup();
+
+  if (shutdownResponse.ok) {
+    pending.resolve();
+    return;
+  }
+
+  pending.reject(
+    new Error(
+      typeof shutdownResponse.error === "string" && shutdownResponse.error !== ""
+        ? shutdownResponse.error
+        : "Game window shutdown request failed",
+    ),
+  );
 };
 
 const refreshGameLaunchScript = async (
@@ -801,6 +889,27 @@ export const startAccountGameLaunch = async (
     requestedAt: now(),
   };
 
+  let gameWindowClosed = false;
+  const cleanupGameWindowLaunch = (): void => {
+    gameWindowClosed = true;
+    gameLaunchPayloads.delete(gameWindowId);
+    void clearSession(
+      gameWindowId,
+      dependencies.runWindowEffect,
+      dependencies.repository,
+    ).catch((error) => {
+      void Effect.runPromise(
+        dependencies.observability.error(
+          "accounts",
+          "Failed to clear account session on close",
+          error,
+          { gameWindowId },
+        ),
+      );
+    });
+  };
+
+  gameWindow.once("closed", cleanupGameWindowLaunch);
   gameLaunchPayloads.set(gameWindowId, gameLaunchPayload);
 
   await setSession(
@@ -820,27 +929,133 @@ export const startAccountGameLaunch = async (
     dependencies.repository,
   );
 
-  gameWindow.once("closed", () => {
+  if (
+    gameWindowClosed ||
+    gameWindow.isDestroyed() ||
+    gameWindow.webContents.isDestroyed()
+  ) {
     gameLaunchPayloads.delete(gameWindowId);
-    void clearSession(
+    await clearSession(
       gameWindowId,
       dependencies.runWindowEffect,
       dependencies.repository,
-    ).catch((error) => {
-      void Effect.runPromise(
-        dependencies.observability.error(
-          "accounts",
-          "Failed to clear account session on close",
-          error,
-          { gameWindowId },
-        ),
-      );
-    });
-  });
+    );
+    throw new Error("Game window closed before launch completed");
+  }
 
   sendGameLaunchPayload(gameWindow, gameLaunchPayload);
 
   return { gameWindowId };
+};
+
+export interface AccountGameWindowFocusDependencies {
+  readonly runWindowEffect: WindowEffectRunner;
+  readonly repository: AccountManagerRepositoryShape;
+}
+
+export const focusTrackedAccountGameWindow = async (
+  request: unknown,
+  dependencies: AccountGameWindowFocusDependencies,
+): Promise<AccountManagerState> => {
+  const { gameWindowId } = normalizeGameWindowTargetRequest(request);
+  if (!sessions.has(gameWindowId)) {
+    throw new Error("Tracked game window not found");
+  }
+
+  const gameWindow = await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.getGameWindow(gameWindowId);
+    }),
+  );
+
+  if (!gameWindow) {
+    await clearSession(
+      gameWindowId,
+      dependencies.runWindowEffect,
+      dependencies.repository,
+    );
+    throw new Error("Tracked game window is no longer open");
+  }
+
+  if (gameWindow.isMinimized()) {
+    gameWindow.restore();
+  }
+  gameWindow.show();
+  gameWindow.focus();
+
+  return await toState(dependencies.repository);
+};
+
+export interface AccountGameWindowCloseDependencies {
+  readonly runWindowEffect: WindowEffectRunner;
+  readonly repository: AccountManagerRepositoryShape;
+  readonly observability: ObservabilityShape;
+}
+
+export const closeTrackedAccountGameWindow = async (
+  request: unknown,
+  dependencies: AccountGameWindowCloseDependencies,
+): Promise<AccountManagerState> => {
+  const { gameWindowId } = normalizeGameWindowTargetRequest(request);
+  const session = sessions.get(gameWindowId);
+  if (!session) {
+    throw new Error("Tracked game window not found");
+  }
+
+  const gameWindow = await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.getGameWindow(gameWindowId);
+    }),
+  );
+
+  if (!gameWindow) {
+    await clearSession(
+      gameWindowId,
+      dependencies.runWindowEffect,
+      dependencies.repository,
+    );
+    return await toState(dependencies.repository);
+  }
+
+  await setSession(
+    {
+      username: session.username,
+      gameWindowId,
+      status: session.status,
+      ...(session.scriptName === undefined
+        ? {}
+        : { scriptName: session.scriptName }),
+      message: "Closing game client",
+    },
+    dependencies.runWindowEffect,
+    dependencies.repository,
+  );
+
+  try {
+    await requestGameWindowShutdown(gameWindow, gameWindowId);
+  } catch (error) {
+    await Effect.runPromise(
+      dependencies.observability.warn(
+        "accounts",
+        "Graceful game window shutdown failed; closing anyway",
+        {
+          gameWindowId,
+          error: shutdownErrorMessage(error),
+        },
+      ),
+    );
+  }
+
+  await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      yield* windows.requestCloseGameWindow(gameWindowId);
+    }),
+  );
+
+  return await toState(dependencies.repository);
 };
 
 const serverLoadErrorMessage = (error: unknown): string => {
@@ -865,7 +1080,7 @@ const runAccountServersEffect = async (
       servers: servers.map(toAccountGameServer),
     };
   } catch (error) {
-    throw new Error(serverLoadErrorMessage(error));
+    throw new Error(serverLoadErrorMessage(error), { cause: error });
   }
 };
 
@@ -895,6 +1110,14 @@ export const registerAccountManagerIpcHandlers = (
         const workspace = yield* WorkspaceFiles;
         return yield* Effect.promise(() => run({ repository, workspace }));
       });
+
+    yield* ipc.on(
+      AccountManagerIpcChannels.gameWindowShutdownResponse,
+      (_event, response) =>
+        Effect.sync(() => {
+          handleAccountGameWindowShutdownResponse(response);
+        }),
+    );
 
     yield* ipc.handle(AccountManagerIpcChannels.getState, (event) =>
       withServices(async ({ repository }) => {
@@ -1198,6 +1421,31 @@ export const registerAccountManagerIpcHandlers = (
           },
         );
       }),
+    );
+
+    yield* ipc.handle(
+      AccountManagerIpcChannels.focusGameWindow,
+      (event, request) =>
+        withServices(async ({ repository }) => {
+          await requireAccountManagerSender(event, runWindowEffect);
+          return await focusTrackedAccountGameWindow(request, {
+            runWindowEffect,
+            repository,
+          });
+        }),
+    );
+
+    yield* ipc.handle(
+      AccountManagerIpcChannels.closeGameWindow,
+      (event, request) =>
+        withServices(async ({ repository }) => {
+          await requireAccountManagerSender(event, runWindowEffect);
+          return await closeTrackedAccountGameWindow(request, {
+            runWindowEffect,
+            repository,
+            observability,
+          });
+        }),
     );
 
     yield* ipc.handle(
