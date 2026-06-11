@@ -99,10 +99,12 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptStatus: Accessor<string>;
   readonly scriptDiagnosticsCount: Accessor<number>;
   readonly scriptUsePrivateRooms: Accessor<boolean>;
+  readonly scriptSafeStartStop: Accessor<boolean>;
   readonly loadScript: () => void | Promise<void>;
   readonly startScript: () => void;
   readonly stopScript: () => void;
   readonly handleToggleScriptPrivateRooms: () => void;
+  readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
   readonly autoZoneMap: Accessor<AutoZoneSupportedMap | undefined>;
   readonly handleToggleAutoZone: () => void;
@@ -715,6 +717,15 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       value="script-use-private-rooms"
                     >
                       Use Private Rooms
+                    </MenuCheckboxItem>
+                    <MenuCheckboxItem
+                      checked={props.scriptSafeStartStop()}
+                      class="game-menu__item"
+                      closeOnSelect={false}
+                      onClick={props.handleToggleScriptSafeStartStop}
+                      value="script-safe-start-stop"
+                    >
+                      Safe Start/Stop
                     </MenuCheckboxItem>
                   </MenuSubContent>
                 </MenuSub>

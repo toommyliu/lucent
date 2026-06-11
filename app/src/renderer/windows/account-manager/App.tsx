@@ -40,7 +40,6 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
   Input,
   InputGroup,
@@ -49,6 +48,9 @@ import {
   Kbd,
   KbdGroup,
   Label,
+  Menu,
+  MenuContent,
+  MenuTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -60,6 +62,7 @@ import {
 } from "@lucent/ui";
 import {
   For,
+  Index,
   Show,
   createEffect,
   createMemo,
@@ -275,16 +278,26 @@ const reconcileAccounts = (
   return changed ? accounts : previousAccounts;
 };
 
+const sessionIdentityKey = (session: AccountScriptSession): string =>
+  session.gameWindowId === undefined
+    ? `account:${session.username}`
+    : `window:${session.gameWindowId}`;
+
 const reconcileSessions = (
   previousSessions: readonly AccountScriptSession[],
   nextSessions: readonly AccountScriptSession[],
 ): readonly AccountScriptSession[] => {
-  const previousByUsername = new Map(
-    previousSessions.map((session) => [session.username, session]),
+  const previousByIdentity = new Map(
+    previousSessions.map((session) => [sessionIdentityKey(session), session]),
   );
   let changed = previousSessions.length !== nextSessions.length;
   const sessions = nextSessions.map((session, index) => {
-    const previous = previousByUsername.get(session.username);
+    const previous = previousByIdentity.get(sessionIdentityKey(session));
+    if (previous !== undefined && previous.updatedAt > session.updatedAt) {
+      changed ||= previousSessions[index] !== previous;
+      return previous;
+    }
+
     if (previous !== undefined && sameVisibleSession(previous, session)) {
       changed ||= previousSessions[index] !== previous;
       return previous;
@@ -330,68 +343,6 @@ const reconcileAccountManagerState = (
   };
 };
 
-function AccountActionButton(props: {
-  readonly "aria-label": string;
-  readonly children: JSX.Element;
-  readonly disabled?: boolean;
-  readonly tooltip: string;
-  readonly onClick: () => void;
-}): JSX.Element {
-  return (
-    <Tooltip closeDelay={0} openDelay={200} positioning={{ placement: "top" }}>
-      <TooltipTrigger
-        asChild={(triggerProps) => (
-          <Button
-            {...(triggerProps({
-              "aria-label": props["aria-label"],
-              children: props.children,
-              disabled: props.disabled,
-              onClick: props.onClick,
-              size: "icon",
-              type: "button",
-              variant: "ghost",
-            } as ButtonProps) as ButtonProps)}
-          />
-        )}
-      />
-      <TooltipContent>{props.tooltip}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function AccountDeleteTrigger(props: {
-  readonly "aria-label": string;
-  readonly disabled?: boolean;
-  readonly tooltip: string;
-}): JSX.Element {
-  return (
-    <Tooltip closeDelay={0} openDelay={200} positioning={{ placement: "top" }}>
-      <AlertDialogTrigger
-        asChild={(dialogTriggerProps) => (
-          <TooltipTrigger
-            asChild={(tooltipTriggerProps) => (
-              <Button
-                {...(dialogTriggerProps(
-                  tooltipTriggerProps({
-                    "aria-label": props["aria-label"],
-                    children: <Icon icon="trash_2" class="button__icon" />,
-                    class: "account-row__delete",
-                    disabled: props.disabled,
-                    size: "icon-lg",
-                    type: "button",
-                    variant: "ghost",
-                  } as ButtonProps),
-                ) as ButtonProps)}
-              />
-            )}
-          />
-        )}
-      />
-      <TooltipContent>{props.tooltip}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function ShortcutKbd(props: {
   readonly label: string;
   readonly parts: readonly string[];
@@ -418,6 +369,11 @@ function App(): JSX.Element {
   const [selectedAccountUsernames, setSelectedAccountUsernames] = createSignal<
     ReadonlySet<string>
   >(new Set());
+  const [accountToDelete, setAccountToDelete] = createSignal<ManagedAccount | null>(null);
+  const [sessionToClose, setSessionToClose] = createSignal<{
+    readonly accountLabel: string;
+    readonly session: AccountScriptSession;
+  } | null>(null);
   const [selectedGroupName, setSelectedGroupName] = createSignal("");
   const [groupDialogOpen, setGroupDialogOpen] = createSignal(false);
   const [groupDialogMode, setGroupDialogMode] = createSignal<"create" | "edit">(
@@ -462,6 +418,10 @@ function App(): JSX.Element {
     createSignal(0);
   const [serverRefreshNow, setServerRefreshNow] = createSignal(Date.now());
   const [busy, setBusy] = createSignal(false);
+  const [closingGameWindowIds, setClosingGameWindowIds] = createSignal<
+    ReadonlySet<number>
+  >(new Set());
+  const [activeWindowsOpen, setActiveWindowsOpen] = createSignal(false);
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
 
   const accounts = createMemo(() => state().accounts);
@@ -487,12 +447,33 @@ function App(): JSX.Element {
       );
     });
   });
-  const sessionsByUsername = createMemo(() => {
-    const sessions = new Map<string, AccountScriptSession>();
-    for (const session of state().sessions) {
-      sessions.set(session.username, session);
+  const activeWindowSessions = createMemo(() =>
+    state()
+      .sessions.filter((session) => session.gameWindowId !== undefined)
+      .slice()
+      .sort((left, right) => right.updatedAt - left.updatedAt),
+  );
+  createEffect(() => {
+    const activeGameWindowIds = new Set<number>();
+    for (const session of activeWindowSessions()) {
+      if (session.gameWindowId !== undefined) {
+        activeGameWindowIds.add(session.gameWindowId);
+      }
     }
-    return sessions;
+
+    setClosingGameWindowIds((previous) => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const gameWindowId of previous) {
+        if (activeGameWindowIds.has(gameWindowId)) {
+          next.add(gameWindowId);
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
   });
   const selectedLaunchUsernames = createMemo(() => {
     return resolveSelectedAccountUsernames(
@@ -1307,23 +1288,25 @@ function App(): JSX.Element {
     const shouldTile = tilingAlgorithm !== "none" && usernames.length > 1;
     try {
       for (const [index, username] of usernames.entries()) {
-        await window.ipc.accounts.launch({
-          username,
-          script,
-          ...(server === "" ? {} : { server }),
-          ...(shouldTile
-            ? {
-                tiling: {
-                  algorithm: tilingAlgorithm,
-                  index,
-                  count: usernames.length,
-                },
-              }
-            : {}),
-        });
+        try {
+          await window.ipc.accounts.launch({
+            username,
+            script,
+            ...(server === "" ? {} : { server }),
+            ...(shouldTile
+              ? {
+                  tiling: {
+                    algorithm: tilingAlgorithm,
+                    index,
+                    count: usernames.length,
+                  },
+                }
+              : {}),
+          });
+        } catch (error) {
+          console.error(`Failed to launch account ${username}:`, error);
+        }
       }
-    } catch (error) {
-      console.error("Failed to launch accounts:", error);
     } finally {
       setBusy(false);
     }
@@ -1335,6 +1318,56 @@ function App(): JSX.Element {
 
   const handleLaunch = async () => {
     await launchAccountUsernames(selectedLaunchUsernames());
+  };
+
+  const activeWindowStatusLabel = (session: AccountScriptSession): string =>
+    session.message ?? session.status;
+
+  const handleFocusTrackedGameWindow = async (
+    session: AccountScriptSession,
+  ) => {
+    const gameWindowId = session.gameWindowId;
+    if (gameWindowId === undefined) {
+      return;
+    }
+
+    try {
+      const nextState = await window.ipc.accounts.focusGameWindow({
+        gameWindowId,
+      });
+      applyState(nextState);
+    } catch (error) {
+      console.error("Failed to focus tracked game window:", error);
+    }
+  };
+
+  const handleCloseTrackedGameWindow = async (
+    session: AccountScriptSession,
+  ) => {
+    const gameWindowId = session.gameWindowId;
+    if (gameWindowId === undefined) {
+      return;
+    }
+
+    setClosingGameWindowIds((previous) => new Set(previous).add(gameWindowId));
+    let closeAccepted = false;
+    try {
+      const nextState = await window.ipc.accounts.closeGameWindow({
+        gameWindowId,
+      });
+      closeAccepted = true;
+      applyState(nextState);
+    } catch (error) {
+      console.error("Failed to close tracked game client:", error);
+    } finally {
+      if (!closeAccepted) {
+        setClosingGameWindowIds((previous) => {
+          const next = new Set(previous);
+          next.delete(gameWindowId);
+          return next;
+        });
+      }
+    }
   };
 
   const handleLoadScript = async () => {
@@ -1496,6 +1529,120 @@ function App(): JSX.Element {
           </Tooltip>
         </AppShell.HeaderLeft>
         <AppShell.HeaderRight>
+          <Menu
+            open={activeWindowsOpen()}
+            onOpenChange={(details) => setActiveWindowsOpen(details.open)}
+            positioning={{ gutter: 8, placement: "bottom-end" }}
+          >
+            <MenuTrigger
+              asChild={(triggerProps) => (
+                <Button
+                  {...(triggerProps({
+                    "aria-label": "Active game windows",
+                    class: "account-manager__active-windows-trigger",
+                    classList: {
+                      "account-manager__active-windows-trigger--active": activeWindowSessions().length > 0,
+                    },
+                    disabled: activeWindowSessions().length === 0,
+                    type: "button",
+                    variant: "secondary",
+                  } as ButtonProps) as ButtonProps)}
+                >
+                  <Show
+                    when={activeWindowSessions().length > 0}
+                    fallback={<Icon icon="copy" class="button__icon" />}
+                  >
+                    <span class="active-dot" />
+                  </Show>
+                  Active Windows
+                  <Badge variant="outline" class="account-manager__active-windows-count">
+                    {activeWindowSessions().length}
+                  </Badge>
+                </Button>
+              )}
+            />
+            <MenuContent class="active-windows-menu">
+              <Show
+                when={activeWindowSessions().length > 0}
+                fallback={
+                  <div class="active-windows-menu__empty">
+                    No tracked game windows.
+                  </div>
+                }
+              >
+                <div class="active-windows-menu__list">
+                  <Index each={activeWindowSessions()}>
+                    {(session) => {
+                      const gameWindowId = () => session().gameWindowId;
+                      const isClosing = () => {
+                        const id = gameWindowId();
+                        return id !== undefined && closingGameWindowIds().has(id);
+                      };
+                      const focusSession = () => {
+                        if (!isClosing()) {
+                          void handleFocusTrackedGameWindow(session());
+                        }
+                      };
+                      return (
+                        <div
+                          class="active-windows-menu__item"
+                          classList={{
+                            "active-windows-menu__item--running": session().status === "running",
+                            "active-windows-menu__item--starting": session().status === "starting",
+                            "active-windows-menu__item--failed": session().status === "failed",
+                            "active-windows-menu__item--stopped": session().status === "stopped",
+                            "active-windows-menu__item--disabled": isClosing(),
+                          }}
+                        >
+                          <div class="active-windows-menu__item-main">
+                            <div class="active-windows-menu__item-title">
+                              <Button
+                                disabled={isClosing()}
+                                onClick={focusSession}
+                                size="xs"
+                                variant="ghost"
+                                aria-label={`Focus game window ${gameWindowId()}`}
+                                class="active-windows-menu__focus-btn"
+                              >
+                                <Icon icon="eye" class="button__icon" />
+                              </Button>
+                              Window #{gameWindowId()}
+                            </div>
+                          </div>
+                          <div class="active-windows-menu__item-side">
+                            <Badge
+                              variant={statusVariant(session().status)}
+                              class="active-windows-menu__status"
+                            >
+                              {activeWindowStatusLabel(session())}
+                            </Badge>
+                            <Button
+                              disabled={busy() || isClosing()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSessionToClose({
+                                  accountLabel: `Window #${gameWindowId()}`,
+                                  session: session(),
+                                });
+                                setActiveWindowsOpen(false);
+                              }}
+                              size="xs"
+                              type="button"
+                              variant="ghost"
+                              class="active-windows-menu__close-btn"
+                            >
+                              <Icon icon="x" class="button__icon" />
+                              Close
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </Index>
+                </div>
+              </Show>
+            </MenuContent>
+          </Menu>
           <Tooltip closeDelay={0} openDelay={200}>
             <TooltipTrigger
               asChild={(triggerProps) => (
@@ -1591,9 +1738,6 @@ function App(): JSX.Element {
         <section class="account-manager__surface" aria-label="Accounts">
           <div class="account-manager__controls">
             <InputGroup class="account-search" aria-keyshortcuts="/">
-              <InputGroupAddon>
-                <Icon icon="search" aria-hidden="true" />
-              </InputGroupAddon>
               <InputGroupInput
                 ref={(element) => {
                   accountSearchInput = element;
@@ -1792,93 +1936,72 @@ function App(): JSX.Element {
                     />
                   </Show>
                 </div>
-                <InputGroup class="account-manager__script-field account-manager__field">
-                  <Tooltip closeDelay={0} openDelay={400}>
-                    <TooltipTrigger
-                      asChild={(triggerProps) => (
-                        <Button
-                          {...(triggerProps({
-                            "aria-keyshortcuts": selectScriptAriaKeyshortcuts(),
-                            "aria-label": selectedScript()
-                              ? "Choose a different script file"
-                              : "Choose script file",
-                            class: "account-manager__script-display",
-                            disabled: busy(),
-                            onClick: handleLoadScript,
-                            variant: "ghost",
-                          } as ButtonProps) as ButtonProps)}
-                        >
-                          <span
-                            class="account-manager__script-display-label"
-                            classList={{
-                              "account-manager__script-display-label--disabled":
-                                selectedScript() !== null &&
-                                !launchScript().enabled,
-                              "account-manager__script-display-label--empty":
-                                selectedScript() === null,
-                            }}
-                          >
-                            {selectedScriptLabel() || "No script selected"}
-                          </span>
-                        </Button>
-                      )}
-                    />
-                    <Show when={selectedScriptPath() !== ""}>
-                      <TooltipContent>{selectedScriptPath()}</TooltipContent>
-                    </Show>
-                  </Tooltip>
-                  <InputGroupAddon
-                    align="inline-end"
-                    class="account-manager__script-actions"
-                  >
+                <Show
+                  when={selectedScript() !== null}
+                  fallback={
+                    <Button
+                      class="account-manager__script-select-btn account-manager__field"
+                      disabled={busy()}
+                      onClick={handleLoadScript}
+                      size="lg"
+                      variant="secondary"
+                      aria-keyshortcuts={selectScriptAriaKeyshortcuts()}
+                      aria-label="Choose script file"
+                    >
+                      <span>Choose Script...</span>
+                    </Button>
+                  }
+                >
+                  <div class="account-manager__script-split-group account-manager__field">
                     <Tooltip closeDelay={0} openDelay={200}>
                       <TooltipTrigger
                         asChild={(triggerProps) => (
                           <Button
                             {...(triggerProps({
-                              "aria-label": "Choose script file",
+                              "aria-label": "Clear selected script",
+                              class: "account-manager__script-split-clear account-manager__script-split-clear--left",
                               disabled: busy(),
-                              onClick: handleLoadScript,
-                              size: "icon-sm",
-                              type: "button",
-                              variant: "ghost",
+                              onClick: clearLaunchScript,
+                              size: "lg",
+                              variant: "secondary",
                             } as ButtonProps) as ButtonProps)}
                           >
-                            <Icon icon="folder_open" class="button__icon" />
+                            <Icon icon="x" class="button__icon" />
                           </Button>
                         )}
                       />
-                      <TooltipContent>
-                        Choose script file{" "}
-                        <ShortcutKbd
-                          label={selectScriptHotkeyDisplay()}
-                          parts={selectScriptHotkeyDisplayParts()}
-                        />
-                      </TooltipContent>
+                      <TooltipContent>Clear script</TooltipContent>
                     </Tooltip>
-                    <Show when={selectedScript() !== null}>
-                      <Tooltip closeDelay={0} openDelay={200}>
-                        <TooltipTrigger
-                          asChild={(triggerProps) => (
-                            <Button
-                              {...(triggerProps({
-                                "aria-label": "Clear selected script",
-                                disabled: busy(),
-                                onClick: clearLaunchScript,
-                                size: "icon-sm",
-                                type: "button",
-                                variant: "ghost",
-                              } as ButtonProps) as ButtonProps)}
+                    <Tooltip closeDelay={0} openDelay={400}>
+                      <TooltipTrigger
+                        asChild={(triggerProps) => (
+                          <Button
+                            {...(triggerProps({
+                              "aria-keyshortcuts": selectScriptAriaKeyshortcuts(),
+                              "aria-label": "Choose a different script file",
+                              class: "account-manager__script-split-main account-manager__script-split-main--right",
+                              disabled: busy(),
+                              onClick: handleLoadScript,
+                              size: "lg",
+                              variant: "secondary",
+                            } as ButtonProps) as ButtonProps)}
+                          >
+                            <span
+                              class="account-manager__script-split-label"
+                              classList={{
+                                "account-manager__script-split-label--disabled":
+                                  !launchScript().enabled,
+                              }}
                             >
-                              <Icon icon="x" class="button__icon" />
-                            </Button>
-                          )}
-                        />
-                        <TooltipContent>Clear script</TooltipContent>
-                      </Tooltip>
-                    </Show>
-                  </InputGroupAddon>
-                </InputGroup>
+                              {selectedScriptLabel()}
+                            </span>
+                          </Button>
+                        )}
+                      />
+                      <TooltipContent>{selectedScriptPath()}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </Show>
               </div>
 
             </div>
@@ -1994,7 +2117,6 @@ function App(): JSX.Element {
                       onClick={openEditGroupDialog}
                       disabled={busy() || selectedGroupName() === ""}
                     >
-                      <Icon icon="pencil" class="button__icon" />
                       Edit
                     </Button>
                     <AlertDialog>
@@ -2006,7 +2128,6 @@ function App(): JSX.Element {
                               disabled: busy() || selectedGroupName() === "",
                             } as ButtonProps) as ButtonProps)}
                           >
-                            <Icon icon="trash_2" class="button__icon" />
                             Delete
                           </Button>
                         )}
@@ -2062,6 +2183,7 @@ function App(): JSX.Element {
                 <Select
                   value={[launchTilingAlgorithm()]}
                   disabled={busy()}
+                  positioning={{ sameWidth: false }}
                   onValueChange={(details) => {
                     const value = details.value[0];
                     if (isAccountLaunchTilingAlgorithm(value)) {
@@ -2075,6 +2197,7 @@ function App(): JSX.Element {
                     }}
                     aria-keyshortcuts={launchTilingAriaKeyshortcuts()}
                     class="account-manager__selection-tiling"
+                    size="lg"
                   >
                     <span class="select__value">
                       {selectedTilingAlgorithmLabel()}
@@ -2139,7 +2262,6 @@ function App(): JSX.Element {
                             busy() || selectedAccountUsernames().size === 0,
                         } as ButtonProps) as ButtonProps)}
                       >
-                        <Icon icon="trash_2" class="button__icon" />
                         Remove
                       </Button>
                     )}
@@ -2173,7 +2295,6 @@ function App(): JSX.Element {
                           onClick: handleLaunch,
                         } as ButtonProps) as ButtonProps)}
                       >
-                        <Icon icon="play" class="button__icon" />
                         Start
                       </Button>
                     )}
@@ -2214,14 +2335,6 @@ function App(): JSX.Element {
                 >
                   <Empty class="account-list__empty">
                     <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <Show
-                          when={accounts().length === 0}
-                          fallback={<Icon icon="users" aria-hidden="true" />}
-                        >
-                          <Icon icon="user_plus" aria-hidden="true" />
-                        </Show>
-                      </EmptyMedia>
                       <EmptyTitle>
                         {accounts().length === 0
                           ? "No accounts yet"
@@ -2239,10 +2352,6 @@ function App(): JSX.Element {
             >
               <For each={filteredAccounts()}>
                 {(account, index) => {
-                  const session = createMemo(() =>
-                    sessionsByUsername().get(account.username),
-                  );
-
                   return (
                     <Card
                       class="account-row"
@@ -2250,90 +2359,70 @@ function App(): JSX.Element {
                         "animation-delay": `${Math.min(index() * 12, 36)}ms`,
                       }}
                     >
-                      <Checkbox
-                        checked={selectedAccountUsernames().has(
-                          account.username,
-                        )}
-                        onChange={(event) =>
-                          toggleSelected(
-                            account.username,
-                            event.currentTarget.checked,
-                          )
-                        }
-                        size="default"
-                        aria-label={`Select ${account.label}`}
-                      />
                       <div
-                        class="account-row__identity"
-                        onClick={() =>
+                        class="account-row__select-area"
+                        onClick={(event) => {
+                          if (event.target.closest(".checkbox")) {
+                            return;
+                          }
                           toggleSelected(
                             account.username,
                             !selectedAccountUsernames().has(account.username),
-                          )
-                        }
+                          );
+                        }}
                       >
-                        <span class="account-row__title">{account.label}</span>
-                        <span class="account-row__meta">
-                          {account.username}
-                        </span>
+                        <Checkbox
+                          id={`checkbox-${account.username}`}
+                          checked={selectedAccountUsernames().has(
+                            account.username,
+                          )}
+                          onChange={(event) =>
+                            toggleSelected(
+                              account.username,
+                              event.currentTarget.checked,
+                            )
+                          }
+                          size="default"
+                          aria-label={`Select ${account.label}`}
+                        />
+                        <div class="account-row__identity">
+                          <span class="account-row__title">{account.label}</span>
+                          <span class="account-row__meta">
+                            {account.username}
+                          </span>
+                        </div>
                       </div>
-                      <Show when={session()}>
-                        {(activeSession) => (
-                          <Badge
-                            variant={statusVariant(activeSession().status)}
-                          >
-                            {activeSession().status}
-                          </Badge>
-                        )}
-                      </Show>
                       <div class="account-row__actions">
-                        <AccountActionButton
+                        <Button
                           aria-label={`Launch ${account.label}`}
-                          tooltip="Launch account"
+                          class="account-row__launch-btn"
+                          disabled={busy()}
                           onClick={() =>
                             void handleLaunchAccountUsername(account.username)
                           }
+                          size="sm"
+                          variant="secondary"
+                        >
+                          Launch
+                        </Button>
+                        <Button
+                          class="account-row__edit-btn"
                           disabled={busy()}
-                        >
-                          <Icon icon="play" class="button__icon" />
-                        </AccountActionButton>
-                        <AccountActionButton
-                          aria-label={`Edit ${account.label}`}
-                          tooltip="Edit account"
                           onClick={() => openEditDialog(account)}
+                          size="sm"
+                          variant="ghost"
                         >
-                          <Icon icon="pencil" class="button__icon" />
-                        </AccountActionButton>
-                        <AlertDialog>
-                          <AccountDeleteTrigger
-                            disabled={busy()}
-                            aria-label={`Delete ${account.label}`}
-                            tooltip="Delete account"
-                          />
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Delete Account
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {confirmDeleteDescription(account.label)}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() =>
-                                  void handleDeleteAccountUsername(
-                                    account.username,
-                                  )
-                                }
-                                variant="destructive"
-                              >
-                                Delete account
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                          Edit
+                        </Button>
+                        <Button
+                          class="account-row__delete-btn"
+                          disabled={busy()}
+                          onClick={() => setAccountToDelete(account)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </Card>
                   );
@@ -2390,9 +2479,6 @@ function App(): JSX.Element {
                     class="account-group-dialog__search"
                     aria-keyshortcuts="/"
                   >
-                    <InputGroupAddon>
-                      <Icon icon="search" aria-hidden="true" />
-                    </InputGroupAddon>
                     <InputGroupInput
                       ref={(element) => {
                         groupSearchInput = element;
@@ -2450,12 +2536,7 @@ function App(): JSX.Element {
                       asChild={(triggerProps) => (
                         <Button
                           {...(triggerProps({
-                            children: (
-                              <>
-                                <Icon icon="trash_2" class="button__icon" />
-                                Delete
-                              </>
-                            ),
+                            children: "Delete",
                             disabled: busy(),
                             variant: "destructive-outline",
                           } as ButtonProps) as ButtonProps)}
@@ -2557,7 +2638,7 @@ function App(): JSX.Element {
                     >
                       <Button
                         class="account-dialog__password-button"
-                        size="icon-sm"
+                        size="sm"
                         variant="ghost"
                         type="button"
                         aria-label={
@@ -2568,12 +2649,7 @@ function App(): JSX.Element {
                           setPasswordVisible((visible) => !visible)
                         }
                       >
-                        <Show
-                          when={passwordVisible()}
-                          fallback={<Icon icon="eye" class="button__icon" />}
-                        >
-                          <Icon icon="eye_off" class="button__icon" />
-                        </Show>
+                        {passwordVisible() ? "Hide" : "Show"}
                       </Button>
                     </InputGroupAddon>
                   </InputGroup>
@@ -2609,12 +2685,7 @@ function App(): JSX.Element {
                       asChild={(triggerProps) => (
                         <Button
                           {...(triggerProps({
-                            children: (
-                              <>
-                                <Icon icon="trash_2" class="button__icon" />
-                                Delete
-                              </>
-                            ),
+                            children: "Delete",
                             disabled: busy(),
                             variant: "destructive-outline",
                           } as ButtonProps) as ButtonProps)}
@@ -2667,6 +2738,75 @@ function App(): JSX.Element {
             </form>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog
+          open={accountToDelete() !== null}
+          onOpenChange={(details) => {
+            if (!details.open) {
+              setAccountToDelete(null);
+            }
+          }}
+        >
+          <AlertDialogContent class="account-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Account</AlertDialogTitle>
+              <AlertDialogDescription>
+                {(() => {
+                  const acc = accountToDelete();
+                  return acc ? confirmDeleteDescription(acc.label) : "";
+                })()}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const acc = accountToDelete();
+                  if (acc) {
+                    void handleDeleteAccountUsername(acc.username);
+                  }
+                  setAccountToDelete(null);
+                }}
+                variant="destructive"
+              >
+                Delete account
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={sessionToClose() !== null}
+          onOpenChange={(details) => {
+            if (!details.open) {
+              setSessionToClose(null);
+            }
+          }}
+        >
+          <AlertDialogContent class="account-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Close Game Client</AlertDialogTitle>
+              <AlertDialogDescription>
+                Stop the script, log out, and close {sessionToClose()?.accountLabel}?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const data = sessionToClose();
+                  if (data) {
+                    void handleCloseTrackedGameWindow(data.session);
+                  }
+                  setSessionToClose(null);
+                }}
+                variant="destructive"
+              >
+                Close client
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </AppShell.Body>
     </AppShell>
   );

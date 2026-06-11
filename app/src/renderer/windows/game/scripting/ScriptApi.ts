@@ -579,6 +579,10 @@ export interface ScriptOptionsApi {
   setUsePrivateRooms(
     enabled: boolean,
   ): Effect.Effect<void, ScriptExecutionError>;
+  getSafeStartStop(): Effect.Effect<boolean>;
+  setSafeStartStop(
+    enabled: boolean,
+  ): Effect.Effect<void, ScriptExecutionError>;
   getAll(): Effect.Effect<Readonly<ScriptOptions>>;
   reset(): Effect.Effect<void>;
 }

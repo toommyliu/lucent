@@ -30,6 +30,7 @@ export interface ScriptRunnerShape {
   diagnostics(): Effect.Effect<ReadonlyArray<ScriptDiagnostic>>;
   getOptions(): Effect.Effect<Readonly<ScriptOptions>>;
   setUsePrivateRooms(enabled: boolean): Effect.Effect<void>;
+  setSafeStartStop(enabled: boolean): Effect.Effect<void>;
 }
 
 export class ScriptRunner extends ServiceMap.Service<

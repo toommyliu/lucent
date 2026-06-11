@@ -18,8 +18,11 @@ import {
   ScriptingIpcChannels,
   UpdatesIpcChannels,
   WindowIpcChannels,
+  type AccountGameWindowTargetRequest,
   type AccountGameLaunchPayload,
   type AccountGameServersResult,
+  type AccountGameWindowShutdownRequest,
+  type AccountGameWindowShutdownResponse,
   type AccountLaunchRequest,
   type AccountLaunchResult,
   type AccountManagerState,
@@ -103,6 +106,9 @@ const platform: AppPlatform =
 const accountGameLaunchListeners = new Set<
   (payload: AccountGameLaunchPayload) => void
 >();
+const accountGameWindowShutdownRequestListeners = new Set<
+  (request: AccountGameWindowShutdownRequest) => Promise<void> | void
+>();
 const pendingAccountGameLaunchPayloads: AccountGameLaunchPayload[] = [];
 let lastDeliveredAccountGameLaunchKey = "";
 
@@ -158,6 +164,11 @@ const followerRequestErrorMessage = (cause: unknown): string =>
     ? cause.message
     : "Follower request failed";
 
+const accountGameWindowShutdownErrorMessage = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ""
+    ? cause.message
+    : "Game window shutdown request failed";
+
 const writePreloadError = (
   message: string,
   error: unknown,
@@ -205,6 +216,39 @@ ipcRenderer.on(
   AccountManagerIpcChannels.gameLaunch,
   (_event, payload: AccountGameLaunchPayload) => {
     deliverAccountGameLaunchPayload(payload);
+  },
+);
+
+ipcRenderer.on(
+  AccountManagerIpcChannels.gameWindowShutdownRequest,
+  (_event, request: AccountGameWindowShutdownRequest) => {
+    const respond = (message: AccountGameWindowShutdownResponse): void => {
+      ipcRenderer.send(
+        AccountManagerIpcChannels.gameWindowShutdownResponse,
+        message,
+      );
+    };
+
+    const run = async (): Promise<void> => {
+      const listener = latestSetListener(
+        accountGameWindowShutdownRequestListeners,
+      );
+      if (!listener) {
+        throw new Error("Game window shutdown is not available");
+      }
+
+      await listener(request);
+    };
+
+    void run()
+      .then(() => respond({ requestId: request.requestId, ok: true }))
+      .catch((cause: unknown) =>
+        respond({
+          requestId: request.requestId,
+          ok: false,
+          error: accountGameWindowShutdownErrorMessage(cause),
+        }),
+      );
   },
 );
 
@@ -412,6 +456,18 @@ const bridge: AppBridge = {
         request,
       )) as AccountLaunchResult;
     },
+    focusGameWindow: async (request: AccountGameWindowTargetRequest) => {
+      return (await ipcRenderer.invoke(
+        AccountManagerIpcChannels.focusGameWindow,
+        request,
+      )) as AccountManagerState;
+    },
+    closeGameWindow: async (request: AccountGameWindowTargetRequest) => {
+      return (await ipcRenderer.invoke(
+        AccountManagerIpcChannels.closeGameWindow,
+        request,
+      )) as AccountManagerState;
+    },
     updateScriptStatus: async (update: AccountScriptStatusUpdate) => {
       await ipcRenderer.invoke(
         AccountManagerIpcChannels.updateScriptStatus,
@@ -457,6 +513,13 @@ const bridge: AppBridge = {
 
       return () => {
         accountGameLaunchListeners.delete(listener);
+      };
+    },
+    onGameWindowShutdownRequest: (listener) => {
+      accountGameWindowShutdownRequestListeners.add(listener);
+
+      return () => {
+        accountGameWindowShutdownRequestListeners.delete(listener);
       };
     },
   },

@@ -2518,7 +2518,7 @@ a.badge--destructive:hover {
   line-height: 1.2;
   min-height: 1.75rem;
   outline: none;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 1rem 0.25rem 0.5rem;
 }
 
 .select__item[data-highlighted],
@@ -2559,6 +2559,7 @@ a.badge--destructive:hover {
 .combobox__item-text {
   grid-column: 2;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .select__label,

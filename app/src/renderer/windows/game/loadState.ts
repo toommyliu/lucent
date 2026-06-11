@@ -39,7 +39,7 @@ export const getGameLoadState = (): GameLoadState => currentState;
 export const setGameLoadProgress = (percent: number): void => {
   const progress = Math.min(Math.max(Math.round(percent), 0), 100);
   currentState = {
-    loaded: currentState.loaded,
+    loaded: progress >= 100 ? currentState.loaded : false,
     progress,
   };
   writeWindowState();

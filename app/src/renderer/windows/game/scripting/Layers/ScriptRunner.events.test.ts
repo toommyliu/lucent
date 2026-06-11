@@ -7,7 +7,7 @@ import { AutoZone } from "../../features/Services/AutoZone";
 import { Auth, type AuthShape } from "../../flash/Services/Auth";
 import { Bank } from "../../flash/Services/Bank";
 import { Bridge, type BridgeShape } from "../../flash/Services/Bridge";
-import { Combat } from "../../flash/Services/Combat";
+import { Combat, type CombatShape } from "../../flash/Services/Combat";
 import { Drops } from "../../flash/Services/Drops";
 import { Environment } from "../../environment/Services/Environment";
 import {
@@ -19,13 +19,13 @@ import {
 import { House } from "../../flash/Services/House";
 import { Inventory } from "../../flash/Services/Inventory";
 import { Outfits } from "../../flash/Services/Outfits";
-import { Packet } from "../../flash/Services/Packet";
-import { Player } from "../../flash/Services/Player";
+import { Packet, type PacketShape } from "../../flash/Services/Packet";
+import { Player, type PlayerShape } from "../../flash/Services/Player";
 import { Quests } from "../../flash/Services/Quests";
 import { Settings } from "../../flash/Services/Settings";
 import { Shops } from "../../flash/Services/Shops";
 import { TempInventory } from "../../flash/Services/TempInventory";
-import { Wait } from "../../flash/Services/Wait";
+import { Wait, type WaitShape } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
 import { ScriptRunner } from "../Services/ScriptRunner";
 import type { ScriptRunnerShape } from "../Services/ScriptRunner";
@@ -104,6 +104,21 @@ const makeEffectProxy = <A>(): A => {
   }) as A;
 };
 
+const makeEffectProxyWithOverrides = <A extends object>(
+  overrides: Readonly<Record<PropertyKey, unknown>>,
+): A => {
+  const base = makeEffectProxy<A>();
+  return new Proxy(base as object, {
+    get(target, property, receiver) {
+      if (property in overrides) {
+        return overrides[property];
+      }
+
+      return Reflect.get(target, property, receiver);
+    },
+  }) as A;
+};
+
 const extensionPacket = (cmd = "event") => ({
   cmd,
   data: {},
@@ -164,6 +179,11 @@ const makeWindow = () =>
 const makeRuntimeLayer = (
   events: GameEventsShape,
   overrides?: {
+    readonly bridge?: BridgeShape;
+    readonly combat?: CombatShape;
+    readonly packet?: PacketShape;
+    readonly player?: PlayerShape;
+    readonly wait?: WaitShape;
     readonly world?: WorldShape;
   },
 ) =>
@@ -175,21 +195,21 @@ const makeRuntimeLayer = (
         Layer.succeed(AutoRelogin)(makeEffectProxy()),
         Layer.succeed(AutoZone)(makeEffectProxy()),
         Layer.succeed(Bank)(makeEffectProxy()),
-        Layer.succeed(Bridge)(makeBridge()),
-        Layer.succeed(Combat)(makeEffectProxy()),
+        Layer.succeed(Bridge)(overrides?.bridge ?? makeBridge()),
+        Layer.succeed(Combat)(overrides?.combat ?? makeEffectProxy()),
         Layer.succeed(Drops)(makeEffectProxy()),
         Layer.succeed(Environment)(makeEffectProxy()),
         Layer.succeed(GameEvents)(events),
         Layer.succeed(House)(makeEffectProxy()),
         Layer.succeed(Inventory)(makeEffectProxy()),
         Layer.succeed(Outfits)(makeEffectProxy()),
-        Layer.succeed(Packet)(makeEffectProxy()),
-        Layer.succeed(Player)(makeEffectProxy()),
+        Layer.succeed(Packet)(overrides?.packet ?? makeEffectProxy()),
+        Layer.succeed(Player)(overrides?.player ?? makeEffectProxy()),
         Layer.succeed(Quests)(makeEffectProxy()),
         Layer.succeed(Settings)(makeEffectProxy()),
         Layer.succeed(Shops)(makeEffectProxy()),
         Layer.succeed(TempInventory)(makeEffectProxy()),
-        Layer.succeed(Wait)(makeEffectProxy()),
+        Layer.succeed(Wait)(overrides?.wait ?? makeEffectProxy()),
         Layer.succeed(World)(overrides?.world ?? makeEffectProxy()),
       ),
     ),
@@ -201,6 +221,11 @@ const withRunnerEvents = async <A>(
     events: GameEventsShape,
   ) => Effect.Effect<A, unknown>,
   overrides?: {
+    readonly bridge?: BridgeShape;
+    readonly combat?: CombatShape;
+    readonly packet?: PacketShape;
+    readonly player?: PlayerShape;
+    readonly wait?: WaitShape;
     readonly world?: WorldShape;
   },
 ): Promise<A> => {
@@ -273,6 +298,181 @@ const waitUntilNotRunning = (
 
 const diagnosticMessages = (diagnostics: readonly ScriptDiagnostic[]) =>
   diagnostics.map((diagnostic) => diagnostic.message);
+
+const makeSafeStartStopOverrides = (
+  calls: string[],
+  options?: {
+    readonly failHousePacket?: boolean;
+    readonly leaveHouseAfterTransfer?: boolean;
+  },
+) => {
+  let inHouse = false;
+  const world = makeEffectProxy<WorldShape>();
+  const map = makeEffectProxyWithOverrides<WorldShape["map"]>({
+    getName: () => Effect.succeed(inHouse ? "house" : "battleon"),
+    isLoaded: () => Effect.succeed(true),
+  });
+  const call = ((method: string) =>
+    method === "flash.getGameObject"
+      ? Effect.succeed((inHouse ? { unm: "Hero" } : undefined) as never)
+      : Effect.succeed(undefined as never)) as BridgeShape["call"];
+  const until = ((condition) => condition) as WaitShape["until"];
+
+  return {
+    bridge: {
+      ...makeBridge(),
+      call,
+    } satisfies BridgeShape,
+    combat: makeEffectProxyWithOverrides<CombatShape>({
+      exit: () => Effect.succeed(true),
+    }),
+    packet: makeEffectProxyWithOverrides<PacketShape>({
+      sendServer: (packet: string) =>
+        Effect.suspend(() => {
+          calls.push(packet);
+          if (options?.failHousePacket) {
+            return Effect.fail(
+              new ScriptRunnerEventTestError({
+                message: "house packet failed",
+              }),
+            );
+          }
+
+          inHouse = !options?.leaveHouseAfterTransfer;
+          return Effect.void;
+        }),
+    }),
+    player: makeEffectProxyWithOverrides<PlayerShape>({
+      isReady: () => Effect.succeed(true),
+    }),
+    wait: makeEffectProxyWithOverrides<WaitShape>({
+      forGameAction: () => Effect.succeed(true),
+      until,
+    }),
+    world: new Proxy(world as object, {
+      get(target, property, receiver) {
+        if (property === "map") {
+          return map;
+        }
+
+        return Reflect.get(target, property, receiver);
+      },
+    }) as WorldShape,
+  };
+};
+
+test("script safeStartStop option defaults false and resets through script API", async () => {
+  const diagnostics = await withRunnerEvents((runner) =>
+    Effect.gen(function* () {
+      const initialOptions = yield* runner.getOptions();
+      expect(initialOptions.safeStartStop).toBe(false);
+
+      yield* runner.run(
+        `
+const { script } = require("lucent");
+
+module.exports = function* run() {
+  script.log(JSON.stringify(yield* script.options.getAll()));
+  yield* script.options.setSafeStartStop(true);
+  script.log(String(yield* script.options.getSafeStartStop()));
+  yield* script.options.reset();
+  script.log(JSON.stringify(yield* script.options.getAll()));
+};
+`,
+        { name: "safe-start-stop-options" },
+      );
+
+      const diagnostics = yield* waitForDiagnostics(runner, (diagnostics) => {
+        const messages = diagnosticMessages(diagnostics);
+        const falseOptionMessages = messages.filter((message) =>
+          message.includes('"safeStartStop":false'),
+        );
+        return (
+          messages.includes("true") &&
+          falseOptionMessages.length >= 2
+        );
+      });
+      yield* waitUntilNotRunning(runner);
+      return diagnostics;
+    }),
+  );
+
+  const messages = diagnosticMessages(diagnostics);
+  expect(messages[0]).toContain('"safeStartStop":false');
+  expect(messages).toContain("true");
+  expect(messages.at(-1)).toContain('"safeStartStop":false');
+});
+
+test("safeStartStop moves to house before script body and after completion", async () => {
+  const calls: string[] = [];
+  await withRunnerEvents(
+    (runner) =>
+      Effect.gen(function* () {
+        yield* runner.setSafeStartStop(true);
+        yield* runner.run(
+          `
+const { script } = require("lucent");
+
+module.exports = function* run() {
+  script.log("body");
+};
+`,
+          { name: "safe-start-stop-house" },
+        );
+
+        yield* waitForDiagnostics(runner, (diagnostics) =>
+          diagnosticMessages(diagnostics).includes("body"),
+        );
+        expect(calls[0]).toBe("%xt%zm%house%1%Hero%");
+        yield* waitUntilNotRunning(runner);
+      }),
+    makeSafeStartStopOverrides(calls, { leaveHouseAfterTransfer: true }),
+  );
+
+  expect(calls).toEqual([
+    "%xt%zm%house%1%Hero%",
+    "%xt%zm%house%1%Hero%",
+  ]);
+});
+
+test("safeStartStop records house failures as warnings and continues", async () => {
+  const calls: string[] = [];
+  const diagnostics = await withRunnerEvents(
+    (runner) =>
+      Effect.gen(function* () {
+        yield* runner.setSafeStartStop(true);
+        yield* runner.run(
+          `
+const { script } = require("lucent");
+
+module.exports = function* run() {
+  script.log("body");
+};
+`,
+          { name: "safe-start-stop-failure" },
+        );
+
+        const diagnostics = yield* waitForDiagnostics(runner, (diagnostics) => {
+          const messages = diagnosticMessages(diagnostics);
+          return (
+            messages.includes("body") &&
+            messages.some((message) =>
+              message.includes("Safe start failed to move to house"),
+            )
+          );
+        });
+        yield* waitUntilNotRunning(runner);
+        return diagnostics;
+      }),
+    makeSafeStartStopOverrides(calls, { failHousePacket: true }),
+  );
+
+  const messages = diagnosticMessages(diagnostics);
+  expect(messages).toContain("body");
+  expect(messages.some((message) =>
+    message.includes("Safe start failed to move to house"),
+  )).toBe(true);
+});
 
 const makeMissingWorld = (): WorldShape =>
   ({

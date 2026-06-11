@@ -97,7 +97,54 @@ const loadWindow = (
 ) =>
   Effect.tryPromise({
     try: () =>
-      kind === "url" ? window.loadURL(target) : window.loadFile(target),
+      new Promise<void>((resolve, reject) => {
+        let settled = false;
+
+        const cleanup = (): void => {
+          window.removeListener("closed", handleClosed);
+        };
+        const settle = (complete: () => void): void => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          cleanup();
+          complete();
+        };
+        const rejectClosed = (): void => {
+          settle(() => {
+            reject(new Error("Window closed before renderer finished loading"));
+          });
+        };
+        const handleClosed = (): void => {
+          rejectClosed();
+        };
+
+        if (window.isDestroyed() || window.webContents.isDestroyed()) {
+          rejectClosed();
+          return;
+        }
+
+        window.once("closed", handleClosed);
+        Promise.resolve()
+          .then(() =>
+            kind === "url" ? window.loadURL(target) : window.loadFile(target),
+          )
+          .then(
+            () => {
+              if (window.isDestroyed() || window.webContents.isDestroyed()) {
+                rejectClosed();
+                return;
+              }
+
+              settle(() => resolve());
+            },
+            (cause: unknown) => {
+              settle(() => reject(cause));
+            },
+          );
+      }),
     catch: (cause) => createLoadFailure(target, kind, cause),
   });
 

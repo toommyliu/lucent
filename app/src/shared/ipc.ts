@@ -176,9 +176,13 @@ export const AccountManagerIpcChannels = {
   updateGroup: "account-manager:update-group",
   deleteGroup: "account-manager:delete-group",
   launch: "account-manager:launch",
+  focusGameWindow: "account-manager:focus-game-window",
+  closeGameWindow: "account-manager:close-game-window",
   updateScriptStatus: "account-manager:update-script-status",
   changed: "account-manager:changed",
   gameLaunch: "account-manager:game-launch",
+  gameWindowShutdownRequest: "account-manager:game-window-shutdown-request",
+  gameWindowShutdownResponse: "account-manager:game-window-shutdown-response",
 } as const;
 
 export const ACCOUNT_SERVER_REFRESH_COOLDOWN_MS = 15_000;
@@ -382,6 +386,7 @@ export type FastTravelsResponseMessage =
 
 export interface ScriptOptions {
   readonly usePrivateRooms: boolean;
+  readonly safeStartStop: boolean;
 }
 
 export interface ScriptExecutePayload {
@@ -520,6 +525,10 @@ export interface AccountLaunchResult {
   readonly gameWindowId: number;
 }
 
+export interface AccountGameWindowTargetRequest {
+  readonly gameWindowId: number;
+}
+
 export interface AccountGameLaunchPayload {
   readonly account: ManagedAccount;
   readonly script?: ScriptExecutePayload;
@@ -535,6 +544,22 @@ export interface AccountScriptStatusUpdate {
   readonly status: AccountScriptStatus;
   readonly message?: string;
 }
+
+export interface AccountGameWindowShutdownRequest {
+  readonly requestId: string;
+  readonly gameWindowId: number;
+}
+
+export type AccountGameWindowShutdownResponse =
+  | {
+      readonly requestId: string;
+      readonly ok: true;
+    }
+  | {
+      readonly requestId: string;
+      readonly ok: false;
+      readonly error: string;
+    };
 
 export interface IpcInvokeDefinition<
   TArgs extends ReadonlyArray<unknown>,
@@ -625,6 +650,14 @@ export interface AccountManagerInvokeChannels {
     [request: AccountLaunchRequest],
     AccountLaunchResult
   >;
+  readonly [AccountManagerIpcChannels.focusGameWindow]: IpcInvokeDefinition<
+    [request: AccountGameWindowTargetRequest],
+    AccountManagerState
+  >;
+  readonly [AccountManagerIpcChannels.closeGameWindow]: IpcInvokeDefinition<
+    [request: AccountGameWindowTargetRequest],
+    AccountManagerState
+  >;
   readonly [AccountManagerIpcChannels.updateScriptStatus]: IpcInvokeDefinition<
     [update: AccountScriptStatusUpdate],
     void
@@ -635,6 +668,9 @@ export interface AccountManagerRendererEventChannels {
   readonly [AccountManagerIpcChannels.changed]: [state: AccountManagerState];
   readonly [AccountManagerIpcChannels.gameLaunch]: [
     payload: AccountGameLaunchPayload,
+  ];
+  readonly [AccountManagerIpcChannels.gameWindowShutdownRequest]: [
+    request: AccountGameWindowShutdownRequest,
   ];
 }
 
@@ -656,10 +692,19 @@ export interface AccountManagerBridge {
   ): Promise<AccountManagerState>;
   deleteGroup(name: string): Promise<AccountManagerState>;
   launch(request: AccountLaunchRequest): Promise<AccountLaunchResult>;
+  focusGameWindow(
+    request: AccountGameWindowTargetRequest,
+  ): Promise<AccountManagerState>;
+  closeGameWindow(
+    request: AccountGameWindowTargetRequest,
+  ): Promise<AccountManagerState>;
   updateScriptStatus(update: AccountScriptStatusUpdate): Promise<void>;
   onChanged(listener: (state: AccountManagerState) => void): () => void;
   onGameLaunch(
     listener: (payload: AccountGameLaunchPayload) => void,
+  ): () => void;
+  onGameWindowShutdownRequest(
+    listener: (request: AccountGameWindowShutdownRequest) => Promise<void> | void,
   ): () => void;
 }
 
