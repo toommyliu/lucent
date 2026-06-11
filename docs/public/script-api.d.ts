@@ -816,8 +816,9 @@ interface ScriptEventMap {
   playerLocation: ScriptEventPlayerLocationEvent;
 }
 type ScriptEventName = keyof ScriptEventMap;
-interface ScriptEventWaitOptions<E extends ScriptSemanticEventName>
-  extends ScriptWaitOptions {
+interface ScriptEventWaitOptions<
+  E extends ScriptSemanticEventName,
+> extends ScriptWaitOptions {
   readonly predicate?: ScriptEventPredicate<E>;
 }
 interface ScriptExitOptions {
