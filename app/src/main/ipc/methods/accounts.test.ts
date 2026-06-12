@@ -29,6 +29,7 @@ import {
   type WindowManagerConfig,
 } from "../../window/WindowService";
 import type { ObservabilityShape } from "../../app/MainObservability";
+import { makeAccountRuntimeService } from "../runtime/AccountRuntimeService";
 import type { WorkspaceFilesShape } from "../../workspace/WorkspaceFiles";
 import {
   closeTrackedAccountGameWindow,
@@ -307,6 +308,7 @@ describe("account game launch", () => {
     await mkdir(scriptsDir, { recursive: true });
     await writeFile(scriptPath, "module.exports = 'fresh';\n", "utf8");
     const harness = makeHarness();
+    const runtime = makeAccountRuntimeService();
 
     const result = await startAccountGameLaunch(
       {
@@ -325,6 +327,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository: makeRepository(),
+        runtime,
         workspace: makeWorkspace(scriptsDir),
         observability: {
           error: vi.fn(() => Effect.succeed({} as never)),
@@ -368,6 +371,7 @@ describe("account game launch", () => {
     const harness = makeHarness({
       cursorDisplayWorkArea: { x: 0, y: 0, width: 1_200, height: 800 },
     });
+    const runtime = makeAccountRuntimeService();
 
     await startAccountGameLaunch(
       {
@@ -385,6 +389,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository: makeRepository(),
+        runtime,
         workspace: makeWorkspace(tempDir),
         observability: {
           error: vi.fn(() => Effect.succeed({} as never)),
@@ -410,6 +415,7 @@ describe("account game launch", () => {
 
   it("rejects close requests for untracked game windows", async () => {
     const harness = makeHarness();
+    const runtime = makeAccountRuntimeService();
 
     await expect(
       closeTrackedAccountGameWindow(
@@ -417,6 +423,7 @@ describe("account game launch", () => {
         {
           runWindowEffect: harness.runWindowEffect,
           repository: makeRepository(),
+          runtime,
           observability: makeObservability(),
         },
       ),
@@ -430,6 +437,7 @@ describe("account game launch", () => {
 
     const harness = makeHarness();
     const repository = makeRepository();
+    const runtime = makeAccountRuntimeService();
     const observability = makeObservability();
     const result = await startAccountGameLaunch(
       {
@@ -442,6 +450,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository,
+        runtime,
         workspace: makeWorkspace(tempDir),
         observability,
       },
@@ -457,6 +466,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository,
+        runtime,
         observability,
       },
     );
@@ -472,10 +482,13 @@ describe("account game launch", () => {
       throw new Error("Missing shutdown request");
     }
 
-    handleAccountGameWindowShutdownResponse({
-      requestId: request.requestId,
-      ok: true,
-    });
+    handleAccountGameWindowShutdownResponse(
+      {
+        requestId: request.requestId,
+        ok: true,
+      },
+      runtime,
+    );
     await closePromise;
     await waitForScheduledClose();
 
@@ -492,6 +505,7 @@ describe("account game launch", () => {
     try {
       const harness = makeHarness();
       const repository = makeRepository();
+      const runtime = makeAccountRuntimeService();
       const observability = makeObservability();
       const result = await startAccountGameLaunch(
         {
@@ -504,6 +518,7 @@ describe("account game launch", () => {
         {
           runWindowEffect: harness.runWindowEffect,
           repository,
+          runtime,
           workspace: makeWorkspace(tempDir),
           observability,
         },
@@ -519,6 +534,7 @@ describe("account game launch", () => {
         {
           runWindowEffect: harness.runWindowEffect,
           repository,
+          runtime,
           observability,
         },
       );
@@ -550,6 +566,7 @@ describe("account game launch", () => {
 
     const harness = makeHarness();
     const repository = makeRepository();
+    const runtime = makeAccountRuntimeService();
     const observability = makeObservability();
     const result = await startAccountGameLaunch(
       {
@@ -562,6 +579,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository,
+        runtime,
         workspace: makeWorkspace(tempDir),
         observability,
       },
@@ -577,6 +595,7 @@ describe("account game launch", () => {
       {
         runWindowEffect: harness.runWindowEffect,
         repository,
+        runtime,
         observability,
       },
     );

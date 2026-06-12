@@ -225,14 +225,21 @@ export const SettingsServiceLive = Layer.effect(SettingsService)(
       ),
     );
 
-    const setSettings = (settings: AppSettings) =>
-      SynchronizedRef.set(stateRef, settings).pipe(
-        Effect.flatMap(() => publishSettings(settings)),
-      );
+    const modifySettings = (
+      update: (
+        current: AppSettings,
+      ) => Effect.Effect<AppSettings, PersistenceError>,
+    ) =>
+      SynchronizedRef.modifyEffect(stateRef, (current) =>
+        Effect.gen(function* () {
+          const base = current ?? (yield* loadSettings);
+          const next = yield* update(base);
+          return [next, next] as const;
+        }),
+      ).pipe(Effect.flatMap((settings) => publishSettings(settings)));
 
     const updatePreferences = (patch: PreferencesPatch) =>
-      Effect.gen(function* () {
-        const current = yield* get;
+      modifySettings((current) => {
         const nextPreferences: Preferences = {
           checkForUpdates:
             typeof patch.checkForUpdates === "boolean"
@@ -243,19 +250,21 @@ export const SettingsServiceLive = Layer.effect(SettingsService)(
             : current.preferences.launchMode,
         };
 
-        yield* persistence.writeJson(
-          preferencesPath,
-          PreferencesSettings.serialize(nextPreferences),
-        );
-        return yield* setSettings({
-          ...current,
-          preferences: nextPreferences,
-        });
+        return persistence
+          .writeJson(
+            preferencesPath,
+            PreferencesSettings.serialize(nextPreferences),
+          )
+          .pipe(
+            Effect.as({
+              ...current,
+              preferences: nextPreferences,
+            }),
+          );
       });
 
     const updateAppearance = (patch: AppearancePatch) =>
-      Effect.gen(function* () {
-        const current = yield* get;
+      modifySettings((current) => {
         let light = current.appearance.themes.light;
         let dark = current.appearance.themes.dark;
 
@@ -287,56 +296,62 @@ export const SettingsServiceLive = Layer.effect(SettingsService)(
           themes: { light, dark },
         };
 
-        yield* persistence.writeJson(
-          appearancePath,
-          AppearanceSettings.serialize(nextAppearance),
-        );
-        return yield* setSettings({
-          ...current,
-          appearance: AppearanceSettings.normalize(nextAppearance),
-        });
+        return persistence
+          .writeJson(
+            appearancePath,
+            AppearanceSettings.serialize(nextAppearance),
+          )
+          .pipe(
+            Effect.as({
+              ...current,
+              appearance: AppearanceSettings.normalize(nextAppearance),
+            }),
+          );
       });
 
     const updateHotkeys = (patch: HotkeysPatch) =>
-      Effect.gen(function* () {
-        const current = yield* get;
+      modifySettings((current) => {
         const nextHotkeys = Array.isArray(patch.bindings)
           ? HotkeysSettings.applyPatch(current.hotkeys, patch.bindings)
           : current.hotkeys;
 
-        yield* persistence.writeJson(
+        return persistence
+          .writeJson(hotkeysPath, HotkeysSettings.serialize(nextHotkeys))
+          .pipe(
+            Effect.as({
+              ...current,
+              hotkeys: nextHotkeys,
+            }),
+          );
+      });
+
+    const resetAppearance = modifySettings((current) =>
+      persistence
+        .writeJson(
+          appearancePath,
+          AppearanceSettings.serialize(AppearanceSettings.DEFAULT),
+        )
+        .pipe(
+          Effect.as({
+            ...current,
+            appearance: AppearanceSettings.DEFAULT,
+          }),
+        ),
+    );
+
+    const resetHotkeys = modifySettings((current) =>
+      persistence
+        .writeJson(
           hotkeysPath,
-          HotkeysSettings.serialize(nextHotkeys),
-        );
-        return yield* setSettings({
-          ...current,
-          hotkeys: nextHotkeys,
-        });
-      });
-
-    const resetAppearance = Effect.gen(function* () {
-      const current = yield* get;
-      yield* persistence.writeJson(
-        appearancePath,
-        AppearanceSettings.serialize(AppearanceSettings.DEFAULT),
-      );
-      return yield* setSettings({
-        ...current,
-        appearance: AppearanceSettings.DEFAULT,
-      });
-    });
-
-    const resetHotkeys = Effect.gen(function* () {
-      const current = yield* get;
-      yield* persistence.writeJson(
-        hotkeysPath,
-        HotkeysSettings.serialize(HotkeysSettings.DEFAULT),
-      );
-      return yield* setSettings({
-        ...current,
-        hotkeys: HotkeysSettings.DEFAULT,
-      });
-    });
+          HotkeysSettings.serialize(HotkeysSettings.DEFAULT),
+        )
+        .pipe(
+          Effect.as({
+            ...current,
+            hotkeys: HotkeysSettings.DEFAULT,
+          }),
+        ),
+    );
 
     return {
       load: loadSettings.pipe(

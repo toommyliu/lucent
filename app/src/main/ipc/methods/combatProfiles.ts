@@ -47,8 +47,8 @@ const normalizeProfilePayload = (profile: unknown): CombatProfile => {
   );
 };
 
-const publishState = (
-  state: CombatProfileLibrary,
+const updateState = (
+  update: (current: CombatProfileLibrary) => CombatProfileLibrary,
 ): Effect.Effect<
   CombatProfileLibrary,
   PersistenceError,
@@ -56,7 +56,7 @@ const publishState = (
 > =>
   Effect.gen(function* () {
     const repository = yield* CombatProfileRepository;
-    const normalized = yield* repository.set(state);
+    const normalized = yield* repository.update(update);
     yield* Effect.sync(() => broadcastChanged(normalized));
     return normalized;
   });
@@ -80,10 +80,8 @@ export const registerCombatProfilesIpcHandlers = (): Effect.Effect<
       CombatProfilesIpcChannels.saveProfile,
       (_event, profile) =>
         Effect.gen(function* () {
-          const repository = yield* CombatProfileRepository;
-          const current = yield* repository.get;
           const normalizedProfile = normalizeProfilePayload(profile);
-          return yield* publishState({
+          return yield* updateState((current) => ({
             ...current,
             profiles: [
               ...current.profiles.filter(
@@ -91,7 +89,7 @@ export const registerCombatProfilesIpcHandlers = (): Effect.Effect<
               ),
               normalizedProfile,
             ],
-          });
+          }));
         }),
     );
 
@@ -107,13 +105,12 @@ export const registerCombatProfilesIpcHandlers = (): Effect.Effect<
             return yield* repository.get;
           }
 
-          const current = yield* repository.get;
-          return yield* publishState({
+          return yield* updateState((current) => ({
             ...current,
             profiles: current.profiles.filter(
               (profile) => profile.id !== profileId,
             ),
-          });
+          }));
         }),
     );
 
@@ -121,15 +118,15 @@ export const registerCombatProfilesIpcHandlers = (): Effect.Effect<
       CombatProfilesIpcChannels.setAutoAttack,
       (_event, state) =>
         Effect.gen(function* () {
-          const repository = yield* CombatProfileRepository;
-          const current = yield* repository.get;
-          const autoAttack = parseCombatProfileAutoAttackState(
-            state,
-            new Set(current.profiles.map((profile) => profile.id)),
-          );
-          return yield* publishState({
-            ...current,
-            autoAttack,
+          return yield* updateState((current) => {
+            const autoAttack = parseCombatProfileAutoAttackState(
+              state,
+              new Set(current.profiles.map((profile) => profile.id)),
+            );
+            return {
+              ...current,
+              autoAttack,
+            };
           });
         }),
     );

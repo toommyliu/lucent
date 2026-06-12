@@ -19,6 +19,7 @@ import type { CliOptions } from "../cli";
 import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
 import { installMainIpcHandlers } from "../ipc/MainIpcHandlers";
 import { startAccountGameLaunch } from "../ipc/methods/accounts";
+import { AccountRuntimeService } from "../ipc/runtime/AccountRuntimeService";
 import { AccountManagerRepository } from "../persistence/accounts/AccountRepository";
 import { createApplicationMenu } from "../window/ApplicationMenu";
 import {
@@ -244,6 +245,7 @@ export const makeProgram = (
       const cliPassword = cliOptions.password;
       if (cliUsername !== undefined && cliPassword !== undefined) {
         const repository = yield* AccountManagerRepository;
+        const runtime = yield* AccountRuntimeService;
         const workspace = yield* WorkspaceFiles;
         const script =
           cliOptions.scriptPath === undefined
@@ -266,6 +268,7 @@ export const makeProgram = (
             {
               runWindowEffect,
               repository,
+              runtime,
               workspace,
               observability,
             },

@@ -19,6 +19,10 @@ import {
   type WorkspaceFilesShape,
 } from "../../workspace/WorkspaceFiles";
 import { MainIpc, type MainIpcShape } from "../MainIpc";
+import {
+  ArmyRuntimeService,
+  makeArmyRuntimeService,
+} from "../runtime/ArmyRuntimeService";
 import { registerArmyIpcHandlers } from "./army";
 
 const electronMock = vi.hoisted(() => {
@@ -196,6 +200,13 @@ const withArmyIpc = async <A>(
       Effect.sync(() => {
         handlers.set(channel, handler as CapturedHandler);
       }),
+    handleContract: (contract, handler) =>
+      Effect.sync(() => {
+        handlers.set(contract.channel, ((event, ...args) =>
+          handler(event, ...contract.parseArgs(args)).pipe(
+            Effect.map(contract.parseReturn),
+          )) as CapturedHandler);
+      }),
     on: () => Effect.void,
   };
 
@@ -293,6 +304,7 @@ const withArmyIpc = async <A>(
     ).pipe(
       Effect.provide(
         Layer.mergeAll(
+          Layer.succeed(ArmyRuntimeService)(makeArmyRuntimeService()),
           Layer.succeed(MainIpc)(ipc),
           Layer.succeed(WorkspaceFiles)(makeWorkspace()),
         ),

@@ -4,20 +4,23 @@ import {
   readAppearanceSnapshotArgument,
 } from "../shared/appearance-snapshot";
 import { readSettingsSnapshotArgument } from "../shared/settings-snapshot";
+import { readPreloadWindowContextArgument } from "../shared/window-startup-context";
 import {
   AccountManagerIpcChannels,
   ArmyIpcChannels,
   CombatProfilesIpcChannels,
   EnvironmentIpcChannels,
+  FastTravelsIpcContracts,
   FastTravelsIpcChannels,
   FollowerIpcChannels,
+  LoaderGrabberIpcContracts,
   LoaderGrabberIpcChannels,
   ObservabilityIpcChannels,
   PacketsIpcChannels,
   SettingsIpcChannels,
   ScriptingIpcChannels,
   UpdatesIpcChannels,
-  WindowIpcChannels,
+  WindowIpcContracts,
   type AccountGameWindowTargetRequest,
   type AccountGameLaunchPayload,
   type AccountGameServersResult,
@@ -59,8 +62,8 @@ import {
   type FollowerResponseMessage,
   type FollowerStartPayload,
   type FollowerState,
-  type GrabbedData,
   type HotkeysPatch,
+  type IpcInvokeContract,
   type LoaderGrabberGrabRequest,
   type LoaderGrabberLoadRequest,
   type LoaderGrabberRequestMessage,
@@ -82,6 +85,7 @@ import {
   type UpdateCheckState,
 } from "../shared/ipc";
 import type { WindowId } from "../shared/windows";
+import { selectScopedBridge } from "./preloadBridge";
 
 const applyInitialAppearanceSnapshot = (): void => {
   const snapshot = readAppearanceSnapshotArgument(process.argv);
@@ -184,6 +188,16 @@ const writePreloadError = (
       ...(data === undefined ? {} : { data }),
     })
     .catch(() => undefined);
+};
+
+const invokeContract = async <Args extends readonly unknown[], Return>(
+  contract: IpcInvokeContract<Args, Return>,
+  ...args: Args
+): Promise<Return> => {
+  const parsedArgs = contract.parseArgs(args);
+  return contract.parseReturn(
+    await ipcRenderer.invoke(contract.channel, ...parsedArgs),
+  );
 };
 
 const deliverAccountGameLaunchPayload = (
@@ -390,7 +404,7 @@ ipcRenderer.on(
   },
 );
 
-const bridge: AppBridge = {
+const fullBridge: AppBridge = {
   accounts: {
     getState: async () => {
       return (await ipcRenderer.invoke(
@@ -776,7 +790,7 @@ const bridge: AppBridge = {
       )) as readonly FastTravel[];
     },
     warp: async (payload: FastTravelWarpPayload) => {
-      await ipcRenderer.invoke(FastTravelsIpcChannels.warp, payload);
+      await invokeContract(FastTravelsIpcContracts.warp, payload);
     },
     onChanged: (listener) => {
       const subscription = (
@@ -871,13 +885,10 @@ const bridge: AppBridge = {
   },
   loaderGrabber: {
     load: async (payload: LoaderGrabberLoadRequest) => {
-      await ipcRenderer.invoke(LoaderGrabberIpcChannels.load, payload);
+      await invokeContract(LoaderGrabberIpcContracts.load, payload);
     },
     grab: async (payload: LoaderGrabberGrabRequest) => {
-      return (await ipcRenderer.invoke(
-        LoaderGrabberIpcChannels.grab,
-        payload,
-      )) as GrabbedData | null;
+      return await invokeContract(LoaderGrabberIpcContracts.grab, payload);
     },
     onRequest: (listener) => {
       loaderGrabberRequestListeners.add(listener);
@@ -1066,16 +1077,29 @@ const bridge: AppBridge = {
   },
   windows: {
     open: async (id: WindowId) => {
-      await ipcRenderer.invoke(WindowIpcChannels.open, id);
+      await invokeContract(WindowIpcContracts.open, id);
     },
     requestCloseGameWindow: () => {
-      void ipcRenderer
-        .invoke(WindowIpcChannels.requestCloseGameWindow)
-        .catch((cause: unknown) => {
+      void invokeContract(WindowIpcContracts.requestCloseGameWindow).catch(
+        (cause: unknown) => {
           writePreloadError("Failed to request game window close", cause);
-        });
+        },
+      );
     },
   },
 };
+
+const startupContext = readPreloadWindowContextArgument(process.argv);
+if (startupContext === null) {
+  writePreloadError("Failed to parse preload window startup context", null);
+}
+
+const bridge = selectScopedBridge(startupContext, {
+  ...fullBridge,
+  baseWindows: {
+    open: fullBridge.windows.open,
+  },
+  gameWindows: fullBridge.windows,
+});
 
 contextBridge.exposeInMainWorld("ipc", bridge);

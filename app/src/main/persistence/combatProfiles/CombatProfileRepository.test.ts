@@ -156,4 +156,39 @@ describe("CombatProfileRepository", () => {
       true,
     );
   });
+
+  it("serializes concurrent updates without losing profiles", async () => {
+    const path = join(testDir, fileName);
+    const baseProfile = DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]!;
+    const library = await runWithRepository(testDir, (repository) =>
+      Effect.gen(function* () {
+        yield* Effect.all([
+          repository.update((current) => ({
+            ...current,
+            profiles: [
+              ...current.profiles,
+              { ...baseProfile, id: "one", label: "One" },
+            ],
+          })),
+          repository.update((current) => ({
+            ...current,
+            profiles: [
+              ...current.profiles,
+              { ...baseProfile, id: "two", label: "Two" },
+            ],
+          })),
+        ]);
+        return yield* repository.get;
+      }),
+    );
+
+    expect(library.profiles.map((profile) => profile.id).sort()).toEqual([
+      "generic-base",
+      "one",
+      "two",
+    ]);
+    await expect(readFile(path, "utf8")).resolves.toBe(
+      `${JSON.stringify(library, null, 2)}\n`,
+    );
+  });
 });

@@ -5,6 +5,8 @@ import {
   type ScriptExecutePayload,
 } from "../../../shared/ipc";
 import { MainIpc } from "../MainIpc";
+import { requireScriptingSender } from "../SenderAuthorization";
+import { WindowService } from "../../window/WindowService";
 import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
 
 const getEventWindow = (senderId?: number): BrowserWindow | null => {
@@ -54,13 +56,14 @@ const openScriptDialog = async (
 export const registerScriptingIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | Scope.Scope | WorkspaceFiles
+  MainIpc | Scope.Scope | WindowService | WorkspaceFiles
 > =>
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
 
     yield* ipc.handle(ScriptingIpcChannels.openFile, (event) =>
       Effect.gen(function* () {
+        yield* requireScriptingSender(event.sender);
         const workspace = yield* WorkspaceFiles;
         const path = yield* Effect.promise(() =>
           openScriptDialog(
@@ -76,8 +79,9 @@ export const registerScriptingIpcHandlers = (): Effect.Effect<
       }),
     );
 
-    yield* ipc.handle(ScriptingIpcChannels.readFile, (_event, path) =>
+    yield* ipc.handle(ScriptingIpcChannels.readFile, (event, path) =>
       Effect.gen(function* () {
+        yield* requireScriptingSender(event.sender);
         if (typeof path !== "string" || path.trim() === "") {
           return yield* Effect.fail(new Error("Invalid script path"));
         }

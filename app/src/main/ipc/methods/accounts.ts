@@ -47,6 +47,15 @@ import {
 } from "../../app/MainObservability";
 import { MainIpc } from "../MainIpc";
 import {
+  getSenderWindowId,
+  requireAccountManagerSender as requireAccountManagerSenderEffect,
+  requireGameWindowSender,
+} from "../SenderAuthorization";
+import {
+  AccountRuntimeService,
+  type AccountRuntimeServiceShape,
+} from "../runtime/AccountRuntimeService";
+import {
   WindowService,
   type WindowEffectRunner,
 } from "../../window/WindowService";
@@ -61,20 +70,6 @@ const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
 const SERVER_REQUEST_TIMEOUT_MS = 10_000;
 const ACCOUNT_GAME_WINDOW_SHUTDOWN_TIMEOUT_MS = 12_000;
 
-let lastServerRefreshRequestTime = 0;
-let cachedServers: ServerData[] = [];
-let lastServerFetchTime = 0;
-
-const sessions = new Map<number, AccountScriptSession>();
-const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
-const pendingGameWindowShutdowns = new Map<
-  string,
-  {
-    readonly resolve: () => void;
-    readonly reject: (error: Error) => void;
-    readonly cleanup: () => void;
-  }
->();
 const launchTilingAlgorithms = new Set<AccountLaunchTilingAlgorithm>([
   "none",
   "auto-grid",
@@ -144,12 +139,10 @@ const readStorage = async (
   repository: AccountManagerRepositoryShape,
 ): Promise<AccountManagerStorage> => Effect.runPromise(repository.get);
 
-const writeStorage = async (
+const updateStorage = async (
   repository: AccountManagerRepositoryShape,
-  storage: AccountManagerStorage,
-): Promise<void> => {
-  await Effect.runPromise(repository.set(storage));
-};
+  f: (storage: AccountManagerStorage) => AccountManagerStorage,
+): Promise<AccountManagerStorage> => Effect.runPromise(repository.update(f));
 
 const readAccounts = async (
   repository: AccountManagerRepositoryShape,
@@ -248,18 +241,19 @@ const normalizeGroupPatch = (
   };
 };
 
-const visibleSessions = (): readonly AccountScriptSession[] => [
-  ...sessions.values(),
-];
+const visibleSessions = (
+  runtime: AccountRuntimeServiceShape,
+): readonly AccountScriptSession[] => runtime.getSessionsState();
 
 const toState = async (
   repository: AccountManagerRepositoryShape,
+  runtime: AccountRuntimeServiceShape,
 ): Promise<AccountManagerState> => {
   const storage = await readStorage(repository);
   return {
     accounts: storage.accounts,
     groups: storage.groups,
-    sessions: visibleSessions(),
+    sessions: visibleSessions(runtime),
     storagePath: repository.storagePath,
   };
 };
@@ -357,6 +351,7 @@ const fetchServersJson = Effect.tryPromise({
 });
 
 const getCachedAccountServers = (
+  runtime: AccountRuntimeServiceShape,
   observability: ObservabilityShape,
 ): Effect.Effect<
   readonly ServerData[],
@@ -364,37 +359,38 @@ const getCachedAccountServers = (
 > =>
   Effect.gen(function* () {
     const timestamp = now();
+    const cache = runtime.getServerCache();
     if (
-      cachedServers.length > 0 &&
-      timestamp - lastServerFetchTime < SERVERS_CACHE_TTL_MS
+      cache.servers.length > 0 &&
+      timestamp - cache.lastFetchTime < SERVERS_CACHE_TTL_MS
     ) {
-      return cachedServers;
+      return cache.servers;
     }
 
     const data = yield* fetchServersJson.pipe(
       Effect.catch((error: AccountServersFetchError) =>
-        cachedServers.length > 0
+        cache.servers.length > 0
           ? observability
               .warn("accounts", "Failed to fetch servers; using cache", {
                 error,
-                cachedServerCount: cachedServers.length,
+                cachedServerCount: cache.servers.length,
               })
-              .pipe(Effect.as(cachedServers as unknown))
+              .pipe(Effect.as(cache.servers as unknown))
           : Effect.fail(error),
       ),
     );
 
     if (!Array.isArray(data)) {
-      if (cachedServers.length > 0) {
+      if (cache.servers.length > 0) {
         yield* observability.warn(
           "accounts",
           "Invalid servers payload; using cache",
           {
             payload: data,
-            cachedServerCount: cachedServers.length,
+            cachedServerCount: cache.servers.length,
           },
         );
-        return cachedServers;
+        return cache.servers;
       }
 
       return yield* new AccountServersPayloadError({
@@ -404,22 +400,24 @@ const getCachedAccountServers = (
     }
 
     yield* Effect.sync(() => {
-      cachedServers = data.filter(isServerData);
-      lastServerFetchTime = now();
+      runtime.setCachedServers(data.filter(isServerData), now());
     });
 
-    return cachedServers;
+    return runtime.getServerCache().servers;
   });
 
 const refreshAccountServers = (
+  runtime: AccountRuntimeServiceShape,
   observability: ObservabilityShape,
 ): Effect.Effect<
   readonly ServerData[],
   AccountServersFetchError | AccountServersPayloadError
 > =>
   Effect.sync(() => {
-    lastServerFetchTime = 0;
-  }).pipe(Effect.flatMap(() => getCachedAccountServers(observability)));
+    runtime.resetServerFetchTime();
+  }).pipe(
+    Effect.flatMap(() => getCachedAccountServers(runtime, observability)),
+  );
 
 const getOpenAccountManagerWindow = (
   runWindowEffect: WindowEffectRunner,
@@ -434,20 +432,22 @@ const getOpenAccountManagerWindow = (
 const requireAccountManagerSender = async (
   event: IpcMainInvokeEvent,
   runWindowEffect: WindowEffectRunner,
-): Promise<void> => {
-  const window = await getOpenAccountManagerWindow(runWindowEffect);
-  if (window?.webContents.id !== event.sender.id) {
-    throw new Error(
-      "Account credentials are only available to Account Manager",
-    );
-  }
-};
+): Promise<void> =>
+  runWindowEffect(requireAccountManagerSenderEffect(event.sender)).catch(
+    (cause) => {
+      throw new Error(
+        "Account credentials are only available to Account Manager",
+        { cause },
+      );
+    },
+  );
 
 const publishStateToAccountManager = async (
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
+  runtime: AccountRuntimeServiceShape,
 ): Promise<AccountManagerState> => {
-  const state = await toState(repository);
+  const state = await toState(repository, runtime);
   const window = await getOpenAccountManagerWindow(runWindowEffect);
 
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -610,10 +610,11 @@ const setSession = async (
   update: AccountScriptStatusUpdate,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
+  runtime: AccountRuntimeServiceShape,
 ): Promise<void> => {
   const gameWindowId = normalizeGameWindowId(update.gameWindowId);
 
-  sessions.set(gameWindowId, {
+  runtime.upsertSession({
     username: update.username,
     gameWindowId,
     status: update.status,
@@ -624,20 +625,21 @@ const setSession = async (
     ...(update.message === undefined ? {} : { message: update.message }),
   });
 
-  await publishStateToAccountManager(runWindowEffect, repository);
+  await publishStateToAccountManager(runWindowEffect, repository, runtime);
 };
 
 const clearSession = async (
   gameWindowId: number,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
+  runtime: AccountRuntimeServiceShape,
 ): Promise<void> => {
-  sessions.delete(normalizeGameWindowId(gameWindowId));
-  await publishStateToAccountManager(runWindowEffect, repository);
+  runtime.deleteSession(normalizeGameWindowId(gameWindowId));
+  await publishStateToAccountManager(runWindowEffect, repository, runtime);
 };
 
 const getEventWindowId = (event: IpcMainInvokeEvent): number | null =>
-  BrowserWindow.fromWebContents(event.sender)?.id ?? null;
+  getSenderWindowId(event.sender) ?? null;
 
 const sendGameLaunchPayload = (
   window: BrowserWindow,
@@ -656,6 +658,7 @@ const shutdownErrorMessage = (cause: unknown): string =>
     : "Game window shutdown request failed";
 
 const requestGameWindowShutdown = (
+  runtime: AccountRuntimeServiceShape,
   window: BrowserWindow,
   gameWindowId: number,
 ): Promise<void> =>
@@ -673,7 +676,7 @@ const requestGameWindowShutdown = (
         clearTimeout(timeout);
       }
       window.removeListener("closed", handleClosed);
-      pendingGameWindowShutdowns.delete(requestId);
+      runtime.deleteShutdownRequest(requestId);
     };
 
     timeout = setTimeout(() => {
@@ -681,7 +684,7 @@ const requestGameWindowShutdown = (
       reject(new Error("Game window did not respond to shutdown request"));
     }, ACCOUNT_GAME_WINDOW_SHUTDOWN_TIMEOUT_MS);
 
-    pendingGameWindowShutdowns.set(requestId, { resolve, reject, cleanup });
+    runtime.registerShutdownRequest(requestId, { resolve, reject, cleanup });
     window.once("closed", handleClosed);
 
     window.webContents.send(
@@ -692,6 +695,7 @@ const requestGameWindowShutdown = (
 
 export const handleAccountGameWindowShutdownResponse = (
   response: unknown,
+  runtime: AccountRuntimeServiceShape,
 ): void => {
   const shutdownResponse = response as Partial<
     AccountGameWindowShutdownResponse & { readonly error?: unknown }
@@ -701,20 +705,13 @@ export const handleAccountGameWindowShutdownResponse = (
     return;
   }
 
-  const pending = pendingGameWindowShutdowns.get(requestId);
-  if (!pending) {
-    return;
-  }
-
-  pendingGameWindowShutdowns.delete(requestId);
-  pending.cleanup();
-
   if (shutdownResponse.ok) {
-    pending.resolve();
+    runtime.resolveShutdownRequest(requestId);
     return;
   }
 
-  pending.reject(
+  runtime.rejectShutdownRequest(
+    requestId,
     new Error(
       typeof shutdownResponse.error === "string" &&
         shutdownResponse.error !== ""
@@ -727,6 +724,7 @@ export const handleAccountGameWindowShutdownResponse = (
 const refreshGameLaunchScript = async (
   payload: AccountGameLaunchPayload,
   workspace: WorkspaceFilesShape,
+  runtime: AccountRuntimeServiceShape,
 ): Promise<AccountGameLaunchPayload> => {
   if (payload.script === undefined) {
     return payload;
@@ -741,7 +739,7 @@ const refreshGameLaunchScript = async (
     script,
   };
 
-  gameLaunchPayloads.set(payload.gameWindowId, nextPayload);
+  runtime.setGameLaunchPayload(payload.gameWindowId, nextPayload);
   return nextPayload;
 };
 
@@ -755,6 +753,7 @@ export interface AccountGameLaunchInput {
 export interface AccountGameLaunchDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
+  readonly runtime: AccountRuntimeServiceShape;
   readonly workspace: WorkspaceFilesShape;
   readonly observability: Pick<ObservabilityShape, "error">;
 }
@@ -894,11 +893,12 @@ export const startAccountGameLaunch = async (
   let gameWindowClosed = false;
   const cleanupGameWindowLaunch = (): void => {
     gameWindowClosed = true;
-    gameLaunchPayloads.delete(gameWindowId);
+    dependencies.runtime.deleteGameLaunchPayload(gameWindowId);
     void clearSession(
       gameWindowId,
       dependencies.runWindowEffect,
       dependencies.repository,
+      dependencies.runtime,
     ).catch((error) => {
       void Effect.runPromise(
         dependencies.observability.error(
@@ -912,7 +912,7 @@ export const startAccountGameLaunch = async (
   };
 
   gameWindow.once("closed", cleanupGameWindowLaunch);
-  gameLaunchPayloads.set(gameWindowId, gameLaunchPayload);
+  dependencies.runtime.setGameLaunchPayload(gameWindowId, gameLaunchPayload);
 
   await setSession(
     {
@@ -929,6 +929,7 @@ export const startAccountGameLaunch = async (
     },
     dependencies.runWindowEffect,
     dependencies.repository,
+    dependencies.runtime,
   );
 
   if (
@@ -936,11 +937,12 @@ export const startAccountGameLaunch = async (
     gameWindow.isDestroyed() ||
     gameWindow.webContents.isDestroyed()
   ) {
-    gameLaunchPayloads.delete(gameWindowId);
+    dependencies.runtime.deleteGameLaunchPayload(gameWindowId);
     await clearSession(
       gameWindowId,
       dependencies.runWindowEffect,
       dependencies.repository,
+      dependencies.runtime,
     );
     throw new Error("Game window closed before launch completed");
   }
@@ -953,6 +955,7 @@ export const startAccountGameLaunch = async (
 export interface AccountGameWindowFocusDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
+  readonly runtime: AccountRuntimeServiceShape;
 }
 
 export const focusTrackedAccountGameWindow = async (
@@ -960,7 +963,7 @@ export const focusTrackedAccountGameWindow = async (
   dependencies: AccountGameWindowFocusDependencies,
 ): Promise<AccountManagerState> => {
   const { gameWindowId } = normalizeGameWindowTargetRequest(request);
-  if (!sessions.has(gameWindowId)) {
+  if (!dependencies.runtime.hasSession(gameWindowId)) {
     throw new Error("Tracked game window not found");
   }
 
@@ -976,6 +979,7 @@ export const focusTrackedAccountGameWindow = async (
       gameWindowId,
       dependencies.runWindowEffect,
       dependencies.repository,
+      dependencies.runtime,
     );
     throw new Error("Tracked game window is no longer open");
   }
@@ -986,12 +990,13 @@ export const focusTrackedAccountGameWindow = async (
   gameWindow.show();
   gameWindow.focus();
 
-  return await toState(dependencies.repository);
+  return await toState(dependencies.repository, dependencies.runtime);
 };
 
 export interface AccountGameWindowCloseDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
+  readonly runtime: AccountRuntimeServiceShape;
   readonly observability: ObservabilityShape;
 }
 
@@ -1000,7 +1005,7 @@ export const closeTrackedAccountGameWindow = async (
   dependencies: AccountGameWindowCloseDependencies,
 ): Promise<AccountManagerState> => {
   const { gameWindowId } = normalizeGameWindowTargetRequest(request);
-  const session = sessions.get(gameWindowId);
+  const session = dependencies.runtime.getSession(gameWindowId);
   if (!session) {
     throw new Error("Tracked game window not found");
   }
@@ -1017,8 +1022,9 @@ export const closeTrackedAccountGameWindow = async (
       gameWindowId,
       dependencies.runWindowEffect,
       dependencies.repository,
+      dependencies.runtime,
     );
-    return await toState(dependencies.repository);
+    return await toState(dependencies.repository, dependencies.runtime);
   }
 
   await setSession(
@@ -1033,10 +1039,15 @@ export const closeTrackedAccountGameWindow = async (
     },
     dependencies.runWindowEffect,
     dependencies.repository,
+    dependencies.runtime,
   );
 
   try {
-    await requestGameWindowShutdown(gameWindow, gameWindowId);
+    await requestGameWindowShutdown(
+      dependencies.runtime,
+      gameWindow,
+      gameWindowId,
+    );
   } catch (error) {
     await Effect.runPromise(
       dependencies.observability.warn(
@@ -1057,7 +1068,7 @@ export const closeTrackedAccountGameWindow = async (
     }),
   );
 
-  return await toState(dependencies.repository);
+  return await toState(dependencies.repository, dependencies.runtime);
 };
 
 const serverLoadErrorMessage = (error: unknown): string => {
@@ -1070,15 +1081,15 @@ const serverLoadErrorMessage = (error: unknown): string => {
 };
 
 const runAccountServersEffect = async (
+  runtime: AccountRuntimeServiceShape,
   effect: Effect.Effect<readonly ServerData[], unknown>,
 ): Promise<AccountGameServersResult> => {
   try {
     const servers = await Effect.runPromise(effect);
     return {
-      refreshAvailableAt:
-        lastServerRefreshRequestTime === 0
-          ? 0
-          : lastServerRefreshRequestTime + ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
+      refreshAvailableAt: runtime.getServerRefreshAvailableAt(
+        ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
+      ),
       servers: servers.map(toAccountGameServer),
     };
   } catch (error) {
@@ -1092,6 +1103,7 @@ export const registerAccountManagerIpcHandlers = (
   void,
   never,
   | AccountManagerRepository
+  | AccountRuntimeService
   | MainIpc
   | Observability
   | Scope.Scope
@@ -1100,38 +1112,51 @@ export const registerAccountManagerIpcHandlers = (
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
     const observability = yield* Observability;
+    const runtime = yield* AccountRuntimeService;
 
     const withServices = <A>(
       run: (services: {
         readonly repository: AccountManagerRepositoryShape;
+        readonly runtime: AccountRuntimeServiceShape;
         readonly workspace: WorkspaceFilesShape;
       }) => Promise<A>,
     ) =>
       Effect.gen(function* () {
         const repository = yield* AccountManagerRepository;
         const workspace = yield* WorkspaceFiles;
-        return yield* Effect.promise(() => run({ repository, workspace }));
+        return yield* Effect.promise(() =>
+          run({ repository, runtime, workspace }),
+        );
       });
 
     yield* ipc.on(
       AccountManagerIpcChannels.gameWindowShutdownResponse,
-      (_event, response) =>
-        Effect.sync(() => {
-          handleAccountGameWindowShutdownResponse(response);
-        }),
+      (event, response) =>
+        Effect.promise(() =>
+          runWindowEffect(requireGameWindowSender(event.sender)),
+        ).pipe(
+          Effect.flatMap(() =>
+            Effect.sync(() => {
+              handleAccountGameWindowShutdownResponse(response, runtime);
+            }),
+          ),
+        ),
     );
 
     yield* ipc.handle(AccountManagerIpcChannels.getState, (event) =>
       withServices(async ({ repository }) => {
         // Full account state includes passwords; only Account Manager can request it.
         await requireAccountManagerSender(event, runWindowEffect);
-        return await toState(repository);
+        return await toState(repository, runtime);
       }),
     );
 
     yield* ipc.handle(AccountManagerIpcChannels.getServers, () =>
       Effect.promise(() =>
-        runAccountServersEffect(getCachedAccountServers(observability)),
+        runAccountServersEffect(
+          runtime,
+          getCachedAccountServers(runtime, observability),
+        ),
       ),
     );
 
@@ -1139,18 +1164,21 @@ export const registerAccountManagerIpcHandlers = (
       Effect.promise(async () => {
         const timestamp = now();
         if (
-          lastServerRefreshRequestTime > 0 &&
-          timestamp - lastServerRefreshRequestTime <
-            ACCOUNT_SERVER_REFRESH_COOLDOWN_MS
+          !runtime.canRefreshServers(
+            timestamp,
+            ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
+          )
         ) {
           return await runAccountServersEffect(
-            getCachedAccountServers(observability),
+            runtime,
+            getCachedAccountServers(runtime, observability),
           );
         }
 
-        lastServerRefreshRequestTime = timestamp;
+        runtime.markServerRefreshRequest(timestamp);
         return await runAccountServersEffect(
-          refreshAccountServers(observability),
+          runtime,
+          refreshAccountServers(runtime, observability),
         );
       }),
     );
@@ -1162,13 +1190,13 @@ export const registerAccountManagerIpcHandlers = (
           return null;
         }
 
-        const payload = gameLaunchPayloads.get(gameWindowId);
+        const payload = runtime.getGameLaunchPayload(gameWindowId);
         if (!payload) {
           return null;
         }
 
         try {
-          return await refreshGameLaunchScript(payload, workspace);
+          return await refreshGameLaunchScript(payload, workspace, runtime);
         } catch (error) {
           if (payload.script !== undefined) {
             await setSession(
@@ -1181,6 +1209,7 @@ export const registerAccountManagerIpcHandlers = (
               },
               runWindowEffect,
               repository,
+              runtime,
             );
           }
           throw error;
@@ -1192,17 +1221,22 @@ export const registerAccountManagerIpcHandlers = (
       withServices(async ({ repository }) => {
         await requireAccountManagerSender(event, runWindowEffect);
         const accountDraft = normalizeDraft(draft);
-        const storage = await readStorage(repository);
-        if (hasAccountUsername(storage.accounts, accountDraft.username)) {
-          throw new Error("An account with this username already exists");
-        }
+        await updateStorage(repository, (storage) => {
+          if (hasAccountUsername(storage.accounts, accountDraft.username)) {
+            throw new Error("An account with this username already exists");
+          }
 
-        await writeStorage(repository, {
-          ...storage,
-          accounts: [...storage.accounts, accountDraft],
+          return {
+            ...storage,
+            accounts: [...storage.accounts, accountDraft],
+          };
         });
 
-        return await publishStateToAccountManager(runWindowEffect, repository);
+        return await publishStateToAccountManager(
+          runWindowEffect,
+          repository,
+          runtime,
+        );
       }),
     );
 
@@ -1213,57 +1247,52 @@ export const registerAccountManagerIpcHandlers = (
           await requireAccountManagerSender(event, runWindowEffect);
           const currentUsername = normalizeRequiredString(username, "username");
           const accountPatch = normalizePatch(patch);
-          const storage = await readStorage(repository);
           const nextUsername = accountPatch.username ?? currentUsername;
-          if (
-            hasAccountUsername(storage.accounts, nextUsername, {
-              exceptUsername: currentUsername,
-            })
-          ) {
-            throw new Error("An account with this username already exists");
-          }
-
-          let found = false;
-          const nextAccounts = storage.accounts.map((account) => {
-            if (account.username !== currentUsername) {
-              return account;
+          await updateStorage(repository, (storage) => {
+            if (
+              hasAccountUsername(storage.accounts, nextUsername, {
+                exceptUsername: currentUsername,
+              })
+            ) {
+              throw new Error("An account with this username already exists");
             }
 
-            found = true;
+            let found = false;
+            const nextAccounts = storage.accounts.map((account) => {
+              if (account.username !== currentUsername) {
+                return account;
+              }
+
+              found = true;
+              return {
+                ...account,
+                ...accountPatch,
+                label: accountPatch.label ?? account.label,
+              };
+            });
+
+            if (!found) {
+              throw new Error("Account not found");
+            }
+
             return {
-              ...account,
-              ...accountPatch,
-              label: accountPatch.label ?? account.label,
+              accounts: nextAccounts,
+              groups: renameGroupMemberUsername(
+                storage.groups,
+                currentUsername,
+                nextUsername,
+              ),
             };
           });
 
-          if (!found) {
-            throw new Error("Account not found");
-          }
-
           if (currentUsername !== nextUsername) {
-            for (const [gameWindowId, session] of sessions) {
-              if (session.username === currentUsername) {
-                sessions.set(gameWindowId, {
-                  ...session,
-                  username: nextUsername,
-                  updatedAt: now(),
-                });
-              }
-            }
+            runtime.renameSessionUser(currentUsername, nextUsername, now());
           }
 
-          await writeStorage(repository, {
-            accounts: nextAccounts,
-            groups: renameGroupMemberUsername(
-              storage.groups,
-              currentUsername,
-              nextUsername,
-            ),
-          });
           return await publishStateToAccountManager(
             runWindowEffect,
             repository,
+            runtime,
           );
         }),
     );
@@ -1274,27 +1303,29 @@ export const registerAccountManagerIpcHandlers = (
         withServices(async ({ repository }) => {
           await requireAccountManagerSender(event, runWindowEffect);
           const accountUsername = normalizeRequiredString(username, "username");
-          const storage = await readStorage(repository);
-          const nextAccounts = storage.accounts.filter(
-            (account) => account.username !== accountUsername,
-          );
+          await updateStorage(repository, (storage) => {
+            const nextAccounts = storage.accounts.filter(
+              (account) => account.username !== accountUsername,
+            );
 
-          if (nextAccounts.length === storage.accounts.length) {
-            throw new Error("Account not found");
-          }
-
-          for (const [gameWindowId, session] of sessions) {
-            if (session.username === accountUsername) {
-              sessions.delete(gameWindowId);
+            if (nextAccounts.length === storage.accounts.length) {
+              throw new Error("Account not found");
             }
-          }
-          await writeStorage(repository, {
-            accounts: nextAccounts,
-            groups: removeGroupMemberUsername(storage.groups, accountUsername),
+
+            return {
+              accounts: nextAccounts,
+              groups: removeGroupMemberUsername(
+                storage.groups,
+                accountUsername,
+              ),
+            };
           });
+
+          runtime.deleteSessionsByUsername(accountUsername);
           return await publishStateToAccountManager(
             runWindowEffect,
             repository,
+            runtime,
           );
         }),
     );
@@ -1302,21 +1333,26 @@ export const registerAccountManagerIpcHandlers = (
     yield* ipc.handle(AccountManagerIpcChannels.createGroup, (event, draft) =>
       withServices(async ({ repository }) => {
         await requireAccountManagerSender(event, runWindowEffect);
-        const storage = await readStorage(repository);
-        const groupDraft = normalizeGroupDraft(draft, storage.accounts);
-        if (hasGroupName(storage.groups, groupDraft.name)) {
-          throw new Error("A group with this name already exists");
-        }
+        await updateStorage(repository, (storage) => {
+          const groupDraft = normalizeGroupDraft(draft, storage.accounts);
+          if (hasGroupName(storage.groups, groupDraft.name)) {
+            throw new Error("A group with this name already exists");
+          }
 
-        await writeStorage(repository, {
-          ...storage,
-          groups: {
-            ...storage.groups,
-            [groupDraft.name]: groupDraft.usernames,
-          },
+          return {
+            ...storage,
+            groups: {
+              ...storage.groups,
+              [groupDraft.name]: groupDraft.usernames,
+            },
+          };
         });
 
-        return await publishStateToAccountManager(runWindowEffect, repository);
+        return await publishStateToAccountManager(
+          runWindowEffect,
+          repository,
+          runtime,
+        );
       }),
     );
 
@@ -1326,39 +1362,43 @@ export const registerAccountManagerIpcHandlers = (
         withServices(async ({ repository }) => {
           await requireAccountManagerSender(event, runWindowEffect);
           const currentName = normalizeRequiredString(name, "group name");
-          const storage = await readStorage(repository);
-          const existingName = findGroupName(storage.groups, currentName);
-          if (existingName === undefined) {
-            throw new Error("Group not found");
-          }
-
-          const groupPatch = normalizeGroupPatch(patch, storage.accounts);
-          const nextName = groupPatch.name ?? existingName;
-          if (
-            hasGroupName(storage.groups, nextName, {
-              exceptName: existingName,
-            })
-          ) {
-            throw new Error("A group with this name already exists");
-          }
-
-          const groups: Record<string, readonly string[]> = {};
-          for (const [groupName, usernames] of Object.entries(storage.groups)) {
-            if (groupName === existingName) {
-              groups[nextName] = groupPatch.usernames ?? usernames;
-            } else {
-              groups[groupName] = usernames;
+          await updateStorage(repository, (storage) => {
+            const existingName = findGroupName(storage.groups, currentName);
+            if (existingName === undefined) {
+              throw new Error("Group not found");
             }
-          }
 
-          await writeStorage(repository, {
-            ...storage,
-            groups,
+            const groupPatch = normalizeGroupPatch(patch, storage.accounts);
+            const nextName = groupPatch.name ?? existingName;
+            if (
+              hasGroupName(storage.groups, nextName, {
+                exceptName: existingName,
+              })
+            ) {
+              throw new Error("A group with this name already exists");
+            }
+
+            const groups: Record<string, readonly string[]> = {};
+            for (const [groupName, usernames] of Object.entries(
+              storage.groups,
+            )) {
+              if (groupName === existingName) {
+                groups[nextName] = groupPatch.usernames ?? usernames;
+              } else {
+                groups[groupName] = usernames;
+              }
+            }
+
+            return {
+              ...storage,
+              groups,
+            };
           });
 
           return await publishStateToAccountManager(
             runWindowEffect,
             repository,
+            runtime,
           );
         }),
     );
@@ -1367,25 +1407,30 @@ export const registerAccountManagerIpcHandlers = (
       withServices(async ({ repository }) => {
         await requireAccountManagerSender(event, runWindowEffect);
         const groupName = normalizeRequiredString(name, "group name");
-        const storage = await readStorage(repository);
-        const existingName = findGroupName(storage.groups, groupName);
-        if (existingName === undefined) {
-          throw new Error("Group not found");
-        }
-
-        const groups: Record<string, readonly string[]> = {};
-        for (const [name, usernames] of Object.entries(storage.groups)) {
-          if (name !== existingName) {
-            groups[name] = usernames;
+        await updateStorage(repository, (storage) => {
+          const existingName = findGroupName(storage.groups, groupName);
+          if (existingName === undefined) {
+            throw new Error("Group not found");
           }
-        }
 
-        await writeStorage(repository, {
-          ...storage,
-          groups,
+          const groups: Record<string, readonly string[]> = {};
+          for (const [name, usernames] of Object.entries(storage.groups)) {
+            if (name !== existingName) {
+              groups[name] = usernames;
+            }
+          }
+
+          return {
+            ...storage,
+            groups,
+          };
         });
 
-        return await publishStateToAccountManager(runWindowEffect, repository);
+        return await publishStateToAccountManager(
+          runWindowEffect,
+          repository,
+          runtime,
+        );
       }),
     );
 
@@ -1418,6 +1463,7 @@ export const registerAccountManagerIpcHandlers = (
           {
             runWindowEffect,
             repository,
+            runtime,
             workspace,
             observability,
           },
@@ -1433,6 +1479,7 @@ export const registerAccountManagerIpcHandlers = (
           return await focusTrackedAccountGameWindow(request, {
             runWindowEffect,
             repository,
+            runtime,
           });
         }),
     );
@@ -1445,6 +1492,7 @@ export const registerAccountManagerIpcHandlers = (
           return await closeTrackedAccountGameWindow(request, {
             runWindowEffect,
             repository,
+            runtime,
             observability,
           });
         }),
@@ -1464,9 +1512,7 @@ export const registerAccountManagerIpcHandlers = (
             throw new Error("Status update sender does not match game window");
           }
 
-          const activeUsername =
-            gameLaunchPayloads.get(gameWindowId)?.account.username ??
-            sessions.get(gameWindowId)?.username;
+          const activeUsername = runtime.getActiveUsername(gameWindowId);
           if (
             typeof input.username !== "string" ||
             input.username !== activeUsername
@@ -1499,6 +1545,7 @@ export const registerAccountManagerIpcHandlers = (
             },
             runWindowEffect,
             repository,
+            runtime,
           );
         }),
     );

@@ -6,6 +6,7 @@ import type {
 import { Data, Effect, ServiceMap } from "effect";
 import type { AppearanceSnapshot } from "../../shared/appearance-snapshot";
 import type { AppSettings } from "../../shared/settings";
+import type { PreloadWindowContext } from "../../shared/window-startup-context";
 import type { WindowId } from "../../shared/windows";
 
 export class WindowManagerError extends Data.TaggedError("WindowManagerError")<{
@@ -30,16 +31,7 @@ export interface WindowManagerConfig {
   readonly onGameWindowCreated?: (window: BrowserWindow) => void;
 }
 
-export type WindowStartupContext =
-  | {
-      readonly kind: "game";
-      readonly label: "Game";
-    }
-  | {
-      readonly kind: "app" | "game-child";
-      readonly id: WindowId;
-      readonly label: string;
-    };
+export type WindowStartupContext = PreloadWindowContext;
 
 export interface WindowServiceShape {
   readonly openGameWindow: (options?: {
@@ -70,6 +62,9 @@ export interface WindowServiceShape {
   readonly getGameWindow: (
     gameWindowId: number,
   ) => Effect.Effect<BrowserWindow | null>;
+  readonly getWindowContext: (
+    windowId: number,
+  ) => Effect.Effect<WindowStartupContext | undefined>;
   readonly requestCloseGameWindow: (
     gameWindowId: number,
   ) => Effect.Effect<void>;

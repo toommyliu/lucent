@@ -1,4 +1,4 @@
-import type { AppBridge } from "../../../shared/ipc";
+import type { GameWindowBridge } from "../../../shared/ipc";
 
 declare global {
   // Item id or name
@@ -19,7 +19,7 @@ declare global {
   type Skill = number | string;
 
   interface Window {
-    readonly ipc: AppBridge;
+    readonly ipc: GameWindowBridge;
     __lucentLoaderState?: {
       loaded: boolean;
       progress?: number;
