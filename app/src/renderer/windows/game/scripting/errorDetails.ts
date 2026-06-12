@@ -11,7 +11,9 @@ const truncateString = (value: string): string =>
     ? `${value.slice(0, MAX_STRING_LENGTH)}...`
     : value;
 
-const isRecord = (value: unknown): value is Record<PropertyKey, unknown> =>
+export const isRecord = (
+  value: unknown,
+): value is Record<PropertyKey, unknown> =>
   typeof value === "object" && value !== null;
 
 const isErrorLike = (

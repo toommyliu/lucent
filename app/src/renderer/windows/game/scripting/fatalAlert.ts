@@ -1,3 +1,4 @@
+import { isRecord } from "./errorDetails";
 import type { ScriptDiagnostic } from "./Types";
 
 export interface FatalScriptAlert {
@@ -16,16 +17,7 @@ export interface FatalScriptAlertCandidateOptions {
   readonly sourcePath?: string;
 }
 
-const hashString = (value: string): string => {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) | 0;
-  }
-  return Math.abs(hash).toString(36);
-};
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null;
+let nextErrorAlertId = 0;
 
 const findStackTrace = (
   value: unknown,
@@ -100,7 +92,7 @@ export const fatalScriptAlertFromError = (
   detailsText: string | undefined,
   sourcePath?: string,
 ): FatalScriptAlert => ({
-  key: `error:${hashString(`${sourceName}\n${message}\n${detailsText ?? ""}`)}`,
+  key: `error:${(nextErrorAlertId += 1).toString(36)}`,
   sourceName,
   ...(sourcePath === undefined ? null : { sourcePath }),
   message,

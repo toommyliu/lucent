@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { toDiagnosticDetails } from "./errorDetails";
 import {
   diagnosticDetailsText,
+  fatalScriptAlertFromError,
   stoppedScriptFatalAlertCandidate,
 } from "./fatalAlert";
 import type { ScriptDiagnostic } from "./Types";
@@ -46,6 +47,15 @@ describe("fatal script alerts", () => {
 
     expect(text).toContain(longMessage);
     expect(text?.length).toBeGreaterThan(500);
+  });
+
+  it("uses unique keys for immediate runtime errors", () => {
+    const first = fatalScriptAlertFromError("test-script", "boom", "stack");
+    const second = fatalScriptAlertFromError("test-script", "boom", "stack");
+
+    expect(first.key).toMatch(/^error:/);
+    expect(second.key).toMatch(/^error:/);
+    expect(second.key).not.toBe(first.key);
   });
 
   it("opens only when a running script stops with a new error diagnostic", () => {
