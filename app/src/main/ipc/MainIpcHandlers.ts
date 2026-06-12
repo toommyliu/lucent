@@ -17,6 +17,10 @@ import { AccountManagerRepository } from "../persistence/accounts/AccountReposit
 import { Observability } from "../app/MainObservability";
 import { CombatProfileRepository } from "../persistence/combatProfiles/CombatProfileRepository";
 import { FastTravelRepository } from "../persistence/fastTravels/FastTravelRepository";
+import { AccountRuntimeService } from "./runtime/AccountRuntimeService";
+import { ArmyRuntimeService } from "./runtime/ArmyRuntimeService";
+import { EnvironmentRuntimeService } from "./runtime/EnvironmentRuntimeService";
+import { FollowerRuntimeService } from "./runtime/FollowerRuntimeService";
 import { MainIpc } from "./MainIpc";
 import { SettingsService } from "../settings/SettingsService";
 import { UpdateChecker } from "../updates/Updates";
@@ -29,8 +33,12 @@ export const installMainIpcHandlers = (
   void,
   never,
   | AccountManagerRepository
+  | AccountRuntimeService
+  | ArmyRuntimeService
   | CombatProfileRepository
+  | EnvironmentRuntimeService
   | FastTravelRepository
+  | FollowerRuntimeService
   | MainIpc
   | Observability
   | Scope.Scope

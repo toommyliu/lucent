@@ -12,6 +12,7 @@ import {
 } from "../../shared/appearance-snapshot";
 import { serializeSettingsSnapshotArgument } from "../../shared/settings-snapshot";
 import type { AppSettings } from "../../shared/settings";
+import { serializePreloadWindowContextArgument } from "../../shared/window-startup-context";
 import {
   getWindowDefinition,
   isAppWindowDefinition,
@@ -157,6 +158,7 @@ const getWindowDimensions = (definition: WindowDefinition) =>
 
 const createWebPreferences = (
   config: WindowManagerConfig,
+  context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
   options?: { readonly plugins?: boolean },
@@ -165,6 +167,7 @@ const createWebPreferences = (
   nodeIntegration: false,
   contextIsolation: true,
   additionalArguments: [
+    serializePreloadWindowContextArgument(context),
     serializeAppearanceSnapshotArgument(appearanceSnapshot),
     serializeSettingsSnapshotArgument(settingsSnapshot),
   ],
@@ -190,6 +193,7 @@ const denyRendererWindowOpen = (window: BrowserWindow): void => {
 
 const createGameWindowOptions = (
   config: WindowManagerConfig,
+  context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
 ): BrowserWindowConstructorOptions => {
@@ -201,6 +205,7 @@ const createGameWindowOptions = (
     show: false,
     webPreferences: createWebPreferences(
       config,
+      context,
       appearanceSnapshot,
       settingsSnapshot,
       {
@@ -213,6 +218,7 @@ const createGameWindowOptions = (
 const createCatalogWindowOptions = (
   config: WindowManagerConfig,
   definition: WindowDefinition,
+  context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
 ): BrowserWindowConstructorOptions => {
@@ -226,6 +232,7 @@ const createCatalogWindowOptions = (
     show: false,
     webPreferences: createWebPreferences(
       config,
+      context,
       appearanceSnapshot,
       settingsSnapshot,
     ),
@@ -249,6 +256,7 @@ export const makeWindowService = (
   const gameWindows = new Map<number, GameWindowEntry>();
   const parentGameWindowIds = new Map<number, number>();
   const appWindows = new Map<WindowId, BrowserWindow>();
+  const windowStartupContexts = new Map<number, WindowStartupContext>();
   const forceClosingWindowIds = new Set<number>();
   let isQuitting = false;
   let lastFocusedGameWindowId: number | null = null;
@@ -266,6 +274,10 @@ export const makeWindowService = (
     window: BrowserWindow,
     context: WindowStartupContext,
   ): void => {
+    windowStartupContexts.set(window.id, context);
+    window.once("closed", () => {
+      windowStartupContexts.delete(window.id);
+    });
     config.onWindowCreated?.(window, context);
   };
 
@@ -554,9 +566,14 @@ export const makeWindowService = (
   const openGameWindow: WindowServiceShape["openGameWindow"] = (options) =>
     Effect.gen(function* () {
       const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
+      const context = {
+        kind: "game",
+        label: "Game",
+      } satisfies WindowStartupContext;
       const window = yield* createManagedWindow({
         ...createGameWindowOptions(
           config,
+          context,
           appearanceSnapshot,
           settingsSnapshot,
         ),
@@ -564,7 +581,7 @@ export const makeWindowService = (
         ...options?.bounds,
       });
 
-      notifyWindowCreated(window, { kind: "game", label: "Game" });
+      notifyWindowCreated(window, context);
       config.onGameWindowCreated?.(window);
       registerGameWindow(window);
       revealWhenReady(window);
@@ -622,21 +639,23 @@ export const makeWindowService = (
       }
 
       const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
+      const context = {
+        kind: "game-child",
+        id: definition.id,
+        label: definition.label,
+      } satisfies WindowStartupContext;
       const childWindow = yield* createManagedWindow(
         createCatalogWindowOptions(
           config,
           definition,
+          context,
           appearanceSnapshot,
           settingsSnapshot,
         ),
       );
       const childWindowId = childWindow.id;
 
-      notifyWindowCreated(childWindow, {
-        kind: "game-child",
-        id: definition.id,
-        label: definition.label,
-      });
+      notifyWindowCreated(childWindow, context);
       entry.childWindows.set(definition.id, childWindow);
       parentGameWindowIds.set(childWindowId, gameWindowId);
       revealWhenReady(childWindow);
@@ -683,20 +702,22 @@ export const makeWindowService = (
       }
 
       const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
+      const context = {
+        kind: "app",
+        id: definition.id,
+        label: definition.label,
+      } satisfies WindowStartupContext;
       const appWindow = yield* createManagedWindow(
         createCatalogWindowOptions(
           config,
           definition,
+          context,
           appearanceSnapshot,
           settingsSnapshot,
         ),
       );
 
-      notifyWindowCreated(appWindow, {
-        kind: "app",
-        id: definition.id,
-        label: definition.label,
-      });
+      notifyWindowCreated(appWindow, context);
       appWindows.set(definition.id, appWindow);
       revealWhenReady(appWindow);
 
@@ -850,6 +871,8 @@ export const makeWindowService = (
         const gameWindow = gameWindows.get(gameWindowId)?.gameWindow;
         return isWindowUsable(gameWindow) ? gameWindow : null;
       }),
+    getWindowContext: (windowId) =>
+      Effect.sync(() => windowStartupContexts.get(windowId)),
     requestCloseGameWindow: (gameWindowId) =>
       Effect.sync(() => {
         const gameWindow = gameWindows.get(gameWindowId)?.gameWindow;

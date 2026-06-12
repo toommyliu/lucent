@@ -4,69 +4,42 @@ import {
   addFastTravel,
   deleteFastTravel,
   normalizeFastTravelDraft,
-  normalizeFastTravelWarpPayload,
   updateFastTravel,
   type FastTravel,
   type FastTravelDraft,
   type FastTravelWarpPayload,
 } from "../../../shared/fast-travels";
 import {
+  FastTravelsIpcContracts,
   FastTravelsIpcChannels,
   type FastTravelsRequestMessage,
   type FastTravelsResponseMessage,
 } from "../../../shared/ipc";
-import { makeRandomId } from "../../../shared/random-id";
 import {
   FastTravelRepository,
   type FastTravelRepositoryShape,
 } from "../../persistence/fastTravels/FastTravelRepository";
 import {
   WindowManagerError,
-  WindowService,
   type WindowEffectRunner,
+  type WindowService,
 } from "../../window/WindowService";
+import {
+  makeGameWindowRequestBroker,
+  type GameWindowRequestBroker,
+} from "../GameWindowRequestBroker";
 import { MainIpc } from "../MainIpc";
+import {
+  getSenderGameWindow,
+  requireGameWindowSender,
+} from "../SenderAuthorization";
 
 const FAST_TRAVELS_REQUEST_TIMEOUT_MS = 5_000;
-
-const pendingRequests = new Map<
-  string,
-  {
-    readonly resolve: () => void;
-    readonly reject: (error: Error) => void;
-    readonly timeout: ReturnType<typeof setTimeout>;
-  }
->();
-
-const getSenderWindowId = (event: IpcMainInvokeEvent): number | undefined =>
-  BrowserWindow.fromWebContents(event.sender)?.id;
 
 const requestErrorMessage = (cause: unknown): string =>
   cause instanceof Error && cause.message !== ""
     ? cause.message
     : "Fast travel request failed";
-
-const senderGameWindowId = (
-  event: IpcMainInvokeEvent,
-): Effect.Effect<number, WindowManagerError, WindowService> =>
-  Effect.gen(function* () {
-    const senderWindowId = getSenderWindowId(event);
-    if (senderWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing sender window",
-      });
-    }
-
-    const windows = yield* WindowService;
-    const gameWindowId = yield* windows.getGameWindowId(senderWindowId);
-    if (gameWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing parent game window",
-      });
-    }
-
-    return gameWindowId;
-  });
 
 const broadcastChanged = (locations: readonly FastTravel[]): void => {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -84,10 +57,10 @@ const broadcastChanged = (locations: readonly FastTravel[]): void => {
 
 const publishLocations = (
   repository: FastTravelRepositoryShape,
-  locations: readonly FastTravel[],
+  update: (current: readonly FastTravel[]) => readonly FastTravel[],
 ) =>
   repository
-    .set(locations)
+    .update(update)
     .pipe(
       Effect.tap((normalized) =>
         Effect.sync(() => broadcastChanged(normalized)),
@@ -95,53 +68,33 @@ const publishLocations = (
     );
 
 const requestGameFastTravel = (
+  broker: GameWindowRequestBroker<void>,
   gameWindow: BrowserWindow,
   payload: FastTravelWarpPayload,
 ): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const requestId = makeRandomId();
-    const timeout = setTimeout(() => {
-      pendingRequests.delete(requestId);
-      reject(new Error("Fast travel did not respond"));
-    }, FAST_TRAVELS_REQUEST_TIMEOUT_MS);
-
-    pendingRequests.set(requestId, { resolve, reject, timeout });
-
-    const request: FastTravelsRequestMessage = {
+  broker.request({
+    target: gameWindow,
+    requestChannel: FastTravelsIpcChannels.request,
+    timeoutMs: FAST_TRAVELS_REQUEST_TIMEOUT_MS,
+    timeoutError: "Fast travel did not respond",
+    sendError: "Fast travel request failed",
+    makeMessage: (requestId): FastTravelsRequestMessage => ({
       requestId,
       kind: "warp",
       payload,
-    };
-
-    try {
-      gameWindow.webContents.send(FastTravelsIpcChannels.request, request);
-    } catch (cause) {
-      pendingRequests.delete(requestId);
-      clearTimeout(timeout);
-      reject(
-        cause instanceof Error
-          ? cause
-          : new Error("Fast travel request failed"),
-      );
-    }
+    }),
   });
 
 const sendFastTravelRequest = (
   event: IpcMainInvokeEvent,
+  broker: GameWindowRequestBroker<void>,
   payload: FastTravelWarpPayload,
 ): Effect.Effect<void, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
-    const gameWindowId = yield* senderGameWindowId(event);
-    const windows = yield* WindowService;
-    const gameWindow = yield* windows.getGameWindow(gameWindowId);
-    if (!gameWindow) {
-      return yield* new WindowManagerError({
-        message: "Missing parent game window",
-      });
-    }
+    const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
     return yield* Effect.tryPromise({
-      try: () => requestGameFastTravel(gameWindow, payload),
+      try: () => requestGameFastTravel(broker, gameWindow, payload),
       catch: (cause) =>
         new WindowManagerError({
           message: requestErrorMessage(cause),
@@ -155,41 +108,42 @@ export const registerFastTravelsIpcHandlers = (
 ): Effect.Effect<void, never, FastTravelRepository | MainIpc | Scope.Scope> =>
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
+    const broker = makeGameWindowRequestBroker<void>();
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
 
-    yield* ipc.on(FastTravelsIpcChannels.response, (_event, response) =>
-      Effect.sync(() => {
-        const fastTravelResponse = response as FastTravelsResponseMessage;
-        if (typeof fastTravelResponse?.requestId !== "string") {
-          return;
-        }
+    yield* ipc.on(FastTravelsIpcChannels.response, (event, response) =>
+      run(
+        Effect.gen(function* () {
+          yield* requireGameWindowSender(event.sender);
+          const fastTravelResponse = response as Partial<
+            FastTravelsResponseMessage & { readonly error?: unknown }
+          >;
+          if (typeof fastTravelResponse?.requestId !== "string") {
+            return;
+          }
 
-        const pending = pendingRequests.get(fastTravelResponse.requestId);
-        if (!pending) {
-          return;
-        }
+          if (typeof fastTravelResponse.ok !== "boolean") {
+            broker.resolve(
+              fastTravelResponse.requestId,
+              new Error("Invalid fast travel response"),
+            );
+            return;
+          }
 
-        pendingRequests.delete(fastTravelResponse.requestId);
-        clearTimeout(pending.timeout);
-
-        if (typeof fastTravelResponse.ok !== "boolean") {
-          pending.reject(new Error("Invalid fast travel response"));
-          return;
-        }
-
-        if (fastTravelResponse.ok) {
-          pending.resolve();
-        } else {
-          const message =
-            typeof fastTravelResponse.error === "string" &&
-            fastTravelResponse.error !== ""
-              ? fastTravelResponse.error
-              : "Fast travel request failed";
-          pending.reject(new Error(message));
-        }
-      }),
+          if (fastTravelResponse.ok) {
+            broker.resolve(fastTravelResponse.requestId, undefined);
+          } else {
+            const message =
+              typeof fastTravelResponse.error === "string" &&
+              fastTravelResponse.error !== ""
+                ? fastTravelResponse.error
+                : "Fast travel request failed";
+            broker.resolve(fastTravelResponse.requestId, new Error(message));
+          }
+        }),
+      ),
     );
 
     yield* ipc.handle(FastTravelsIpcChannels.getAll, () =>
@@ -202,9 +156,7 @@ export const registerFastTravelsIpcHandlers = (
     yield* ipc.handle(FastTravelsIpcChannels.create, (_event, draft) =>
       Effect.gen(function* () {
         const repository = yield* FastTravelRepository;
-        const current = yield* repository.get;
-        return yield* publishLocations(
-          repository,
+        return yield* publishLocations(repository, (current) =>
           addFastTravel(
             current,
             normalizeFastTravelDraft(draft as FastTravelDraft),
@@ -218,9 +170,7 @@ export const registerFastTravelsIpcHandlers = (
       (_event, originalName, draft) =>
         Effect.gen(function* () {
           const repository = yield* FastTravelRepository;
-          const current = yield* repository.get;
-          return yield* publishLocations(
-            repository,
+          return yield* publishLocations(repository, (current) =>
             updateFastTravel(
               current,
               typeof originalName === "string" ? originalName : "",
@@ -233,17 +183,19 @@ export const registerFastTravelsIpcHandlers = (
     yield* ipc.handle(FastTravelsIpcChannels.delete, (_event, name) =>
       Effect.gen(function* () {
         const repository = yield* FastTravelRepository;
-        const current = yield* repository.get;
-        return yield* publishLocations(
-          repository,
+        return yield* publishLocations(repository, (current) =>
           deleteFastTravel(current, typeof name === "string" ? name : ""),
         );
       }),
     );
 
-    yield* ipc.handle(FastTravelsIpcChannels.warp, (event, payload) =>
-      run(
-        sendFastTravelRequest(event, normalizeFastTravelWarpPayload(payload)),
-      ),
+    yield* ipc.handleContract(FastTravelsIpcContracts.warp, (event, payload) =>
+      run(sendFastTravelRequest(event, broker, payload)),
+    );
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        broker.rejectAll(new Error("Fast travels IPC scope closed"));
+      }),
     );
   });

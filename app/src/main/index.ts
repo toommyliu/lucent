@@ -25,6 +25,10 @@ import { Observability, ObservabilityLive } from "./app/MainObservability";
 import { parseCliOptions } from "./cli";
 import { FlashTrustLive, trustOnlySync } from "./flash/FlashTrust";
 import { MainIpcLive } from "./ipc/MainIpc";
+import { AccountRuntimeServiceLive } from "./ipc/runtime/AccountRuntimeService";
+import { ArmyRuntimeServiceLive } from "./ipc/runtime/ArmyRuntimeService";
+import { EnvironmentRuntimeServiceLive } from "./ipc/runtime/EnvironmentRuntimeService";
+import { FollowerRuntimeServiceLive } from "./ipc/runtime/FollowerRuntimeService";
 import { Persistence, PersistenceLive } from "./persistence/Persistence";
 import { AccountManagerRepositoryLive } from "./persistence/accounts/AccountRepository";
 import { CombatProfileRepositoryLive } from "./persistence/combatProfiles/CombatProfileRepository";
@@ -281,6 +285,12 @@ const updatesLayer = Layer.effect(UpdateChecker)(
   }),
 ).pipe(Layer.provideMerge(settingsLayer));
 const ipcLayer = MainIpcLive.pipe(Layer.provideMerge(observabilityLayer));
+const ipcRuntimeLayer = Layer.mergeAll(
+  AccountRuntimeServiceLive,
+  ArmyRuntimeServiceLive,
+  EnvironmentRuntimeServiceLive,
+  FollowerRuntimeServiceLive,
+);
 
 const mainLayer = Layer.mergeAll(
   settingsLayer,
@@ -288,6 +298,7 @@ const mainLayer = Layer.mergeAll(
   windowLayer,
   updatesLayer,
   ipcLayer,
+  ipcRuntimeLayer,
   flashTrustLayer,
 );
 

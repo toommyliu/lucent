@@ -1,4 +1,4 @@
-import { BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   addEnvironmentBoost,
@@ -9,10 +9,8 @@ import {
   clearEnvironmentQuestReward,
   clearEnvironmentQuests,
   clearEnvironmentState,
-  createEmptyEnvironmentState,
   isEnvironmentItemRules,
   isEnvironmentQuestAutoRegisterOptions,
-  normalizeEnvironmentState,
   removeEnvironmentBoost,
   removeEnvironmentItem,
   removeEnvironmentQuest,
@@ -22,71 +20,29 @@ import {
   type EnvironmentState,
 } from "../../../shared/environment";
 import { EnvironmentIpcChannels } from "../../../shared/ipc";
-import { makeRandomId } from "../../../shared/random-id";
 import { WindowIds } from "../../../shared/windows";
 import {
   WindowManagerError,
   WindowService,
   type WindowEffectRunner,
 } from "../../window/WindowService";
+import {
+  makeGameWindowRequestBroker,
+  type GameWindowRequestBroker,
+} from "../GameWindowRequestBroker";
 import { MainIpc } from "../MainIpc";
+import {
+  getSenderGameWindowIds,
+  requireGameWindowSender,
+} from "../SenderAuthorization";
+import {
+  EnvironmentRuntimeService,
+  type EnvironmentRuntimeServiceShape,
+} from "../runtime/EnvironmentRuntimeService";
 
 type EnvironmentMutation = (state: EnvironmentState) => EnvironmentState;
 
 const FETCH_BOOSTS_TIMEOUT_MS = 3_000;
-
-const states = new Map<number, EnvironmentState>();
-const stateCleanupWindowIds = new Set<number>();
-const pendingFetchBoosts = new Map<
-  string,
-  {
-    readonly resolve: (boosts: readonly string[]) => void;
-    readonly timeout: ReturnType<typeof setTimeout>;
-  }
->();
-
-const getSenderWindowId = (event: IpcMainInvokeEvent): number | undefined =>
-  BrowserWindow.fromWebContents(event.sender)?.id;
-
-const trackWindowState = (gameWindowId: number): void => {
-  if (stateCleanupWindowIds.has(gameWindowId)) {
-    return;
-  }
-
-  const window = BrowserWindow.fromId(gameWindowId);
-  if (!window || window.isDestroyed()) {
-    states.delete(gameWindowId);
-    return;
-  }
-
-  stateCleanupWindowIds.add(gameWindowId);
-  window.once("closed", () => {
-    states.delete(gameWindowId);
-    stateCleanupWindowIds.delete(gameWindowId);
-  });
-};
-
-const getWindowState = (gameWindowId: number): EnvironmentState => {
-  const existing = states.get(gameWindowId);
-  if (existing) {
-    return existing;
-  }
-
-  const empty = createEmptyEnvironmentState();
-  states.set(gameWindowId, empty);
-  trackWindowState(gameWindowId);
-  return empty;
-};
-
-const setWindowState = (
-  gameWindowId: number,
-  state: EnvironmentState,
-): EnvironmentState => {
-  const normalized = normalizeEnvironmentState(state);
-  states.set(gameWindowId, normalized);
-  trackWindowState(gameWindowId);
-  return normalized;
-};
 
 const sendChanged = (
   window: BrowserWindow | null,
@@ -104,28 +60,6 @@ const sendChanged = (
 
   window.webContents.send(EnvironmentIpcChannels.changed, state);
 };
-
-const senderGameWindowId = (
-  event: IpcMainInvokeEvent,
-): Effect.Effect<number, WindowManagerError, WindowService> =>
-  Effect.gen(function* () {
-    const senderWindowId = getSenderWindowId(event);
-    if (senderWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing sender window",
-      });
-    }
-
-    const windows = yield* WindowService;
-    const gameWindowId = yield* windows.getGameWindowId(senderWindowId);
-    if (gameWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing parent game window",
-      });
-    }
-
-    return gameWindowId;
-  });
 
 const notifyEnvironmentChanged = (
   gameWindowId: number,
@@ -146,14 +80,16 @@ const notifyEnvironmentChanged = (
 
 const applyEnvironmentMutation = (
   event: IpcMainInvokeEvent,
+  runtime: EnvironmentRuntimeServiceShape,
   mutation: EnvironmentMutation,
 ): Effect.Effect<EnvironmentState, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
-    const gameWindowId = yield* senderGameWindowId(event);
-    const senderWindowId = getSenderWindowId(event);
-    const nextState = setWindowState(
+    const { gameWindowId, senderWindowId } = yield* getSenderGameWindowIds(
+      event.sender,
+    );
+    const nextState = runtime.setWindowState(
       gameWindowId,
-      mutation(getWindowState(gameWindowId)),
+      mutation(runtime.getWindowState(gameWindowId)),
     );
 
     yield* notifyEnvironmentChanged(gameWindowId, senderWindowId, nextState);
@@ -161,65 +97,71 @@ const applyEnvironmentMutation = (
   });
 
 const fetchBoostsFromGameWindow = (
+  broker: GameWindowRequestBroker<readonly string[]>,
   gameWindow: BrowserWindow,
 ): Promise<readonly string[]> =>
-  new Promise((resolve) => {
-    const requestId = makeRandomId();
-    const timeout = setTimeout(() => {
-      pendingFetchBoosts.delete(requestId);
-      resolve([]);
-    }, FETCH_BOOSTS_TIMEOUT_MS);
-
-    pendingFetchBoosts.set(requestId, { resolve, timeout });
-    gameWindow.webContents.send(
-      EnvironmentIpcChannels.fetchBoostsRequest,
-      requestId,
-    );
+  broker.request({
+    target: gameWindow,
+    requestChannel: EnvironmentIpcChannels.fetchBoostsRequest,
+    timeoutMs: FETCH_BOOSTS_TIMEOUT_MS,
+    timeoutError: "Environment boosts did not respond",
+    sendError: "Failed to fetch environment boosts",
+    makeMessage: (requestId) => requestId,
+    onTimeout: () => [],
   });
 
 export const registerEnvironmentIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
-): Effect.Effect<void, never, MainIpc | Scope.Scope> =>
+): Effect.Effect<
+  void,
+  never,
+  EnvironmentRuntimeService | MainIpc | Scope.Scope
+> =>
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
+    const runtime: EnvironmentRuntimeServiceShape =
+      yield* EnvironmentRuntimeService;
+    const fetchBoostsBroker = makeGameWindowRequestBroker<readonly string[]>();
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
 
     yield* ipc.on(
       EnvironmentIpcChannels.fetchBoostsResponse,
-      (_event, requestId, boosts) =>
-        Effect.sync(() => {
-          if (typeof requestId !== "string") {
-            return;
-          }
+      (event, requestId, boosts) =>
+        run(
+          Effect.gen(function* () {
+            yield* requireGameWindowSender(event.sender);
+            if (typeof requestId !== "string") {
+              return;
+            }
 
-          const pending = pendingFetchBoosts.get(requestId);
-          if (!pending) {
-            return;
-          }
-
-          pendingFetchBoosts.delete(requestId);
-          clearTimeout(pending.timeout);
-          pending.resolve(Array.isArray(boosts) ? boosts.filter(isString) : []);
-        }),
+            fetchBoostsBroker.resolve(
+              requestId,
+              Array.isArray(boosts) ? boosts.filter(isString) : [],
+            );
+          }),
+        ),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.getState, (event) =>
       run(
-        senderGameWindowId(event).pipe(Effect.map((id) => getWindowState(id))),
+        Effect.gen(function* () {
+          const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
+          return runtime.getWindowState(gameWindowId);
+        }),
       ),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.clear, (event) =>
-      run(applyEnvironmentMutation(event, clearEnvironmentState)),
+      run(applyEnvironmentMutation(event, runtime, clearEnvironmentState)),
     );
 
     yield* ipc.handle(
       EnvironmentIpcChannels.addQuest,
       (event, questId, rewardItemId) =>
         run(
-          applyEnvironmentMutation(event, (state) =>
+          applyEnvironmentMutation(event, runtime, (state) =>
             addEnvironmentQuest(
               state,
               toQuestToken(questId),
@@ -231,7 +173,7 @@ export const registerEnvironmentIpcHandlers = (
 
     yield* ipc.handle(EnvironmentIpcChannels.removeQuest, (event, questId) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           removeEnvironmentQuest(state, toQuestToken(questId)),
         ),
       ),
@@ -241,7 +183,7 @@ export const registerEnvironmentIpcHandlers = (
       EnvironmentIpcChannels.setQuestReward,
       (event, questId, rewardItemId) =>
         run(
-          applyEnvironmentMutation(event, (state) =>
+          applyEnvironmentMutation(event, runtime, (state) =>
             setEnvironmentQuestReward(
               state,
               toQuestToken(questId),
@@ -255,21 +197,21 @@ export const registerEnvironmentIpcHandlers = (
       EnvironmentIpcChannels.clearQuestReward,
       (event, questId) =>
         run(
-          applyEnvironmentMutation(event, (state) =>
+          applyEnvironmentMutation(event, runtime, (state) =>
             clearEnvironmentQuestReward(state, toQuestToken(questId)),
           ),
         ),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.clearQuests, (event) =>
-      run(applyEnvironmentMutation(event, clearEnvironmentQuests)),
+      run(applyEnvironmentMutation(event, runtime, clearEnvironmentQuests)),
     );
 
     yield* ipc.handle(
       EnvironmentIpcChannels.setQuestAutoRegister,
       (event, options) =>
         run(
-          applyEnvironmentMutation(event, (state) =>
+          applyEnvironmentMutation(event, runtime, (state) =>
             setEnvironmentQuestAutoRegisterOptions(
               state,
               isEnvironmentQuestAutoRegisterOptions(options)
@@ -282,7 +224,7 @@ export const registerEnvironmentIpcHandlers = (
 
     yield* ipc.handle(EnvironmentIpcChannels.addItem, (event, name) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           addEnvironmentItem(state, String(name ?? "")),
         ),
       ),
@@ -290,7 +232,7 @@ export const registerEnvironmentIpcHandlers = (
 
     yield* ipc.handle(EnvironmentIpcChannels.removeItem, (event, name) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           removeEnvironmentItem(state, String(name ?? "")),
         ),
       ),
@@ -298,7 +240,7 @@ export const registerEnvironmentIpcHandlers = (
 
     yield* ipc.handle(EnvironmentIpcChannels.setItemRules, (event, rules) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           setEnvironmentItemRules(
             state,
             isEnvironmentItemRules(rules) ? rules : state.itemRules,
@@ -308,12 +250,12 @@ export const registerEnvironmentIpcHandlers = (
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.clearItems, (event) =>
-      run(applyEnvironmentMutation(event, clearEnvironmentItems)),
+      run(applyEnvironmentMutation(event, runtime, clearEnvironmentItems)),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.addBoost, (event, name) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           addEnvironmentBoost(state, String(name ?? "")),
         ),
       ),
@@ -321,20 +263,20 @@ export const registerEnvironmentIpcHandlers = (
 
     yield* ipc.handle(EnvironmentIpcChannels.removeBoost, (event, name) =>
       run(
-        applyEnvironmentMutation(event, (state) =>
+        applyEnvironmentMutation(event, runtime, (state) =>
           removeEnvironmentBoost(state, String(name ?? "")),
         ),
       ),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.clearBoosts, (event) =>
-      run(applyEnvironmentMutation(event, clearEnvironmentBoosts)),
+      run(applyEnvironmentMutation(event, runtime, clearEnvironmentBoosts)),
     );
 
     yield* ipc.handle(EnvironmentIpcChannels.fetchBoosts, (event) =>
       run(
         Effect.gen(function* () {
-          const gameWindowId = yield* senderGameWindowId(event);
+          const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
           const windows = yield* WindowService;
           const gameWindow = yield* windows.getGameWindow(gameWindowId);
           if (!gameWindow) {
@@ -342,7 +284,7 @@ export const registerEnvironmentIpcHandlers = (
           }
 
           return yield* Effect.tryPromise({
-            try: () => fetchBoostsFromGameWindow(gameWindow),
+            try: () => fetchBoostsFromGameWindow(fetchBoostsBroker, gameWindow),
             catch: (cause) =>
               new WindowManagerError({
                 message: "Failed to fetch environment boosts",
@@ -356,14 +298,14 @@ export const registerEnvironmentIpcHandlers = (
     yield* ipc.handle(EnvironmentIpcChannels.syncToAll, (event) =>
       run(
         Effect.gen(function* () {
-          const sourceGameWindowId = yield* senderGameWindowId(event);
-          const senderWindowId = getSenderWindowId(event);
-          const state = getWindowState(sourceGameWindowId);
+          const { gameWindowId: sourceGameWindowId, senderWindowId } =
+            yield* getSenderGameWindowIds(event.sender);
+          const state = runtime.getWindowState(sourceGameWindowId);
           const windows = yield* WindowService;
           const gameWindowIds = yield* windows.getGameWindowIds();
 
           for (const gameWindowId of gameWindowIds) {
-            setWindowState(gameWindowId, state);
+            runtime.setWindowState(gameWindowId, state);
             yield* notifyEnvironmentChanged(
               gameWindowId,
               senderWindowId,
@@ -374,6 +316,12 @@ export const registerEnvironmentIpcHandlers = (
           return state;
         }),
       ),
+    );
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        fetchBoostsBroker.rejectAll(new Error("Environment IPC scope closed"));
+      }),
     );
   });
 

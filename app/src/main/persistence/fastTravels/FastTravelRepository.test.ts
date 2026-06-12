@@ -173,4 +173,32 @@ describe("FastTravelRepository", () => {
       `${JSON.stringify(locations, null, 2)}\n`,
     );
   });
+
+  it("serializes concurrent updates without losing locations", async () => {
+    const path = join(testDir, FAST_TRAVELS_STORAGE_FILE);
+    const locations = await runWithRepository(testDir, (repository) =>
+      Effect.gen(function* () {
+        yield* repository.set([]);
+        yield* Effect.all([
+          repository.update((current) => [
+            ...current,
+            { name: "One", map: "battleon" },
+          ]),
+          repository.update((current) => [
+            ...current,
+            { name: "Two", map: "yulgar" },
+          ]),
+        ]);
+        return yield* repository.get;
+      }),
+    );
+
+    expect(locations.map((location) => location.name).sort()).toEqual([
+      "One",
+      "Two",
+    ]);
+    await expect(readFile(path, "utf8")).resolves.toBe(
+      `${JSON.stringify(locations, null, 2)}\n`,
+    );
+  });
 });

@@ -1,4 +1,11 @@
-import type { WindowId } from "./windows";
+import {
+  args0,
+  args1,
+  defineIpcInvokeContract,
+  nullableReturn,
+  voidReturn,
+} from "./ipc-contract";
+import { isWindowId, WindowIds, type WindowId } from "./windows";
 import type {
   ArmyBarrierPayload,
   ArmyConfigPayload,
@@ -25,10 +32,11 @@ import type {
   EnvironmentQuestAutoRegisterOptions,
   EnvironmentState,
 } from "./environment";
-import type {
-  FastTravel,
-  FastTravelDraft,
-  FastTravelWarpPayload,
+import {
+  normalizeFastTravelWarpPayload,
+  type FastTravel,
+  type FastTravelDraft,
+  type FastTravelWarpPayload,
 } from "./fast-travels";
 import type { FollowerStartPayload, FollowerState } from "./follower";
 import type {
@@ -37,10 +45,12 @@ import type {
   PacketsStatusPayload,
   PacketSendPayload,
 } from "./packets";
-import type {
-  GrabbedData,
-  LoaderGrabberGrabRequest,
-  LoaderGrabberLoadRequest,
+import {
+  normalizeLoaderGrabberGrabRequest,
+  normalizeLoaderGrabberLoadRequest,
+  type GrabbedData,
+  type LoaderGrabberGrabRequest,
+  type LoaderGrabberLoadRequest,
 } from "./loader-grabber";
 import type {
   CombatProfile,
@@ -51,6 +61,12 @@ import type {
   ObservabilityInput,
   ObservabilitySnapshot,
 } from "./observability";
+
+export type {
+  IpcInvokeContract,
+  IpcValueParser,
+  IpcArgsParser,
+} from "./ipc-contract";
 
 export type {
   ArmyBarrierPayload,
@@ -569,6 +585,58 @@ export interface IpcInvokeDefinition<
   readonly return: TReturn;
 }
 
+const parseWindowId = (value: unknown): WindowId => {
+  if (!isWindowId(value)) {
+    throw new Error(`Unknown app window: ${String(value)}`);
+  }
+
+  return value;
+};
+
+const parseGrabbedData = (value: unknown): GrabbedData => {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Expected grabbed data");
+  }
+
+  return value as GrabbedData;
+};
+
+// New IPC invoke channels should define runtime contracts and use
+// MainIpc.handleContract / preload invokeContract at the boundary.
+export const WindowIpcContracts = {
+  open: defineIpcInvokeContract({
+    channel: WindowIpcChannels.open,
+    parseArgs: args1(parseWindowId),
+    parseReturn: voidReturn,
+  }),
+  requestCloseGameWindow: defineIpcInvokeContract({
+    channel: WindowIpcChannels.requestCloseGameWindow,
+    parseArgs: args0(),
+    parseReturn: voidReturn,
+  }),
+} as const;
+
+export const FastTravelsIpcContracts = {
+  warp: defineIpcInvokeContract({
+    channel: FastTravelsIpcChannels.warp,
+    parseArgs: args1(normalizeFastTravelWarpPayload),
+    parseReturn: voidReturn,
+  }),
+} as const;
+
+export const LoaderGrabberIpcContracts = {
+  load: defineIpcInvokeContract({
+    channel: LoaderGrabberIpcChannels.load,
+    parseArgs: args1(normalizeLoaderGrabberLoadRequest),
+    parseReturn: voidReturn,
+  }),
+  grab: defineIpcInvokeContract({
+    channel: LoaderGrabberIpcChannels.grab,
+    parseArgs: args1(normalizeLoaderGrabberGrabRequest),
+    parseReturn: nullableReturn(parseGrabbedData),
+  }),
+} as const;
+
 export interface ScriptingInvokeChannels {
   readonly [ScriptingIpcChannels.openFile]: IpcInvokeDefinition<
     [],
@@ -603,6 +671,10 @@ export interface WindowInvokeChannels {
 export interface WindowsBridge {
   open(id: WindowId): Promise<void>;
   requestCloseGameWindow(): void;
+}
+
+export interface BaseWindowsBridge {
+  open(id: WindowId): Promise<void>;
 }
 
 export interface AccountManagerInvokeChannels {
@@ -1167,3 +1239,58 @@ export interface AppBridge {
   readonly updates: UpdatesBridge;
   readonly windows: WindowsBridge;
 }
+
+export interface BaseWindowBridge extends Pick<
+  AppBridge,
+  "observability" | "platform" | "settings" | "updates"
+> {
+  readonly windows: BaseWindowsBridge;
+}
+
+export interface GameWindowBridge
+  extends
+    Omit<BaseWindowBridge, "windows">,
+    Pick<
+      AppBridge,
+      | "accounts"
+      | "army"
+      | "combatProfiles"
+      | "environment"
+      | "fastTravels"
+      | "follower"
+      | "loaderGrabber"
+      | "packets"
+      | "scripting"
+    > {
+  readonly windows: WindowsBridge;
+}
+
+export interface AccountManagerWindowBridge
+  extends BaseWindowBridge, Pick<AppBridge, "accounts" | "scripting"> {}
+
+export type ToolWindowBridge<TWindowId extends WindowId> = BaseWindowBridge &
+  (TWindowId extends typeof WindowIds.Environment
+    ? Pick<AppBridge, "environment">
+    : TWindowId extends typeof WindowIds.FastTravels
+      ? Pick<AppBridge, "fastTravels">
+      : TWindowId extends typeof WindowIds.Follower
+        ? Pick<AppBridge, "combatProfiles" | "follower">
+        : TWindowId extends typeof WindowIds.LoaderGrabber
+          ? Pick<AppBridge, "loaderGrabber">
+          : TWindowId extends typeof WindowIds.Packets
+            ? Pick<AppBridge, "packets">
+            : TWindowId extends typeof WindowIds.Skills
+              ? Pick<AppBridge, "combatProfiles">
+              : Record<never, never>);
+
+export type ScopedAppBridge =
+  | AccountManagerWindowBridge
+  | BaseWindowBridge
+  | GameWindowBridge
+  | ToolWindowBridge<typeof WindowIds.Environment>
+  | ToolWindowBridge<typeof WindowIds.FastTravels>
+  | ToolWindowBridge<typeof WindowIds.Follower>
+  | ToolWindowBridge<typeof WindowIds.LoaderGrabber>
+  | ToolWindowBridge<typeof WindowIds.Packets>
+  | ToolWindowBridge<typeof WindowIds.Settings>
+  | ToolWindowBridge<typeof WindowIds.Skills>;

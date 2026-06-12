@@ -163,4 +163,37 @@ describe("AccountManagerRepository", () => {
       ),
     ).toBe(true);
   });
+
+  it("serializes concurrent updates without losing account mutations", async () => {
+    const path = join(testDir, ACCOUNT_MANAGER_STORAGE_FILE);
+    const storage = await runWithRepository(testDir, (repository) =>
+      Effect.gen(function* () {
+        yield* Effect.all([
+          repository.update((current) => ({
+            ...current,
+            accounts: [
+              ...current.accounts,
+              { label: "One", username: "one", password: "one-pass" },
+            ],
+          })),
+          repository.update((current) => ({
+            ...current,
+            accounts: [
+              ...current.accounts,
+              { label: "Two", username: "two", password: "two-pass" },
+            ],
+          })),
+        ]);
+        return yield* repository.get;
+      }),
+    );
+
+    expect(storage.accounts.map((account) => account.username).sort()).toEqual([
+      "one",
+      "two",
+    ]);
+    await expect(readFile(path, "utf8")).resolves.toBe(
+      `${JSON.stringify(storage, null, 2)}\n`,
+    );
+  });
 });

@@ -1,5 +1,6 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { Effect, Layer, Scope, ServiceMap } from "effect";
+import type { IpcInvokeContract } from "../../shared/ipc-contract";
 import { Observability } from "../app/MainObservability";
 
 type IpcHandler<A, R> = (
@@ -16,6 +17,13 @@ export interface MainIpcShape {
   readonly handle: <A, R>(
     channel: string,
     handler: IpcHandler<A, R>,
+  ) => Effect.Effect<void, never, R | Scope.Scope>;
+  readonly handleContract: <Args extends readonly unknown[], Return, R>(
+    contract: IpcInvokeContract<Args, Return>,
+    handler: (
+      event: IpcMainInvokeEvent,
+      ...args: Args
+    ) => Effect.Effect<Return, unknown, R>,
   ) => Effect.Effect<void, never, R | Scope.Scope>;
   readonly on: <R>(
     channel: string,
@@ -36,9 +44,10 @@ export const MainIpcLive = Layer.effect(MainIpc)(
   Effect.gen(function* () {
     const observability = yield* Observability;
 
-    const handle = <A, R>(
+    const registerHandler = <A, R>(
       channel: string,
       handler: IpcHandler<A, R>,
+      parseReturn?: (value: A) => unknown,
     ): Effect.Effect<void, never, R | Scope.Scope> =>
       Effect.gen(function* () {
         const services = yield* Effect.services<R>();
@@ -50,6 +59,7 @@ export const MainIpcLive = Layer.effect(MainIpc)(
           const startedAt = Date.now();
           try {
             const result = await runPromise(handler(event, ...args));
+            const parsedResult = parseReturn ? parseReturn(result) : result;
             runLog(
               observability.debug("ipc", "IPC handler completed", {
                 channel,
@@ -57,7 +67,7 @@ export const MainIpcLive = Layer.effect(MainIpc)(
                 durationMs: Date.now() - startedAt,
               }),
             );
-            return result;
+            return parsedResult;
           } catch (cause) {
             runLog(
               observability.error("ipc", "IPC handler failed", cause, {
@@ -78,6 +88,25 @@ export const MainIpcLive = Layer.effect(MainIpc)(
           }),
         );
       });
+
+    const handle = <A, R>(
+      channel: string,
+      handler: IpcHandler<A, R>,
+    ): Effect.Effect<void, never, R | Scope.Scope> =>
+      registerHandler(channel, handler);
+
+    const handleContract = <Args extends readonly unknown[], Return, R>(
+      contract: IpcInvokeContract<Args, Return>,
+      handler: (
+        event: IpcMainInvokeEvent,
+        ...args: Args
+      ) => Effect.Effect<Return, unknown, R>,
+    ): Effect.Effect<void, never, R | Scope.Scope> =>
+      registerHandler(
+        contract.channel,
+        (event, ...args) => handler(event, ...contract.parseArgs(args)),
+        contract.parseReturn,
+      );
 
     const on = <R>(
       channel: string,
@@ -108,6 +137,6 @@ export const MainIpcLive = Layer.effect(MainIpc)(
         );
       });
 
-    return { handle, on };
+    return { handle, handleContract, on };
   }),
 );

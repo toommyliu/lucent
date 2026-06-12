@@ -22,7 +22,12 @@ import {
 } from "../../../shared/army";
 import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
 import { MainIpc } from "../MainIpc";
+import { getSenderWindow as getBrowserWindowForSender } from "../SenderAuthorization";
 import { LoopTauntCoordinator } from "./LoopTauntCoordinator";
+import {
+  ArmyRuntimeService,
+  type ArmyRuntimeServiceShape,
+} from "../runtime/ArmyRuntimeService";
 
 const ARMY_START_TIMEOUT_MS = 120_000;
 const ARMY_BARRIER_TIMEOUT_MS = 30 * 60_000;
@@ -40,7 +45,7 @@ interface DeferredProgress {
   reject(error: Error): void;
 }
 
-interface PendingStart {
+export interface PendingStart {
   readonly playerName: string;
   readonly senderWindow: BrowserWindow;
   readonly timer: ReturnType<typeof setTimeout>;
@@ -48,7 +53,7 @@ interface PendingStart {
   reject(error: Error): void;
 }
 
-interface ArmyBarrierState {
+export interface ArmyBarrierState {
   readonly key: string;
   readonly step: number;
   readonly label?: string;
@@ -58,7 +63,7 @@ interface ArmyBarrierState {
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
-interface ArmyProgressState {
+export interface ArmyProgressState {
   readonly key: string;
   readonly step: number;
   readonly label?: string;
@@ -68,7 +73,7 @@ interface ArmyProgressState {
   readonly timer: ReturnType<typeof setTimeout>;
 }
 
-interface ArmySessionState extends ArmyConfigPayload {
+export interface ArmySessionState extends ArmyConfigPayload {
   readonly sessionId: string;
   readonly playerKeys: ReadonlySet<string>;
   readonly windows: Map<string, BrowserWindow>;
@@ -77,18 +82,10 @@ interface ArmySessionState extends ArmyConfigPayload {
   readonly loopTaunts: LoopTauntCoordinator;
 }
 
-let nextSessionId = 0;
-
-const sessions = new Map<string, ArmySessionState>();
-const activeSessionByConfig = new Map<string, string>();
-const pendingStartsByConfig = new Map<string, PendingStart[]>();
-const windowSessionIds = new WeakMap<BrowserWindow, Set<string>>();
-const trackedWindows = new WeakSet<BrowserWindow>();
-
 const normalizePlayerName = (name: string): string => name.trim().toLowerCase();
 
 const getSenderWindow = (sender: WebContents): BrowserWindow => {
-  const senderWindow = BrowserWindow.fromWebContents(sender);
+  const senderWindow = getBrowserWindowForSender(sender);
   if (!senderWindow) {
     throw new Error("Army IPC requires a sender window");
   }
@@ -613,12 +610,13 @@ const rejectProgress = (checkpoint: ArmyProgressState, error: Error): void => {
 const armyBarrierKey = (step: number, label?: string): string =>
   JSON.stringify([step, label ?? ""]);
 
-const abortSession = (session: ArmySessionState, reason: string): void => {
-  sessions.delete(session.sessionId);
-
-  if (activeSessionByConfig.get(session.configName) === session.sessionId) {
-    activeSessionByConfig.delete(session.configName);
-  }
+const abortSession = (
+  runtime: ArmyRuntimeServiceShape,
+  session: ArmySessionState,
+  reason: string,
+): void => {
+  runtime.deleteSession(session.sessionId);
+  runtime.deleteActiveSession(session.configName, session.sessionId);
 
   for (const barrier of session.barriers.values()) {
     rejectBarrier(barrier, new Error(reason));
@@ -632,44 +630,38 @@ const abortSession = (session: ArmySessionState, reason: string): void => {
 
   session.loopTaunts.clear();
 
-  for (const window of session.windows.values()) {
-    const windowSessions = windowSessionIds.get(window);
-    windowSessions?.delete(session.sessionId);
-  }
+  runtime.detachSessionFromWindows(session);
   session.windows.clear();
 };
 
-const abortWindowSessions = (window: BrowserWindow, reason: string): void => {
-  const sessionIds = windowSessionIds.get(window);
-  if (!sessionIds) {
-    return;
+const abortWindowSessions = (
+  runtime: ArmyRuntimeServiceShape,
+  window: BrowserWindow,
+  reason: string,
+): void => {
+  for (const session of runtime.getWindowSessions(window)) {
+    abortSession(runtime, session, reason);
   }
-
-  for (const sessionId of [...sessionIds]) {
-    const session = sessions.get(sessionId);
-    if (session) {
-      abortSession(session, reason);
-    }
-  }
-
-  sessionIds.clear();
 };
 
-const trackWindow = (window: BrowserWindow): void => {
-  if (trackedWindows.has(window)) {
+const trackWindow = (
+  runtime: ArmyRuntimeServiceShape,
+  window: BrowserWindow,
+): void => {
+  if (!runtime.trackWindow(window)) {
     return;
   }
 
-  trackedWindows.add(window);
   window.once("closed", () =>
-    abortWindowSessions(window, "Army window closed"),
+    abortWindowSessions(runtime, window, "Army window closed"),
   );
   window.webContents.once("destroyed", () =>
-    abortWindowSessions(window, "Army window destroyed"),
+    abortWindowSessions(runtime, window, "Army window destroyed"),
   );
 };
 
 const attachWindow = (
+  runtime: ArmyRuntimeServiceShape,
   session: ArmySessionState,
   window: BrowserWindow,
   playerName: string,
@@ -689,64 +681,27 @@ const attachWindow = (
   }
 
   session.windows.set(playerKey, window);
-  let sessionIds = windowSessionIds.get(window);
-  if (!sessionIds) {
-    sessionIds = new Set<string>();
-    windowSessionIds.set(window, sessionIds);
-  }
-  sessionIds.add(session.sessionId);
-  trackWindow(window);
-};
-
-const rejectPendingStarts = (configName: string, error: Error): void => {
-  const pending = pendingStartsByConfig.get(configName);
-  if (!pending) {
-    return;
-  }
-
-  pendingStartsByConfig.delete(configName);
-  for (const waiter of pending) {
-    clearTimeout(waiter.timer);
-    waiter.reject(error);
-  }
-};
-
-const resolvePendingStarts = (session: ArmySessionState): void => {
-  const pending = pendingStartsByConfig.get(session.configName);
-  if (!pending) {
-    return;
-  }
-
-  pendingStartsByConfig.delete(session.configName);
-  for (const waiter of pending) {
-    clearTimeout(waiter.timer);
-    try {
-      attachWindow(session, waiter.senderWindow, waiter.playerName);
-      waiter.resolve(toSessionPayload(session, waiter.playerName));
-    } catch (error) {
-      waiter.reject(error instanceof Error ? error : new Error(String(error)));
-    }
-  }
+  runtime.attachSessionToWindow(window, session.sessionId);
+  trackWindow(runtime, window);
 };
 
 const createSession = (
+  runtime: ArmyRuntimeServiceShape,
   config: ArmyConfigPayload,
   leaderWindow: BrowserWindow,
   leaderName: string,
 ): ArmySessionState => {
-  const existingSessionId = activeSessionByConfig.get(config.configName);
-  const existingSession = existingSessionId
-    ? sessions.get(existingSessionId)
-    : undefined;
+  const existingSession = runtime.getActiveSession(config.configName);
   if (existingSession) {
     abortSession(
+      runtime,
       existingSession,
       `Army config restarted: ${config.configName}`,
     );
   }
 
   let session: ArmySessionState;
-  const sessionId = `${Date.now().toString(36)}-${nextSessionId++}`;
+  const sessionId = `${Date.now().toString(36)}-${runtime.nextSessionId()}`;
   const loopTaunts = new LoopTauntCoordinator({
     sessionId,
     sendCommand: (participant, command) => {
@@ -771,14 +726,20 @@ const createSession = (
     loopTaunts,
   };
 
-  sessions.set(session.sessionId, session);
-  activeSessionByConfig.set(session.configName, session.sessionId);
-  attachWindow(session, leaderWindow, leaderName);
-  resolvePendingStarts(session);
+  runtime.setSession(session);
+  runtime.setActiveSession(session.configName, session.sessionId);
+  attachWindow(runtime, session, leaderWindow, leaderName);
+  runtime.resolvePendingStarts(
+    session,
+    (targetSession, window, playerName) =>
+      attachWindow(runtime, targetSession, window, playerName),
+    toSessionPayload,
+  );
   return session;
 };
 
 const waitForLeaderSession = (
+  runtime: ArmyRuntimeServiceShape,
   configName: string,
   senderWindow: BrowserWindow,
   playerName: string,
@@ -786,17 +747,7 @@ const waitForLeaderSession = (
   new Promise((resolve, reject) => {
     let waiter: PendingStart;
     const timer = setTimeout(() => {
-      const pending = pendingStartsByConfig.get(configName);
-      if (pending) {
-        const remaining = pending.filter(
-          (pendingWaiter) => pendingWaiter !== waiter,
-        );
-        if (remaining.length > 0) {
-          pendingStartsByConfig.set(configName, remaining);
-        } else {
-          pendingStartsByConfig.delete(configName);
-        }
-      }
+      runtime.removePendingStart(configName, waiter);
       reject(new Error(`Timed out waiting for army leader: ${configName}`));
     }, ARMY_START_TIMEOUT_MS);
 
@@ -807,10 +758,7 @@ const waitForLeaderSession = (
       resolve,
       reject,
     };
-    pendingStartsByConfig.set(configName, [
-      ...(pendingStartsByConfig.get(configName) ?? []),
-      waiter,
-    ]);
+    runtime.addPendingStart(configName, waiter);
   });
 
 const releaseBarrierIfComplete = (
@@ -1129,10 +1077,11 @@ const waitAtProgress = (
 export const registerArmyIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | Scope.Scope | WorkspaceFiles
+  ArmyRuntimeService | MainIpc | Scope.Scope | WorkspaceFiles
 > =>
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
+    const runtime = yield* ArmyRuntimeService;
 
     yield* ipc.handle(ArmyIpcChannels.loadConfig, (_event, fileName) => {
       if (typeof fileName !== "string") {
@@ -1154,12 +1103,14 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
           );
         }
 
-        const activeSessionId = activeSessionByConfig.get(config.configName);
-        const activeSession = activeSessionId
-          ? sessions.get(activeSessionId)
-          : undefined;
+        const activeSession = runtime.getActiveSession(config.configName);
         if (activeSession) {
-          attachWindow(activeSession, senderWindow, payload.playerName);
+          attachWindow(
+            runtime,
+            activeSession,
+            senderWindow,
+            payload.playerName,
+          );
           return toSessionPayload(activeSession, payload.playerName);
         }
 
@@ -1168,6 +1119,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
           normalizePlayerName(config.leader)
         ) {
           const session = createSession(
+            runtime,
             config,
             senderWindow,
             payload.playerName,
@@ -1177,6 +1129,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
 
         return yield* Effect.promise(() =>
           waitForLeaderSession(
+            runtime,
             config.configName,
             senderWindow,
             payload.playerName,
@@ -1188,12 +1141,13 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.leave, (_event, rawPayload) =>
       Effect.sync(() => {
         const payload = parseLeavePayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           return;
         }
 
         abortSession(
+          runtime,
           session,
           payload.playerName === undefined
             ? "Army session left"
@@ -1205,7 +1159,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.barrier, (_event, rawPayload) =>
       Effect.gen(function* () {
         const payload = parseBarrierPayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           return yield* Effect.fail(new Error("Army session is not active"));
         }
@@ -1219,7 +1173,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.progress, (_event, rawPayload) =>
       Effect.gen(function* () {
         const payload = parseProgressPayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           return yield* Effect.fail(new Error("Army session is not active"));
         }
@@ -1233,7 +1187,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.status, (_event, rawPayload) =>
       Effect.sync(() => {
         const payload = parseStatusPayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           return { active: false } satisfies ArmyStatusResult;
         }
@@ -1252,7 +1206,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.loopTauntStart, (event, rawPayload) =>
       Effect.sync(() => {
         const payload = parseLoopTauntStartPayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           throw new Error("Army session is not active");
         }
@@ -1267,7 +1221,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
     yield* ipc.handle(ArmyIpcChannels.loopTauntStop, (event, rawPayload) =>
       Effect.sync(() => {
         const payload = parseLoopTauntStopPayload(rawPayload);
-        const session = sessions.get(payload.sessionId);
+        const session = runtime.getSession(payload.sessionId);
         if (!session) {
           return;
         }
@@ -1284,7 +1238,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
       (event, rawPayload) =>
         Effect.sync(() => {
           const payload = parseLoopTauntObservationPayload(rawPayload);
-          const session = sessions.get(payload.sessionId);
+          const session = runtime.getSession(payload.sessionId);
           if (!session) {
             return;
           }
@@ -1298,11 +1252,14 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        for (const session of [...sessions.values()]) {
-          abortSession(session, "Application is quitting");
+        for (const session of runtime.getSessions()) {
+          abortSession(runtime, session, "Application is quitting");
         }
-        for (const configName of [...pendingStartsByConfig.keys()]) {
-          rejectPendingStarts(configName, new Error("Application is quitting"));
+        for (const configName of runtime.getPendingStartConfigNames()) {
+          runtime.rejectPendingStarts(
+            configName,
+            new Error("Application is quitting"),
+          );
         }
       }),
     );

@@ -18,6 +18,10 @@ import {
   readSettingsSnapshotArgument,
   serializeSettingsSnapshotArgument,
 } from "../../shared/settings-snapshot";
+import {
+  readPreloadWindowContextArgument,
+  serializePreloadWindowContextArgument,
+} from "../../shared/window-startup-context";
 import { WindowIds, type WindowId } from "../../shared/windows";
 import {
   WindowManagerError,
@@ -316,9 +320,15 @@ describe("window service", () => {
     expect(gameWindow.options.backgroundColor).toBe(snapshot.backgroundColor);
     expect(gameWindow.options.useContentSize).toBe(true);
     expect(gameWindow.options.webPreferences?.additionalArguments).toEqual([
+      serializePreloadWindowContextArgument({ kind: "game", label: "Game" }),
       serializeAppearanceSnapshotArgument(snapshot),
       serializeSettingsSnapshotArgument(settingsSnapshot),
     ]);
+    expect(
+      readPreloadWindowContextArgument(
+        gameWindow.options.webPreferences?.additionalArguments ?? [],
+      ),
+    ).toEqual({ kind: "game", label: "Game" });
     expect(
       readSettingsSnapshotArgument(
         gameWindow.options.webPreferences?.additionalArguments ?? [],
@@ -430,9 +440,23 @@ describe("window service", () => {
       snapshot.backgroundColor,
     );
     expect(settingsWindow.options.webPreferences?.additionalArguments).toEqual([
+      serializePreloadWindowContextArgument({
+        kind: "app",
+        id: WindowIds.Settings,
+        label: "Settings",
+      }),
       serializeAppearanceSnapshotArgument(snapshot),
       serializeSettingsSnapshotArgument(settingsSnapshot),
     ]);
+    expect(
+      readPreloadWindowContextArgument(
+        settingsWindow.options.webPreferences?.additionalArguments ?? [],
+      ),
+    ).toEqual({
+      kind: "app",
+      id: WindowIds.Settings,
+      label: "Settings",
+    });
     expect(
       readSettingsSnapshotArgument(
         settingsWindow.options.webPreferences?.additionalArguments ?? [],

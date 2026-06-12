@@ -1,4 +1,4 @@
-import { BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   PacketsIpcChannels,
@@ -14,103 +14,60 @@ import {
   type PacketSendPayload,
   type PacketsStatusPayload,
 } from "../../../shared/packets";
-import { makeRandomId } from "../../../shared/random-id";
 import { WindowIds } from "../../../shared/windows";
 import {
   WindowManagerError,
   WindowService,
   type WindowEffectRunner,
 } from "../../window/WindowService";
+import {
+  makeGameWindowRequestBroker,
+  type GameWindowRequestBroker,
+} from "../GameWindowRequestBroker";
 import { MainIpc } from "../MainIpc";
+import {
+  getSenderGameWindow,
+  getSenderGameWindowIds,
+  requireGameWindowSender,
+} from "../SenderAuthorization";
 
 const PACKETS_REQUEST_TIMEOUT_MS = 5_000;
-
-const pendingRequests = new Map<
-  string,
-  {
-    readonly resolve: () => void;
-    readonly reject: (error: Error) => void;
-    readonly timeout: ReturnType<typeof setTimeout>;
-  }
->();
-
-const getSenderWindowId = (event: IpcMainInvokeEvent): number | undefined =>
-  BrowserWindow.fromWebContents(event.sender)?.id;
 
 const requestErrorMessage = (cause: unknown): string =>
   cause instanceof Error && cause.message !== ""
     ? cause.message
     : "Packet request failed";
 
-const senderGameWindowId = (
-  event: IpcMainInvokeEvent,
-): Effect.Effect<number, WindowManagerError, WindowService> =>
-  Effect.gen(function* () {
-    const senderWindowId = getSenderWindowId(event);
-    if (senderWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing sender window",
-      });
-    }
-
-    const windows = yield* WindowService;
-    const gameWindowId = yield* windows.getGameWindowId(senderWindowId);
-    if (gameWindowId === undefined) {
-      return yield* new WindowManagerError({
-        message: "Missing parent game window",
-      });
-    }
-
-    return gameWindowId;
-  });
-
 const requestGamePackets = (
+  broker: GameWindowRequestBroker<void>,
   gameWindow: BrowserWindow,
   kind: PacketsRequestKind,
   payload?: unknown,
 ): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const requestId = makeRandomId();
-    const timeout = setTimeout(() => {
-      pendingRequests.delete(requestId);
-      reject(new Error("Packets did not respond"));
-    }, PACKETS_REQUEST_TIMEOUT_MS);
-
-    pendingRequests.set(requestId, { resolve, reject, timeout });
-
-    const request: PacketsRequestMessage = {
+  broker.request({
+    target: gameWindow,
+    requestChannel: PacketsIpcChannels.request,
+    timeoutMs: PACKETS_REQUEST_TIMEOUT_MS,
+    timeoutError: "Packets did not respond",
+    sendError: "Packet request failed",
+    makeMessage: (requestId): PacketsRequestMessage => ({
       requestId,
       kind,
       ...(payload === undefined ? {} : { payload }),
-    };
-    try {
-      gameWindow.webContents.send(PacketsIpcChannels.request, request);
-    } catch (cause) {
-      pendingRequests.delete(requestId);
-      clearTimeout(timeout);
-      reject(
-        cause instanceof Error ? cause : new Error("Packet request failed"),
-      );
-    }
+    }),
   });
 
 const sendPacketsRequest = (
   event: IpcMainInvokeEvent,
+  broker: GameWindowRequestBroker<void>,
   kind: PacketsRequestKind,
   payload?: unknown,
 ): Effect.Effect<void, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
-    const gameWindowId = yield* senderGameWindowId(event);
-    const windows = yield* WindowService;
-    const gameWindow = yield* windows.getGameWindow(gameWindowId);
-    if (!gameWindow) {
-      return yield* new WindowManagerError({
-        message: "Missing parent game window",
-      });
-    }
+    const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
     return yield* Effect.tryPromise({
-      try: () => requestGamePackets(gameWindow, kind, payload),
+      try: () => requestGamePackets(broker, gameWindow, kind, payload),
       catch: (cause) =>
         new WindowManagerError({
           message: requestErrorMessage(cause),
@@ -184,51 +141,56 @@ export const registerPacketsIpcHandlers = (
 ): Effect.Effect<void, never, MainIpc | Scope.Scope> =>
   Effect.gen(function* () {
     const ipc = yield* MainIpc;
+    const broker = makeGameWindowRequestBroker<void>();
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
 
-    yield* ipc.on(PacketsIpcChannels.response, (_event, response) =>
-      Effect.sync(() => {
-        const packetResponse = response as PacketsResponseMessage;
-        if (typeof packetResponse?.requestId !== "string") {
-          return;
-        }
+    yield* ipc.on(PacketsIpcChannels.response, (event, response) =>
+      run(
+        Effect.gen(function* () {
+          yield* requireGameWindowSender(event.sender);
+          const packetResponse = response as PacketsResponseMessage;
+          if (typeof packetResponse?.requestId !== "string") {
+            return;
+          }
 
-        const pending = pendingRequests.get(packetResponse.requestId);
-        if (!pending) {
-          return;
-        }
-
-        pendingRequests.delete(packetResponse.requestId);
-        clearTimeout(pending.timeout);
-
-        if (packetResponse.ok) {
-          pending.resolve();
-        } else {
-          pending.reject(
-            new Error(packetResponse.error || "Packet request failed"),
-          );
-        }
-      }),
+          if (packetResponse.ok) {
+            broker.resolve(packetResponse.requestId, undefined);
+          } else {
+            broker.resolve(
+              packetResponse.requestId,
+              new Error(packetResponse.error || "Packet request failed"),
+            );
+          }
+        }),
+      ),
     );
 
     yield* ipc.handle(PacketsIpcChannels.startCapture, (event) =>
-      run(sendPacketsRequest(event, "startCapture")),
+      run(sendPacketsRequest(event, broker, "startCapture")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.stopCapture, (event) =>
-      run(sendPacketsRequest(event, "stopCapture")),
+      run(sendPacketsRequest(event, broker, "stopCapture")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.send, (event, payload) =>
-      run(sendPacketsRequest(event, "send", normalizeSendPayload(payload))),
+      run(
+        sendPacketsRequest(
+          event,
+          broker,
+          "send",
+          normalizeSendPayload(payload),
+        ),
+      ),
     );
 
     yield* ipc.handle(PacketsIpcChannels.startQueue, (event, payload) =>
       run(
         sendPacketsRequest(
           event,
+          broker,
           "startQueue",
           normalizePacketQueuePayload(payload),
         ),
@@ -236,13 +198,14 @@ export const registerPacketsIpcHandlers = (
     );
 
     yield* ipc.handle(PacketsIpcChannels.stopQueue, (event) =>
-      run(sendPacketsRequest(event, "stopQueue")),
+      run(sendPacketsRequest(event, broker, "stopQueue")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.publishCaptured, (event, payload) =>
       run(
         Effect.gen(function* () {
-          const gameWindowId = yield* senderGameWindowId(event);
+          yield* requireGameWindowSender(event.sender);
+          const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
           const captured = normalizeCapturedPayload(payload);
           if (!captured) {
             return;
@@ -271,7 +234,8 @@ export const registerPacketsIpcHandlers = (
     yield* ipc.handle(PacketsIpcChannels.publishStatus, (event, payload) =>
       run(
         Effect.gen(function* () {
-          const gameWindowId = yield* senderGameWindowId(event);
+          yield* requireGameWindowSender(event.sender);
+          const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
           const status = normalizeStatusPayload(payload);
           if (!status) {
             return;
@@ -292,5 +256,11 @@ export const registerPacketsIpcHandlers = (
           }
         }),
       ),
+    );
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        broker.rejectAll(new Error("Packets IPC scope closed"));
+      }),
     );
   });
