@@ -597,8 +597,11 @@ export const findCombatProfileBySelector = (
     );
   }
 
-  return library.profiles.find((profile) =>
-    equalsNormalizedString(profile.className, selector.className),
+  return library.profiles.find(
+    (profile) =>
+      profile.className !== undefined &&
+      normalizeCombatProfileClassName(profile.className) ===
+        normalizeCombatProfileClassName(selector.className),
   );
 };
 
