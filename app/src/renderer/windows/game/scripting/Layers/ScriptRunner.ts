@@ -12,6 +12,13 @@ import {
   Ref,
   Semaphore,
 } from "effect";
+import {
+  findCombatProfileBySelector,
+  getCombatProfileBySelector,
+  isCombatProfileDefinition,
+  normalizeCombatProfile,
+  type CombatProfile,
+} from "../../../../../shared/combat-profiles";
 import { type ScriptExecutePayload, type ScriptOptions } from "../ipc";
 import { Army, type ArmyShape } from "../../army/Services/Army";
 import type {
@@ -24,7 +31,7 @@ import { AutoRelogin } from "../../features/Services/AutoRelogin";
 import { AutoZone } from "../../features/Services/AutoZone";
 import { Bank } from "../../flash/Services/Bank";
 import { Bridge, BridgeFailurePolicy } from "../../flash/Services/Bridge";
-import { Combat } from "../../flash/Services/Combat";
+import { Combat, type CombatKillOptions } from "../../flash/Services/Combat";
 import { Drops } from "../../flash/Services/Drops";
 import { Environment } from "../../environment/Services/Environment";
 import { House } from "../../flash/Services/House";
@@ -68,10 +75,14 @@ import type {
   ScriptEventsApi,
   ScriptSemanticEventName,
   ScriptFeaturesApi,
+  ScriptArmyShape,
   ScriptMain,
   ScriptRuntimeApi,
   ScriptSettingsShape,
   ScriptCombatShape,
+  ScriptCombatKillOptions,
+  ScriptCombatProfileInput,
+  ScriptCombatProfileRef,
   ScriptPlayerShape,
   ScriptQuestsShape,
   ScriptShopsShape,
@@ -1755,8 +1766,104 @@ const make = Effect.gen(function* () {
       getItem: (selector) => nullableOptionEffect(shops.getItem(selector)),
     };
 
+    const getCombatProfileLibrary = () =>
+      Effect.tryPromise({
+        try: () => window.ipc.combatProfiles.getState(),
+        catch: (cause) =>
+          new ScriptExecutionError({
+            sourceName,
+            message: "Failed to read combat profiles",
+            cause,
+          }),
+      });
+
+    const getEquippedClassName = () =>
+      player
+        .getClassName()
+        .pipe(
+          Effect.catch(() => Effect.sync((): string | undefined => undefined)),
+        );
+
+    const findScriptCombatProfile = (ref: ScriptCombatProfileRef) =>
+      Effect.gen(function* () {
+        const library = yield* getCombatProfileLibrary();
+        const className = yield* getEquippedClassName();
+        return findCombatProfileBySelector(library, ref, className) ?? null;
+      });
+
+    const getScriptCombatProfile = (ref: ScriptCombatProfileRef) =>
+      Effect.gen(function* () {
+        const library = yield* getCombatProfileLibrary();
+        const className = yield* getEquippedClassName();
+        return getCombatProfileBySelector(library, ref, className);
+      });
+
+    const normalizeScriptCombatProfile = (
+      definition: ScriptCombatProfileInput,
+    ): Effect.Effect<CombatProfile> =>
+      Effect.sync(() => normalizeCombatProfile(definition));
+
+    const resolveScriptCombatProfile = (
+      profile: ScriptCombatProfileInput,
+    ): Effect.Effect<CombatProfile, unknown> =>
+      isCombatProfileDefinition(profile)
+        ? normalizeScriptCombatProfile(profile)
+        : getScriptCombatProfile(profile);
+
+    const resolveScriptCombatKillOptions = (
+      options?: ScriptCombatKillOptions,
+    ): Effect.Effect<CombatKillOptions | undefined, unknown> =>
+      Effect.gen(function* () {
+        if (options === undefined) {
+          return undefined;
+        }
+
+        const { profile, ...baseOptions } = options;
+        if (profile === undefined) {
+          return baseOptions;
+        }
+
+        const resolvedProfile = yield* resolveScriptCombatProfile(profile);
+        return {
+          ...baseOptions,
+          profile: resolvedProfile,
+        };
+      });
+
     const scriptCombat: ScriptCombatShape = {
       ...combat,
+      profiles: {
+        list: () =>
+          getCombatProfileLibrary().pipe(
+            Effect.map((library) => library.profiles),
+          ),
+        find: findScriptCombatProfile,
+        get: getScriptCombatProfile,
+        normalize: normalizeScriptCombatProfile,
+      },
+      kill: (target, options) =>
+        Effect.gen(function* () {
+          const resolvedOptions =
+            yield* resolveScriptCombatKillOptions(options);
+          yield* combat.kill(target, resolvedOptions);
+        }),
+      killForItem: (target, item, quantity, options) =>
+        Effect.gen(function* () {
+          const resolvedOptions =
+            yield* resolveScriptCombatKillOptions(options);
+          yield* combat.killForItem(target, item, quantity, resolvedOptions);
+        }),
+      killForTempItem: (target, item, quantity, options) =>
+        Effect.gen(function* () {
+          const resolvedOptions =
+            yield* resolveScriptCombatKillOptions(options);
+          yield* combat.killForTempItem(
+            target,
+            item,
+            quantity,
+            resolvedOptions,
+          );
+        }),
       target: {
         get: () => nullableOptionEffect(combat.target.get()),
         auras: {
@@ -1802,6 +1909,63 @@ const make = Effect.gen(function* () {
       waitFor: (eventName, options) => waitForScriptEvent(eventName, options),
     };
 
+    const killWithArmyForScript = (
+      target: MonsterIdentifierToken,
+      options?: ScriptCombatKillOptions,
+    ) =>
+      (function* () {
+        const resolvedOptions = yield* wrapScriptEffect(
+          resolveScriptCombatKillOptions(options),
+        );
+        yield* wrapScriptEffect(
+          army.kill(target, resolvedOptions) as Effect.Effect<
+            void,
+            unknown,
+            never
+          >,
+        );
+      })();
+
+    const killForItemWithArmyForScript = (
+      target: MonsterIdentifierToken,
+      item: ItemIdentifierToken,
+      quantity?: number,
+      options?: ScriptCombatKillOptions,
+    ) =>
+      (function* () {
+        const resolvedOptions = yield* wrapScriptEffect(
+          resolveScriptCombatKillOptions(options),
+        );
+        yield* wrapScriptEffect(
+          army.killForItem(
+            target,
+            item,
+            quantity,
+            resolvedOptions,
+          ) as Effect.Effect<void, unknown, never>,
+        );
+      })();
+
+    const killForTempItemWithArmyForScript = (
+      target: MonsterIdentifierToken,
+      item: ItemIdentifierToken,
+      quantity?: number,
+      options?: ScriptCombatKillOptions,
+    ) =>
+      (function* () {
+        const resolvedOptions = yield* wrapScriptEffect(
+          resolveScriptCombatKillOptions(options),
+        );
+        yield* wrapScriptEffect(
+          army.killForTempItem(
+            target,
+            item,
+            quantity,
+            resolvedOptions,
+          ) as Effect.Effect<void, unknown, never>,
+        );
+      })();
+
     const { getLoginSession: _getLoginSession, ...scriptAuth } = auth;
     const scriptArmyBase = wrapValue(army) as ScriptApi["army"];
     const scriptArmy = new Proxy(
@@ -1812,10 +1976,22 @@ const make = Effect.gen(function* () {
             return startLoopTauntForScript;
           }
 
+          if (property === "kill") {
+            return killWithArmyForScript;
+          }
+
+          if (property === "killForItem") {
+            return killForItemWithArmyForScript;
+          }
+
+          if (property === "killForTempItem") {
+            return killForTempItemWithArmyForScript;
+          }
+
           return Reflect.get(target, property, receiver);
         },
       },
-    ) as ScriptApi["army"];
+    ) as unknown as ScriptApi["army"] & ScriptArmyShape;
 
     const recipes = makeScriptRecipes({
       sourceName,

@@ -4,6 +4,7 @@ import {
   type CombatProfile,
 } from "../../../../../shared/combat-profiles";
 import {
+  castCombatProfileAnimationTrigger,
   castNextCombatProfileStep,
   isAttackableMonster,
   makeCombatProfileCursor,
@@ -119,41 +120,14 @@ const make = Effect.gen(function* () {
     now: number,
   ) =>
     Effect.gen(function* () {
-      const cooldownMs = trigger.cooldownMs ?? 0;
-      const castKey = `${profile.id}:${trigger.id}:${trigger.skill}`;
-      const lastCast = (yield* Ref.get(animationTriggerLastCastRef)).get(
-        castKey,
-      );
-      if (lastCast !== undefined && now - lastCast < cooldownMs) {
-        return;
-      }
-
-      if (event.monMapId !== undefined) {
-        const targeted = yield* combat
-          .attackMonster(event.monMapId)
-          .pipe(
-            Effect.catch((cause) =>
-              setLastError(
-                cause instanceof Error
-                  ? cause.message
-                  : "Animation trigger target failed",
-              ).pipe(Effect.as(false)),
-            ),
-          );
-
-        if (!targeted) {
-          return;
-        }
-      }
-
-      yield* combat.useSkill(trigger.skill, true, true).pipe(
-        Effect.tap(() =>
-          Ref.update(animationTriggerLastCastRef, (previous) => {
-            const next = new Map(previous);
-            next.set(castKey, now);
-            return next;
-          }),
-        ),
+      yield* castCombatProfileAnimationTrigger(
+        profile,
+        trigger,
+        event,
+        { state: animationTriggerLastCastRef },
+        now,
+      ).pipe(
+        Effect.provideService(Combat, combat),
         Effect.catch((cause) =>
           setLastError(
             cause instanceof Error ? cause.message : "Animation trigger failed",

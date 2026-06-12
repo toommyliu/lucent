@@ -10,6 +10,11 @@ import type {
   ShopItem,
 } from "@lucent/game";
 import type { Duration, Effect } from "effect";
+import type {
+  CombatProfile,
+  CombatProfileDefinition,
+  CombatProfileSelector,
+} from "../../../../shared/combat-profiles";
 import type { ScriptOptions } from "../../../../shared/ipc";
 import type { ScriptExecutionError, ScriptNotReadyError } from "./Errors";
 import type { ScriptRecipesShape } from "./recipes";
@@ -20,6 +25,7 @@ import type { AutoZoneSupportedMap } from "../features/Services/AutoZone";
 import type { BankShape } from "../flash/Services/Bank";
 import type { BridgeEffect, BridgeError } from "../flash/Services/Bridge";
 import type { CombatShape } from "../flash/Services/Combat";
+import type { CombatKillOptions } from "../flash/Services/Combat";
 import type { DropsShape } from "../flash/Services/Drops";
 import type { HouseShape } from "../flash/Services/House";
 import type { InventoryShape } from "../flash/Services/Inventory";
@@ -482,8 +488,75 @@ export interface ScriptCombatTargetShape {
   readonly auras: ScriptCombatTargetAurasShape;
 }
 
-export interface ScriptCombatShape extends Omit<CombatShape, "target"> {
+export type ScriptCombatProfileRef = CombatProfileSelector;
+
+export type ScriptCombatProfileInput =
+  | ScriptCombatProfileRef
+  | CombatProfileDefinition
+  | CombatProfile;
+
+export interface ScriptCombatKillOptions extends Omit<
+  CombatKillOptions,
+  "profile"
+> {
+  readonly profile?: ScriptCombatProfileInput;
+}
+
+export interface ScriptCombatProfilesShape {
+  list(): Effect.Effect<readonly CombatProfile[], unknown>;
+  find(
+    ref: ScriptCombatProfileRef,
+  ): Effect.Effect<CombatProfile | null, unknown>;
+  get(ref: ScriptCombatProfileRef): Effect.Effect<CombatProfile, unknown>;
+  normalize(
+    definition: CombatProfileDefinition | CombatProfile,
+  ): Effect.Effect<CombatProfile, unknown>;
+}
+
+export interface ScriptCombatShape extends Omit<
+  CombatShape,
+  "target" | "kill" | "killForItem" | "killForTempItem"
+> {
   readonly target: ScriptCombatTargetShape;
+  readonly profiles: ScriptCombatProfilesShape;
+  kill(
+    target: MonsterIdentifierToken,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
+  killForItem(
+    target: MonsterIdentifierToken,
+    item: ItemIdentifierToken,
+    quantity?: number,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
+  killForTempItem(
+    target: MonsterIdentifierToken,
+    item: ItemIdentifierToken,
+    quantity?: number,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
+}
+
+export interface ScriptArmyShape extends Omit<
+  ArmyShape,
+  "kill" | "killForItem" | "killForTempItem"
+> {
+  kill(
+    target: MonsterIdentifierToken,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
+  killForItem(
+    target: MonsterIdentifierToken,
+    item: ItemIdentifierToken,
+    quantity?: number,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
+  killForTempItem(
+    target: MonsterIdentifierToken,
+    item: ItemIdentifierToken,
+    quantity?: number,
+    options?: ScriptCombatKillOptions,
+  ): Effect.Effect<void, unknown>;
 }
 
 export interface ScriptCombatTargetAurasShape {
@@ -612,7 +685,7 @@ export interface ScriptRuntimeApi {
 }
 
 export interface ScriptApi {
-  readonly army: EffectValue<ArmyShape>;
+  readonly army: EffectValue<ScriptArmyShape>;
   readonly auth: EffectValue<ScriptAuthShape>;
   readonly bank: EffectValue<BankShape>;
   readonly combat: EffectValue<ScriptCombatShape>;

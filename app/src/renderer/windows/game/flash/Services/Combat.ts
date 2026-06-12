@@ -2,6 +2,7 @@ import { ServiceMap } from "effect";
 import type { Collection } from "@lucent/collection";
 import type { Aura } from "@lucent/game";
 import type { Option } from "effect";
+import type { CombatProfile } from "../../../../../shared/combat-profiles";
 import type { BridgeEffect } from "./Bridge";
 import type { ConsumableSkillItem } from "../Types";
 import type { WorldEntity } from "./World";
@@ -12,6 +13,7 @@ export interface CombatKillOptions {
   readonly skillSet?: readonly Skill[] | string;
   readonly skillDelay?: number;
   readonly skillWait?: boolean;
+  readonly profile?: CombatProfile;
 }
 
 export interface CombatTargetAurasShape {

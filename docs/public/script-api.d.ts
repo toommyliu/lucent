@@ -144,38 +144,9 @@ interface ScriptRuntimeApi {
     exit(options?: ScriptExitOptions): Effect<never, ScriptExecutionError | BridgeError>;
 }
 interface ArmyApi {
-    start(configName: string): Effect<ArmySession, never | ArmyError | BridgeError>;
-    leave(): Effect<void, never | ArmyError | BridgeError>;
-    isStarted(): Effect<boolean, never | ArmyError | BridgeError>;
-    isLeader(): Effect<boolean, never | ArmyError | BridgeError>;
-    isMember(): Effect<boolean, never | ArmyError | BridgeError>;
-    getSession(): Effect<ArmySession | null, never | ArmyError | BridgeError>;
-  /** Reads a value from the active army config.
-
-Dot-separated keys read nested object values. An empty key returns the raw
-config object. Returns `defaultValue` when the army is not started (a.k.a. no config loaded), the key
-is missing, or a nested path cannot be resolved. */
-    getConfigValue(key: string, defaultValue?: unknown): Effect<unknown, never | ArmyError | BridgeError>;
-  /** Reads a string value from the active army config.
-
-Uses the same key resolution rules as `getConfigValue`, but returns
-`defaultValue` when the resolved value is missing or not a string. */
-    getConfigString(key: string, defaultValue?: string): Effect<string, never | ArmyError | BridgeError>;
-  /** The player's number in the army, starting at 1 for the leader and incrementing
-for each member. */
-    getPlayerNumber(): Effect<number, never | ArmyError | BridgeError>;
-    sync(label?: string, options?: ArmyRunStepOptions): Effect<void, never | ArmyError | BridgeError>;
-    runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError | BridgeError>;
-    executeWithArmy<A, E>(action: Effect<A, E, never>): Effect<A, E | ArmyError | BridgeError>;
-    waitForAllInMap(): Effect<void, never | ArmyError | BridgeError>;
-    joinMap(map: string, cell?: string, pad?: string): Effect<void, never | ArmyError | BridgeError>;
-    kill(target: MonsterIdentifierToken, options?: CombatKillOptions): Effect<void, never | ArmyError | BridgeError>;
-    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): Effect<void, never | ArmyError | BridgeError>;
-    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): Effect<void, never | ArmyError | BridgeError>;
-    equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, never | ArmyError | BridgeError>;
-    startLoopTaunt(options: ArmyLoopTauntOptions): Effect<ArmyLoopTauntHandle, never | ArmyError | BridgeError>;
-    stopLoopTaunt(id: string): Effect<boolean, never | ArmyError | BridgeError>;
-    stopAllLoopTaunts(): Effect<void, never | ArmyError | BridgeError>;
+    kill(target: MonsterIdentifierToken, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
 }
 interface AuthApi {
     connectTo(server: string): Effect<AuthConnectOutcome, BridgeError>;
@@ -204,6 +175,16 @@ interface BankApi {
 }
 interface CombatApi {
     readonly target: CombatTargetApi;
+    readonly profiles: CombatProfilesApi;
+    kill(target: MonsterIdentifierToken, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+}
+interface CombatProfilesApi {
+    list(): Effect<readonly CombatProfile[], unknown>;
+    find(ref: CombatProfileSelector): Effect<CombatProfile | null, unknown>;
+    get(ref: CombatProfileSelector): Effect<CombatProfile, unknown>;
+    normalize(definition: CombatProfileDefinition | CombatProfile): Effect<CombatProfile, unknown>;
 }
 interface CombatTargetApi {
     get(): Effect<WorldEntity | null, BridgeError>;
@@ -471,33 +452,6 @@ interface WorldPlayersAurasApi {
     has(player: PlayerSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
 }
 
-interface ArmyEquipSetOptions {
-  /**
-   * When true, items will be resolved under the `items` key of the army config.
-   */
-  readonly resolveItems?: boolean;
-}
-interface ArmyLoopTauntHandle {
-  readonly id: string;
-  stop(): ArmyEffect<boolean>;
-}
-type ArmyLoopTauntOptions =
-  | (ArmyLoopTauntBaseOptions & {
-      readonly aura: string;
-      readonly delayMs?: number;
-      readonly debounceMs?: never;
-      readonly message?: never;
-    })
-  | (ArmyLoopTauntBaseOptions & {
-      readonly aura?: never;
-      readonly debounceMs?: number;
-      readonly delayMs?: never;
-      readonly message: string;
-    });
-interface ArmyRunStepOptions {
-  readonly timeoutMs?: number;
-}
-type ArmySession = ArmySessionPayload;
 type Aura = {
   cat?: string;
   duration?: number;
@@ -628,12 +582,36 @@ interface Collection<Key, Value> extends Map<Key, Value> {
   toSorted(compareFunction?: Comparator<Key, Value>): Collection<Key, Value>;
   toJSON(): [Key, Value][];
 }
-interface CombatKillOptions {
-  readonly killPriority?: readonly MonsterIdentifierToken[] | string;
-  readonly skillSet?: readonly Skill[] | string;
-  readonly skillDelay?: number;
-  readonly skillWait?: boolean;
+interface CombatProfile {
+  readonly id: string;
+  readonly label: string;
+  readonly className?: string;
+  readonly role: string;
+  readonly delayMs: number;
+  readonly cooldownMode: CombatProfileCooldownMode;
+  readonly timeoutMs: number;
+  readonly resetSkillIndexOnMonsterDeath?: boolean;
+  readonly steps: readonly CombatProfileStep[];
+  readonly animationTriggers?: readonly CombatProfileAnimationTrigger[];
 }
+interface CombatProfileDefinition extends Partial<
+  Omit<CombatProfile, "steps" | "animationTriggers">
+> {
+  readonly steps: readonly CombatProfileStepDefinition[];
+  readonly animationTriggers?: readonly CombatProfileAnimationTriggerDefinition[];
+}
+type CombatProfileSelector =
+  | CombatProfileRef
+  | string
+  | {
+      readonly id: string;
+    }
+  | {
+      readonly label: string;
+    }
+  | {
+      readonly className: string;
+    };
 interface EnvironmentDropPolicy {
   /** Accept member-only AC-tagged items. */
   readonly acceptAcMemberOnlyDrops: boolean;
@@ -787,6 +765,12 @@ interface Quest {
   isWeekly(): boolean;
   isMonthly(): boolean;
 }
+interface ScriptCombatKillOptions extends Omit<
+  CombatKillOptions,
+  "profile"
+> {
+  readonly profile?: ScriptCombatProfileInput;
+}
 interface ScriptEnhanceItemOptions {
   readonly enhancement: string;
   readonly special?: string;
@@ -910,24 +894,6 @@ type WorldEntitySelector =
   | { readonly type: "self" }
   | ({ readonly type: "player" } & PlayerSelectorObject)
   | ({ readonly type: "monster" } & MonsterSelectorObject);
-type ArmyEffect<A, E = never> = Effect<
-  A,
-  E | ArmyError | BridgeError
->;
-interface ArmyLoopTauntBaseOptions {
-  readonly id?: string;
-  readonly noEligiblePolicy?: ArmyLoopTauntNoEligiblePolicy;
-  readonly players?: readonly ArmyLoopTauntPlayer[];
-  readonly shouldTaunt?: ArmyLoopTauntShouldTaunt;
-  readonly skill: Skill;
-  readonly target: MonsterIdentifierToken;
-}
-interface ArmySessionPayload extends ArmyConfigPayload {
-  readonly sessionId: string;
-  readonly playerName: string;
-  readonly playerNumber: number;
-  readonly role: "leader" | "member";
-}
 type AuthConnectFailureStatus =
   | Exclude<ConnectToSelectionStatus, "selected">
   | "connection-failed"
@@ -973,6 +939,32 @@ type Keep<Value> = {
     keep: true;
     value: Value;
 };
+type CombatProfileCooldownMode = 'use-if-ready' | 'wait-for-cooldown';
+interface CombatProfileStep {
+  readonly id: string;
+  readonly skill: number;
+  readonly conditions: readonly CombatProfileCondition[];
+  readonly cooldownMode?: CombatProfileCooldownMode;
+  readonly waitMs?: number;
+}
+interface CombatProfileAnimationTrigger {
+  readonly id: string;
+  readonly messageIncludes: string;
+  readonly skill: number;
+  readonly cooldownMs?: number;
+}
+type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
+  readonly skill: number;
+};
+type CombatProfileAnimationTriggerDefinition =
+  Partial<CombatProfileAnimationTrigger> & {
+    readonly messageIncludes: string;
+    readonly skill: number;
+  };
+type CombatProfileRef =
+  | "generic"
+  | "equipped-class"
+  | CombatProfileRefSelected;
 interface EnvironmentQuestAutoRegisterOptions {
   readonly requirements: boolean;
   readonly rewards: boolean;
@@ -1142,6 +1134,17 @@ type QuestRequirement = {
    */
   quantity: number;
 };
+interface CombatKillOptions {
+  readonly killPriority?: readonly MonsterIdentifierToken[] | string;
+  readonly skillSet?: readonly Skill[] | string;
+  readonly skillDelay?: number;
+  readonly skillWait?: boolean;
+  readonly profile?: CombatProfile;
+}
+type ScriptCombatProfileInput =
+  | ScriptCombatProfileRef
+  | CombatProfileDefinition
+  | CombatProfile;
 interface ScriptEventMonsterDeathEvent {
   readonly monMapId: number;
 }
@@ -1264,15 +1267,6 @@ interface ShopItemSelectorAmbiguousError {
   readonly matches: readonly ShopItemMatchSummary[];
 }
 type WorldEntityKey = `player:${number}` | `monster:${number}`;
-type ArmyLoopTauntNoEligiblePolicy = "throw" | "cast-scheduled";
-type ArmyLoopTauntPlayer = number | string;
-type ArmyLoopTauntShouldTaunt = (
-  context: ArmyLoopTauntTurnContext,
-) => boolean | Effect<boolean, unknown>;
-interface ArmyConfigPayload extends ArmyConfigCore {
-  readonly configName: string;
-  readonly raw: ArmyConfigRaw;
-}
 type ConnectToSelectionStatus =
   | "selected"
   | "not-ready"
@@ -1303,6 +1297,13 @@ enum EntityState {
    * The entity is in combat.
    */
   InCombat = 2
+}
+type CombatProfileCondition =
+  | CombatProfileStatCondition
+  | CombatProfileAuraCondition;
+interface CombatProfileRefSelected {
+  readonly mode: "selected";
+  readonly profileId: string;
 }
 type EnvironmentItemBucket = 'ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member';
 type EquipItemTypeFilter = "weapon" | "cape" | "helm" | "class";
@@ -1371,6 +1372,7 @@ type QuestTurnInData = {
    */
   iQty: number;
 };
+type ScriptCombatProfileRef = CombatProfileSelector;
 interface ItemProcID { readonly [key: string]: unknown; }
 interface ShopItemID { readonly [key: string]: unknown; }
 interface _tag { readonly [key: string]: unknown; }
@@ -1379,116 +1381,21 @@ interface ShopItemMatchSummary {
   readonly itemId: number;
   readonly shopItemId?: string;
 }
-interface ArmyLoopTauntTurnContext {
-  readonly id: string;
-  readonly target: {
-    readonly token: MonsterIdentifierToken;
-    readonly monMapId: number;
-  };
-  readonly localPlayer: ResolvedArmyPlayer;
-  readonly scheduled: ResolvedArmyPlayer;
-  readonly candidate: ResolvedArmyPlayer;
-  readonly participants: readonly ResolvedArmyPlayer[];
-  readonly turn: {
-    readonly index: number;
-    readonly triggerCount: number;
-  };
-  readonly trigger: NormalizedLoopTauntTrigger;
-  readonly world: {
-    readonly players: Pick<
-      WorldPlayersShape,
-      "getAll" | "getByName" | "getAuras" | "getAura"
-    >;
-    readonly monsters: Pick<WorldMonstersShape, "get" | "getAura">;
-  };
-}
-interface ArmyConfigCore {
-  readonly leader: string;
-  readonly players: readonly string[];
-  readonly roomNumber: string;
-}
-type ArmyConfigRaw = Record<string, unknown>;
 interface Dead { readonly [key: string]: unknown; }
 interface Idle { readonly [key: string]: unknown; }
 interface InCombat { readonly [key: string]: unknown; }
+type CombatProfileStatCondition = {
+  readonly type: "self-hp" | "self-mp" | "ally-hp";
+  readonly op: CombatProfileComparison;
+  readonly value: number;
+  readonly unit: CombatProfileThresholdUnit;
+};
+type CombatProfileAuraCondition = {
+  readonly type: "self-aura" | "target-aura";
+  readonly auraName: string;
+  readonly op: CombatProfileComparison;
+  readonly value: number;
+};
 interface DropChance { readonly [key: string]: unknown; }
-interface ResolvedArmyPlayer {
-  readonly name: string;
-  readonly number: number;
-}
-type NormalizedLoopTauntTrigger =
-  | {
-      readonly aura: string;
-      readonly delayMs: number;
-      readonly type: "aura";
-    }
-  | {
-      readonly debounceMs: number;
-      readonly message: string;
-      readonly type: "message";
-    };
-interface WorldPlayersShape {
-  register(username: string, entId: number): Effect<void>;
-  unregister(username: string): Effect<void>;
-  add(data: AvatarData): Effect<void>;
-  remove(username: string): Effect<void>;
-  setSelf(username: string): Effect<void>;
-  getAll(): Effect<Collection<string, Avatar>>;
-  getSelf(): Effect<Option<Avatar>>;
-  withSelf<A>(f: (self: Avatar) => A): Effect<Option<A>>;
-  get(selector: PlayerSelector): Effect<Option<Avatar>>;
-  getByName(name: string): Effect<Option<Avatar>>;
-  addAura(entId: number, aura: Aura): Effect<void>;
-  updateAura(entId: number, aura: Aura): Effect<void>;
-  removeAura(entId: number, auraName: string): Effect<void>;
-  getAuras(entId: number): Effect<Collection<string, Aura>>;
-  getAura(entId: number, auraName: string): Effect<Option<Aura>>;
-  clearAuras(entId: number): Effect<void>;
-  readonly auras: WorldPlayerAurasShape;
-}
-interface WorldMonstersShape {
-  getAll(): Effect<Collection<number, Monster>>;
-  add(data: MonsterData): Effect<void>;
-  get(selector: MonsterSelector): Effect<Option<Monster>>;
-  findByName(
-    name: string,
-    cell?: string,
-  ): Effect<Option<Monster>>;
-  getAvailable(): BridgeEffect<Collection<number, Monster>>;
-  isAvailable(monster: MonsterSelector): BridgeEffect<boolean>;
-  addAura(monMapId: number, aura: Aura): Effect<void>;
-  updateAura(monMapId: number, aura: Aura): Effect<void>;
-  removeAura(monMapId: number, auraName: string): Effect<void>;
-  getAuras(monMapId: number): Effect<Collection<string, Aura>>;
-  getAura(
-    monMapId: number,
-    auraName: string,
-  ): Effect<Option<Aura>>;
-  clearAuras(monMapId: number): Effect<void>;
-  readonly auras: WorldMonsterAurasShape;
-}
-interface WorldPlayerAurasShape {
-  getAll(player: PlayerSelector): Effect<Collection<string, Aura>>;
-  get(
-    player: PlayerSelector,
-    auraName: string,
-  ): Effect<Option<Aura>>;
-  has(
-    player: PlayerSelector,
-    auraName: string,
-    options?: AuraMatchOptions,
-  ): Effect<boolean>;
-}
-type BridgeEffect<A> = Effect<A, BridgeError>;
-interface WorldMonsterAurasShape {
-  getAll(monster: MonsterSelector): Effect<Collection<string, Aura>>;
-  get(
-    monster: MonsterSelector,
-    auraName: string,
-  ): Effect<Option<Aura>>;
-  has(
-    monster: MonsterSelector,
-    auraName: string,
-    options?: AuraMatchOptions,
-  ): Effect<boolean>;
-}
+type CombatProfileComparison = "<=" | ">=";
+type CombatProfileThresholdUnit = "percent" | "value";

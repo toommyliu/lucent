@@ -37,7 +37,20 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a> | type alias |  |
 | <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
 | <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a> | class | A Map with additional utility methods. |
-| <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-animation-trigger/" data-script-type="combat-profile-animation-trigger"><code>CombatProfileAnimationTrigger</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-animation-trigger-definition/" data-script-type="combat-profile-animation-trigger-definition"><code>CombatProfileAnimationTriggerDefinition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-aura-condition/" data-script-type="combat-profile-aura-condition"><code>CombatProfileAuraCondition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-comparison/" data-script-type="combat-profile-comparison"><code>CombatProfileComparison</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-condition/" data-script-type="combat-profile-condition"><code>CombatProfileCondition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-ref/" data-script-type="combat-profile-ref"><code>CombatProfileRef</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-ref-selected/" data-script-type="combat-profile-ref-selected"><code>CombatProfileRefSelected</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-selector/" data-script-type="combat-profile-selector"><code>CombatProfileSelector</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-stat-condition/" data-script-type="combat-profile-stat-condition"><code>CombatProfileStatCondition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-threshold-unit/" data-script-type="combat-profile-threshold-unit"><code>CombatProfileThresholdUnit</code></a> | type alias |  |
 | <a href="/scripting/types/comparator/" data-script-type="comparator"><code>Comparator</code></a> | type alias |  |
 | <a href="/scripting/types/connect-to-selection-status/" data-script-type="connect-to-selection-status"><code>ConnectToSelectionStatus</code></a> | type alias |  |
 | <a href="/scripting/types/consumable-skill-item/" data-script-type="consumable-skill-item"><code>ConsumableSkillItem</code></a> | type alias |  |
@@ -77,6 +90,9 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/quest-reward-data/" data-script-type="quest-reward-data"><code>QuestRewardData</code></a> | type alias | Represents the raw data structure for a quest reward. |
 | <a href="/scripting/types/quest-turn-in-data/" data-script-type="quest-turn-in-data"><code>QuestTurnInData</code></a> | type alias | Represents the raw data structure for quest turn-in requirements. |
 | <a href="/scripting/types/readonly-collection/" data-script-type="readonly-collection"><code>ReadonlyCollection</code></a> | type alias | Represents an immutable version of a collection |
+| <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> | interface |  |
+| <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
+| <a href="/scripting/types/script-combat-profile-ref/" data-script-type="script-combat-profile-ref"><code>ScriptCombatProfileRef</code></a> | type alias |  |
 | <a href="/scripting/types/script-enhance-item-options/" data-script-type="script-enhance-item-options"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-equip-item-by-enhancement-options/" data-script-type="script-equip-item-by-enhancement-options"><code>ScriptEquipItemByEnhancementOptions</code></a> | type alias |  |
 | <a href="/scripting/types/script-event-afk-event/" data-script-type="script-event-afk-event"><code>ScriptEventAfkEvent</code></a> | interface |  |

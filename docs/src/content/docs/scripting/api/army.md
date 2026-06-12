@@ -173,27 +173,27 @@ api.army.joinMap(map: string, cell?: string, pad?: string): ArmyEffect<void, nev
 
 <a id="member-api-army-kill"></a>
 
-### `api.army.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/Services/Army.ts#L94" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/army/Services/Army.ts:94" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L544" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:544" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.kill(target: MonsterIdentifierToken, options?: CombatKillOptions): ArmyEffect<void, never>
+api.army.kill(target: MonsterIdentifierToken, options?: ScriptCombatKillOptions): Effect.Effect<void, unknown, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
+| `options` | <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> \| <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `unknown`
 
 <a id="member-api-army-killforitem"></a>
 
-### `api.army.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/Services/Army.ts#L98" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/army/Services/Army.ts:98" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L548" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:548" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): ArmyEffect<void, never>
+api.army.killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect.Effect<void, unknown, never>
 ```
 
 | Name | Type | Required | Description |
@@ -201,18 +201,18 @@ api.army.killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, 
 | `target` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
+| `options` | <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> \| <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `unknown`
 
 <a id="member-api-army-killfortempitem"></a>
 
-### `api.army.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/Services/Army.ts#L104" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/army/Services/Army.ts:104" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L554" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:554" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: CombatKillOptions): ArmyEffect<void, never>
+api.army.killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect.Effect<void, unknown, never>
 ```
 
 | Name | Type | Required | Description |
@@ -220,11 +220,11 @@ api.army.killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierTok
 | `target` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
+| `options` | <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> \| <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `unknown`
 
 <a id="member-api-army-leave"></a>
 

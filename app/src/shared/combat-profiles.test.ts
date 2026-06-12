@@ -3,7 +3,10 @@ import {
   DEFAULT_COMBAT_PROFILE_ID,
   autoAttackStateToProfileRef,
   cloneCombatProfileLibrary,
+  findCombatProfileBySelector,
   findCombatProfileByRef,
+  getCombatProfileBySelector,
+  normalizeCombatProfile,
   normalizeCombatProfileLibrary,
   parseCombatProfileAutoAttackState,
 } from "./combat-profiles";
@@ -237,5 +240,70 @@ describe("combat profile library", () => {
       conditions: [],
       cooldownMode: "use-if-ready",
     });
+  });
+
+  it("normalizes inline combat profile definitions without saving them", () => {
+    const profile = normalizeCombatProfile({
+      label: "Inline",
+      delayMs: 75.9,
+      cooldownMode: "wait-for-cooldown",
+      steps: [{ skill: 4.8 }],
+    });
+
+    expect(profile).toEqual({
+      id: "inline",
+      label: "Inline",
+      role: "Base",
+      delayMs: 75,
+      cooldownMode: "wait-for-cooldown",
+      timeoutMs: 10_000,
+      steps: [{ id: "step-1", skill: 4, conditions: [] }],
+    });
+  });
+
+  it("finds profiles by script selector shapes", () => {
+    const library = normalizeCombatProfileLibrary({
+      profiles: [
+        {
+          id: "archmage-farm",
+          label: "ArchMage Farm",
+          className: "ArchMage",
+          steps: [{ skill: 2 }],
+        },
+      ],
+    });
+
+    expect(findCombatProfileBySelector(library, "archmage-farm")?.id).toBe(
+      "archmage-farm",
+    );
+    expect(findCombatProfileBySelector(library, "archmage farm")?.id).toBe(
+      "archmage-farm",
+    );
+    expect(
+      findCombatProfileBySelector(library, { label: "ARCHMAGE FARM" })?.id,
+    ).toBe("archmage-farm");
+    expect(
+      findCombatProfileBySelector(library, { className: "archmage" })?.id,
+    ).toBe("archmage-farm");
+    expect(
+      findCombatProfileBySelector(library, "equipped-class", "ArchMage")?.id,
+    ).toBe("archmage-farm");
+  });
+
+  it("falls back to generic for missing script profile gets", () => {
+    const library = normalizeCombatProfileLibrary({
+      profiles: [
+        {
+          id: "solo",
+          label: "Solo",
+          steps: [{ skill: 4 }],
+        },
+      ],
+    });
+
+    expect(findCombatProfileBySelector(library, "missing")).toBeUndefined();
+    expect(getCombatProfileBySelector(library, "missing").id).toBe(
+      DEFAULT_COMBAT_PROFILE_ID,
+    );
   });
 });
