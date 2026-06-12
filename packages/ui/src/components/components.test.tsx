@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSignal, type JSX } from "solid-js";
 import { render } from "solid-js/web";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   Checkbox,
   Combobox,
@@ -9,6 +13,14 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -51,6 +63,7 @@ import {
   TooltipButton,
   TooltipButtonContent,
   TooltipButtonTrigger,
+  TooltipIconButton,
   createToastController,
   type ToastController,
 } from "../index";
@@ -757,6 +770,81 @@ describe("Menu", () => {
   });
 });
 
+describe("Accordion", () => {
+  it("renders open content and trigger slots", () => {
+    const root = renderUi(() => (
+      <Accordion defaultValue={["script-error"]}>
+        <AccordionItem value="script-error">
+          <AccordionTrigger>Stack trace</AccordionTrigger>
+          <AccordionContent>Error: boom</AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    ));
+
+    expect(root.querySelector("[data-slot='accordion']")).not.toBeNull();
+    expect(
+      root.querySelector("[data-slot='accordion-trigger']"),
+    ).not.toBeNull();
+    expect(root.textContent).toContain("Error: boom");
+  });
+
+  it("can collapse an open item when configured as collapsible", async () => {
+    let value: ReadonlyArray<string> = ["script-error"];
+    const root = renderUi(() => (
+      <Accordion
+        collapsible
+        defaultValue={["script-error"]}
+        onValueChange={(details) => {
+          value = details.value;
+        }}
+      >
+        <AccordionItem value="script-error">
+          <AccordionTrigger>Stack trace</AccordionTrigger>
+          <AccordionContent>Error: boom</AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    ));
+
+    const trigger = root.querySelector<HTMLElement>(
+      "[data-slot='accordion-trigger']",
+    );
+    trigger?.focus();
+    pressItem(trigger);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(value).toEqual([]);
+  });
+});
+
+describe("ContextMenu", () => {
+  it("renders content and calls item selection handlers", () => {
+    let selected = false;
+    renderUi(() => (
+      <ContextMenu open>
+        <ContextMenuTrigger>Target</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuGroup>
+            <ContextMenuLabel>Actions</ContextMenuLabel>
+            <ContextMenuItem value="copy" onSelect={() => (selected = true)}>
+              Copy
+              <ContextMenuShortcut>Cmd+C</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </ContextMenuGroup>
+        </ContextMenuContent>
+      </ContextMenu>
+    ));
+
+    pressItem(
+      document.body.querySelector<HTMLElement>(
+        "[data-slot='context-menu-item']",
+      ),
+    );
+
+    expect(selected).toBe(true);
+  });
+});
+
 describe("Tabs", () => {
   it("renders active content and switches tabs", () => {
     const root = renderUi(() => (
@@ -795,6 +883,24 @@ describe("Tabs", () => {
     )[1];
 
     expect(inactive?.hasAttribute("hidden")).toBe(true);
+  });
+});
+
+describe("TooltipIconButton", () => {
+  it("can render tooltip content without a portal", () => {
+    const root = renderUi(() => (
+      <TooltipIconButton
+        aria-label="Open script file"
+        open
+        portal={false}
+        tooltip="Open script file"
+      >
+        <Icon icon="external_link" />
+      </TooltipIconButton>
+    ));
+
+    expect(root.querySelector("[data-slot='tooltip-content']")).not.toBeNull();
+    expect(root.textContent).toContain("Open script file");
   });
 });
 

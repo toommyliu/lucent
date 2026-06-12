@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
+import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import { Effect, Scope } from "effect";
 import {
   ScriptingIpcChannels,
@@ -8,6 +8,7 @@ import { MainIpc } from "../MainIpc";
 import { requireScriptingSender } from "../SenderAuthorization";
 import { WindowService } from "../../window/WindowService";
 import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
+import { resolveScriptPath } from "../../workspace/scripting";
 
 const getEventWindow = (senderId?: number): BrowserWindow | null => {
   if (senderId !== undefined) {
@@ -90,6 +91,28 @@ export const registerScriptingIpcHandlers = (): Effect.Effect<
         return (yield* workspace.readScript(
           path.trim(),
         )) satisfies ScriptExecutePayload;
+      }),
+    );
+
+    yield* ipc.handle(ScriptingIpcChannels.openPath, (event, path) =>
+      Effect.gen(function* () {
+        yield* requireScriptingSender(event.sender);
+        if (typeof path !== "string" || path.trim() === "") {
+          return yield* Effect.fail(new Error("Invalid script path"));
+        }
+
+        const workspace = yield* WorkspaceFiles;
+        const scriptPath = yield* Effect.tryPromise({
+          try: () => resolveScriptPath(workspace.scriptsDir, path.trim()),
+          catch: (cause) =>
+            cause instanceof Error ? cause : new Error(String(cause)),
+        });
+        const openError = yield* Effect.promise(() =>
+          shell.openPath(scriptPath),
+        );
+        if (openError !== "") {
+          return yield* Effect.fail(new Error(openError));
+        }
       }),
     );
   });

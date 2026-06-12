@@ -1,6 +1,16 @@
 import "./lib/polyfills";
 
 export {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  type AccordionContentProps,
+  type AccordionItemProps,
+  type AccordionProps,
+  type AccordionTriggerProps,
+} from "./components/Accordion";
+export {
   Alert,
   AlertAction,
   AlertDescription,
@@ -114,6 +124,38 @@ export {
   type ComboboxTriggerProps,
   type ComboboxValueProps,
 } from "./components/Combobox";
+export {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuPortal,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+  type ContextMenuCheckboxItemProps,
+  type ContextMenuContentProps,
+  type ContextMenuGroupProps,
+  type ContextMenuItemProps,
+  type ContextMenuLabelProps,
+  type ContextMenuPortalProps,
+  type ContextMenuProps,
+  type ContextMenuRadioGroupProps,
+  type ContextMenuRadioItemProps,
+  type ContextMenuSeparatorProps,
+  type ContextMenuShortcutProps,
+  type ContextMenuSubContentProps,
+  type ContextMenuSubProps,
+  type ContextMenuSubTriggerProps,
+  type ContextMenuTriggerProps,
+} from "./components/ContextMenu";
 export { Dropdown, type DropdownProps } from "./components/Dropdown";
 export {
   Dialog,

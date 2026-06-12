@@ -46,6 +46,74 @@
         0 1px 2px rgba(var(--black), 0.12);
 }
 
+.game-script-error-dialog.dialog__content {
+    max-width: min(42rem, calc(100vw - 2rem));
+}
+
+.game-script-error-dialog .dialog__description {
+    display: grid;
+    gap: 0.375rem;
+}
+
+.game-script-error-dialog__source {
+    align-items: center;
+    color: var(--color-foreground);
+    display: inline-flex;
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-medium);
+    gap: 0.375rem;
+    overflow-wrap: anywhere;
+}
+
+.game-script-error-dialog__message {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.game-script-error-dialog__open-source.button {
+    color: var(--color-muted-foreground);
+    flex: 0 0 auto;
+}
+
+.game-script-error-dialog__open-source.button:hover {
+    color: var(--color-foreground);
+}
+
+.game-script-error-dialog__accordion.accordion {
+    border-color: var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    margin: 0 1.5rem 1rem;
+}
+
+.game-script-error-dialog__accordion .accordion__trigger {
+    font-size: var(--text-xs);
+    min-height: 2rem;
+    padding: 0.5rem 0.625rem;
+}
+
+.game-script-error-dialog__accordion .accordion__content-inner {
+    padding: 0;
+}
+
+.game-script-error-dialog__stack {
+    background-color: rgba(var(--muted), 0.62);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-foreground);
+    font-family: var(--font-mono);
+    margin: 0;
+    max-height: min(18rem, 48vh);
+    overflow: auto;
+    padding: 0.625rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.game-script-error-dialog__copy.button {
+    flex: 0 0 auto;
+}
+
 .game-debug-eval__open {
     font-size: var(--text-sm);
 }
