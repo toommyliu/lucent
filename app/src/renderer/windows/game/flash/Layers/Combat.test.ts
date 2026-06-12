@@ -3,6 +3,7 @@ import { Avatar, EntityState, Monster } from "@lucent/game";
 import type { AvatarData, MonsterData } from "@lucent/game";
 import { Effect, Layer, Option } from "effect";
 import { expect, test } from "vitest";
+import type { CombatProfile } from "../../../../../shared/combat-profiles";
 import { SwfCallError } from "../Errors";
 import { Bridge, type BridgeShape } from "../Services/Bridge";
 import { Combat, type CombatShape } from "../Services/Combat";
@@ -1090,4 +1091,89 @@ test("kill switches to a respawned priority target before waiting on skill readi
   expect(calls.indexOf("combat.useSkill:1")).toBeGreaterThan(
     calls.indexOf("combat.attackMonsterById:8"),
   );
+});
+
+test("kill uses a combat profile rotation instead of legacy skill options", async () => {
+  const calls: string[] = [];
+  const avatar = new Avatar(avatarData());
+  const monster = new Monster(monsterData());
+  const world = makeKillWorld(avatar, monster);
+  const profile: CombatProfile = {
+    id: "profile-kill",
+    label: "Profile Kill",
+    role: "Test",
+    delayMs: 0,
+    cooldownMode: "use-if-ready",
+    timeoutMs: 10_000,
+    steps: [
+      { id: "two", skill: 2, conditions: [] },
+      { id: "three", skill: 3, conditions: [] },
+    ],
+  };
+
+  const bridge: BridgeShape = {
+    call<K extends keyof Window["swf"]>(
+      path: K,
+      args?: Parameters<Window["swf"][K]>,
+    ) {
+      if (path === "combat.attackMonsterById") {
+        calls.push(`combat.attackMonsterById:${String(args?.[0])}`);
+        return Effect.void as Effect.Effect<ReturnType<Window["swf"][K]>>;
+      }
+
+      if (path === "combat.getTarget") {
+        calls.push("combat.getTarget");
+        return Effect.succeed(null) as Effect.Effect<
+          ReturnType<Window["swf"][K]>
+        >;
+      }
+
+      if (path === "combat.getSkillCooldownRemaining") {
+        calls.push(`combat.getSkillCooldownRemaining:${String(args?.[0])}`);
+        return Effect.succeed(0) as Effect.Effect<ReturnType<Window["swf"][K]>>;
+      }
+
+      if (path === "combat.useSkill") {
+        const skill = String(args?.[0]);
+        calls.push(`combat.useSkill:${skill}`);
+        if (skill === "3") {
+          monster.data.intHP = 0;
+          monster.data.intState = EntityState.Dead;
+        }
+        return Effect.void as Effect.Effect<ReturnType<Window["swf"][K]>>;
+      }
+
+      if (
+        path === "combat.cancelAutoAttack" ||
+        path === "combat.cancelTarget"
+      ) {
+        calls.push(path);
+        return Effect.void as Effect.Effect<ReturnType<Window["swf"][K]>>;
+      }
+
+      throw new Error(`unexpected bridge call: ${String(path)}`);
+    },
+    callGameFunction() {
+      return Effect.void;
+    },
+    onConnection() {
+      return Effect.succeed(() => undefined);
+    },
+  };
+
+  await withCombat(
+    bridge,
+    (combat) =>
+      combat.kill("Training Dummy", {
+        profile,
+        skillDelay: 0,
+        skillSet: [1],
+        skillWait: true,
+      }),
+    { world },
+  );
+
+  expect(calls).toContain("combat.useSkill:2");
+  expect(calls).toContain("combat.useSkill:3");
+  expect(calls).not.toContain("combat.useSkill:1");
 });

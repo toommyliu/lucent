@@ -15,6 +15,15 @@ export interface CombatProfileCursor {
   readonly state: Ref.Ref<CombatProfileCursorState>;
 }
 
+export interface CombatProfileAnimationTriggerState {
+  readonly state: Ref.Ref<ReadonlyMap<string, number>>;
+}
+
+export interface CombatProfileAnimationTriggerEvent {
+  readonly message: string;
+  readonly monMapId?: number;
+}
+
 interface CombatProfileCursorState {
   readonly index: number;
   readonly resetVersion: number;
@@ -30,6 +39,12 @@ export const resetCombatProfileCursor = (
     index: 0,
     resetVersion: state.resetVersion + 1,
   }));
+
+export const makeCombatProfileAnimationTriggerState =
+  (): Effect.Effect<CombatProfileAnimationTriggerState> =>
+    Effect.map(Ref.make<ReadonlyMap<string, number>>(new Map()), (state) => ({
+      state,
+    }));
 
 const compare = (
   actual: number,
@@ -264,3 +279,35 @@ export const matchesCombatProfileAnimationTriggerMessage = (
     normalizedConfiguredMessage,
   );
 };
+
+export const castCombatProfileAnimationTrigger = (
+  profile: CombatProfile,
+  trigger: NonNullable<CombatProfile["animationTriggers"]>[number],
+  event: CombatProfileAnimationTriggerEvent,
+  state: CombatProfileAnimationTriggerState,
+  now = Date.now(),
+) =>
+  Effect.gen(function* () {
+    const combat = yield* Combat;
+    const cooldownMs = trigger.cooldownMs ?? 0;
+    const castKey = `${profile.id}:${trigger.id}:${trigger.skill}`;
+    const lastCast = (yield* Ref.get(state.state)).get(castKey);
+    if (lastCast !== undefined && now - lastCast < cooldownMs) {
+      return false;
+    }
+
+    if (event.monMapId !== undefined) {
+      const targeted = yield* combat.attackMonster(event.monMapId);
+      if (!targeted) {
+        return false;
+      }
+    }
+
+    yield* combat.useSkill(trigger.skill, true, true);
+    yield* Ref.update(state.state, (previous) => {
+      const next = new Map(previous);
+      next.set(castKey, now);
+      return next;
+    });
+    return true;
+  });

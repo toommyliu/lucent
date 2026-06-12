@@ -81,6 +81,36 @@ export type CombatProfileRef =
   | "equipped-class"
   | CombatProfileRefSelected;
 
+export type CombatProfileSelector =
+  | CombatProfileRef
+  | string
+  | {
+      readonly id: string;
+    }
+  | {
+      readonly label: string;
+    }
+  | {
+      readonly className: string;
+    };
+
+export type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
+  readonly skill: number;
+};
+
+export type CombatProfileAnimationTriggerDefinition =
+  Partial<CombatProfileAnimationTrigger> & {
+    readonly messageIncludes: string;
+    readonly skill: number;
+  };
+
+export interface CombatProfileDefinition extends Partial<
+  Omit<CombatProfile, "steps" | "animationTriggers">
+> {
+  readonly steps: readonly CombatProfileStepDefinition[];
+  readonly animationTriggers?: readonly CombatProfileAnimationTriggerDefinition[];
+}
+
 export interface CombatProfileAutoAttackState {
   readonly mode: CombatProfileAutoAttackMode;
   readonly selectedProfileId?: string;
@@ -138,6 +168,14 @@ const trimString = (value: unknown, maxLength: number): string | undefined => {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed.slice(0, maxLength);
 };
+
+const equalsNormalizedString = (
+  left: string | undefined,
+  right: string | undefined,
+): boolean =>
+  left !== undefined &&
+  right !== undefined &&
+  left.trim().toLowerCase() === right.trim().toLowerCase();
 
 export const normalizeCombatProfileClassName = (value: string): string =>
   value.trim().replace(/\s+/gu, " ").toLowerCase();
@@ -384,6 +422,16 @@ const normalizeProfile = (
   };
 };
 
+export const normalizeCombatProfile = (value: unknown): CombatProfile => {
+  const normalized = normalizeProfile(value, new Set());
+  return normalized ?? genericProfile();
+};
+
+export const isCombatProfileDefinition = (
+  value: unknown,
+): value is CombatProfileDefinition =>
+  isRecord(value) && Array.isArray(value["steps"]);
+
 const normalizeAutoAttackState = (
   value: unknown,
   profileIds: ReadonlySet<string>,
@@ -493,6 +541,74 @@ export const findCombatProfileByRef = (
     library.profiles.find((profile) => profile.id === ref.profileId) ?? fallback
   );
 };
+
+export const findCombatProfileBySelector = (
+  library: CombatProfileLibrary,
+  selector: CombatProfileSelector,
+  equippedClassName?: string,
+): CombatProfile | undefined => {
+  if (selector === "generic") {
+    return (
+      library.profiles.find(
+        (profile) => profile.id === DEFAULT_COMBAT_PROFILE_ID,
+      ) ?? genericProfile()
+    );
+  }
+
+  if (selector === "equipped-class") {
+    const normalizedClassName =
+      equippedClassName === undefined
+        ? undefined
+        : normalizeCombatProfileClassName(equippedClassName);
+    if (normalizedClassName === undefined || normalizedClassName === "") {
+      return undefined;
+    }
+
+    return library.profiles.find(
+      (profile) =>
+        profile.className !== undefined &&
+        normalizeCombatProfileClassName(profile.className) ===
+          normalizedClassName,
+    );
+  }
+
+  if (typeof selector === "string") {
+    return (
+      library.profiles.find((profile) => profile.id === selector) ??
+      library.profiles.find((profile) =>
+        equalsNormalizedString(profile.label, selector),
+      )
+    );
+  }
+
+  if ("mode" in selector) {
+    return library.profiles.find(
+      (profile) => profile.id === selector.profileId,
+    );
+  }
+
+  if ("id" in selector) {
+    return library.profiles.find((profile) => profile.id === selector.id);
+  }
+
+  if ("label" in selector) {
+    return library.profiles.find((profile) =>
+      equalsNormalizedString(profile.label, selector.label),
+    );
+  }
+
+  return library.profiles.find((profile) =>
+    equalsNormalizedString(profile.className, selector.className),
+  );
+};
+
+export const getCombatProfileBySelector = (
+  library: CombatProfileLibrary,
+  selector: CombatProfileSelector,
+  equippedClassName?: string,
+): CombatProfile =>
+  findCombatProfileBySelector(library, selector, equippedClassName) ??
+  findCombatProfileByRef(library, "generic");
 
 export const autoAttackStateToProfileRef = (
   state: CombatProfileAutoAttackState,

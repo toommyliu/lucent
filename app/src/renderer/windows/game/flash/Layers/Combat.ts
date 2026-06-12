@@ -18,6 +18,14 @@ import {
   normalizeItemQuantity,
   resolveItemIdentifier,
 } from "../itemIdentifiers";
+import {
+  castCombatProfileAnimationTrigger,
+  castNextCombatProfileStep,
+  makeCombatProfileAnimationTriggerState,
+  makeCombatProfileCursor,
+  matchesCombatProfileAnimationTriggerMessage,
+  resetCombatProfileCursor,
+} from "../../combatProfiles";
 
 const DEFAULT_SKILL_ROTATION: readonly Skill[] = [1, 2, 3, 4];
 const DEFAULT_SKILL_DELAY_MS = 150;
@@ -40,6 +48,7 @@ type NormalizedKillOptions = {
   readonly skillSet: readonly Skill[];
   readonly skillDelayMs: number;
   readonly skillWait: boolean;
+  readonly profile?: NonNullable<CombatKillOptions["profile"]>;
 };
 
 type ResolvedAttackSelection =
@@ -202,6 +211,7 @@ const normalizeKillOptions = (
     skillSet: parseSkillSet(options?.skillSet),
     skillDelayMs: parsedDelay,
     skillWait: options?.skillWait === true,
+    ...(options?.profile === undefined ? {} : { profile: options.profile }),
   };
 };
 
@@ -691,6 +701,7 @@ const make = Effect.gen(function* () {
 
   const kill: CombatShape["kill"] = (target, options) => {
     let disposeMonsterDeathListener: (() => void) | undefined;
+    let disposeAnimationMessageListener: (() => void) | undefined;
     const normalizedKillOptions = normalizeKillOptions(options);
 
     return Effect.gen(function* () {
@@ -701,6 +712,15 @@ const make = Effect.gen(function* () {
 
       const world = maybeWorld.value;
       const resolvedTarget = resolveKillTarget(target);
+      const combatProfile = normalizedKillOptions.profile;
+      const profileCursor =
+        combatProfile === undefined
+          ? undefined
+          : yield* makeCombatProfileCursor();
+      const profileAnimationTriggerState =
+        combatProfile === undefined
+          ? undefined
+          : yield* makeCombatProfileAnimationTriggerState();
 
       if (resolvedTarget.kind === "name" && resolvedTarget.name === "") {
         return;
@@ -963,6 +983,13 @@ const make = Effect.gen(function* () {
                 return;
               }
 
+              if (
+                combatProfile?.resetSkillIndexOnMonsterDeath === true &&
+                profileCursor !== undefined
+              ) {
+                yield* resetCombatProfileCursor(profileCursor);
+              }
+
               if (targetMonMapId !== undefined) {
                 if (event.monMapId === targetMonMapId) {
                   didKillTarget = true;
@@ -986,6 +1013,46 @@ const make = Effect.gen(function* () {
               }
             }),
         );
+
+        if (
+          combatProfile !== undefined &&
+          profileAnimationTriggerState !== undefined &&
+          (combatProfile.animationTriggers?.length ?? 0) > 0
+        ) {
+          disposeAnimationMessageListener = yield* packetDomain.on(
+            "animationMessage",
+            (event) =>
+              Effect.gen(function* () {
+                const triggers = combatProfile.animationTriggers ?? [];
+                if (triggers.length === 0) {
+                  return;
+                }
+
+                const now = Date.now();
+                for (const trigger of triggers) {
+                  if (
+                    matchesCombatProfileAnimationTriggerMessage(
+                      trigger.messageIncludes,
+                      event.message,
+                    )
+                  ) {
+                    yield* castCombatProfileAnimationTrigger(
+                      combatProfile,
+                      trigger,
+                      event,
+                      profileAnimationTriggerState,
+                      now,
+                    ).pipe(
+                      Effect.provideService(Combat, service),
+                      Effect.provideService(Player, player),
+                      Effect.provideService(World, world),
+                      Effect.catch(() => Effect.void),
+                    );
+                  }
+                }
+              }),
+          );
+        }
       }
 
       while (!didKillTarget) {
@@ -1002,21 +1069,36 @@ const make = Effect.gen(function* () {
           attackedThisLoop = yield* attackMonster(nextAttack.monMapId);
 
           if (attackedThisLoop) {
-            const skill =
-              normalizedKillOptions.skillSet[
-                skillIndex % normalizedKillOptions.skillSet.length
-              ];
-            skillIndex += 1;
+            if (combatProfile !== undefined && profileCursor !== undefined) {
+              yield* castNextCombatProfileStep(
+                combatProfile,
+                profileCursor,
+              ).pipe(
+                Effect.provideService(Combat, service),
+                Effect.provideService(Player, player),
+                Effect.provideService(World, world),
+                Effect.catch(() => Effect.succeed(false)),
+              );
+            } else {
+              const skill =
+                normalizedKillOptions.skillSet[
+                  skillIndex % normalizedKillOptions.skillSet.length
+                ];
+              skillIndex += 1;
 
-            if (skill !== undefined) {
-              const idx = Number.parseInt(String(skill), 10);
-              const shouldUseSkill =
-                !normalizedKillOptions.skillWait ||
-                (isValidSkillIndex(idx) &&
-                  (yield* waitForSelectedSkillReady(idx, nextAttack.monMapId)));
+              if (skill !== undefined) {
+                const idx = Number.parseInt(String(skill), 10);
+                const shouldUseSkill =
+                  !normalizedKillOptions.skillWait ||
+                  (isValidSkillIndex(idx) &&
+                    (yield* waitForSelectedSkillReady(
+                      idx,
+                      nextAttack.monMapId,
+                    )));
 
-              if (shouldUseSkill) {
-                yield* useSkill(skill, false, false);
+                if (shouldUseSkill) {
+                  yield* useSkill(skill, false, false);
+                }
               }
             }
           }
@@ -1036,8 +1118,12 @@ const make = Effect.gen(function* () {
         }
 
         if (!didKillTarget) {
-          if (attackedThisLoop && normalizedKillOptions.skillDelayMs > 0) {
-            yield* Effect.sleep(normalizedKillOptions.skillDelayMs);
+          const delayMs =
+            combatProfile === undefined
+              ? normalizedKillOptions.skillDelayMs
+              : combatProfile.delayMs;
+          if (attackedThisLoop && delayMs > 0) {
+            yield* Effect.sleep(delayMs);
           } else if (!attackedThisLoop) {
             yield* Effect.sleep(ANTI_COUNTER_WAIT_MS);
           }
@@ -1049,6 +1135,7 @@ const make = Effect.gen(function* () {
           yield* stopCombat;
           yield* Effect.sync(() => {
             disposeMonsterDeathListener?.();
+            disposeAnimationMessageListener?.();
           });
         }),
       ),
@@ -1280,7 +1367,7 @@ const make = Effect.gen(function* () {
     },
   };
 
-  return {
+  const service = {
     attackMonster,
     cancelAutoAttack,
     cancelTarget,
@@ -1294,6 +1381,8 @@ const make = Effect.gen(function* () {
     killForTempItem,
     hunt,
   } satisfies CombatShape;
+
+  return service;
 });
 
 export const CombatLive = Layer.effect(Combat, make);
