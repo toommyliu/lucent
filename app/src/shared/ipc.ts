@@ -172,6 +172,7 @@ export const ScriptingIpcChannels = {
   execute: "scripting:execute",
   stop: "scripting:stop",
   openFile: "scripting:open-file",
+  openPath: "scripting:open-path",
   readFile: "scripting:read-file",
 } as const;
 
@@ -642,6 +643,10 @@ export interface ScriptingInvokeChannels {
     [],
     ScriptExecutePayload | null
   >;
+  readonly [ScriptingIpcChannels.openPath]: IpcInvokeDefinition<
+    [path: string],
+    void
+  >;
   readonly [ScriptingIpcChannels.readFile]: IpcInvokeDefinition<
     [path: string],
     ScriptExecutePayload
@@ -655,6 +660,7 @@ export interface ScriptingRendererEventChannels {
 
 export interface ScriptingBridge {
   openFile(): Promise<ScriptExecutePayload | null>;
+  openPath(path: string): Promise<void>;
   readFile(path: string): Promise<ScriptExecutePayload>;
   onExecute(listener: (payload: ScriptExecutePayload) => void): () => void;
   onStop(listener: () => void): () => void;

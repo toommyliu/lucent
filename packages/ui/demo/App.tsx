@@ -3,6 +3,10 @@ import "./demo.css";
 import { createEffect, createSignal, For } from "solid-js";
 import { render } from "solid-js/web";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Icon,
   AppShell,
   Badge,
@@ -40,6 +44,20 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
   Dropdown,
   Dialog,
   DialogClose,
@@ -201,6 +219,7 @@ function DemoApp() {
   const [dark, setDark] = createSignal(false);
   const [dropdownTarget, setDropdownTarget] = createSignal("");
   const [framework, setFramework] = createSignal("solid");
+  const [contextMode, setContextMode] = createSignal("inspect");
   const [menuMode, setMenuMode] = createSignal("safe");
   const [range, setRange] = createSignal([25, 75]);
   const [target, setTarget] = createSignal("");
@@ -803,6 +822,90 @@ function DemoApp() {
                   </MenuContent>
                 </Menu>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Accordion</CardTitle>
+              <CardDescription>
+                Disclosure panels for compact supporting details.
+              </CardDescription>
+            </CardHeader>
+            <CardContent class="demo-stack">
+              <Accordion collapsible defaultValue={["overview"]}>
+                <AccordionItem value="overview">
+                  <AccordionTrigger>Overview</AccordionTrigger>
+                  <AccordionContent>
+                    Compact sections keep supporting details close without
+                    expanding the surrounding layout by default.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="diagnostics">
+                  <AccordionTrigger>Diagnostics</AccordionTrigger>
+                  <AccordionContent>
+                    Long-form output can live inside the content area while the
+                    trigger stays easy to scan.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Context Menu</CardTitle>
+              <CardDescription>
+                Right-click action surfaces with shared menu styling.
+              </CardDescription>
+            </CardHeader>
+            <CardContent class="demo-stack">
+              <ContextMenu>
+                <ContextMenuTrigger class="demo-context-target">
+                  <Icon icon="file_json" />
+                  <span>Right-click target</span>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuGroup>
+                    <ContextMenuLabel>File</ContextMenuLabel>
+                    <ContextMenuItem value="open">
+                      Open
+                      <ContextMenuShortcut>
+                        {shortcutModifier}+O
+                      </ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuItem value="copy">
+                      Copy path
+                      <ContextMenuShortcut>
+                        {shortcutModifier}+C
+                      </ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuCheckboxItem checked value="watch">
+                      Watch file
+                    </ContextMenuCheckboxItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuRadioGroup
+                      value={contextMode()}
+                      onValueChange={(details) => setContextMode(details.value)}
+                    >
+                      <ContextMenuRadioItem value="inspect">
+                        Inspect
+                      </ContextMenuRadioItem>
+                      <ContextMenuRadioItem value="edit">
+                        Edit
+                      </ContextMenuRadioItem>
+                    </ContextMenuRadioGroup>
+                    <ContextMenuSub id="context-more">
+                      <ContextMenuSubTrigger>More</ContextMenuSubTrigger>
+                      <ContextMenuSubContent>
+                        <ContextMenuItem value="archive">
+                          Archive
+                        </ContextMenuItem>
+                      </ContextMenuSubContent>
+                    </ContextMenuSub>
+                  </ContextMenuGroup>
+                </ContextMenuContent>
+              </ContextMenu>
             </CardContent>
           </Card>
 

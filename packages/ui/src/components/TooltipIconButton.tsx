@@ -1,5 +1,10 @@
 import type { JSX } from "solid-js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./Tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  type TooltipProps,
+} from "./Tooltip";
 import {
   IconButton,
   type IconButtonProps,
@@ -11,6 +16,9 @@ export interface TooltipIconButtonProps {
   readonly children: JSX.Element;
   readonly class?: string;
   readonly disabled?: boolean;
+  readonly open?: TooltipProps["open"];
+  readonly portal?: boolean;
+  readonly positioning?: TooltipProps["positioning"];
   readonly size?: IconButtonSize;
   readonly tooltip: JSX.Element;
   readonly variant?: IconButtonProps["variant"];
@@ -19,7 +27,12 @@ export interface TooltipIconButtonProps {
 
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
   return (
-    <Tooltip closeDelay={0} openDelay={200} positioning={{ placement: "top" }}>
+    <Tooltip
+      closeDelay={0}
+      open={props.open}
+      openDelay={200}
+      positioning={{ placement: "top", ...props.positioning }}
+    >
       <TooltipTrigger
         asChild={(triggerProps) => (
           <IconButton
@@ -36,7 +49,11 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
           />
         )}
       />
-      <TooltipContent>{props.tooltip}</TooltipContent>
+      <TooltipContent
+        {...(props.portal === undefined ? null : { portal: props.portal })}
+      >
+        {props.tooltip}
+      </TooltipContent>
     </Tooltip>
   );
 }

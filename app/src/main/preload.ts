@@ -978,6 +978,9 @@ const fullBridge: AppBridge = {
         ScriptingIpcChannels.openFile,
       )) as ScriptExecutePayload | null;
     },
+    openPath: async (path: string) => {
+      await ipcRenderer.invoke(ScriptingIpcChannels.openPath, path);
+    },
     readFile: async (path: string) => {
       return (await ipcRenderer.invoke(
         ScriptingIpcChannels.readFile,

@@ -4,10 +4,22 @@ import {
   writeGameStartupTimingOnce,
 } from "./startupTelemetry";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
   Icon,
   Spinner,
   Textarea,
+  TooltipIconButton,
   Toaster,
   createToastController,
 } from "@lucent/ui";
@@ -98,6 +110,14 @@ import {
 } from "./topNavOptions";
 import { ScriptRunner } from "./scripting/Services/ScriptRunner";
 import { DEBUG_EVAL_SOURCE_NAME, createDebugScriptSource } from "./debugEval";
+import {
+  diagnosticDetailsText,
+  fatalScriptAlertFromError,
+  stoppedScriptFatalAlertCandidate,
+  type FatalScriptAlert,
+} from "./scripting/fatalAlert";
+import { toDiagnosticDetails, toErrorMessage } from "./scripting/errorDetails";
+import type { ScriptDiagnostic } from "./scripting/Types";
 
 markGameStartup("app-module-evaluated");
 
@@ -185,7 +205,11 @@ const defaultSettings: AppSettings = {
 type DebugEvalMode = "script" | "internal";
 
 interface DevDebugEvaluatorProps {
-  readonly applyLoadedScript: (source: string, name: string) => void;
+  readonly applyLoadedScript: (
+    source: string,
+    name: string,
+    path?: string,
+  ) => void;
   readonly refreshScriptMeta: () => Promise<void>;
 }
 
@@ -797,6 +821,7 @@ export default function App(props: {
   const [combatProfileLibrary, setCombatProfileLibrary] =
     createSignal<CombatProfileLibrary>(DEFAULT_COMBAT_PROFILE_LIBRARY);
   const [scriptName, setScriptName] = createSignal("");
+  const [scriptPath, setScriptPath] = createSignal<string | undefined>();
   const [scriptSource, setScriptSource] = createSignal("");
   const [scriptLoaded, setScriptLoaded] = createSignal(false);
   const [scriptRunning, setScriptRunning] = createSignal(false);
@@ -804,6 +829,11 @@ export default function App(props: {
   const [scriptDiagnosticsCount, setScriptDiagnosticsCount] = createSignal(0);
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(false);
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(false);
+  const [fatalScriptAlert, setFatalScriptAlert] =
+    createSignal<FatalScriptAlert | null>(null);
+  const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
+  const [fatalScriptAlertCopied, setFatalScriptAlertCopied] =
+    createSignal(false);
 
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
@@ -866,6 +896,8 @@ export default function App(props: {
   let cleanedUp = false;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
   let lastSyncedAccountLaunchStatusKey = "";
+  let lastShownFatalScriptAlertKey = "";
+  let fatalScriptAlertCopiedTimer: number | undefined;
   const accountLaunchFibers = new Set<Fiber.Fiber<void, unknown>>();
   const assignDisposer =
     (slot: "settings" | "autoAttack" | "autoZone" | "autoRelogin") =>
@@ -922,6 +954,76 @@ export default function App(props: {
     Effect.promise(() =>
       updateAccountLaunchStatus(payload, status, message, scriptNameOverride),
     );
+
+  const showFatalScriptAlert = (alert: FatalScriptAlert): void => {
+    lastShownFatalScriptAlertKey = alert.key;
+    setFatalScriptAlert(alert);
+    setFatalScriptAlertCopied(false);
+    setFatalScriptAlertOpen(true);
+  };
+
+  const showFatalScriptError = (
+    sourceName: string,
+    error: unknown,
+    sourcePath?: string,
+  ): void => {
+    const detailsText = diagnosticDetailsText(toDiagnosticDetails(error));
+    showFatalScriptAlert(
+      fatalScriptAlertFromError(
+        sourceName,
+        toErrorMessage(error),
+        detailsText,
+        sourcePath,
+      ),
+    );
+  };
+
+  const markFatalScriptAlertCopied = (): void => {
+    if (fatalScriptAlertCopiedTimer !== undefined) {
+      window.clearTimeout(fatalScriptAlertCopiedTimer);
+    }
+
+    setFatalScriptAlertCopied(true);
+    fatalScriptAlertCopiedTimer = window.setTimeout(() => {
+      setFatalScriptAlertCopied(false);
+      fatalScriptAlertCopiedTimer = undefined;
+    }, 900);
+  };
+
+  const copyFatalScriptAlertDetails = async (): Promise<void> => {
+    const detailsText = fatalScriptAlert()?.detailsText;
+    if (detailsText === undefined || detailsText.trim() === "") {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(detailsText);
+      markFatalScriptAlertCopied();
+    } catch (error) {
+      console.error("Failed to copy script stack trace:", error);
+    }
+  };
+
+  const showStoppedScriptFatalAlert = (
+    wasRunning: boolean,
+    isRunning: boolean,
+    diagnostics: ReadonlyArray<ScriptDiagnostic>,
+  ): void => {
+    const currentScriptPath = scriptPath();
+    const alert = stoppedScriptFatalAlertCandidate({
+      wasRunning,
+      isRunning,
+      diagnostics,
+      lastShownKey: lastShownFatalScriptAlertKey,
+      ...(currentScriptPath === undefined
+        ? null
+        : { sourcePath: currentScriptPath }),
+    });
+
+    if (alert !== undefined) {
+      showFatalScriptAlert(alert);
+    }
+  };
 
   const syncAccountLaunchWindowStatus = (
     status: "starting" | "running" | "stopped" | "failed",
@@ -1009,6 +1111,10 @@ export default function App(props: {
         const isRunning = yield* runner.isRunning();
 
         if (!isRunning) {
+          const diagnostics = yield* runner.diagnostics();
+          yield* Effect.sync(() => {
+            showStoppedScriptFatalAlert(true, false, diagnostics);
+          });
           setScriptRunning(false);
           setScriptStatus(`Stopped ${name}`);
           yield* updateAccountLaunchStatusEffect(
@@ -1075,7 +1181,7 @@ export default function App(props: {
       const name = script.name ?? script.path ?? "script";
       const runner = yield* ScriptRunner;
       yield* Effect.sync(() => {
-        applyLoadedScript(script.source, name);
+        applyLoadedScript(script.source, name, script.path);
       });
       yield* updateAccountLaunchStatusEffect(
         payload,
@@ -1107,6 +1213,12 @@ export default function App(props: {
       Effect.catch((error: unknown) =>
         Effect.gen(function* () {
           console.error("Failed to run account launch:", error);
+          if (payload.script !== undefined) {
+            const name = payload.script.name ?? payload.script.path ?? "script";
+            yield* Effect.sync(() => {
+              showFatalScriptError(name, error, payload.script?.path);
+            });
+          }
           yield* updateAccountLaunchStatusEffect(
             payload,
             "failed",
@@ -1135,8 +1247,9 @@ export default function App(props: {
     }
   };
 
-  const applyLoadedScript = (source: string, name: string) => {
+  const applyLoadedScript = (source: string, name: string, path?: string) => {
     setScriptName(name);
+    setScriptPath(path);
     setScriptSource(source);
     setScriptLoaded(true);
   };
@@ -1149,12 +1262,13 @@ export default function App(props: {
     payload: ScriptExecutePayload,
   ): Promise<string> => {
     const name = payload.name ?? payload.path ?? "script";
-    applyLoadedScript(payload.source, name);
+    applyLoadedScript(payload.source, name, payload.path);
     return name;
   };
 
   const refreshScriptMeta = async () => {
     try {
+      const wasRunning = scriptRunning();
       const { isRunning, diagnostics, options } = await runtime.runPromise(
         Effect.gen(function* () {
           const runner = yield* ScriptRunner;
@@ -1172,6 +1286,7 @@ export default function App(props: {
       setScriptUsePrivateRooms(options.usePrivateRooms);
       setScriptSafeStartStop(options.safeStartStop);
       setScriptStatus(formatScriptStatus(scriptLoaded(), isRunning));
+      showStoppedScriptFatalAlert(wasRunning, isRunning, diagnostics);
       syncAccountLaunchRuntimeStatus({ scriptRunning: isRunning });
     } catch (error) {
       console.error("Failed to refresh script metadata", error);
@@ -1220,6 +1335,7 @@ export default function App(props: {
       })
       .catch((error) => {
         console.error("Failed to start script", error);
+        showFatalScriptError(name, error, scriptPath());
         setScriptStatus(`Failed to start ${name}`);
       })
       .finally(() => {
@@ -2410,6 +2526,9 @@ export default function App(props: {
     autoAttackStateDisposer?.();
     autoZoneStateDisposer?.();
     autoReloginStateDisposer?.();
+    if (fatalScriptAlertCopiedTimer !== undefined) {
+      window.clearTimeout(fatalScriptAlertCopiedTimer);
+    }
   });
 
   const topNavOptionsMenuProps: TopNavOptionsMenuContentProps = {
@@ -2443,6 +2562,85 @@ export default function App(props: {
         commands={() => gameCommands}
         onCommandRun={handleHotkeyCommandRun}
       />
+      <AlertDialog
+        open={fatalScriptAlertOpen()}
+        onOpenChange={(details) => {
+          setFatalScriptAlertOpen(details.open);
+          if (!details.open) {
+            setFatalScriptAlertCopied(false);
+          }
+        }}
+      >
+        <AlertDialogContent class="game-script-error-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Script failed</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span class="game-script-error-dialog__source">
+                <span>{fatalScriptAlert()?.sourceName ?? "script"}</span>
+                <Show when={fatalScriptAlert()?.sourcePath}>
+                  {(path) => (
+                    <TooltipIconButton
+                      aria-label="Open script file"
+                      class="game-script-error-dialog__open-source"
+                      onClick={() => {
+                        void window.ipc.scripting
+                          .openPath(path())
+                          .catch((error) => {
+                            console.error("Failed to open script file", error);
+                          });
+                      }}
+                      portal={false}
+                      positioning={{ placement: "right" }}
+                      size="icon-xs"
+                      tooltip="Open script file"
+                      variant="ghost"
+                    >
+                      <Icon icon="external_link" class="button__icon" />
+                    </TooltipIconButton>
+                  )}
+                </Show>
+              </span>
+              <span class="game-script-error-dialog__message">
+                {fatalScriptAlert()?.message ?? "Script failed"}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Show when={fatalScriptAlert()?.detailsText}>
+            {(detailsText) => (
+              <Accordion
+                collapsible
+                class="game-script-error-dialog__accordion"
+              >
+                <AccordionItem value="stack-trace">
+                  <AccordionTrigger>Stack trace</AccordionTrigger>
+                  <AccordionContent>
+                    <pre class="game-script-error-dialog__stack">
+                      {detailsText()}
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </Show>
+          <AlertDialogFooter>
+            <Show when={fatalScriptAlert()?.detailsText}>
+              <Button
+                class="game-script-error-dialog__copy"
+                onClick={() => void copyFatalScriptAlertDetails()}
+                size="sm"
+                variant="outline"
+              >
+                <Icon
+                  icon={fatalScriptAlertCopied() ? "check" : "copy"}
+                  class="button__icon"
+                />
+                {fatalScriptAlertCopied() ? "Copied" : "Copy stack trace"}
+              </Button>
+            </Show>
+            <AlertDialogAction size="sm">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Show when={!topBarVisible()}>
         <TopNavHiddenOptionsMenu
           {...topNavOptionsMenuProps}

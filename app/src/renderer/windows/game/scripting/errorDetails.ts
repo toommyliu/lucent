@@ -1,6 +1,7 @@
 import { Cause } from "effect";
 
 const MAX_STRING_LENGTH = 500;
+const MAX_STACK_LENGTH = 20_000;
 const MAX_ARRAY_ITEMS = 8;
 const MAX_OBJECT_KEYS = 12;
 const MAX_DEPTH = 3;
@@ -105,7 +106,10 @@ const summarizeUnknown = (
       details["cause"] = summarizeUnknown(cause, depth + 1, seen);
     }
     if (typeof value.stack === "string") {
-      details["stack"] = truncateString(value.stack);
+      details["stack"] =
+        value.stack.length > MAX_STACK_LENGTH
+          ? `${value.stack.slice(0, MAX_STACK_LENGTH)}...`
+          : value.stack;
     }
 
     return details;

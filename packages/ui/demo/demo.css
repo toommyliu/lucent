@@ -139,6 +139,32 @@ body {
   font-size: var(--text-md);
 }
 
+.demo-context-target {
+  align-items: center;
+  background: rgba(var(--muted), 0.52);
+  border: 1px dashed rgb(var(--border));
+  border-radius: var(--radius-lg);
+  color: rgb(var(--foreground));
+  display: flex;
+  gap: 0.5rem;
+  min-height: 4rem;
+  outline: none;
+  padding: 0.875rem;
+  user-select: none;
+}
+
+.demo-context-target:focus-visible {
+  box-shadow:
+    0 0 0 1px rgb(var(--background)),
+    0 0 0 3px rgba(var(--ring), 0.42);
+}
+
+.demo-context-target svg {
+  color: rgb(var(--muted-foreground));
+  height: 1rem;
+  width: 1rem;
+}
+
 .demo-custom-theme {
   --primary: 13, 148, 136;
   --ring: 13, 148, 136;

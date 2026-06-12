@@ -90,6 +90,7 @@ body::-webkit-scrollbar-corner,
 .slider__range,
 .slider__thumb-surface,
 .slider__value,
+.accordion__trigger,
 .tabs__trigger,
 .menu__item,
 .tooltip__content {
@@ -2622,9 +2623,93 @@ a.badge--destructive:hover {
   cursor: var(--cursor-interactive);
 }
 
+/* Accordion */
+
+.accordion {
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-lg);
+  color: rgb(var(--foreground));
+  display: grid;
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+.accordion__item + .accordion__item {
+  border-top: 1px solid rgb(var(--border));
+}
+
+.accordion__trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: rgb(var(--foreground));
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 600;
+  gap: 0.75rem;
+  line-height: 1.3;
+  min-height: 2.25rem;
+  outline: none;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.accordion__trigger:hover,
+.accordion__trigger[data-focus] {
+  background: rgba(var(--accent), 0.72);
+  color: rgb(var(--accent-foreground));
+}
+
+.accordion__trigger:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--background)),
+    inset 0 0 0 3px rgba(var(--ring), 0.42);
+}
+
+.accordion__trigger-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.accordion__indicator {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  transition: transform var(--duration-fast) ease;
+}
+
+.accordion__indicator svg {
+  height: 0.875rem;
+  opacity: 0.8;
+  width: 0.875rem;
+}
+
+.accordion__trigger[data-state="open"] .accordion__indicator {
+  transform: rotate(180deg);
+}
+
+.accordion__content {
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-base);
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.accordion__content[data-state="closed"] {
+  display: none;
+}
+
+.accordion__content-inner {
+  padding: 0 0.75rem 0.75rem;
+}
+
 /* Menu and Tooltip Positioners */
 
 .menu__positioner,
+.context-menu__positioner,
 .tooltip__positioner {
   outline: none;
   z-index: 60;
@@ -2632,7 +2717,8 @@ a.badge--destructive:hover {
 
 /* Menu */
 
-.menu__content {
+.menu__content,
+.context-menu__content {
   background: rgb(var(--popover));
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-lg);
@@ -2644,13 +2730,15 @@ a.badge--destructive:hover {
   overflow: hidden;
 }
 
-.menu__viewport {
+.menu__viewport,
+.context-menu__viewport {
   max-height: var(--available-height, 18rem);
   overflow-y: auto;
   padding: 0.25rem;
 }
 
-.menu__item {
+.menu__item,
+.context-menu__item {
   align-items: center;
   border-radius: var(--radius-sm);
   color: rgb(var(--foreground));
@@ -2669,17 +2757,22 @@ a.badge--destructive:hover {
 
 .menu__item[data-highlighted],
 .menu__item[data-focus],
-.menu__item:hover {
+.menu__item:hover,
+.context-menu__item[data-highlighted],
+.context-menu__item[data-focus],
+.context-menu__item:hover {
   background: rgb(var(--accent));
   color: rgb(var(--accent-foreground));
 }
 
-.menu__item[data-disabled] {
+.menu__item[data-disabled],
+.context-menu__item[data-disabled] {
   opacity: 0.64;
   pointer-events: none;
 }
 
-.menu__item[data-variant="destructive"] {
+.menu__item[data-variant="destructive"],
+.context-menu__item[data-variant="destructive"] {
   color: rgb(var(--destructive-foreground));
 }
 
