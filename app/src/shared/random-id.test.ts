@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { makeRandomId, RandomIdUnavailableError } from "./random-id";
 
 describe("shared random ids", () => {

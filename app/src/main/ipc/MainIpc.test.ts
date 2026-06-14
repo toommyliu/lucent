@@ -1,5 +1,6 @@
 import { Effect, Layer, Scope } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import {
   Observability,
   type ObservabilityShape,
@@ -96,20 +97,18 @@ const makeObservability = (): ObservabilityShape => {
   };
 };
 
-const withMainIpc = async <A>(
+const withMainIpc = <A>(
   body: (ipc: MainIpcShape) => Effect.Effect<A, unknown, MainIpc | Scope.Scope>,
-): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(
-      Effect.gen(function* () {
-        const ipc = yield* MainIpc;
-        return yield* body(ipc);
-      }),
-    ).pipe(
-      Effect.provide(
-        MainIpcLive.pipe(
-          Layer.provide(Layer.succeed(Observability)(makeObservability())),
-        ),
+): Effect.Effect<A, unknown> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const ipc = yield* MainIpc;
+      return yield* body(ipc);
+    }),
+  ).pipe(
+    Effect.provide(
+      MainIpcLive.pipe(
+        Layer.provide(Layer.succeed(Observability)(makeObservability())),
       ),
     ),
   );
@@ -125,156 +124,170 @@ describe("MainIpc", () => {
     electronMock.ipcMain.removeListener.mockClear();
   });
 
-  it("registers scoped handlers and removes them on scope close", async () => {
-    await withMainIpc((ipc) =>
+  it.effect("registers scoped handlers and removes them on scope close", () =>
+    Effect.gen(function* () {
+      yield* withMainIpc((ipc) =>
+        Effect.gen(function* () {
+          yield* ipc.handle("test:handle", () => Effect.succeed("ok"));
+
+          expect(electronMock.ipcMain.handle).toHaveBeenCalledWith(
+            "test:handle",
+            expect.any(Function),
+          );
+          expect(electronMock.handlers.has("test:handle")).toBe(true);
+        }),
+      );
+
+      expect(electronMock.ipcMain.removeHandler).toHaveBeenCalledWith(
+        "test:handle",
+      );
+      expect(electronMock.handlers.has("test:handle")).toBe(false);
+    }),
+  );
+
+  it.effect(
+    "preserves handler services and records successful invocations",
+    () =>
       Effect.gen(function* () {
-        yield* ipc.handle("test:handle", () => Effect.succeed("ok"));
+        yield* withMainIpc((ipc) =>
+          Effect.gen(function* () {
+            yield* ipc.handle("test:ok", (_event, value) =>
+              Effect.succeed({ value }),
+            );
+            const handler = electronMock.handlers.get("test:ok");
+            if (handler === undefined) {
+              throw new Error("missing handler");
+            }
 
-        expect(electronMock.ipcMain.handle).toHaveBeenCalledWith(
-          "test:handle",
-          expect.any(Function),
-        );
-        expect(electronMock.handlers.has("test:handle")).toBe(true);
-      }),
-    );
+            const result = yield* Effect.promise(
+              () => handler({ sender: { id: 7 } }, "value") as Promise<unknown>,
+            );
 
-    expect(electronMock.ipcMain.removeHandler).toHaveBeenCalledWith(
-      "test:handle",
-    );
-    expect(electronMock.handlers.has("test:handle")).toBe(false);
-  });
-
-  it("preserves handler services and records successful invocations", async () => {
-    await withMainIpc((ipc) =>
-      Effect.gen(function* () {
-        yield* ipc.handle("test:ok", (_event, value) =>
-          Effect.succeed({ value }),
-        );
-        const handler = electronMock.handlers.get("test:ok");
-        if (handler === undefined) {
-          throw new Error("missing handler");
-        }
-
-        const result = yield* Effect.promise(
-          () => handler({ sender: { id: 7 } }, "value") as Promise<unknown>,
-        );
-
-        expect(result).toEqual({ value: "value" });
-        expect(records).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              level: "debug",
-              component: "ipc",
-              message: "IPC handler completed",
-              data: expect.objectContaining({
-                channel: "test:ok",
-                senderId: 7,
-              }),
-            }),
-          ]),
-        );
-      }),
-    );
-  });
-
-  it("logs handler failures before rethrowing to Electron", async () => {
-    await withMainIpc((ipc) =>
-      Effect.gen(function* () {
-        yield* ipc.handle("test:fail", () =>
-          Effect.fail(new Error("handler failed")),
-        );
-        const handler = electronMock.handlers.get("test:fail");
-        if (handler === undefined) {
-          throw new Error("missing handler");
-        }
-
-        yield* Effect.promise(async () => {
-          await expect(
-            handler({ sender: { id: 9 } }) as Promise<unknown>,
-          ).rejects.toThrow("handler failed");
-        });
-
-        expect(records).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              level: "error",
-              component: "ipc",
-              message: "IPC handler failed",
-              data: expect.objectContaining({
-                channel: "test:fail",
-                senderId: 9,
-              }),
-            }),
-          ]),
-        );
-      }),
-    );
-  });
-
-  it("rejects invalid contract args before running the handler", async () => {
-    await withMainIpc((ipc) =>
-      Effect.gen(function* () {
-        const handlerRun = vi.fn();
-        yield* ipc.handleContract(
-          defineIpcInvokeContract<[string], void>({
-            channel: "test:contract-args",
-            parseArgs: args1((value) => {
-              if (typeof value !== "string") {
-                throw new Error("Expected string");
-              }
-
-              return value;
-            }),
-            parseReturn: voidReturn,
+            expect(result).toEqual({ value: "value" });
+            expect(records).toEqual(
+              expect.arrayContaining([
+                expect.objectContaining({
+                  level: "debug",
+                  component: "ipc",
+                  message: "IPC handler completed",
+                  data: expect.objectContaining({
+                    channel: "test:ok",
+                    senderId: 7,
+                  }),
+                }),
+              ]),
+            );
           }),
-          (_event, _value) =>
-            Effect.sync(() => {
-              handlerRun();
+        );
+      }),
+  );
+
+  it.effect("logs handler failures before rethrowing to Electron", () =>
+    Effect.gen(function* () {
+      yield* withMainIpc((ipc) =>
+        Effect.gen(function* () {
+          yield* ipc.handle("test:fail", () =>
+            Effect.fail(new Error("handler failed")),
+          );
+          const handler = electronMock.handlers.get("test:fail");
+          if (handler === undefined) {
+            throw new Error("missing handler");
+          }
+
+          yield* Effect.promise(async () => {
+            await expect(
+              handler({ sender: { id: 9 } }) as Promise<unknown>,
+            ).rejects.toThrow("handler failed");
+          });
+
+          expect(records).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                level: "error",
+                component: "ipc",
+                message: "IPC handler failed",
+                data: expect.objectContaining({
+                  channel: "test:fail",
+                  senderId: 9,
+                }),
+              }),
+            ]),
+          );
+        }),
+      );
+    }),
+  );
+
+  it.effect("rejects invalid contract args before running the handler", () =>
+    Effect.gen(function* () {
+      yield* withMainIpc((ipc) =>
+        Effect.gen(function* () {
+          const handlerRun = vi.fn();
+          yield* ipc.handleContract(
+            defineIpcInvokeContract<[string], void>({
+              channel: "test:contract-args",
+              parseArgs: args1((value) => {
+                if (typeof value !== "string") {
+                  throw new Error("Expected string");
+                }
+
+                return value;
+              }),
+              parseReturn: voidReturn,
             }),
-        );
-        const handler = electronMock.handlers.get("test:contract-args");
-        if (handler === undefined) {
-          throw new Error("missing handler");
-        }
+            (_event, _value) =>
+              Effect.sync(() => {
+                handlerRun();
+              }),
+          );
+          const handler = electronMock.handlers.get("test:contract-args");
+          if (handler === undefined) {
+            throw new Error("missing handler");
+          }
 
-        yield* Effect.promise(async () => {
-          await expect(
-            handler({ sender: { id: 10 } }, 1) as Promise<unknown>,
-          ).rejects.toThrow("test:contract-args argument 0: Expected string");
-        });
-        expect(handlerRun).not.toHaveBeenCalled();
-      }),
-    );
-  });
+          yield* Effect.promise(async () => {
+            await expect(
+              handler({ sender: { id: 10 } }, 1) as Promise<unknown>,
+            ).rejects.toThrow("test:contract-args argument 0: Expected string");
+          });
+          expect(handlerRun).not.toHaveBeenCalled();
+        }),
+      );
+    }),
+  );
 
-  it("parses contract handler return values before returning to Electron", async () => {
-    await withMainIpc((ipc) =>
+  it.effect(
+    "parses contract handler return values before returning to Electron",
+    () =>
       Effect.gen(function* () {
-        yield* ipc.handleContract(
-          defineIpcInvokeContract<[string], string>({
-            channel: "test:contract-return",
-            parseArgs: args1((value) => String(value)),
-            parseReturn: (value) => {
-              if (typeof value !== "string") {
-                throw new Error("Expected string result");
-              }
+        yield* withMainIpc((ipc) =>
+          Effect.gen(function* () {
+            yield* ipc.handleContract(
+              defineIpcInvokeContract<[string], string>({
+                channel: "test:contract-return",
+                parseArgs: args1((value) => String(value)),
+                parseReturn: (value) => {
+                  if (typeof value !== "string") {
+                    throw new Error("Expected string result");
+                  }
 
-              return value.toUpperCase();
-            },
+                  return value.toUpperCase();
+                },
+              }),
+              (_event, value) => Effect.succeed(value),
+            );
+            const handler = electronMock.handlers.get("test:contract-return");
+            if (handler === undefined) {
+              throw new Error("missing handler");
+            }
+
+            const result = yield* Effect.promise(
+              () => handler({ sender: { id: 11 } }, "ok") as Promise<unknown>,
+            );
+
+            expect(result).toBe("OK");
           }),
-          (_event, value) => Effect.succeed(value),
         );
-        const handler = electronMock.handlers.get("test:contract-return");
-        if (handler === undefined) {
-          throw new Error("missing handler");
-        }
-
-        const result = yield* Effect.promise(
-          () => handler({ sender: { id: 11 } }, "ok") as Promise<unknown>,
-        );
-
-        expect(result).toBe("OK");
       }),
-    );
-  });
+  );
 });

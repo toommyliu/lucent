@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import {
   PersistenceError,
   makePersistence,
@@ -13,8 +13,6 @@ interface TestSettings {
   readonly enabled: boolean;
   readonly count: number;
 }
-
-const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 
 describe("persistence", () => {
   let testDir: string;
@@ -27,53 +25,57 @@ describe("persistence", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("distinguishes missing and malformed JSON", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "settings.json");
+  it.effect("distinguishes missing and malformed JSON", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "settings.json");
 
-    await expect(run(persistence.readJson(path))).resolves.toEqual({
-      status: "missing",
-    });
+      expect(yield* persistence.readJson(path)).toEqual({
+        status: "missing",
+      });
 
-    await writeFile(path, "{ nope", "utf8");
+      yield* Effect.promise(() => writeFile(path, "{ nope", "utf8"));
 
-    await expect(run(persistence.readJson(path))).resolves.toMatchObject({
-      status: "malformed",
-      error: { path, format: "json" },
-    });
-  });
+      expect(yield* persistence.readJson(path)).toMatchObject({
+        status: "malformed",
+        error: { path, format: "json" },
+      });
+    }),
+  );
 
-  it("does not write while reading existing JSON", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "settings.json");
-    const source = '{"enabled":false,"extra":true}\n';
-    await writeFile(path, source, "utf8");
+  it.effect("does not write while reading existing JSON", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "settings.json");
+      const source = '{"enabled":false,"extra":true}\n';
+      yield* Effect.promise(() => writeFile(path, source, "utf8"));
 
-    await expect(run(persistence.readJson(path))).resolves.toMatchObject({
-      status: "ok",
-      value: { enabled: false, extra: true },
-    });
-    await expect(readFile(path, "utf8")).resolves.toBe(source);
-  });
+      expect(yield* persistence.readJson(path)).toMatchObject({
+        status: "ok",
+        value: { enabled: false, extra: true },
+      });
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(source);
+    }),
+  );
 
-  it("writes JSON atomically with parent directory creation", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "nested", "settings.json");
+  it.effect("writes JSON atomically with parent directory creation", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "nested", "settings.json");
 
-    await run(
-      persistence.writeJson(path, {
+      yield* persistence.writeJson(path, {
         enabled: false,
         count: 3,
-      } satisfies TestSettings),
-    );
+      } satisfies TestSettings);
 
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      `${JSON.stringify({ enabled: false, count: 3 }, null, 2)}\n`,
-    );
-    await expect(readdir(join(testDir, "nested"))).resolves.toEqual([
-      "settings.json",
-    ]);
-  });
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+        `${JSON.stringify({ enabled: false, count: 3 }, null, 2)}\n`,
+      );
+      expect(
+        yield* Effect.promise(() => readdir(join(testDir, "nested"))),
+      ).toEqual(["settings.json"]);
+    }),
+  );
 
   it("rejects YAML aliases and explicit tags", () => {
     expect(() =>
@@ -85,67 +87,84 @@ describe("persistence", () => {
     );
   });
 
-  it("returns malformed for unsafe workspace YAML", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "army.yaml");
-    await writeFile(path, "enabled: &enabled false\ncount: *enabled\n", "utf8");
+  it.effect("returns malformed for unsafe workspace YAML", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "army.yaml");
+      yield* Effect.promise(() =>
+        writeFile(path, "enabled: &enabled false\ncount: *enabled\n", "utf8"),
+      );
 
-    await expect(run(persistence.readYaml(path))).resolves.toMatchObject({
-      status: "malformed",
-      error: { path, format: "yaml" },
-    });
-  });
+      expect(yield* persistence.readYaml(path)).toMatchObject({
+        status: "malformed",
+        error: { path, format: "yaml" },
+      });
+    }),
+  );
 
-  it("writes YAML with a trailing newline", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "nested", "settings.yaml");
+  it.effect("writes YAML with a trailing newline", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "nested", "settings.yaml");
 
-    await run(persistence.writeYaml(path, { enabled: false, count: 3 }));
+      yield* persistence.writeYaml(path, { enabled: false, count: 3 });
 
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      "enabled: false\ncount: 3\n",
-    );
-  });
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+        "enabled: false\ncount: 3\n",
+      );
+    }),
+  );
 
-  it("cleans temp files when serialization fails", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "settings.yaml");
-    const circular: Record<string, unknown> = {};
-    circular["self"] = circular;
+  it.effect("cleans temp files when serialization fails", () =>
+    Effect.gen(function* () {
+      const persistence = makePersistence();
+      const path = join(testDir, "settings.yaml");
+      const circular: Record<string, unknown> = {};
+      circular["self"] = circular;
 
-    await expect(
-      run(persistence.writeYaml(path, circular)),
-    ).rejects.toBeInstanceOf(PersistenceError);
-    await expect(readdir(testDir)).resolves.toEqual([]);
-  });
+      const error = yield* Effect.flip(persistence.writeYaml(path, circular));
+      expect(error).toBeInstanceOf(PersistenceError);
+      expect(yield* Effect.promise(() => readdir(testDir))).toEqual([]);
+    }),
+  );
 
-  it("keeps JSON serialization failures in the persistence error channel", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "settings.json");
-    const circular: Record<string, unknown> = {};
-    circular["self"] = circular;
+  it.effect(
+    "keeps JSON serialization failures in the persistence error channel",
+    () =>
+      Effect.gen(function* () {
+        const persistence = makePersistence();
+        const path = join(testDir, "settings.json");
+        const circular: Record<string, unknown> = {};
+        circular["self"] = circular;
 
-    await expect(
-      run(persistence.writeJson(path, circular)),
-    ).rejects.toBeInstanceOf(PersistenceError);
-    await expect(readdir(testDir)).resolves.toEqual([]);
-  });
+        const error = yield* Effect.flip(persistence.writeJson(path, circular));
+        expect(error).toBeInstanceOf(PersistenceError);
+        expect(yield* Effect.promise(() => readdir(testDir))).toEqual([]);
+      }),
+  );
 
-  it("quarantines malformed files before defaults are written by repositories", async () => {
-    const persistence = makePersistence();
-    const path = join(testDir, "settings.json");
-    await writeFile(path, "{ nope", "utf8");
-    const result = await run(persistence.readJson(path));
-    expect(result.status).toBe("malformed");
+  it.effect(
+    "quarantines malformed files before defaults are written by repositories",
+    () =>
+      Effect.gen(function* () {
+        const persistence = makePersistence();
+        const path = join(testDir, "settings.json");
+        yield* Effect.promise(() => writeFile(path, "{ nope", "utf8"));
+        const result = yield* persistence.readJson(path);
+        expect(result.status).toBe("malformed");
 
-    const quarantinePath = await run(
-      persistence.quarantineMalformed(path, "invalid json"),
-    );
+        const quarantinePath = yield* persistence.quarantineMalformed(
+          path,
+          "invalid json",
+        );
 
-    expect(quarantinePath).not.toBeNull();
-    await expect(readFile(quarantinePath!, "utf8")).resolves.toBe("{ nope");
-    await expect(run(persistence.readJson(path))).resolves.toEqual({
-      status: "missing",
-    });
-  });
+        expect(quarantinePath).not.toBeNull();
+        expect(
+          yield* Effect.promise(() => readFile(quarantinePath!, "utf8")),
+        ).toBe("{ nope");
+        expect(yield* persistence.readJson(path)).toEqual({
+          status: "missing",
+        });
+      }),
+  );
 });

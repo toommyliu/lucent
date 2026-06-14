@@ -3,12 +3,15 @@
   "ignorePatterns": [
     "node_modules",
     ".git",
+    ".repos",
+    ".repos/**",
     "dist",
     "build",
     "scripts",
     "*.tsbuildinfo"
   ],
   "plugins": ["eslint", "oxc", "unicorn", "typescript"],
+  "jsPlugins": ["./packages/oxlint-plugin-lucent/index.js"],
   "categories": {
     "correctness": "warn",
     "suspicious": "warn",
@@ -16,6 +19,7 @@
   },
   "rules": {
     "eslint/no-shadow": "off",
-    "eslint/no-await-in-loop": "off"
+    "eslint/no-await-in-loop": "off",
+    "lucent/no-manual-effect-runtime-in-tests": "error"
   }
 }

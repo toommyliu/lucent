@@ -1,5 +1,12 @@
 import type { BrowserWindow } from "electron";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "@effect/vitest";
 import { makeGameWindowRequestBroker } from "./GameWindowRequestBroker";
 
 const makeWindow = (

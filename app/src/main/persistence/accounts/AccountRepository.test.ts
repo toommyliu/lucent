@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect, Layer } from "effect";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import { MainEnvironmentLive } from "../../app/MainEnvironment";
 import {
   Observability,
@@ -108,12 +108,10 @@ const runWithRepository = <A>(
     repository: AccountManagerRepositoryShape,
   ) => Effect.Effect<A, unknown>,
 ) =>
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const repository = yield* AccountManagerRepository;
-      return yield* effect(repository);
-    }).pipe(Effect.provide(makeLayer(dir))),
-  );
+  Effect.gen(function* () {
+    const repository = yield* AccountManagerRepository;
+    return yield* effect(repository);
+  }).pipe(Effect.provide(makeLayer(dir)));
 
 describe("AccountManagerRepository", () => {
   let testDir: string;
@@ -126,15 +124,21 @@ describe("AccountManagerRepository", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("returns defaults for missing storage without writing on read", async () => {
-    await expect(
-      runWithRepository(testDir, (repository) => repository.get),
-    ).resolves.toEqual(emptyAccountManagerStorage());
+  it.effect(
+    "returns defaults for missing storage without writing on read",
+    () =>
+      Effect.gen(function* () {
+        expect(
+          yield* runWithRepository(testDir, (repository) => repository.get),
+        ).toEqual(emptyAccountManagerStorage());
 
-    await expect(
-      readFile(join(testDir, ACCOUNT_MANAGER_STORAGE_FILE), "utf8"),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-  });
+        yield* Effect.promise(() =>
+          expect(
+            readFile(join(testDir, ACCOUNT_MANAGER_STORAGE_FILE), "utf8"),
+          ).rejects.toMatchObject({ code: "ENOENT" }),
+        );
+      }),
+  );
 
   it("returns a fresh default storage object for each empty store", () => {
     const first = emptyAccountManagerStorage();
@@ -145,55 +149,60 @@ describe("AccountManagerRepository", () => {
     expect(first.accounts).not.toBe(second.accounts);
   });
 
-  it("quarantines malformed app-data storage and writes defaults", async () => {
-    const path = join(testDir, ACCOUNT_MANAGER_STORAGE_FILE);
-    await writeFile(path, "{ nope", "utf8");
+  it.effect("quarantines malformed app-data storage and writes defaults", () =>
+    Effect.gen(function* () {
+      const path = join(testDir, ACCOUNT_MANAGER_STORAGE_FILE);
+      yield* Effect.promise(() => writeFile(path, "{ nope", "utf8"));
 
-    await expect(
-      runWithRepository(testDir, (repository) => repository.get),
-    ).resolves.toEqual(emptyAccountManagerStorage());
+      expect(
+        yield* runWithRepository(testDir, (repository) => repository.get),
+      ).toEqual(emptyAccountManagerStorage());
 
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      `${JSON.stringify(emptyAccountManagerStorage(), null, 2)}\n`,
-    );
-    const files = await readdir(testDir);
-    expect(
-      files.some((file) =>
-        file.startsWith(`${ACCOUNT_MANAGER_STORAGE_FILE}.corrupt-`),
-      ),
-    ).toBe(true);
-  });
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+        `${JSON.stringify(emptyAccountManagerStorage(), null, 2)}\n`,
+      );
+      const files = yield* Effect.promise(() => readdir(testDir));
+      expect(
+        files.some((file) =>
+          file.startsWith(`${ACCOUNT_MANAGER_STORAGE_FILE}.corrupt-`),
+        ),
+      ).toBe(true);
+    }),
+  );
 
-  it("serializes concurrent updates without losing account mutations", async () => {
-    const path = join(testDir, ACCOUNT_MANAGER_STORAGE_FILE);
-    const storage = await runWithRepository(testDir, (repository) =>
+  it.effect(
+    "serializes concurrent updates without losing account mutations",
+    () =>
       Effect.gen(function* () {
-        yield* Effect.all([
-          repository.update((current) => ({
-            ...current,
-            accounts: [
-              ...current.accounts,
-              { label: "One", username: "one", password: "one-pass" },
-            ],
-          })),
-          repository.update((current) => ({
-            ...current,
-            accounts: [
-              ...current.accounts,
-              { label: "Two", username: "two", password: "two-pass" },
-            ],
-          })),
-        ]);
-        return yield* repository.get;
-      }),
-    );
+        const path = join(testDir, ACCOUNT_MANAGER_STORAGE_FILE);
+        const storage = yield* runWithRepository(testDir, (repository) =>
+          Effect.gen(function* () {
+            yield* Effect.all([
+              repository.update((current) => ({
+                ...current,
+                accounts: [
+                  ...current.accounts,
+                  { label: "One", username: "one", password: "one-pass" },
+                ],
+              })),
+              repository.update((current) => ({
+                ...current,
+                accounts: [
+                  ...current.accounts,
+                  { label: "Two", username: "two", password: "two-pass" },
+                ],
+              })),
+            ]);
+            return yield* repository.get;
+          }),
+        );
 
-    expect(storage.accounts.map((account) => account.username).sort()).toEqual([
-      "one",
-      "two",
-    ]);
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      `${JSON.stringify(storage, null, 2)}\n`,
-    );
-  });
+        expect(
+          storage.accounts.map((account) => account.username).sort(),
+        ).toEqual(["one", "two"]);
+        expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+          `${JSON.stringify(storage, null, 2)}\n`,
+        );
+      }),
+  );
 });

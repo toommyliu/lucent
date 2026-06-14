@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect, Layer } from "effect";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import { DEFAULT_COMBAT_PROFILE_LIBRARY } from "../../../shared/combat-profiles";
 import { MainEnvironmentLive } from "../../app/MainEnvironment";
 import {
@@ -107,12 +107,10 @@ const runWithRepository = <A>(
     repository: CombatProfileRepositoryShape,
   ) => Effect.Effect<A, unknown>,
 ) =>
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const repository = yield* CombatProfileRepository;
-      return yield* effect(repository);
-    }).pipe(Effect.provide(makeLayer(dir))),
-  );
+  Effect.gen(function* () {
+    const repository = yield* CombatProfileRepository;
+    return yield* effect(repository);
+  }).pipe(Effect.provide(makeLayer(dir)));
 
 describe("CombatProfileRepository", () => {
   let testDir: string;
@@ -125,70 +123,84 @@ describe("CombatProfileRepository", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("returns defaults for missing storage without writing on read", async () => {
-    const library = await runWithRepository(
-      testDir,
-      (repository) => repository.get,
-    );
-
-    expect(library).toEqual(DEFAULT_COMBAT_PROFILE_LIBRARY);
-    expect(library).not.toBe(DEFAULT_COMBAT_PROFILE_LIBRARY);
-    expect(library.profiles).not.toBe(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles);
-
-    await expect(
-      readFile(join(testDir, fileName), "utf8"),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
-  it("quarantines malformed app-data storage and writes defaults", async () => {
-    const path = join(testDir, fileName);
-    await writeFile(path, "{ nope", "utf8");
-
-    await expect(
-      runWithRepository(testDir, (repository) => repository.get),
-    ).resolves.toEqual(DEFAULT_COMBAT_PROFILE_LIBRARY);
-
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      `${JSON.stringify(DEFAULT_COMBAT_PROFILE_LIBRARY, null, 2)}\n`,
-    );
-    const files = await readdir(testDir);
-    expect(files.some((file) => file.startsWith(`${fileName}.corrupt-`))).toBe(
-      true,
-    );
-  });
-
-  it("serializes concurrent updates without losing profiles", async () => {
-    const path = join(testDir, fileName);
-    const baseProfile = DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]!;
-    const library = await runWithRepository(testDir, (repository) =>
+  it.effect(
+    "returns defaults for missing storage without writing on read",
+    () =>
       Effect.gen(function* () {
-        yield* Effect.all([
-          repository.update((current) => ({
-            ...current,
-            profiles: [
-              ...current.profiles,
-              { ...baseProfile, id: "one", label: "One" },
-            ],
-          })),
-          repository.update((current) => ({
-            ...current,
-            profiles: [
-              ...current.profiles,
-              { ...baseProfile, id: "two", label: "Two" },
-            ],
-          })),
-        ]);
-        return yield* repository.get;
-      }),
-    );
+        const library = yield* runWithRepository(
+          testDir,
+          (repository) => repository.get,
+        );
 
-    expect(library.profiles.map((profile) => profile.id).sort()).toEqual([
-      "generic-base",
-      "one",
-      "two",
-    ]);
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      `${JSON.stringify(library, null, 2)}\n`,
-    );
-  });
+        expect(library).toEqual(DEFAULT_COMBAT_PROFILE_LIBRARY);
+        expect(library).not.toBe(DEFAULT_COMBAT_PROFILE_LIBRARY);
+        expect(library.profiles).not.toBe(
+          DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
+        );
+
+        yield* Effect.promise(() =>
+          expect(
+            readFile(join(testDir, fileName), "utf8"),
+          ).rejects.toMatchObject({
+            code: "ENOENT",
+          }),
+        );
+      }),
+  );
+
+  it.effect("quarantines malformed app-data storage and writes defaults", () =>
+    Effect.gen(function* () {
+      const path = join(testDir, fileName);
+      yield* Effect.promise(() => writeFile(path, "{ nope", "utf8"));
+
+      expect(
+        yield* runWithRepository(testDir, (repository) => repository.get),
+      ).toEqual(DEFAULT_COMBAT_PROFILE_LIBRARY);
+
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+        `${JSON.stringify(DEFAULT_COMBAT_PROFILE_LIBRARY, null, 2)}\n`,
+      );
+      const files = yield* Effect.promise(() => readdir(testDir));
+      expect(
+        files.some((file) => file.startsWith(`${fileName}.corrupt-`)),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect("serializes concurrent updates without losing profiles", () =>
+    Effect.gen(function* () {
+      const path = join(testDir, fileName);
+      const baseProfile = DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]!;
+      const library = yield* runWithRepository(testDir, (repository) =>
+        Effect.gen(function* () {
+          yield* Effect.all([
+            repository.update((current) => ({
+              ...current,
+              profiles: [
+                ...current.profiles,
+                { ...baseProfile, id: "one", label: "One" },
+              ],
+            })),
+            repository.update((current) => ({
+              ...current,
+              profiles: [
+                ...current.profiles,
+                { ...baseProfile, id: "two", label: "Two" },
+              ],
+            })),
+          ]);
+          return yield* repository.get;
+        }),
+      );
+
+      expect(library.profiles.map((profile) => profile.id).sort()).toEqual([
+        "generic-base",
+        "one",
+        "two",
+      ]);
+      expect(yield* Effect.promise(() => readFile(path, "utf8"))).toBe(
+        `${JSON.stringify(library, null, 2)}\n`,
+      );
+    }),
+  );
 });
