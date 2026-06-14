@@ -39,6 +39,14 @@ package lucent.game
         return false;
       }
 
+      var mcQFrame:* = game.getInstanceFromModalStack("QFrameMC");
+      var isOpen:Boolean = (mcQFrame != null);
+
+      if (isOpen)
+      {
+        game.world.toggleQuestLog();
+      }
+
       game.world.acceptQuest(questId);
       return true;
     }
