@@ -106,7 +106,7 @@ declare global {
       "player.useBoost": (itemId: number) => boolean;
       "player.walkTo": (x: number, y: number, walkSpeed?: unknown) => boolean;
       "quests.abandon": (questId: number) => void;
-      "quests.accept": (questId: number) => void;
+      "quests.accept": (questId: number) => boolean;
       "quests.canComplete": (questId: number) => boolean;
       "quests.complete": (
         questId: number,

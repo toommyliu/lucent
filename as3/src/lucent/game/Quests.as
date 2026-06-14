@@ -32,9 +32,15 @@ package lucent.game
     }
 
     [BridgeExport]
-    public static function accept(questId:int):void
+    public static function accept(questId:int):Boolean
     {
+      if (!game.world.coolDown("acceptQuest"))
+      {
+        return false;
+      }
+
       game.world.acceptQuest(questId);
+      return true;
     }
 
     [BridgeExport]
