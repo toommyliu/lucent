@@ -208,7 +208,15 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      yield* bridge.call("quests.accept", [questId]);
+      const sent = yield* bridge.call("quests.accept", [questId]);
+      if (!sent) {
+        yield* Effect.logWarning({
+          message: "quest accept skipped: action unavailable",
+          questId,
+        });
+        return;
+      }
+
       yield* waitForQuestAccept(questId);
     });
 
