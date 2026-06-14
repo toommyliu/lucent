@@ -5,8 +5,8 @@ import type {
   HotkeysPatch,
   PreferencesPatch,
 } from "../../../shared/settings";
-import { MainIpc } from "../MainIpc";
-import { SettingsService } from "../../settings/SettingsService";
+import { DesktopIpc } from "../DesktopIpc";
+import { DesktopSettings } from "../../settings/DesktopSettings";
 
 const requireRecord = (
   value: unknown,
@@ -27,21 +27,21 @@ const requireRecord = (
 export const registerSettingsIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | SettingsService | Scope.Scope
+  DesktopIpc | DesktopSettings | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
+    const ipc = yield* DesktopIpc;
 
     yield* ipc.handle(SettingsIpcChannels.get, () =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.get;
       }),
     );
 
     yield* ipc.handle(SettingsIpcChannels.updatePreferences, (_event, patch) =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.updatePreferences(
           requireRecord(patch, "preferences patch") as PreferencesPatch,
         );
@@ -50,7 +50,7 @@ export const registerSettingsIpcHandlers = (): Effect.Effect<
 
     yield* ipc.handle(SettingsIpcChannels.updateAppearance, (_event, patch) =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.updateAppearance(
           requireRecord(patch, "appearance patch") as AppearancePatch,
         );
@@ -59,7 +59,7 @@ export const registerSettingsIpcHandlers = (): Effect.Effect<
 
     yield* ipc.handle(SettingsIpcChannels.updateHotkeys, (_event, patch) =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.updateHotkeys(
           requireRecord(patch, "hotkeys patch") as HotkeysPatch,
         );
@@ -68,14 +68,14 @@ export const registerSettingsIpcHandlers = (): Effect.Effect<
 
     yield* ipc.handle(SettingsIpcChannels.resetAppearance, () =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.resetAppearance;
       }),
     );
 
     yield* ipc.handle(SettingsIpcChannels.resetHotkeys, () =>
       Effect.gen(function* () {
-        const settings = yield* SettingsService;
+        const settings = yield* DesktopSettings;
         return yield* settings.resetHotkeys;
       }),
     );

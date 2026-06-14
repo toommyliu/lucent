@@ -186,7 +186,7 @@ function App(): JSX.Element {
   const fillMe = async (): Promise<void> => {
     setError("");
     try {
-      const me = await window.ipc.follower.me();
+      const me = await window.desktop.follower.me();
       if (me.trim()) {
         setTargetName(me);
       }
@@ -199,7 +199,7 @@ function App(): JSX.Element {
   const openSkills = async (): Promise<void> => {
     setError("");
     try {
-      await window.ipc.windows.open(WindowIds.Skills);
+      await window.desktop.windows.open(WindowIds.Skills);
     } catch (cause) {
       console.error("Failed to open skills window:", cause);
       setError(
@@ -218,7 +218,7 @@ function App(): JSX.Element {
     setError("");
     setDismissedIssue(false);
     try {
-      const nextState = await window.ipc.follower.start({
+      const nextState = await window.desktop.follower.start({
         targetName: trimmedTarget,
         combatEnabled: combatEnabled(),
         copyWalk: copyWalk(),
@@ -248,7 +248,7 @@ function App(): JSX.Element {
     setBusy(true);
     setError("");
     try {
-      const nextState = await window.ipc.follower.stop();
+      const nextState = await window.desktop.follower.stop();
       applyFollowerState(nextState);
     } catch (cause) {
       console.error("Failed to stop follower:", cause);
@@ -270,11 +270,11 @@ function App(): JSX.Element {
 
   onMount(() => {
     const unsubscribeFollower =
-      window.ipc.follower.onChanged(applyFollowerState);
+      window.desktop.follower.onChanged(applyFollowerState);
     const unsubscribeProfiles =
-      window.ipc.combatProfiles.onChanged(applyLibrary);
+      window.desktop.combatProfiles.onChanged(applyLibrary);
 
-    void window.ipc.follower
+    void window.desktop.follower
       .getState()
       .then(applyFollowerState)
       .catch((cause: unknown) => {
@@ -282,7 +282,7 @@ function App(): JSX.Element {
         setError("Failed to load follower state");
       });
 
-    void window.ipc.combatProfiles
+    void window.desktop.combatProfiles
       .getState()
       .then(applyLibrary)
       .catch((cause: unknown) => {

@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   PacketsIpcChannels,
@@ -17,19 +17,21 @@ import {
 import { WindowIds } from "../../../shared/windows";
 import {
   WindowManagerError,
+  WindowOperationError,
   WindowService,
+  type GameWindowRef,
   type WindowEffectRunner,
 } from "../../window/WindowService";
 import {
-  makeGameWindowRequestBroker,
-  type GameWindowRequestBroker,
-} from "../GameWindowRequestBroker";
-import { MainIpc } from "../MainIpc";
+  GameWindowClient,
+  type GameWindowClientShape,
+} from "../../window/GameWindowClient";
+import { DesktopIpc } from "../DesktopIpc";
 import {
   getSenderGameWindow,
   getSenderGameWindowIds,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 
 const PACKETS_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -39,12 +41,12 @@ const requestErrorMessage = (cause: unknown): string =>
     : "Packet request failed";
 
 const requestGamePackets = (
-  broker: GameWindowRequestBroker<void>,
-  gameWindow: BrowserWindow,
+  gameClient: GameWindowClientShape,
+  gameWindow: GameWindowRef,
   kind: PacketsRequestKind,
   payload?: unknown,
-): Promise<void> =>
-  broker.request({
+): Effect.Effect<void, Error | WindowManagerError, WindowService> =>
+  gameClient.request({
     target: gameWindow,
     requestChannel: PacketsIpcChannels.request,
     timeoutMs: PACKETS_REQUEST_TIMEOUT_MS,
@@ -59,21 +61,27 @@ const requestGamePackets = (
 
 const sendPacketsRequest = (
   event: IpcMainInvokeEvent,
-  broker: GameWindowRequestBroker<void>,
+  gameClient: GameWindowClientShape,
   kind: PacketsRequestKind,
   payload?: unknown,
 ): Effect.Effect<void, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
     const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
-    return yield* Effect.tryPromise({
-      try: () => requestGamePackets(broker, gameWindow, kind, payload),
-      catch: (cause) =>
-        new WindowManagerError({
-          message: requestErrorMessage(cause),
-          cause,
-        }),
-    });
+    return yield* requestGamePackets(
+      gameClient,
+      gameWindow,
+      kind,
+      payload,
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WindowOperationError({
+            message: requestErrorMessage(cause),
+            cause,
+          }),
+      ),
+    );
   });
 
 const normalizeSendPayload = (payload: unknown): PacketSendPayload => {
@@ -138,10 +146,10 @@ const normalizeStatusPayload = (
 
 export const registerPacketsIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
-): Effect.Effect<void, never, MainIpc | Scope.Scope> =>
+): Effect.Effect<void, never, GameWindowClient | DesktopIpc | Scope.Scope> =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const broker = makeGameWindowRequestBroker<void>();
+    const ipc = yield* DesktopIpc;
+    const gameClient = yield* GameWindowClient;
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
@@ -156,10 +164,17 @@ export const registerPacketsIpcHandlers = (
           }
 
           if (packetResponse.ok) {
-            broker.resolve(packetResponse.requestId, undefined);
-          } else {
-            broker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               packetResponse.requestId,
+              gameWindow,
+              undefined,
+            );
+          } else {
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
+              packetResponse.requestId,
+              gameWindow,
               new Error(packetResponse.error || "Packet request failed"),
             );
           }
@@ -168,18 +183,18 @@ export const registerPacketsIpcHandlers = (
     );
 
     yield* ipc.handle(PacketsIpcChannels.startCapture, (event) =>
-      run(sendPacketsRequest(event, broker, "startCapture")),
+      run(sendPacketsRequest(event, gameClient, "startCapture")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.stopCapture, (event) =>
-      run(sendPacketsRequest(event, broker, "stopCapture")),
+      run(sendPacketsRequest(event, gameClient, "stopCapture")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.send, (event, payload) =>
       run(
         sendPacketsRequest(
           event,
-          broker,
+          gameClient,
           "send",
           normalizeSendPayload(payload),
         ),
@@ -190,7 +205,7 @@ export const registerPacketsIpcHandlers = (
       run(
         sendPacketsRequest(
           event,
-          broker,
+          gameClient,
           "startQueue",
           normalizePacketQueuePayload(payload),
         ),
@@ -198,7 +213,7 @@ export const registerPacketsIpcHandlers = (
     );
 
     yield* ipc.handle(PacketsIpcChannels.stopQueue, (event) =>
-      run(sendPacketsRequest(event, broker, "stopQueue")),
+      run(sendPacketsRequest(event, gameClient, "stopQueue")),
     );
 
     yield* ipc.handle(PacketsIpcChannels.publishCaptured, (event, payload) =>
@@ -212,20 +227,19 @@ export const registerPacketsIpcHandlers = (
           }
 
           const windows = yield* WindowService;
-          const packetsWindow = yield* windows.getGameChildWindow(
+          const packetsWindow = yield* windows.getGameChildWindowRef(
             gameWindowId,
             WindowIds.Packets,
           );
 
-          if (
-            packetsWindow &&
-            !packetsWindow.isDestroyed() &&
-            !packetsWindow.webContents.isDestroyed()
-          ) {
-            packetsWindow.webContents.send(
-              PacketsIpcChannels.captured,
-              captured,
-            );
+          if (packetsWindow) {
+            yield* windows
+              .sendToWindow(
+                packetsWindow,
+                PacketsIpcChannels.captured,
+                captured,
+              )
+              .pipe(Effect.ignore);
           }
         }),
       ),
@@ -242,25 +256,17 @@ export const registerPacketsIpcHandlers = (
           }
 
           const windows = yield* WindowService;
-          const packetsWindow = yield* windows.getGameChildWindow(
+          const packetsWindow = yield* windows.getGameChildWindowRef(
             gameWindowId,
             WindowIds.Packets,
           );
 
-          if (
-            packetsWindow &&
-            !packetsWindow.isDestroyed() &&
-            !packetsWindow.webContents.isDestroyed()
-          ) {
-            packetsWindow.webContents.send(PacketsIpcChannels.status, status);
+          if (packetsWindow) {
+            yield* windows
+              .sendToWindow(packetsWindow, PacketsIpcChannels.status, status)
+              .pipe(Effect.ignore);
           }
         }),
       ),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        broker.rejectAll(new Error("Packets IPC scope closed"));
-      }),
     );
   });

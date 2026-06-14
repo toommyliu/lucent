@@ -4,7 +4,7 @@ import {
   type Event as ElectronEvent,
 } from "electron";
 import { pathToFileURL } from "url";
-import { Effect, Layer } from "effect";
+import { Deferred, Effect, Layer, Ref } from "effect";
 import {
   appendAppearanceSnapshotToUrl,
   serializeAppearanceSnapshotArgument,
@@ -22,6 +22,29 @@ import {
   type WindowDefinition,
   type WindowId,
 } from "../../shared/windows";
+import {
+  appOpenKey,
+  completeInFlightOpen,
+  emptyWindowModelState,
+  gameChildOpenKey,
+  markForceClosing,
+  markGameWindowFocused,
+  markPrimaryWindowFocused,
+  registerAppWindow,
+  registerGameChildWindow,
+  registerGameWindow,
+  registerInFlightOpen,
+  removeAppWindow,
+  removeGameChildWindow,
+  removeGameWindow,
+  resolveCatalogWindowRef,
+  resolveGameWindowRef,
+  resolvePreferredGameWindowRef,
+  setQuitting as setModelQuitting,
+  shouldHideOnClose,
+  shouldQuitAfterGameWindowClosed,
+  type WindowModelState,
+} from "./WindowModel";
 import { makeElectronWindowRuntime } from "./WindowRuntime";
 import {
   bindFirstRevealTrigger,
@@ -29,12 +52,30 @@ import {
   type RevealSubscription,
 } from "./WindowReveal";
 import {
-  WindowManagerError,
+  getWindowRefId,
+  makeGameWindowRef,
+  MissingParentGameWindowError,
+  StaleWindowRefError,
+  UnknownWindowDefinitionError,
+  UnsupportedWindowDefinitionError,
+  WindowCreateError,
+  WindowEnvironmentService,
+  WindowLifecycleHooks,
+  WindowLoadError,
+  WindowOperationError,
   WindowService,
-  type ElectronWindowRuntime,
-  type WindowManagerConfig,
+  WindowSnapshotService,
+  type AppWindowRef,
+  type CatalogWindowRef,
+  type GameChildWindowRef,
+  type GameWindowRef,
+  type ManagedWindowRef,
+  type WindowEnvironment,
+  type WindowManagerError,
   type WindowServiceShape,
   type WindowStartupContext,
+  makeAppWindowRef,
+  makeGameChildWindowRef,
 } from "./WindowTypes";
 
 export {
@@ -48,19 +89,47 @@ export {
   type RevealSubscription,
 } from "./WindowReveal";
 export {
-  WindowManagerError,
+  makeAppWindowRef,
+  makeGameChildWindowRef,
+  makeGameWindowRef,
+  MissingParentGameWindowError,
+  StaleWindowRefError,
+  UnknownWindowDefinitionError,
+  UnsupportedWindowDefinitionError,
+  WindowCreateError,
+  WindowEnvironmentService,
+  WindowLifecycleHooks,
+  WindowLoadError,
+  WindowOperationError,
+  WindowSenderAuthorizationError,
   WindowService,
+  WindowSnapshotService,
+  type AppWindowRef,
+  type CatalogWindowRef,
   type ElectronWindowRuntime,
+  type GameChildWindowRef,
+  type GameWindowRef,
+  type ManagedWindowRef,
   type WindowEffectRunner,
-  type WindowManagerConfig,
-  type WindowStartupContext,
+  type WindowEnvironment,
+  type WindowManagerError,
   type WindowServiceShape,
+  type WindowStartupContext,
 } from "./WindowTypes";
 
-interface GameWindowEntry {
-  readonly gameWindow: BrowserWindow;
-  readonly childWindows: Map<WindowId, BrowserWindow>;
+type OpenDeferred = Deferred.Deferred<CatalogWindowRef, WindowManagerError>;
+
+interface HandleState {
+  readonly appWindows: Map<WindowId, BrowserWindow>;
+  readonly gameWindows: Map<number, BrowserWindow>;
+  readonly gameChildWindows: Map<number, Map<WindowId, BrowserWindow>>;
 }
+
+const makeHandleState = (): HandleState => ({
+  appWindows: new Map(),
+  gameWindows: new Map(),
+  gameChildWindows: new Map(),
+});
 
 const isWindowOpen = (
   window: BrowserWindow | null | undefined,
@@ -90,8 +159,10 @@ const createLoadFailure = (
   kind: "file" | "url",
   cause: unknown,
 ) =>
-  new WindowManagerError({
+  new WindowLoadError({
     message: `Failed to load ${kind} target: ${target}`,
+    target,
+    kind,
     cause,
   });
 
@@ -153,17 +224,14 @@ const loadWindow = (
     catch: (cause) => createLoadFailure(target, kind, cause),
   });
 
-const getWindowDimensions = (definition: WindowDefinition) =>
-  definition.dimensions;
-
 const createWebPreferences = (
-  config: WindowManagerConfig,
+  env: WindowEnvironment,
   context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
   options?: { readonly plugins?: boolean },
 ): NonNullable<BrowserWindowConstructorOptions["webPreferences"]> => ({
-  preload: config.preloadPath,
+  preload: env.preloadPath,
   nodeIntegration: false,
   contextIsolation: true,
   additionalArguments: [
@@ -192,102 +260,132 @@ const denyRendererWindowOpen = (window: BrowserWindow): void => {
 };
 
 const createGameWindowOptions = (
-  config: WindowManagerConfig,
+  env: WindowEnvironment,
   context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
-): BrowserWindowConstructorOptions => {
-  return {
-    backgroundColor: appearanceSnapshot.backgroundColor,
-    ...(config.platform === "linux" ? { icon: config.appIconPath } : {}),
-    width: 1024,
-    height: 768,
-    show: false,
-    webPreferences: createWebPreferences(
-      config,
-      context,
-      appearanceSnapshot,
-      settingsSnapshot,
-      {
-        plugins: true,
-      },
-    ),
-  };
-};
+): BrowserWindowConstructorOptions => ({
+  backgroundColor: appearanceSnapshot.backgroundColor,
+  ...(env.platform === "linux" ? { icon: env.appIconPath } : {}),
+  width: 1024,
+  height: 768,
+  show: false,
+  webPreferences: createWebPreferences(
+    env,
+    context,
+    appearanceSnapshot,
+    settingsSnapshot,
+    {
+      plugins: true,
+    },
+  ),
+});
 
 const createCatalogWindowOptions = (
-  config: WindowManagerConfig,
+  env: WindowEnvironment,
   definition: WindowDefinition,
   context: WindowStartupContext,
   appearanceSnapshot: AppearanceSnapshot,
   settingsSnapshot: AppSettings,
 ): BrowserWindowConstructorOptions => {
-  const dimensions = getWindowDimensions(definition);
   const options: BrowserWindowConstructorOptions = {
     backgroundColor: appearanceSnapshot.backgroundColor,
-    ...(config.platform === "linux" ? { icon: config.appIconPath } : {}),
+    ...(env.platform === "linux" ? { icon: env.appIconPath } : {}),
     title: definition.label,
-    width: dimensions.width,
-    height: dimensions.height,
+    width: definition.dimensions.width,
+    height: definition.dimensions.height,
     show: false,
     webPreferences: createWebPreferences(
-      config,
+      env,
       context,
       appearanceSnapshot,
       settingsSnapshot,
     ),
   };
 
-  if (typeof dimensions.minWidth === "number") {
-    options.minWidth = dimensions.minWidth;
+  if (typeof definition.dimensions.minWidth === "number") {
+    options.minWidth = definition.dimensions.minWidth;
   }
 
-  if (typeof dimensions.minHeight === "number") {
-    options.minHeight = dimensions.minHeight;
+  if (typeof definition.dimensions.minHeight === "number") {
+    options.minHeight = definition.dimensions.minHeight;
   }
 
   return options;
 };
 
-export const makeWindowService = (
-  config: WindowManagerConfig,
-  runtime: ElectronWindowRuntime,
-): WindowServiceShape => {
-  const gameWindows = new Map<number, GameWindowEntry>();
-  const parentGameWindowIds = new Map<number, number>();
-  const appWindows = new Map<WindowId, BrowserWindow>();
-  const windowStartupContexts = new Map<number, WindowStartupContext>();
-  const forceClosingWindowIds = new Set<number>();
-  let isQuitting = false;
-  let lastFocusedGameWindowId: number | null = null;
-  let lastFocusedPrimaryWindowId: number | null = null;
+const requireWindowDefinition = (
+  id: WindowId,
+): Effect.Effect<WindowDefinition, WindowManagerError> => {
+  if (!isWindowId(id)) {
+    return Effect.fail(
+      new UnknownWindowDefinitionError({
+        id,
+        message: `Unknown window: ${String(id)}`,
+      }),
+    );
+  }
 
-  const createStartupSnapshots = () => {
-    const settingsSnapshot = config.getSettingsSnapshot();
-    return {
-      appearanceSnapshot: config.getAppearanceSnapshot(settingsSnapshot),
-      settingsSnapshot,
-    };
-  };
+  const definition = getWindowDefinition(id);
+  if (!definition) {
+    return Effect.fail(
+      new UnknownWindowDefinitionError({
+        id,
+        message: `Missing window definition: ${id}`,
+      }),
+    );
+  }
 
-  const notifyWindowCreated = (
-    window: BrowserWindow,
-    context: WindowStartupContext,
-  ): void => {
-    windowStartupContexts.set(window.id, context);
-    window.once("closed", () => {
-      windowStartupContexts.delete(window.id);
-    });
-    config.onWindowCreated?.(window, context);
-  };
+  return Effect.succeed(definition);
+};
 
-  const getGameWindowIdSync = (windowId: number): number | undefined => {
-    if (gameWindows.has(windowId)) {
-      return windowId;
-    }
+const getRefWindow = (
+  handles: HandleState,
+  ref: ManagedWindowRef,
+): BrowserWindow | null => {
+  if (ref.kind === "game") {
+    return handles.gameWindows.get(ref.id) ?? null;
+  }
 
-    return parentGameWindowIds.get(windowId);
-  };
+  if (ref.kind === "app") {
+    return handles.appWindows.get(ref.id) ?? null;
+  }
+
+  return handles.gameChildWindows.get(ref.gameWindowId)?.get(ref.id) ?? null;
+};
+
+const getUsableRefWindow = (
+  handles: HandleState,
+  ref: ManagedWindowRef,
+): BrowserWindow | null => {
+  const window = getRefWindow(handles, ref);
+  return isWindowUsable(window) ? window : null;
+};
+
+const staleRefError = (ref: ManagedWindowRef): StaleWindowRefError =>
+  new StaleWindowRefError({
+    ref,
+    message: `Window is no longer open: ${ref.kind}:${getWindowRefId(ref)}`,
+  });
+
+const makeWindowService = Effect.gen(function* () {
+  const env = yield* WindowEnvironmentService;
+  const hooks = yield* WindowLifecycleHooks;
+  const snapshots = yield* WindowSnapshotService;
+  const runtime = makeElectronWindowRuntime();
+  const stateRef = yield* Ref.make<WindowModelState>(emptyWindowModelState());
+  const handles = makeHandleState();
+  const inFlightOpens = new Map<string, OpenDeferred>();
+
+  const getSnapshotInputs = Effect.gen(function* () {
+    const settingsSnapshot = yield* snapshots.getSettingsSnapshot;
+    const appearanceSnapshot =
+      yield* snapshots.getAppearanceSnapshot(settingsSnapshot);
+    return { appearanceSnapshot, settingsSnapshot };
+  });
+
+  const updateState = (f: (state: WindowModelState) => WindowModelState) =>
+    Ref.update(stateRef, f);
 
   const createManagedWindow = (
     options: BrowserWindowConstructorOptions,
@@ -308,14 +406,14 @@ export const makeWindowService = (
 
         denyRendererWindowOpen(window);
 
-        if (config.isDev) {
+        if (env.isDev) {
           window.webContents.openDevTools({ mode: "right" });
         }
 
         return window;
       },
       catch: (cause) =>
-        new WindowManagerError({
+        new WindowCreateError({
           message: "Failed to create browser window",
           cause,
         }),
@@ -335,19 +433,19 @@ export const makeWindowService = (
     bindFirstRevealTrigger(subscribers, () => revealWindow(runtime, window));
   };
 
-  const showAndFocus = (window: BrowserWindow): void => {
-    revealWindow(runtime, window);
-  };
+  const revealRef = (
+    ref: ManagedWindowRef,
+  ): Effect.Effect<void, WindowManagerError> =>
+    Effect.gen(function* () {
+      const window = getUsableRefWindow(handles, ref);
+      if (!window) {
+        return yield* staleRefError(ref);
+      }
 
-  const cleanupDestroyedChild = (
-    gameWindowId: number,
-    definitionId: WindowId,
-    childWindowId: number,
-  ): void => {
-    gameWindows.get(gameWindowId)?.childWindows.delete(definitionId);
-    parentGameWindowIds.delete(childWindowId);
-    forceClosingWindowIds.delete(childWindowId);
-  };
+      yield* Effect.sync(() => {
+        revealWindow(runtime, window);
+      });
+    });
 
   const destroyWindow = (window: BrowserWindow): void => {
     if (!window.isDestroyed()) {
@@ -355,188 +453,53 @@ export const makeWindowService = (
     }
   };
 
-  const destroyChildWindows = (entry: GameWindowEntry): void => {
-    for (const childWindow of entry.childWindows.values()) {
-      if (childWindow.isDestroyed()) {
-        continue;
+  const getGameChildHandles = (gameWindowId: number): BrowserWindow[] =>
+    Array.from(handles.gameChildWindows.get(gameWindowId)?.values() ?? []);
+
+  const destroyChildWindows = (gameWindowId: number): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const childWindows = getGameChildHandles(gameWindowId);
+      yield* updateState((state) =>
+        markForceClosing(
+          state,
+          childWindows.map((window) => window.id),
+        ),
+      );
+
+      for (const childWindow of childWindows) {
+        destroyWindow(childWindow);
       }
 
-      forceClosingWindowIds.add(childWindow.id);
-      childWindow.destroy();
-    }
-
-    entry.childWindows.clear();
-  };
-
-  const registerGameWindow = (window: BrowserWindow): void => {
-    const gameWindowId = window.id;
-    const entry: GameWindowEntry = {
-      gameWindow: window,
-      childWindows: new Map(),
-    };
-
-    gameWindows.set(gameWindowId, entry);
-
-    window.on("focus", () => {
-      lastFocusedGameWindowId = gameWindowId;
-      lastFocusedPrimaryWindowId = gameWindowId;
+      handles.gameChildWindows.delete(gameWindowId);
     });
 
-    window.on("close", () => {
-      destroyChildWindows(entry);
-    });
-
-    window.on("closed", () => {
-      destroyChildWindows(entry);
-      gameWindows.delete(gameWindowId);
-      if (lastFocusedGameWindowId === gameWindowId) {
-        lastFocusedGameWindowId = null;
-      }
-      if (lastFocusedPrimaryWindowId === gameWindowId) {
-        lastFocusedPrimaryWindowId = null;
-      }
-      quitIfOnlyHiddenAccountManagerRemains();
-    });
-  };
-
-  const unregisterGameWindow = (window: BrowserWindow): void => {
-    const entry = gameWindows.get(window.id);
-    if (entry) {
-      destroyChildWindows(entry);
-    }
-
-    gameWindows.delete(window.id);
-    if (lastFocusedGameWindowId === window.id) {
-      lastFocusedGameWindowId = null;
-    }
-    if (lastFocusedPrimaryWindowId === window.id) {
-      lastFocusedPrimaryWindowId = null;
-    }
-  };
-
-  const getLastFocusedGameWindowId = (): number | null => {
-    if (lastFocusedGameWindowId === null) {
-      return null;
-    }
-
-    const window = runtime.fromId(lastFocusedGameWindowId);
-    return isWindowUsable(window) ? lastFocusedGameWindowId : null;
-  };
-
-  const firstGameWindowId = (): number | undefined => {
-    for (const [id, entry] of gameWindows) {
-      if (isWindowUsable(entry.gameWindow)) {
-        return id;
-      }
-    }
-
-    return undefined;
-  };
-
-  const resolveGameWindow = (senderWindowId?: number): BrowserWindow | null => {
-    const senderGameWindowId =
-      senderWindowId === undefined
-        ? undefined
-        : getGameWindowIdSync(senderWindowId);
-
-    const candidates = [
-      senderGameWindowId,
-      getLastFocusedGameWindowId(),
-      firstGameWindowId(),
-    ];
-
-    for (const candidate of candidates) {
-      if (candidate === undefined || candidate === null) {
-        continue;
-      }
-
-      const window = gameWindows.get(candidate)?.gameWindow;
+  const hasUsableGameWindow = (): boolean => {
+    for (const window of handles.gameWindows.values()) {
       if (isWindowUsable(window)) {
-        return window;
+        return true;
       }
     }
 
-    return null;
+    return false;
   };
 
   const resolveAccountManagerWindow = (): BrowserWindow | null => {
-    const window = appWindows.get(WindowIds.AccountManager);
+    const window = handles.appWindows.get(WindowIds.AccountManager);
     return isWindowUsable(window) ? window : null;
   };
 
-  const isPrimaryWindow = (window: BrowserWindow): boolean => {
-    if (gameWindows.get(window.id)?.gameWindow === window) {
-      return true;
-    }
-
-    return appWindows.get(WindowIds.AccountManager) === window;
-  };
-
-  const resolveLastFocusedPrimaryWindow = (): BrowserWindow | null => {
-    if (lastFocusedPrimaryWindowId === null) {
-      return null;
-    }
-
-    const window = runtime.fromId(lastFocusedPrimaryWindowId);
-    return isWindowUsable(window) && isPrimaryWindow(window) ? window : null;
-  };
-
-  const hasPresentedPrimaryWindow = (): boolean => {
-    if (isWindowPresented(resolveAccountManagerWindow())) {
-      return true;
-    }
-
-    for (const entry of gameWindows.values()) {
-      if (isWindowPresented(entry.gameWindow)) {
-        return true;
+  const quitIfOnlyHiddenAccountManagerRemains = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const state = yield* Ref.get(stateRef);
+      if (
+        shouldQuitAfterGameWindowClosed(state, {
+          hasUsableGameWindow: hasUsableGameWindow(),
+          isAccountManagerHidden: isWindowHidden(resolveAccountManagerWindow()),
+        })
+      ) {
+        yield* hooks.quitApp;
       }
-    }
-
-    return false;
-  };
-
-  const hasUsableGameWindow = (): boolean => {
-    for (const entry of gameWindows.values()) {
-      if (isWindowUsable(entry.gameWindow)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  const quitIfOnlyHiddenAccountManagerRemains = (): void => {
-    if (isQuitting || hasUsableGameWindow()) {
-      return;
-    }
-
-    if (isWindowHidden(resolveAccountManagerWindow())) {
-      config.quitApp();
-    }
-  };
-
-  const requireWindowDefinition = (
-    id: WindowId,
-  ): Effect.Effect<WindowDefinition, WindowManagerError> => {
-    if (!isWindowId(id)) {
-      return Effect.fail(
-        new WindowManagerError({
-          message: `Unknown window: ${String(id)}`,
-        }),
-      );
-    }
-
-    const definition = getWindowDefinition(id);
-    if (!definition) {
-      return Effect.fail(
-        new WindowManagerError({
-          message: `Missing window definition: ${id}`,
-        }),
-      );
-    }
-
-    return Effect.succeed(definition);
-  };
+    });
 
   const loadGameRenderer = (
     window: BrowserWindow,
@@ -545,7 +508,7 @@ export const makeWindowService = (
     loadWindow(
       window,
       appendAppearanceSnapshotToUrl(
-        pathToFileURL(config.gameWindowHtmlPath),
+        pathToFileURL(env.gameWindowHtmlPath),
         appearanceSnapshot,
       ),
       "url",
@@ -557,22 +520,38 @@ export const makeWindowService = (
     appearanceSnapshot: AppearanceSnapshot,
   ): Effect.Effect<void, WindowManagerError> => {
     const url = appendAppearanceSnapshotToUrl(
-      pathToFileURL(config.windowHtmlPath(definition.id)),
+      pathToFileURL(env.windowHtmlPath(definition.id)),
       appearanceSnapshot,
     );
     return loadWindow(window, url, "url");
   };
 
+  const resolveOrCreateGameWindow = (
+    senderWindowId?: number,
+  ): Effect.Effect<GameWindowRef, WindowManagerError> =>
+    Effect.gen(function* () {
+      const state = yield* Ref.get(stateRef);
+      const resolved = resolvePreferredGameWindowRef(state, {
+        ...(senderWindowId === undefined ? {} : { senderWindowId }),
+        isUsable: (ref) => isWindowUsable(handles.gameWindows.get(ref.id)),
+      });
+      if (resolved) {
+        return resolved;
+      }
+
+      return yield* openGameWindow();
+    });
+
   const openGameWindow: WindowServiceShape["openGameWindow"] = (options) =>
     Effect.gen(function* () {
-      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
+      const { appearanceSnapshot, settingsSnapshot } = yield* getSnapshotInputs;
       const context = {
         kind: "game",
         label: "Game",
       } satisfies WindowStartupContext;
       const window = yield* createManagedWindow({
         ...createGameWindowOptions(
-          config,
+          env,
           context,
           appearanceSnapshot,
           settingsSnapshot,
@@ -581,196 +560,318 @@ export const makeWindowService = (
         ...options?.bounds,
       });
 
-      notifyWindowCreated(window, context);
-      config.onGameWindowCreated?.(window);
-      registerGameWindow(window);
+      const registration = yield* Ref.modify(stateRef, (state) => {
+        const result = registerGameWindow(state, {
+          context,
+          windowId: window.id,
+        });
+        return [result, result.state];
+      });
+      const { ref } = registration;
+      const gameWindowId = ref.id;
+      handles.gameWindows.set(ref.id, window);
       revealWhenReady(window);
+
+      yield* hooks.onWindowCreated(ref, window, context);
+      yield* hooks.onGameWindowCreated(ref, window);
+
+      window.on("focus", () => {
+        Effect.runSync(
+          updateState((state) => markGameWindowFocused(state, gameWindowId)),
+        );
+      });
+
+      window.on("close", () => {
+        void Effect.runPromise(destroyChildWindows(gameWindowId));
+      });
+
+      window.on("closed", () => {
+        void Effect.runPromise(
+          Effect.gen(function* () {
+            yield* destroyChildWindows(gameWindowId);
+            handles.gameWindows.delete(gameWindowId);
+            yield* updateState((state) => removeGameWindow(state, gameWindowId));
+            yield* quitIfOnlyHiddenAccountManagerRemains();
+          }),
+        );
+      });
 
       yield* loadGameRenderer(window, appearanceSnapshot).pipe(
         Effect.catch((error: WindowManagerError) =>
           Effect.sync(() => {
-            unregisterGameWindow(window);
+            handles.gameWindows.delete(gameWindowId);
             destroyWindow(window);
-          }).pipe(Effect.flatMap(() => Effect.fail(error))),
+          }).pipe(
+            Effect.flatMap(() =>
+              updateState((state) => removeGameWindow(state, gameWindowId)),
+            ),
+            Effect.flatMap(() => Effect.fail(error)),
+          ),
         ),
       );
 
-      return window;
+      return ref;
     });
 
-  const getCursorDisplayWorkArea: WindowServiceShape["getCursorDisplayWorkArea"] =
-    () =>
-      Effect.try({
-        try: () => runtime.getCursorDisplayWorkArea(),
-        catch: (cause) =>
-          new WindowManagerError({
-            message: "Failed to resolve cursor display work area",
-            cause,
-          }),
-      });
+  const runDedupeOpen = (
+    key: string,
+    open: Effect.Effect<CatalogWindowRef, WindowManagerError>,
+  ): Effect.Effect<CatalogWindowRef, WindowManagerError> =>
+    Effect.gen(function* () {
+      const existing = inFlightOpens.get(key);
+      if (existing) {
+        return yield* Deferred.await(existing);
+      }
 
-  const resolveOrCreateGameWindow = (
-    senderWindowId?: number,
-  ): Effect.Effect<BrowserWindow, WindowManagerError> => {
-    const resolvedGameWindow = resolveGameWindow(senderWindowId);
-    if (resolvedGameWindow) {
-      return Effect.succeed(resolvedGameWindow);
-    }
+      const deferred = yield* Deferred.make<
+        CatalogWindowRef,
+        WindowManagerError
+      >();
+      inFlightOpens.set(key, deferred);
+      yield* updateState((state) => registerInFlightOpen(state, key));
 
-    return openGameWindow();
-  };
+      return yield* open.pipe(
+        Effect.matchEffect({
+          onFailure: (error) =>
+            Deferred.fail(deferred, error).pipe(
+              Effect.flatMap(() => Effect.fail(error)),
+            ),
+          onSuccess: (ref) =>
+            Deferred.succeed(deferred, ref).pipe(Effect.as(ref)),
+        }),
+        Effect.ensuring(
+          Effect.sync(() => {
+            inFlightOpens.delete(key);
+          }).pipe(
+            Effect.flatMap(() =>
+              updateState((state) => completeInFlightOpen(state, key)),
+            ),
+          ),
+        ),
+      );
+    });
 
   const openGameChildWindow = (
-    gameWindowId: number,
+    gameRef: GameWindowRef,
     definition: WindowDefinition,
-  ): Effect.Effect<BrowserWindow, WindowManagerError> =>
-    Effect.gen(function* () {
-      const entry = gameWindows.get(gameWindowId);
-      if (!entry || !isWindowUsable(entry.gameWindow)) {
-        return yield* new WindowManagerError({
-          message: "Game window is no longer usable",
+  ): Effect.Effect<GameChildWindowRef, WindowManagerError> =>
+    runDedupeOpen(
+      gameChildOpenKey(gameRef.id, definition.id),
+      Effect.gen(function* () {
+        const gameWindow = handles.gameWindows.get(gameRef.id);
+        if (!isWindowUsable(gameWindow)) {
+          return yield* new MissingParentGameWindowError({
+            gameWindowId: gameRef.id,
+            message: "Game window is no longer usable",
+          });
+        }
+
+        const existing = handles.gameChildWindows
+          .get(gameRef.id)
+          ?.get(definition.id);
+        if (isWindowOpen(existing)) {
+          revealWindow(runtime, existing);
+          return makeGameChildWindowRef(gameRef.id, definition.id, existing.id);
+        }
+
+        const { appearanceSnapshot, settingsSnapshot } =
+          yield* getSnapshotInputs;
+        const context = {
+          kind: "game-child",
+          id: definition.id,
+          label: definition.label,
+        } satisfies WindowStartupContext;
+        const childWindow = yield* createManagedWindow(
+          createCatalogWindowOptions(
+            env,
+            definition,
+            context,
+            appearanceSnapshot,
+            settingsSnapshot,
+          ),
+        );
+        const registration = yield* Ref.modify(stateRef, (state) => {
+          const result = registerGameChildWindow(state, {
+            context,
+            gameWindowId: gameRef.id,
+            id: definition.id,
+            windowId: childWindow.id,
+          });
+          return [result, result.state];
         });
-      }
+        const { ref } = registration;
+        const childWindowId = ref.windowId;
+        const children = handles.gameChildWindows.get(gameRef.id) ?? new Map();
+        children.set(definition.id, childWindow);
+        handles.gameChildWindows.set(gameRef.id, children);
+        revealWhenReady(childWindow);
+        yield* hooks.onWindowCreated(ref, childWindow, context);
 
-      const existing = entry.childWindows.get(definition.id);
-      if (isWindowOpen(existing)) {
-        showAndFocus(existing);
-        return existing;
-      }
+        childWindow.on("close", (event: ElectronEvent) => {
+          const state = Ref.getUnsafe(stateRef);
+          if (
+            shouldHideOnClose(state, {
+              closeBehavior: definition.closeBehavior,
+              windowId: childWindowId,
+            })
+          ) {
+            event.preventDefault();
+            childWindow.hide();
+          }
+        });
 
-      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
-      const context = {
-        kind: "game-child",
-        id: definition.id,
-        label: definition.label,
-      } satisfies WindowStartupContext;
-      const childWindow = yield* createManagedWindow(
-        createCatalogWindowOptions(
-          config,
+        childWindow.on("closed", () => {
+          children.delete(definition.id);
+          void Effect.runPromise(
+            updateState((state) =>
+              removeGameChildWindow(
+                state,
+                gameRef.id,
+                definition.id,
+                childWindowId,
+              ),
+            ),
+          );
+        });
+
+        yield* loadCatalogRenderer(
+          childWindow,
           definition,
-          context,
           appearanceSnapshot,
-          settingsSnapshot,
-        ),
-      );
-      const childWindowId = childWindow.id;
+        ).pipe(
+          Effect.catch((error: WindowManagerError) =>
+            Effect.sync(() => {
+              children.delete(definition.id);
+              destroyWindow(childWindow);
+            }).pipe(
+              Effect.flatMap(() =>
+                updateState((state) =>
+                  removeGameChildWindow(
+                    state,
+                    gameRef.id,
+                    definition.id,
+                    childWindowId,
+                  ),
+                ),
+              ),
+              Effect.flatMap(() => Effect.fail(error)),
+            ),
+          ),
+        );
 
-      notifyWindowCreated(childWindow, context);
-      entry.childWindows.set(definition.id, childWindow);
-      parentGameWindowIds.set(childWindowId, gameWindowId);
-      revealWhenReady(childWindow);
-
-      childWindow.on("close", (event: ElectronEvent) => {
-        if (isQuitting || forceClosingWindowIds.has(childWindowId)) {
-          return;
-        }
-
-        if (definition.closeBehavior === "hide") {
-          event.preventDefault();
-          childWindow.hide();
-        }
-      });
-
-      childWindow.on("closed", () => {
-        cleanupDestroyedChild(gameWindowId, definition.id, childWindowId);
-      });
-
-      yield* loadCatalogRenderer(
-        childWindow,
-        definition,
-        appearanceSnapshot,
-      ).pipe(
-        Effect.catch((error: WindowManagerError) =>
-          Effect.sync(() => {
-            cleanupDestroyedChild(gameWindowId, definition.id, childWindowId);
-            destroyWindow(childWindow);
-          }).pipe(Effect.flatMap(() => Effect.fail(error))),
-        ),
-      );
-
-      return childWindow;
-    });
+        return ref;
+      }),
+    ) as Effect.Effect<GameChildWindowRef, WindowManagerError>;
 
   const openAppWindow = (
     definition: WindowDefinition,
-  ): Effect.Effect<BrowserWindow, WindowManagerError> =>
-    Effect.gen(function* () {
-      const existing = appWindows.get(definition.id);
-      if (isWindowOpen(existing)) {
-        showAndFocus(existing);
-        return existing;
-      }
+  ): Effect.Effect<AppWindowRef, WindowManagerError> =>
+    runDedupeOpen(
+      appOpenKey(definition.id),
+      Effect.gen(function* () {
+        const existing = handles.appWindows.get(definition.id);
+        if (isWindowOpen(existing)) {
+          revealWindow(runtime, existing);
+          return makeAppWindowRef(definition.id, existing.id);
+        }
 
-      const { appearanceSnapshot, settingsSnapshot } = createStartupSnapshots();
-      const context = {
-        kind: "app",
-        id: definition.id,
-        label: definition.label,
-      } satisfies WindowStartupContext;
-      const appWindow = yield* createManagedWindow(
-        createCatalogWindowOptions(
-          config,
-          definition,
-          context,
-          appearanceSnapshot,
-          settingsSnapshot,
-        ),
-      );
-
-      notifyWindowCreated(appWindow, context);
-      appWindows.set(definition.id, appWindow);
-      revealWhenReady(appWindow);
-
-      if (definition.id === WindowIds.AccountManager) {
-        appWindow.on("focus", () => {
-          lastFocusedPrimaryWindowId = appWindow.id;
+        const { appearanceSnapshot, settingsSnapshot } =
+          yield* getSnapshotInputs;
+        const context = {
+          kind: "app",
+          id: definition.id,
+          label: definition.label,
+        } satisfies WindowStartupContext;
+        const appWindow = yield* createManagedWindow(
+          createCatalogWindowOptions(
+            env,
+            definition,
+            context,
+            appearanceSnapshot,
+            settingsSnapshot,
+          ),
+        );
+        const registration = yield* Ref.modify(stateRef, (state) => {
+          const result = registerAppWindow(state, {
+            context,
+            id: definition.id,
+            windowId: appWindow.id,
+          });
+          return [result, result.state];
         });
-      }
+        const { ref } = registration;
+        const appWindowId = ref.windowId;
+        handles.appWindows.set(definition.id, appWindow);
+        revealWhenReady(appWindow);
+        yield* hooks.onWindowCreated(ref, appWindow, context);
 
-      appWindow.on("close", (event: ElectronEvent) => {
-        if (isQuitting) {
-          return;
+        if (definition.id === WindowIds.AccountManager) {
+          appWindow.on("focus", () => {
+            Effect.runSync(
+              updateState((state) =>
+                markPrimaryWindowFocused(state, appWindowId),
+              ),
+            );
+          });
         }
 
-        if (
-          definition.id === WindowIds.AccountManager &&
-          !hasUsableGameWindow()
-        ) {
-          config.quitApp();
-          return;
-        }
+        appWindow.on("close", (event: ElectronEvent) => {
+          const state = Ref.getUnsafe(stateRef);
+          if (
+            definition.id === WindowIds.AccountManager &&
+            !state.quitting &&
+            !hasUsableGameWindow()
+          ) {
+            void Effect.runPromise(hooks.quitApp);
+            return;
+          }
 
-        if (definition.closeBehavior === "hide") {
-          event.preventDefault();
-          appWindow.hide();
-        }
-      });
+          if (
+            shouldHideOnClose(state, {
+              closeBehavior: definition.closeBehavior,
+              windowId: appWindowId,
+            })
+          ) {
+            event.preventDefault();
+            appWindow.hide();
+          }
+        });
 
-      appWindow.on("closed", () => {
-        const current = appWindows.get(definition.id);
-        if (current === appWindow) {
-          appWindows.delete(definition.id);
-        }
-        if (lastFocusedPrimaryWindowId === appWindow.id) {
-          lastFocusedPrimaryWindowId = null;
-        }
-      });
+        appWindow.on("closed", () => {
+          const current = handles.appWindows.get(definition.id);
+          if (current === appWindow) {
+            handles.appWindows.delete(definition.id);
+          }
+          void Effect.runPromise(
+            updateState((state) =>
+              removeAppWindow(state, definition.id, appWindowId),
+            ),
+          );
+        });
 
-      yield* loadCatalogRenderer(
-        appWindow,
-        definition,
-        appearanceSnapshot,
-      ).pipe(
-        Effect.catch((error: WindowManagerError) =>
-          Effect.sync(() => {
-            appWindows.delete(definition.id);
-            destroyWindow(appWindow);
-          }).pipe(Effect.flatMap(() => Effect.fail(error))),
-        ),
-      );
+        yield* loadCatalogRenderer(
+          appWindow,
+          definition,
+          appearanceSnapshot,
+        ).pipe(
+          Effect.catch((error: WindowManagerError) =>
+            Effect.sync(() => {
+              handles.appWindows.delete(definition.id);
+              destroyWindow(appWindow);
+            }).pipe(
+            Effect.flatMap(() =>
+              updateState((state) =>
+                removeAppWindow(state, definition.id, appWindowId),
+              ),
+            ),
+              Effect.flatMap(() => Effect.fail(error)),
+            ),
+          ),
+        );
 
-      return appWindow;
-    });
+        return ref;
+      }),
+    ) as Effect.Effect<AppWindowRef, WindowManagerError>;
 
   const openWindow: WindowServiceShape["openWindow"] = (id, senderWindowId) =>
     Effect.gen(function* () {
@@ -782,44 +883,157 @@ export const makeWindowService = (
 
       if (isGameChildWindowDefinition(definition)) {
         const gameWindow = yield* resolveOrCreateGameWindow(senderWindowId);
-        return yield* openGameChildWindow(gameWindow.id, definition);
+        return yield* openGameChildWindow(gameWindow, definition);
       }
 
-      return yield* new WindowManagerError({
+      return yield* new UnsupportedWindowDefinitionError({
+        id,
+        scope: definition.scope,
         message: `Unsupported window scope: ${definition.scope}`,
       });
     });
 
   const getOpenWindow: WindowServiceShape["getOpenWindow"] = (id) =>
-    Effect.sync(() => {
-      const appWindow = appWindows.get(id);
-      if (isWindowUsable(appWindow)) {
-        return appWindow;
-      }
-
-      for (const entry of gameWindows.values()) {
-        const childWindow = entry.childWindows.get(id);
-        if (isWindowUsable(childWindow)) {
-          return childWindow;
-        }
-      }
-
-      return null;
+    Effect.gen(function* () {
+      const state = yield* Ref.get(stateRef);
+      const ref = resolveCatalogWindowRef(state, id);
+      return ref && getUsableRefWindow(handles, ref) ? ref : null;
     });
 
-  const revealGameWindow: WindowServiceShape["revealGameWindow"] = () =>
+  const getGameWindowRefById: WindowServiceShape["getGameWindowRefById"] = (
+    gameWindowId,
+  ) =>
     Effect.gen(function* () {
-      const gameWindow = resolveGameWindow();
-      if (gameWindow) {
-        revealWindow(runtime, gameWindow);
-        return;
+      const ref = makeGameWindowRef(gameWindowId);
+      return getUsableRefWindow(handles, ref) ? ref : null;
+    });
+
+  const getGameChildWindowRef: WindowServiceShape["getGameChildWindowRef"] = (
+    gameWindowId,
+    id,
+  ) =>
+    Effect.gen(function* () {
+      const child = handles.gameChildWindows.get(gameWindowId)?.get(id);
+      if (!isWindowUsable(child)) {
+        return null;
       }
+      return makeGameChildWindowRef(gameWindowId, id, child.id);
+    });
 
-      yield* openGameWindow();
-    }).pipe(Effect.asVoid);
+  const hasPresentedPrimaryWindow = (): boolean => {
+    if (isWindowPresented(resolveAccountManagerWindow())) {
+      return true;
+    }
 
-  const revealWindowForAppActivation: WindowServiceShape["revealWindowForAppActivation"] =
-    () =>
+    for (const window of handles.gameWindows.values()) {
+      if (isWindowPresented(window)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const resolveLastFocusedPrimaryWindow = (): BrowserWindow | null => {
+    const state = Ref.getUnsafe(stateRef);
+    if (state.lastFocusedPrimaryWindowId === null) {
+      return null;
+    }
+
+    const window = runtime.fromId(state.lastFocusedPrimaryWindowId);
+    if (!isWindowUsable(window)) {
+      return null;
+    }
+
+    if (handles.gameWindows.get(window.id) === window) {
+      return window;
+    }
+
+    return handles.appWindows.get(WindowIds.AccountManager) === window
+      ? window
+      : null;
+  };
+
+  return {
+    getCursorDisplayWorkArea: () =>
+      Effect.try({
+        try: () => runtime.getCursorDisplayWorkArea(),
+        catch: (cause) =>
+          new WindowOperationError({
+            message: "Failed to resolve cursor display work area",
+            cause,
+          }),
+      }),
+    getGameChildWindowRef,
+    getGameWindowRef: (windowId) =>
+      Effect.gen(function* () {
+        const state = yield* Ref.get(stateRef);
+        const ref = resolveGameWindowRef(state, windowId);
+        return ref && getUsableRefWindow(handles, ref) ? ref : undefined;
+      }),
+    getGameWindowRefById,
+    getGameWindowRefs: () =>
+      Effect.sync(() =>
+        Array.from(handles.gameWindows.entries())
+          .filter(([, window]) => isWindowUsable(window))
+          .map(([gameWindowId]) => makeGameWindowRef(gameWindowId)),
+      ),
+    getOpenWindow,
+    getWindowContext: (windowId) =>
+      Ref.get(stateRef).pipe(
+        Effect.map(
+          (state) =>
+            state.windowContexts.get(windowId) as
+              | WindowStartupContext
+              | undefined,
+        ),
+      ),
+    onWindowClosed: (ref, listener) =>
+      Effect.gen(function* () {
+        const window = getUsableRefWindow(handles, ref);
+        if (!window) {
+          return yield* staleRefError(ref);
+        }
+
+        yield* Effect.sync(() => {
+          window.once("closed", listener);
+        });
+        return () => {
+          window.removeListener("closed", listener);
+        };
+      }),
+    openGameWindow,
+    openWindow,
+    requestCloseGameWindow: (ref) =>
+      Effect.gen(function* () {
+        const window = getRefWindow(handles, ref);
+        if (!isWindowOpen(window)) {
+          return;
+        }
+
+        yield* Effect.sync(() => {
+          setTimeout(() => {
+            if (!window.isDestroyed()) {
+              window.close();
+            }
+          }, 0);
+        });
+      }),
+    revealGameWindow: () =>
+      Effect.gen(function* () {
+        const state = yield* Ref.get(stateRef);
+        const gameWindow = resolvePreferredGameWindowRef(state, {
+          isUsable: (ref) => isWindowUsable(handles.gameWindows.get(ref.id)),
+        });
+        if (gameWindow) {
+          yield* revealRef(gameWindow);
+          return;
+        }
+
+        yield* openGameWindow();
+      }).pipe(Effect.asVoid),
+    revealWindow: revealRef,
+    revealWindowForAppActivation: () =>
       Effect.gen(function* () {
         if (hasPresentedPrimaryWindow()) {
           return;
@@ -837,63 +1051,40 @@ export const makeWindowService = (
           return;
         }
 
-        const gameWindow = resolveGameWindow();
+        const state = yield* Ref.get(stateRef);
+        const gameWindow = resolvePreferredGameWindowRef(state, {
+          isUsable: (ref) => isWindowUsable(handles.gameWindows.get(ref.id)),
+        });
         if (gameWindow) {
-          revealWindow(runtime, gameWindow);
+          yield* revealRef(gameWindow);
           return;
         }
 
         yield* openGameWindow();
-      }).pipe(Effect.asVoid);
-
-  return {
-    openGameWindow,
-    openWindow,
-    getOpenWindow,
-    getCursorDisplayWorkArea,
-    revealGameWindow,
-    revealWindowForAppActivation,
-    getGameWindowId: (windowId) =>
-      Effect.succeed(getGameWindowIdSync(windowId)),
-    getGameWindowIds: () =>
-      Effect.sync(() =>
-        Array.from(gameWindows.entries())
-          .filter(([, entry]) => isWindowUsable(entry.gameWindow))
-          .map(([gameWindowId]) => gameWindowId),
-      ),
-    getGameChildWindow: (gameWindowId, id) =>
-      Effect.sync(() => {
-        const childWindow = gameWindows.get(gameWindowId)?.childWindows.get(id);
-        return isWindowUsable(childWindow) ? childWindow : null;
-      }),
-    getGameWindow: (gameWindowId) =>
-      Effect.sync(() => {
-        const gameWindow = gameWindows.get(gameWindowId)?.gameWindow;
-        return isWindowUsable(gameWindow) ? gameWindow : null;
-      }),
-    getWindowContext: (windowId) =>
-      Effect.sync(() => windowStartupContexts.get(windowId)),
-    requestCloseGameWindow: (gameWindowId) =>
-      Effect.sync(() => {
-        const gameWindow = gameWindows.get(gameWindowId)?.gameWindow;
-        if (!isWindowOpen(gameWindow)) {
-          return;
+      }).pipe(Effect.asVoid),
+    sendToWindow: (ref, channel, ...args) =>
+      Effect.gen(function* () {
+        const window = getUsableRefWindow(handles, ref);
+        if (!window) {
+          return yield* staleRefError(ref);
         }
 
-        setTimeout(() => {
-          if (!gameWindow.isDestroyed()) {
-            gameWindow.close();
-          }
-        }, 0);
+        return yield* Effect.try({
+          try: () => {
+            window.webContents.send(channel, ...args);
+            return true;
+          },
+          catch: (cause) =>
+            new WindowOperationError({
+              message: `Failed to send IPC message to window: ${channel}`,
+              cause,
+            }),
+        });
       }),
     setQuitting: (quitting) =>
-      Effect.sync(() => {
-        isQuitting = quitting;
-      }),
-  };
-};
+      updateState((state) => setModelQuitting(state, quitting)),
+  } satisfies WindowServiceShape;
+});
 
-export const WindowServiceLive = (
-  config: WindowManagerConfig,
-  runtime: ElectronWindowRuntime = makeElectronWindowRuntime(),
-) => Layer.succeed(WindowService, makeWindowService(config, runtime));
+export const WindowServiceLive = Layer.effect(WindowService, makeWindowService);
+export const layer = WindowServiceLive;

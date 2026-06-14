@@ -85,7 +85,7 @@ const publishCaptured = (
   packet: string,
 ) =>
   Effect.promise(() =>
-    window.ipc.packets
+    window.desktop.packets
       .publishCaptured({
         capturedAt: Date.now(),
         packet,
@@ -98,7 +98,7 @@ const publishCaptured = (
 
 const respondPacketRequest = (
   response: PacketsResponseMessage,
-): Promise<void> => window.ipc.packets.respond(response);
+): Promise<void> => window.desktop.packets.respond(response);
 
 export const installPacketsBridge = (
   runtime: GameRuntime,
@@ -110,7 +110,7 @@ export const installPacketsBridge = (
   let requestChain = Promise.resolve();
 
   const publishStatus = (stoppedReason?: string): void => {
-    void window.ipc.packets
+    void window.desktop.packets
       .publishStatus({
         captureRunning: captureDisposers.length > 0,
         queueRunning: queueState !== undefined && !queueState.stopped,
@@ -259,7 +259,7 @@ export const installPacketsBridge = (
     }
   };
 
-  const unsubscribeRequest = window.ipc.packets.onRequest((request) => {
+  const unsubscribeRequest = window.desktop.packets.onRequest((request) => {
     requestChain = requestChain
       .catch((error: unknown) => {
         console.error("Packet request chain failed:", error);

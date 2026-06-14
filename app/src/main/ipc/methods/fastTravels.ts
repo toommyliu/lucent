@@ -18,21 +18,23 @@ import {
 import {
   FastTravelRepository,
   type FastTravelRepositoryShape,
-} from "../../persistence/fastTravels/FastTravelRepository";
+} from "../../backend/fast-travels/FastTravelRepository";
 import {
   WindowManagerError,
+  WindowOperationError,
+  type GameWindowRef,
   type WindowEffectRunner,
   type WindowService,
 } from "../../window/WindowService";
 import {
-  makeGameWindowRequestBroker,
-  type GameWindowRequestBroker,
-} from "../GameWindowRequestBroker";
-import { MainIpc } from "../MainIpc";
+  GameWindowClient,
+  type GameWindowClientShape,
+} from "../../window/GameWindowClient";
+import { DesktopIpc } from "../DesktopIpc";
 import {
   getSenderGameWindow,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 
 const FAST_TRAVELS_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -49,9 +51,7 @@ const broadcastChanged = (locations: readonly FastTravel[]): void => {
 
     try {
       win.webContents.send(FastTravelsIpcChannels.changed, locations);
-    } catch {
-      // Window teardown can race the destroyed checks; broadcasts are best effort.
-    }
+    } catch {}
   }
 };
 
@@ -68,11 +68,11 @@ const publishLocations = (
     );
 
 const requestGameFastTravel = (
-  broker: GameWindowRequestBroker<void>,
-  gameWindow: BrowserWindow,
+  gameClient: GameWindowClientShape,
+  gameWindow: GameWindowRef,
   payload: FastTravelWarpPayload,
-): Promise<void> =>
-  broker.request({
+): Effect.Effect<void, Error | WindowManagerError, WindowService> =>
+  gameClient.request({
     target: gameWindow,
     requestChannel: FastTravelsIpcChannels.request,
     timeoutMs: FAST_TRAVELS_REQUEST_TIMEOUT_MS,
@@ -87,28 +87,33 @@ const requestGameFastTravel = (
 
 const sendFastTravelRequest = (
   event: IpcMainInvokeEvent,
-  broker: GameWindowRequestBroker<void>,
+  gameClient: GameWindowClientShape,
   payload: FastTravelWarpPayload,
 ): Effect.Effect<void, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
     const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
-    return yield* Effect.tryPromise({
-      try: () => requestGameFastTravel(broker, gameWindow, payload),
-      catch: (cause) =>
-        new WindowManagerError({
-          message: requestErrorMessage(cause),
-          cause,
-        }),
-    });
+    return yield* requestGameFastTravel(gameClient, gameWindow, payload).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WindowOperationError({
+            message: requestErrorMessage(cause),
+            cause,
+          }),
+      ),
+    );
   });
 
 export const registerFastTravelsIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
-): Effect.Effect<void, never, FastTravelRepository | MainIpc | Scope.Scope> =>
+): Effect.Effect<
+  void,
+  never,
+  FastTravelRepository | GameWindowClient | DesktopIpc | Scope.Scope
+> =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const broker = makeGameWindowRequestBroker<void>();
+    const ipc = yield* DesktopIpc;
+    const gameClient = yield* GameWindowClient;
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
@@ -125,22 +130,34 @@ export const registerFastTravelsIpcHandlers = (
           }
 
           if (typeof fastTravelResponse.ok !== "boolean") {
-            broker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               fastTravelResponse.requestId,
+              gameWindow,
               new Error("Invalid fast travel response"),
             );
             return;
           }
 
           if (fastTravelResponse.ok) {
-            broker.resolve(fastTravelResponse.requestId, undefined);
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
+              fastTravelResponse.requestId,
+              gameWindow,
+              undefined,
+            );
           } else {
             const message =
               typeof fastTravelResponse.error === "string" &&
               fastTravelResponse.error !== ""
                 ? fastTravelResponse.error
                 : "Fast travel request failed";
-            broker.resolve(fastTravelResponse.requestId, new Error(message));
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
+              fastTravelResponse.requestId,
+              gameWindow,
+              new Error(message),
+            );
           }
         }),
       ),
@@ -190,12 +207,6 @@ export const registerFastTravelsIpcHandlers = (
     );
 
     yield* ipc.handleContract(FastTravelsIpcContracts.warp, (event, payload) =>
-      run(sendFastTravelRequest(event, broker, payload)),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        broker.rejectAll(new Error("Fast travels IPC scope closed"));
-      }),
+      run(sendFastTravelRequest(event, gameClient, payload)),
     );
   });

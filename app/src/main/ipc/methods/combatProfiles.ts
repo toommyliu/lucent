@@ -9,9 +9,9 @@ import {
   type CombatProfileLibrary,
 } from "../../../shared/combat-profiles";
 import { CombatProfilesIpcChannels } from "../../../shared/ipc";
-import { CombatProfileRepository } from "../../persistence/combatProfiles/CombatProfileRepository";
-import type { PersistenceError } from "../../persistence/Persistence";
-import { MainIpc } from "../MainIpc";
+import { CombatProfileRepository } from "../../backend/combat-profiles/CombatProfileRepository";
+import type { DesktopStorageError } from "../../storage/DesktopStorage";
+import { DesktopIpc } from "../DesktopIpc";
 
 const broadcastChanged = (state: CombatProfileLibrary): void => {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -51,7 +51,7 @@ const updateState = (
   update: (current: CombatProfileLibrary) => CombatProfileLibrary,
 ): Effect.Effect<
   CombatProfileLibrary,
-  PersistenceError,
+  DesktopStorageError,
   CombatProfileRepository
 > =>
   Effect.gen(function* () {
@@ -64,10 +64,10 @@ const updateState = (
 export const registerCombatProfilesIpcHandlers = (): Effect.Effect<
   void,
   never,
-  CombatProfileRepository | MainIpc | Scope.Scope
+  CombatProfileRepository | DesktopIpc | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
+    const ipc = yield* DesktopIpc;
 
     yield* ipc.handle(CombatProfilesIpcChannels.getState, () =>
       Effect.gen(function* () {

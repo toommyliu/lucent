@@ -57,8 +57,8 @@ export function mountWindow(
     disposeRender = render(
       () =>
         App({
-          initialSettings: window.ipc.settings.initial,
-          platform: window.ipc.platform.os,
+          initialSettings: window.desktop.settings.initial,
+          platform: window.desktop.platform.os,
         }),
       root,
     );
@@ -68,7 +68,7 @@ export function mountWindow(
     console.error("Failed to mount renderer window:", error);
     cleanup();
   } finally {
-    const initialSettings = window.ipc?.settings?.initial;
+    const initialSettings = window.desktop?.settings?.initial;
     markReady();
     writeRendererStartupTiming("renderer-startup", "Renderer mount completed", {
       initialSettingsPresent:

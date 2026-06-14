@@ -442,9 +442,9 @@ function App(): JSX.Element {
 
     try {
       if (nextRunning) {
-        await window.ipc.packets.startCapture();
+        await window.desktop.packets.startCapture();
       } else {
-        await window.ipc.packets.stopCapture();
+        await window.desktop.packets.stopCapture();
       }
     } catch (cause) {
       setCaptureRunning(!nextRunning);
@@ -566,7 +566,7 @@ function App(): JSX.Element {
     setError("");
     setNotice("");
     try {
-      await window.ipc.packets.send({
+      await window.desktop.packets.send({
         packet,
         target: sendTarget(),
       });
@@ -758,7 +758,7 @@ function App(): JSX.Element {
     setError("");
     setNotice("");
     try {
-      await window.ipc.packets.startQueue({
+      await window.desktop.packets.startQueue({
         delayMs: parsedDelayMs(),
         packets: queue(),
         target: sendTarget(),
@@ -776,7 +776,7 @@ function App(): JSX.Element {
 
     setQueueRunning(false);
     try {
-      await window.ipc.packets.stopQueue();
+      await window.desktop.packets.stopQueue();
     } catch (cause) {
       setQueueRunning(true);
       setOperationError("Packet queue stop failed", cause);
@@ -906,8 +906,9 @@ function App(): JSX.Element {
 
   onMount(() => {
     const unsubscribeCaptured =
-      window.ipc.packets.onCaptured(addCapturedPacket);
-    const unsubscribeStatus = window.ipc.packets.onStatus(handleRuntimeStatus);
+      window.desktop.packets.onCaptured(addCapturedPacket);
+    const unsubscribeStatus =
+      window.desktop.packets.onStatus(handleRuntimeStatus);
     const resizeObserver = new ResizeObserver(updateLogViewportMetrics);
     if (logViewport) {
       resizeObserver.observe(logViewport);
@@ -929,12 +930,12 @@ function App(): JSX.Element {
       unsubscribeStatus();
       resizeObserver.disconnect();
       if (captureRunning()) {
-        void window.ipc.packets.stopCapture().catch((cause: unknown) => {
+        void window.desktop.packets.stopCapture().catch((cause: unknown) => {
           console.error("Failed to stop packet capture on cleanup:", cause);
         });
       }
       if (queueRunning()) {
-        void window.ipc.packets.stopQueue().catch((cause: unknown) => {
+        void window.desktop.packets.stopQueue().catch((cause: unknown) => {
           console.error("Failed to stop packet queue on cleanup:", cause);
         });
       }

@@ -40,7 +40,7 @@ export const applySettings = (settings: AppSettings): void => {
 };
 
 export const installSettingsSync = (): RendererSettingsSync => {
-  const bridge = window.ipc?.settings;
+  const bridge = window.desktop?.settings;
   if (!bridge) {
     return {
       dispose: () => {},

@@ -41,7 +41,7 @@ const toRequestError = (cause: unknown): string => {
 
 const respondLoaderGrabberRequest = (
   response: LoaderGrabberResponseMessage,
-): Promise<void> => window.ipc.loaderGrabber.respond(response);
+): Promise<void> => window.desktop.loaderGrabber.respond(response);
 
 const ensurePlayerReady = Effect.gen(function* () {
   const player = yield* Player;
@@ -162,27 +162,29 @@ export const installLoaderGrabberBridge = (
     }
   };
 
-  const unsubscribeRequest = window.ipc.loaderGrabber.onRequest((request) => {
-    requestChain = requestChain
-      .catch((error: unknown) => {
-        console.error("Loader grabber request chain failed:", error);
-      })
-      .then(async () => {
-        if (disposed) {
-          await respondLoaderGrabberRequest({
-            error: "Loader grabber bridge is disposed",
-            ok: false,
-            requestId: request.requestId,
-          });
-          return;
-        }
+  const unsubscribeRequest = window.desktop.loaderGrabber.onRequest(
+    (request) => {
+      requestChain = requestChain
+        .catch((error: unknown) => {
+          console.error("Loader grabber request chain failed:", error);
+        })
+        .then(async () => {
+          if (disposed) {
+            await respondLoaderGrabberRequest({
+              error: "Loader grabber bridge is disposed",
+              ok: false,
+              requestId: request.requestId,
+            });
+            return;
+          }
 
-        await handleRequest(request);
+          await handleRequest(request);
+        });
+      void requestChain.catch((error: unknown) => {
+        console.error("Loader grabber request handling failed:", error);
       });
-    void requestChain.catch((error: unknown) => {
-      console.error("Loader grabber request handling failed:", error);
-    });
-  });
+    },
+  );
 
   const dispose = (): void => {
     disposed = true;

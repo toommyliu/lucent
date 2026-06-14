@@ -1,21 +1,21 @@
 import { Effect, Scope } from "effect";
 import { WindowIpcContracts } from "../../../shared/ipc";
 import { WindowService } from "../../window/WindowService";
-import { MainIpc } from "../MainIpc";
+import { DesktopIpc } from "../DesktopIpc";
 import {
-  getSenderGameWindowIds,
+  getSenderGameWindow,
   getSenderWindowId,
   requireGameWindowSender,
   requireWindowOpenSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 
 export const registerWindowIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | Scope.Scope | WindowService
+  DesktopIpc | Scope.Scope | WindowService
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
+    const ipc = yield* DesktopIpc;
 
     yield* ipc.handleContract(WindowIpcContracts.open, (event, id) =>
       Effect.gen(function* () {
@@ -31,9 +31,9 @@ export const registerWindowIpcHandlers = (): Effect.Effect<
       (event) =>
         Effect.gen(function* () {
           yield* requireGameWindowSender(event.sender);
-          const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
+          const { gameWindow } = yield* getSenderGameWindow(event.sender);
           const windows = yield* WindowService;
-          yield* windows.requestCloseGameWindow(gameWindowId);
+          yield* windows.requestCloseGameWindow(gameWindow);
         }),
     );
   });

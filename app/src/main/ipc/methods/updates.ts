@@ -1,15 +1,15 @@
 import { Effect, Scope } from "effect";
 import { UpdatesIpcChannels } from "../../../shared/ipc";
-import { MainIpc } from "../MainIpc";
+import { DesktopIpc } from "../DesktopIpc";
 import { UpdateChecker } from "../../updates/Updates";
 
 export const registerUpdatesIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | Scope.Scope | UpdateChecker
+  DesktopIpc | Scope.Scope | UpdateChecker
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
+    const ipc = yield* DesktopIpc;
 
     yield* ipc.handle(UpdatesIpcChannels.getState, () =>
       Effect.gen(function* () {

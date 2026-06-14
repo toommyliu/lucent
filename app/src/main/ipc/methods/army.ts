@@ -16,18 +16,15 @@ import {
   type ArmyStatusPayload,
   type ArmyStatusResult,
 } from "../../../shared/ipc";
-import {
-  assertValidArmyConfigName,
-  type ArmyConfigPayload,
-} from "../../../shared/army";
-import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
-import { MainIpc } from "../MainIpc";
-import { getSenderWindow as getBrowserWindowForSender } from "../SenderAuthorization";
+import { type ArmyConfigPayload } from "../../../shared/army";
+import { DesktopIpc } from "../DesktopIpc";
+import { getSenderWindow as getBrowserWindowForSender } from "../DesktopIpcRequest";
 import { LoopTauntCoordinator } from "./LoopTauntCoordinator";
 import {
-  ArmyRuntimeService,
-  type ArmyRuntimeServiceShape,
-} from "../runtime/ArmyRuntimeService";
+  ArmyCoordinator,
+  type ArmyCoordinatorShape,
+} from "../../backend/army/ArmyCoordinator";
+import { ArmyConfigRepository } from "../../backend/army/ArmyConfigRepository";
 
 const ARMY_START_TIMEOUT_MS = 120_000;
 const ARMY_BARRIER_TIMEOUT_MS = 30 * 60_000;
@@ -116,11 +113,10 @@ const resolveSenderPlayerName = (
 
 const readArmyConfig = (
   configNameInput: string,
-): Effect.Effect<ArmyConfigPayload, Error, WorkspaceFiles> =>
+): Effect.Effect<ArmyConfigPayload, Error, ArmyConfigRepository> =>
   Effect.gen(function* () {
-    const configName = assertValidArmyConfigName(configNameInput);
-    const workspace = yield* WorkspaceFiles;
-    return yield* workspace.readArmyConfig(configName);
+    const repository = yield* ArmyConfigRepository;
+    return yield* repository.read(configNameInput);
   });
 
 const parseStartPayload = (payload: unknown): ArmyStartPayload => {
@@ -611,7 +607,7 @@ const armyBarrierKey = (step: number, label?: string): string =>
   JSON.stringify([step, label ?? ""]);
 
 const abortSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   reason: string,
 ): void => {
@@ -635,7 +631,7 @@ const abortSession = (
 };
 
 const abortWindowSessions = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   window: BrowserWindow,
   reason: string,
 ): void => {
@@ -645,7 +641,7 @@ const abortWindowSessions = (
 };
 
 const trackWindow = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   window: BrowserWindow,
 ): void => {
   if (!runtime.trackWindow(window)) {
@@ -661,7 +657,7 @@ const trackWindow = (
 };
 
 const attachWindow = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   window: BrowserWindow,
   playerName: string,
@@ -686,7 +682,7 @@ const attachWindow = (
 };
 
 const createSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   config: ArmyConfigPayload,
   leaderWindow: BrowserWindow,
   leaderName: string,
@@ -739,7 +735,7 @@ const createSession = (
 };
 
 const waitForLeaderSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   configName: string,
   senderWindow: BrowserWindow,
   playerName: string,
@@ -1077,11 +1073,11 @@ const waitAtProgress = (
 export const registerArmyIpcHandlers = (): Effect.Effect<
   void,
   never,
-  ArmyRuntimeService | MainIpc | Scope.Scope | WorkspaceFiles
+  ArmyConfigRepository | ArmyCoordinator | DesktopIpc | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const runtime = yield* ArmyRuntimeService;
+    const ipc = yield* DesktopIpc;
+    const runtime = yield* ArmyCoordinator;
 
     yield* ipc.handle(ArmyIpcChannels.loadConfig, (_event, fileName) => {
       if (typeof fileName !== "string") {

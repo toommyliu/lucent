@@ -6,3 +6,4 @@ app/.electron-runtime/
 .DS_Store
 .vscode/settings.json
 *.lock
+.repos

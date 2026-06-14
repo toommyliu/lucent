@@ -13,6 +13,7 @@ ignoredBuiltDependencies:
   - unrs-resolver
 
 allowBuilds:
+  core-js: true
   electron-winstaller: false
   esbuild: true
   msgpackr-extract: false

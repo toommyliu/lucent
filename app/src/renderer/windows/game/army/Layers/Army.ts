@@ -218,7 +218,7 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const username = yield* auth.getUsername();
       const session = yield* fromArmyIpc("Failed to start army", () =>
-        window.ipc.army.start({ configName, playerName: username }),
+        window.desktop.army.start({ configName, playerName: username }),
       );
 
       yield* SynchronizedRef.set(stateRef, {
@@ -239,7 +239,7 @@ const make = Effect.gen(function* () {
       yield* stopLoopTauntJobs();
       const session = state.session;
       yield* fromArmyIpc("Failed to leave army", () =>
-        window.ipc.army.leave({
+        window.desktop.army.leave({
           sessionId: session.sessionId,
           playerName: session.playerName,
         }),
@@ -292,7 +292,7 @@ const make = Effect.gen(function* () {
     },
   ) =>
     fromArmyIpc("Failed to synchronize army", () =>
-      window.ipc.army.barrier({
+      window.desktop.army.barrier({
         sessionId: session.sessionId,
         playerName: session.playerName,
         step,
@@ -316,7 +316,7 @@ const make = Effect.gen(function* () {
     },
   ) =>
     fromArmyIpc("Failed to synchronize army progress", () =>
-      window.ipc.army.progress({
+      window.desktop.army.progress({
         sessionId: session.sessionId,
         playerName: session.playerName,
         step,
@@ -750,12 +750,14 @@ const make = Effect.gen(function* () {
 
         const publishObservation = (
           payload: Omit<
-            Parameters<typeof window.ipc.army.publishLoopTauntObservation>[0],
+            Parameters<
+              typeof window.desktop.army.publishLoopTauntObservation
+            >[0],
             "id" | "playerName" | "sessionId" | "targetMonMapId"
           >,
         ) =>
           fromArmyIpc("Failed to publish loop taunt observation", () =>
-            window.ipc.army.publishLoopTauntObservation({
+            window.desktop.army.publishLoopTauntObservation({
               id: options.id,
               playerName: session.playerName,
               sessionId: session.sessionId,
@@ -846,7 +848,7 @@ const make = Effect.gen(function* () {
             pendingTauntFibers.add(fiber);
           });
 
-        const onCommand = window.ipc.army.onLoopTauntCommand((command) => {
+        const onCommand = window.desktop.army.onLoopTauntCommand((command) => {
           if (
             command.sessionId !== session.sessionId ||
             command.id !== options.id ||
@@ -1003,7 +1005,7 @@ const make = Effect.gen(function* () {
             );
             pendingTauntFibers.clear();
             yield* fromArmyIpc("Failed to stop coordinated loop taunt", () =>
-              window.ipc.army.stopLoopTaunt({
+              window.desktop.army.stopLoopTaunt({
                 id: options.id,
                 playerName: session.playerName,
                 sessionId: session.sessionId,
@@ -1024,7 +1026,7 @@ const make = Effect.gen(function* () {
         );
 
         yield* fromArmyIpc("Failed to start coordinated loop taunt", () =>
-          window.ipc.army.startLoopTaunt({
+          window.desktop.army.startLoopTaunt({
             aura: options.trigger.aura,
             delayMs: options.trigger.delayMs,
             id: options.id,

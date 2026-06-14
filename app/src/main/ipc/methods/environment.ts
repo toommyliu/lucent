@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   addEnvironmentBoost,
@@ -23,43 +23,29 @@ import { EnvironmentIpcChannels } from "../../../shared/ipc";
 import { WindowIds } from "../../../shared/windows";
 import {
   WindowManagerError,
+  WindowOperationError,
   WindowService,
+  type GameWindowRef,
   type WindowEffectRunner,
 } from "../../window/WindowService";
 import {
-  makeGameWindowRequestBroker,
-  type GameWindowRequestBroker,
-} from "../GameWindowRequestBroker";
-import { MainIpc } from "../MainIpc";
+  GameWindowClient,
+  type GameWindowClientShape,
+} from "../../window/GameWindowClient";
+import { DesktopIpc } from "../DesktopIpc";
 import {
+  getSenderGameWindow,
   getSenderGameWindowIds,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 import {
-  EnvironmentRuntimeService,
-  type EnvironmentRuntimeServiceShape,
-} from "../runtime/EnvironmentRuntimeService";
+  EnvironmentStateStore,
+  type EnvironmentStateStoreShape,
+} from "../../backend/environment/EnvironmentStateStore";
 
 type EnvironmentMutation = (state: EnvironmentState) => EnvironmentState;
 
 const FETCH_BOOSTS_TIMEOUT_MS = 3_000;
-
-const sendChanged = (
-  window: BrowserWindow | null,
-  senderWindowId: number | undefined,
-  state: EnvironmentState,
-): void => {
-  if (
-    !window ||
-    window.id === senderWindowId ||
-    window.isDestroyed() ||
-    window.webContents.isDestroyed()
-  ) {
-    return;
-  }
-
-  window.webContents.send(EnvironmentIpcChannels.changed, state);
-};
 
 const notifyEnvironmentChanged = (
   gameWindowId: number,
@@ -68,19 +54,27 @@ const notifyEnvironmentChanged = (
 ): Effect.Effect<void, never, WindowService> =>
   Effect.gen(function* () {
     const windows = yield* WindowService;
-    const gameWindow = yield* windows.getGameWindow(gameWindowId);
-    const environmentWindow = yield* windows.getGameChildWindow(
+    const gameWindow = yield* windows.getGameWindowRefById(gameWindowId);
+    const environmentWindow = yield* windows.getGameChildWindowRef(
       gameWindowId,
       WindowIds.Environment,
     );
 
-    sendChanged(gameWindow, senderWindowId, state);
-    sendChanged(environmentWindow, senderWindowId, state);
+    if (gameWindow && gameWindow.id !== senderWindowId) {
+      yield* windows
+        .sendToWindow(gameWindow, EnvironmentIpcChannels.changed, state)
+        .pipe(Effect.ignore);
+    }
+    if (environmentWindow && environmentWindow.windowId !== senderWindowId) {
+      yield* windows
+        .sendToWindow(environmentWindow, EnvironmentIpcChannels.changed, state)
+        .pipe(Effect.ignore);
+    }
   });
 
 const applyEnvironmentMutation = (
   event: IpcMainInvokeEvent,
-  runtime: EnvironmentRuntimeServiceShape,
+  runtime: EnvironmentStateStoreShape,
   mutation: EnvironmentMutation,
 ): Effect.Effect<EnvironmentState, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
@@ -97,10 +91,14 @@ const applyEnvironmentMutation = (
   });
 
 const fetchBoostsFromGameWindow = (
-  broker: GameWindowRequestBroker<readonly string[]>,
-  gameWindow: BrowserWindow,
-): Promise<readonly string[]> =>
-  broker.request({
+  gameClient: GameWindowClientShape,
+  gameWindow: GameWindowRef,
+): Effect.Effect<
+  readonly string[],
+  Error | WindowManagerError,
+  WindowService
+> =>
+  gameClient.request({
     target: gameWindow,
     requestChannel: EnvironmentIpcChannels.fetchBoostsRequest,
     timeoutMs: FETCH_BOOSTS_TIMEOUT_MS,
@@ -115,13 +113,12 @@ export const registerEnvironmentIpcHandlers = (
 ): Effect.Effect<
   void,
   never,
-  EnvironmentRuntimeService | MainIpc | Scope.Scope
+  EnvironmentStateStore | GameWindowClient | DesktopIpc | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const runtime: EnvironmentRuntimeServiceShape =
-      yield* EnvironmentRuntimeService;
-    const fetchBoostsBroker = makeGameWindowRequestBroker<readonly string[]>();
+    const ipc = yield* DesktopIpc;
+    const gameClient = yield* GameWindowClient;
+    const runtime: EnvironmentStateStoreShape = yield* EnvironmentStateStore;
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
@@ -136,8 +133,10 @@ export const registerEnvironmentIpcHandlers = (
               return;
             }
 
-            fetchBoostsBroker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               requestId,
+              gameWindow,
               Array.isArray(boosts) ? boosts.filter(isString) : [],
             );
           }),
@@ -278,19 +277,20 @@ export const registerEnvironmentIpcHandlers = (
         Effect.gen(function* () {
           const { gameWindowId } = yield* getSenderGameWindowIds(event.sender);
           const windows = yield* WindowService;
-          const gameWindow = yield* windows.getGameWindow(gameWindowId);
+          const gameWindow = yield* windows.getGameWindowRefById(gameWindowId);
           if (!gameWindow) {
             return [];
           }
 
-          return yield* Effect.tryPromise({
-            try: () => fetchBoostsFromGameWindow(fetchBoostsBroker, gameWindow),
-            catch: (cause) =>
-              new WindowManagerError({
-                message: "Failed to fetch environment boosts",
-                cause,
-              }),
-          });
+          return yield* fetchBoostsFromGameWindow(gameClient, gameWindow).pipe(
+            Effect.mapError(
+              (cause) =>
+                new WindowOperationError({
+                  message: "Failed to fetch environment boosts",
+                  cause,
+                }),
+            ),
+          );
         }),
       ),
     );
@@ -302,12 +302,12 @@ export const registerEnvironmentIpcHandlers = (
             yield* getSenderGameWindowIds(event.sender);
           const state = runtime.getWindowState(sourceGameWindowId);
           const windows = yield* WindowService;
-          const gameWindowIds = yield* windows.getGameWindowIds();
+          const gameWindows = yield* windows.getGameWindowRefs();
 
-          for (const gameWindowId of gameWindowIds) {
-            runtime.setWindowState(gameWindowId, state);
+          for (const gameWindow of gameWindows) {
+            runtime.setWindowState(gameWindow.id, state);
             yield* notifyEnvironmentChanged(
-              gameWindowId,
+              gameWindow.id,
               senderWindowId,
               state,
             );
@@ -316,12 +316,6 @@ export const registerEnvironmentIpcHandlers = (
           return state;
         }),
       ),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        fetchBoostsBroker.rejectAll(new Error("Environment IPC scope closed"));
-      }),
     );
   });
 

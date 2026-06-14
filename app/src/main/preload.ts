@@ -1,13 +1,20 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { Effect } from "effect";
 import {
   applyAppearanceSnapshotToDocument,
   readAppearanceSnapshotArgument,
 } from "../shared/appearance-snapshot";
 import { readSettingsSnapshotArgument } from "../shared/settings-snapshot";
-import { readPreloadWindowContextArgument } from "../shared/window-startup-context";
 import {
+  readPreloadWindowContextArgument,
+  type PreloadWindowContext,
+} from "../shared/window-startup-context";
+import {
+  type AccountManagerDesktopWindowBridge,
   AccountManagerIpcChannels,
   ArmyIpcChannels,
+  type BaseDesktopWindowBridge,
+  type BaseWindowsBridge,
   CombatProfilesIpcChannels,
   EnvironmentIpcChannels,
   FastTravelsIpcContracts,
@@ -30,7 +37,9 @@ import {
   type AccountLaunchResult,
   type AccountManagerState,
   type AccountScriptStatusUpdate,
-  type AppBridge,
+  type DesktopBridge,
+  type DesktopIpcInvokeContract,
+  type GameDesktopWindowBridge,
   type ArmyBarrierPayload,
   type ArmyConfigPayload,
   type ArmyLeavePayload,
@@ -82,10 +91,12 @@ import {
   type PacketSendPayload,
   type PreferencesPatch,
   type ScriptExecutePayload,
+  type ScopedDesktopBridge,
+  type ToolDesktopWindowBridge,
   type UpdateCheckState,
+  type WindowsBridge,
 } from "../shared/ipc";
-import type { WindowId } from "../shared/windows";
-import { selectScopedBridge } from "./preloadBridge";
+import { WindowIds, type WindowId } from "../shared/windows";
 
 const applyInitialAppearanceSnapshot = (): void => {
   const snapshot = readAppearanceSnapshotArgument(process.argv);
@@ -194,10 +205,19 @@ const invokeContract = async <Args extends readonly unknown[], Return>(
   contract: IpcInvokeContract<Args, Return>,
   ...args: Args
 ): Promise<Return> => {
-  const parsedArgs = contract.parseArgs(args);
-  return contract.parseReturn(
-    await ipcRenderer.invoke(contract.channel, ...parsedArgs),
-  );
+  const desktopContract =
+    "decodeArgsEffect" in contract && "decodeReturnEffect" in contract
+      ? (contract as DesktopIpcInvokeContract<Args, Return>)
+      : null;
+  const parsedArgs =
+    desktopContract === null
+      ? contract.parseArgs(args)
+      : await Effect.runPromise(desktopContract.decodeArgsEffect(args));
+  const result = await ipcRenderer.invoke(contract.channel, ...parsedArgs);
+
+  return desktopContract === null
+    ? contract.parseReturn(result)
+    : await Effect.runPromise(desktopContract.decodeReturnEffect(result));
 };
 
 const deliverAccountGameLaunchPayload = (
@@ -404,7 +424,7 @@ ipcRenderer.on(
   },
 );
 
-const fullBridge: AppBridge = {
+const fullBridge: DesktopBridge = {
   accounts: {
     getState: async () => {
       return (await ipcRenderer.invoke(
@@ -1092,6 +1112,104 @@ const fullBridge: AppBridge = {
   },
 };
 
+interface PreloadBridgeParts extends Omit<DesktopBridge, "windows"> {
+  readonly baseWindows: BaseWindowsBridge;
+  readonly gameWindows: WindowsBridge;
+}
+
+const makeBaseBridge = (
+  parts: PreloadBridgeParts,
+): BaseDesktopWindowBridge => ({
+  observability: parts.observability,
+  platform: parts.platform,
+  settings: parts.settings,
+  updates: parts.updates,
+  windows: parts.baseWindows,
+});
+
+const makeGameBridge = (
+  parts: PreloadBridgeParts,
+): GameDesktopWindowBridge => ({
+  ...makeBaseBridge(parts),
+  accounts: parts.accounts,
+  army: parts.army,
+  combatProfiles: parts.combatProfiles,
+  environment: parts.environment,
+  fastTravels: parts.fastTravels,
+  follower: parts.follower,
+  loaderGrabber: parts.loaderGrabber,
+  packets: parts.packets,
+  scripting: parts.scripting,
+  windows: parts.gameWindows,
+});
+
+const makeAccountManagerBridge = (
+  parts: PreloadBridgeParts,
+): AccountManagerDesktopWindowBridge => ({
+  ...makeBaseBridge(parts),
+  accounts: parts.accounts,
+  scripting: parts.scripting,
+});
+
+const selectScopedBridge = (
+  context: PreloadWindowContext | null,
+  parts: PreloadBridgeParts,
+): ScopedDesktopBridge => {
+  const base = makeBaseBridge(parts);
+  if (context === null) {
+    return base;
+  }
+
+  if (context.kind === "game") {
+    return makeGameBridge(parts);
+  }
+
+  if (context.kind === "app") {
+    if (context.id === WindowIds.AccountManager) {
+      return makeAccountManagerBridge(parts);
+    }
+
+    return base;
+  }
+
+  switch (context.id) {
+    case WindowIds.Environment:
+      return {
+        ...base,
+        environment: parts.environment,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.Environment>;
+    case WindowIds.FastTravels:
+      return {
+        ...base,
+        fastTravels: parts.fastTravels,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.FastTravels>;
+    case WindowIds.Follower:
+      return {
+        ...base,
+        combatProfiles: parts.combatProfiles,
+        follower: parts.follower,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.Follower>;
+    case WindowIds.LoaderGrabber:
+      return {
+        ...base,
+        loaderGrabber: parts.loaderGrabber,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.LoaderGrabber>;
+    case WindowIds.Packets:
+      return {
+        ...base,
+        packets: parts.packets,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.Packets>;
+    case WindowIds.Skills:
+      return {
+        ...base,
+        combatProfiles: parts.combatProfiles,
+      } satisfies ToolDesktopWindowBridge<typeof WindowIds.Skills>;
+    case WindowIds.AccountManager:
+    case WindowIds.Settings:
+      return base;
+  }
+};
+
 const startupContext = readPreloadWindowContextArgument(process.argv);
 if (startupContext === null) {
   writePreloadError("Failed to parse preload window startup context", null);
@@ -1105,4 +1223,4 @@ const bridge = selectScopedBridge(startupContext, {
   gameWindows: fullBridge.windows,
 });
 
-contextBridge.exposeInMainWorld("ipc", bridge);
+contextBridge.exposeInMainWorld("desktop", bridge);

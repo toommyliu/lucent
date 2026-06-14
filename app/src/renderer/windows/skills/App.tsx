@@ -248,21 +248,23 @@ function App(): JSX.Element {
   });
 
   onMount(() => {
-    const unsubscribe = window.ipc.combatProfiles.onChanged((nextLibrary) => {
-      setLibrary(nextLibrary);
-      if (
-        !nextLibrary.profiles.some((profile) => profile.id === selectedId())
-      ) {
-        selectProfile(
-          getPreferredCombatProfileId(
-            nextLibrary.profiles,
-            readStoredId(selectedProfileStorageKey),
-          ),
-        );
-      }
-    });
+    const unsubscribe = window.desktop.combatProfiles.onChanged(
+      (nextLibrary) => {
+        setLibrary(nextLibrary);
+        if (
+          !nextLibrary.profiles.some((profile) => profile.id === selectedId())
+        ) {
+          selectProfile(
+            getPreferredCombatProfileId(
+              nextLibrary.profiles,
+              readStoredId(selectedProfileStorageKey),
+            ),
+          );
+        }
+      },
+    );
 
-    void window.ipc.combatProfiles
+    void window.desktop.combatProfiles
       .getState()
       .then((nextLibrary) => {
         setLibrary(nextLibrary);
@@ -349,7 +351,7 @@ function App(): JSX.Element {
       return;
     }
 
-    await runUpdate(window.ipc.combatProfiles.saveProfile(profile));
+    await runUpdate(window.desktop.combatProfiles.saveProfile(profile));
   };
 
   const createProfile = async (): Promise<void> => {
@@ -375,7 +377,7 @@ function App(): JSX.Element {
     };
 
     const saved = await runUpdate(
-      window.ipc.combatProfiles.saveProfile(profile),
+      window.desktop.combatProfiles.saveProfile(profile),
     );
     if (saved) {
       selectProfile(id);
@@ -393,7 +395,7 @@ function App(): JSX.Element {
     }
 
     const deleted = await runUpdate(
-      window.ipc.combatProfiles.deleteProfile(profile.id),
+      window.desktop.combatProfiles.deleteProfile(profile.id),
     );
     if (deleted) {
       selectProfile(getPreferredCombatProfileId(library().profiles, undefined));

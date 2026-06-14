@@ -919,7 +919,7 @@ export default function App(props: {
     };
 
   const openWindow = (id: WindowId) => {
-    void window.ipc.windows.open(id).catch((error: unknown) => {
+    void window.desktop.windows.open(id).catch((error: unknown) => {
       console.error(`Failed to open window ${id}:`, error);
     });
   };
@@ -933,7 +933,7 @@ export default function App(props: {
     const nextScriptName =
       scriptNameOverride ?? payload.script?.name ?? payload.script?.path;
     try {
-      await window.ipc.accounts.updateScriptStatus({
+      await window.desktop.accounts.updateScriptStatus({
         username: payload.account.username,
         gameWindowId: payload.gameWindowId,
         status,
@@ -1297,7 +1297,7 @@ export default function App(props: {
 
   const loadScript = async () => {
     try {
-      const payload = await window.ipc.scripting.openFile();
+      const payload = await window.desktop.scripting.openFile();
       if (!payload) {
         setScriptStatus("Open script cancelled");
         return;
@@ -1845,7 +1845,7 @@ export default function App(props: {
       )
       .then((state) => {
         setFollowerEnabled(state.enabled || state.running);
-        void window.ipc.follower.publishState(state).catch((error) => {
+        void window.desktop.follower.publishState(state).catch((error) => {
           console.error("Follower state publish error:", error);
         });
       })
@@ -1858,7 +1858,7 @@ export default function App(props: {
     mode: CombatProfileAutoAttackMode,
     selectedProfileId?: string,
   ) => {
-    void window.ipc.combatProfiles
+    void window.desktop.combatProfiles
       .setAutoAttack(
         mode === "selected" && selectedProfileId
           ? { mode, selectedProfileId }
@@ -2195,7 +2195,7 @@ export default function App(props: {
           return yield* follower.getState();
         }),
       )
-      .then((state) => window.ipc.follower.publishState(state))
+      .then((state) => window.desktop.follower.publishState(state))
       .catch((error: unknown) => {
         console.error("Failed to publish follower state:", error);
       });
@@ -2246,7 +2246,7 @@ export default function App(props: {
       | { readonly ok: true }
       | { readonly ok: false; readonly error: string },
   ) =>
-    window.ipc.fastTravels.respond({
+    window.desktop.fastTravels.respond({
       requestId,
       ...response,
     });
@@ -2322,17 +2322,17 @@ export default function App(props: {
     });
 
     const unsubscribeAppSettings =
-      window.ipc.settings.onChanged(applyAppSettings);
+      window.desktop.settings.onChanged(applyAppSettings);
     const unsubscribeAccountLaunch =
-      window.ipc.accounts.onGameLaunch(handleAccountLaunch);
+      window.desktop.accounts.onGameLaunch(handleAccountLaunch);
     const unsubscribeGameWindowShutdown =
-      window.ipc.accounts.onGameWindowShutdownRequest(
+      window.desktop.accounts.onGameWindowShutdownRequest(
         handleAccountGameWindowShutdownRequest,
       );
-    const unsubscribeCombatProfiles = window.ipc.combatProfiles.onChanged(
+    const unsubscribeCombatProfiles = window.desktop.combatProfiles.onChanged(
       applyCombatProfileLibrary,
     );
-    const unsubscribeScriptExecute = window.ipc.scripting.onExecute(
+    const unsubscribeScriptExecute = window.desktop.scripting.onExecute(
       (payload) => {
         void applyScriptPayload(payload)
           .then((name) => {
@@ -2346,20 +2346,20 @@ export default function App(props: {
           });
       },
     );
-    const unsubscribeScriptStop = window.ipc.scripting.onStop(() => {
+    const unsubscribeScriptStop = window.desktop.scripting.onStop(() => {
       setScriptRunning(false);
       setScriptStatus("Stop requested");
       void refreshScriptMeta();
     });
     const unsubscribeFollowerGetState =
-      window.ipc.follower.onGetStateRequest(getFollowerState);
+      window.desktop.follower.onGetStateRequest(getFollowerState);
     const unsubscribeFollowerMe =
-      window.ipc.follower.onMeRequest(getFollowerMe);
+      window.desktop.follower.onMeRequest(getFollowerMe);
     const unsubscribeFollowerStart =
-      window.ipc.follower.onStartRequest(startFollower);
+      window.desktop.follower.onStartRequest(startFollower);
     const unsubscribeFollowerStop =
-      window.ipc.follower.onStopRequest(stopFollower);
-    const unsubscribeFastTravels = window.ipc.fastTravels.onRequest(
+      window.desktop.follower.onStopRequest(stopFollower);
+    const unsubscribeFastTravels = window.desktop.fastTravels.onRequest(
       handleFastTravelRequest,
     );
     const packetsBridge = installPacketsBridge(runtime);
@@ -2368,7 +2368,7 @@ export default function App(props: {
     let followerStateDisposer: (() => void) | undefined;
 
     if (props.initialSettings === undefined || props.initialSettings === null) {
-      void window.ipc.settings
+      void window.desktop.settings
         .get()
         .then(applyAppSettings)
         .catch((error) => {
@@ -2376,7 +2376,7 @@ export default function App(props: {
         });
     }
 
-    void window.ipc.combatProfiles
+    void window.desktop.combatProfiles
       .getState()
       .then(applyCombatProfileLibrary)
       .catch((error) => {
@@ -2475,7 +2475,7 @@ export default function App(props: {
           const follower = yield* Follower;
           return yield* follower.onState((state) => {
             setFollowerEnabled(state.enabled || state.running);
-            void window.ipc.follower.publishState(state).catch((error) => {
+            void window.desktop.follower.publishState(state).catch((error) => {
               console.error("Follower state publish error:", error);
             });
           });
@@ -2533,7 +2533,7 @@ export default function App(props: {
 
   const topNavOptionsMenuProps: TopNavOptionsMenuContentProps = {
     hotkeyBindings: () => settings().hotkeys.bindings,
-    hotkeyPlatform: window.ipc.platform.os,
+    hotkeyPlatform: window.desktop.platform.os,
     optionItems,
     gameLoaded,
     playerReady,
@@ -2583,7 +2583,7 @@ export default function App(props: {
                       aria-label="Open script file"
                       class="game-script-error-dialog__open-source"
                       onClick={() => {
-                        void window.ipc.scripting
+                        void window.desktop.scripting
                           .openPath(path())
                           .catch((error) => {
                             console.error("Failed to open script file", error);

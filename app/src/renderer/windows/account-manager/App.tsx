@@ -566,61 +566,61 @@ function App(): JSX.Element {
     () => selectedGroupName() || "Manual selection",
   );
   const newAccountHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, window.desktop.platform.os),
   );
   const newAccountHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, window.desktop.platform.os),
   );
   const loginServerHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, window.desktop.platform.os),
   );
   const loginServerHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, window.desktop.platform.os),
   );
   const selectScriptHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, window.desktop.platform.os),
   );
   const selectScriptHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, window.desktop.platform.os),
   );
   const toggleLaunchWithScriptHotkeyDisplay = createMemo(() =>
     formatHotkeyDisplay(
       TOGGLE_LAUNCH_WITH_SCRIPT_HOTKEY,
-      window.ipc.platform.os,
+      window.desktop.platform.os,
     ),
   );
   const toggleLaunchWithScriptHotkeyDisplayParts = createMemo(() =>
     formatHotkeyDisplayParts(
       TOGGLE_LAUNCH_WITH_SCRIPT_HOTKEY,
-      window.ipc.platform.os,
+      window.desktop.platform.os,
     ),
   );
   const launchTilingHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LAUNCH_TILING_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplay(LAUNCH_TILING_HOTKEY, window.desktop.platform.os),
   );
   const launchTilingHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LAUNCH_TILING_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplayParts(LAUNCH_TILING_HOTKEY, window.desktop.platform.os),
   );
   const startSelectedHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(START_SELECTED_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplay(START_SELECTED_HOTKEY, window.desktop.platform.os),
   );
   const startSelectedHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, window.ipc.platform.os),
+    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, window.desktop.platform.os),
   );
   const toggleVisibleSelectionHotkeyDisplay = createMemo(() =>
     formatHotkeyDisplay(
       TOGGLE_VISIBLE_SELECTION_HOTKEY,
-      window.ipc.platform.os,
+      window.desktop.platform.os,
     ),
   );
   const toggleVisibleSelectionHotkeyDisplayParts = createMemo(() =>
     formatHotkeyDisplayParts(
       TOGGLE_VISIBLE_SELECTION_HOTKEY,
-      window.ipc.platform.os,
+      window.desktop.platform.os,
     ),
   );
   const modAriaKey = createMemo(() =>
-    window.ipc.platform.os === "mac" ? "Meta" : "Control",
+    window.desktop.platform.os === "mac" ? "Meta" : "Control",
   );
   const newAccountAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+N`);
   const loginServerAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+L`);
@@ -985,8 +985,8 @@ function App(): JSX.Element {
     setServerError("");
     try {
       const nextServers = options?.refresh
-        ? await window.ipc.accounts.refreshServers()
-        : await window.ipc.accounts.getServers();
+        ? await window.desktop.accounts.refreshServers()
+        : await window.desktop.accounts.getServers();
       setServerRefreshCooldownUntil(nextServers.refreshAvailableAt);
       setServers(nextServers.servers);
       if (!serverSelectionInitialized()) {
@@ -1158,8 +1158,11 @@ function App(): JSX.Element {
     try {
       const nextState =
         currentGroupName === null
-          ? await window.ipc.accounts.createGroup(payload)
-          : await window.ipc.accounts.updateGroup(currentGroupName, payload);
+          ? await window.desktop.accounts.createGroup(payload)
+          : await window.desktop.accounts.updateGroup(
+              currentGroupName,
+              payload,
+            );
 
       applyState(nextState);
       setGroupDialogOpen(false);
@@ -1183,7 +1186,7 @@ function App(): JSX.Element {
     setBusy(true);
     setGroupDialogError("");
     try {
-      const nextState = await window.ipc.accounts.deleteGroup(groupName);
+      const nextState = await window.desktop.accounts.deleteGroup(groupName);
       applyState(nextState);
       setSelectedGroupName("");
       setGroupDialogOpen(false);
@@ -1208,11 +1211,11 @@ function App(): JSX.Element {
     setDialogError("");
     try {
       const nextState = currentEditingUsername
-        ? await window.ipc.accounts.updateAccount(
+        ? await window.desktop.accounts.updateAccount(
             currentEditingUsername,
             payload,
           )
-        : await window.ipc.accounts.createAccount(payload);
+        : await window.desktop.accounts.createAccount(payload);
 
       applyState(nextState);
       if (options.closeAfterSave || currentEditingUsername) {
@@ -1235,7 +1238,7 @@ function App(): JSX.Element {
     try {
       let nextState = state();
       for (const username of usernames) {
-        nextState = await window.ipc.accounts.deleteAccount(username);
+        nextState = await window.desktop.accounts.deleteAccount(username);
       }
       applyState(nextState);
       setSelectedAccountUsernames((previous) => {
@@ -1284,7 +1287,7 @@ function App(): JSX.Element {
     try {
       for (const [index, username] of usernames.entries()) {
         try {
-          await window.ipc.accounts.launch({
+          await window.desktop.accounts.launch({
             username,
             script,
             ...(server === "" ? {} : { server }),
@@ -1327,7 +1330,7 @@ function App(): JSX.Element {
     }
 
     try {
-      const nextState = await window.ipc.accounts.focusGameWindow({
+      const nextState = await window.desktop.accounts.focusGameWindow({
         gameWindowId,
       });
       applyState(nextState);
@@ -1347,7 +1350,7 @@ function App(): JSX.Element {
     setClosingGameWindowIds((previous) => new Set(previous).add(gameWindowId));
     let closeAccepted = false;
     try {
-      const nextState = await window.ipc.accounts.closeGameWindow({
+      const nextState = await window.desktop.accounts.closeGameWindow({
         gameWindowId,
       });
       closeAccepted = true;
@@ -1369,7 +1372,7 @@ function App(): JSX.Element {
     setBusy(true);
     setScriptError("");
     try {
-      const payload = await window.ipc.scripting.openFile();
+      const payload = await window.desktop.scripting.openFile();
       if (!payload) {
         return;
       }
@@ -1454,12 +1457,12 @@ function App(): JSX.Element {
   };
 
   onMount(() => {
-    const unsubscribe = window.ipc.accounts.onChanged(applyState);
+    const unsubscribe = window.desktop.accounts.onChanged(applyState);
     const refreshCooldownTimer = window.setInterval(() => {
       setServerRefreshNow(Date.now());
     }, 1_000);
 
-    void window.ipc.accounts
+    void window.desktop.accounts
       .getState()
       .then(async (nextState) => {
         applyState(nextState);

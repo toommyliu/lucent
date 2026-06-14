@@ -266,7 +266,7 @@ function App(): JSX.Element {
         id: loaderId(),
         type: loaderType(),
       });
-      await window.ipc.loaderGrabber.load(request);
+      await window.desktop.loaderGrabber.load(request);
     } catch (cause) {
       setOperationError("Load failed", cause);
     } finally {
@@ -283,7 +283,7 @@ function App(): JSX.Element {
       const request = normalizeLoaderGrabberGrabRequest({
         type: grabberType(),
       });
-      const data = await window.ipc.loaderGrabber.grab(request);
+      const data = await window.desktop.loaderGrabber.grab(request);
       setGrabbedType(request.type);
       setGrabbedData(data);
       setExpandedNodeIds(new Set<string>());

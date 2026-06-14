@@ -1245,7 +1245,7 @@ function SettingsApp(props: {
 
   onMount(() => {
     if (props.initialSettings === null) {
-      void window.ipc.settings
+      void window.desktop.settings
         .get()
         .then(setSettings)
         .catch((cause: unknown) => {
@@ -1256,7 +1256,7 @@ function SettingsApp(props: {
         });
     }
 
-    const unsubscribe = window.ipc.settings.onChanged(setSettings);
+    const unsubscribe = window.desktop.settings.onChanged(setSettings);
     onCleanup(unsubscribe);
   });
 
@@ -1295,7 +1295,7 @@ function SettingsApp(props: {
                 <GeneralSettings
                   onPreferencesPatch={(patch) =>
                     void runSettingsUpdate(
-                      window.ipc.settings.updatePreferences(patch),
+                      window.desktop.settings.updatePreferences(patch),
                     )
                   }
                   settings={settings()}
@@ -1304,10 +1304,12 @@ function SettingsApp(props: {
               <TabsContent value="hotkeys">
                 <HotkeySettingsSection
                   onHotkeysPatch={(patch) =>
-                    runSettingsUpdate(window.ipc.settings.updateHotkeys(patch))
+                    runSettingsUpdate(
+                      window.desktop.settings.updateHotkeys(patch),
+                    )
                   }
                   onResetHotkeys={() =>
-                    runSettingsUpdate(window.ipc.settings.resetHotkeys())
+                    runSettingsUpdate(window.desktop.settings.resetHotkeys())
                   }
                   platform={props.platform}
                   settings={settings()}
@@ -1317,7 +1319,7 @@ function SettingsApp(props: {
                 <AppearanceSettings
                   onAppearancePatch={(patch) =>
                     void runSettingsUpdate(
-                      window.ipc.settings.updateAppearance(patch),
+                      window.desktop.settings.updateAppearance(patch),
                     )
                   }
                   settings={settings()}
