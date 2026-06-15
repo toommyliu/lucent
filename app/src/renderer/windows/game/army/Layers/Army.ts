@@ -425,7 +425,7 @@ const make = Effect.gen(function* () {
           Effect.gen(function* () {
             for (const armyPlayer of session.players) {
               const match = yield* world.players.getByName(armyPlayer);
-              if (match._tag === "None") {
+              if (Option.isNone(match)) {
                 return false;
               }
             }
