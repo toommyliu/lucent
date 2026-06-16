@@ -548,6 +548,7 @@ const make = Effect.gen(function* () {
       const resolved = yield* resolveItem(item, resolveItems);
       if (resolved !== undefined) {
         yield* inventory.equip(resolved).pipe(Effect.asVoid);
+        yield* Effect.sleep("500 millis");
       }
     });
 
