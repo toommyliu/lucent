@@ -18,22 +18,23 @@ import {
   type ArmyShape,
 } from "../Services/Army";
 import {
-  DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS,
-  DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS,
   LOOP_TAUNT_ACTION_LOCK_AURA_CATEGORIES,
-  matchesLoopTauntAuraAdd,
-  matchesLoopTauntAura,
+  LOOP_TAUNT_FOCUS_AURA_NAME,
+  LOOP_TAUNT_SCROLL_SKILL,
+  matchesLoopTauntFocusAura,
+  matchesLoopTauntFocusAuraAdd,
   matchesLoopTauntMessage,
   normalizeLoopTauntOptions,
   resolveTargetMonMapIdToken,
   type ArmyLoopTauntHandle,
   type ArmyLoopTauntTurnContext,
   type LoopTauntCastOutcome,
-  type LoopTauntTurnResolution,
-  type LoopTauntTurnState,
   type NormalizedLoopTauntOptions,
-  type ResolvedArmyPlayer,
 } from "../LoopTaunt";
+import type {
+  ArmyLoopTauntCommandPayload,
+  ArmyLoopTauntIneligibleReason,
+} from "../../../../../shared/army";
 import { Auth } from "../../flash/Services/Auth";
 import { Combat } from "../../flash/Services/Combat";
 import { Drops } from "../../flash/Services/Drops";
@@ -67,7 +68,6 @@ const WAIT_FOR_GROUP_ANTI_AFK_DELAY = "1500 millis";
 const WAIT_FOR_GROUP_ANTI_AFK_INTERVAL = "30 seconds";
 const LOOP_TAUNT_RESOLVE_INTERVAL = "250 millis";
 const LOOP_TAUNT_TARGET_SELECTION_TIMEOUT = "10 seconds";
-const LOOP_TAUNT_COMMAND_DEDUPE_EPOCHS = 8;
 const LOOP_TAUNT_ACTION_LOCK_CATEGORY_SET = new Set<string>(
   LOOP_TAUNT_ACTION_LOCK_AURA_CATEGORIES,
 );
@@ -609,23 +609,6 @@ const make = Effect.gen(function* () {
       }),
     ).pipe(Effect.asVoid);
 
-  const resolveLoopTauntTarget = (
-    options: Pick<NormalizedLoopTauntOptions, "target">,
-  ) =>
-    Effect.gen(function* () {
-      const tokenMonMapId = resolveTargetMonMapIdToken(options.target);
-      if (tokenMonMapId !== undefined) {
-        return tokenMonMapId;
-      }
-
-      if (typeof options.target !== "string") {
-        return undefined;
-      }
-
-      const monster = yield* world.monsters.findByName(options.target);
-      return Option.isSome(monster) ? monster.value.monMapId : undefined;
-    });
-
   const resolveExistingLoopTauntTarget = (
     options: Pick<NormalizedLoopTauntOptions, "target">,
   ) =>
@@ -718,26 +701,23 @@ const make = Effect.gen(function* () {
       return monMapId;
     });
 
-  const runMainCoordinatedAuraLoopTaunt = (
+  const runCoordinatedLoopTaunt = (
     session: ArmySession,
-    options: NormalizedLoopTauntOptions & {
-      readonly trigger: Extract<
-        NormalizedLoopTauntOptions["trigger"],
-        { type: "aura" }
-      >;
-    },
-    initialTargetMonMapId: number,
+    options: NormalizedLoopTauntOptions,
+    targetMonMapId: number,
     armedStep: number,
     armed: Deferred.Deferred<void, ArmyError>,
   ) =>
     Effect.scoped(
       Effect.gen(function* () {
-        let targetMonMapId = initialTargetMonMapId;
         let armedComplete = false;
-        let initialAuraCheckComplete = false;
         let tauntInFlight = false;
-        let latestCommandEpoch = 0;
-        const handledCommandAttempts = new Map<number, Set<number>>();
+        let activeTurn:
+          | Pick<
+              Extract<ArmyLoopTauntCommandPayload, { type: "turn" }>,
+              "attempt" | "epoch"
+            >
+          | undefined;
         const pendingTauntFibers = new Set<ReturnType<typeof runFork>>();
 
         const log = (message: string, details?: Record<string, unknown>) =>
@@ -765,6 +745,39 @@ const make = Effect.gen(function* () {
               ...payload,
             }),
           ).pipe(Effect.asVoid);
+
+        const publishFocusActive = (auraName: string, auraIcon?: string) =>
+          publishObservation({
+            ...(activeTurn === undefined ? null : activeTurn),
+            ...(auraIcon === undefined ? null : { auraIcon }),
+            auraName,
+            type: "focus-active",
+          }).pipe(Effect.ignore);
+
+        const publishTrigger = (
+          triggerReason: "focus-missing" | "focus-removed" | "message-matched",
+          details?: {
+            readonly auraName?: string;
+            readonly message?: string;
+          },
+        ) =>
+          publishObservation({
+            ...details,
+            triggerReason,
+            type: "trigger",
+          }).pipe(Effect.ignore);
+
+        const publishIneligible = (
+          command: Extract<ArmyLoopTauntCommandPayload, { type: "turn" }>,
+          reason: ArmyLoopTauntIneligibleReason,
+        ) =>
+          publishObservation({
+            attempt: command.attempt,
+            eligible: false,
+            epoch: command.epoch,
+            reason,
+            type: "turn-result",
+          });
 
         const taunt = (monMapId: number): Effect.Effect<LoopTauntCastOutcome> =>
           Effect.gen(function* () {
@@ -810,10 +823,10 @@ const make = Effect.gen(function* () {
 
               yield* log("Loop Taunt casting", {
                 monMapId,
-                skill: options.skill,
+                skill: LOOP_TAUNT_SCROLL_SKILL,
               });
               yield* combat.attackMonster(monMapId);
-              yield* combat.useSkill(options.skill, true, true);
+              yield* combat.useSkill(LOOP_TAUNT_SCROLL_SKILL, true, true);
               return { type: "cast" } as const;
             } finally {
               tauntInFlight = false;
@@ -848,51 +861,140 @@ const make = Effect.gen(function* () {
             pendingTauntFibers.add(fiber);
           });
 
+        const localPlayer = {
+          name: session.playerName,
+          number: session.playerNumber,
+        };
+
+        const readonlyWorld: ArmyLoopTauntTurnContext["world"] = {
+          monsters: {
+            get: world.monsters.get,
+            getAura: world.monsters.getAura,
+          },
+          players: {
+            getAll: world.players.getAll,
+            getAura: world.players.getAura,
+            getAuras: world.players.getAuras,
+            getByName: world.players.getByName,
+          },
+        };
+
+        const evaluateShouldTaunt = (
+          command: Extract<ArmyLoopTauntCommandPayload, { type: "turn" }>,
+        ): Effect.Effect<boolean> =>
+          Effect.gen(function* () {
+            if (options.shouldTaunt === undefined) {
+              return true;
+            }
+
+            const result = options.shouldTaunt({
+              id: options.id,
+              localPlayer,
+              participants: options.participants,
+              target: {
+                monMapId: command.targetMonMapId,
+                token: options.target,
+              },
+              trigger: options.trigger,
+              turn: {
+                attempt: command.attempt,
+                epoch: command.epoch,
+              },
+              world: readonlyWorld,
+            });
+            return yield* Effect.isEffect(result)
+              ? (result as Effect.Effect<boolean, unknown>)
+              : Effect.succeed(result === true);
+          }).pipe(
+            Effect.map((result) => result === true),
+            Effect.catchCause((cause) =>
+              Effect.gen(function* () {
+                yield* Effect.logError({
+                  cause,
+                  id: options.id,
+                  message: "Loop Taunt shouldTaunt failed",
+                });
+                return false;
+              }),
+            ),
+          );
+
+        const reportTurn = (
+          command: Extract<ArmyLoopTauntCommandPayload, { type: "turn" }>,
+        ) =>
+          Effect.gen(function* () {
+            const ready = yield* player
+              .isReady()
+              .pipe(Effect.catchCause(() => Effect.succeed(false)));
+            if (!ready) {
+              yield* publishIneligible(command, "not-ready");
+              return;
+            }
+
+            const alive = yield* player
+              .isAlive()
+              .pipe(Effect.catchCause(() => Effect.succeed(false)));
+            if (!alive) {
+              yield* publishIneligible(command, "not-alive");
+              return;
+            }
+
+            const actionLockCategory = yield* readPlayerActionLockCategory(
+              world,
+              session.playerName,
+            );
+            if (actionLockCategory !== undefined) {
+              yield* publishIneligible(command, "not-usable");
+              return;
+            }
+
+            const shouldTaunt = yield* evaluateShouldTaunt(command);
+            if (!shouldTaunt) {
+              yield* publishIneligible(command, "should-taunt-false");
+              return;
+            }
+
+            const outcome = yield* taunt(command.targetMonMapId);
+            yield* publishObservation({
+              attempt: command.attempt,
+              eligible: true,
+              epoch: command.epoch,
+              outcome: outcome.type === "cast" ? "cast" : "skipped",
+              ...(outcome.type === "skipped"
+                ? { reason: outcome.reason }
+                : null),
+              type: "turn-result",
+            });
+          });
+
         const onCommand = window.desktop.army.onLoopTauntCommand((command) => {
           if (
             command.sessionId !== session.sessionId ||
-            command.id !== options.id ||
+            command.id !== options.id
+          ) {
+            return;
+          }
+
+          if (command.type === "stop") {
+            runFork(jobs.stop(loopTauntJobKey(options.id)).pipe(Effect.asVoid));
+            return;
+          }
+
+          if (
             command.targetMonMapId !== targetMonMapId ||
             command.selected.number !== session.playerNumber
           ) {
             return;
           }
 
-          if (command.epoch < latestCommandEpoch) {
-            return;
-          }
+          activeTurn = {
+            attempt: command.attempt,
+            epoch: command.epoch,
+          };
 
-          const attempts =
-            handledCommandAttempts.get(command.epoch) ?? new Set<number>();
-          handledCommandAttempts.set(command.epoch, attempts);
-          if (attempts.has(command.attempt)) {
-            return;
-          }
-
-          latestCommandEpoch = command.epoch;
-          attempts.add(command.attempt);
-          for (const epoch of handledCommandAttempts.keys()) {
-            if (epoch < latestCommandEpoch - LOOP_TAUNT_COMMAND_DEDUPE_EPOCHS) {
-              handledCommandAttempts.delete(epoch);
-            }
-          }
-
-          void Effect.runPromise(
-            forkTrackedTaunt(
-              Effect.gen(function* () {
-                const outcome = yield* taunt(command.targetMonMapId);
-                yield* publishObservation({
-                  attempt: command.attempt,
-                  epoch: command.epoch,
-                  outcome: outcome.type === "cast" ? "cast" : "skipped",
-                  ...(outcome.type === "skipped"
-                    ? { reason: outcome.reason }
-                    : null),
-                  type: "cast-outcome",
-                });
-              }),
-            ),
-          ).catch(() => undefined);
+          void Effect.runPromise(forkTrackedTaunt(reportTurn(command))).catch(
+            () => undefined,
+          );
         });
 
         const onAuraAdded = yield* packetDomain.on("auraAdded", (event) =>
@@ -901,22 +1003,13 @@ const make = Effect.gen(function* () {
               !armedComplete ||
               event.targetType !== "monster" ||
               event.targetId !== targetMonMapId ||
-              !matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                event.auraName,
-                event.aura,
-              )
+              !matchesLoopTauntFocusAuraAdd(event.auraName, event.aura)
             ) {
               return;
             }
 
-            const auraIcon = event.aura?.icon;
-            yield* publishObservation({
-              ...(auraIcon === undefined ? null : { auraIcon }),
-              auraName: event.auraName,
-              type: "aura-added",
-            }).pipe(Effect.ignore);
-            yield* log("Loop Taunt aura added", {
+            yield* publishFocusActive(event.auraName, event.aura?.icon);
+            yield* log("Loop Taunt Focus active", {
               aura: event.auraName,
               monMapId: targetMonMapId,
             });
@@ -927,19 +1020,19 @@ const make = Effect.gen(function* () {
           Effect.gen(function* () {
             if (
               !armedComplete ||
+              options.trigger.type !== "focus" ||
               event.targetType !== "monster" ||
               event.targetId !== targetMonMapId ||
-              !matchesLoopTauntAura(options.trigger.aura, event.auraName)
+              !matchesLoopTauntFocusAura(event.auraName)
             ) {
               return;
             }
 
             const remainingAura = yield* world.monsters
-              .getAura(targetMonMapId, options.trigger.aura)
+              .getAura(targetMonMapId, LOOP_TAUNT_FOCUS_AURA_NAME)
               .pipe(Effect.catchCause(() => Effect.succeed(Option.none())));
             if (Option.isSome(remainingAura)) {
-              yield* log("Loop Taunt aura removal ignored", {
-                aura: event.auraName,
+              yield* log("Loop Taunt Focus removal ignored", {
                 monMapId: targetMonMapId,
                 reason: "aura still active",
                 stack: remainingAura.value.stack,
@@ -947,29 +1040,41 @@ const make = Effect.gen(function* () {
               return;
             }
 
-            yield* publishObservation({
+            yield* publishTrigger("focus-removed", {
               auraName: event.auraName,
-              type: "aura-removed",
-            }).pipe(Effect.ignore);
-            yield* log("Loop Taunt aura removed", {
-              aura: event.auraName,
-              delayMs: options.trigger.delayMs,
+            });
+            yield* log("Loop Taunt Focus removed", {
               monMapId: targetMonMapId,
             });
           }),
         );
 
-        const onClientCastAttempt = yield* packetDomain.on(
-          "loopTauntClientCastAttempt",
+        const onAnimationMessage = yield* packetDomain.on(
+          "animationMessage",
           (event) =>
             Effect.gen(function* () {
-              if (!armedComplete || event.monMapId !== targetMonMapId) {
+              if (
+                !armedComplete ||
+                options.trigger.type !== "message" ||
+                !matchesLoopTauntMessage(options.trigger.message, event.message)
+              ) {
                 return;
               }
 
-              yield* publishObservation({ type: "client-cast-attempt" }).pipe(
-                Effect.ignore,
-              );
+              const eventMonMapId =
+                event.sourceMonMapId ?? event.targetMonMapId ?? event.monMapId;
+              if (eventMonMapId !== targetMonMapId) {
+                return;
+              }
+
+              yield* publishTrigger("message-matched", {
+                message: event.message,
+              });
+              yield* log("Loop Taunt message matched", {
+                animationMessage: event.message,
+                configuredMessage: options.trigger.message,
+                monMapId: targetMonMapId,
+              });
             }),
         );
 
@@ -977,16 +1082,34 @@ const make = Effect.gen(function* () {
           "loopTauntServerCastConfirmed",
           (event) =>
             Effect.gen(function* () {
-              if (!armedComplete || event.monMapId !== targetMonMapId) {
+              if (
+                !armedComplete ||
+                event.monMapId !== targetMonMapId ||
+                !matchesLoopTauntFocusAuraAdd(event.auraName, {
+                  icon: event.auraIcon,
+                })
+              ) {
                 return;
               }
 
-              yield* publishObservation({
-                auraIcon: event.auraIcon,
-                auraName: event.auraName,
-                type: "server-cast-confirmed",
-              }).pipe(Effect.ignore);
+              yield* publishFocusActive(event.auraName, event.auraIcon);
             }),
+        );
+
+        const onMonsterDeath = yield* packetDomain.on("monsterDeath", (event) =>
+          Effect.gen(function* () {
+            if (event.monMapId !== targetMonMapId) {
+              return;
+            }
+
+            yield* publishObservation({ type: "target-dead" }).pipe(
+              Effect.ignore,
+            );
+            yield* log("Loop Taunt stopped on monster death", {
+              monMapId: targetMonMapId,
+            });
+            yield* jobs.stop(loopTauntJobKey(options.id));
+          }),
         );
 
         yield* Effect.addFinalizer(() =>
@@ -995,8 +1118,9 @@ const make = Effect.gen(function* () {
               onCommand();
               onAuraAdded();
               onAuraRemoved();
-              onClientCastAttempt();
+              onAnimationMessage();
               onServerCastConfirmed();
+              onMonsterDeath();
             });
             yield* Effect.forEach(
               Array.from(pendingTauntFibers),
@@ -1027,910 +1151,57 @@ const make = Effect.gen(function* () {
 
         yield* fromArmyIpc("Failed to start coordinated loop taunt", () =>
           window.desktop.army.startLoopTaunt({
-            aura: options.trigger.aura,
-            delayMs: options.trigger.delayMs,
             id: options.id,
             participants: options.participants,
             playerName: session.playerName,
             sessionId: session.sessionId,
-            skill: options.skill,
             targetMonMapId,
-          }),
-        );
-        armedComplete = true;
-        yield* Deferred.succeed(armed, undefined).pipe(Effect.asVoid);
-        yield* log("Loop Taunt armed", {
-          monMapId: targetMonMapId,
-          participants: options.participants.map((participant) => ({
-            name: participant.name,
-            number: participant.number,
-          })),
-          target: options.target,
-          trigger: options.trigger.type,
-        });
-
-        while (true) {
-          if (!initialAuraCheckComplete) {
-            initialAuraCheckComplete = true;
-            const aura = yield* world.monsters.getAura(
-              targetMonMapId,
-              options.trigger.aura,
-            );
-            if (
-              Option.isNone(aura) ||
-              !matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                aura.value.name,
-                aura.value,
-              )
-            ) {
-              yield* publishObservation({
-                auraName: options.trigger.aura,
-                type: "aura-missing",
-              });
-              yield* log("Loop Taunt initial aura absent", {
-                aura: options.trigger.aura,
-                monMapId: targetMonMapId,
-              });
-            } else {
-              yield* log("Loop Taunt waiting for aura removal", {
-                aura: options.trigger.aura,
-                delayMs: options.trigger.delayMs,
-                monMapId: targetMonMapId,
-              });
-            }
-          }
-
-          yield* Effect.sleep(LOOP_TAUNT_RESOLVE_INTERVAL);
-        }
-      }),
-    ).pipe(
-      Effect.catchCause((cause) =>
-        Effect.gen(function* () {
-          yield* Effect.logError({
-            cause,
-            id: options.id,
-            message: "Coordinated Loop Taunt failed",
-          });
-          yield* Deferred.fail(
-            armed,
-            new ArmyError("Loop Taunt failed to arm", cause),
-          );
-          return yield* Effect.failCause(cause);
-        }),
-      ),
-    );
-
-  const runLoopTaunt = (
-    session: ArmySession,
-    options: NormalizedLoopTauntOptions,
-    initialTargetMonMapId: number,
-    armedStep: number,
-    armed: Deferred.Deferred<void, ArmyError>,
-  ) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        let targetMonMapId: number | undefined = initialTargetMonMapId;
-        let turn: LoopTauntTurnState = { nextIndex: 0, triggerCount: 0 };
-        let initialAuraCheckComplete = false;
-        let armedComplete = false;
-        let targetAuraActive = false;
-        let tauntInFlight = false;
-        const lastMessageTriggerAtByMonMapId = new Map<number, number>();
-        const pendingTauntFibers = new Set<ReturnType<typeof runFork>>();
-        let reconciliationToken = 0;
-        let pendingReconciliationFiber: ReturnType<typeof runFork> | undefined;
-
-        const log = (message: string, details?: Record<string, unknown>) =>
-          Effect.logInfo({
-            message,
-            id: options.id,
-            playerNumber: session.playerNumber,
-            ...details,
-          });
-
-        const resolveTarget = () =>
-          Effect.gen(function* () {
-            if (targetMonMapId !== undefined) {
-              return targetMonMapId;
-            }
-
-            targetMonMapId = yield* resolveLoopTauntTarget(options);
-            return targetMonMapId;
-          });
-
-        const readTargetAuraActive = (monMapId: number) =>
-          Effect.gen(function* () {
-            if (options.trigger.type !== "aura") {
-              return false;
-            }
-
-            const aura = yield* world.monsters.getAura(
-              monMapId,
-              options.trigger.aura,
-            );
-            return (
-              Option.isSome(aura) &&
-              matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                aura.value.name,
-                aura.value,
-              )
-            );
-          });
-
-        const refreshTargetAuraActive = (monMapId: number) =>
-          Effect.gen(function* () {
-            targetAuraActive = yield* readTargetAuraActive(monMapId);
-            return targetAuraActive;
-          });
-
-        const taunt = (monMapId: number): Effect.Effect<LoopTauntCastOutcome> =>
-          Effect.gen(function* () {
-            if (tauntInFlight) {
-              yield* log("Loop Taunt cast skipped", {
-                reason: "cast already in flight",
-                monMapId,
-              });
-              return { reason: "in-flight", type: "skipped" } as const;
-            }
-
-            tauntInFlight = true;
-            try {
-              const ready = yield* player
-                .isReady()
-                .pipe(Effect.catchCause(() => Effect.succeed(false)));
-              const alive = yield* player
-                .isAlive()
-                .pipe(Effect.catchCause(() => Effect.succeed(false)));
-              if (!ready || !alive) {
-                yield* log("Loop Taunt cast skipped", {
-                  reason: !ready ? "player not ready" : "player not alive",
-                  ready,
-                  alive,
-                  monMapId,
-                });
-                return {
-                  reason: ready ? "not-alive" : "not-ready",
-                  type: "skipped",
-                } as const;
-              }
-
-              const actionLockCategory = yield* readPlayerActionLockCategory(
-                world,
-                session.playerName,
-              );
-              if (actionLockCategory !== undefined) {
-                yield* log("Loop Taunt cast skipped", {
-                  actionLockCategory,
-                  monMapId,
-                  reason: "player action locked",
-                });
-                return { reason: "not-usable", type: "skipped" } as const;
-              }
-
-              yield* log("Loop Taunt casting", {
-                monMapId,
-                skill: options.skill,
-              });
-              yield* combat.attackMonster(monMapId);
-              yield* combat.useSkill(options.skill, true, true);
-              return { type: "cast" } as const;
-            } finally {
-              tauntInFlight = false;
-            }
-          }).pipe(
-            Effect.catchCause((cause) =>
-              Effect.gen(function* () {
-                yield* Effect.logError({
-                  message: "loop taunt failed",
-                  id: options.id,
-                  cause,
-                });
-                return { reason: "failed", type: "skipped" } as const;
-              }),
-            ),
-          );
-
-        const forkTrackedTaunt = (effect: Effect.Effect<void, unknown>) =>
-          Effect.sync(() => {
-            let fiber: ReturnType<typeof runFork> | undefined;
-            fiber = runFork(
-              effect.pipe(
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    if (fiber !== undefined) {
-                      pendingTauntFibers.delete(fiber);
-                    }
-                  }),
-                ),
-              ),
-            );
-            pendingTauntFibers.add(fiber);
-          });
-
-        const cancelReconciliation = () =>
-          Effect.gen(function* () {
-            reconciliationToken += 1;
-            const fiber = pendingReconciliationFiber;
-            pendingReconciliationFiber = undefined;
-            if (fiber !== undefined) {
-              yield* Fiber.interrupt(fiber);
-            }
-          });
-
-        const isReconciliationCurrent = (token: number): boolean =>
-          token === reconciliationToken;
-
-        const waitForLocalRecovery = (
-          token: number,
-          monMapId: number,
-          selected: ResolvedArmyPlayer,
-        ) =>
-          Effect.gen(function* () {
-            const deadline =
-              Date.now() + DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS;
-
-            while (Date.now() < deadline) {
-              if (!isReconciliationCurrent(token)) {
-                return false;
-              }
-
-              if (
-                targetAuraActive ||
-                (yield* refreshTargetAuraActive(monMapId))
-              ) {
-                return false;
-              }
-
-              const ready = yield* player
-                .isReady()
-                .pipe(Effect.catchCause(() => Effect.succeed(false)));
-              const alive = yield* player
-                .isAlive()
-                .pipe(Effect.catchCause(() => Effect.succeed(false)));
-              if (ready && alive) {
-                yield* log("Loop Taunt recovery retrying selected player", {
-                  monMapId,
-                  selectedName: selected.name,
-                  selectedNumber: selected.number,
-                });
-                yield* taunt(monMapId);
-                return true;
-              }
-
-              yield* Effect.sleep(LOOP_TAUNT_RESOLVE_INTERVAL);
-            }
-
-            return false;
-          });
-
-        const clearCurrentReconciliation = (token: number) =>
-          Effect.sync(() => {
-            if (isReconciliationCurrent(token)) {
-              reconciliationToken += 1;
-              pendingReconciliationFiber = undefined;
-            }
-          });
-
-        const scheduleAuraReconciliation = (
-          monMapId: number,
-          resolution: LoopTauntTurnResolution,
-          delayMs: number,
-        ) =>
-          Effect.gen(function* () {
-            if (options.trigger.type !== "aura") {
-              return;
-            }
-
-            yield* cancelReconciliation();
-            const token = reconciliationToken;
-            const ownsSelected =
-              resolution.selected.number === session.playerNumber;
-
-            let fiber: ReturnType<typeof runFork> | undefined;
-            fiber = runFork(
-              Effect.gen(function* () {
-                const initialWaitMs =
-                  delayMs + DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS;
-                if (initialWaitMs > 0) {
-                  yield* Effect.sleep(`${initialWaitMs} millis`);
-                }
-
-                if (!isReconciliationCurrent(token)) {
-                  return;
-                }
-
-                if (
-                  targetAuraActive ||
-                  (yield* refreshTargetAuraActive(monMapId))
-                ) {
-                  return;
-                }
-
-                yield* log("Loop Taunt recovery started", {
-                  monMapId,
-                  selectedName: resolution.selected.name,
-                  selectedNumber: resolution.selected.number,
-                  triggerCount: turn.triggerCount,
-                });
-
-                if (ownsSelected) {
-                  yield* waitForLocalRecovery(
-                    token,
-                    monMapId,
-                    resolution.selected,
-                  );
-                } else {
-                  yield* Effect.sleep(
-                    `${DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS} millis`,
-                  );
-                }
-
-                if (!isReconciliationCurrent(token)) {
-                  return;
-                }
-
-                yield* Effect.sleep(
-                  `${DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS} millis`,
-                );
-
-                if (!isReconciliationCurrent(token)) {
-                  return;
-                }
-
-                if (
-                  targetAuraActive ||
-                  (yield* refreshTargetAuraActive(monMapId))
-                ) {
-                  return;
-                }
-
-                yield* log("Loop Taunt recovery expired", {
-                  monMapId,
-                  selectedName: resolution.selected.name,
-                  selectedNumber: resolution.selected.number,
-                  triggerCount: turn.triggerCount,
-                });
-                yield* clearCurrentReconciliation(token);
-                yield* triggerNextTurn(
-                  monMapId,
-                  "missed cast recovery expired",
-                );
-              }).pipe(
-                Effect.catchCause((cause) =>
-                  Effect.logError({
-                    message: "Loop Taunt recovery failed",
-                    id: options.id,
-                    monMapId,
-                    selectedName: resolution.selected.name,
-                    selectedNumber: resolution.selected.number,
-                    cause,
-                  }),
-                ),
-                Effect.ensuring(
-                  Effect.sync(() => {
-                    if (
-                      fiber !== undefined &&
-                      pendingReconciliationFiber === fiber
-                    ) {
-                      pendingReconciliationFiber = undefined;
-                    }
-                  }),
-                ),
-              ),
-            );
-            pendingReconciliationFiber = fiber;
-          });
-
-        const localPlayer = {
-          name: session.playerName,
-          number: session.playerNumber,
-        };
-
-        const readonlyWorld: ArmyLoopTauntTurnContext["world"] = {
-          monsters: {
-            get: world.monsters.get,
-            getAura: world.monsters.getAura,
-          },
-          players: {
-            getAll: world.players.getAll,
-            getAura: world.players.getAura,
-            getAuras: world.players.getAuras,
-            getByName: world.players.getByName,
-          },
-        };
-
-        const shouldCandidateTaunt = (
-          context: ArmyLoopTauntTurnContext,
-        ): Effect.Effect<boolean> =>
-          Effect.suspend(() => {
-            if (options.shouldTaunt === undefined) {
-              return Effect.succeed(true);
-            }
-
-            const result = options.shouldTaunt(context);
-            return Effect.isEffect(result)
-              ? (result as Effect.Effect<boolean, unknown>)
-              : Effect.succeed(result);
-          }).pipe(
-            Effect.map((result) => result === true),
-            Effect.catchCause((cause) =>
-              Effect.gen(function* () {
-                yield* Effect.logError({
-                  message: "Loop Taunt shouldTaunt failed",
-                  id: options.id,
-                  candidateName: context.candidate.name,
-                  candidateNumber: context.candidate.number,
-                  scheduledName: context.scheduled.name,
-                  scheduledNumber: context.scheduled.number,
-                  triggerCount: context.turn.triggerCount,
-                  cause,
-                });
-                return false;
-              }),
-            ),
-          );
-
-        const resolveTurn = (
-          monMapId: number,
-          currentTurn: LoopTauntTurnState,
-        ): Effect.Effect<LoopTauntTurnResolution, ArmyError> =>
-          Effect.gen(function* () {
-            if (options.participants.length === 0) {
-              return yield* Effect.fail(
-                new ArmyError("Loop Taunt requires at least one participant"),
-              );
-            }
-
-            const startIndex =
-              currentTurn.nextIndex % options.participants.length;
-            const scheduled = options.participants[startIndex]!;
-            const skipped: ResolvedArmyPlayer[] = [];
-
-            yield* log("Loop Taunt turn resolving", {
-              monMapId,
-              scheduledName: scheduled.name,
-              scheduledNumber: scheduled.number,
-              trigger: options.trigger.type,
-              triggerCount: currentTurn.triggerCount,
-            });
-
-            for (
-              let offset = 0;
-              offset < options.participants.length;
-              offset += 1
-            ) {
-              const candidateIndex =
-                (startIndex + offset) % options.participants.length;
-              const candidate = options.participants[candidateIndex]!;
-              const shouldTaunt = yield* shouldCandidateTaunt({
-                candidate,
-                id: options.id,
-                localPlayer,
-                participants: options.participants,
-                scheduled,
-                target: {
-                  monMapId,
-                  token: options.target,
-                },
-                trigger: options.trigger,
-                turn: {
-                  index: currentTurn.nextIndex,
-                  triggerCount: currentTurn.triggerCount,
-                },
-                world: readonlyWorld,
-              });
-
-              if (shouldTaunt) {
-                const nextState = {
-                  nextIndex: (candidateIndex + 1) % options.participants.length,
-                  triggerCount: currentTurn.triggerCount + 1,
-                };
-                return {
-                  nextState,
-                  scheduled,
-                  selected: candidate,
-                  selectedIndex: candidateIndex,
-                  skipped,
-                };
-              }
-
-              skipped.push(candidate);
-              yield* log("Loop Taunt candidate skipped", {
-                candidateName: candidate.name,
-                candidateNumber: candidate.number,
-                monMapId,
-                scheduledName: scheduled.name,
-                scheduledNumber: scheduled.number,
-                triggerCount: currentTurn.triggerCount,
-              });
-            }
-
-            yield* log("Loop Taunt no eligible participant", {
-              monMapId,
-              noEligiblePolicy: options.noEligiblePolicy,
-              scheduledName: scheduled.name,
-              scheduledNumber: scheduled.number,
-              skipped: skipped.map((participant) => ({
-                name: participant.name,
-                number: participant.number,
-              })),
-              triggerCount: currentTurn.triggerCount,
-            });
-
-            if (options.noEligiblePolicy === "cast-scheduled") {
-              return {
-                nextState: {
-                  nextIndex: (startIndex + 1) % options.participants.length,
-                  triggerCount: currentTurn.triggerCount + 1,
-                },
-                scheduled,
-                selected: scheduled,
-                selectedIndex: startIndex,
-                skipped,
-              };
-            }
-
-            return yield* Effect.fail(
-              new ArmyError("Loop Taunt found no eligible participant"),
-            );
-          });
-
-        const triggerNextTurn = (
-          monMapId: number,
-          reason: string,
-          delayMs = 0,
-        ) =>
-          Effect.gen(function* () {
-            const currentTurn = turn;
-            const resolution = yield* resolveTurn(monMapId, currentTurn).pipe(
-              Effect.catchCause((cause) =>
-                Effect.gen(function* () {
-                  yield* Effect.logError({
-                    message: "Loop Taunt turn resolution failed",
-                    id: options.id,
-                    monMapId,
-                    reason,
-                    triggerCount: currentTurn.triggerCount,
-                    cause,
-                  });
-                  yield* jobs.stop(loopTauntJobKey(options.id));
-                  return undefined;
-                }),
-              ),
-            );
-
-            if (resolution === undefined) {
-              return;
-            }
-
-            turn = resolution.nextState;
-            const ownsTurn =
-              resolution.selected.number === session.playerNumber;
-
-            yield* log("Loop Taunt turn selected", {
-              reason,
-              monMapId,
-              scheduledName: resolution.scheduled.name,
-              scheduledNumber: resolution.scheduled.number,
-              selectedName: resolution.selected.name,
-              selectedNumber: resolution.selected.number,
-              selectedIndex: resolution.selectedIndex,
-              skipped: resolution.skipped.map((participant) => ({
-                name: participant.name,
-                number: participant.number,
-              })),
-              trigger: options.trigger.type,
-              triggerCount: currentTurn.triggerCount,
-              nextParticipantNumber:
-                options.participants[turn.nextIndex]?.number,
-            });
-
-            yield* scheduleAuraReconciliation(monMapId, resolution, delayMs);
-
-            if (ownsTurn) {
-              yield* log("Loop Taunt turn matched local player", {
-                reason,
-                monMapId,
-                participantNumber: resolution.selected.number,
-                participantName: resolution.selected.name,
-                delayMs,
-                nextParticipantNumber:
-                  options.participants[turn.nextIndex]?.number,
-              });
-              yield* forkTrackedTaunt(
-                Effect.gen(function* () {
-                  if (delayMs > 0) {
-                    yield* Effect.sleep(`${delayMs} millis`);
+            trigger:
+              options.trigger.type === "message"
+                ? {
+                    message: options.trigger.message,
+                    type: "message",
                   }
-
-                  yield* taunt(monMapId);
-                }),
-              );
-            } else {
-              yield* log("Loop Taunt waiting for turn", {
-                reason,
-                monMapId,
-                participantNumber: resolution.selected.number,
-                participantName: resolution.selected.name,
-                delayMs,
-                nextParticipantNumber:
-                  options.participants[turn.nextIndex]?.number,
-              });
-            }
-          });
-
-        const runInitialAuraCheck = () =>
-          Effect.gen(function* () {
-            if (initialAuraCheckComplete || options.trigger.type !== "aura") {
-              return;
-            }
-
-            const monMapId = yield* resolveTarget();
-            if (monMapId === undefined) {
-              return;
-            }
-
-            initialAuraCheckComplete = true;
-            const aura = yield* world.monsters.getAura(
-              monMapId,
-              options.trigger.aura,
-            );
-            if (
-              Option.isNone(aura) ||
-              !matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                aura.value.name,
-                aura.value,
-              )
-            ) {
-              targetAuraActive = false;
-              yield* log("Loop Taunt initial aura absent", {
-                aura: options.trigger.aura,
-                monMapId,
-              });
-              yield* triggerNextTurn(monMapId, "initial aura absent");
-            } else {
-              targetAuraActive = true;
-              yield* log("Loop Taunt waiting for aura removal", {
-                aura: options.trigger.aura,
-                monMapId,
-              });
-            }
-          });
-
-        const primeAuraState = () =>
-          Effect.gen(function* () {
-            if (options.trigger.type !== "aura") {
-              return;
-            }
-
-            const monMapId = yield* resolveTarget();
-            if (monMapId === undefined) {
-              return;
-            }
-
-            const aura = yield* world.monsters.getAura(
-              monMapId,
-              options.trigger.aura,
-            );
-            targetAuraActive =
-              Option.isSome(aura) &&
-              matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                aura.value.name,
-                aura.value,
-              );
-          });
-
-        const onAuraAdded = yield* packetDomain.on("auraAdded", (event) =>
-          Effect.gen(function* () {
-            if (
-              !armedComplete ||
-              options.trigger.type !== "aura" ||
-              event.targetType !== "monster" ||
-              !matchesLoopTauntAuraAdd(
-                options.trigger.aura,
-                event.auraName,
-                event.aura,
-              )
-            ) {
-              return;
-            }
-
-            const monMapId = yield* resolveTarget();
-            if (monMapId === undefined || event.targetId !== monMapId) {
-              return;
-            }
-
-            initialAuraCheckComplete = true;
-            targetAuraActive = true;
-            yield* cancelReconciliation();
-            yield* log("Loop Taunt aura added", {
-              aura: event.auraName,
-              monMapId,
-            });
+                : { type: "focus" },
           }),
         );
 
-        const onAuraRemoved = yield* packetDomain.on("auraRemoved", (event) =>
-          Effect.gen(function* () {
-            if (
-              !armedComplete ||
-              options.trigger.type !== "aura" ||
-              event.targetType !== "monster" ||
-              !matchesLoopTauntAura(options.trigger.aura, event.auraName)
-            ) {
-              return;
-            }
-
-            const monMapId = yield* resolveTarget();
-            if (monMapId === undefined || event.targetId !== monMapId) {
-              return;
-            }
-
-            if (!targetAuraActive) {
-              yield* log("Loop Taunt aura removal ignored", {
-                aura: event.auraName,
-                monMapId,
-                reason: "aura was not active",
-              });
-              return;
-            }
-
-            const remainingAura = yield* world.monsters.getAura(
-              monMapId,
-              options.trigger.aura,
-            );
-            if (Option.isSome(remainingAura)) {
-              yield* log("Loop Taunt aura removal ignored", {
-                aura: event.auraName,
-                monMapId,
-                reason: "aura still active",
-                stack: remainingAura.value.stack,
-              });
-              return;
-            }
-
-            initialAuraCheckComplete = true;
-            targetAuraActive = false;
-            yield* log("Loop Taunt aura removed", {
-              aura: event.auraName,
-              delayMs: options.trigger.delayMs,
-              monMapId,
-            });
-            yield* triggerNextTurn(
-              monMapId,
-              "aura removed",
-              options.trigger.delayMs,
-            );
-          }),
-        );
-
-        const onAnimationMessage = yield* packetDomain.on(
-          "animationMessage",
-          (event) =>
-            Effect.gen(function* () {
-              if (
-                !armedComplete ||
-                options.trigger.type !== "message" ||
-                !matchesLoopTauntMessage(options.trigger.message, event.message)
-              ) {
-                return;
-              }
-
-              const monMapId = yield* resolveTarget();
-              const eventMonMapId =
-                event.sourceMonMapId ?? event.targetMonMapId ?? event.monMapId;
-              if (monMapId === undefined || eventMonMapId !== monMapId) {
-                return;
-              }
-
-              if (options.trigger.debounceMs > 0) {
-                const now = Date.now();
-                const lastTriggeredAt =
-                  lastMessageTriggerAtByMonMapId.get(monMapId);
-                if (
-                  lastTriggeredAt !== undefined &&
-                  now - lastTriggeredAt < options.trigger.debounceMs
-                ) {
-                  yield* log("Loop Taunt message debounced", {
-                    configuredMessage: options.trigger.message,
-                    animationMessage: event.message,
-                    debounceMs: options.trigger.debounceMs,
-                    elapsedMs: now - lastTriggeredAt,
-                    monMapId,
-                  });
-                  return;
-                }
-
-                lastMessageTriggerAtByMonMapId.set(monMapId, now);
-              }
-
-              yield* log("Loop Taunt message matched", {
-                configuredMessage: options.trigger.message,
-                animationMessage: event.message,
-                monMapId,
-              });
-              yield* triggerNextTurn(monMapId, "message matched");
-            }),
-        );
-
-        const onMonsterDeath = yield* packetDomain.on("monsterDeath", (event) =>
-          Effect.gen(function* () {
-            const monMapId = yield* resolveTarget();
-            if (monMapId === undefined || event.monMapId !== monMapId) {
-              return;
-            }
-
-            yield* log("Loop Taunt stopped on monster death", {
-              monMapId,
-            });
-            yield* jobs.stop(loopTauntJobKey(options.id));
-          }),
-        );
-
-        yield* Effect.addFinalizer(() =>
-          Effect.gen(function* () {
-            yield* Effect.sync(() => {
-              onAuraAdded();
-              onAuraRemoved();
-              onAnimationMessage();
-              onMonsterDeath();
-            });
-            yield* Effect.forEach(
-              Array.from(pendingTauntFibers),
-              (fiber) => Fiber.interrupt(fiber),
-              { discard: true },
-            );
-            pendingTauntFibers.clear();
-            const reconciliationFiber = pendingReconciliationFiber;
-            pendingReconciliationFiber = undefined;
-            reconciliationToken += 1;
-            if (reconciliationFiber !== undefined) {
-              yield* Fiber.interrupt(reconciliationFiber);
-            }
-          }),
-        );
-
-        yield* waitAtBarrier(
-          session,
-          armedStep,
-          `loop-taunt-armed:${options.id}`,
-          {
-            players: options.participants.map(
-              (participant) => participant.name,
-            ),
-          },
-        );
-        yield* primeAuraState();
         armedComplete = true;
-        yield* Deferred.succeed(armed, undefined).pipe(Effect.asVoid);
         yield* log("Loop Taunt armed", {
-          target: options.target,
           monMapId: targetMonMapId,
-          trigger: options.trigger.type,
           participants: options.participants.map((participant) => ({
             name: participant.name,
             number: participant.number,
           })),
+          target: options.target,
+          trigger: options.trigger.type,
         });
-        yield* log(
-          options.trigger.type === "aura"
-            ? "Loop Taunt waiting for aura trigger"
-            : "Loop Taunt waiting for message trigger",
-          {
-            ...(options.trigger.type === "aura"
-              ? { aura: options.trigger.aura, delayMs: options.trigger.delayMs }
-              : { triggerMessage: options.trigger.message }),
-            monMapId: targetMonMapId,
-          },
-        );
-        while (true) {
-          yield* runInitialAuraCheck();
-          yield* Effect.sleep(LOOP_TAUNT_RESOLVE_INTERVAL);
+        yield* Deferred.succeed(armed, undefined).pipe(Effect.asVoid);
+
+        if (options.trigger.type === "focus") {
+          const aura = yield* world.monsters.getAura(
+            targetMonMapId,
+            LOOP_TAUNT_FOCUS_AURA_NAME,
+          );
+          if (
+            Option.isNone(aura) ||
+            !matchesLoopTauntFocusAuraAdd(aura.value.name, aura.value)
+          ) {
+            yield* publishTrigger("focus-missing", {
+              auraName: LOOP_TAUNT_FOCUS_AURA_NAME,
+            });
+            yield* log("Loop Taunt initial Focus absent", {
+              monMapId: targetMonMapId,
+            });
+          } else {
+            yield* publishFocusActive(aura.value.name, aura.value.icon);
+            yield* log("Loop Taunt waiting for Focus removal", {
+              monMapId: targetMonMapId,
+            });
+          }
         }
+
+        return yield* Effect.never;
       }),
     ).pipe(
       Effect.catchCause((cause) =>
@@ -1998,22 +1269,13 @@ const make = Effect.gen(function* () {
         id: normalized.id,
         monMapId,
       });
-      const loopTauntEffect =
-        normalized.trigger.type === "aura" &&
-        normalized.shouldTaunt === undefined
-          ? runMainCoordinatedAuraLoopTaunt(
-              session,
-              normalized as NormalizedLoopTauntOptions & {
-                readonly trigger: Extract<
-                  NormalizedLoopTauntOptions["trigger"],
-                  { type: "aura" }
-                >;
-              },
-              monMapId,
-              armedStep,
-              armed,
-            )
-          : runLoopTaunt(session, normalized, monMapId, armedStep, armed);
+      const loopTauntEffect = runCoordinatedLoopTaunt(
+        session,
+        normalized,
+        monMapId,
+        armedStep,
+        armed,
+      );
       yield* jobs.start(key, loopTauntEffect, {
         replace: true,
       });

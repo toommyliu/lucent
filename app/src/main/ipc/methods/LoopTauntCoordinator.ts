@@ -4,79 +4,96 @@ import {
   type ArmyLoopTauntParticipantPayload,
   type ArmyLoopTauntStartPayload,
   type ArmyLoopTauntStopPayload,
+  type ArmyLoopTauntTriggerPayload,
+  type ArmyLoopTauntTriggerReason,
 } from "../../../shared/ipc";
 import {
   DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS,
+  DEFAULT_LOOP_TAUNT_DELAY_MS,
   LOOP_TAUNT_FOCUS_AURA_ICON,
   LOOP_TAUNT_FOCUS_AURA_NAME,
   LOOP_TAUNT_RETRY_SETTLE_MS,
   LOOP_TAUNT_SHORT_RETRY_MS,
+  LOOP_TAUNT_TURN_REPORT_TIMEOUT_MS,
 } from "../../../shared/loop-taunt";
 
-type LoopTauntPhase = "idle" | "settling" | "retry-wait" | "retry-settling";
+type LoopTauntPhase =
+  | "idle"
+  | "retry-settling"
+  | "retry-wait"
+  | "settling"
+  | "waiting-report";
+
+interface ActiveLoopTauntTurn {
+  readonly attempt: number;
+  readonly epoch: number;
+  readonly exhaustedPlayerNumbers: Set<number>;
+  readonly reason: string;
+  readonly selected: ArmyLoopTauntParticipantPayload;
+}
 
 interface LoopTauntState {
   readonly id: string;
-  readonly aura: string;
-  readonly delayMs: number;
-  readonly skill: number | string;
-  readonly targetMonMapId: number;
   readonly participants: readonly ArmyLoopTauntParticipantPayload[];
   readonly registeredPlayerKeys: Set<string>;
-  readonly timers: Set<ReturnType<typeof setTimeout>>;
-  currentSelected: ArmyLoopTauntParticipantPayload | undefined;
+  readonly targetMonMapId: number;
+  readonly timers: Set<ReturnType<typeof setTimeout> | (() => void)>;
+  readonly trigger: ArmyLoopTauntTriggerPayload;
+  currentTurn: ActiveLoopTauntTurn | undefined;
   epoch: number;
+  focusActive: boolean;
   nextIndex: number;
   phase: LoopTauntPhase;
-  targetAuraActive: boolean;
 }
 
 export interface LoopTauntCoordinatorOptions {
-  readonly sessionId: string;
+  readonly broadcastCommand: (command: ArmyLoopTauntCommandPayload) => void;
+  readonly schedule?: (
+    delayMs: number,
+    callback: () => void,
+  ) => ReturnType<typeof setTimeout> | (() => void);
   readonly sendCommand: (
     player: ArmyLoopTauntParticipantPayload,
     command: ArmyLoopTauntCommandPayload,
   ) => void;
+  readonly sessionId: string;
 }
 
 const normalizeKey = (value: string): string => value.trim().toLowerCase();
 
-const isFocusAura = (aura: string): boolean =>
-  normalizeKey(aura) === normalizeKey(LOOP_TAUNT_FOCUS_AURA_NAME);
+const isFocusAuraName = (auraName: string | undefined): boolean =>
+  auraName === undefined ||
+  normalizeKey(auraName) === normalizeKey(LOOP_TAUNT_FOCUS_AURA_NAME);
 
-const matchesAuraObservation = (
-  state: LoopTauntState,
+const isFocusAuraIcon = (auraIcon: string | undefined): boolean =>
+  auraIcon === undefined || auraIcon === LOOP_TAUNT_FOCUS_AURA_ICON;
+
+const isFocusObservation = (
   observation: ArmyLoopTauntObservationPayload,
-): boolean => {
-  if (observation.targetMonMapId !== state.targetMonMapId) {
-    return false;
-  }
-
-  if (
-    observation.auraName !== undefined &&
-    normalizeKey(observation.auraName) !== normalizeKey(state.aura)
-  ) {
-    return false;
-  }
-
-  return (
-    !isFocusAura(state.aura) ||
-    observation.auraIcon === undefined ||
-    observation.auraIcon === LOOP_TAUNT_FOCUS_AURA_ICON
-  );
-};
+): boolean =>
+  isFocusAuraName(observation.auraName) &&
+  isFocusAuraIcon(observation.auraIcon);
 
 const clearTimers = (state: LoopTauntState): void => {
   for (const timer of state.timers) {
-    clearTimeout(timer);
+    if (typeof timer === "function") {
+      timer();
+    } else {
+      clearTimeout(timer);
+    }
   }
   state.timers.clear();
 };
 
 const resetTurn = (state: LoopTauntState): void => {
+  clearTimers(state);
+  state.currentTurn = undefined;
   state.phase = "idle";
-  state.currentSelected = undefined;
+  state.focusActive = true;
 };
+
+const commandReason = (reason: ArmyLoopTauntTriggerReason | string): string =>
+  reason.replaceAll("-", " ");
 
 export class LoopTauntCoordinator {
   private readonly loops = new Map<string, LoopTauntState>();
@@ -99,19 +116,17 @@ export class LoopTauntCoordinator {
     }
 
     this.loops.set(payload.id, {
-      aura: payload.aura,
-      currentSelected: undefined,
-      delayMs: payload.delayMs,
+      currentTurn: undefined,
       epoch: 0,
+      focusActive: true,
       id: payload.id,
       nextIndex: 0,
       participants: payload.participants,
       phase: "idle",
       registeredPlayerKeys: new Set([playerKey]),
-      skill: payload.skill,
-      targetAuraActive: true,
       targetMonMapId: payload.targetMonMapId,
       timers: new Set(),
+      trigger: payload.trigger,
     });
   }
 
@@ -130,31 +145,24 @@ export class LoopTauntCoordinator {
 
   public observe(payload: ArmyLoopTauntObservationPayload): void {
     const state = this.loops.get(payload.id);
-    if (!state || !matchesAuraObservation(state, payload)) {
+    if (!state || payload.targetMonMapId !== state.targetMonMapId) {
       return;
     }
 
-    if (payload.epoch !== undefined && payload.epoch < state.epoch) {
-      return;
+    switch (payload.type) {
+      case "focus-active":
+        this.observeFocusActive(state, payload);
+        return;
+      case "target-dead":
+        this.failLoop(state, "target monster died");
+        return;
+      case "trigger":
+        this.observeTrigger(state, payload);
+        return;
+      case "turn-result":
+        this.observeTurnResult(state, payload);
+        return;
     }
-
-    if (payload.type === "aura-added") {
-      state.targetAuraActive = true;
-      clearTimers(state);
-      resetTurn(state);
-      return;
-    }
-
-    if (payload.type !== "aura-missing" && payload.type !== "aura-removed") {
-      return;
-    }
-
-    if (state.phase !== "idle") {
-      return;
-    }
-
-    state.targetAuraActive = false;
-    this.startTurn(state, payload.type);
   }
 
   private schedule(
@@ -162,92 +170,277 @@ export class LoopTauntCoordinator {
     delayMs: number,
     callback: () => void,
   ): void {
-    const timer = setTimeout(
-      () => {
-        state.timers.delete(timer);
-        callback();
-      },
-      Math.max(0, Math.trunc(delayMs)),
-    );
+    const schedule = this.options.schedule;
+    const timer =
+      schedule === undefined
+        ? setTimeout(
+            () => {
+              state.timers.delete(timer);
+              callback();
+            },
+            Math.max(0, Math.trunc(delayMs)),
+          )
+        : schedule(Math.max(0, Math.trunc(delayMs)), () => {
+            state.timers.delete(timer);
+            callback();
+          });
     state.timers.add(timer);
   }
 
-  private sendCommand(
+  private sendTurnCommand(
     state: LoopTauntState,
-    attempt: number,
-    reason: string,
+    turn: ActiveLoopTauntTurn,
   ): void {
-    const selected = state.currentSelected;
-    if (!selected) {
+    this.options.sendCommand(turn.selected, {
+      attempt: turn.attempt,
+      epoch: turn.epoch,
+      id: state.id,
+      reason: turn.reason,
+      selected: turn.selected,
+      sessionId: this.options.sessionId,
+      targetMonMapId: state.targetMonMapId,
+      trigger: state.trigger,
+      type: "turn",
+    });
+  }
+
+  private broadcastStop(state: LoopTauntState, reason: string): void {
+    this.options.broadcastCommand({
+      id: state.id,
+      reason,
+      sessionId: this.options.sessionId,
+      type: "stop",
+    });
+  }
+
+  private failLoop(state: LoopTauntState, reason: string): void {
+    clearTimers(state);
+    this.loops.delete(state.id);
+    this.broadcastStop(state, reason);
+  }
+
+  private observeFocusActive(
+    state: LoopTauntState,
+    payload: ArmyLoopTauntObservationPayload,
+  ): void {
+    if (!isFocusObservation(payload)) {
       return;
     }
 
-    this.options.sendCommand(selected, {
-      attempt,
-      epoch: state.epoch,
-      id: state.id,
-      reason,
-      selected,
-      sessionId: this.options.sessionId,
-      skill: state.skill,
-      targetMonMapId: state.targetMonMapId,
+    state.focusActive = true;
+    if (
+      state.phase === "settling" ||
+      state.phase === "retry-settling" ||
+      state.phase === "waiting-report"
+    ) {
+      resetTurn(state);
+    }
+  }
+
+  private observeTrigger(
+    state: LoopTauntState,
+    payload: ArmyLoopTauntObservationPayload,
+  ): void {
+    if (state.phase !== "idle") {
+      return;
+    }
+
+    const triggerReason = payload.triggerReason;
+    if (triggerReason === undefined) {
+      return;
+    }
+
+    if (state.trigger.type === "focus") {
+      if (
+        triggerReason !== "focus-missing" &&
+        triggerReason !== "focus-removed"
+      ) {
+        return;
+      }
+
+      if (!isFocusObservation(payload)) {
+        return;
+      }
+    } else if (triggerReason !== "message-matched") {
+      return;
+    }
+
+    this.startTurn(state, commandReason(triggerReason));
+  }
+
+  private observeTurnResult(
+    state: LoopTauntState,
+    payload: ArmyLoopTauntObservationPayload,
+  ): void {
+    const turn = state.currentTurn;
+    if (
+      turn === undefined ||
+      payload.epoch !== turn.epoch ||
+      payload.attempt !== turn.attempt ||
+      state.phase !== "waiting-report"
+    ) {
+      return;
+    }
+
+    clearTimers(state);
+    if (payload.eligible === false) {
+      turn.exhaustedPlayerNumbers.add(turn.selected.number);
+      this.advanceAfterIneligible(state, turn);
+      return;
+    }
+
+    if (payload.eligible !== true) {
+      return;
+    }
+
+    if (state.focusActive) {
+      resetTurn(state);
+      return;
+    }
+
+    state.phase = turn.attempt === 1 ? "settling" : "retry-settling";
+    this.schedule(
+      state,
+      turn.attempt === 1
+        ? DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS
+        : LOOP_TAUNT_RETRY_SETTLE_MS,
+      () => this.completeSettleWindow(state, turn),
+    );
+  }
+
+  private advanceAfterIneligible(
+    state: LoopTauntState,
+    turn: ActiveLoopTauntTurn,
+  ): void {
+    const next = this.selectNextParticipant(state, turn.exhaustedPlayerNumbers);
+    if (next === undefined) {
+      this.failLoop(state, "no eligible loop taunt participant");
+      return;
+    }
+
+    state.currentTurn = {
+      attempt: 1,
+      epoch: turn.epoch,
+      exhaustedPlayerNumbers: turn.exhaustedPlayerNumbers,
+      reason: "selected participant ineligible",
+      selected: next,
+    };
+    state.phase = "waiting-report";
+    this.sendTurnCommand(state, state.currentTurn);
+    this.scheduleReportTimeout(state, state.currentTurn);
+  }
+
+  private completeSettleWindow(
+    state: LoopTauntState,
+    turn: ActiveLoopTauntTurn,
+  ): void {
+    if (state.currentTurn !== turn) {
+      return;
+    }
+
+    if (state.focusActive) {
+      resetTurn(state);
+      return;
+    }
+
+    if (turn.attempt === 1) {
+      state.phase = "retry-wait";
+      this.schedule(state, LOOP_TAUNT_SHORT_RETRY_MS, () =>
+        this.retrySelectedParticipant(state, turn),
+      );
+      return;
+    }
+
+    turn.exhaustedPlayerNumbers.add(turn.selected.number);
+    const next = this.selectNextParticipant(state, turn.exhaustedPlayerNumbers);
+    if (next === undefined) {
+      this.failLoop(state, "loop taunt recovery exhausted all participants");
+      return;
+    }
+
+    state.currentTurn = {
+      attempt: 1,
+      epoch: turn.epoch,
+      exhaustedPlayerNumbers: turn.exhaustedPlayerNumbers,
+      reason: "missed cast recovery expired",
+      selected: next,
+    };
+    state.phase = "waiting-report";
+    this.sendTurnCommand(state, state.currentTurn);
+    this.scheduleReportTimeout(state, state.currentTurn);
+  }
+
+  private retrySelectedParticipant(
+    state: LoopTauntState,
+    turn: ActiveLoopTauntTurn,
+  ): void {
+    if (state.currentTurn !== turn || state.focusActive) {
+      return;
+    }
+
+    state.currentTurn = {
+      ...turn,
+      attempt: 2,
+      reason: "missed cast retry",
+    };
+    state.phase = "waiting-report";
+    this.sendTurnCommand(state, state.currentTurn);
+    this.scheduleReportTimeout(state, state.currentTurn);
+  }
+
+  private scheduleReportTimeout(
+    state: LoopTauntState,
+    turn: ActiveLoopTauntTurn,
+  ): void {
+    this.schedule(state, LOOP_TAUNT_TURN_REPORT_TIMEOUT_MS, () => {
+      if (state.currentTurn === turn && state.phase === "waiting-report") {
+        this.failLoop(state, "loop taunt selected participant did not report");
+      }
     });
   }
 
   private startTurn(state: LoopTauntState, reason: string): void {
-    if (state.participants.length === 0 || state.phase !== "idle") {
+    const selected = this.selectNextParticipant(state, new Set());
+    if (selected === undefined) {
+      this.failLoop(state, "loop taunt has no participants");
       return;
     }
 
     clearTimers(state);
     state.epoch += 1;
-    state.phase = "settling";
-    state.targetAuraActive = false;
+    state.focusActive = false;
+    state.currentTurn = {
+      attempt: 1,
+      epoch: state.epoch,
+      exhaustedPlayerNumbers: new Set(),
+      reason,
+      selected,
+    };
+    state.phase = "waiting-report";
 
-    const selectedIndex = state.nextIndex % state.participants.length;
-    state.currentSelected = state.participants[selectedIndex];
-    state.nextIndex = (selectedIndex + 1) % state.participants.length;
-
-    const epoch = state.epoch;
-    this.schedule(state, state.delayMs, () => {
-      if (state.epoch !== epoch || state.phase !== "settling") {
-        return;
+    const delayMs =
+      state.trigger.type === "focus" ? DEFAULT_LOOP_TAUNT_DELAY_MS : 0;
+    this.schedule(state, delayMs, () => {
+      if (state.currentTurn !== undefined && state.phase === "waiting-report") {
+        this.sendTurnCommand(state, state.currentTurn);
+        this.scheduleReportTimeout(state, state.currentTurn);
       }
-
-      this.sendCommand(state, 1, reason);
-      this.schedule(state, DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS, () => {
-        if (state.epoch !== epoch || state.phase !== "settling") {
-          return;
-        }
-
-        if (state.targetAuraActive) {
-          resetTurn(state);
-          return;
-        }
-
-        state.phase = "retry-wait";
-        this.schedule(state, LOOP_TAUNT_SHORT_RETRY_MS, () => {
-          if (state.epoch !== epoch || state.phase !== "retry-wait") {
-            return;
-          }
-
-          state.phase = "retry-settling";
-          this.sendCommand(state, 2, "missed cast retry");
-          this.schedule(state, LOOP_TAUNT_RETRY_SETTLE_MS, () => {
-            if (state.epoch !== epoch || state.phase !== "retry-settling") {
-              return;
-            }
-
-            if (state.targetAuraActive) {
-              resetTurn(state);
-              return;
-            }
-
-            resetTurn(state);
-            this.startTurn(state, "missed cast recovery expired");
-          });
-        });
-      });
     });
+  }
+
+  private selectNextParticipant(
+    state: LoopTauntState,
+    exhaustedPlayerNumbers: ReadonlySet<number>,
+  ): ArmyLoopTauntParticipantPayload | undefined {
+    for (let offset = 0; offset < state.participants.length; offset += 1) {
+      const index = (state.nextIndex + offset) % state.participants.length;
+      const candidate = state.participants[index]!;
+      if (!exhaustedPlayerNumbers.has(candidate.number)) {
+        state.nextIndex = (index + 1) % state.participants.length;
+        return candidate;
+      }
+    }
+
+    return undefined;
   }
 }
