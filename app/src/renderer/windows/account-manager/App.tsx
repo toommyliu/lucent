@@ -2668,7 +2668,7 @@ function App(): JSX.Element {
                           setPasswordVisible((visible) => !visible)
                         }
                       >
-                        {passwordVisible() ? "Hide" : "Show"}
+                        <Icon icon={passwordVisible() ? "eye_off" : "eye"} />
                       </Button>
                     </InputGroupAddon>
                   </InputGroup>
