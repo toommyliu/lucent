@@ -46,6 +46,10 @@ import { TempInventory } from "../../flash/Services/TempInventory";
 import { Wait } from "../../flash/Services/Wait";
 import { World, type WorldShape } from "../../flash/Services/World";
 import {
+  CONSUMABLE_SKILL_INDEX,
+  waitForConsumableSkillSlot,
+} from "../../flash/consumableSkill";
+import {
   normalizeItemQuantity,
   resolveItemIdentifier,
 } from "../../flash/itemIdentifiers";
@@ -548,13 +552,26 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      yield* inventory.equip(resolved);
+      const inventoryItem = yield* inventory.getItem(resolved);
+      if (inventoryItem === null) {
+        return;
+      }
+
+      const equipped = yield* inventory.equip(resolved);
+      if (!equipped) {
+        return;
+      }
+
+      const slotMatches = yield* waitForConsumableSkillSlot(
+        { combat, wait },
+        inventoryItem,
+      );
+      if (!slotMatches) {
+        return;
+      }
+
       yield* Effect.sleep("500 millis");
-      yield* Effect.log({
-        message: "Drank consumable",
-        item: resolved,
-      });
-      yield* combat.useSkill(5, true, true);
+      yield* combat.useSkill(CONSUMABLE_SKILL_INDEX, true, true);
       yield* Effect.sleep("1 second");
     });
 
