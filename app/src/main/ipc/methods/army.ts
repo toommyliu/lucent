@@ -901,6 +901,37 @@ const resolveBarrierExpectedPlayers = (
   return { keys, players };
 };
 
+const resolveProgressExpectedPlayers = (
+  session: ArmySessionState,
+  payload: Pick<ArmyProgressPayload, "players">,
+): {
+  readonly keys: ReadonlySet<string>;
+  readonly players: readonly string[];
+} => {
+  if (payload.players !== undefined) {
+    return resolveBarrierExpectedPlayers(session, payload);
+  }
+
+  const keys = new Set<string>();
+  const players: string[] = [];
+  for (const player of session.players) {
+    const key = normalizePlayerName(player);
+    const window = session.windows.get(key);
+    if (
+      window === undefined ||
+      window.isDestroyed() ||
+      window.webContents.isDestroyed()
+    ) {
+      continue;
+    }
+
+    keys.add(key);
+    players.push(player);
+  }
+
+  return { keys, players };
+};
+
 const samePlayerSet = (
   left: ReadonlySet<string>,
   right: ReadonlySet<string>,
@@ -1042,7 +1073,7 @@ const waitAtProgress = (
     readonly players: readonly string[];
   };
   try {
-    expectedPlayers = resolveBarrierExpectedPlayers(session, payload);
+    expectedPlayers = resolveProgressExpectedPlayers(session, payload);
   } catch (error) {
     return Promise.reject(error);
   }

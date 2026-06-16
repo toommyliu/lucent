@@ -391,11 +391,17 @@ const make = Effect.gen(function* () {
     readonly label: string;
     readonly isComplete: () => Effect.Effect<boolean, E>;
     readonly action: () => Effect.Effect<void, E>;
-    readonly options?: ArmyRunStepOptions;
+    readonly options?: ArmyRunStepOptions & {
+      readonly players?: readonly string[];
+    };
   }) =>
     Effect.gen(function* () {
       const step = yield* nextBarrierStep();
       const session = yield* getState.pipe(Effect.flatMap(assertStarted));
+      const progressOptions = {
+        ...args.options,
+        players: args.options?.players ?? [session.playerName],
+      };
 
       while (true) {
         const complete = yield* args.isComplete();
@@ -404,7 +410,7 @@ const make = Effect.gen(function* () {
           step,
           args.label,
           complete,
-          args.options,
+          progressOptions,
         );
         if (progress.complete) {
           return;
