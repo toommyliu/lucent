@@ -7,6 +7,7 @@ import {
   AccountManagerIpcChannels,
   type AccountGameLaunchPayload,
   type AccountGameServer,
+  type AccountGameServerPingsResult,
   type AccountGameServersResult,
   type AccountGameWindowShutdownResponse,
   type AccountGameWindowTargetRequest,
@@ -52,6 +53,11 @@ import {
   mergeAccountSessionDisplayMetadata,
   type AccountSessionsShape,
 } from "../../backend/accounts/AccountSessions";
+import {
+  accountServerPingCacheKey,
+  ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+  pingAccountServers,
+} from "../../backend/accounts/ServerPing";
 import {
   ScriptLibrary,
   type ScriptLibraryShape,
@@ -1130,6 +1136,43 @@ const runAccountServersEffect = async (
   }
 };
 
+const runAccountServerPingsEffect = async (
+  runtime: AccountSessionsShape,
+  effect: Effect.Effect<readonly ServerData[], unknown>,
+): Promise<AccountGameServerPingsResult> => {
+  try {
+    const servers = await Effect.runPromise(effect);
+    const cacheKey = accountServerPingCacheKey(servers);
+    const timestamp = now();
+    const cached = runtime.getServerPingCache();
+
+    if (
+      cached !== null &&
+      cached.cacheKey === cacheKey &&
+      timestamp < cached.result.expiresAt
+    ) {
+      return cached.result;
+    }
+
+    const pings = await pingAccountServers(servers);
+    const measuredAt = now();
+    const result: AccountGameServerPingsResult = {
+      expiresAt: measuredAt + ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+      measuredAt,
+      pings,
+    };
+
+    runtime.setCachedServerPings({
+      cacheKey,
+      result,
+    });
+
+    return result;
+  } catch (error) {
+    throw new Error(serverLoadErrorMessage(error), { cause: error });
+  }
+};
+
 export const registerAccountManagerIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
 ): Effect.Effect<
@@ -1193,6 +1236,15 @@ export const registerAccountManagerIpcHandlers = (
       ),
     );
 
+    yield* ipc.handle(AccountManagerIpcChannels.getServerPings, () =>
+      Effect.promise(() =>
+        runAccountServerPingsEffect(
+          runtime,
+          getCachedAccountServers(runtime, observability),
+        ),
+      ),
+    );
+
     yield* ipc.handle(AccountManagerIpcChannels.refreshServers, () =>
       Effect.promise(async () => {
         const timestamp = now();
@@ -1209,6 +1261,7 @@ export const registerAccountManagerIpcHandlers = (
         }
 
         runtime.markServerRefreshRequest(timestamp);
+        runtime.resetServerPingCache();
         return await runAccountServersEffect(
           runtime,
           refreshAccountServers(runtime, observability),

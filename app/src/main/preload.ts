@@ -30,6 +30,7 @@ import {
   WindowIpcContracts,
   type AccountGameWindowTargetRequest,
   type AccountGameLaunchPayload,
+  type AccountGameServerPingsResult,
   type AccountGameServersResult,
   type AccountGameWindowShutdownRequest,
   type AccountGameWindowShutdownResponse,
@@ -435,6 +436,11 @@ const fullBridge: DesktopBridge = {
       return (await ipcRenderer.invoke(
         AccountManagerIpcChannels.getServers,
       )) as AccountGameServersResult;
+    },
+    getServerPings: async () => {
+      return (await ipcRenderer.invoke(
+        AccountManagerIpcChannels.getServerPings,
+      )) as AccountGameServerPingsResult;
     },
     refreshServers: async () => {
       return (await ipcRenderer.invoke(

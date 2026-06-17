@@ -189,6 +189,7 @@ export const WindowIpcChannels = {
 export const AccountManagerIpcChannels = {
   getState: "desktop:account-manager:get-state",
   getServers: "desktop:account-manager:get-servers",
+  getServerPings: "desktop:account-manager:get-server-pings",
   refreshServers: "desktop:account-manager:refresh-servers",
   getGameLaunch: "desktop:account-manager:get-game-launch",
   createAccount: "desktop:account-manager:create-account",
@@ -510,6 +511,23 @@ export interface AccountGameServersResult {
   readonly refreshAvailableAt: number;
 }
 
+export type AccountGameServerPing =
+  | {
+      readonly serverName: string;
+      readonly status: "ok";
+      readonly latencyMs: number;
+    }
+  | {
+      readonly serverName: string;
+      readonly status: "offline" | "timeout" | "unreachable";
+    };
+
+export interface AccountGameServerPingsResult {
+  readonly pings: readonly AccountGameServerPing[];
+  readonly measuredAt: number;
+  readonly expiresAt: number;
+}
+
 export interface AccountScriptSession {
   readonly gameWindowId: number;
   readonly launchUsername?: string;
@@ -731,6 +749,10 @@ export interface AccountManagerInvokeChannels {
     [],
     AccountGameServersResult
   >;
+  readonly [AccountManagerIpcChannels.getServerPings]: IpcInvokeDefinition<
+    [],
+    AccountGameServerPingsResult
+  >;
   readonly [AccountManagerIpcChannels.refreshServers]: IpcInvokeDefinition<
     [],
     AccountGameServersResult
@@ -794,6 +816,7 @@ export interface AccountManagerRendererEventChannels {
 export interface AccountManagerBridge {
   getState(): Promise<AccountManagerState>;
   getServers(): Promise<AccountGameServersResult>;
+  getServerPings(): Promise<AccountGameServerPingsResult>;
   refreshServers(): Promise<AccountGameServersResult>;
   getGameLaunch(): Promise<AccountGameLaunchPayload | null>;
   createAccount(draft: ManagedAccountDraft): Promise<AccountManagerState>;

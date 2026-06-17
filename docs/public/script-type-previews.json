@@ -4289,8 +4289,8 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/ipc.ts:411",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L411"
+        "path": "app/src/shared/ipc.ts:412",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L412"
       }
     },
     "script-player-count-wait-options": {

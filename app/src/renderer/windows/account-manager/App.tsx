@@ -74,6 +74,7 @@ import {
 import {
   ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
   type AccountGameServer,
+  type AccountGameServerPing,
   type AccountLaunchTilingAlgorithm,
   type AccountManagerState,
   type AccountScriptSession,
@@ -181,6 +182,17 @@ const toForm = (account: ManagedAccount): AccountFormState => ({
 });
 
 type ServerAvailability = "full" | "offline" | "online";
+type ServerPingQuality =
+  | "good"
+  | "pending"
+  | "poor"
+  | "unavailable"
+  | "warning";
+
+interface ServerPingDisplayState {
+  readonly label: string;
+  readonly quality: ServerPingQuality;
+}
 
 const serverAvailability = (server: AccountGameServer): ServerAvailability => {
   if (!server.online) {
@@ -198,6 +210,55 @@ const serverDisplayLabel = (
   fallbackName: string,
 ): string =>
   server === undefined ? fallbackName : `${server.name} ${serverMeta(server)}`;
+
+const serverPingLabel = (
+  server: AccountGameServer,
+  ping: AccountGameServerPing | undefined,
+  loading: boolean,
+): string => {
+  if (!server.online) {
+    return "";
+  }
+
+  if (ping === undefined) {
+    return loading ? "ping..." : "n/a";
+  }
+
+  switch (ping.status) {
+    case "ok":
+      return `${ping.latencyMs} ms`;
+    case "timeout":
+      return "timeout";
+    case "offline":
+      return "";
+    case "unreachable":
+      return "n/a";
+  }
+};
+
+const serverPingQuality = (
+  server: AccountGameServer,
+  ping: AccountGameServerPing | undefined,
+  loading: boolean,
+): ServerPingQuality => {
+  if (!server.online) {
+    return "unavailable";
+  }
+
+  if (ping === undefined) {
+    return loading ? "pending" : "unavailable";
+  }
+
+  if (ping.status !== "ok") {
+    return ping.status === "timeout" ? "poor" : "unavailable";
+  }
+
+  if (ping.latencyMs < 100) {
+    return "good";
+  }
+
+  return ping.latencyMs < 200 ? "warning" : "poor";
+};
 
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
   count === 1 ? singular : plural;
@@ -363,6 +424,7 @@ function App(): JSX.Element {
   let groupSearchInput: HTMLInputElement | undefined;
   let usernameInput: HTMLInputElement | undefined;
   let serverSelectionSettlingTimeout: number | undefined;
+  let serverPingRequestId = 0;
   const [state, setState] = createSignal<AccountManagerState>(emptyState);
   const [stateLoaded, setStateLoaded] = createSignal(false);
   const [selectedAccountUsernames, setSelectedAccountUsernames] = createSignal<
@@ -409,6 +471,10 @@ function App(): JSX.Element {
     createSignal(false);
   const [servers, setServers] = createSignal<readonly AccountGameServer[]>([]);
   const [serversLoading, setServersLoading] = createSignal(false);
+  const [serverPingsLoading, setServerPingsLoading] = createSignal(false);
+  const [serverPings, setServerPings] = createSignal<
+    ReadonlyMap<string, AccountGameServerPing>
+  >(new Map());
   const [serverSelectionSettling, setServerSelectionSettling] =
     createSignal(false);
   const [serverError, setServerError] = createSignal("");
@@ -525,6 +591,23 @@ function App(): JSX.Element {
   });
   const selectedServerDisplayValue = createMemo(() => launchServer());
   const selectedServerInputValue = createMemo(() => launchServer());
+  const pingForServer = (
+    server: AccountGameServer,
+  ): AccountGameServerPing | undefined => serverPings().get(server.name);
+  const serverPingDisplayState = (
+    server: AccountGameServer,
+  ): ServerPingDisplayState | null => {
+    const ping = pingForServer(server);
+    const loading = serverPingsLoading();
+    const label = serverPingLabel(server, ping, loading);
+
+    return label === ""
+      ? null
+      : {
+          label,
+          quality: serverPingQuality(server, ping, loading),
+        };
+  };
   const filteredServerOptions = createMemo(() => {
     const query = serverSearchQuery().trim().toLowerCase();
     if (query === "") {
@@ -970,6 +1053,44 @@ function App(): JSX.Element {
     }));
   };
 
+  const loadServerPings = async (
+    serverSnapshot: readonly AccountGameServer[],
+  ) => {
+    const requestId = ++serverPingRequestId;
+    setServerPings(new Map());
+
+    if (!serverSnapshot.some((server) => server.online)) {
+      setServerPingsLoading(false);
+      return;
+    }
+
+    const serverNames = new Set(serverSnapshot.map((server) => server.name));
+    setServerPingsLoading(true);
+    try {
+      const result = await window.desktop.accounts.getServerPings();
+      if (requestId !== serverPingRequestId) {
+        return;
+      }
+
+      const nextPings = new Map<string, AccountGameServerPing>();
+      for (const ping of result.pings) {
+        if (serverNames.has(ping.serverName)) {
+          nextPings.set(ping.serverName, ping);
+        }
+      }
+      setServerPings(nextPings);
+    } catch (error) {
+      console.error("Failed to load server pings:", error);
+      if (requestId === serverPingRequestId) {
+        setServerPings(new Map());
+      }
+    } finally {
+      if (requestId === serverPingRequestId) {
+        setServerPingsLoading(false);
+      }
+    }
+  };
+
   const loadServers = async (options?: { readonly refresh?: boolean }) => {
     if (serverSelectionSettlingTimeout !== undefined) {
       window.clearTimeout(serverSelectionSettlingTimeout);
@@ -984,6 +1105,7 @@ function App(): JSX.Element {
         : await window.desktop.accounts.getServers();
       setServerRefreshCooldownUntil(nextServers.refreshAvailableAt);
       setServers(nextServers.servers);
+      void loadServerPings(nextServers.servers);
       if (!serverSelectionInitialized()) {
         const nextLaunchServerResolution = resolveAccountLoginServerPreference(
           nextServers.servers,
@@ -1528,6 +1650,7 @@ function App(): JSX.Element {
 
     onCleanup(() => {
       unsubscribe();
+      serverPingRequestId += 1;
       window.clearInterval(refreshCooldownTimer);
       if (serverSelectionSettlingTimeout !== undefined) {
         window.clearTimeout(serverSelectionSettlingTimeout);
@@ -1954,16 +2077,28 @@ function App(): JSX.Element {
                   >
                     <Show
                       when={
-                        !serverComboboxOpen() &&
-                        selectedLaunchServer() !== undefined
+                        serverComboboxOpen()
+                          ? undefined
+                          : selectedLaunchServer()
                       }
                     >
-                      <span class="account-manager__server-overlay">
-                        {launchServer()}
-                        <span class="account-manager__server-overlay-meta">
-                          {serverMeta(selectedLaunchServer()!)}
+                      {(server) => (
+                        <span class="account-manager__server-overlay">
+                          {launchServer()}
+                          <span class="account-manager__server-overlay-meta">
+                            {serverMeta(server())}
+                          </span>
+                          <Show when={serverPingDisplayState(server())}>
+                            {(ping) => (
+                              <span
+                                class={`account-manager__server-overlay-ping account-server-ping account-server-ping--${ping().quality}`}
+                              >
+                                {ping().label}
+                              </span>
+                            )}
+                          </Show>
                         </span>
-                      </span>
+                      )}
                     </Show>
                   </ComboboxInput>
                   <ComboboxContent class="account-manager__server-content">
@@ -1982,26 +2117,42 @@ function App(): JSX.Element {
                         </ComboboxItem>
                       </Show>
                       <For each={filteredServerOptions()}>
-                        {(server) => (
-                          <ComboboxItem
-                            value={server.name}
-                            label={serverDisplayLabel(server, server.name)}
-                            disabled={!server.online}
-                          >
-                            <span
-                              class={`account-server-option account-server-option--${serverAvailability(
-                                server,
-                              )}`}
+                        {(server) => {
+                          const pingDisplay = () =>
+                            serverPingDisplayState(server);
+
+                          return (
+                            <ComboboxItem
+                              value={server.name}
+                              label={serverDisplayLabel(server, server.name)}
+                              disabled={!server.online}
                             >
-                              <span class="account-server-option__name">
-                                {server.name}
+                              <span
+                                class={`account-server-option account-server-option--${serverAvailability(
+                                  server,
+                                )}`}
+                              >
+                                <span class="account-server-option__name">
+                                  {server.name}
+                                </span>
+                                <span class="account-server-option__metrics">
+                                  <span class="account-server-option__meta">
+                                    {serverMeta(server)}
+                                  </span>
+                                  <Show when={pingDisplay()}>
+                                    {(ping) => (
+                                      <span
+                                        class={`account-server-option__ping account-server-ping account-server-ping--${ping().quality}`}
+                                      >
+                                        {ping().label}
+                                      </span>
+                                    )}
+                                  </Show>
+                                </span>
                               </span>
-                              <span class="account-server-option__meta">
-                                {serverMeta(server)}
-                              </span>
-                            </span>
-                          </ComboboxItem>
-                        )}
+                            </ComboboxItem>
+                          );
+                        }}
                       </For>
                     </ComboboxList>
                   </ComboboxContent>
