@@ -590,7 +590,9 @@ const makeWindowService = Effect.gen(function* () {
           Effect.gen(function* () {
             yield* destroyChildWindows(gameWindowId);
             handles.gameWindows.delete(gameWindowId);
-            yield* updateState((state) => removeGameWindow(state, gameWindowId));
+            yield* updateState((state) =>
+              removeGameWindow(state, gameWindowId),
+            );
             yield* quitIfOnlyHiddenAccountManagerRemains();
           }),
         );
@@ -859,11 +861,11 @@ const makeWindowService = Effect.gen(function* () {
               handles.appWindows.delete(definition.id);
               destroyWindow(appWindow);
             }).pipe(
-            Effect.flatMap(() =>
-              updateState((state) =>
-                removeAppWindow(state, definition.id, appWindowId),
+              Effect.flatMap(() =>
+                updateState((state) =>
+                  removeAppWindow(state, definition.id, appWindowId),
+                ),
               ),
-            ),
               Effect.flatMap(() => Effect.fail(error)),
             ),
           ),

@@ -231,6 +231,7 @@ export class LoopTauntCoordinator {
     if (
       state.phase === "settling" ||
       state.phase === "retry-settling" ||
+      state.phase === "retry-wait" ||
       state.phase === "waiting-report"
     ) {
       resetTurn(state);
