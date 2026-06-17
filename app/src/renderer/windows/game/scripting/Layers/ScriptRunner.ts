@@ -95,6 +95,13 @@ import {
   type ScriptAsyncScope,
   makeScriptAsyncScope,
 } from "../scriptAsyncScope";
+import {
+  initialScriptRunnerStatusState,
+  reduceScriptRunnerStatus,
+  scriptRunnerStatusEquals,
+  type ScriptRunnerStatus,
+  type ScriptRunnerStatusEvent,
+} from "../scriptRunnerStatus";
 import { makeScriptRecipes } from "../recipes";
 import { loadScriptModule } from "../scriptLoader";
 import type { ScriptRuntimeStdBinding } from "../ScriptRuntimeStd";
@@ -248,6 +255,8 @@ const make = Effect.gen(function* () {
   const runSemaphore = yield* Semaphore.make(1);
   const nextDiagnosticIdRef = yield* Ref.make(0);
   const diagnosticsRef = yield* Ref.make<ReadonlyArray<ScriptDiagnostic>>([]);
+  const statusStateRef = yield* Ref.make(initialScriptRunnerStatusState());
+  const statusListeners = new Set<(status: ScriptRunnerStatus) => void>();
   const bridgeFailureDiagnosticState = new Map<
     string,
     { lastEmittedAt: number; suppressed: number }
@@ -256,6 +265,63 @@ const make = Effect.gen(function* () {
     DEFAULT_SCRIPT_OPTIONS,
   );
   let nextPacketCleanupId = 0;
+
+  const emitStatusEvent = (event: ScriptRunnerStatusEvent) =>
+    Effect.gen(function* () {
+      const previous = yield* Ref.get(statusStateRef);
+      const next = reduceScriptRunnerStatus(previous, event);
+      if (next === previous) {
+        return;
+      }
+
+      yield* Ref.set(statusStateRef, next);
+      if (scriptRunnerStatusEquals(previous.status, next.status)) {
+        return;
+      }
+
+      yield* Effect.sync(() => {
+        for (const listener of statusListeners) {
+          listener(next.status);
+        }
+      });
+    });
+
+  const emitLaunchFailureStatus = (sourceName: string, message: string) =>
+    Effect.gen(function* () {
+      const activeScript = yield* Ref.get(activeFiberRef);
+      if (Option.isSome(activeScript)) {
+        return;
+      }
+
+      const token = yield* Ref.updateAndGet(
+        nextScriptTokenRef,
+        (value) => value + 1,
+      );
+      yield* emitStatusEvent({
+        token,
+        status: "failed",
+        scriptName: sourceName,
+        message,
+      });
+    });
+
+  const emitStoppedStatus = (token: number, sourceName: string) =>
+    Effect.gen(function* () {
+      const state = yield* Ref.get(statusStateRef);
+      if (
+        state.token !== token ||
+        state.status.status === "failed" ||
+        state.status.status === "stopped"
+      ) {
+        return;
+      }
+
+      yield* emitStatusEvent({
+        token,
+        status: "stopped",
+        scriptName: sourceName,
+      });
+    });
 
   const appendDiagnostic = (sourceName: string, input: ScriptDiagnosticInput) =>
     Effect.gen(function* () {
@@ -415,6 +481,7 @@ const make = Effect.gen(function* () {
     main: ScriptMain,
     runtime: ScriptRuntimeStdBinding,
     scriptScope: ScriptAsyncScope,
+    token: number,
   ) => {
     const tolerantBridgeFailurePolicy = {
       mode: "tolerant" as const,
@@ -2120,15 +2187,21 @@ const make = Effect.gen(function* () {
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause) || scriptScope.isCancelled()
           ? Effect.void
-          : appendErrorDiagnostic(sourceName, causeMessage(cause), cause).pipe(
-              Effect.andThen(
-                Effect.logError({
-                  message: "script execution failed",
-                  sourceName,
-                  cause,
-                }),
-              ),
-            ),
+          : Effect.gen(function* () {
+              const message = causeMessage(cause);
+              yield* appendErrorDiagnostic(sourceName, message, cause);
+              yield* emitStatusEvent({
+                token,
+                status: "failed",
+                scriptName: sourceName,
+                message,
+              });
+              yield* Effect.logError({
+                message: "script execution failed",
+                sourceName,
+                cause,
+              });
+            }),
       ),
       Effect.ensuring(
         Effect.gen(function* () {
@@ -2205,13 +2278,27 @@ const make = Effect.gen(function* () {
             Effect.gen(function* () {
               yield* Ref.set(diagnosticsRef, []);
               yield* appendErrorDiagnostic(sourceName, error.message, error);
+              yield* emitLaunchFailureStatus(sourceName, error.message);
             }),
           ),
         );
 
         yield* runSemaphore.withPermits(1)(
           Effect.gen(function* () {
-            yield* ensureReady(sourceName);
+            yield* ensureReady(sourceName).pipe(
+              Effect.tapError((error) =>
+                emitLaunchFailureStatus(sourceName, toErrorMessage(error)),
+              ),
+            );
+            const token = yield* Ref.updateAndGet(
+              nextScriptTokenRef,
+              (value) => value + 1,
+            );
+            yield* emitStatusEvent({
+              token,
+              status: "starting",
+              scriptName: sourceName,
+            });
             yield* stop("replaced by a new script");
             yield* Ref.set(diagnosticsRef, []);
             bridgeFailureDiagnosticState.clear();
@@ -2219,10 +2306,6 @@ const make = Effect.gen(function* () {
               applyScriptOptionsPatch(current, options?.options),
             );
 
-            const token = yield* Ref.updateAndGet(
-              nextScriptTokenRef,
-              (value) => value + 1,
-            );
             const scriptScope = makeScriptAsyncScope(runFork);
             const fiber = yield* Effect.forkDetach(
               executeScript(
@@ -2230,13 +2313,22 @@ const make = Effect.gen(function* () {
                 loaded.main,
                 loaded.runtime,
                 scriptScope,
-              ).pipe(Effect.ensuring(clearActiveScript(token))),
+                token,
+              ).pipe(
+                Effect.ensuring(emitStoppedStatus(token, sourceName)),
+                Effect.ensuring(clearActiveScript(token)),
+              ),
             );
 
             yield* Ref.set(
               activeFiberRef,
               Option.some({ token, fiber, scope: scriptScope }),
             );
+            yield* emitStatusEvent({
+              token,
+              status: "running",
+              scriptName: sourceName,
+            });
             yield* clearPendingLaunch(launchFiber);
             yield* Effect.logInfo(`[scripting] started script: ${sourceName}`);
           }),
@@ -2251,6 +2343,31 @@ const make = Effect.gen(function* () {
 
   const isRunning: ScriptRunnerShape["isRunning"] = () =>
     Ref.get(activeFiberRef).pipe(Effect.map(Option.isSome));
+
+  const getStatus: ScriptRunnerShape["getStatus"] = () =>
+    Ref.get(statusStateRef).pipe(Effect.map((state) => state.status));
+
+  const onStatus: ScriptRunnerShape["onStatus"] = (listener, options) =>
+    Effect.gen(function* () {
+      yield* Effect.sync(() => {
+        statusListeners.add(listener);
+      });
+
+      if (options?.emitCurrent ?? true) {
+        yield* getStatus().pipe(
+          Effect.flatMap((status) => Effect.sync(() => listener(status))),
+          Effect.catchCause((cause) =>
+            Effect.sync(() => statusListeners.delete(listener)).pipe(
+              Effect.andThen(Effect.failCause(cause)),
+            ),
+          ),
+        );
+      }
+
+      return () => {
+        statusListeners.delete(listener);
+      };
+    });
 
   const diagnostics: ScriptRunnerShape["diagnostics"] = () =>
     Ref.get(diagnosticsRef);
@@ -2275,6 +2392,8 @@ const make = Effect.gen(function* () {
   return {
     run,
     stop,
+    getStatus,
+    onStatus,
     isRunning,
     diagnostics,
     getOptions,

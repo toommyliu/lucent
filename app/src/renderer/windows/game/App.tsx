@@ -109,6 +109,7 @@ import {
   type TopNavOptionItem,
 } from "./topNavOptions";
 import { ScriptRunner } from "./scripting/Services/ScriptRunner";
+import { createAccountManagerStatusPublisher } from "./accountManagerStatusBridge";
 import { DEBUG_EVAL_SOURCE_NAME, createDebugScriptSource } from "./debugEval";
 import {
   diagnosticDetailsText,
@@ -118,6 +119,7 @@ import {
 } from "./scripting/fatalAlert";
 import { toDiagnosticDetails, toErrorMessage } from "./scripting/errorDetails";
 import type { ScriptDiagnostic } from "./scripting/Types";
+import type { ScriptRunnerStatus } from "./scripting/scriptRunnerStatus";
 
 markGameStartup("app-module-evaluated");
 
@@ -129,7 +131,6 @@ declare global {
   }
 }
 
-const ACCOUNT_SCRIPT_STATUS_POLL_MS = 1000;
 const AUTO_RELOGIN_DEFAULT_DELAY_MS = 3000;
 const AUTO_RELOGIN_MAX_DELAY_MS = 300_000;
 const DEFAULT_CELL = "Enter";
@@ -895,9 +896,10 @@ export default function App(props: {
   let fastTravelRequestChain = Promise.resolve();
   let cleanedUp = false;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
-  let lastSyncedAccountLaunchStatusKey = "";
+  let accountLaunchStatusPending = false;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
+  let accountManagerStatusDisposer: (() => void) | undefined;
   const accountLaunchFibers = new Set<Fiber.Fiber<void, unknown>>();
   const assignDisposer =
     (slot: "settings" | "autoAttack" | "autoZone" | "autoRelogin") =>
@@ -924,36 +926,66 @@ export default function App(props: {
     });
   };
 
-  const updateAccountLaunchStatus = async (
-    payload: AccountGameLaunchPayload,
-    status: "starting" | "running" | "stopped" | "failed",
-    message: string,
-    scriptNameOverride?: string,
-  ): Promise<void> => {
-    const nextScriptName =
-      scriptNameOverride ?? payload.script?.name ?? payload.script?.path;
-    try {
-      await window.desktop.accounts.updateScriptStatus({
-        username: payload.account.username,
-        gameWindowId: payload.gameWindowId,
-        status,
-        message,
-        ...(nextScriptName === undefined ? {} : { scriptName: nextScriptName }),
-      });
-    } catch (error: unknown) {
-      console.error("Failed to update account launch status:", error);
-    }
-  };
+  const accountManagerStatusPublisher = createAccountManagerStatusPublisher({
+    getLaunchPayload: () => activeAccountLaunchPayload,
+    getCurrentUsername: () =>
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const auth = yield* Auth;
+          return yield* auth
+            .getUsername()
+            .pipe(Effect.catch(() => Effect.succeed("")));
+        }),
+      ),
+    publish: (update) => window.desktop.accounts.updateScriptStatus(update),
+  });
 
-  const updateAccountLaunchStatusEffect = (
-    payload: AccountGameLaunchPayload,
-    status: "starting" | "running" | "stopped" | "failed",
+  const publishAccountManagerStatus = (
+    status: ScriptRunnerStatus,
+  ): Promise<void> =>
+    accountManagerStatusPublisher.publishStatus(status).then(() => undefined);
+
+  const publishAccountManagerStatusEffect = (status: ScriptRunnerStatus) =>
+    Effect.promise(async () => {
+      try {
+        await publishAccountManagerStatus(status);
+      } catch (error: unknown) {
+        console.error("Failed to update account launch status:", error);
+      }
+    });
+
+  const publishAccountManagerWindowStatusEffect = (
+    status: ScriptRunnerStatus["status"],
     message: string,
-    scriptNameOverride?: string,
+    scriptName?: string,
   ) =>
-    Effect.promise(() =>
-      updateAccountLaunchStatus(payload, status, message, scriptNameOverride),
-    );
+    publishAccountManagerStatusEffect({
+      status,
+      message,
+      ...(scriptName === undefined ? {} : { scriptName }),
+      updatedAt: Date.now(),
+    });
+
+  const publishCurrentAccountManagerStatus = (): void => {
+    if (activeAccountLaunchPayload === null || accountLaunchStatusPending) {
+      return;
+    }
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.getStatus();
+        }),
+      )
+      .then((status) => publishAccountManagerStatus(status))
+      .catch((error: unknown) => {
+        console.error(
+          "Failed to publish current account script status:",
+          error,
+        );
+      });
+  };
 
   const showFatalScriptAlert = (alert: FatalScriptAlert): void => {
     lastShownFatalScriptAlertKey = alert.key;
@@ -1025,62 +1057,6 @@ export default function App(props: {
     }
   };
 
-  const syncAccountLaunchWindowStatus = (
-    status: "starting" | "running" | "stopped" | "failed",
-    message: string,
-    scriptNameOverride?: string,
-  ): void => {
-    const payload = activeAccountLaunchPayload;
-    if (payload === null) {
-      return;
-    }
-
-    const key = `${payload.gameWindowId}:${status}:${message}:${scriptNameOverride ?? ""}`;
-    if (key === lastSyncedAccountLaunchStatusKey) {
-      return;
-    }
-
-    lastSyncedAccountLaunchStatusKey = key;
-    void updateAccountLaunchStatus(
-      payload,
-      status,
-      message,
-      scriptNameOverride,
-    );
-  };
-
-  const syncAccountLaunchRuntimeStatus = (options?: {
-    readonly scriptRunning?: boolean;
-  }): void => {
-    const payload = activeAccountLaunchPayload;
-    if (payload === null) {
-      return;
-    }
-
-    if (!getGameLoadState().loaded || !playerReady()) {
-      syncAccountLaunchWindowStatus("starting", "Waiting...");
-      return;
-    }
-
-    const currentScriptName = scriptName().trim();
-    const launchedScriptName =
-      payload.script?.name ?? payload.script?.path ?? "";
-    const name = currentScriptName || launchedScriptName || "script";
-    const hasScript = scriptLoaded() || payload.script !== undefined;
-
-    if (options?.scriptRunning ?? scriptRunning()) {
-      syncAccountLaunchWindowStatus("running", `Running ${name}`, name);
-      return;
-    }
-
-    if (hasScript) {
-      syncAccountLaunchWindowStatus("stopped", `Stopped ${name}`, name);
-      return;
-    }
-
-    syncAccountLaunchWindowStatus("running", "Player ready");
-  };
-
   const waitForLoadedGame = (): Promise<void> => {
     if (getGameLoadState().loaded) {
       return Promise.resolve();
@@ -1097,52 +1073,9 @@ export default function App(props: {
     });
   };
 
-  const waitForAccountScriptStopEffect = (
-    payload: AccountGameLaunchPayload,
-    name: string,
-  ) =>
-    Effect.gen(function* () {
-      let lastMessage = "";
-      const runner = yield* ScriptRunner;
-
-      while (true) {
-        yield* Effect.sleep(`${ACCOUNT_SCRIPT_STATUS_POLL_MS} millis`);
-
-        const isRunning = yield* runner.isRunning();
-
-        if (!isRunning) {
-          const diagnostics = yield* runner.diagnostics();
-          yield* Effect.sync(() => {
-            showStoppedScriptFatalAlert(true, false, diagnostics);
-          });
-          setScriptRunning(false);
-          setScriptStatus(`Stopped ${name}`);
-          yield* updateAccountLaunchStatusEffect(
-            payload,
-            "stopped",
-            `Stopped ${name}`,
-          );
-          return;
-        }
-
-        const nextMessage = formatScriptStatus(true, true);
-        setScriptRunning(true);
-        setScriptStatus(nextMessage);
-
-        if (nextMessage !== lastMessage) {
-          yield* updateAccountLaunchStatusEffect(
-            payload,
-            "running",
-            nextMessage,
-          );
-          lastMessage = nextMessage;
-        }
-      }
-    });
-
   const runAccountLaunch = (payload: AccountGameLaunchPayload) =>
     Effect.gen(function* () {
-      yield* updateAccountLaunchStatusEffect(payload, "starting", "Waiting...");
+      yield* publishAccountManagerWindowStatusEffect("starting", "Waiting...");
       yield* Effect.promise(() => waitForLoadedGame());
 
       const autoRelogin = yield* AutoRelogin;
@@ -1153,8 +1086,10 @@ export default function App(props: {
       });
 
       if (outcome.stage === "server-select") {
-        yield* updateAccountLaunchStatusEffect(
-          payload,
+        yield* Effect.sync(() => {
+          accountLaunchStatusPending = false;
+        });
+        yield* publishAccountManagerWindowStatusEffect(
           "stopped",
           payload.script
             ? "Select a server to run the script"
@@ -1166,12 +1101,13 @@ export default function App(props: {
 
       if (!payload.script) {
         setScriptRunning(false);
-        setScriptStatus("Player ready");
-        lastSyncedAccountLaunchStatusKey = "";
-        yield* updateAccountLaunchStatusEffect(
-          payload,
-          "running",
-          "Player ready",
+        setScriptStatus("No script loaded");
+        yield* Effect.sync(() => {
+          accountLaunchStatusPending = false;
+        });
+        yield* publishAccountManagerWindowStatusEffect(
+          "idle",
+          "No script loaded",
         );
         void refreshScriptMeta();
         return;
@@ -1182,12 +1118,8 @@ export default function App(props: {
       const runner = yield* ScriptRunner;
       yield* Effect.sync(() => {
         applyLoadedScript(script.source, name, script.path);
+        accountLaunchStatusPending = false;
       });
-      yield* updateAccountLaunchStatusEffect(
-        payload,
-        "running",
-        `Running ${name}`,
-      );
       yield* runner
         .run(script.source, {
           name,
@@ -1202,12 +1134,6 @@ export default function App(props: {
         );
       setScriptRunning(true);
       setScriptStatus(`Running ${name}`);
-      yield* updateAccountLaunchStatusEffect(
-        payload,
-        "running",
-        `Running ${name}`,
-      );
-      yield* waitForAccountScriptStopEffect(payload, name);
       void refreshScriptMeta();
     }).pipe(
       Effect.catch((error: unknown) =>
@@ -1219,10 +1145,13 @@ export default function App(props: {
               showFatalScriptError(name, error, payload.script?.path);
             });
           }
-          yield* updateAccountLaunchStatusEffect(
-            payload,
+          yield* Effect.sync(() => {
+            accountLaunchStatusPending = false;
+          });
+          yield* publishAccountManagerWindowStatusEffect(
             "failed",
             formatAccountLaunchError(error),
+            payload.script?.name ?? payload.script?.path,
           );
           void refreshScriptMeta();
         }),
@@ -1231,8 +1160,8 @@ export default function App(props: {
 
   const handleAccountLaunch = (payload: AccountGameLaunchPayload) => {
     activeAccountLaunchPayload = payload;
-    lastSyncedAccountLaunchStatusKey = "";
-    syncAccountLaunchRuntimeStatus();
+    accountLaunchStatusPending = true;
+    accountManagerStatusPublisher.reset();
     const fiber = runtime.runFork(runAccountLaunch(payload));
     accountLaunchFibers.add(fiber);
     let removeObserver: (() => void) | undefined;
@@ -1287,11 +1216,11 @@ export default function App(props: {
       setScriptSafeStartStop(options.safeStartStop);
       setScriptStatus(formatScriptStatus(scriptLoaded(), isRunning));
       showStoppedScriptFatalAlert(wasRunning, isRunning, diagnostics);
-      syncAccountLaunchRuntimeStatus({ scriptRunning: isRunning });
+      publishCurrentAccountManagerStatus();
     } catch (error) {
       console.error("Failed to refresh script metadata", error);
       setScriptStatus("Failed to refresh script state");
-      syncAccountLaunchRuntimeStatus({ scriptRunning: false });
+      publishCurrentAccountManagerStatus();
     }
   };
 
@@ -1469,7 +1398,7 @@ export default function App(props: {
   const refreshPlayerReadyState = () => {
     if (!getGameLoadState().loaded) {
       setPlayerReady(false);
-      syncAccountLaunchRuntimeStatus({ scriptRunning: false });
+      publishCurrentAccountManagerStatus();
       packetsBridgeController?.stopActive("Game is not loaded");
       return;
     }
@@ -1484,7 +1413,7 @@ export default function App(props: {
       .then((isReady) => {
         const wasReady = playerReady();
         setPlayerReady(isReady);
-        syncAccountLaunchRuntimeStatus();
+        publishCurrentAccountManagerStatus();
         if (isReady && !wasReady) {
           refreshTravelOptions();
         } else if (!isReady && wasReady) {
@@ -1493,7 +1422,7 @@ export default function App(props: {
       })
       .catch((error) => {
         setPlayerReady(false);
-        syncAccountLaunchRuntimeStatus({ scriptRunning: false });
+        publishCurrentAccountManagerStatus();
         packetsBridgeController?.stopActive("Player readiness check failed");
         console.error("Refresh player ready state error:", error);
       });
@@ -2351,6 +2280,36 @@ export default function App(props: {
       setScriptStatus("Stop requested");
       void refreshScriptMeta();
     });
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.onStatus(
+            (status) => {
+              void publishAccountManagerStatus(status).catch(
+                (error: unknown) => {
+                  console.error(
+                    "Failed to publish account script status:",
+                    error,
+                  );
+                },
+              );
+            },
+            { emitCurrent: false },
+          );
+        }),
+      )
+      .then((disposeAccountManagerStatus) => {
+        if (cleanedUp) {
+          disposeAccountManagerStatus();
+          return;
+        }
+
+        accountManagerStatusDisposer = disposeAccountManagerStatus;
+      })
+      .catch((error) => {
+        console.error("Account script status subscription error:", error);
+      });
     const unsubscribeFollowerGetState =
       window.desktop.follower.onGetStateRequest(getFollowerState);
     const unsubscribeFollowerMe =
@@ -2393,7 +2352,7 @@ export default function App(props: {
       }
       if (!state.loaded) {
         setPlayerReady(false);
-        syncAccountLaunchRuntimeStatus({ scriptRunning: false });
+        publishCurrentAccountManagerStatus();
         packetsBridge.stopActive("Game reloaded");
       }
     });
@@ -2509,6 +2468,8 @@ export default function App(props: {
       packetsBridge.dispose();
       loaderGrabberBridge.dispose();
       packetsBridgeController = undefined;
+      accountManagerStatusDisposer?.();
+      accountManagerStatusDisposer = undefined;
       followerStateDisposer?.();
       disposeGameLoadState();
       clearInterval(scriptMetaInterval);

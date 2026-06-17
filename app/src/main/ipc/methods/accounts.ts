@@ -49,6 +49,7 @@ import {
 } from "../DesktopIpcRequest";
 import {
   AccountSessions,
+  mergeAccountSessionDisplayMetadata,
   type AccountSessionsShape,
 } from "../../backend/accounts/AccountSessions";
 import {
@@ -115,6 +116,11 @@ const normalizeOptionalString = (value: unknown): string => {
   }
 
   return value.trim();
+};
+
+const optionalTrimmedString = (value: unknown): string | undefined => {
+  const normalized = normalizeOptionalString(value);
+  return normalized === "" ? undefined : normalized;
 };
 
 const hasAccountUsername = (
@@ -592,24 +598,37 @@ const normalizeGameWindowTargetRequest = (
   };
 };
 
+type AccountRuntimeSessionUpdate = AccountScriptStatusUpdate & {
+  readonly gameWindowId: number;
+  readonly launchUsername?: string;
+};
+
 const setSession = async (
-  update: AccountScriptStatusUpdate,
+  update: AccountRuntimeSessionUpdate,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
   runtime: AccountSessionsShape,
 ): Promise<void> => {
   const gameWindowId = normalizeGameWindowId(update.gameWindowId);
+  const previous = runtime.getSession(gameWindowId);
 
-  runtime.upsertSession({
-    username: update.username,
-    gameWindowId,
-    status: update.status,
-    updatedAt: now(),
-    ...(update.scriptName === undefined
-      ? {}
-      : { scriptName: update.scriptName }),
-    ...(update.message === undefined ? {} : { message: update.message }),
-  });
+  runtime.upsertSession(
+    mergeAccountSessionDisplayMetadata(previous, {
+      gameWindowId,
+      ...(update.launchUsername === undefined
+        ? {}
+        : { launchUsername: update.launchUsername }),
+      ...(update.currentUsername === undefined
+        ? {}
+        : { currentUsername: update.currentUsername }),
+      status: update.status,
+      updatedAt: now(),
+      ...(update.scriptName === undefined
+        ? {}
+        : { scriptName: update.scriptName }),
+      ...(update.message === undefined ? {} : { message: update.message }),
+    }),
+  );
 
   await publishStateToAccountManager(runWindowEffect, repository, runtime);
 };
@@ -918,8 +937,8 @@ export const startAccountGameLaunch = async (
 
   await setSession(
     {
-      username: input.account.username,
       gameWindowId,
+      launchUsername: input.account.username,
       status: "starting",
       message:
         launchScript === null
@@ -1038,8 +1057,13 @@ export const closeTrackedAccountGameWindow = async (
 
   await setSession(
     {
-      username: session.username,
       gameWindowId,
+      ...(session.launchUsername === undefined
+        ? {}
+        : { launchUsername: session.launchUsername }),
+      ...(session.currentUsername === undefined
+        ? {}
+        : { currentUsername: session.currentUsername }),
       status: session.status,
       ...(session.scriptName === undefined
         ? {}
@@ -1210,8 +1234,8 @@ export const registerAccountManagerIpcHandlers = (
           if (payload.script !== undefined) {
             await setSession(
               {
-                username: payload.account.username,
                 gameWindowId,
+                launchUsername: payload.account.username,
                 status: "failed",
                 scriptName: scriptName(payload.script),
                 message: scriptRefreshErrorMessage(payload.script, error),
@@ -1294,10 +1318,6 @@ export const registerAccountManagerIpcHandlers = (
             };
           });
 
-          if (currentUsername !== nextUsername) {
-            runtime.renameSessionUser(currentUsername, nextUsername, now());
-          }
-
           return await publishStateToAccountManager(
             runWindowEffect,
             repository,
@@ -1329,8 +1349,6 @@ export const registerAccountManagerIpcHandlers = (
               ),
             };
           });
-
-          runtime.deleteSessionsByUsername(accountUsername);
           return await publishStateToAccountManager(
             runWindowEffect,
             repository,
@@ -1511,24 +1529,21 @@ export const registerAccountManagerIpcHandlers = (
       AccountManagerIpcChannels.updateScriptStatus,
       (event, update) =>
         withServices(async ({ repository }) => {
+          await runWindowEffect(requireGameWindowSender(event.sender));
           if (typeof update !== "object" || update === null) {
             throw new Error("Status update must be an object");
           }
 
+          const gameWindowId = getEventWindowId(event);
+          if (gameWindowId === null) {
+            throw new Error("Missing sender game window");
+          }
+
+          if (!runtime.hasSession(gameWindowId)) {
+            return;
+          }
+
           const input = update as Partial<AccountScriptStatusUpdate>;
-          const gameWindowId = normalizeGameWindowId(input.gameWindowId);
-          if (getEventWindowId(event) !== gameWindowId) {
-            throw new Error("Status update sender does not match game window");
-          }
-
-          const activeUsername = runtime.getActiveUsername(gameWindowId);
-          if (
-            typeof input.username !== "string" ||
-            input.username !== activeUsername
-          ) {
-            throw new Error("Status update is not active for this game window");
-          }
-
           const status = input.status;
           if (
             status !== "idle" &&
@@ -1540,17 +1555,17 @@ export const registerAccountManagerIpcHandlers = (
             throw new Error("Invalid script status");
           }
 
+          const currentUsername = optionalTrimmedString(input.currentUsername);
+          const scriptName = optionalTrimmedString(input.scriptName);
+          const message = optionalTrimmedString(input.message);
+
           await setSession(
             {
-              username: normalizeRequiredString(input.username, "username"),
               status,
               gameWindowId,
-              ...(input.scriptName === undefined
-                ? {}
-                : { scriptName: input.scriptName }),
-              ...(input.message === undefined
-                ? {}
-                : { message: input.message }),
+              ...(currentUsername === undefined ? {} : { currentUsername }),
+              ...(scriptName === undefined ? {} : { scriptName }),
+              ...(message === undefined ? {} : { message }),
             },
             runWindowEffect,
             repository,

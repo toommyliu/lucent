@@ -8,6 +8,7 @@ import type {
 } from "../Errors";
 import type { ScriptDiagnostic } from "../Types";
 import type { ScriptOptions } from "../ipc";
+import type { ScriptRunnerStatus } from "../scriptRunnerStatus";
 
 export interface RunScriptOptions {
   readonly name?: string;
@@ -26,6 +27,11 @@ export interface ScriptRunnerShape {
     options?: RunScriptOptions,
   ): Effect.Effect<void, ScriptRunnerError>;
   stop(reason?: string): Effect.Effect<void>;
+  getStatus(): Effect.Effect<ScriptRunnerStatus>;
+  onStatus(
+    listener: (status: ScriptRunnerStatus) => void,
+    options?: { readonly emitCurrent?: boolean },
+  ): Effect.Effect<() => void>;
   isRunning(): Effect.Effect<boolean>;
   diagnostics(): Effect.Effect<ReadonlyArray<ScriptDiagnostic>>;
   getOptions(): Effect.Effect<Readonly<ScriptOptions>>;
