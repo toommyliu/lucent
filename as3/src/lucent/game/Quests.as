@@ -64,6 +64,12 @@ package lucent.game
     }
 
     [BridgeExport]
+    public static function loadMultiple(questIds:String):void
+    {
+      game.world.showQuests(questIds.split(","), "q");
+    }
+
+    [BridgeExport]
     public static function get (questId:int):void
     {
       game.world.getQuests([questId]);

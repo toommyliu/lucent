@@ -106,6 +106,7 @@ export const bridgeFallbacks = {
   "quests.isInProgress": () => false,
   "quests.isOneTimeQuestDone": () => false,
   "quests.load": () => undefined,
+  "quests.loadMultiple": () => undefined,
   "settings.enemyMagnet": () => undefined,
   "settings.infiniteRange": () => undefined,
   "settings.provokeCell": () => undefined,

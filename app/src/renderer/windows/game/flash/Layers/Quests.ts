@@ -308,9 +308,14 @@ const make = Effect.gen(function* () {
       });
     }
 
-    return Effect.asVoid(
-      Effect.forEach(normalizedQuestIds, (questId) => load(questId, false)),
-    );
+    return Effect.gen(function* () {
+      yield* bridge.call("quests.loadMultiple", [normalizedQuestIds.join(",")]);
+      yield* Effect.forEach(
+        normalizedQuestIds,
+        (questId) => waitForQuestLoad(questId).pipe(Effect.asVoid),
+        { concurrency: "unbounded" },
+      );
+    });
   };
 
   const getAll: QuestsShape["getAll"] = () => SynchronizedRef.get(quests);
