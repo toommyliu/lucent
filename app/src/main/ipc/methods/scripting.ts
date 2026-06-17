@@ -4,11 +4,10 @@ import {
   ScriptingIpcChannels,
   type ScriptExecutePayload,
 } from "../../../shared/ipc";
-import { MainIpc } from "../MainIpc";
-import { requireScriptingSender } from "../SenderAuthorization";
+import { DesktopIpc } from "../DesktopIpc";
+import { requireScriptingSender } from "../DesktopIpcRequest";
 import { WindowService } from "../../window/WindowService";
-import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
-import { resolveScriptPath } from "../../workspace/scripting";
+import { ScriptLibrary } from "../../backend/scripting/ScriptLibrary";
 
 const getEventWindow = (senderId?: number): BrowserWindow | null => {
   if (senderId !== undefined) {
@@ -57,26 +56,23 @@ const openScriptDialog = async (
 export const registerScriptingIpcHandlers = (): Effect.Effect<
   void,
   never,
-  MainIpc | Scope.Scope | WindowService | WorkspaceFiles
+  DesktopIpc | Scope.Scope | WindowService | ScriptLibrary
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
+    const ipc = yield* DesktopIpc;
 
     yield* ipc.handle(ScriptingIpcChannels.openFile, (event) =>
       Effect.gen(function* () {
         yield* requireScriptingSender(event.sender);
-        const workspace = yield* WorkspaceFiles;
+        const scripts = yield* ScriptLibrary;
         const path = yield* Effect.promise(() =>
-          openScriptDialog(
-            getEventWindow(event.sender.id),
-            workspace.scriptsDir,
-          ),
+          openScriptDialog(getEventWindow(event.sender.id), scripts.scriptsDir),
         );
         if (path === null) {
           return null;
         }
 
-        return yield* workspace.readScript(path);
+        return yield* scripts.read(path);
       }),
     );
 
@@ -87,8 +83,8 @@ export const registerScriptingIpcHandlers = (): Effect.Effect<
           return yield* Effect.fail(new Error("Invalid script path"));
         }
 
-        const workspace = yield* WorkspaceFiles;
-        return (yield* workspace.readScript(
+        const scripts = yield* ScriptLibrary;
+        return (yield* scripts.read(
           path.trim(),
         )) satisfies ScriptExecutePayload;
       }),
@@ -101,12 +97,8 @@ export const registerScriptingIpcHandlers = (): Effect.Effect<
           return yield* Effect.fail(new Error("Invalid script path"));
         }
 
-        const workspace = yield* WorkspaceFiles;
-        const scriptPath = yield* Effect.tryPromise({
-          try: () => resolveScriptPath(workspace.scriptsDir, path.trim()),
-          catch: (cause) =>
-            cause instanceof Error ? cause : new Error(String(cause)),
-        });
+        const scripts = yield* ScriptLibrary;
+        const scriptPath = yield* scripts.resolvePath(path.trim());
         const openError = yield* Effect.promise(() =>
           shell.openPath(scriptPath),
         );

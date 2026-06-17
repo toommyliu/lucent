@@ -1768,7 +1768,7 @@ const make = Effect.gen(function* () {
 
     const getCombatProfileLibrary = () =>
       Effect.tryPromise({
-        try: () => window.ipc.combatProfiles.getState(),
+        try: () => window.desktop.combatProfiles.getState(),
         catch: (cause) =>
           new ScriptExecutionError({
             sourceName,
@@ -2145,7 +2145,7 @@ const make = Effect.gen(function* () {
           Effect.ensuring(
             Effect.sync(() => {
               if (closeWindowOnExit) {
-                window.ipc.windows.requestCloseGameWindow();
+                window.desktop.windows.requestCloseGameWindow();
               }
             }),
           ),
@@ -2174,10 +2174,10 @@ const make = Effect.gen(function* () {
     runFork(stop("ipc request"));
   };
 
-  const removeExecuteListener = window.ipc.scripting.onExecute(
+  const removeExecuteListener = window.desktop.scripting.onExecute(
     runScriptPayloadFromIpc,
   );
-  const removeStopListener = window.ipc.scripting.onStop(() => {
+  const removeStopListener = window.desktop.scripting.onStop(() => {
     stopFromIpc();
   });
 

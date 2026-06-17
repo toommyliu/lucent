@@ -1,7 +1,24 @@
+import { Effect, Schema } from "effect";
+
 export interface IpcInvokeContract<Args extends readonly unknown[], Return> {
   readonly channel: string;
   readonly parseArgs: (args: readonly unknown[]) => Args;
   readonly parseReturn: (value: unknown) => Return;
+}
+
+export interface DesktopIpcInvokeContract<
+  Args extends readonly unknown[],
+  Return,
+> extends IpcInvokeContract<Args, Return> {
+  readonly decodeArgsEffect: (
+    args: readonly unknown[],
+  ) => Effect.Effect<Args, Schema.SchemaError>;
+  readonly encodeReturnEffect: (
+    value: Return,
+  ) => Effect.Effect<unknown, Schema.SchemaError>;
+  readonly decodeReturnEffect: (
+    value: unknown,
+  ) => Effect.Effect<Return, Schema.SchemaError>;
 }
 
 export type IpcValueParser<A> = (value: unknown) => A;
@@ -22,6 +39,52 @@ export const defineIpcInvokeContract = <
   parseArgs: (args) => options.parseArgs(options.channel, args),
   parseReturn: options.parseReturn,
 });
+
+export const defineDesktopIpcInvokeContract = <
+  Args extends readonly unknown[],
+  Return,
+>(options: {
+  readonly channel: string;
+  readonly argsSchema: Schema.Codec<Args, unknown, never, never>;
+  readonly returnSchema: Schema.Codec<Return, unknown, never, never>;
+  readonly parseArgs?: IpcArgsParser<Args>;
+  readonly parseReturn?: IpcValueParser<Return>;
+}): DesktopIpcInvokeContract<Args, Return> => {
+  const decodeArgs = Schema.decodeUnknownEffect(options.argsSchema);
+  const encodeReturn = Schema.encodeUnknownEffect(options.returnSchema);
+  const decodeReturn = Schema.decodeUnknownEffect(options.returnSchema);
+
+  const decodeArgsEffect = (
+    args: readonly unknown[],
+  ): Effect.Effect<Args, Schema.SchemaError> =>
+    decodeArgs(args).pipe(
+      Effect.map((decoded) =>
+        options.parseArgs === undefined
+          ? decoded
+          : options.parseArgs(options.channel, decoded),
+      ),
+    );
+
+  const decodeReturnEffect = (
+    value: unknown,
+  ): Effect.Effect<Return, Schema.SchemaError> =>
+    decodeReturn(value).pipe(
+      Effect.map((decoded) =>
+        options.parseReturn === undefined
+          ? decoded
+          : options.parseReturn(decoded),
+      ),
+    );
+
+  return {
+    channel: options.channel,
+    decodeArgsEffect,
+    decodeReturnEffect,
+    encodeReturnEffect: encodeReturn,
+    parseArgs: (args) => Effect.runSync(decodeArgsEffect(args)),
+    parseReturn: (value) => Effect.runSync(decodeReturnEffect(value)),
+  };
+};
 
 const messageFromCause = (cause: unknown): string =>
   cause instanceof Error && cause.message !== ""

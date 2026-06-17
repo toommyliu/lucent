@@ -31,6 +31,9 @@ importers:
       '@effect/tsgo':
         specifier: 0.11.0
         version: 0.11.0
+      '@effect/vitest':
+        specifier: 4.0.0-beta.43
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@24.12.2)(happy-dom@20.9.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.3))
       '@types/node':
         specifier: ^24.12.2
         version: 24.12.2
@@ -85,6 +88,9 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
+      core-js:
+        specifier: ^3.49.0
+        version: 3.49.0
       effect:
         specifier: 4.0.0-beta.43
         version: 4.0.0-beta.43
@@ -190,6 +196,12 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/oxlint-plugin-lucent:
+    dependencies:
+      '@oxlint/plugins':
+        specifier: 1.69.0
+        version: 1.69.0
 
   packages/shared:
     devDependencies:
@@ -548,6 +560,12 @@ packages:
   '@effect/tsgo@0.11.0':
     resolution: {integrity: sha512-I/9Ix0extXmO0Av6NyY/mCTqhyRtIv1XklngUvv4dxy/it1qeFIO9RPkQT0j0qRvMpLY0wG1ZcR2qKPpUcPzHg==}
     hasBin: true
+
+  '@effect/vitest@4.0.0-beta.43':
+    resolution: {integrity: sha512-XN2LAwiUWPqbV2jrsYYRjrVydQ8MIgwr83MVImtUaOQco4vk43+8OHlXQMRN/u2HnGK29KT+O2yTMMBdk2Q6Sw==}
+    peerDependencies:
+      effect: 4.0.0-beta.43
+      vitest: ^3.2.6
 
   '@electron/asar@3.4.1':
     resolution: {integrity: sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA==}
@@ -1482,6 +1500,10 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@oxlint/plugins@1.69.0':
+    resolution: {integrity: sha512-4MLUf2a9ai9EymFvcIBvaCkHJkvOA/WHmPhzrTu0cRBYpaaMBxmwwjGTOYdBC149XAwtaL7eaCnojkqxdMvuKg==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@pagefind/darwin-arm64@1.5.2':
     resolution: {integrity: sha512-MXpI+7HsAdPkvJ0gk9xj9g541BCqBZOBbdwj9g6lB5LCj6kSV6nqDSjzcAJwvOsfu0fjwvC8hQU+ecfhp+MpiQ==}
@@ -2934,6 +2956,9 @@ packages:
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
+
+  core-js@3.49.0:
+    resolution: {integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==}
 
   core-util-is@1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
@@ -6195,6 +6220,11 @@ snapshots:
       '@effect/tsgo-win32-arm64': 0.11.0
       '@effect/tsgo-win32-x64': 0.11.0
 
+  '@effect/vitest@4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@24.12.2)(happy-dom@20.9.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.3))':
+    dependencies:
+      effect: 4.0.0-beta.43
+      vitest: 3.2.6(@types/debug@4.1.13)(@types/node@24.12.2)(happy-dom@20.9.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.3)
+
   '@electron/asar@3.4.1':
     dependencies:
       commander: 5.1.0
@@ -6899,6 +6929,8 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.66.0':
     optional: true
+
+  '@oxlint/plugins@1.69.0': {}
 
   '@pagefind/darwin-arm64@1.5.2':
     optional: true
@@ -8663,6 +8695,8 @@ snapshots:
   cookie-es@1.2.3: {}
 
   cookie@1.1.1: {}
+
+  core-js@3.49.0: {}
 
   core-util-is@1.0.2: {}
 

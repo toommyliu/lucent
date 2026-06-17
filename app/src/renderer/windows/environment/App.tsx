@@ -127,7 +127,7 @@ function App(): JSX.Element {
   const clearAll = async (): Promise<void> => {
     setClearingAll(true);
     try {
-      await runStateUpdate(window.ipc.environment.clear());
+      await runStateUpdate(window.desktop.environment.clear());
     } finally {
       setClearingAll(false);
     }
@@ -146,7 +146,7 @@ function App(): JSX.Element {
     setQuestInput("");
     for (const token of tokens) {
       await runStateUpdate(
-        window.ipc.environment.addQuest(token.questId, token.rewardItemId),
+        window.desktop.environment.addQuest(token.questId, token.rewardItemId),
       );
     }
   };
@@ -158,15 +158,17 @@ function App(): JSX.Element {
     const trimmed = value.trim();
     await runStateUpdate(
       trimmed
-        ? window.ipc.environment.setQuestReward(questId, trimmed)
-        : window.ipc.environment.clearQuestReward(questId),
+        ? window.desktop.environment.setQuestReward(questId, trimmed)
+        : window.desktop.environment.clearQuestReward(questId),
     );
   };
 
   const updateQuestAutoRegister = async (
     options: EnvironmentQuestAutoRegisterOptions,
   ): Promise<void> => {
-    await runStateUpdate(window.ipc.environment.setQuestAutoRegister(options));
+    await runStateUpdate(
+      window.desktop.environment.setQuestAutoRegister(options),
+    );
   };
 
   const setQuestAutoRegisterOption = async (
@@ -214,7 +216,7 @@ function App(): JSX.Element {
   const updateItemRules = async (
     itemRules: EnvironmentItemRules,
   ): Promise<void> => {
-    await runStateUpdate(window.ipc.environment.setItemRules(itemRules));
+    await runStateUpdate(window.desktop.environment.setItemRules(itemRules));
   };
 
   const toggleItemBucket = async (
@@ -246,7 +248,7 @@ function App(): JSX.Element {
     const item = itemInput().trim();
     setItemInput("");
     if (item) {
-      await runStateUpdate(window.ipc.environment.addItem(item));
+      await runStateUpdate(window.desktop.environment.addItem(item));
     }
   };
 
@@ -255,7 +257,7 @@ function App(): JSX.Element {
     const boost = boostInput().trim();
     setBoostInput("");
     if (boost) {
-      await runStateUpdate(window.ipc.environment.addBoost(boost));
+      await runStateUpdate(window.desktop.environment.addBoost(boost));
     }
   };
 
@@ -263,9 +265,9 @@ function App(): JSX.Element {
     setFetchingBoosts(true);
     setError("");
     try {
-      const boosts = await window.ipc.environment.fetchBoosts();
+      const boosts = await window.desktop.environment.fetchBoosts();
       for (const boost of boosts) {
-        await runStateUpdate(window.ipc.environment.addBoost(boost));
+        await runStateUpdate(window.desktop.environment.addBoost(boost));
       }
     } catch (cause) {
       console.error("Failed to fetch boosts:", cause);
@@ -280,17 +282,17 @@ function App(): JSX.Element {
   const syncToAll = async (): Promise<void> => {
     setSyncing(true);
     try {
-      await runStateUpdate(window.ipc.environment.syncToAll());
+      await runStateUpdate(window.desktop.environment.syncToAll());
     } finally {
       setSyncing(false);
     }
   };
 
   onMount(() => {
-    const unsubscribe = window.ipc.environment.onChanged(setState);
+    const unsubscribe = window.desktop.environment.onChanged(setState);
     onCleanup(unsubscribe);
 
-    void window.ipc.environment
+    void window.desktop.environment
       .getState()
       .then(setState)
       .catch((cause: unknown) => {
@@ -357,7 +359,7 @@ function App(): JSX.Element {
                   aria-label="Clear drops"
                   disabled={state().itemNames.length === 0}
                   onClick={() =>
-                    void runStateUpdate(window.ipc.environment.clearItems())
+                    void runStateUpdate(window.desktop.environment.clearItems())
                   }
                 >
                   <Icon icon="trash_2" class="button__icon" />
@@ -434,7 +436,7 @@ function App(): JSX.Element {
                           aria-label={`Remove ${item}`}
                           onClick={() =>
                             void runStateUpdate(
-                              window.ipc.environment.removeItem(item),
+                              window.desktop.environment.removeItem(item),
                             )
                           }
                         >
@@ -459,7 +461,9 @@ function App(): JSX.Element {
                   aria-label="Clear quests"
                   disabled={state().questIds.length === 0}
                   onClick={() =>
-                    void runStateUpdate(window.ipc.environment.clearQuests())
+                    void runStateUpdate(
+                      window.desktop.environment.clearQuests(),
+                    )
                   }
                 >
                   <Icon icon="trash_2" class="button__icon" />
@@ -571,7 +575,7 @@ function App(): JSX.Element {
                           aria-label={`Remove quest ${questId}`}
                           onClick={() =>
                             void runStateUpdate(
-                              window.ipc.environment.removeQuest(questId),
+                              window.desktop.environment.removeQuest(questId),
                             )
                           }
                         >
@@ -607,7 +611,9 @@ function App(): JSX.Element {
                     aria-label="Clear boosts"
                     disabled={state().boosts.length === 0}
                     onClick={() =>
-                      void runStateUpdate(window.ipc.environment.clearBoosts())
+                      void runStateUpdate(
+                        window.desktop.environment.clearBoosts(),
+                      )
                     }
                   >
                     <Icon icon="trash_2" class="button__icon" />
@@ -655,7 +661,7 @@ function App(): JSX.Element {
                           aria-label={`Remove ${boost}`}
                           onClick={() =>
                             void runStateUpdate(
-                              window.ipc.environment.removeBoost(boost),
+                              window.desktop.environment.removeBoost(boost),
                             )
                           }
                         >

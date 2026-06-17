@@ -1,4 +1,4 @@
-import type { Item, ItemData } from "@lucent/game";
+import type { ItemData } from "@lucent/game";
 import {
   matchesAppliedEnhancement,
   matchesEnhancementShopCandidate,
@@ -26,12 +26,15 @@ import type { WaitShape } from "../flash/Services/Wait";
 import type { WorldShape } from "../flash/Services/World";
 import { asItemData } from "../flash/ItemDataPayload";
 import {
+  CONSUMABLE_SKILL_INDEX,
+  waitForConsumableSkillSlot,
+} from "../flash/consumableSkill";
+import {
   asBoolean,
   asNumber,
   asRecord,
   asString,
 } from "../flash/PacketPayload";
-import type { ConsumableSkillItem } from "../flash/Types";
 import { ScriptExecutionError } from "./Errors";
 
 export type ScriptRecipeEffect<A> = Effect.Effect<A, unknown>;
@@ -85,7 +88,6 @@ export interface ScriptRecipesShape {
 }
 
 const DEFAULT_BUFF_SKILLS = [1, 2, 3] as const;
-const CONSUMABLE_SKILL_INDEX = 5;
 const GEAR_OF_DOOM = "Gear of Doom";
 const TREASURE_POTION = "Treasure Potion";
 const SCROLL_OF_ENRAGE = "Scroll of Enrage";
@@ -252,31 +254,6 @@ const buff = (
     ).pipe(Effect.asVoid);
   });
 
-const normalizeConsumableName = (name: string): string =>
-  name.trim().toLowerCase().replaceAll(/\s+/g, " ");
-
-const consumableSkillItemMatches = (
-  consumableSkillItem: ConsumableSkillItem | null,
-  expectedItem: Item,
-): boolean => {
-  if (!consumableSkillItem) {
-    return false;
-  }
-
-  if (consumableSkillItem.itemId !== undefined) {
-    return consumableSkillItem.itemId === expectedItem.id;
-  }
-
-  if (consumableSkillItem.name !== undefined) {
-    return (
-      normalizeConsumableName(consumableSkillItem.name) ===
-      normalizeConsumableName(expectedItem.name)
-    );
-  }
-
-  return false;
-};
-
 const abandonQuestAfterClientSettle = (
   deps: ScriptRecipeDependencies,
   questId: number,
@@ -294,17 +271,6 @@ const abandonQuestAfterClientSettle = (
       yield* Effect.sleep("250 millis");
     }
   });
-
-const waitForConsumableSkillSlot = (
-  deps: ScriptRecipeDependencies,
-  expectedItem: Item,
-) =>
-  deps.wait.until(
-    Effect.map(deps.combat.getConsumableSkillItem(), (consumableSkillItem) =>
-      consumableSkillItemMatches(consumableSkillItem, expectedItem),
-    ),
-    { timeout: "2 seconds" },
-  );
 
 const normalizeConsumableItems = (
   deps: ScriptRecipeDependencies,

@@ -576,7 +576,7 @@ const make = Effect.gen(function* () {
               cell.toLowerCase() !== "wait" &&
               !/^cut\d+$/i.test(cell),
           )
-          .sort((a, b) => {
+          .toSorted((a, b) => {
             const aHas = cellsWithMonsters.has(a.toLowerCase());
             const bHas = cellsWithMonsters.has(b.toLowerCase());
             return aHas === bHas ? 0 : aHas ? 1 : -1;

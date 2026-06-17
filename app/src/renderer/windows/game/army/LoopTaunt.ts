@@ -6,6 +6,10 @@ import type {
   WorldMonstersShape,
   WorldPlayersShape,
 } from "../flash/Services/World";
+import type {
+  ArmyLoopTauntTriggerPayload,
+  ArmyLoopTauntTriggerReason,
+} from "../../../../shared/army";
 import type { ArmyEffect } from "./Services/Army";
 export {
   DEFAULT_LOOP_TAUNT_CAST_SETTLE_MS,
@@ -14,31 +18,34 @@ export {
   DEFAULT_LOOP_TAUNT_RESPAWN_RECOVERY_MS,
   LOOP_TAUNT_ACTION_LOCK_AURA_CATEGORIES,
   LOOP_TAUNT_FOCUS_AURA_ICON,
+  LOOP_TAUNT_FOCUS_AURA_NAME,
   LOOP_TAUNT_RETRY_SETTLE_MS,
+  LOOP_TAUNT_SCROLL_SKILL,
   LOOP_TAUNT_SHORT_RETRY_MS,
+  LOOP_TAUNT_TURN_REPORT_TIMEOUT_MS,
 } from "../../../../shared/loop-taunt";
 import {
-  DEFAULT_LOOP_TAUNT_DELAY_MS,
-  DEFAULT_LOOP_TAUNT_MESSAGE_DEBOUNCE_MS,
   LOOP_TAUNT_FOCUS_AURA_ICON,
+  LOOP_TAUNT_FOCUS_AURA_NAME,
 } from "../../../../shared/loop-taunt";
 
-// Army player number or player name.
-export type ArmyLoopTauntPlayer = number | string;
+export type ArmyLoopTauntPlayerRef = number | string;
 
-export type ArmyLoopTauntNoEligiblePolicy = "throw" | "cast-scheduled";
+export type ArmyLoopTauntTrigger = ArmyLoopTauntTriggerPayload;
 
 export type NormalizedLoopTauntTrigger =
   | {
-      readonly aura: string;
-      readonly delayMs: number;
-      readonly type: "aura";
+      readonly type: "focus";
     }
   | {
-      readonly debounceMs: number;
       readonly message: string;
       readonly type: "message";
     };
+
+export interface ResolvedArmyPlayer {
+  readonly name: string;
+  readonly number: number;
+}
 
 export interface ArmyLoopTauntTurnContext {
   readonly id: string;
@@ -47,12 +54,10 @@ export interface ArmyLoopTauntTurnContext {
     readonly monMapId: number;
   };
   readonly localPlayer: ResolvedArmyPlayer;
-  readonly scheduled: ResolvedArmyPlayer;
-  readonly candidate: ResolvedArmyPlayer;
   readonly participants: readonly ResolvedArmyPlayer[];
   readonly turn: {
-    readonly index: number;
-    readonly triggerCount: number;
+    readonly attempt?: number;
+    readonly epoch?: number;
   };
   readonly trigger: NormalizedLoopTauntTrigger;
   readonly world: {
@@ -68,50 +73,31 @@ export type ArmyLoopTauntShouldTaunt = (
   context: ArmyLoopTauntTurnContext,
 ) => boolean | Effect.Effect<boolean, unknown>;
 
-interface ArmyLoopTauntBaseOptions {
-  readonly id?: string;
-  readonly noEligiblePolicy?: ArmyLoopTauntNoEligiblePolicy;
-  readonly players?: readonly ArmyLoopTauntPlayer[];
+export interface ArmyLoopTauntOptions {
+  readonly participants: readonly [
+    ArmyLoopTauntPlayerRef,
+    ...ArmyLoopTauntPlayerRef[],
+  ];
   readonly shouldTaunt?: ArmyLoopTauntShouldTaunt;
-  readonly skill: Skill;
   readonly target: MonsterIdentifierToken;
+  readonly trigger: ArmyLoopTauntTrigger;
 }
-
-export type ArmyLoopTauntOptions =
-  | (ArmyLoopTauntBaseOptions & {
-      readonly aura: string;
-      readonly delayMs?: number;
-      readonly debounceMs?: never;
-      readonly message?: never;
-    })
-  | (ArmyLoopTauntBaseOptions & {
-      readonly aura?: never;
-      readonly debounceMs?: number;
-      readonly delayMs?: never;
-      readonly message: string;
-    });
 
 export interface ArmyLoopTauntHandle {
   readonly id: string;
   stop(): ArmyEffect<boolean>;
 }
 
-export interface ResolvedArmyPlayer {
-  readonly name: string;
-  readonly number: number;
-}
-
 export type NormalizedLoopTauntOptions = {
   readonly id: string;
-  readonly noEligiblePolicy: ArmyLoopTauntNoEligiblePolicy;
   readonly participants: readonly ResolvedArmyPlayer[];
   readonly shouldTaunt?: ArmyLoopTauntShouldTaunt;
-  readonly skill: Skill;
   readonly target: MonsterIdentifierToken;
   readonly trigger: NormalizedLoopTauntTrigger;
 };
 
 export interface LoopTauntTurnState {
+  readonly exhaustedPlayerNumbers: ReadonlySet<number>;
   readonly nextIndex: number;
   readonly triggerCount: number;
 }
@@ -144,6 +130,18 @@ const normalizeText = (value: string): string =>
 const targetLabel = (target: MonsterIdentifierToken): string =>
   typeof target === "number" ? String(target) : target.trim();
 
+const participantLabel = (
+  participants: readonly ResolvedArmyPlayer[],
+): string =>
+  participants
+    .map((participant) => `${participant.number}:${participant.name}`)
+    .join(",");
+
+const triggerLabel = (trigger: ArmyLoopTauntTrigger): string =>
+  trigger.type === "focus"
+    ? "focus"
+    : `message:${normalizeText(trigger.message)}`;
+
 export const resolveTargetMonMapIdToken = (
   target: MonsterIdentifierToken,
 ): number | undefined => parseMonsterMapIdToken(target);
@@ -157,6 +155,16 @@ export const matchesLoopTauntAura = (
   auraName: string,
 ): boolean => equalsIgnoreCase(configuredAura, auraName);
 
+export const matchesLoopTauntFocusAura = (auraName: string): boolean =>
+  matchesLoopTauntAura(LOOP_TAUNT_FOCUS_AURA_NAME, auraName);
+
+export const matchesLoopTauntFocusAuraAdd = (
+  auraName: string,
+  aura?: Pick<Aura, "icon">,
+): boolean =>
+  matchesLoopTauntFocusAura(auraName) &&
+  aura?.icon === LOOP_TAUNT_FOCUS_AURA_ICON;
+
 export const matchesLoopTauntAuraAdd = (
   configuredAura: string,
   auraName: string,
@@ -166,7 +174,7 @@ export const matchesLoopTauntAuraAdd = (
     return false;
   }
 
-  if (!equalsIgnoreCase(configuredAura, "Focus")) {
+  if (!equalsIgnoreCase(configuredAura, LOOP_TAUNT_FOCUS_AURA_NAME)) {
     return true;
   }
 
@@ -178,42 +186,12 @@ export const matchesLoopTauntMessage = (
   message: string,
 ): boolean => normalizeText(message).includes(normalizeText(configuredMessage));
 
-export const createLoopTauntId = (
-  options: Pick<ArmyLoopTauntOptions, "aura" | "id" | "message" | "target">,
-): string => {
-  if (options.id?.trim()) {
-    return options.id.trim();
-  }
-
-  const trigger =
-    typeof options.message === "string"
-      ? `message:${options.message.trim()}`
-      : `aura:${options.aura?.trim() ?? ""}`;
-  return `loop-taunt:${targetLabel(options.target)}:${trigger}`;
-};
-
 const assertNonEmptyString = (label: string, value: unknown): string => {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} must be a non-empty string`);
   }
 
   return value.trim();
-};
-
-const assertValidSkill = (skill: unknown): Skill => {
-  if (typeof skill === "number") {
-    if (!Number.isFinite(skill)) {
-      throw new Error("skill must be a finite number or non-empty string");
-    }
-
-    return Math.trunc(skill);
-  }
-
-  if (typeof skill !== "string" || skill.trim() === "") {
-    throw new Error("skill must be a finite number or non-empty string");
-  }
-
-  return skill.trim();
 };
 
 const assertValidTarget = (
@@ -234,46 +212,28 @@ const assertValidTarget = (
   return target.trim();
 };
 
-const assertValidDelayMs = (delayMs: unknown): number => {
-  if (delayMs === undefined) {
-    return DEFAULT_LOOP_TAUNT_DELAY_MS;
-  }
-
-  if (typeof delayMs !== "number" || !Number.isFinite(delayMs) || delayMs < 0) {
-    throw new Error("delayMs must be a finite non-negative number");
-  }
-
-  return Math.trunc(delayMs);
-};
-
-const assertValidMessageDebounceMs = (debounceMs: unknown): number => {
-  if (debounceMs === undefined) {
-    return DEFAULT_LOOP_TAUNT_MESSAGE_DEBOUNCE_MS;
-  }
-
+const assertValidTrigger = (trigger: unknown): ArmyLoopTauntTrigger => {
   if (
-    typeof debounceMs !== "number" ||
-    !Number.isFinite(debounceMs) ||
-    debounceMs < 0
+    typeof trigger !== "object" ||
+    trigger === null ||
+    Array.isArray(trigger)
   ) {
-    throw new Error("debounceMs must be a finite non-negative number");
+    throw new Error("Loop Taunt trigger must be an object");
   }
 
-  return Math.trunc(debounceMs);
-};
-
-const assertValidNoEligiblePolicy = (
-  policy: unknown,
-): ArmyLoopTauntNoEligiblePolicy => {
-  if (policy === undefined) {
-    return "throw";
+  const record = trigger as Record<string, unknown>;
+  if (record["type"] === "focus") {
+    return { type: "focus" };
   }
 
-  if (policy !== "throw" && policy !== "cast-scheduled") {
-    throw new Error('noEligiblePolicy must be "throw" or "cast-scheduled"');
+  if (record["type"] === "message") {
+    return {
+      message: assertNonEmptyString("message", record["message"]),
+      type: "message",
+    };
   }
 
-  return policy;
+  throw new Error('Loop Taunt trigger type must be "focus" or "message"');
 };
 
 const assertValidShouldTaunt = (
@@ -290,23 +250,31 @@ const assertValidShouldTaunt = (
   return shouldTaunt as ArmyLoopTauntShouldTaunt;
 };
 
+export const createLoopTauntId = (
+  target: MonsterIdentifierToken,
+  trigger: ArmyLoopTauntTrigger,
+  participants: readonly ResolvedArmyPlayer[],
+): string =>
+  `loop-taunt:${targetLabel(target)}:${triggerLabel(trigger)}:${participantLabel(
+    participants,
+  )}`;
+
 export const resolveLoopTauntParticipants = (
   sessionPlayers: readonly string[],
-  players: readonly ArmyLoopTauntPlayer[] | undefined,
+  participants: readonly ArmyLoopTauntPlayerRef[],
 ): readonly ResolvedArmyPlayer[] => {
   if (sessionPlayers.length === 0) {
     throw new Error("army session has no players");
   }
 
-  const refs = players ?? sessionPlayers.map((_, index) => index + 1);
-  if (refs.length === 0) {
-    throw new Error("players must contain at least one army player");
+  if (participants.length === 0) {
+    throw new Error("participants must contain at least one army player");
   }
 
   const resolved: ResolvedArmyPlayer[] = [];
   const seen = new Set<string>();
 
-  for (const ref of refs) {
+  for (const ref of participants) {
     let player: ResolvedArmyPlayer | undefined;
     if (typeof ref === "number") {
       if (!Number.isInteger(ref) || ref < 1 || ref > sessionPlayers.length) {
@@ -331,12 +299,12 @@ export const resolveLoopTauntParticipants = (
         number: index + 1,
       };
     } else {
-      throw new Error("players must contain army player numbers or names");
+      throw new Error("participants must contain army player numbers or names");
     }
 
     const key = player.name.toLowerCase();
     if (seen.has(key)) {
-      throw new Error(`Duplicate loop taunt player: ${player.name}`);
+      throw new Error(`Duplicate loop taunt participant: ${player.name}`);
     }
 
     seen.add(key);
@@ -351,104 +319,78 @@ export const normalizeLoopTauntOptions = (
   sessionPlayers: readonly string[],
 ): NormalizedLoopTauntOptions => {
   const target = assertValidTarget(options.target);
-  const skill = assertValidSkill(options.skill);
-  const hasAura = typeof options.aura === "string";
-  const hasMessage = typeof options.message === "string";
-
-  if (hasAura === hasMessage) {
-    throw new Error("Loop Taunt requires exactly one of aura or message");
-  }
-
+  const trigger = assertValidTrigger(options.trigger);
   const participants = resolveLoopTauntParticipants(
     sessionPlayers,
-    options.players,
+    options.participants,
   );
   const shouldTaunt = assertValidShouldTaunt(options.shouldTaunt);
 
   return {
-    id: createLoopTauntId(options),
-    noEligiblePolicy: assertValidNoEligiblePolicy(options.noEligiblePolicy),
+    id: createLoopTauntId(target, trigger, participants),
     participants,
     ...(shouldTaunt === undefined ? {} : { shouldTaunt }),
-    skill,
     target,
-    trigger: hasAura
-      ? {
-          aura: assertNonEmptyString("aura", options.aura),
-          delayMs: assertValidDelayMs(options.delayMs),
-          type: "aura",
-        }
-      : {
-          debounceMs: assertValidMessageDebounceMs(options.debounceMs),
-          message: assertNonEmptyString("message", options.message),
-          type: "message",
-        },
+    trigger,
   };
 };
 
-export const ownsLoopTauntTurn = (
-  participants: readonly ResolvedArmyPlayer[],
-  localPlayerNumber: number,
-  state: LoopTauntTurnState,
-): boolean => participants[state.nextIndex]?.number === localPlayerNumber;
+export const makeLoopTauntTurnState = (): LoopTauntTurnState => ({
+  exhaustedPlayerNumbers: new Set(),
+  nextIndex: 0,
+  triggerCount: 0,
+});
 
-export const advanceLoopTauntTurn = (
-  participants: readonly ResolvedArmyPlayer[],
+export const exhaustLoopTauntParticipant = (
   state: LoopTauntTurnState,
+  playerNumber: number,
 ): LoopTauntTurnState => ({
-  nextIndex:
-    participants.length === 0 ? 0 : (state.nextIndex + 1) % participants.length,
-  triggerCount: state.triggerCount,
+  ...state,
+  exhaustedPlayerNumbers: new Set([
+    ...state.exhaustedPlayerNumbers,
+    playerNumber,
+  ]),
 });
 
 export const resolveLoopTauntTurn = (
   participants: readonly ResolvedArmyPlayer[],
   state: LoopTauntTurnState,
-  shouldSelect: (
-    candidate: ResolvedArmyPlayer,
-    index: number,
-  ) => boolean = () => true,
-  noEligiblePolicy: ArmyLoopTauntNoEligiblePolicy = "throw",
 ): LoopTauntTurnResolution => {
   if (participants.length === 0) {
     throw new Error("Loop Taunt requires at least one participant");
   }
 
   const startIndex = state.nextIndex % participants.length;
-  const scheduled = participants[startIndex]!;
-  const skipped: ResolvedArmyPlayer[] = [];
-
   for (let offset = 0; offset < participants.length; offset += 1) {
     const candidateIndex = (startIndex + offset) % participants.length;
     const candidate = participants[candidateIndex]!;
-    if (shouldSelect(candidate, candidateIndex)) {
+    if (!state.exhaustedPlayerNumbers.has(candidate.number)) {
       return {
         nextState: {
+          exhaustedPlayerNumbers: state.exhaustedPlayerNumbers,
           nextIndex: (candidateIndex + 1) % participants.length,
           triggerCount: state.triggerCount + 1,
         },
-        scheduled,
+        scheduled: candidate,
         selected: candidate,
         selectedIndex: candidateIndex,
-        skipped,
+        skipped: [],
       };
     }
-
-    skipped.push(candidate);
-  }
-
-  if (noEligiblePolicy === "cast-scheduled") {
-    return {
-      nextState: {
-        nextIndex: (startIndex + 1) % participants.length,
-        triggerCount: state.triggerCount + 1,
-      },
-      scheduled,
-      selected: scheduled,
-      selectedIndex: startIndex,
-      skipped,
-    };
   }
 
   throw new Error("Loop Taunt found no eligible participant");
+};
+
+export const loopTauntTriggerReasonLabel = (
+  reason: ArmyLoopTauntTriggerReason,
+): string => {
+  switch (reason) {
+    case "focus-missing":
+      return "focus missing";
+    case "focus-removed":
+      return "focus removed";
+    case "message-matched":
+      return "message matched";
+  }
 };

@@ -525,7 +525,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
     };
 
   const openWindow = (id: WindowId) => {
-    void window.ipc.windows.open(id).catch((error: unknown) => {
+    void window.desktop.windows.open(id).catch((error: unknown) => {
       console.error(`Failed to open window ${id}:`, error);
     });
     props.setOpenMenu(null);

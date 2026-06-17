@@ -1,0 +1,10 @@
+{
+  "name": "@lucent/oxlint-plugin",
+  "private": true,
+  "version": "0.0.0",
+  "type": "commonjs",
+  "main": "./index.js",
+  "dependencies": {
+    "@oxlint/plugins": "1.69.0"
+  }
+}

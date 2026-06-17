@@ -1,10 +1,11 @@
 import {
   args0,
   args1,
-  defineIpcInvokeContract,
+  defineDesktopIpcInvokeContract,
   nullableReturn,
   voidReturn,
 } from "./ipc-contract";
+import { Schema } from "effect";
 import { isWindowId, WindowIds, type WindowId } from "./windows";
 import type {
   ArmyBarrierPayload,
@@ -63,6 +64,7 @@ import type {
 } from "./observability";
 
 export type {
+  DesktopIpcInvokeContract,
   IpcInvokeContract,
   IpcValueParser,
   IpcArgsParser,
@@ -74,11 +76,14 @@ export type {
   ArmyLeavePayload,
   ArmyLoopTauntCastOutcomeReason,
   ArmyLoopTauntCommandPayload,
+  ArmyLoopTauntIneligibleReason,
   ArmyLoopTauntObservationPayload,
   ArmyLoopTauntObservationType,
   ArmyLoopTauntParticipantPayload,
   ArmyLoopTauntStartPayload,
   ArmyLoopTauntStopPayload,
+  ArmyLoopTauntTriggerPayload,
+  ArmyLoopTauntTriggerReason,
   ArmyProgressPayload,
   ArmyProgressResult,
   ArmySessionPayload,
@@ -169,147 +174,149 @@ export type {
 } from "./loader-grabber";
 
 export const ScriptingIpcChannels = {
-  execute: "scripting:execute",
-  stop: "scripting:stop",
-  openFile: "scripting:open-file",
-  openPath: "scripting:open-path",
-  readFile: "scripting:read-file",
+  execute: "desktop:scripting:execute",
+  stop: "desktop:scripting:stop",
+  openFile: "desktop:scripting:open-file",
+  openPath: "desktop:scripting:open-path",
+  readFile: "desktop:scripting:read-file",
 } as const;
 
 export const WindowIpcChannels = {
-  open: "windows:open",
-  requestCloseGameWindow: "windows:request-close-game-window",
+  open: "desktop:windows:open",
+  requestCloseGameWindow: "desktop:windows:request-close-game-window",
 } as const;
 
 export const AccountManagerIpcChannels = {
-  getState: "account-manager:get-state",
-  getServers: "account-manager:get-servers",
-  refreshServers: "account-manager:refresh-servers",
-  getGameLaunch: "account-manager:get-game-launch",
-  createAccount: "account-manager:create-account",
-  updateAccount: "account-manager:update-account",
-  deleteAccount: "account-manager:delete-account",
-  createGroup: "account-manager:create-group",
-  updateGroup: "account-manager:update-group",
-  deleteGroup: "account-manager:delete-group",
-  launch: "account-manager:launch",
-  focusGameWindow: "account-manager:focus-game-window",
-  closeGameWindow: "account-manager:close-game-window",
-  updateScriptStatus: "account-manager:update-script-status",
-  changed: "account-manager:changed",
-  gameLaunch: "account-manager:game-launch",
-  gameWindowShutdownRequest: "account-manager:game-window-shutdown-request",
-  gameWindowShutdownResponse: "account-manager:game-window-shutdown-response",
+  getState: "desktop:account-manager:get-state",
+  getServers: "desktop:account-manager:get-servers",
+  refreshServers: "desktop:account-manager:refresh-servers",
+  getGameLaunch: "desktop:account-manager:get-game-launch",
+  createAccount: "desktop:account-manager:create-account",
+  updateAccount: "desktop:account-manager:update-account",
+  deleteAccount: "desktop:account-manager:delete-account",
+  createGroup: "desktop:account-manager:create-group",
+  updateGroup: "desktop:account-manager:update-group",
+  deleteGroup: "desktop:account-manager:delete-group",
+  launch: "desktop:account-manager:launch",
+  focusGameWindow: "desktop:account-manager:focus-game-window",
+  closeGameWindow: "desktop:account-manager:close-game-window",
+  updateScriptStatus: "desktop:account-manager:update-script-status",
+  changed: "desktop:account-manager:changed",
+  gameLaunch: "desktop:account-manager:game-launch",
+  gameWindowShutdownRequest:
+    "desktop:account-manager:game-window-shutdown-request",
+  gameWindowShutdownResponse:
+    "desktop:account-manager:game-window-shutdown-response",
 } as const;
 
 export const ACCOUNT_SERVER_REFRESH_COOLDOWN_MS = 15_000;
 
 export const SettingsIpcChannels = {
-  get: "settings:get",
-  updatePreferences: "settings:update-preferences",
-  updateAppearance: "settings:update-appearance",
-  updateHotkeys: "settings:update-hotkeys",
-  resetAppearance: "settings:reset-appearance",
-  resetHotkeys: "settings:reset-hotkeys",
-  changed: "settings:changed",
+  get: "desktop:settings:get",
+  updatePreferences: "desktop:settings:update-preferences",
+  updateAppearance: "desktop:settings:update-appearance",
+  updateHotkeys: "desktop:settings:update-hotkeys",
+  resetAppearance: "desktop:settings:reset-appearance",
+  resetHotkeys: "desktop:settings:reset-hotkeys",
+  changed: "desktop:settings:changed",
 } as const;
 
 export const ArmyIpcChannels = {
-  loadConfig: "army:load-config",
-  start: "army:start",
-  leave: "army:leave",
-  barrier: "army:barrier",
-  progress: "army:progress",
-  status: "army:status",
-  loopTauntStart: "army:loop-taunt:start",
-  loopTauntStop: "army:loop-taunt:stop",
-  loopTauntObservation: "army:loop-taunt:observation",
-  loopTauntCommand: "army:loop-taunt:command",
+  loadConfig: "desktop:army:load-config",
+  start: "desktop:army:start",
+  leave: "desktop:army:leave",
+  barrier: "desktop:army:barrier",
+  progress: "desktop:army:progress",
+  status: "desktop:army:status",
+  loopTauntStart: "desktop:army:loop-taunt:start",
+  loopTauntStop: "desktop:army:loop-taunt:stop",
+  loopTauntObservation: "desktop:army:loop-taunt:observation",
+  loopTauntCommand: "desktop:army:loop-taunt:command",
 } as const;
 
 export const EnvironmentIpcChannels = {
-  getState: "environment:get-state",
-  clear: "environment:clear",
-  addQuest: "environment:add-quest",
-  removeQuest: "environment:remove-quest",
-  setQuestReward: "environment:set-quest-reward",
-  clearQuestReward: "environment:clear-quest-reward",
-  clearQuests: "environment:clear-quests",
-  setQuestAutoRegister: "environment:set-quest-auto-register",
-  addItem: "environment:add-item",
-  removeItem: "environment:remove-item",
-  setItemRules: "environment:set-item-rules",
-  clearItems: "environment:clear-items",
-  addBoost: "environment:add-boost",
-  removeBoost: "environment:remove-boost",
-  clearBoosts: "environment:clear-boosts",
-  fetchBoosts: "environment:fetch-boosts",
-  fetchBoostsRequest: "environment:fetch-boosts-request",
-  fetchBoostsResponse: "environment:fetch-boosts-response",
-  syncToAll: "environment:sync-to-all",
-  changed: "environment:changed",
+  getState: "desktop:environment:get-state",
+  clear: "desktop:environment:clear",
+  addQuest: "desktop:environment:add-quest",
+  removeQuest: "desktop:environment:remove-quest",
+  setQuestReward: "desktop:environment:set-quest-reward",
+  clearQuestReward: "desktop:environment:clear-quest-reward",
+  clearQuests: "desktop:environment:clear-quests",
+  setQuestAutoRegister: "desktop:environment:set-quest-auto-register",
+  addItem: "desktop:environment:add-item",
+  removeItem: "desktop:environment:remove-item",
+  setItemRules: "desktop:environment:set-item-rules",
+  clearItems: "desktop:environment:clear-items",
+  addBoost: "desktop:environment:add-boost",
+  removeBoost: "desktop:environment:remove-boost",
+  clearBoosts: "desktop:environment:clear-boosts",
+  fetchBoosts: "desktop:environment:fetch-boosts",
+  fetchBoostsRequest: "desktop:environment:fetch-boosts-request",
+  fetchBoostsResponse: "desktop:environment:fetch-boosts-response",
+  syncToAll: "desktop:environment:sync-to-all",
+  changed: "desktop:environment:changed",
 } as const;
 
 export const FastTravelsIpcChannels = {
-  getAll: "fast-travels:get-all",
-  create: "fast-travels:create",
-  update: "fast-travels:update",
-  delete: "fast-travels:delete",
-  warp: "fast-travels:warp",
-  changed: "fast-travels:changed",
-  request: "fast-travels:request",
-  response: "fast-travels:response",
+  getAll: "desktop:fast-travels:get-all",
+  create: "desktop:fast-travels:create",
+  update: "desktop:fast-travels:update",
+  delete: "desktop:fast-travels:delete",
+  warp: "desktop:fast-travels:warp",
+  changed: "desktop:fast-travels:changed",
+  request: "desktop:fast-travels:request",
+  response: "desktop:fast-travels:response",
 } as const;
 
 export const CombatProfilesIpcChannels = {
-  getState: "combat-profiles:get-state",
-  saveProfile: "combat-profiles:save-profile",
-  deleteProfile: "combat-profiles:delete-profile",
-  setAutoAttack: "combat-profiles:set-auto-attack",
-  changed: "combat-profiles:changed",
+  getState: "desktop:combat-profiles:get-state",
+  saveProfile: "desktop:combat-profiles:save-profile",
+  deleteProfile: "desktop:combat-profiles:delete-profile",
+  setAutoAttack: "desktop:combat-profiles:set-auto-attack",
+  changed: "desktop:combat-profiles:changed",
 } as const;
 
 export const FollowerIpcChannels = {
-  getState: "follower:get-state",
-  me: "follower:me",
-  start: "follower:start",
-  stop: "follower:stop",
-  changed: "follower:changed",
-  request: "follower:request",
-  response: "follower:response",
-  publishState: "follower:publish-state",
+  getState: "desktop:follower:get-state",
+  me: "desktop:follower:me",
+  start: "desktop:follower:start",
+  stop: "desktop:follower:stop",
+  changed: "desktop:follower:changed",
+  request: "desktop:follower:request",
+  response: "desktop:follower:response",
+  publishState: "desktop:follower:publish-state",
 } as const;
 
 export const PacketsIpcChannels = {
-  startCapture: "packets:start-capture",
-  stopCapture: "packets:stop-capture",
-  send: "packets:send",
-  startQueue: "packets:start-queue",
-  stopQueue: "packets:stop-queue",
-  captured: "packets:captured",
-  status: "packets:status",
-  publishCaptured: "packets:publish-captured",
-  publishStatus: "packets:publish-status",
-  request: "packets:request",
-  response: "packets:response",
+  startCapture: "desktop:packets:start-capture",
+  stopCapture: "desktop:packets:stop-capture",
+  send: "desktop:packets:send",
+  startQueue: "desktop:packets:start-queue",
+  stopQueue: "desktop:packets:stop-queue",
+  captured: "desktop:packets:captured",
+  status: "desktop:packets:status",
+  publishCaptured: "desktop:packets:publish-captured",
+  publishStatus: "desktop:packets:publish-status",
+  request: "desktop:packets:request",
+  response: "desktop:packets:response",
 } as const;
 
 export const LoaderGrabberIpcChannels = {
-  load: "loader-grabber:load",
-  grab: "loader-grabber:grab",
-  request: "loader-grabber:request",
-  response: "loader-grabber:response",
+  load: "desktop:loader-grabber:load",
+  grab: "desktop:loader-grabber:grab",
+  request: "desktop:loader-grabber:request",
+  response: "desktop:loader-grabber:response",
 } as const;
 
 export const UpdatesIpcChannels = {
-  getState: "updates:get-state",
-  check: "updates:check",
-  changed: "updates:changed",
+  getState: "desktop:updates:get-state",
+  check: "desktop:updates:check",
+  changed: "desktop:updates:changed",
 } as const;
 
 export const ObservabilityIpcChannels = {
-  write: "observability:write",
-  snapshot: "observability:snapshot",
+  write: "desktop:observability:write",
+  snapshot: "desktop:observability:snapshot",
 } as const;
 
 export type FollowerRequestKind = "getState" | "me" | "start" | "stop";
@@ -602,38 +609,70 @@ const parseGrabbedData = (value: unknown): GrabbedData => {
   return value as GrabbedData;
 };
 
-// New IPC invoke channels should define runtime contracts and use
-// MainIpc.handleContract / preload invokeContract at the boundary.
+const NoArgsSchema = Schema.Tuple([]) as unknown as Schema.Codec<[], unknown>;
+const VoidSchema = Schema.Void as Schema.Codec<void, unknown>;
+const WindowOpenArgsSchema = Schema.Tuple([
+  Schema.String,
+]) as unknown as Schema.Codec<[WindowId], unknown>;
+const UnknownArgSchema = Schema.Tuple([
+  Schema.Unknown,
+]) as unknown as Schema.Codec<[unknown], unknown>;
+const NullableUnknownSchema = Schema.NullOr(
+  Schema.Unknown,
+) as unknown as Schema.Codec<unknown | null, unknown>;
+
 export const WindowIpcContracts = {
-  open: defineIpcInvokeContract({
+  open: defineDesktopIpcInvokeContract({
     channel: WindowIpcChannels.open,
+    argsSchema: WindowOpenArgsSchema,
     parseArgs: args1(parseWindowId),
+    returnSchema: VoidSchema,
     parseReturn: voidReturn,
   }),
-  requestCloseGameWindow: defineIpcInvokeContract({
+  requestCloseGameWindow: defineDesktopIpcInvokeContract({
     channel: WindowIpcChannels.requestCloseGameWindow,
+    argsSchema: NoArgsSchema,
     parseArgs: args0(),
+    returnSchema: VoidSchema,
     parseReturn: voidReturn,
   }),
 } as const;
 
 export const FastTravelsIpcContracts = {
-  warp: defineIpcInvokeContract({
+  warp: defineDesktopIpcInvokeContract({
     channel: FastTravelsIpcChannels.warp,
+    argsSchema: UnknownArgSchema as unknown as Schema.Codec<
+      [FastTravelWarpPayload],
+      unknown
+    >,
     parseArgs: args1(normalizeFastTravelWarpPayload),
+    returnSchema: VoidSchema,
     parseReturn: voidReturn,
   }),
 } as const;
 
 export const LoaderGrabberIpcContracts = {
-  load: defineIpcInvokeContract({
+  load: defineDesktopIpcInvokeContract({
     channel: LoaderGrabberIpcChannels.load,
+    argsSchema: UnknownArgSchema as unknown as Schema.Codec<
+      [LoaderGrabberLoadRequest],
+      unknown
+    >,
     parseArgs: args1(normalizeLoaderGrabberLoadRequest),
+    returnSchema: VoidSchema,
     parseReturn: voidReturn,
   }),
-  grab: defineIpcInvokeContract({
+  grab: defineDesktopIpcInvokeContract({
     channel: LoaderGrabberIpcChannels.grab,
+    argsSchema: UnknownArgSchema as unknown as Schema.Codec<
+      [LoaderGrabberGrabRequest],
+      unknown
+    >,
     parseArgs: args1(normalizeLoaderGrabberGrabRequest),
+    returnSchema: NullableUnknownSchema as unknown as Schema.Codec<
+      GrabbedData | null,
+      unknown
+    >,
     parseReturn: nullableReturn(parseGrabbedData),
   }),
 } as const;
@@ -1229,7 +1268,7 @@ export interface PlatformBridge {
   readonly os: AppPlatform;
 }
 
-export interface AppBridge {
+export interface DesktopBridge {
   readonly accounts: AccountManagerBridge;
   readonly army: ArmyBridge;
   readonly combatProfiles: CombatProfilesBridge;
@@ -1246,18 +1285,18 @@ export interface AppBridge {
   readonly windows: WindowsBridge;
 }
 
-export interface BaseWindowBridge extends Pick<
-  AppBridge,
+export interface BaseDesktopWindowBridge extends Pick<
+  DesktopBridge,
   "observability" | "platform" | "settings" | "updates"
 > {
   readonly windows: BaseWindowsBridge;
 }
 
-export interface GameWindowBridge
+export interface GameDesktopWindowBridge
   extends
-    Omit<BaseWindowBridge, "windows">,
+    Omit<BaseDesktopWindowBridge, "windows">,
     Pick<
-      AppBridge,
+      DesktopBridge,
       | "accounts"
       | "army"
       | "combatProfiles"
@@ -1271,32 +1310,35 @@ export interface GameWindowBridge
   readonly windows: WindowsBridge;
 }
 
-export interface AccountManagerWindowBridge
-  extends BaseWindowBridge, Pick<AppBridge, "accounts" | "scripting"> {}
+export interface AccountManagerDesktopWindowBridge
+  extends
+    BaseDesktopWindowBridge,
+    Pick<DesktopBridge, "accounts" | "scripting"> {}
 
-export type ToolWindowBridge<TWindowId extends WindowId> = BaseWindowBridge &
-  (TWindowId extends typeof WindowIds.Environment
-    ? Pick<AppBridge, "environment">
-    : TWindowId extends typeof WindowIds.FastTravels
-      ? Pick<AppBridge, "fastTravels">
-      : TWindowId extends typeof WindowIds.Follower
-        ? Pick<AppBridge, "combatProfiles" | "follower">
-        : TWindowId extends typeof WindowIds.LoaderGrabber
-          ? Pick<AppBridge, "loaderGrabber">
-          : TWindowId extends typeof WindowIds.Packets
-            ? Pick<AppBridge, "packets">
-            : TWindowId extends typeof WindowIds.Skills
-              ? Pick<AppBridge, "combatProfiles">
-              : Record<never, never>);
+export type ToolDesktopWindowBridge<TWindowId extends WindowId> =
+  BaseDesktopWindowBridge &
+    (TWindowId extends typeof WindowIds.Environment
+      ? Pick<DesktopBridge, "environment">
+      : TWindowId extends typeof WindowIds.FastTravels
+        ? Pick<DesktopBridge, "fastTravels">
+        : TWindowId extends typeof WindowIds.Follower
+          ? Pick<DesktopBridge, "combatProfiles" | "follower">
+          : TWindowId extends typeof WindowIds.LoaderGrabber
+            ? Pick<DesktopBridge, "loaderGrabber">
+            : TWindowId extends typeof WindowIds.Packets
+              ? Pick<DesktopBridge, "packets">
+              : TWindowId extends typeof WindowIds.Skills
+                ? Pick<DesktopBridge, "combatProfiles">
+                : Record<never, never>);
 
-export type ScopedAppBridge =
-  | AccountManagerWindowBridge
-  | BaseWindowBridge
-  | GameWindowBridge
-  | ToolWindowBridge<typeof WindowIds.Environment>
-  | ToolWindowBridge<typeof WindowIds.FastTravels>
-  | ToolWindowBridge<typeof WindowIds.Follower>
-  | ToolWindowBridge<typeof WindowIds.LoaderGrabber>
-  | ToolWindowBridge<typeof WindowIds.Packets>
-  | ToolWindowBridge<typeof WindowIds.Settings>
-  | ToolWindowBridge<typeof WindowIds.Skills>;
+export type ScopedDesktopBridge =
+  | AccountManagerDesktopWindowBridge
+  | BaseDesktopWindowBridge
+  | GameDesktopWindowBridge
+  | ToolDesktopWindowBridge<typeof WindowIds.Environment>
+  | ToolDesktopWindowBridge<typeof WindowIds.FastTravels>
+  | ToolDesktopWindowBridge<typeof WindowIds.Follower>
+  | ToolDesktopWindowBridge<typeof WindowIds.LoaderGrabber>
+  | ToolDesktopWindowBridge<typeof WindowIds.Packets>
+  | ToolDesktopWindowBridge<typeof WindowIds.Settings>
+  | ToolDesktopWindowBridge<typeof WindowIds.Skills>;

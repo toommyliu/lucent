@@ -1,11 +1,7 @@
-import {
-  BrowserWindow,
-  type IpcMainInvokeEvent,
-  type Rectangle,
-} from "electron";
+import { type IpcMainInvokeEvent, type Rectangle } from "electron";
 import { get } from "https";
-import type { ServerData } from "@lucent/game";
-import { Data, Effect, Scope } from "effect";
+import { ServerDataSchema, type ServerData } from "@lucent/game";
+import { Data, Effect, Schema, Scope } from "effect";
 import {
   ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
   AccountManagerIpcChannels,
@@ -34,36 +30,37 @@ import { WindowIds } from "../../../shared/windows";
 import {
   type AccountManagerRepositoryShape,
   AccountManagerRepository,
-} from "../../persistence/accounts/AccountRepository";
+} from "../../backend/accounts/AccountRepository";
 import {
   type AccountManagerStorage,
   removeGroupMemberUsername,
   renameGroupMemberUsername,
-} from "../../persistence/accounts/AccountStore";
+} from "../../backend/accounts/AccountStore";
 import { getArtixLauncherRequestHeaders } from "../../artix-launcher-headers";
 import {
-  Observability,
-  type ObservabilityShape,
-} from "../../app/MainObservability";
-import { MainIpc } from "../MainIpc";
+  DesktopObservability,
+  type DesktopObservabilityShape,
+} from "../../app/DesktopObservability";
+import { DesktopIpc } from "../DesktopIpc";
 import {
   getSenderWindowId,
   requireAccountManagerSender as requireAccountManagerSenderEffect,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 import {
-  AccountRuntimeService,
-  type AccountRuntimeServiceShape,
-} from "../runtime/AccountRuntimeService";
+  AccountSessions,
+  type AccountSessionsShape,
+} from "../../backend/accounts/AccountSessions";
+import {
+  ScriptLibrary,
+  type ScriptLibraryShape,
+} from "../../backend/scripting/ScriptLibrary";
 import {
   WindowService,
+  type CatalogWindowRef,
+  type GameWindowRef,
   type WindowEffectRunner,
 } from "../../window/WindowService";
-import {
-  WorkspaceFiles,
-  type WorkspaceFilesShape,
-} from "../../workspace/WorkspaceFiles";
-import { refreshScriptPayload } from "../../workspace/scripting";
 
 const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -242,12 +239,12 @@ const normalizeGroupPatch = (
 };
 
 const visibleSessions = (
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): readonly AccountScriptSession[] => runtime.getSessionsState();
 
 const toState = async (
   repository: AccountManagerRepositoryShape,
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): Promise<AccountManagerState> => {
   const storage = await readStorage(repository);
   return {
@@ -274,25 +271,7 @@ const toAccountGameServer = (server: {
   maxPlayers: server.iMax,
 });
 
-const isServerData = (value: unknown): value is ServerData => {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-  return (
-    typeof record["sName"] === "string" &&
-    typeof record["sIP"] === "string" &&
-    typeof record["sLang"] === "string" &&
-    typeof record["bOnline"] === "number" &&
-    typeof record["bUpg"] === "number" &&
-    typeof record["iChat"] === "number" &&
-    typeof record["iCount"] === "number" &&
-    typeof record["iLevel"] === "number" &&
-    typeof record["iMax"] === "number" &&
-    typeof record["iPort"] === "number"
-  );
-};
+const isServerData = Schema.is(ServerDataSchema);
 
 const fetchJson = (url: string): Promise<unknown> =>
   new Promise((resolve, reject) => {
@@ -351,8 +330,8 @@ const fetchServersJson = Effect.tryPromise({
 });
 
 const getCachedAccountServers = (
-  runtime: AccountRuntimeServiceShape,
-  observability: ObservabilityShape,
+  runtime: AccountSessionsShape,
+  observability: DesktopObservabilityShape,
 ): Effect.Effect<
   readonly ServerData[],
   AccountServersFetchError | AccountServersPayloadError
@@ -407,8 +386,8 @@ const getCachedAccountServers = (
   });
 
 const refreshAccountServers = (
-  runtime: AccountRuntimeServiceShape,
-  observability: ObservabilityShape,
+  runtime: AccountSessionsShape,
+  observability: DesktopObservabilityShape,
 ): Effect.Effect<
   readonly ServerData[],
   AccountServersFetchError | AccountServersPayloadError
@@ -421,7 +400,7 @@ const refreshAccountServers = (
 
 const getOpenAccountManagerWindow = (
   runWindowEffect: WindowEffectRunner,
-): Promise<BrowserWindow | null> =>
+): Promise<CatalogWindowRef | null> =>
   runWindowEffect(
     Effect.gen(function* () {
       const windows = yield* WindowService;
@@ -445,13 +424,20 @@ const requireAccountManagerSender = async (
 const publishStateToAccountManager = async (
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): Promise<AccountManagerState> => {
   const state = await toState(repository, runtime);
   const window = await getOpenAccountManagerWindow(runWindowEffect);
 
-  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-    window.webContents.send(AccountManagerIpcChannels.changed, state);
+  if (window) {
+    await runWindowEffect(
+      Effect.gen(function* () {
+        const windows = yield* WindowService;
+        yield* windows
+          .sendToWindow(window, AccountManagerIpcChannels.changed, state)
+          .pipe(Effect.ignore);
+      }),
+    );
   }
 
   return state;
@@ -610,7 +596,7 @@ const setSession = async (
   update: AccountScriptStatusUpdate,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): Promise<void> => {
   const gameWindowId = normalizeGameWindowId(update.gameWindowId);
 
@@ -632,7 +618,7 @@ const clearSession = async (
   gameWindowId: number,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): Promise<void> => {
   runtime.deleteSession(normalizeGameWindowId(gameWindowId));
   await publishStateToAccountManager(runWindowEffect, repository, runtime);
@@ -642,15 +628,20 @@ const getEventWindowId = (event: IpcMainInvokeEvent): number | null =>
   getSenderWindowId(event.sender) ?? null;
 
 const sendGameLaunchPayload = (
-  window: BrowserWindow,
+  runWindowEffect: WindowEffectRunner,
+  window: GameWindowRef,
   payload: AccountGameLaunchPayload,
-): void => {
-  if (window.isDestroyed() || window.webContents.isDestroyed()) {
-    return;
-  }
-
-  window.webContents.send(AccountManagerIpcChannels.gameLaunch, payload);
-};
+): Promise<boolean> =>
+  runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.sendToWindow(
+        window,
+        AccountManagerIpcChannels.gameLaunch,
+        payload,
+      );
+    }),
+  );
 
 const shutdownErrorMessage = (cause: unknown): string =>
   cause instanceof Error && cause.message !== ""
@@ -658,13 +649,14 @@ const shutdownErrorMessage = (cause: unknown): string =>
     : "Game window shutdown request failed";
 
 const requestGameWindowShutdown = (
-  runtime: AccountRuntimeServiceShape,
-  window: BrowserWindow,
-  gameWindowId: number,
+  runtime: AccountSessionsShape,
+  runWindowEffect: WindowEffectRunner,
+  window: GameWindowRef,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const requestId = makeRandomId();
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let removeClosedListener: (() => void) | undefined;
     const handleClosed = () => {
       cleanup();
       reject(
@@ -675,7 +667,7 @@ const requestGameWindowShutdown = (
       if (timeout !== undefined) {
         clearTimeout(timeout);
       }
-      window.removeListener("closed", handleClosed);
+      removeClosedListener?.();
       runtime.deleteShutdownRequest(requestId);
     };
 
@@ -685,17 +677,28 @@ const requestGameWindowShutdown = (
     }, ACCOUNT_GAME_WINDOW_SHUTDOWN_TIMEOUT_MS);
 
     runtime.registerShutdownRequest(requestId, { resolve, reject, cleanup });
-    window.once("closed", handleClosed);
-
-    window.webContents.send(
-      AccountManagerIpcChannels.gameWindowShutdownRequest,
-      { requestId, gameWindowId },
-    );
+    void runWindowEffect(
+      Effect.gen(function* () {
+        const windows = yield* WindowService;
+        removeClosedListener = yield* windows.onWindowClosed(
+          window,
+          handleClosed,
+        );
+        yield* windows.sendToWindow(
+          window,
+          AccountManagerIpcChannels.gameWindowShutdownRequest,
+          { requestId, gameWindowId: window.id },
+        );
+      }),
+    ).catch((cause) => {
+      cleanup();
+      reject(new Error(shutdownErrorMessage(cause), { cause }));
+    });
   });
 
 export const handleAccountGameWindowShutdownResponse = (
   response: unknown,
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
 ): void => {
   const shutdownResponse = response as Partial<
     AccountGameWindowShutdownResponse & { readonly error?: unknown }
@@ -723,17 +726,14 @@ export const handleAccountGameWindowShutdownResponse = (
 
 const refreshGameLaunchScript = async (
   payload: AccountGameLaunchPayload,
-  workspace: WorkspaceFilesShape,
-  runtime: AccountRuntimeServiceShape,
+  scripts: ScriptLibraryShape,
+  runtime: AccountSessionsShape,
 ): Promise<AccountGameLaunchPayload> => {
   if (payload.script === undefined) {
     return payload;
   }
 
-  const script = await refreshScriptPayload(
-    workspace.scriptsDir,
-    payload.script,
-  );
+  const script = await Effect.runPromise(scripts.refresh(payload.script));
   const nextPayload: AccountGameLaunchPayload = {
     ...payload,
     script,
@@ -753,9 +753,9 @@ export interface AccountGameLaunchInput {
 export interface AccountGameLaunchDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
-  readonly runtime: AccountRuntimeServiceShape;
-  readonly workspace: WorkspaceFilesShape;
-  readonly observability: Pick<ObservabilityShape, "error">;
+  readonly runtime: AccountSessionsShape;
+  readonly scripts: ScriptLibraryShape;
+  readonly observability: Pick<DesktopObservabilityShape, "error">;
 }
 
 interface TileGridPlacement {
@@ -864,10 +864,7 @@ export const startAccountGameLaunch = async (
   const launchScript =
     requestedScript === null
       ? null
-      : await refreshScriptPayload(
-          dependencies.workspace.scriptsDir,
-          requestedScript,
-        );
+      : await Effect.runPromise(dependencies.scripts.refresh(requestedScript));
 
   const initialBounds = await resolveAccountLaunchInitialBounds(
     input.tiling,
@@ -911,7 +908,12 @@ export const startAccountGameLaunch = async (
     });
   };
 
-  gameWindow.once("closed", cleanupGameWindowLaunch);
+  await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      yield* windows.onWindowClosed(gameWindow, cleanupGameWindowLaunch);
+    }),
+  );
   dependencies.runtime.setGameLaunchPayload(gameWindowId, gameLaunchPayload);
 
   await setSession(
@@ -932,11 +934,13 @@ export const startAccountGameLaunch = async (
     dependencies.runtime,
   );
 
-  if (
-    gameWindowClosed ||
-    gameWindow.isDestroyed() ||
-    gameWindow.webContents.isDestroyed()
-  ) {
+  const stillOpen = await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.getGameWindowRefById(gameWindowId);
+    }),
+  );
+  if (gameWindowClosed || !stillOpen) {
     dependencies.runtime.deleteGameLaunchPayload(gameWindowId);
     await clearSession(
       gameWindowId,
@@ -947,7 +951,11 @@ export const startAccountGameLaunch = async (
     throw new Error("Game window closed before launch completed");
   }
 
-  sendGameLaunchPayload(gameWindow, gameLaunchPayload);
+  await sendGameLaunchPayload(
+    dependencies.runWindowEffect,
+    gameWindow,
+    gameLaunchPayload,
+  );
 
   return { gameWindowId };
 };
@@ -955,7 +963,7 @@ export const startAccountGameLaunch = async (
 export interface AccountGameWindowFocusDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
-  readonly runtime: AccountRuntimeServiceShape;
+  readonly runtime: AccountSessionsShape;
 }
 
 export const focusTrackedAccountGameWindow = async (
@@ -970,7 +978,7 @@ export const focusTrackedAccountGameWindow = async (
   const gameWindow = await dependencies.runWindowEffect(
     Effect.gen(function* () {
       const windows = yield* WindowService;
-      return yield* windows.getGameWindow(gameWindowId);
+      return yield* windows.getGameWindowRefById(gameWindowId);
     }),
   );
 
@@ -984,11 +992,12 @@ export const focusTrackedAccountGameWindow = async (
     throw new Error("Tracked game window is no longer open");
   }
 
-  if (gameWindow.isMinimized()) {
-    gameWindow.restore();
-  }
-  gameWindow.show();
-  gameWindow.focus();
+  await dependencies.runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      yield* windows.revealWindow(gameWindow);
+    }),
+  );
 
   return await toState(dependencies.repository, dependencies.runtime);
 };
@@ -996,8 +1005,8 @@ export const focusTrackedAccountGameWindow = async (
 export interface AccountGameWindowCloseDependencies {
   readonly runWindowEffect: WindowEffectRunner;
   readonly repository: AccountManagerRepositoryShape;
-  readonly runtime: AccountRuntimeServiceShape;
-  readonly observability: ObservabilityShape;
+  readonly runtime: AccountSessionsShape;
+  readonly observability: DesktopObservabilityShape;
 }
 
 export const closeTrackedAccountGameWindow = async (
@@ -1013,7 +1022,7 @@ export const closeTrackedAccountGameWindow = async (
   const gameWindow = await dependencies.runWindowEffect(
     Effect.gen(function* () {
       const windows = yield* WindowService;
-      return yield* windows.getGameWindow(gameWindowId);
+      return yield* windows.getGameWindowRefById(gameWindowId);
     }),
   );
 
@@ -1045,8 +1054,8 @@ export const closeTrackedAccountGameWindow = async (
   try {
     await requestGameWindowShutdown(
       dependencies.runtime,
+      dependencies.runWindowEffect,
       gameWindow,
-      gameWindowId,
     );
   } catch (error) {
     await Effect.runPromise(
@@ -1064,7 +1073,7 @@ export const closeTrackedAccountGameWindow = async (
   await dependencies.runWindowEffect(
     Effect.gen(function* () {
       const windows = yield* WindowService;
-      yield* windows.requestCloseGameWindow(gameWindowId);
+      yield* windows.requestCloseGameWindow(gameWindow);
     }),
   );
 
@@ -1081,7 +1090,7 @@ const serverLoadErrorMessage = (error: unknown): string => {
 };
 
 const runAccountServersEffect = async (
-  runtime: AccountRuntimeServiceShape,
+  runtime: AccountSessionsShape,
   effect: Effect.Effect<readonly ServerData[], unknown>,
 ): Promise<AccountGameServersResult> => {
   try {
@@ -1103,29 +1112,29 @@ export const registerAccountManagerIpcHandlers = (
   void,
   never,
   | AccountManagerRepository
-  | AccountRuntimeService
-  | MainIpc
-  | Observability
+  | AccountSessions
+  | DesktopIpc
+  | DesktopObservability
+  | ScriptLibrary
   | Scope.Scope
-  | WorkspaceFiles
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const observability = yield* Observability;
-    const runtime = yield* AccountRuntimeService;
+    const ipc = yield* DesktopIpc;
+    const observability = yield* DesktopObservability;
+    const runtime = yield* AccountSessions;
 
     const withServices = <A>(
       run: (services: {
         readonly repository: AccountManagerRepositoryShape;
-        readonly runtime: AccountRuntimeServiceShape;
-        readonly workspace: WorkspaceFilesShape;
+        readonly runtime: AccountSessionsShape;
+        readonly scripts: ScriptLibraryShape;
       }) => Promise<A>,
     ) =>
       Effect.gen(function* () {
         const repository = yield* AccountManagerRepository;
-        const workspace = yield* WorkspaceFiles;
+        const scripts = yield* ScriptLibrary;
         return yield* Effect.promise(() =>
-          run({ repository, runtime, workspace }),
+          run({ repository, runtime, scripts }),
         );
       });
 
@@ -1184,7 +1193,7 @@ export const registerAccountManagerIpcHandlers = (
     );
 
     yield* ipc.handle(AccountManagerIpcChannels.getGameLaunch, (event) =>
-      withServices(async ({ repository, workspace }) => {
+      withServices(async ({ repository, scripts }) => {
         const gameWindowId = getEventWindowId(event);
         if (gameWindowId === null) {
           return null;
@@ -1196,7 +1205,7 @@ export const registerAccountManagerIpcHandlers = (
         }
 
         try {
-          return await refreshGameLaunchScript(payload, workspace, runtime);
+          return await refreshGameLaunchScript(payload, scripts, runtime);
         } catch (error) {
           if (payload.script !== undefined) {
             await setSession(
@@ -1435,7 +1444,7 @@ export const registerAccountManagerIpcHandlers = (
     );
 
     yield* ipc.handle(AccountManagerIpcChannels.launch, (event, request) =>
-      withServices(async ({ repository, workspace }) => {
+      withServices(async ({ repository, scripts }) => {
         await requireAccountManagerSender(event, runWindowEffect);
         const launchRequest = normalizeLaunchRequest(request);
         const accounts = await readAccounts(repository);
@@ -1464,7 +1473,7 @@ export const registerAccountManagerIpcHandlers = (
             runWindowEffect,
             repository,
             runtime,
-            workspace,
+            scripts,
             observability,
           },
         );

@@ -112,33 +112,35 @@ const make = Effect.gen(function* () {
   const getState: EnvironmentShape["getState"] = () => Ref.get(stateRef);
 
   const clear: EnvironmentShape["clear"] = () =>
-    invokeState(() => window.ipc.environment.clear());
+    invokeState(() => window.desktop.environment.clear());
 
   const addQuest: EnvironmentShape["addQuest"] = (questId, rewardItemId) =>
-    invokeState(() => window.ipc.environment.addQuest(questId, rewardItemId));
+    invokeState(() =>
+      window.desktop.environment.addQuest(questId, rewardItemId),
+    );
 
   const removeQuest: EnvironmentShape["removeQuest"] = (questId) =>
-    invokeState(() => window.ipc.environment.removeQuest(questId));
+    invokeState(() => window.desktop.environment.removeQuest(questId));
 
   const setQuestReward: EnvironmentShape["setQuestReward"] = (
     questId,
     rewardItemId,
   ) =>
     invokeState(() =>
-      window.ipc.environment.setQuestReward(questId, rewardItemId),
+      window.desktop.environment.setQuestReward(questId, rewardItemId),
     );
 
   const clearQuestReward: EnvironmentShape["clearQuestReward"] = (questId) =>
-    invokeState(() => window.ipc.environment.clearQuestReward(questId));
+    invokeState(() => window.desktop.environment.clearQuestReward(questId));
 
   const clearQuests: EnvironmentShape["clearQuests"] = () =>
-    invokeState(() => window.ipc.environment.clearQuests());
+    invokeState(() => window.desktop.environment.clearQuests());
 
   const setQuestAutoRegister: EnvironmentShape["setQuestAutoRegister"] = (
     options,
   ) =>
     invokeState(() =>
-      window.ipc.environment.setQuestAutoRegister(options),
+      window.desktop.environment.setQuestAutoRegister(options),
     ).pipe(Effect.tap((state) => registerAllLoadedQuestDropTargets(state)));
 
   const setAutoRegisterRequirements: EnvironmentShape["setAutoRegisterRequirements"] =
@@ -165,13 +167,13 @@ const make = Effect.gen(function* () {
     );
 
   const addItem: EnvironmentShape["addItem"] = (name) =>
-    invokeState(() => window.ipc.environment.addItem(name));
+    invokeState(() => window.desktop.environment.addItem(name));
 
   const removeItem: EnvironmentShape["removeItem"] = (name) =>
-    invokeState(() => window.ipc.environment.removeItem(name));
+    invokeState(() => window.desktop.environment.removeItem(name));
 
   const setItemRules: EnvironmentShape["setItemRules"] = (rules) =>
-    invokeState(() => window.ipc.environment.setItemRules(rules));
+    invokeState(() => window.desktop.environment.setItemRules(rules));
 
   const setDropPolicy: EnvironmentShape["setDropPolicy"] = (policy) =>
     getState().pipe(
@@ -197,16 +199,16 @@ const make = Effect.gen(function* () {
     (rejectUnregisteredDrops) => setDropPolicy({ rejectUnregisteredDrops });
 
   const clearItems: EnvironmentShape["clearItems"] = () =>
-    invokeState(() => window.ipc.environment.clearItems());
+    invokeState(() => window.desktop.environment.clearItems());
 
   const addBoost: EnvironmentShape["addBoost"] = (name) =>
-    invokeState(() => window.ipc.environment.addBoost(name));
+    invokeState(() => window.desktop.environment.addBoost(name));
 
   const removeBoost: EnvironmentShape["removeBoost"] = (name) =>
-    invokeState(() => window.ipc.environment.removeBoost(name));
+    invokeState(() => window.desktop.environment.removeBoost(name));
 
   const clearBoosts: EnvironmentShape["clearBoosts"] = () =>
-    invokeState(() => window.ipc.environment.clearBoosts());
+    invokeState(() => window.desktop.environment.clearBoosts());
 
   const fetchBoosts: EnvironmentShape["fetchBoosts"] = () =>
     inventory.getItems().pipe(
@@ -224,7 +226,7 @@ const make = Effect.gen(function* () {
     );
 
   const syncToAll: EnvironmentShape["syncToAll"] = () =>
-    invokeState(() => window.ipc.environment.syncToAll());
+    invokeState(() => window.desktop.environment.syncToAll());
 
   const registerQuestDropTargets = (state: EnvironmentState, questId: number) =>
     Effect.gen(function* () {
@@ -645,7 +647,7 @@ const make = Effect.gen(function* () {
     { runWhen: "loggedIn", runOnStart: false },
   );
 
-  const removeStateListener = window.ipc.environment.onChanged((state) => {
+  const removeStateListener = window.desktop.environment.onChanged((state) => {
     runFork(
       Effect.gen(function* () {
         const previous = yield* getState();
@@ -660,11 +662,12 @@ const make = Effect.gen(function* () {
     registerLoadedQuestDropTargets(questIds),
   );
 
-  const removeFetchBoostsListener = window.ipc.environment.onFetchBoostsRequest(
-    () => runPromise(fetchBoosts()),
-  );
+  const removeFetchBoostsListener =
+    window.desktop.environment.onFetchBoostsRequest(() =>
+      runPromise(fetchBoosts()),
+    );
 
-  void window.ipc.environment
+  void window.desktop.environment
     .getState()
     .then((state) => {
       runFork(

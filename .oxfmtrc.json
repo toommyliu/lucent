@@ -3,6 +3,7 @@
   "ignorePatterns": [
     "node_modules",
     ".git",
+    ".repos",
     "dist",
     "build",
     "scripts",

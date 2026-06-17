@@ -41,7 +41,7 @@ export const writeRendererStartupTiming = (
     return;
   }
 
-  const observability = window.ipc?.observability;
+  const observability = window.desktop?.observability;
   if (!observability) {
     return;
   }

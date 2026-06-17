@@ -278,8 +278,11 @@ function App(): JSX.Element {
     try {
       const nextLocations =
         dialogMode() === "edit"
-          ? await window.ipc.fastTravels.update(editingOriginalName(), draft)
-          : await window.ipc.fastTravels.create(draft);
+          ? await window.desktop.fastTravels.update(
+              editingOriginalName(),
+              draft,
+            )
+          : await window.desktop.fastTravels.create(draft);
       setLocations(nextLocations);
       if (options.closeAfterSave || dialogMode() === "edit") {
         setDialogOpen(false);
@@ -314,7 +317,9 @@ function App(): JSX.Element {
     setDeleting(true);
     setError("");
     try {
-      const nextLocations = await window.ipc.fastTravels.delete(location.name);
+      const nextLocations = await window.desktop.fastTravels.delete(
+        location.name,
+      );
       setLocations(nextLocations);
       setPendingDelete(null);
     } catch (cause) {
@@ -332,7 +337,7 @@ function App(): JSX.Element {
     setWarpingName(location.name);
     setError("");
     try {
-      await window.ipc.fastTravels.warp({
+      await window.desktop.fastTravels.warp({
         location,
         ...(useRoomNumber() ? { roomNumber: normalizedRoomNumber() } : {}),
       });
@@ -344,8 +349,8 @@ function App(): JSX.Element {
   };
 
   onMount(() => {
-    const unsubscribe = window.ipc.fastTravels.onChanged(setLocations);
-    void window.ipc.fastTravels
+    const unsubscribe = window.desktop.fastTravels.onChanged(setLocations);
+    void window.desktop.fastTravels
       .getAll()
       .then(setLocations)
       .catch((cause) => {

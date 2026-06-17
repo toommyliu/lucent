@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   type GrabbedData,
@@ -14,18 +14,20 @@ import {
 } from "../../../shared/ipc";
 import {
   WindowManagerError,
+  WindowOperationError,
+  type GameWindowRef,
   type WindowEffectRunner,
   type WindowService,
 } from "../../window/WindowService";
 import {
-  makeGameWindowRequestBroker,
-  type GameWindowRequestBroker,
-} from "../GameWindowRequestBroker";
-import { MainIpc } from "../MainIpc";
+  GameWindowClient,
+  type GameWindowClientShape,
+} from "../../window/GameWindowClient";
+import { DesktopIpc } from "../DesktopIpc";
 import {
   getSenderGameWindow,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 
 const LOADER_GRABBER_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -52,12 +54,16 @@ const makeRequestMessage = (
       };
 
 const requestGameLoaderGrabber = (
-  broker: GameWindowRequestBroker<GrabbedData | null>,
-  gameWindow: BrowserWindow,
+  gameClient: GameWindowClientShape,
+  gameWindow: GameWindowRef,
   kind: LoaderGrabberRequestKind,
   payload: LoaderGrabberLoadRequest | LoaderGrabberGrabRequest,
-): Promise<GrabbedData | null> =>
-  broker.request({
+): Effect.Effect<
+  GrabbedData | null,
+  Error | WindowManagerError,
+  WindowService
+> =>
+  gameClient.request({
     target: gameWindow,
     requestChannel: LoaderGrabberIpcChannels.request,
     timeoutMs: LOADER_GRABBER_REQUEST_TIMEOUT_MS,
@@ -68,29 +74,35 @@ const requestGameLoaderGrabber = (
 
 const sendLoaderGrabberRequest = (
   event: IpcMainInvokeEvent,
-  broker: GameWindowRequestBroker<GrabbedData | null>,
+  gameClient: GameWindowClientShape,
   kind: LoaderGrabberRequestKind,
   payload: LoaderGrabberLoadRequest | LoaderGrabberGrabRequest,
 ): Effect.Effect<GrabbedData | null, WindowManagerError, WindowService> =>
   Effect.gen(function* () {
     const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
-    return yield* Effect.tryPromise({
-      try: () => requestGameLoaderGrabber(broker, gameWindow, kind, payload),
-      catch: (cause) =>
-        new WindowManagerError({
-          message: requestErrorMessage(cause),
-          cause,
-        }),
-    });
+    return yield* requestGameLoaderGrabber(
+      gameClient,
+      gameWindow,
+      kind,
+      payload,
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WindowOperationError({
+            message: requestErrorMessage(cause),
+            cause,
+          }),
+      ),
+    );
   });
 
 export const registerLoaderGrabberIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
-): Effect.Effect<void, never, MainIpc | Scope.Scope> =>
+): Effect.Effect<void, never, GameWindowClient | DesktopIpc | Scope.Scope> =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const broker = makeGameWindowRequestBroker<GrabbedData | null>();
+    const ipc = yield* DesktopIpc;
+    const gameClient = yield* GameWindowClient;
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
@@ -110,16 +122,20 @@ export const registerLoaderGrabberIpcHandlers = (
           }
 
           if (typeof loaderGrabberResponse.ok !== "boolean") {
-            broker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               loaderGrabberResponse.requestId,
+              gameWindow,
               new Error("Invalid loader grabber response"),
             );
             return;
           }
 
           if (loaderGrabberResponse.ok) {
-            broker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               loaderGrabberResponse.requestId,
+              gameWindow,
               loaderGrabberResponse.value ?? null,
             );
             return;
@@ -130,7 +146,12 @@ export const registerLoaderGrabberIpcHandlers = (
             loaderGrabberResponse.error !== ""
               ? loaderGrabberResponse.error
               : "Loader grabber request failed";
-          broker.resolve(loaderGrabberResponse.requestId, new Error(message));
+          const { gameWindow } = yield* getSenderGameWindow(event.sender);
+          yield* gameClient.resolve(
+            loaderGrabberResponse.requestId,
+            gameWindow,
+            new Error(message),
+          );
         }),
       ),
     );
@@ -139,19 +160,13 @@ export const registerLoaderGrabberIpcHandlers = (
       LoaderGrabberIpcContracts.load,
       (event, payload) =>
         Effect.asVoid(
-          run(sendLoaderGrabberRequest(event, broker, "load", payload)),
+          run(sendLoaderGrabberRequest(event, gameClient, "load", payload)),
         ),
     );
 
     yield* ipc.handleContract(
       LoaderGrabberIpcContracts.grab,
       (event, payload) =>
-        run(sendLoaderGrabberRequest(event, broker, "grab", payload)),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        broker.rejectAll(new Error("Loader grabber IPC is shutting down"));
-      }),
+        run(sendLoaderGrabberRequest(event, gameClient, "grab", payload)),
     );
   });

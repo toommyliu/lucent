@@ -70,13 +70,20 @@ export interface ArmyLoopTauntParticipantPayload {
   readonly number: number;
 }
 
+export type ArmyLoopTauntTriggerPayload =
+  | {
+      readonly type: "focus";
+    }
+  | {
+      readonly message: string;
+      readonly type: "message";
+    };
+
 export interface ArmyLoopTauntStartPayload {
   readonly sessionId: string;
   readonly playerName: string;
   readonly id: string;
-  readonly aura: string;
-  readonly delayMs: number;
-  readonly skill: number | string;
+  readonly trigger: ArmyLoopTauntTriggerPayload;
   readonly targetMonMapId: number;
   readonly participants: readonly ArmyLoopTauntParticipantPayload[];
 }
@@ -88,12 +95,22 @@ export interface ArmyLoopTauntStopPayload {
 }
 
 export type ArmyLoopTauntObservationType =
-  | "aura-added"
-  | "aura-missing"
-  | "aura-removed"
-  | "cast-outcome"
-  | "client-cast-attempt"
-  | "server-cast-confirmed";
+  | "focus-active"
+  | "target-dead"
+  | "trigger"
+  | "turn-result";
+
+export type ArmyLoopTauntTriggerReason =
+  | "focus-missing"
+  | "focus-removed"
+  | "message-matched";
+
+export type ArmyLoopTauntIneligibleReason =
+  | "not-alive"
+  | "not-ready"
+  | "not-usable"
+  | "should-taunt-error"
+  | "should-taunt-false";
 
 export type ArmyLoopTauntCastOutcomeReason =
   | "failed"
@@ -108,22 +125,46 @@ export interface ArmyLoopTauntObservationPayload {
   readonly id: string;
   readonly type: ArmyLoopTauntObservationType;
   readonly targetMonMapId: number;
+  readonly triggerReason?: ArmyLoopTauntTriggerReason;
   readonly auraName?: string;
   readonly auraIcon?: string;
+  readonly message?: string;
   readonly epoch?: number;
   readonly attempt?: number;
+  readonly eligible?: boolean;
   readonly outcome?: "cast" | "skipped";
-  readonly reason?: ArmyLoopTauntCastOutcomeReason;
+  readonly reason?:
+    | ArmyLoopTauntCastOutcomeReason
+    | ArmyLoopTauntIneligibleReason;
 }
 
-export interface ArmyLoopTauntCommandPayload {
+export type ArmyLoopTauntCommandPayload =
+  | {
+      readonly attempt: number;
+      readonly epoch: number;
+      readonly id: string;
+      readonly reason: string;
+      readonly selected: ArmyLoopTauntParticipantPayload;
+      readonly sessionId: string;
+      readonly targetMonMapId: number;
+      readonly trigger: ArmyLoopTauntTriggerPayload;
+      readonly type: "turn";
+    }
+  | {
+      readonly id: string;
+      readonly reason: string;
+      readonly sessionId: string;
+      readonly type: "stop";
+    };
+
+export interface ArmyLoopTauntTurnCommandPayload {
   readonly sessionId: string;
   readonly id: string;
   readonly epoch: number;
   readonly attempt: number;
   readonly reason: string;
-  readonly skill: number | string;
   readonly targetMonMapId: number;
+  readonly trigger: ArmyLoopTauntTriggerPayload;
   readonly selected: ArmyLoopTauntParticipantPayload;
 }
 

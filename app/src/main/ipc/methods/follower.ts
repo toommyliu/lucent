@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { Effect, Scope } from "effect";
 import {
   normalizeFollowerConfig,
@@ -15,23 +15,25 @@ import {
 import { WindowIds } from "../../../shared/windows";
 import {
   WindowManagerError,
+  WindowOperationError,
   WindowService,
+  type GameWindowRef,
   type WindowEffectRunner,
 } from "../../window/WindowService";
 import {
-  makeGameWindowRequestBroker,
-  type GameWindowRequestBroker,
-} from "../GameWindowRequestBroker";
-import { MainIpc } from "../MainIpc";
+  GameWindowClient,
+  type GameWindowClientShape,
+} from "../../window/GameWindowClient";
+import { DesktopIpc } from "../DesktopIpc";
 import {
   getSenderGameWindow,
   getSenderGameWindowIds,
   requireGameWindowSender,
-} from "../SenderAuthorization";
+} from "../DesktopIpcRequest";
 import {
-  FollowerRuntimeService,
-  type FollowerRuntimeServiceShape,
-} from "../runtime/FollowerRuntimeService";
+  FollowerStateStore,
+  type FollowerStateStoreShape,
+} from "../../backend/follower/FollowerStateStore";
 
 const FOLLOWER_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -40,23 +42,6 @@ const requestErrorMessage = (cause: unknown): string =>
     ? cause.message
     : "Follower request failed";
 
-const sendChanged = (
-  window: BrowserWindow | null,
-  senderWindowId: number | undefined,
-  state: FollowerState,
-): void => {
-  if (
-    !window ||
-    window.id === senderWindowId ||
-    window.isDestroyed() ||
-    window.webContents.isDestroyed()
-  ) {
-    return;
-  }
-
-  window.webContents.send(FollowerIpcChannels.changed, state);
-};
-
 const notifyFollowerChanged = (
   gameWindowId: number,
   senderWindowId: number | undefined,
@@ -64,23 +49,31 @@ const notifyFollowerChanged = (
 ): Effect.Effect<void, never, WindowService> =>
   Effect.gen(function* () {
     const windows = yield* WindowService;
-    const gameWindow = yield* windows.getGameWindow(gameWindowId);
-    const followerWindow = yield* windows.getGameChildWindow(
+    const gameWindow = yield* windows.getGameWindowRefById(gameWindowId);
+    const followerWindow = yield* windows.getGameChildWindowRef(
       gameWindowId,
       WindowIds.Follower,
     );
 
-    sendChanged(gameWindow, senderWindowId, state);
-    sendChanged(followerWindow, senderWindowId, state);
+    if (gameWindow && gameWindow.id !== senderWindowId) {
+      yield* windows
+        .sendToWindow(gameWindow, FollowerIpcChannels.changed, state)
+        .pipe(Effect.ignore);
+    }
+    if (followerWindow && followerWindow.windowId !== senderWindowId) {
+      yield* windows
+        .sendToWindow(followerWindow, FollowerIpcChannels.changed, state)
+        .pipe(Effect.ignore);
+    }
   });
 
 const requestGameFollower = (
-  broker: GameWindowRequestBroker<unknown>,
-  gameWindow: BrowserWindow,
+  gameClient: GameWindowClientShape,
+  gameWindow: GameWindowRef,
   kind: FollowerRequestKind,
   payload?: unknown,
-): Promise<unknown> =>
-  broker.request({
+): Effect.Effect<unknown, Error | WindowManagerError, WindowService> =>
+  gameClient.request({
     target: gameWindow,
     requestChannel: FollowerIpcChannels.request,
     timeoutMs: FOLLOWER_REQUEST_TIMEOUT_MS,
@@ -95,8 +88,8 @@ const requestGameFollower = (
 
 const requestFollowerState = (
   event: IpcMainInvokeEvent,
-  broker: GameWindowRequestBroker<unknown>,
-  runtime: FollowerRuntimeServiceShape,
+  gameClient: GameWindowClientShape,
+  runtime: FollowerStateStoreShape,
   kind: FollowerRequestKind,
   payload?: unknown,
 ): Effect.Effect<FollowerState, WindowManagerError, WindowService> =>
@@ -104,14 +97,19 @@ const requestFollowerState = (
     const { gameWindow, gameWindowId, senderWindowId } =
       yield* getSenderGameWindow(event.sender);
 
-    const rawState = yield* Effect.tryPromise({
-      try: () => requestGameFollower(broker, gameWindow, kind, payload),
-      catch: (cause) =>
-        new WindowManagerError({
-          message: requestErrorMessage(cause),
-          cause,
-        }),
-    }).pipe(
+    const rawState = yield* requestGameFollower(
+      gameClient,
+      gameWindow,
+      kind,
+      payload,
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WindowOperationError({
+            message: requestErrorMessage(cause),
+            cause,
+          }),
+      ),
       Effect.catch((error: WindowManagerError) =>
         kind === "getState"
           ? Effect.succeed(runtime.getWindowState(gameWindowId))
@@ -128,11 +126,15 @@ const requestFollowerState = (
 
 export const registerFollowerIpcHandlers = (
   runWindowEffect: WindowEffectRunner,
-): Effect.Effect<void, never, FollowerRuntimeService | MainIpc | Scope.Scope> =>
+): Effect.Effect<
+  void,
+  never,
+  FollowerStateStore | GameWindowClient | DesktopIpc | Scope.Scope
+> =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const runtime: FollowerRuntimeServiceShape = yield* FollowerRuntimeService;
-    const broker = makeGameWindowRequestBroker<unknown>();
+    const ipc = yield* DesktopIpc;
+    const gameClient = yield* GameWindowClient;
+    const runtime: FollowerStateStoreShape = yield* FollowerStateStore;
     const run = <A>(
       effect: Effect.Effect<A, WindowManagerError, WindowService>,
     ) => Effect.promise(() => runWindowEffect(effect));
@@ -147,10 +149,17 @@ export const registerFollowerIpcHandlers = (
           }
 
           if (followerResponse.ok) {
-            broker.resolve(followerResponse.requestId, followerResponse.value);
-          } else {
-            broker.resolve(
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
               followerResponse.requestId,
+              gameWindow,
+              followerResponse.value,
+            );
+          } else {
+            const { gameWindow } = yield* getSenderGameWindow(event.sender);
+            yield* gameClient.resolve(
+              followerResponse.requestId,
+              gameWindow,
               new Error(followerResponse.error || "Follower request failed"),
             );
           }
@@ -159,7 +168,7 @@ export const registerFollowerIpcHandlers = (
     );
 
     yield* ipc.handle(FollowerIpcChannels.getState, (event) =>
-      run(requestFollowerState(event, broker, runtime, "getState")),
+      run(requestFollowerState(event, gameClient, runtime, "getState")),
     );
 
     yield* ipc.handle(FollowerIpcChannels.me, (event) =>
@@ -167,14 +176,16 @@ export const registerFollowerIpcHandlers = (
         Effect.gen(function* () {
           const { gameWindow } = yield* getSenderGameWindow(event.sender);
 
-          return yield* Effect.tryPromise({
-            try: () => requestGameFollower(broker, gameWindow, "me"),
-            catch: (cause) =>
-              new WindowManagerError({
-                message: requestErrorMessage(cause),
-                cause,
-              }),
-          }).pipe(Effect.map((name) => (typeof name === "string" ? name : "")));
+          return yield* requestGameFollower(gameClient, gameWindow, "me").pipe(
+            Effect.mapError(
+              (cause) =>
+                new WindowOperationError({
+                  message: requestErrorMessage(cause),
+                  cause,
+                }),
+            ),
+            Effect.map((name) => (typeof name === "string" ? name : "")),
+          );
         }),
       ),
     );
@@ -183,7 +194,7 @@ export const registerFollowerIpcHandlers = (
       run(
         requestFollowerState(
           event,
-          broker,
+          gameClient,
           runtime,
           "start",
           normalizeFollowerConfig(payload as FollowerStartPayload),
@@ -192,7 +203,7 @@ export const registerFollowerIpcHandlers = (
     );
 
     yield* ipc.handle(FollowerIpcChannels.stop, (event) =>
-      run(requestFollowerState(event, broker, runtime, "stop")),
+      run(requestFollowerState(event, gameClient, runtime, "stop")),
     );
 
     yield* ipc.handle(FollowerIpcChannels.publishState, (event, rawState) =>
@@ -207,11 +218,5 @@ export const registerFollowerIpcHandlers = (
           yield* notifyFollowerChanged(gameWindowId, senderWindowId, state);
         }),
       ),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        broker.rejectAll(new Error("Follower IPC scope closed"));
-      }),
     );
   });

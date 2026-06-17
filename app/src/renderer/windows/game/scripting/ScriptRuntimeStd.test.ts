@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { ScriptExecutionError } from "./Errors";
 import { makeScriptRuntimeStd } from "./ScriptRuntimeStd";
 import type { ScriptContext } from "./ScriptApi";

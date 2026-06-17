@@ -5,10 +5,13 @@ import {
   type ArmyBarrierPayload,
   type ArmyLeavePayload,
   type ArmyLoopTauntCastOutcomeReason,
+  type ArmyLoopTauntIneligibleReason,
   type ArmyLoopTauntObservationPayload,
   type ArmyLoopTauntParticipantPayload,
   type ArmyLoopTauntStartPayload,
   type ArmyLoopTauntStopPayload,
+  type ArmyLoopTauntTriggerPayload,
+  type ArmyLoopTauntTriggerReason,
   type ArmyProgressPayload,
   type ArmyProgressResult,
   type ArmySessionPayload,
@@ -16,18 +19,15 @@ import {
   type ArmyStatusPayload,
   type ArmyStatusResult,
 } from "../../../shared/ipc";
-import {
-  assertValidArmyConfigName,
-  type ArmyConfigPayload,
-} from "../../../shared/army";
-import { WorkspaceFiles } from "../../workspace/WorkspaceFiles";
-import { MainIpc } from "../MainIpc";
-import { getSenderWindow as getBrowserWindowForSender } from "../SenderAuthorization";
+import { type ArmyConfigPayload } from "../../../shared/army";
+import { DesktopIpc } from "../DesktopIpc";
+import { getSenderWindow as getBrowserWindowForSender } from "../DesktopIpcRequest";
 import { LoopTauntCoordinator } from "./LoopTauntCoordinator";
 import {
-  ArmyRuntimeService,
-  type ArmyRuntimeServiceShape,
-} from "../runtime/ArmyRuntimeService";
+  ArmyCoordinator,
+  type ArmyCoordinatorShape,
+} from "../../backend/army/ArmyCoordinator";
+import { ArmyConfigRepository } from "../../backend/army/ArmyConfigRepository";
 
 const ARMY_START_TIMEOUT_MS = 120_000;
 const ARMY_BARRIER_TIMEOUT_MS = 30 * 60_000;
@@ -116,11 +116,10 @@ const resolveSenderPlayerName = (
 
 const readArmyConfig = (
   configNameInput: string,
-): Effect.Effect<ArmyConfigPayload, Error, WorkspaceFiles> =>
+): Effect.Effect<ArmyConfigPayload, Error, ArmyConfigRepository> =>
   Effect.gen(function* () {
-    const configName = assertValidArmyConfigName(configNameInput);
-    const workspace = yield* WorkspaceFiles;
-    return yield* workspace.readArmyConfig(configName);
+    const repository = yield* ArmyConfigRepository;
+    return yield* repository.read(configNameInput);
   });
 
 const parseStartPayload = (payload: unknown): ArmyStartPayload => {
@@ -378,20 +377,28 @@ const parseLoopTauntParticipant = (
 const hasOwn = (record: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, key);
 
-const parseLoopTauntSkill = (skill: unknown): number | string => {
-  if (typeof skill === "number") {
-    if (!Number.isFinite(skill) || !Number.isInteger(skill)) {
-      throw new Error("Invalid loop taunt start payload");
-    }
-
-    return skill;
+const parseLoopTauntTrigger = (value: unknown): ArmyLoopTauntTriggerPayload => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Invalid loop taunt trigger");
   }
 
-  if (typeof skill === "string" && skill.trim() !== "") {
-    return skill.trim();
+  const record = value as Record<string, unknown>;
+  if (record["type"] === "focus") {
+    return { type: "focus" };
   }
 
-  throw new Error("Invalid loop taunt start payload");
+  if (
+    record["type"] === "message" &&
+    typeof record["message"] === "string" &&
+    record["message"].trim() !== ""
+  ) {
+    return {
+      message: record["message"].trim(),
+      type: "message",
+    };
+  }
+
+  throw new Error("Invalid loop taunt trigger");
 };
 
 const parseLoopTauntStartPayload = (
@@ -407,7 +414,6 @@ const parseLoopTauntStartPayload = (
 
   const record = payload as Record<string, unknown>;
   const participants = record["participants"];
-  const skill = parseLoopTauntSkill(record["skill"]);
   if (
     typeof record["sessionId"] !== "string" ||
     record["sessionId"].trim() === "" ||
@@ -415,11 +421,6 @@ const parseLoopTauntStartPayload = (
     record["playerName"].trim() === "" ||
     typeof record["id"] !== "string" ||
     record["id"].trim() === "" ||
-    typeof record["aura"] !== "string" ||
-    record["aura"].trim() === "" ||
-    typeof record["delayMs"] !== "number" ||
-    !Number.isFinite(record["delayMs"]) ||
-    record["delayMs"] < 0 ||
     typeof record["targetMonMapId"] !== "number" ||
     !Number.isInteger(record["targetMonMapId"]) ||
     record["targetMonMapId"] < 1 ||
@@ -433,9 +434,7 @@ const parseLoopTauntStartPayload = (
     sessionId: record["sessionId"],
     playerName: record["playerName"],
     id: record["id"].trim(),
-    aura: record["aura"].trim(),
-    delayMs: Math.trunc(record["delayMs"]),
-    skill,
+    trigger: parseLoopTauntTrigger(record["trigger"]),
     targetMonMapId: record["targetMonMapId"],
     participants: participants.map(parseLoopTauntParticipant),
   };
@@ -499,14 +498,26 @@ const parseLoopTauntObservationPayload = (
   }
 
   const validTypes = new Set([
-    "aura-added",
-    "aura-missing",
-    "aura-removed",
-    "cast-outcome",
-    "client-cast-attempt",
-    "server-cast-confirmed",
+    "focus-active",
+    "target-dead",
+    "trigger",
+    "turn-result",
   ]);
   if (!validTypes.has(record["type"])) {
+    throw new Error("Invalid loop taunt observation payload");
+  }
+
+  const validTriggerReasons = new Set<ArmyLoopTauntTriggerReason>([
+    "focus-missing",
+    "focus-removed",
+    "message-matched",
+  ]);
+  const triggerReason = record["triggerReason"];
+  if (
+    hasOwn(record, "triggerReason") &&
+    (typeof triggerReason !== "string" ||
+      !validTriggerReasons.has(triggerReason as ArmyLoopTauntTriggerReason))
+  ) {
     throw new Error("Invalid loop taunt observation payload");
   }
 
@@ -517,11 +528,19 @@ const parseLoopTauntObservationPayload = (
     "not-ready",
     "not-usable",
   ]);
+  const validIneligibleReasons = new Set<ArmyLoopTauntIneligibleReason>([
+    "not-alive",
+    "not-ready",
+    "not-usable",
+    "should-taunt-error",
+    "should-taunt-false",
+  ]);
   const reason = record["reason"];
   if (
     hasOwn(record, "reason") &&
     (typeof reason !== "string" ||
-      !validReasons.has(reason as ArmyLoopTauntCastOutcomeReason))
+      (!validReasons.has(reason as ArmyLoopTauntCastOutcomeReason) &&
+        !validIneligibleReasons.has(reason as ArmyLoopTauntIneligibleReason)))
   ) {
     throw new Error("Invalid loop taunt observation payload");
   }
@@ -541,11 +560,17 @@ const parseLoopTauntObservationPayload = (
     id: record["id"].trim(),
     type: record["type"] as ArmyLoopTauntObservationPayload["type"],
     targetMonMapId: record["targetMonMapId"],
+    ...(typeof triggerReason === "string"
+      ? { triggerReason: triggerReason as ArmyLoopTauntTriggerReason }
+      : null),
     ...(typeof record["auraName"] === "string"
       ? { auraName: record["auraName"] }
       : null),
     ...(typeof record["auraIcon"] === "string"
       ? { auraIcon: record["auraIcon"] }
+      : null),
+    ...(typeof record["message"] === "string"
+      ? { message: record["message"] }
       : null),
     ...(typeof record["epoch"] === "number" && Number.isInteger(record["epoch"])
       ? { epoch: record["epoch"] }
@@ -554,9 +579,16 @@ const parseLoopTauntObservationPayload = (
     Number.isInteger(record["attempt"])
       ? { attempt: record["attempt"] }
       : null),
+    ...(typeof record["eligible"] === "boolean"
+      ? { eligible: record["eligible"] }
+      : null),
     ...(outcome === "cast" || outcome === "skipped" ? { outcome } : null),
     ...(typeof reason === "string"
-      ? { reason: reason as ArmyLoopTauntCastOutcomeReason }
+      ? {
+          reason: reason as
+            | ArmyLoopTauntCastOutcomeReason
+            | ArmyLoopTauntIneligibleReason,
+        }
       : null),
   };
 };
@@ -611,7 +643,7 @@ const armyBarrierKey = (step: number, label?: string): string =>
   JSON.stringify([step, label ?? ""]);
 
 const abortSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   reason: string,
 ): void => {
@@ -635,7 +667,7 @@ const abortSession = (
 };
 
 const abortWindowSessions = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   window: BrowserWindow,
   reason: string,
 ): void => {
@@ -645,7 +677,7 @@ const abortWindowSessions = (
 };
 
 const trackWindow = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   window: BrowserWindow,
 ): void => {
   if (!runtime.trackWindow(window)) {
@@ -661,7 +693,7 @@ const trackWindow = (
 };
 
 const attachWindow = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   window: BrowserWindow,
   playerName: string,
@@ -686,7 +718,7 @@ const attachWindow = (
 };
 
 const createSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   config: ArmyConfigPayload,
   leaderWindow: BrowserWindow,
   leaderName: string,
@@ -703,6 +735,17 @@ const createSession = (
   let session: ArmySessionState;
   const sessionId = `${Date.now().toString(36)}-${runtime.nextSessionId()}`;
   const loopTaunts = new LoopTauntCoordinator({
+    broadcastCommand: (command) => {
+      for (const window of session.windows.values()) {
+        if (
+          window &&
+          !window.isDestroyed() &&
+          !window.webContents.isDestroyed()
+        ) {
+          window.webContents.send(ArmyIpcChannels.loopTauntCommand, command);
+        }
+      }
+    },
     sessionId,
     sendCommand: (participant, command) => {
       const window = session.windows.get(normalizePlayerName(participant.name));
@@ -739,7 +782,7 @@ const createSession = (
 };
 
 const waitForLeaderSession = (
-  runtime: ArmyRuntimeServiceShape,
+  runtime: ArmyCoordinatorShape,
   configName: string,
   senderWindow: BrowserWindow,
   playerName: string,
@@ -853,6 +896,37 @@ const resolveBarrierExpectedPlayers = (
 
     keys.add(key);
     players.push(canonicalPlayer);
+  }
+
+  return { keys, players };
+};
+
+const resolveProgressExpectedPlayers = (
+  session: ArmySessionState,
+  payload: Pick<ArmyProgressPayload, "players">,
+): {
+  readonly keys: ReadonlySet<string>;
+  readonly players: readonly string[];
+} => {
+  if (payload.players !== undefined) {
+    return resolveBarrierExpectedPlayers(session, payload);
+  }
+
+  const keys = new Set<string>();
+  const players: string[] = [];
+  for (const player of session.players) {
+    const key = normalizePlayerName(player);
+    const window = session.windows.get(key);
+    if (
+      window === undefined ||
+      window.isDestroyed() ||
+      window.webContents.isDestroyed()
+    ) {
+      continue;
+    }
+
+    keys.add(key);
+    players.push(player);
   }
 
   return { keys, players };
@@ -999,7 +1073,7 @@ const waitAtProgress = (
     readonly players: readonly string[];
   };
   try {
-    expectedPlayers = resolveBarrierExpectedPlayers(session, payload);
+    expectedPlayers = resolveProgressExpectedPlayers(session, payload);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1077,11 +1151,11 @@ const waitAtProgress = (
 export const registerArmyIpcHandlers = (): Effect.Effect<
   void,
   never,
-  ArmyRuntimeService | MainIpc | Scope.Scope | WorkspaceFiles
+  ArmyConfigRepository | ArmyCoordinator | DesktopIpc | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const ipc = yield* MainIpc;
-    const runtime = yield* ArmyRuntimeService;
+    const ipc = yield* DesktopIpc;
+    const runtime = yield* ArmyCoordinator;
 
     yield* ipc.handle(ArmyIpcChannels.loadConfig, (_event, fileName) => {
       if (typeof fileName !== "string") {
