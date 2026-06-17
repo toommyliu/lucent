@@ -19,7 +19,11 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
 | <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface |  |
-| <a href="/scripting/types/army-loop-taunt-options/" data-script-type="army-loop-taunt-options"><code>ArmyLoopTauntOptions</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-options/" data-script-type="army-loop-taunt-options"><code>ArmyLoopTauntOptions</code></a> | interface |  |
+| <a href="/scripting/types/army-loop-taunt-player-ref/" data-script-type="army-loop-taunt-player-ref"><code>ArmyLoopTauntPlayerRef</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-should-taunt/" data-script-type="army-loop-taunt-should-taunt"><code>ArmyLoopTauntShouldTaunt</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-trigger-payload/" data-script-type="army-loop-taunt-trigger-payload"><code>ArmyLoopTauntTriggerPayload</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-turn-context/" data-script-type="army-loop-taunt-turn-context"><code>ArmyLoopTauntTurnContext</code></a> | interface |  |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
 | <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
@@ -77,6 +81,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/monster-name/" data-script-type="monster-name"><code>MonsterName</code></a> | type alias |  |
 | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
 | <a href="/scripting/types/monster-selector-object/" data-script-type="monster-selector-object"><code>MonsterSelectorObject</code></a> | interface |  |
+| <a href="/scripting/types/normalized-loop-taunt-trigger/" data-script-type="normalized-loop-taunt-trigger"><code>NormalizedLoopTauntTrigger</code></a> | type alias |  |
 | <a href="/scripting/types/outfit/" data-script-type="outfit"><code>Outfit</code></a> | interface |  |
 | <a href="/scripting/types/outfit-equip-options/" data-script-type="outfit-equip-options"><code>OutfitEquipOptions</code></a> | interface |  |
 | <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | type alias |  |
@@ -90,6 +95,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/quest-reward-data/" data-script-type="quest-reward-data"><code>QuestRewardData</code></a> | type alias | Represents the raw data structure for a quest reward. |
 | <a href="/scripting/types/quest-turn-in-data/" data-script-type="quest-turn-in-data"><code>QuestTurnInData</code></a> | type alias | Represents the raw data structure for quest turn-in requirements. |
 | <a href="/scripting/types/readonly-collection/" data-script-type="readonly-collection"><code>ReadonlyCollection</code></a> | type alias | Represents an immutable version of a collection |
+| <a href="/scripting/types/resolved-army-player/" data-script-type="resolved-army-player"><code>ResolvedArmyPlayer</code></a> | interface |  |
 | <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
 | <a href="/scripting/types/script-combat-profile-ref/" data-script-type="script-combat-profile-ref"><code>ScriptCombatProfileRef</code></a> | type alias |  |
@@ -132,3 +138,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> | type alias |  |
 | <a href="/scripting/types/world-entity-key/" data-script-type="world-entity-key"><code>WorldEntityKey</code></a> | type alias |  |
 | <a href="/scripting/types/world-entity-selector/" data-script-type="world-entity-selector"><code>WorldEntitySelector</code></a> | type alias |  |
+| <a href="/scripting/types/world-monster-auras-shape/" data-script-type="world-monster-auras-shape"><code>WorldMonsterAurasShape</code></a> | interface |  |
+| <a href="/scripting/types/world-monsters-shape/" data-script-type="world-monsters-shape"><code>WorldMonstersShape</code></a> | interface |  |
+| <a href="/scripting/types/world-player-auras-shape/" data-script-type="world-player-auras-shape"><code>WorldPlayerAurasShape</code></a> | interface |  |
+| <a href="/scripting/types/world-players-shape/" data-script-type="world-players-shape"><code>WorldPlayersShape</code></a> | interface |  |

@@ -137,20 +137,136 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:94",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L94"
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:86",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L86"
       }
     },
     "army-loop-taunt-options": {
       "name": "ArmyLoopTauntOptions",
       "slug": "army-loop-taunt-options",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ArmyLoopTauntOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "participants",
+          "signature": "readonly participants: readonly [ArmyLoopTauntPlayerRef, ArmyLoopTauntPlayerRef]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "shouldTaunt",
+          "signature": "readonly shouldTaunt?: ArmyLoopTauntShouldTaunt",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "target",
+          "signature": "readonly target: MonsterIdentifierToken",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "trigger",
+          "signature": "readonly trigger: ArmyLoopTauntTriggerPayload",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:76",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L76"
+      }
+    },
+    "army-loop-taunt-player-ref": {
+      "name": "ArmyLoopTauntPlayerRef",
+      "slug": "army-loop-taunt-player-ref",
       "kind": "type alias",
       "summary": "",
-      "definition": "type ArmyLoopTauntOptions = ArmyLoopTauntBaseOptions & { aura: string; debounceMs?: never; delayMs?: number; message?: never } | ArmyLoopTauntBaseOptions & { aura?: never; debounceMs?: number; delayMs?: never; message: string }",
+      "definition": "type ArmyLoopTauntPlayerRef = number | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:80",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L80"
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:32",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L32"
+      }
+    },
+    "army-loop-taunt-should-taunt": {
+      "name": "ArmyLoopTauntShouldTaunt",
+      "slug": "army-loop-taunt-should-taunt",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ArmyLoopTauntShouldTaunt = (context: ArmyLoopTauntTurnContext) => boolean | Effect.Effect<boolean, unknown>",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:72",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L72"
+      }
+    },
+    "army-loop-taunt-trigger-payload": {
+      "name": "ArmyLoopTauntTriggerPayload",
+      "slug": "army-loop-taunt-trigger-payload",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ArmyLoopTauntTriggerPayload = { type: \"focus\" } | { message: string; type: \"message\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/shared/army.ts:73",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/army.ts#L73"
+      }
+    },
+    "army-loop-taunt-turn-context": {
+      "name": "ArmyLoopTauntTurnContext",
+      "slug": "army-loop-taunt-turn-context",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ArmyLoopTauntTurnContext",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "id",
+          "signature": "readonly id: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "localPlayer",
+          "signature": "readonly localPlayer: ResolvedArmyPlayer",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "participants",
+          "signature": "readonly participants: readonly ResolvedArmyPlayer[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "target",
+          "signature": "readonly target: { monMapId: number; token: MonsterIdentifierToken }",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "trigger",
+          "signature": "readonly trigger: NormalizedLoopTauntTrigger",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "turn",
+          "signature": "readonly turn: { attempt?: number; epoch?: number }",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "world",
+          "signature": "readonly world: { monsters: Pick<WorldMonstersShape, \"get\" | \"getAura\">; players: Pick<WorldPlayersShape, \"getAll\" | \"getByName\" | \"getAuras\" | \"getAura\"> }",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:50",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L50"
       }
     },
     "army-run-step-options": {
@@ -2839,6 +2955,18 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L23"
       }
     },
+    "normalized-loop-taunt-trigger": {
+      "name": "NormalizedLoopTauntTrigger",
+      "slug": "normalized-loop-taunt-trigger",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type NormalizedLoopTauntTrigger = { type: \"focus\" } | { message: string; type: \"message\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:36",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L36"
+      }
+    },
     "outfit": {
       "name": "Outfit",
       "slug": "outfit",
@@ -3396,6 +3524,31 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/packages/collection/src/index.ts#L23"
       }
     },
+    "resolved-army-player": {
+      "name": "ResolvedArmyPlayer",
+      "slug": "resolved-army-player",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ResolvedArmyPlayer",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "number",
+          "signature": "readonly number: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/army/LoopTaunt.ts:45",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/army/LoopTaunt.ts#L45"
+      }
+    },
     "script-combat-kill-options": {
       "name": "ScriptCombatKillOptions",
       "slug": "script-combat-kill-options",
@@ -3484,8 +3637,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:56",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L56"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:59",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L59"
       }
     },
     "script-equip-item-by-enhancement-options": {
@@ -3496,8 +3649,8 @@
       "definition": "type ScriptEquipItemByEnhancementOptions = EquipEnhancementSelector",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:61",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L61"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:64",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L64"
       }
     },
     "script-event-afk-event": {
@@ -3584,7 +3737,7 @@
         {
           "kind": "property",
           "name": "source",
-          "signature": "readonly source: \"aura\" | \"message\"",
+          "signature": "readonly source: \"message\" | \"aura\"",
           "description": ""
         },
         {
@@ -4136,8 +4289,8 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/ipc.ts:404",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L404"
+        "path": "app/src/shared/ipc.ts:411",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L411"
       }
     },
     "script-player-count-wait-options": {
@@ -4179,8 +4332,8 @@
       "definition": "type ScriptRecipeEffect<A> = Effect.Effect<A, unknown>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/recipes.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L37"
+        "path": "app/src/renderer/windows/game/scripting/recipes.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/recipes.ts#L40"
       }
     },
     "script-wait-options": {
@@ -4740,6 +4893,274 @@
       "source": {
         "path": "app/src/renderer/windows/game/flash/Services/World.ts:48",
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L48"
+      }
+    },
+    "world-monster-auras-shape": {
+      "name": "WorldMonsterAurasShape",
+      "slug": "world-monster-auras-shape",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface WorldMonsterAurasShape",
+      "keys": [
+        {
+          "kind": "method",
+          "name": "get()",
+          "signature": "get(monster: MonsterSelector, auraName: string): Effect<Option<Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAll()",
+          "signature": "getAll(monster: MonsterSelector): Effect<Collection<string, Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "has()",
+          "signature": "has(monster: MonsterSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean>",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:66",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L66"
+      }
+    },
+    "world-monsters-shape": {
+      "name": "WorldMonstersShape",
+      "slug": "world-monsters-shape",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface WorldMonstersShape",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "auras",
+          "signature": "readonly auras: WorldMonsterAurasShape",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "add()",
+          "signature": "add(data: MonsterData): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "addAura()",
+          "signature": "addAura(monMapId: number, aura: Aura): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "clearAuras()",
+          "signature": "clearAuras(monMapId: number): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "findByName()",
+          "signature": "findByName(name: string, cell?: string): Effect<Option<Monster>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "get()",
+          "signature": "get(selector: MonsterSelector): Effect<Option<Monster>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAll()",
+          "signature": "getAll(): Effect<Collection<number, Monster>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAura()",
+          "signature": "getAura(monMapId: number, auraName: string): Effect<Option<Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAuras()",
+          "signature": "getAuras(monMapId: number): Effect<Collection<string, Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAvailable()",
+          "signature": "getAvailable(): BridgeEffect<Collection<number, Monster>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "isAvailable()",
+          "signature": "isAvailable(monster: MonsterSelector): BridgeEffect<boolean>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "removeAura()",
+          "signature": "removeAura(monMapId: number, auraName: string): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "updateAura()",
+          "signature": "updateAura(monMapId: number, aura: Aura): Effect<void>",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:125",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L125"
+      }
+    },
+    "world-player-auras-shape": {
+      "name": "WorldPlayerAurasShape",
+      "slug": "world-player-auras-shape",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface WorldPlayerAurasShape",
+      "keys": [
+        {
+          "kind": "method",
+          "name": "get()",
+          "signature": "get(player: PlayerSelector, auraName: string): Effect<Option<Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAll()",
+          "signature": "getAll(player: PlayerSelector): Effect<Collection<string, Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "has()",
+          "signature": "has(player: PlayerSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean>",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:53",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L53"
+      }
+    },
+    "world-players-shape": {
+      "name": "WorldPlayersShape",
+      "slug": "world-players-shape",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface WorldPlayersShape",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "auras",
+          "signature": "readonly auras: WorldPlayerAurasShape",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "add()",
+          "signature": "add(data: AvatarData): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "addAura()",
+          "signature": "addAura(entId: number, aura: Aura): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "clearAuras()",
+          "signature": "clearAuras(entId: number): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "get()",
+          "signature": "get(selector: PlayerSelector): Effect<Option<Avatar>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAll()",
+          "signature": "getAll(): Effect<Collection<string, Avatar>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAura()",
+          "signature": "getAura(entId: number, auraName: string): Effect<Option<Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getAuras()",
+          "signature": "getAuras(entId: number): Effect<Collection<string, Aura>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getByName()",
+          "signature": "getByName(name: string): Effect<Option<Avatar>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "getSelf()",
+          "signature": "getSelf(): Effect<Option<Avatar>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "register()",
+          "signature": "register(username: string, entId: number): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "remove()",
+          "signature": "remove(username: string): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "removeAura()",
+          "signature": "removeAura(entId: number, auraName: string): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "setSelf()",
+          "signature": "setSelf(username: string): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "unregister()",
+          "signature": "unregister(username: string): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "updateAura()",
+          "signature": "updateAura(entId: number, aura: Aura): Effect<void>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "withSelf()",
+          "signature": "withSelf<A>(f: (self: Avatar) => A): Effect<Option<A>>",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/flash/Services/World.ts:105",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/World.ts#L105"
       }
     }
   }
