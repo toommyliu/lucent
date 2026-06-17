@@ -2,19 +2,8 @@
 
 import { spawnSync } from "node:child_process";
 
-const docsPaths = [
-  "docs/",
-  "scripts/docgen.ts",
-  "scripts/gen-script-types.ts",
-  "scripts/ts-ast-utils.ts",
-  "app/src/renderer/windows/game/",
-  "app/src/shared/",
-  "packages/game/src/",
-  "packages/collection/src/",
-];
-
-const defaultBranch = process.env.VERCEL_GIT_PRODUCTION_BRANCH ?? "main";
-const currentBranch = process.env.VERCEL_GIT_COMMIT_REF;
+const docsContentPath = "docs/src/content/docs/";
+const markdownFilePattern = /\.mdx?$/i;
 
 const run = (command, args, options = {}) =>
   spawnSync(command, args, {
@@ -24,41 +13,74 @@ const run = (command, args, options = {}) =>
 
 const hasRef = (ref) => run("git", ["rev-parse", "--verify", ref]).status === 0;
 
-const firstLine = (value) => value.trim().split(/\r?\n/, 1)[0] ?? "";
+const splitLines = (value) => value.trim().split(/\r?\n/).filter(Boolean);
 
-const changedSince = (base) =>
-  run("git", ["diff", "--quiet", `${base}...HEAD`, "--", ...docsPaths]).status !== 0;
+const isDocsMarkdownPath = (path) =>
+  path.startsWith(docsContentPath) && markdownFilePattern.test(path);
 
-const changedInLastCommit = () => {
-  if (!hasRef("HEAD^")) {
-    return true;
-  }
+const pathsFromNameStatus = (value) =>
+  splitLines(value).flatMap((line) => {
+    const [, ...paths] = line.split("\t");
+    return paths;
+  });
 
-  return run("git", ["diff", "--quiet", "HEAD^", "HEAD", "--", ...docsPaths]).status !== 0;
+const listChangedFiles = (baseRef, headRef) => {
+  const result = run("git", [
+    "diff",
+    "--name-status",
+    baseRef,
+    headRef,
+    "--",
+    docsContentPath,
+  ]);
+
+  return result.status === 0 ? pathsFromNameStatus(result.stdout) : null;
 };
 
-const ensureDefaultBranch = () => {
-  const remoteRef = `origin/${defaultBranch}`;
-  if (hasRef(remoteRef)) {
-    return remoteRef;
+const ensureCommitParent = (commitRef) => {
+  const parentRef = `${commitRef}^`;
+  if (hasRef(parentRef)) {
+    return parentRef;
   }
 
-  run("git", ["fetch", "--depth=100", "origin", defaultBranch], { stdio: "ignore" });
-  return hasRef(remoteRef) ? remoteRef : null;
+  const currentBranch = process.env.VERCEL_GIT_COMMIT_REF;
+  if (currentBranch) {
+    run("git", ["fetch", "--deepen=50", "origin", currentBranch], { stdio: "ignore" });
+  }
+
+  return hasRef(parentRef) ? parentRef : null;
 };
 
 const shouldBuild = () => {
-  if (currentBranch && currentBranch !== defaultBranch) {
-    const defaultBranchRef = ensureDefaultBranch();
-    if (!defaultBranchRef) {
-      return true;
-    }
+  const commitRef = process.env.VERCEL_GIT_COMMIT_SHA || "HEAD";
+  const parentRef = ensureCommitParent(commitRef);
 
-    const mergeBase = firstLine(run("git", ["merge-base", "HEAD", defaultBranchRef]).stdout);
-    return mergeBase ? changedSince(mergeBase) : true;
+  if (!parentRef) {
+    console.warn(
+      "Unable to find the parent commit while checking docs markdown changes; building to avoid skipping a content update.",
+    );
+    return true;
   }
 
-  return changedInLastCommit();
+  const changedFiles = listChangedFiles(parentRef, commitRef);
+  if (!changedFiles) {
+    console.warn(
+      "Unable to read changed files while checking docs markdown changes; building to avoid skipping a content update.",
+    );
+    return true;
+  }
+
+  const changedMarkdownFiles = changedFiles.filter(isDocsMarkdownPath);
+  if (changedMarkdownFiles.length === 0) {
+    console.log("No docs markdown changes detected; skipping Vercel build.");
+    return false;
+  }
+
+  console.log("Docs markdown changed; Vercel build should run:");
+  for (const file of changedMarkdownFiles) {
+    console.log(`- ${file}`);
+  }
+  return true;
 };
 
 process.exit(shouldBuild() ? 1 : 0);
