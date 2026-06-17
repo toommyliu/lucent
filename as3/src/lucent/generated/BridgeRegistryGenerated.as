@@ -126,6 +126,7 @@ package lucent.generated
       external.externalize("quests.isInProgress", Quests.isInProgress);
       external.externalize("quests.isOneTimeQuestDone", Quests.isOneTimeQuestDone);
       external.externalize("quests.load", Quests.load);
+      external.externalize("quests.loadMultiple", Quests.loadMultiple);
       external.externalize("settings.enemyMagnet", Settings.enemyMagnet);
       external.externalize("settings.infiniteRange", Settings.infiniteRange);
       external.externalize("settings.provokeCell", Settings.provokeCell);
