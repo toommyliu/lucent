@@ -17,9 +17,22 @@ export interface AccountServerCacheSnapshot {
   readonly lastRefreshRequestTime: number;
 }
 
-type AccountRuntimeSession = AccountScriptSession & {
-  readonly gameWindowId: number;
-};
+type AccountRuntimeSession = AccountScriptSession;
+
+export const mergeAccountSessionDisplayMetadata = (
+  previous: AccountScriptSession | undefined,
+  next: AccountScriptSession,
+): AccountScriptSession => ({
+  ...next,
+  ...(next.launchUsername === undefined &&
+  previous?.launchUsername !== undefined
+    ? { launchUsername: previous.launchUsername }
+    : {}),
+  ...(next.currentUsername === undefined &&
+  previous?.currentUsername !== undefined
+    ? { currentUsername: previous.currentUsername }
+    : {}),
+});
 
 export interface AccountSessionsShape {
   readonly getServerCache: () => AccountServerCacheSnapshot;
@@ -38,12 +51,6 @@ export interface AccountSessionsShape {
   readonly hasSession: (gameWindowId: number) => boolean;
   readonly upsertSession: (session: AccountRuntimeSession) => void;
   readonly deleteSession: (gameWindowId: number) => void;
-  readonly renameSessionUser: (
-    fromUsername: string,
-    toUsername: string,
-    updatedAt: number,
-  ) => void;
-  readonly deleteSessionsByUsername: (username: string) => void;
   readonly getGameLaunchPayload: (
     gameWindowId: number,
   ) => AccountGameLaunchPayload | undefined;
@@ -52,7 +59,6 @@ export interface AccountSessionsShape {
     payload: AccountGameLaunchPayload,
   ) => void;
   readonly deleteGameLaunchPayload: (gameWindowId: number) => void;
-  readonly getActiveUsername: (gameWindowId: number) => string | undefined;
   readonly registerShutdownRequest: (
     requestId: string,
     request: ShutdownRequest,
@@ -128,24 +134,6 @@ export const makeAccountSessions = (): AccountSessionsShape => {
     deleteSession: (gameWindowId) => {
       sessions.delete(gameWindowId);
     },
-    renameSessionUser: (fromUsername, toUsername, updatedAt) => {
-      for (const [gameWindowId, session] of sessions) {
-        if (session.username === fromUsername) {
-          sessions.set(gameWindowId, {
-            ...session,
-            username: toUsername,
-            updatedAt,
-          });
-        }
-      }
-    },
-    deleteSessionsByUsername: (username) => {
-      for (const [gameWindowId, session] of sessions) {
-        if (session.username === username) {
-          sessions.delete(gameWindowId);
-        }
-      }
-    },
     getGameLaunchPayload: (gameWindowId) =>
       gameLaunchPayloads.get(gameWindowId),
     setGameLaunchPayload: (gameWindowId, payload) => {
@@ -154,9 +142,6 @@ export const makeAccountSessions = (): AccountSessionsShape => {
     deleteGameLaunchPayload: (gameWindowId) => {
       gameLaunchPayloads.delete(gameWindowId);
     },
-    getActiveUsername: (gameWindowId) =>
-      gameLaunchPayloads.get(gameWindowId)?.account.username ??
-      sessions.get(gameWindowId)?.username,
     registerShutdownRequest: (requestId, request) => {
       pendingGameWindowShutdowns.set(requestId, request);
     },

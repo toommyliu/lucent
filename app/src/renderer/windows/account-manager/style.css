@@ -157,16 +157,14 @@
 }
 
 .active-windows-menu__item {
-  align-items: center;
-  background: rgba(var(--muted), 0.65);
+  background: rgb(var(--card));
   border: 0;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   color: inherit;
   display: flex;
-  gap: 0.5rem;
-  justify-content: space-between;
-  padding: 0.25rem 0.375rem 0.25rem 0.5rem;
+  flex-direction: column;
+  overflow: hidden;
   text-align: left;
   transition: all var(--duration-fast) ease;
   width: 100%;
@@ -177,89 +175,180 @@
 }
 
 .active-windows-menu__item--running {
-  background: rgba(var(--success), 0.1);
+  background: rgba(var(--success), 0.04);
 }
 
 .active-windows-menu__item--starting {
-  background: rgba(var(--warning), 0.1);
+  background: rgba(var(--warning), 0.04);
 }
 
 .active-windows-menu__item--failed {
-  background: rgba(var(--destructive), 0.1);
+  background: rgba(var(--destructive), 0.04);
 }
 
 .active-windows-menu__item--stopped {
-  background: rgba(var(--muted), 0.9);
+  opacity: 0.65;
 }
 
-.active-windows-menu__item-main {
-  display: grid;
-  gap: 0.125rem;
+.active-windows-menu__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: transparent;
+}
+
+.active-windows-menu__row:first-child {
+  border-bottom: 1px solid rgba(var(--border), 0.5);
+}
+
+.active-windows-menu__row--bottom {
+}
+
+.active-windows-menu__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   min-width: 0;
 }
 
-.active-windows-menu__item-title {
-  align-items: center;
-  color: rgb(var(--foreground));
-  display: flex;
-  font-size: var(--text-xs);
+.active-windows-menu__name {
+  font-size: var(--text-sm);
   font-weight: 600;
-  gap: 0.375rem;
-  line-height: 1.2;
-}
-
-.active-windows-menu__focus-btn.button {
-  color: rgb(var(--muted-foreground));
-  padding: 0 !important;
-  height: 1.25rem !important;
-  width: 1.25rem !important;
-  min-width: 1.25rem !important;
-  border-radius: var(--radius-xs);
-  flex: 0 0 auto;
-}
-
-.active-windows-menu__focus-btn.button:hover:not(:disabled) {
-  color: rgb(var(--success-foreground)) !important;
-  background: rgba(var(--success), 0.12) !important;
-}
-
-.active-windows-menu__focus-btn.button .button__icon {
-  height: 0.75rem;
-  width: 0.75rem;
-}
-
-.active-windows-menu__item-label {
-  font-weight: 500;
-  color: rgba(var(--foreground), 0.7);
-}
-
-.active-windows-menu__item-side {
-  align-items: center;
-  display: flex;
-  flex-direction: row;
-  gap: 0.375rem;
-  flex: 0 0 auto;
-}
-
-.active-windows-menu__status.badge {
-  max-width: 10rem;
-}
-
-.active-windows-menu__status-script {
-  min-width: 0;
+  color: rgb(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.active-windows-menu__close-btn.button {
-  color: rgb(var(--muted-foreground));
-  border-radius: var(--radius-sm);
+.active-windows-menu__item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
-.active-windows-menu__close-btn.button:hover {
+.active-windows-menu__item-script {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: rgba(var(--foreground), 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-windows-menu__item-message {
+  font-size: var(--text-xs);
+  color: rgb(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-windows-menu__item-no-script {
+  font-size: var(--text-xs);
+  color: rgb(var(--muted-foreground));
+  font-style: italic;
+}
+
+.active-windows-menu__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.active-windows-menu__status.badge {
+  background: rgb(var(--input)) !important;
+  border: 0 !important;
+  border-radius: var(--radius-xl) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  height: auto !important;
+  max-width: 10rem;
+  min-width: unset !important;
+  padding: 0.25rem 0.5rem !important;
+  text-transform: capitalize !important;
+}
+
+.active-windows-menu__status.badge.badge--success {
+  color: rgb(var(--success-foreground)) !important;
+}
+
+.active-windows-menu__status.badge.badge--warning {
+  color: rgb(var(--warning-foreground)) !important;
+}
+
+.active-windows-menu__status.badge.badge--error {
+  color: rgb(var(--destructive-foreground)) !important;
+}
+
+.active-windows-menu__status.badge.badge--secondary {
+  color: rgb(var(--muted-foreground)) !important;
+}
+
+.active-windows-menu__focus-btn.button {
+  color: rgb(var(--muted-foreground));
+  border-radius: var(--radius-xl) !important;
+  height: 1.5rem !important;
+  padding: 0 0.5rem !important;
+  font-size: var(--text-xs) !important;
+  min-height: unset !important;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.active-windows-menu__focus-btn.button .button__icon {
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+  margin: 0 !important;
+}
+
+.active-windows-menu__close-btn.button {
+  color: rgb(var(--muted-foreground));
+  border-radius: var(--radius-xl) !important;
+  height: 1.5rem !important;
+  padding: 0 0.5rem !important;
+  font-size: var(--text-xs) !important;
+  min-height: unset !important;
+  font-weight: 500;
+}
+
+.active-windows-menu__focus-btn.button:hover:not(:disabled) {
+  color: rgb(var(--accent-foreground)) !important;
+  background: rgb(var(--accent)) !important;
+}
+
+.active-windows-menu__close-btn.button:hover:not(:disabled) {
   background: rgba(var(--destructive), 0.12) !important;
   color: rgb(var(--destructive-foreground)) !important;
+}
+
+.active-windows-menu__close-btn.button .button__icon {
+  height: 0.75rem !important;
+  width: 0.75rem !important;
+  margin: 0 !important;
+}
+
+.active-windows-menu__btn-text {
+  display: inline;
+}
+
+@media (max-width: 480px) {
+  .active-windows-menu__btn-text {
+    display: none;
+  }
+  .active-windows-menu__close-btn.button {
+    padding: 0 !important;
+    width: 1.5rem !important;
+    justify-content: center;
+  }
 }
 
 .account-manager__group-selector {
@@ -1306,6 +1395,10 @@
 
 .account-dialog .dialog__footer > .button:first-child {
   margin-right: auto;
+}
+
+.account-dialog .active-windows-close-dialog__footer > .button:first-child {
+  margin-right: 0;
 }
 
 @media (max-width: 760px) {

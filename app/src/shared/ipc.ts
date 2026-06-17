@@ -511,8 +511,9 @@ export interface AccountGameServersResult {
 }
 
 export interface AccountScriptSession {
-  readonly username: string;
-  readonly gameWindowId?: number;
+  readonly gameWindowId: number;
+  readonly launchUsername?: string;
+  readonly currentUsername?: string;
   readonly scriptName?: string;
   readonly status: AccountScriptStatus;
   readonly message?: string;
@@ -562,8 +563,7 @@ export interface AccountGameLaunchPayload {
 }
 
 export interface AccountScriptStatusUpdate {
-  readonly username: string;
-  readonly gameWindowId: number;
+  readonly currentUsername?: string;
   readonly scriptName?: string;
   readonly status: AccountScriptStatus;
   readonly message?: string;

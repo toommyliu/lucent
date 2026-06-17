@@ -228,8 +228,9 @@ const sameVisibleSession = (
   previous: AccountScriptSession,
   next: AccountScriptSession,
 ): boolean =>
-  previous.username === next.username &&
   previous.gameWindowId === next.gameWindowId &&
+  previous.launchUsername === next.launchUsername &&
+  previous.currentUsername === next.currentUsername &&
   previous.status === next.status &&
   previous.scriptName === next.scriptName &&
   previous.message === next.message;
@@ -279,9 +280,7 @@ const reconcileAccounts = (
 };
 
 const sessionIdentityKey = (session: AccountScriptSession): string =>
-  session.gameWindowId === undefined
-    ? `account:${session.username}`
-    : `window:${session.gameWindowId}`;
+  `window:${session.gameWindowId}`;
 
 const reconcileSessions = (
   previousSessions: readonly AccountScriptSession[],
@@ -372,7 +371,6 @@ function App(): JSX.Element {
   const [accountToDelete, setAccountToDelete] =
     createSignal<ManagedAccount | null>(null);
   const [sessionToClose, setSessionToClose] = createSignal<{
-    readonly accountLabel: string;
     readonly session: AccountScriptSession;
   } | null>(null);
   const [selectedGroupName, setSelectedGroupName] = createSignal("");
@@ -449,16 +447,13 @@ function App(): JSX.Element {
   });
   const activeWindowSessions = createMemo(() =>
     state()
-      .sessions.filter((session) => session.gameWindowId !== undefined)
-      .slice()
+      .sessions.slice()
       .sort((left, right) => right.updatedAt - left.updatedAt),
   );
   createEffect(() => {
     const activeGameWindowIds = new Set<number>();
     for (const session of activeWindowSessions()) {
-      if (session.gameWindowId !== undefined) {
-        activeGameWindowIds.add(session.gameWindowId);
-      }
+      activeGameWindowIds.add(session.gameWindowId);
     }
 
     setClosingGameWindowIds((previous) => {
@@ -1318,16 +1313,76 @@ function App(): JSX.Element {
     await launchAccountUsernames(selectedLaunchUsernames());
   };
 
-  const activeWindowStatusLabel = (session: AccountScriptSession): string =>
-    session.message ?? session.status;
+  const activeWindowAccountLabel = (
+    session: AccountScriptSession,
+  ): string | undefined => {
+    const currentUsername = session.currentUsername?.trim();
+    if (currentUsername && currentUsername !== "") {
+      return currentUsername;
+    }
+
+    const launchUsername = session.launchUsername?.trim();
+    return launchUsername && launchUsername !== "" ? launchUsername : undefined;
+  };
+
+  const activeWindowDisplayLabel = (session: AccountScriptSession): string =>
+    activeWindowAccountLabel(session) ?? "Unknown account";
+
+  const activeWindowDetailMessage = (
+    session: AccountScriptSession,
+  ): string | undefined => {
+    if (session.status === "failed") {
+      return undefined;
+    }
+
+    const message = session.message?.trim();
+    if (message === undefined || message === "") {
+      return undefined;
+    }
+
+    const status = session.status.trim().toLowerCase();
+    const scriptName = session.scriptName?.trim();
+    const normalizedMessage = message.toLowerCase();
+
+    if (normalizedMessage === status) {
+      return undefined;
+    }
+
+    if (scriptName === undefined || scriptName === "") {
+      return message;
+    }
+
+    const normalizedScriptName = scriptName.toLowerCase();
+    if (
+      normalizedMessage === normalizedScriptName ||
+      normalizedMessage === `${status} ${normalizedScriptName}`
+    ) {
+      return undefined;
+    }
+
+    return message;
+  };
+
+  const closeGameClientDescription = (
+    session: AccountScriptSession,
+  ): string => {
+    const hasActiveScript =
+      session.status === "starting" || session.status === "running";
+    const accountLabel = activeWindowAccountLabel(session);
+    const closeTarget =
+      accountLabel === undefined
+        ? "this game window"
+        : `the window for ${accountLabel}`;
+
+    return hasActiveScript
+      ? `Stop the script, log out, and close ${closeTarget}?`
+      : `Log out and close ${closeTarget}?`;
+  };
 
   const handleFocusTrackedGameWindow = async (
     session: AccountScriptSession,
   ) => {
     const gameWindowId = session.gameWindowId;
-    if (gameWindowId === undefined) {
-      return;
-    }
 
     try {
       const nextState = await window.desktop.accounts.focusGameWindow({
@@ -1343,9 +1398,6 @@ function App(): JSX.Element {
     session: AccountScriptSession,
   ) => {
     const gameWindowId = session.gameWindowId;
-    if (gameWindowId === undefined) {
-      return;
-    }
 
     setClosingGameWindowIds((previous) => new Set(previous).add(gameWindowId));
     let closeAccepted = false;
@@ -1529,7 +1581,9 @@ function App(): JSX.Element {
         <AppShell.HeaderRight>
           <Menu
             open={activeWindowsOpen()}
-            onOpenChange={(details) => setActiveWindowsOpen(details.open)}
+            onOpenChange={(details) => {
+              setActiveWindowsOpen(details.open);
+            }}
             positioning={{ gutter: 8, placement: "bottom-end" }}
           >
             <MenuTrigger
@@ -1547,12 +1601,7 @@ function App(): JSX.Element {
                     variant: "secondary",
                   } as ButtonProps) as ButtonProps)}
                 >
-                  <Show
-                    when={activeWindowSessions().length > 0}
-                    fallback={<Icon icon="copy" class="button__icon" />}
-                  >
-                    <span class="active-dot" />
-                  </Show>
+                  <Icon icon="copy" class="button__icon" />
                   Active Windows
                   <Badge
                     variant="outline"
@@ -1577,11 +1626,12 @@ function App(): JSX.Element {
                     {(session) => {
                       const gameWindowId = () => session().gameWindowId;
                       const isClosing = () => {
-                        const id = gameWindowId();
-                        return (
-                          id !== undefined && closingGameWindowIds().has(id)
-                        );
+                        return closingGameWindowIds().has(gameWindowId());
                       };
+                      const displayLabel = () =>
+                        activeWindowDisplayLabel(session());
+                      const detailMessage = () =>
+                        activeWindowDetailMessage(session());
                       const focusSession = () => {
                         if (!isClosing()) {
                           void handleFocusTrackedGameWindow(session());
@@ -1602,46 +1652,85 @@ function App(): JSX.Element {
                             "active-windows-menu__item--disabled": isClosing(),
                           }}
                         >
-                          <div class="active-windows-menu__item-main">
-                            <div class="active-windows-menu__item-title">
+                          <div class="active-windows-menu__row">
+                            <div class="active-windows-menu__identity">
+                              <span class="active-windows-menu__name">
+                                {displayLabel()}
+                              </span>
                               <Button
                                 disabled={isClosing()}
                                 onClick={focusSession}
                                 size="xs"
+                                type="button"
                                 variant="ghost"
-                                aria-label={`Focus game window ${gameWindowId()}`}
+                                aria-label="Focus game window"
                                 class="active-windows-menu__focus-btn"
                               >
-                                <Icon icon="eye" class="button__icon" />
+                                <Icon
+                                  icon="arrow_up_right"
+                                  class="button__icon"
+                                />
+                                <span class="active-windows-menu__btn-text">
+                                  Focus
+                                </span>
                               </Button>
-                              Window #{gameWindowId()}
                             </div>
-                          </div>
-                          <div class="active-windows-menu__item-side">
                             <Badge
                               variant={statusVariant(session().status)}
                               class="active-windows-menu__status"
                             >
-                              {activeWindowStatusLabel(session())}
+                              {session().status}
                             </Badge>
-                            <Button
-                              disabled={busy() || isClosing()}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSessionToClose({
-                                  accountLabel: `Window #${gameWindowId()}`,
-                                  session: session(),
-                                });
-                                setActiveWindowsOpen(false);
-                              }}
-                              size="xs"
-                              type="button"
-                              variant="ghost"
-                              class="active-windows-menu__close-btn"
-                            >
-                              <Icon icon="x" class="button__icon" />
-                              Close
-                            </Button>
+                          </div>
+
+                          <div class="active-windows-menu__row active-windows-menu__row--bottom">
+                            <div class="active-windows-menu__item-meta">
+                              <Show
+                                when={session().scriptName || detailMessage()}
+                                fallback={
+                                  <span class="active-windows-menu__item-no-script">
+                                    No active script
+                                  </span>
+                                }
+                              >
+                                <Show when={session().scriptName}>
+                                  <span
+                                    class="active-windows-menu__item-script"
+                                    title={session().scriptName}
+                                  >
+                                    Script: {session().scriptName}
+                                  </span>
+                                </Show>
+                                <Show when={detailMessage()}>
+                                  <span
+                                    class="active-windows-menu__item-message"
+                                    title={detailMessage()}
+                                  >
+                                    {detailMessage()}
+                                  </span>
+                                </Show>
+                              </Show>
+                            </div>
+                            <div class="active-windows-menu__actions">
+                              <Button
+                                disabled={busy() || isClosing()}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSessionToClose({
+                                    session: session(),
+                                  });
+                                  setActiveWindowsOpen(false);
+                                }}
+                                size="xs"
+                                type="button"
+                                variant="ghost"
+                                class="active-windows-menu__close-btn"
+                              >
+                                <span class="active-windows-menu__btn-text">
+                                  Close
+                                </span>
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -2806,11 +2895,13 @@ function App(): JSX.Element {
             <AlertDialogHeader>
               <AlertDialogTitle>Close Game Client</AlertDialogTitle>
               <AlertDialogDescription>
-                Stop the script, log out, and close{" "}
-                {sessionToClose()?.accountLabel}?
+                {(() => {
+                  const data = sessionToClose();
+                  return data ? closeGameClientDescription(data.session) : "";
+                })()}
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
+            <AlertDialogFooter class="active-windows-close-dialog__footer">
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
@@ -2822,7 +2913,7 @@ function App(): JSX.Element {
                 }}
                 variant="destructive"
               >
-                Close client
+                Close
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

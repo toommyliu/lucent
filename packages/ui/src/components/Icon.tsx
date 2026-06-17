@@ -34,6 +34,10 @@ const icons = {
     ["path", { d: "m5 12 7-7 7 7", key: "hav0vg" }],
     ["path", { d: "M12 19V5", key: "x0mq9r" }],
   ],
+  arrow_up_right: [
+    ["path", { d: "M7 7h10v10" }],
+    ["path", { d: "M7 17 17 7" }],
+  ],
   check: [["path", { d: "M20 6 9 17l-5-5", key: "1gmf2c" }]],
   chevron_down: [["path", { d: "m6 9 6 6 6-6", key: "qrunsl" }]],
   chevron_right: [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]],
