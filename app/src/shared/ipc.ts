@@ -62,6 +62,10 @@ import type {
   ObservabilityInput,
   ObservabilitySnapshot,
 } from "./observability";
+import type {
+  ScriptInputsDefinition,
+  ScriptInputValues,
+} from "./script-inputs";
 
 export type {
   DesktopIpcInvokeContract,
@@ -165,6 +169,15 @@ export type {
 } from "./observability";
 
 export type {
+  ScriptInputField,
+  ScriptInputsDefinition,
+  ScriptInputStorageFile,
+  ScriptInputType,
+  ScriptInputValue,
+  ScriptInputValues,
+} from "./script-inputs";
+
+export type {
   GrabbedData,
   GrabbedDataByType,
   LoaderGrabberGrabRequest,
@@ -179,6 +192,8 @@ export const ScriptingIpcChannels = {
   openFile: "desktop:scripting:open-file",
   openPath: "desktop:scripting:open-path",
   readFile: "desktop:scripting:read-file",
+  getInputValues: "desktop:scripting:get-input-values",
+  saveInputValues: "desktop:scripting:save-input-values",
 } as const;
 
 export const WindowIpcChannels = {
@@ -418,6 +433,7 @@ export interface ScriptExecutePayload {
   readonly source: string;
   readonly path?: string;
   readonly name?: string;
+  readonly inputs?: ScriptInputsDefinition;
 }
 
 export type AccountScriptStatus =
@@ -708,6 +724,14 @@ export interface ScriptingInvokeChannels {
     [path: string],
     ScriptExecutePayload
   >;
+  readonly [ScriptingIpcChannels.getInputValues]: IpcInvokeDefinition<
+    [definition: ScriptInputsDefinition],
+    ScriptInputValues
+  >;
+  readonly [ScriptingIpcChannels.saveInputValues]: IpcInvokeDefinition<
+    [definition: ScriptInputsDefinition, values: ScriptInputValues],
+    ScriptInputValues
+  >;
 }
 
 export interface ScriptingRendererEventChannels {
@@ -719,6 +743,13 @@ export interface ScriptingBridge {
   openFile(): Promise<ScriptExecutePayload | null>;
   openPath(path: string): Promise<void>;
   readFile(path: string): Promise<ScriptExecutePayload>;
+  getInputValues(
+    definition: ScriptInputsDefinition,
+  ): Promise<ScriptInputValues>;
+  saveInputValues(
+    definition: ScriptInputsDefinition,
+    values: ScriptInputValues,
+  ): Promise<ScriptInputValues>;
   onExecute(listener: (payload: ScriptExecutePayload) => void): () => void;
   onStop(listener: () => void): () => void;
 }

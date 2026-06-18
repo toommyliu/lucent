@@ -19,7 +19,7 @@ import {
   normalizeCombatProfile,
   type CombatProfile,
 } from "../../../../../shared/combat-profiles";
-import { type ScriptExecutePayload, type ScriptOptions } from "../ipc";
+import { type ScriptInputValues, type ScriptOptions } from "../ipc";
 import { Army, type ArmyShape } from "../../army/Services/Army";
 import type {
   ArmyLoopTauntHandle,
@@ -202,18 +202,6 @@ const isGenerator = (
   typeof (value as { readonly next?: unknown }).next === "function" &&
   typeof (value as { readonly throw?: unknown }).throw === "function";
 
-const scriptNameFromPayload = (payload: ScriptExecutePayload): string => {
-  if (payload.name && payload.name.trim() !== "") {
-    return payload.name;
-  }
-
-  if (payload.path && payload.path.trim() !== "") {
-    return payload.path;
-  }
-
-  return "inline-script";
-};
-
 const causeMessage = (cause: Cause.Cause<unknown>): string =>
   toErrorMessage(Cause.squash(cause));
 
@@ -242,7 +230,6 @@ const make = Effect.gen(function* () {
 
   const services = yield* Effect.services();
   const runFork = Effect.runForkWith(services);
-  const runPromise = Effect.runPromiseWith(services);
 
   const readyRef = yield* Ref.make(false);
   const activeFiberRef = yield* Ref.make<Option.Option<ActiveScript>>(
@@ -482,6 +469,7 @@ const make = Effect.gen(function* () {
     runtime: ScriptRuntimeStdBinding,
     scriptScope: ScriptAsyncScope,
     token: number,
+    inputValues: ScriptInputValues,
   ) => {
     const tolerantBridgeFailurePolicy = {
       mode: "tolerant" as const,
@@ -1734,6 +1722,16 @@ const make = Effect.gen(function* () {
       reset: () => Ref.set(scriptOptionsRef, DEFAULT_SCRIPT_OPTIONS),
     };
 
+    const scriptInputs: ScriptRuntimeApi["inputs"] = {
+      get: (key) =>
+        Effect.sync(() =>
+          Object.prototype.hasOwnProperty.call(inputValues, key)
+            ? inputValues[key]
+            : undefined,
+        ),
+      getAll: () => Effect.sync(() => ({ ...inputValues })),
+    };
+
     const resolveScriptJoinMap = (map: string): Effect.Effect<string> =>
       Effect.gen(function* () {
         const options = yield* Ref.get(scriptOptionsRef);
@@ -2096,6 +2094,7 @@ const make = Effect.gen(function* () {
 
     const script: ScriptRuntimeApi = {
       signal: scriptScope.signal,
+      inputs: scriptInputs,
       options: scriptOptions,
       log: (message: string) => {
         const text = String(message);
@@ -2227,36 +2226,16 @@ const make = Effect.gen(function* () {
     );
   };
 
-  const runScriptPayload = (payload: ScriptExecutePayload): Promise<void> =>
-    runPromise(
-      run(payload.source, {
-        name: scriptNameFromPayload(payload),
-      }),
-    );
-
-  const runScriptPayloadFromIpc = (payload: ScriptExecutePayload) => {
-    void runScriptPayload(payload).catch((cause) => {
-      console.error("Failed to run script", {
-        sourceName: scriptNameFromPayload(payload),
-        cause,
-      });
-    });
-  };
-
   const stopFromIpc = () => {
     runFork(stop("ipc request"));
   };
 
-  const removeExecuteListener = window.desktop.scripting.onExecute(
-    runScriptPayloadFromIpc,
-  );
   const removeStopListener = window.desktop.scripting.onStop(() => {
     stopFromIpc();
   });
 
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
-      removeExecuteListener();
       removeStopListener();
     }),
   );
@@ -2314,6 +2293,7 @@ const make = Effect.gen(function* () {
                 loaded.runtime,
                 scriptScope,
                 token,
+                options?.inputs ?? {},
               ).pipe(
                 Effect.ensuring(emitStoppedStatus(token, sourceName)),
                 Effect.ensuring(clearActiveScript(token)),

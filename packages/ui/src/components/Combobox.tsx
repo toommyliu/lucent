@@ -5,6 +5,7 @@ import {
   type CollectionItem,
 } from "@ark-ui/solid/combobox";
 import {
+  Show,
   createContext,
   createEffect,
   createMemo,
@@ -16,6 +17,7 @@ import {
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
+import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 
 export interface ComboboxOption extends CollectionItem {
   readonly disabled?: boolean;
@@ -208,21 +210,36 @@ export interface ComboboxContentProps extends Omit<
 
 export function ComboboxContent(props: ComboboxContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class"]);
-  return (
-    <Portal>
-      <ComboboxPrimitive.Positioner
-        class="combobox__positioner"
-        data-slot="combobox-positioner"
+  const dialogPortalMount = useDialogPortalMount();
+  const dialogFloatingZIndex = useDialogFloatingZIndex();
+  const positionerStyle = (): JSX.CSSProperties | undefined =>
+    dialogFloatingZIndex === undefined
+      ? undefined
+      : { "z-index": dialogFloatingZIndex };
+  const content = () => (
+    <ComboboxPrimitive.Positioner
+      class="combobox__positioner"
+      data-slot="combobox-positioner"
+      style={positionerStyle()}
+    >
+      <ComboboxPrimitive.Content
+        {...rest}
+        class={cn("combobox__content", local.class)}
+        data-slot="combobox-content"
       >
-        <ComboboxPrimitive.Content
-          {...rest}
-          class={cn("combobox__content", local.class)}
-          data-slot="combobox-content"
-        >
-          {local.children}
-        </ComboboxPrimitive.Content>
-      </ComboboxPrimitive.Positioner>
-    </Portal>
+        {local.children}
+      </ComboboxPrimitive.Content>
+    </ComboboxPrimitive.Positioner>
+  );
+
+  return (
+    <Show
+      when={dialogPortalMount()}
+      keyed
+      fallback={<Portal>{content()}</Portal>}
+    >
+      {(mount) => <Portal mount={mount}>{content()}</Portal>}
+    </Show>
   );
 }
 

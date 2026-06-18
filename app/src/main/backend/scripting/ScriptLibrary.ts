@@ -2,7 +2,14 @@ import { promises as fs } from "fs";
 import { basename, sep } from "path";
 import { Data, Effect, Layer, ServiceMap } from "effect";
 import type { ScriptExecutePayload } from "../../../shared/ipc";
+import type { ScriptInputsDefinition } from "../../../shared/script-inputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import {
+  DesktopObservability,
+  type DesktopObservabilityShape,
+} from "../../app/DesktopObservability";
+import { roundTimingMs, timingNow } from "../../timing";
+import { extractScriptInputsDefinitionWithTimings } from "./ScriptInputsExtractor";
 
 export class ScriptLibraryError extends Data.TaggedError("ScriptLibraryError")<{
   readonly operation: "resolve" | "read" | "refresh";
@@ -53,17 +60,64 @@ export const resolveScriptPath = async (
   return scriptPath;
 };
 
+interface ScriptPayloadReadTimings {
+  readonly resolveMs: number;
+  readonly readMs: number;
+  readonly parseMs: number;
+  readonly validationMs: number;
+  readonly totalMs: number;
+  readonly sourceBytes: number;
+  readonly declarationFound: boolean;
+}
+
+interface ScriptPayloadReadResult {
+  readonly payload: ScriptExecutePayload;
+  readonly timings: ScriptPayloadReadTimings;
+}
+
+const sourceByteLength = (source: string): number =>
+  Buffer.byteLength(source, "utf8");
+
+const readScriptPayloadWithTimings = async (
+  scriptsPath: string,
+  path: string,
+): Promise<ScriptPayloadReadResult> => {
+  const totalStartedAt = timingNow();
+  const resolveStartedAt = timingNow();
+  const scriptPath = await resolveScriptPath(scriptsPath, path);
+  const resolveMs = roundTimingMs(timingNow() - resolveStartedAt);
+  const readStartedAt = timingNow();
+  const source = await fs.readFile(scriptPath, "utf8");
+  const readMs = roundTimingMs(timingNow() - readStartedAt);
+  const name = basename(scriptPath);
+  const extraction = extractScriptInputsDefinitionWithTimings(source, name);
+  const inputs = extraction.definition;
+  const payload: ScriptExecutePayload = {
+    source,
+    path: scriptPath,
+    name,
+    ...(inputs === undefined ? {} : { inputs }),
+  };
+
+  return {
+    payload,
+    timings: {
+      resolveMs,
+      readMs,
+      parseMs: extraction.timings.parseMs,
+      validationMs: extraction.timings.validationMs,
+      totalMs: roundTimingMs(timingNow() - totalStartedAt),
+      sourceBytes: sourceByteLength(source),
+      declarationFound: extraction.timings.declarationFound,
+    },
+  };
+};
+
 export const readScriptPayload = async (
   scriptsPath: string,
   path: string,
-): Promise<ScriptExecutePayload> => {
-  const scriptPath = await resolveScriptPath(scriptsPath, path);
-  return {
-    source: await fs.readFile(scriptPath, "utf8"),
-    path: scriptPath,
-    name: basename(scriptPath),
-  };
-};
+): Promise<ScriptExecutePayload> =>
+  (await readScriptPayloadWithTimings(scriptsPath, path)).payload;
 
 export const refreshScriptPayload = async (
   scriptsPath: string,
@@ -77,7 +131,132 @@ export const refreshScriptPayload = async (
   return await readScriptPayload(scriptsPath, path);
 };
 
-export const makeScriptLibrary = (scriptsDir: string): ScriptLibraryShape => {
+const observeReadTimings = (
+  observability: Pick<DesktopObservabilityShape, "debug" | "warn">,
+  input: {
+    readonly operation: "read" | "refresh";
+    readonly path: string;
+    readonly name?: string;
+    readonly inputs?: ScriptInputsDefinition;
+    readonly timings: ScriptPayloadReadTimings;
+  },
+): Effect.Effect<void> => {
+  const base = {
+    operation: input.operation,
+    path: input.path,
+    ...(input.name === undefined ? {} : { name: input.name }),
+    ...(input.inputs === undefined ? {} : { inputId: input.inputs.id }),
+    fieldCount: input.inputs?.fields.length ?? 0,
+    sourceBytes: input.timings.sourceBytes,
+  };
+
+  const observeStage = (
+    stage: string,
+    durationMs: number,
+    level: "debug" | "warn" = "debug",
+  ) =>
+    observability[level](
+      "scripting",
+      level === "warn"
+        ? `Script ${stage} was slow`
+        : `Script ${stage} completed`,
+      {
+        ...base,
+        stage,
+        durationMs,
+      },
+    ).pipe(Effect.asVoid);
+
+  return Effect.gen(function* () {
+    yield* observeStage("path resolve", input.timings.resolveMs);
+    yield* observeStage("source read", input.timings.readMs);
+    yield* observeStage(
+      "metadata parse",
+      input.timings.parseMs,
+      input.timings.parseMs > 50 ? "warn" : "debug",
+    );
+    if (input.timings.declarationFound) {
+      yield* observeStage("input validation", input.timings.validationMs);
+    }
+    yield* observability[input.timings.totalMs > 250 ? "warn" : "debug"](
+      "scripting",
+      input.timings.totalMs > 250
+        ? "Script load was slow"
+        : "Script load completed",
+      {
+        ...base,
+        stage: "total load",
+        durationMs: input.timings.totalMs,
+        declarationFound: input.timings.declarationFound,
+        resolveMs: input.timings.resolveMs,
+        readMs: input.timings.readMs,
+        parseMs: input.timings.parseMs,
+        validationMs: input.timings.validationMs,
+      },
+    );
+  }).pipe(Effect.asVoid);
+};
+
+const failureReason = (error: unknown): string =>
+  error instanceof ScriptLibraryError
+    ? error.cause instanceof Error && error.cause.message !== ""
+      ? error.cause.message
+      : "Script library operation failed"
+    : error instanceof Error && error.message !== ""
+      ? error.message
+      : "Script library operation failed";
+
+const observeReadFailure = (
+  observability: Pick<DesktopObservabilityShape, "warn">,
+  input: {
+    readonly operation: "read" | "refresh";
+    readonly path: string;
+    readonly durationMs: number;
+    readonly error: unknown;
+  },
+): Effect.Effect<void> =>
+  observability
+    .warn("scripting", "Script load failed", {
+      operation: input.operation,
+      path: input.path,
+      stage: "total load",
+      durationMs: input.durationMs,
+      failureReason: failureReason(input.error),
+    })
+    .pipe(Effect.asVoid);
+
+const readScriptPayloadResult = (
+  scriptsDir: string,
+  path: string,
+  operation: "read" | "refresh",
+  observability: Pick<DesktopObservabilityShape, "warn">,
+  errorPath: string = path,
+): Effect.Effect<ScriptPayloadReadResult, ScriptLibraryError> =>
+  Effect.gen(function* () {
+    const startedAt = timingNow();
+    return yield* Effect.tryPromise({
+      try: () => readScriptPayloadWithTimings(scriptsDir, path),
+      catch: (cause) =>
+        new ScriptLibraryError({ operation, path: errorPath, cause }),
+    }).pipe(
+      Effect.catch((error: ScriptLibraryError) =>
+        Effect.gen(function* () {
+          yield* observeReadFailure(observability, {
+            operation,
+            path: errorPath,
+            durationMs: roundTimingMs(timingNow() - startedAt),
+            error,
+          });
+          return yield* error;
+        }),
+      ),
+    );
+  });
+
+export const makeScriptLibrary = (
+  scriptsDir: string,
+  observability: Pick<DesktopObservabilityShape, "debug" | "warn">,
+): ScriptLibraryShape => {
   const resolvePath: ScriptLibraryShape["resolvePath"] = (path) =>
     Effect.tryPromise({
       try: () => resolveScriptPath(scriptsDir, path),
@@ -86,21 +265,54 @@ export const makeScriptLibrary = (scriptsDir: string): ScriptLibraryShape => {
     });
 
   const read: ScriptLibraryShape["read"] = (path) =>
-    Effect.tryPromise({
-      try: () => readScriptPayload(scriptsDir, path),
-      catch: (cause) =>
-        new ScriptLibraryError({ operation: "read", path, cause }),
+    Effect.gen(function* () {
+      const result = yield* readScriptPayloadResult(
+        scriptsDir,
+        path,
+        "read",
+        observability,
+      );
+      yield* observeReadTimings(observability, {
+        operation: "read",
+        path: result.payload.path ?? path,
+        ...(result.payload.name === undefined
+          ? {}
+          : { name: result.payload.name }),
+        ...(result.payload.inputs === undefined
+          ? {}
+          : { inputs: result.payload.inputs }),
+        timings: result.timings,
+      });
+      return result.payload;
     });
 
   const refresh: ScriptLibraryShape["refresh"] = (payload) =>
-    Effect.tryPromise({
-      try: () => refreshScriptPayload(scriptsDir, payload),
-      catch: (cause) =>
-        new ScriptLibraryError({
-          operation: "refresh",
-          path: payload.path ?? payload.name ?? "<inline script>",
-          cause,
-        }),
+    Effect.gen(function* () {
+      const path = payload.path?.trim();
+      if (!path) {
+        return payload;
+      }
+
+      const errorPath = payload.path ?? payload.name ?? "<inline script>";
+      const result = yield* readScriptPayloadResult(
+        scriptsDir,
+        path,
+        "refresh",
+        observability,
+        errorPath,
+      );
+      yield* observeReadTimings(observability, {
+        operation: "refresh",
+        path: result.payload.path ?? path,
+        ...(result.payload.name === undefined
+          ? {}
+          : { name: result.payload.name }),
+        ...(result.payload.inputs === undefined
+          ? {}
+          : { inputs: result.payload.inputs }),
+        timings: result.timings,
+      });
+      return result.payload;
     });
 
   return {
@@ -114,6 +326,7 @@ export const makeScriptLibrary = (scriptsDir: string): ScriptLibraryShape => {
 export const layer = Layer.effect(ScriptLibrary)(
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    return makeScriptLibrary(env.scriptsDir);
+    const observability = yield* DesktopObservability;
+    return makeScriptLibrary(env.scriptsDir, observability);
   }),
 );

@@ -24,6 +24,7 @@ import * as CombatProfileRepository from "../backend/combat-profiles/CombatProfi
 import * as EnvironmentStateStore from "../backend/environment/EnvironmentStateStore";
 import * as FastTravelRepository from "../backend/fast-travels/FastTravelRepository";
 import * as FollowerStateStore from "../backend/follower/FollowerStateStore";
+import * as ScriptInputRepository from "../backend/scripting/ScriptInputRepository";
 import * as ScriptLibrary from "../backend/scripting/ScriptLibrary";
 import { FlashTrustLive } from "../flash/FlashTrust";
 import { DesktopIpcLive } from "../ipc/DesktopIpc";
@@ -64,6 +65,7 @@ export const makeMainLayer = (envConfig: DesktopEnvironmentConfig) => {
     ArmyConfigRepository.layer,
     CombatProfileRepository.layer,
     FastTravelRepository.layer,
+    ScriptInputRepository.layer,
     ScriptLibrary.layer,
   ).pipe(Layer.provideMerge(observabilityLayer));
   const windowEnvironmentLayer = Layer.effect(

@@ -30,6 +30,10 @@ const makeContext = (): ScriptContext => {
     api,
     script: {
       signal: new AbortController().signal,
+      inputs: {
+        get: (key: string) => `input:${key}`,
+        getAll: () => ({ target: "wolf" }),
+      },
       options: {},
       log: (message: string) => `log:${message}`,
       stop: () => "stop",
@@ -54,6 +58,8 @@ describe("script runtime std", () => {
     expect(api.wait.forSkillReady(5)).toBe("ready:5");
     expect(api.wait.forMapLoaded("battleon")).toBe("map:battleon");
     expect(useSkill(1)).toBe("skill:1");
+    expect(script.inputs.get("target")).toBe("input:target");
+    expect(script.inputs.getAll()).toEqual({ target: "wolf" });
     expect(script.log("ready")).toBe("log:ready");
     expect(script.exit()).toBe("exit");
     expect(autoZone.enable()).toBe("zone:enabled");

@@ -8,6 +8,8 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  Alert,
+  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogContent,
@@ -16,7 +18,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  Checkbox,
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Icon,
+  Input,
+  Label,
   Spinner,
   Textarea,
   TooltipIconButton,
@@ -29,6 +46,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  For,
   onCleanup,
   onMount,
   Show,
@@ -55,6 +73,14 @@ import type {
   FollowerStartPayload,
   ScriptExecutePayload,
 } from "../../../shared/ipc";
+import {
+  normalizeScriptInputValueForField,
+  resolveScriptInputValues,
+  type ScriptInputField,
+  type ScriptInputValue,
+  type ScriptInputValues,
+  type ScriptInputsDefinition,
+} from "../../../shared/script-inputs";
 import { fastTravelMapTarget } from "../../../shared/fast-travels";
 import type { WindowId } from "../../../shared/windows";
 import { runtime } from "./Runtime";
@@ -147,17 +173,29 @@ const DEFAULT_PADS = [
   "Down",
 ] as const;
 
+type AccountLaunchErrorCode = "inputs_required";
+
 class AccountLaunchError extends Data.TaggedError("AccountLaunchError")<{
   readonly message: string;
+  readonly code?: AccountLaunchErrorCode;
   readonly cause?: unknown;
 }> {}
 
 const accountLaunchError = (
   message: string,
-  cause?: unknown,
+  options?: {
+    readonly code?: AccountLaunchErrorCode;
+    readonly cause?: unknown;
+  },
 ): AccountLaunchError =>
   new AccountLaunchError(
-    cause === undefined ? { message } : { message, cause },
+    options === undefined
+      ? { message }
+      : {
+          message,
+          ...(options.code === undefined ? {} : { code: options.code }),
+          ...(options.cause === undefined ? {} : { cause: options.cause }),
+        },
   );
 
 const formatAccountLaunchError = (error: unknown): string => {
@@ -171,6 +209,9 @@ const formatAccountLaunchError = (error: unknown): string => {
 
   return "Account launch failed";
 };
+
+const isAccountLaunchInputsRequired = (error: unknown): boolean =>
+  error instanceof AccountLaunchError && error.code === "inputs_required";
 
 const uniqueNonEmpty = (values: readonly string[]): string[] => [
   ...new Set(values.map((value) => value.trim()).filter(Boolean)),
@@ -204,12 +245,26 @@ const defaultSettings: AppSettings = {
 };
 
 type DebugEvalMode = "script" | "internal";
+type ScriptInputsDialogMode = "manual" | "required";
+type ScriptInputDraftValue = string | boolean;
+type ScriptInputDraftValues = Readonly<Record<string, ScriptInputDraftValue>>;
+interface ScriptInputsDialogErrorField {
+  readonly key: string;
+  readonly label: string;
+  readonly message: string;
+}
+
+interface ScriptInputsDialogError {
+  readonly message: string;
+  readonly fields: readonly ScriptInputsDialogErrorField[];
+}
 
 interface DevDebugEvaluatorProps {
   readonly applyLoadedScript: (
     source: string,
     name: string,
     path?: string,
+    inputs?: ScriptInputsDefinition,
   ) => void;
   readonly refreshScriptMeta: () => Promise<void>;
 }
@@ -830,6 +885,22 @@ export default function App(props: {
   const [scriptDiagnosticsCount, setScriptDiagnosticsCount] = createSignal(0);
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(false);
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(false);
+  const [scriptInputsDefinition, setScriptInputsDefinition] = createSignal<
+    ScriptInputsDefinition | undefined
+  >();
+  const [scriptInputsDialogOpen, setScriptInputsDialogOpen] =
+    createSignal(false);
+  const [scriptInputsDialogMode, setScriptInputsDialogMode] =
+    createSignal<ScriptInputsDialogMode>("manual");
+  const [scriptInputsDialogDefinition, setScriptInputsDialogDefinition] =
+    createSignal<ScriptInputsDefinition | undefined>();
+  const [scriptInputsDialogDraft, setScriptInputsDialogDraft] =
+    createSignal<ScriptInputDraftValues>({});
+  const [scriptInputsDialogError, setScriptInputsDialogError] = createSignal<
+    ScriptInputsDialogError | undefined
+  >();
+  const [scriptInputsDialogSaving, setScriptInputsDialogSaving] =
+    createSignal(false);
   const [fatalScriptAlert, setFatalScriptAlert] =
     createSignal<FatalScriptAlert | null>(null);
   const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
@@ -900,6 +971,11 @@ export default function App(props: {
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
   let accountManagerStatusDisposer: (() => void) | undefined;
+  let scriptInputsDialogResolver:
+    | ((values: ScriptInputValues | null) => void)
+    | undefined;
+  const scriptInputFieldRefs = new Map<string, HTMLElement>();
+  const scriptInputEditorRefs = new Map<string, HTMLElement>();
   const accountLaunchFibers = new Set<Fiber.Fiber<void, unknown>>();
   const assignDisposer =
     (slot: "settings" | "autoAttack" | "autoZone" | "autoRelogin") =>
@@ -1073,6 +1149,465 @@ export default function App(props: {
     });
   };
 
+  const scriptInputsAvailable = createMemo(
+    () => scriptInputsDefinition() !== undefined,
+  );
+
+  const scriptInputDisplayName = (field: ScriptInputField): string =>
+    field.label ?? field.key;
+
+  const scriptInputFieldError = (
+    field: ScriptInputField,
+    message: string,
+  ): ScriptInputsDialogErrorField => ({
+    key: field.key,
+    label: scriptInputDisplayName(field),
+    message,
+  });
+
+  const scriptInputFieldByKey = (
+    definition: ScriptInputsDefinition,
+    key: string,
+  ): ScriptInputField =>
+    definition.fields.find((field) => field.key === key) ?? {
+      key,
+      type: "string",
+    };
+
+  const scriptInputFieldHasError = (key: string): boolean =>
+    scriptInputsDialogError()?.fields.some((field) => field.key === key) ??
+    false;
+
+  const scriptInputFieldErrorMsg = (key: string): string | undefined =>
+    scriptInputsDialogError()?.fields.find((field) => field.key === key)
+      ?.message;
+
+  const resetScriptInputRefs = (): void => {
+    scriptInputFieldRefs.clear();
+    scriptInputEditorRefs.clear();
+  };
+
+  const scriptInputFieldElement = (key: string): HTMLElement | undefined =>
+    scriptInputFieldRefs.get(key) ??
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".game-script-inputs-dialog__field[data-script-input-key]",
+      ),
+    ).find((element) => element.dataset["scriptInputKey"] === key);
+
+  const scriptInputEditorElement = (
+    fieldElement: HTMLElement | undefined,
+    key: string,
+  ): HTMLElement | undefined =>
+    fieldElement?.querySelector<HTMLElement>(
+      "[data-slot='combobox-input'], [data-slot='input'], .checkbox__input, input, button, [tabindex]:not([tabindex='-1'])",
+    ) ??
+    scriptInputEditorRefs.get(key) ??
+    undefined;
+
+  const focusScriptInputField = (key: string): void => {
+    const fieldElement = scriptInputFieldElement(key);
+
+    fieldElement?.scrollIntoView({ block: "center", inline: "nearest" });
+    window.requestAnimationFrame(() => {
+      const editorElement = scriptInputEditorElement(
+        scriptInputFieldElement(key),
+        key,
+      );
+      try {
+        editorElement?.focus({ preventScroll: true });
+      } catch {
+        editorElement?.focus();
+      }
+    });
+  };
+
+  const setScriptInputFieldRef = (key: string, element: HTMLElement): void => {
+    scriptInputFieldRefs.set(key, element);
+  };
+
+  const setScriptInputEditorRef = (key: string, element: HTMLElement): void => {
+    scriptInputEditorRefs.set(key, element);
+  };
+
+  const updateScriptInputDraft = (
+    key: string,
+    value: ScriptInputDraftValue,
+  ): void => {
+    setScriptInputsDialogDraft((draft) => ({ ...draft, [key]: value }));
+    setScriptInputsDialogError(undefined);
+  };
+
+  const scriptInputDraftFromValues = (
+    definition: ScriptInputsDefinition,
+    savedValues: ScriptInputValues,
+  ): ScriptInputDraftValues => {
+    const resolved = resolveScriptInputValues(definition, savedValues).values;
+    const draft: Record<string, ScriptInputDraftValue> = {};
+
+    for (const field of definition.fields) {
+      const value = resolved[field.key];
+      draft[field.key] =
+        field.type === "boolean" ? value === true : String(value ?? "");
+    }
+
+    return draft;
+  };
+
+  const scriptInputValuesFromDraft = (
+    definition: ScriptInputsDefinition,
+    draft: ScriptInputDraftValues,
+  ):
+    | { readonly ok: true; readonly values: ScriptInputValues }
+    | { readonly ok: false; readonly error: ScriptInputsDialogError } => {
+    const values: Record<string, ScriptInputValue> = {};
+    const invalidFields: ScriptInputsDialogErrorField[] = [];
+
+    for (const field of definition.fields) {
+      const draftValue = draft[field.key];
+      let value: ScriptInputValue | undefined;
+
+      if (field.type === "boolean") {
+        value = draftValue === true;
+      } else {
+        const text = typeof draftValue === "string" ? draftValue.trim() : "";
+        if (text === "") {
+          continue;
+        }
+
+        value = field.type === "number" ? Number(text) : text;
+      }
+
+      const normalized = normalizeScriptInputValueForField(field, value);
+      if (normalized === undefined) {
+        invalidFields.push(
+          scriptInputFieldError(field, `must match ${field.type}`),
+        );
+        continue;
+      }
+
+      values[field.key] = normalized;
+    }
+
+    const resolved = resolveScriptInputValues(definition, values);
+    const invalidKeys = new Set(invalidFields.map((field) => field.key));
+    const missingRequiredFields = resolved.missingRequiredKeys
+      .filter((key) => !invalidKeys.has(key))
+      .map((key) =>
+        scriptInputFieldError(scriptInputFieldByKey(definition, key), ""),
+      );
+    const fields = [...invalidFields, ...missingRequiredFields];
+
+    if (fields.length > 0) {
+      const message =
+        invalidFields.length > 0 && missingRequiredFields.length > 0
+          ? "Please correct the invalid script inputs."
+          : invalidFields.length > 0
+            ? "Some script inputs are invalid."
+            : "Please fill in all required script inputs.";
+      return {
+        ok: false,
+        error: {
+          message,
+          fields,
+        },
+      };
+    }
+
+    return { ok: true, values };
+  };
+
+  const closeScriptInputsDialog = (values: ScriptInputValues | null): void => {
+    const resolve = scriptInputsDialogResolver;
+    scriptInputsDialogResolver = undefined;
+    setScriptInputsDialogOpen(false);
+    setScriptInputsDialogSaving(false);
+    setScriptInputsDialogError(undefined);
+    resetScriptInputRefs();
+    resolve?.(values);
+  };
+
+  const cancelScriptInputsDialog = (): void => {
+    if (scriptInputsDialogSaving()) {
+      return;
+    }
+
+    closeScriptInputsDialog(null);
+  };
+
+  const openScriptInputsDialog = async (
+    mode: ScriptInputsDialogMode,
+    definition: ScriptInputsDefinition,
+  ): Promise<ScriptInputValues | null> => {
+    const savedValues =
+      await window.desktop.scripting.getInputValues(definition);
+
+    if (scriptInputsDialogResolver !== undefined) {
+      scriptInputsDialogResolver(null);
+    }
+
+    setScriptInputsDialogMode(mode);
+    setScriptInputsDialogDefinition(definition);
+    resetScriptInputRefs();
+    setScriptInputsDialogDraft(
+      scriptInputDraftFromValues(definition, savedValues),
+    );
+    setScriptInputsDialogError(undefined);
+    setScriptInputsDialogSaving(false);
+
+    return await new Promise<ScriptInputValues | null>((resolve) => {
+      scriptInputsDialogResolver = resolve;
+      setScriptInputsDialogOpen(true);
+    });
+  };
+
+  const saveScriptInputsDialog = async (): Promise<void> => {
+    const definition = scriptInputsDialogDefinition();
+    if (definition === undefined || scriptInputsDialogSaving()) {
+      return;
+    }
+
+    const result = scriptInputValuesFromDraft(
+      definition,
+      scriptInputsDialogDraft(),
+    );
+    if (!result.ok) {
+      setScriptInputsDialogError(result.error);
+      return;
+    }
+
+    setScriptInputsDialogSaving(true);
+    try {
+      const saved = await window.desktop.scripting.saveInputValues(
+        definition,
+        result.values,
+      );
+      closeScriptInputsDialog(saved);
+    } catch (error) {
+      console.error("Failed to save script inputs:", error);
+      setScriptInputsDialogError({
+        message: "Failed to save inputs",
+        fields: [],
+      });
+      setScriptInputsDialogSaving(false);
+    }
+  };
+
+  const prepareScriptInputValuesForStart = async (
+    definition: ScriptInputsDefinition | undefined,
+  ): Promise<ScriptInputValues | null> => {
+    if (definition === undefined) {
+      return {};
+    }
+
+    const savedValues =
+      await window.desktop.scripting.getInputValues(definition);
+    const resolved = resolveScriptInputValues(definition, savedValues);
+    if (resolved.missingRequiredKeys.length === 0) {
+      return resolved.values;
+    }
+
+    const updatedValues = await openScriptInputsDialog("required", definition);
+    if (updatedValues === null) {
+      return null;
+    }
+
+    const updatedResolved = resolveScriptInputValues(definition, updatedValues);
+    return updatedResolved.missingRequiredKeys.length === 0
+      ? updatedResolved.values
+      : null;
+  };
+
+  const openLoadedScriptInputs = (): void => {
+    const definition = scriptInputsDefinition();
+    if (
+      definition === undefined ||
+      !scriptLoaded() ||
+      scriptRunning() ||
+      scriptInputsDialogOpen()
+    ) {
+      return;
+    }
+
+    void openScriptInputsDialog("manual", definition)
+      .then((values) => {
+        if (values !== null) {
+          setScriptStatus(`Updated inputs for ${scriptName() || "script"}`);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to open script inputs:", error);
+        setScriptStatus("Failed to open script inputs");
+      });
+  };
+
+  const renderScriptInputField = (field: ScriptInputField): JSX.Element => {
+    const value = () => scriptInputsDialogDraft()[field.key];
+    const label = () => field.label ?? "";
+    const hasError = () => scriptInputFieldHasError(field.key);
+
+    if (field.type === "boolean") {
+      return (
+        <div
+          class="game-script-inputs-dialog__field"
+          data-invalid={hasError() ? "" : undefined}
+          data-script-input-key={field.key}
+          ref={(element) => {
+            setScriptInputFieldRef(field.key, element);
+          }}
+        >
+          <Checkbox
+            aria-label={label() || field.key}
+            checked={value() === true}
+            disabled={scriptInputsDialogSaving()}
+            invalid={hasError()}
+            ref={(element) => {
+              setScriptInputEditorRef(field.key, element);
+            }}
+            onChange={(event) =>
+              updateScriptInputDraft(field.key, event.currentTarget.checked)
+            }
+          >
+            <span class="game-script-inputs-dialog__checkbox-label-content">
+              <span class="game-script-inputs-dialog__checkbox-label-text">
+                {label() || field.key}
+                <Show when={field.required}>
+                  <span
+                    aria-hidden="true"
+                    class="game-script-inputs-dialog__field-required game-script-inputs-dialog__field-required--inline"
+                  >
+                    {"\u00a0"}*
+                  </span>
+                </Show>
+                <Show when={!field.required}>
+                  <span class="game-script-inputs-dialog__field-optional game-script-inputs-dialog__field-optional--inline">
+                    {"\u00a0"}(optional)
+                  </span>
+                </Show>
+              </span>
+            </span>
+          </Checkbox>
+          <Show when={field.description}>
+            {(description) => (
+              <span class="game-script-inputs-dialog__description">
+                {description()}
+              </span>
+            )}
+          </Show>
+          <Show when={scriptInputFieldErrorMsg(field.key)}>
+            {(message) => (
+              <span class="game-script-inputs-dialog__field-error-msg">
+                {message()}
+              </span>
+            )}
+          </Show>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        class="game-script-inputs-dialog__field"
+        data-invalid={hasError() ? "" : undefined}
+        data-script-input-key={field.key}
+        ref={(element) => {
+          setScriptInputFieldRef(field.key, element);
+        }}
+      >
+        <Show when={label() || field.key}>
+          <Label class="game-script-inputs-dialog__label">
+            <span class="game-script-inputs-dialog__label-text">
+              {label() || field.key}
+              <Show when={field.required}>
+                <span
+                  aria-hidden="true"
+                  class="game-script-inputs-dialog__field-required game-script-inputs-dialog__field-required--inline"
+                >
+                  {"\u00a0"}*
+                </span>
+              </Show>
+              <Show when={!field.required}>
+                <span class="game-script-inputs-dialog__field-optional game-script-inputs-dialog__field-optional--inline">
+                  {"\u00a0"}(optional)
+                </span>
+              </Show>
+            </span>
+          </Label>
+        </Show>
+        <Show when={field.description}>
+          {(description) => (
+            <span class="game-script-inputs-dialog__description">
+              {description()}
+            </span>
+          )}
+        </Show>
+        <Show
+          when={field.type === "select"}
+          fallback={
+            <Input
+              aria-label={label() || field.key}
+              disabled={scriptInputsDialogSaving()}
+              fullWidth
+              invalid={hasError()}
+              inputMode={field.type === "number" ? "decimal" : undefined}
+              ref={(element) => {
+                setScriptInputEditorRef(field.key, element);
+              }}
+              type={field.type === "number" ? "number" : "text"}
+              value={String(value() ?? "")}
+              onInput={(event) =>
+                updateScriptInputDraft(field.key, event.currentTarget.value)
+              }
+            />
+          }
+        >
+          <Combobox
+            value={value() ? [String(value())] : []}
+            class={
+              hasError()
+                ? "game-script-inputs-dialog__combobox--invalid"
+                : undefined
+            }
+            disabled={scriptInputsDialogSaving()}
+            inputBehavior="autohighlight"
+            openOnClick
+            onValueChange={(details) => {
+              updateScriptInputDraft(field.key, details.value[0] ?? "");
+            }}
+          >
+            <ComboboxInput
+              aria-label={label() || field.key}
+              aria-invalid={hasError() ? "true" : undefined}
+              disabled={scriptInputsDialogSaving()}
+              placeholder={field.required ? "Select a value" : "No value"}
+              ref={(element) => {
+                setScriptInputEditorRef(field.key, element);
+              }}
+              showClear={!field.required}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No matching options</ComboboxEmpty>
+              <ComboboxList>
+                <For each={field.options ?? []}>
+                  {(option) => (
+                    <ComboboxItem value={option}>{option}</ComboboxItem>
+                  )}
+                </For>
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </Show>
+        <Show when={scriptInputFieldErrorMsg(field.key)}>
+          {(message) => (
+            <span class="game-script-inputs-dialog__field-error-msg">
+              {message()}
+            </span>
+          )}
+        </Show>
+      </div>
+    );
+  };
+
   const runAccountLaunch = (payload: AccountGameLaunchPayload) =>
     Effect.gen(function* () {
       yield* publishAccountManagerWindowStatusEffect("starting", "Waiting...");
@@ -1117,18 +1652,27 @@ export default function App(props: {
       const name = script.name ?? script.path ?? "script";
       const runner = yield* ScriptRunner;
       yield* Effect.sync(() => {
-        applyLoadedScript(script.source, name, script.path);
+        applyLoadedScript(script.source, name, script.path, script.inputs);
         accountLaunchStatusPending = false;
       });
+      const inputValues = yield* Effect.promise(() =>
+        prepareScriptInputValuesForStart(script.inputs),
+      );
+      if (inputValues === null) {
+        return yield* accountLaunchError("Script inputs required", {
+          code: "inputs_required",
+        });
+      }
       yield* runner
         .run(script.source, {
           name,
+          inputs: inputValues,
         })
         .pipe(
           Effect.mapError((error) =>
             accountLaunchError(
               error instanceof Error ? error.message : "Failed to run script",
-              error,
+              { cause: error },
             ),
           ),
         );
@@ -1139,7 +1683,10 @@ export default function App(props: {
       Effect.catch((error: unknown) =>
         Effect.gen(function* () {
           console.error("Failed to run account launch:", error);
-          if (payload.script !== undefined) {
+          if (
+            payload.script !== undefined &&
+            !isAccountLaunchInputsRequired(error)
+          ) {
             const name = payload.script.name ?? payload.script.path ?? "script";
             yield* Effect.sync(() => {
               showFatalScriptError(name, error, payload.script?.path);
@@ -1176,10 +1723,16 @@ export default function App(props: {
     }
   };
 
-  const applyLoadedScript = (source: string, name: string, path?: string) => {
+  const applyLoadedScript = (
+    source: string,
+    name: string,
+    path?: string,
+    inputs?: ScriptInputsDefinition,
+  ) => {
     setScriptName(name);
     setScriptPath(path);
     setScriptSource(source);
+    setScriptInputsDefinition(inputs);
     setScriptLoaded(true);
   };
 
@@ -1191,8 +1744,28 @@ export default function App(props: {
     payload: ScriptExecutePayload,
   ): Promise<string> => {
     const name = payload.name ?? payload.path ?? "script";
-    applyLoadedScript(payload.source, name, payload.path);
+    applyLoadedScript(payload.source, name, payload.path, payload.inputs);
     return name;
+  };
+
+  const runScriptPayloadFromIpc = async (
+    payload: ScriptExecutePayload,
+  ): Promise<void> => {
+    const name = await applyScriptPayload(payload);
+    const inputValues = await prepareScriptInputValuesForStart(payload.inputs);
+    if (inputValues === null) {
+      setScriptStatus("Script inputs required");
+      return;
+    }
+
+    await runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        yield* runner.run(payload.source, { name, inputs: inputValues });
+      }),
+    );
+    setScriptRunning(true);
+    setScriptStatus(`Running ${name}`);
   };
 
   const refreshScriptMeta = async () => {
@@ -1238,11 +1811,12 @@ export default function App(props: {
     } catch (error) {
       console.error("Failed to load script", error);
       setScriptLoaded(false);
+      setScriptInputsDefinition(undefined);
       setScriptStatus("Failed to load script");
     }
   };
 
-  const startScript = () => {
+  const startScript = (): void => {
     const source = scriptSource().trim();
     if (!source) {
       setScriptStatus("No script loaded");
@@ -1251,14 +1825,27 @@ export default function App(props: {
 
     const name = scriptName() || "script";
     setScriptStatus(`Starting ${name}`);
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          yield* runner.run(source, { name });
-        }),
-      )
-      .then(() => {
+    void prepareScriptInputValuesForStart(scriptInputsDefinition())
+      .then((inputValues) => {
+        if (inputValues === null) {
+          setScriptStatus("Script inputs required");
+          return Promise.resolve(false);
+        }
+
+        return runtime
+          .runPromise(
+            Effect.gen(function* () {
+              const runner = yield* ScriptRunner;
+              yield* runner.run(source, { name, inputs: inputValues });
+            }),
+          )
+          .then(() => true);
+      })
+      .then((started) => {
+        if (!started) {
+          return;
+        }
+
         setScriptRunning(true);
         setScriptStatus(`Running ${name}`);
       })
@@ -2263,15 +2850,15 @@ export default function App(props: {
     );
     const unsubscribeScriptExecute = window.desktop.scripting.onExecute(
       (payload) => {
-        void applyScriptPayload(payload)
-          .then((name) => {
-            setScriptStatus(`Running ${name}`);
-            void refreshScriptMeta();
-          })
+        void runScriptPayloadFromIpc(payload)
           .catch((error) => {
-            console.error("Failed to load script payload", error);
-            setScriptLoaded(false);
-            setScriptStatus("Failed to load script");
+            const name = payload.name ?? payload.path ?? "script";
+            console.error("Failed to run script payload", error);
+            showFatalScriptError(name, error, payload.path);
+            setScriptStatus("Failed to run script");
+          })
+          .finally(() => {
+            void refreshScriptMeta();
           });
       },
     );
@@ -2490,6 +3077,11 @@ export default function App(props: {
     if (fatalScriptAlertCopiedTimer !== undefined) {
       window.clearTimeout(fatalScriptAlertCopiedTimer);
     }
+    if (scriptInputsDialogResolver !== undefined) {
+      scriptInputsDialogResolver(null);
+      scriptInputsDialogResolver = undefined;
+    }
+    resetScriptInputRefs();
   });
 
   const topNavOptionsMenuProps: TopNavOptionsMenuContentProps = {
@@ -2523,6 +3115,120 @@ export default function App(props: {
         commands={() => gameCommands}
         onCommandRun={handleHotkeyCommandRun}
       />
+      <Dialog
+        open={scriptInputsDialogOpen()}
+        onOpenChange={(details) => {
+          if (details.open) {
+            setScriptInputsDialogOpen(true);
+            return;
+          }
+
+          cancelScriptInputsDialog();
+        }}
+      >
+        <DialogContent class="game-script-inputs-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {scriptInputsDialogMode() === "required"
+                ? "Script inputs required"
+                : "Script inputs"}
+            </DialogTitle>
+            <DialogDescription>{scriptName() || "script"}</DialogDescription>
+          </DialogHeader>
+          <Show when={scriptInputsDialogError()}>
+            {(error) => (
+              <Alert class="game-script-inputs-dialog__error" variant="error">
+                <AlertDescription>
+                  <Icon
+                    aria-hidden="true"
+                    class="game-script-inputs-dialog__error-icon"
+                    icon="circle_alert"
+                  />
+                  <span class="game-script-inputs-dialog__error-message">
+                    <span>{error().message} </span>
+                    <Show when={error().fields.length > 0}>
+                      <span class="game-script-inputs-dialog__error-fields">
+                        <For each={error().fields}>
+                          {(field, index) => (
+                            <>
+                              <a
+                                class="game-script-inputs-dialog__error-field-link"
+                                href={`#script-input-${field.key}`}
+                                onPointerDown={(event) => {
+                                  event.preventDefault();
+                                  focusScriptInputField(field.key);
+                                }}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  focusScriptInputField(field.key);
+                                }}
+                              >
+                                <Show
+                                  when={field.message !== ""}
+                                  fallback={
+                                    <span class="game-script-inputs-dialog__error-field-link-label">
+                                      {field.label}
+                                      <Show
+                                        when={
+                                          index() < error().fields.length - 1
+                                        }
+                                      >
+                                        ,
+                                      </Show>
+                                    </span>
+                                  }
+                                >
+                                  <span>
+                                    <span class="game-script-inputs-dialog__error-field-link-label">
+                                      {field.label}
+                                    </span>
+                                    : {field.message}
+                                    <Show
+                                      when={index() < error().fields.length - 1}
+                                    >
+                                      ,
+                                    </Show>
+                                  </span>
+                                </Show>
+                              </a>{" "}
+                            </>
+                          )}
+                        </For>
+                      </span>
+                    </Show>
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </Show>
+          <div class="game-script-inputs-dialog__fields">
+            <div class="game-script-inputs-dialog__field-list">
+              <For each={scriptInputsDialogDefinition()?.fields ?? []}>
+                {renderScriptInputField}
+              </For>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={scriptInputsDialogSaving()}
+              onClick={cancelScriptInputsDialog}
+              size="sm"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={scriptInputsDialogSaving()}
+              onClick={() => void saveScriptInputsDialog()}
+              size="sm"
+            >
+              {scriptInputsDialogMode() === "required"
+                ? "Save and Start"
+                : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog
         open={fatalScriptAlertOpen()}
         onOpenChange={(details) => {
@@ -2638,9 +3344,11 @@ export default function App(props: {
           scriptDiagnosticsCount={scriptDiagnosticsCount}
           scriptUsePrivateRooms={scriptUsePrivateRooms}
           scriptSafeStartStop={scriptSafeStartStop}
+          scriptInputsAvailable={scriptInputsAvailable}
           loadScript={loadScript}
           startScript={startScript}
           stopScript={stopScript}
+          openScriptInputs={openLoadedScriptInputs}
           handleToggleScriptPrivateRooms={handleToggleScriptPrivateRooms}
           handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
           optionItems={topNavOptionsMenuProps.optionItems}
