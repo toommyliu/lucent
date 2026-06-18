@@ -2,6 +2,7 @@ import type { ServerData } from "@lucent/game";
 import { Effect, Layer, ServiceMap } from "effect";
 import type {
   AccountGameLaunchPayload,
+  AccountGameServerPingsResult,
   AccountScriptSession,
 } from "../../../shared/ipc";
 
@@ -15,6 +16,11 @@ export interface AccountServerCacheSnapshot {
   readonly servers: readonly ServerData[];
   readonly lastFetchTime: number;
   readonly lastRefreshRequestTime: number;
+}
+
+export interface AccountServerPingCacheSnapshot {
+  readonly cacheKey: string;
+  readonly result: AccountGameServerPingsResult;
 }
 
 type AccountRuntimeSession = AccountScriptSession;
@@ -40,6 +46,11 @@ export interface AccountSessionsShape {
     servers: readonly ServerData[],
     fetchedAt: number,
   ) => void;
+  readonly getServerPingCache: () => AccountServerPingCacheSnapshot | null;
+  readonly setCachedServerPings: (
+    snapshot: AccountServerPingCacheSnapshot,
+  ) => void;
+  readonly resetServerPingCache: () => void;
   readonly resetServerFetchTime: () => void;
   readonly canRefreshServers: (now: number, cooldownMs: number) => boolean;
   readonly markServerRefreshRequest: (requestedAt: number) => void;
@@ -78,6 +89,7 @@ export const makeAccountSessions = (): AccountSessionsShape => {
   let lastServerRefreshRequestTime = 0;
   let cachedServers: ServerData[] = [];
   let lastServerFetchTime = 0;
+  let cachedServerPings: AccountServerPingCacheSnapshot | null = null;
   const sessions = new Map<number, AccountScriptSession>();
   const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
   const pendingGameWindowShutdowns = new Map<string, ShutdownRequest>();
@@ -111,6 +123,14 @@ export const makeAccountSessions = (): AccountSessionsShape => {
     setCachedServers: (servers, fetchedAt) => {
       cachedServers = [...servers];
       lastServerFetchTime = fetchedAt;
+      cachedServerPings = null;
+    },
+    getServerPingCache: () => cachedServerPings,
+    setCachedServerPings: (snapshot) => {
+      cachedServerPings = snapshot;
+    },
+    resetServerPingCache: () => {
+      cachedServerPings = null;
     },
     resetServerFetchTime: () => {
       lastServerFetchTime = 0;
