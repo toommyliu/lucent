@@ -20,6 +20,7 @@ import {
   Card,
   CardContent,
   CardFrame,
+  CardFrameAction,
   CardFrameHeader,
   CardFrameTitle,
   Checkbox,
@@ -52,10 +53,13 @@ import {
   makeCombatProfileId,
   type CombatProfile,
   type CombatProfileAnimationTrigger,
+  type CombatProfileAnimationTriggerDefinition,
   type CombatProfileCondition,
   type CombatProfileCooldownMode,
+  type CombatProfileDefinition,
   type CombatProfileLibrary,
   type CombatProfileStep,
+  type CombatProfileStepDefinition,
 } from "../../../shared/combat-profiles";
 import {
   getPreferredCombatProfileId,
@@ -93,6 +97,8 @@ const stepCooldownModeOptions = [
   { value: "use-if-ready", label: "Skip if unavailable" },
   { value: "wait-for-cooldown", label: "Wait for cooldown" },
 ] as const;
+
+const jsIdentifierPattern = /^[A-Za-z_$][\w$]*$/u;
 
 const isCombatProfileCooldownMode = (
   value: string | undefined,
@@ -153,6 +159,89 @@ const conditionLabel = (condition: CombatProfileCondition): string => {
   }
 };
 
+const formatJsPropertyName = (key: string): string =>
+  jsIdentifierPattern.test(key) ? key : JSON.stringify(key);
+
+const formatJsLiteral = (value: unknown, depth = 0): string => {
+  const indent = "  ".repeat(depth);
+  const childIndent = "  ".repeat(depth + 1);
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "[]";
+    }
+
+    return `[\n${value
+      .map((item) => `${childIndent}${formatJsLiteral(item, depth + 1)}`)
+      .join(",\n")}\n${indent}]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value).filter(
+      ([, entryValue]) => entryValue !== undefined,
+    );
+    if (entries.length === 0) {
+      return "{}";
+    }
+
+    return `{\n${entries
+      .map(
+        ([key, entryValue]) =>
+          `${childIndent}${formatJsPropertyName(key)}: ${formatJsLiteral(
+            entryValue,
+            depth + 1,
+          )}`,
+      )
+      .join(",\n")}\n${indent}}`;
+  }
+
+  return JSON.stringify(value) ?? "undefined";
+};
+
+const toScriptProfileStep = (
+  step: CombatProfileStep,
+): CombatProfileStepDefinition => ({
+  skill: step.skill,
+  conditions: step.conditions.map((condition) => ({ ...condition })),
+  ...(step.cooldownMode === undefined
+    ? {}
+    : { cooldownMode: step.cooldownMode }),
+  ...(step.waitMs === undefined ? {} : { waitMs: step.waitMs }),
+});
+
+const toScriptAnimationTrigger = (
+  trigger: CombatProfileAnimationTrigger,
+): CombatProfileAnimationTriggerDefinition => ({
+  messageIncludes: trigger.messageIncludes,
+  skill: trigger.skill,
+  ...(trigger.cooldownMs === undefined
+    ? {}
+    : { cooldownMs: trigger.cooldownMs }),
+});
+
+const toScriptProfileDefinition = (
+  profile: CombatProfile,
+): CombatProfileDefinition => {
+  const animationTriggers =
+    profile.animationTriggers === undefined ||
+    profile.animationTriggers.length === 0
+      ? undefined
+      : profile.animationTriggers.map(toScriptAnimationTrigger);
+
+  return {
+    delayMs: profile.delayMs,
+    cooldownMode: profile.cooldownMode,
+    ...(profile.resetSkillIndexOnMonsterDeath === true
+      ? { resetSkillIndexOnMonsterDeath: true }
+      : {}),
+    steps: profile.steps.map(toScriptProfileStep),
+    ...(animationTriggers === undefined ? {} : { animationTriggers }),
+  };
+};
+
+const formatCombatProfileScriptProperty = (profile: CombatProfile): string =>
+  `profile: ${formatJsLiteral(toScriptProfileDefinition(profile))}`;
+
 function SkillsLabelHelp(props: {
   readonly label: string;
   readonly tooltip: string;
@@ -196,8 +285,10 @@ function App(): JSX.Element {
     readonly CombatProfileAnimationTrigger[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.animationTriggers ?? []);
   const [saving, setSaving] = createSignal(false);
+  const [profileCopied, setProfileCopied] = createSignal(false);
   const [error, setError] = createSignal("");
   let hydratedProfileId = "";
+  let profileCopiedTimer: number | undefined;
 
   const selectedProfile = createMemo(
     () =>
@@ -220,6 +311,18 @@ function App(): JSX.Element {
   const selectProfile = (profileId: string): void => {
     setSelectedId(profileId);
     writeStoredId(selectedProfileStorageKey, profileId);
+  };
+
+  const markProfileCopied = (): void => {
+    if (profileCopiedTimer !== undefined) {
+      window.clearTimeout(profileCopiedTimer);
+    }
+
+    setProfileCopied(true);
+    profileCopiedTimer = window.setTimeout(() => {
+      setProfileCopied(false);
+      profileCopiedTimer = undefined;
+    }, 900);
   };
 
   createEffect(() => {
@@ -281,6 +384,12 @@ function App(): JSX.Element {
       });
 
     onCleanup(unsubscribe);
+  });
+
+  onCleanup(() => {
+    if (profileCopiedTimer !== undefined) {
+      window.clearTimeout(profileCopiedTimer);
+    }
   });
 
   const runUpdate = async (
@@ -352,6 +461,28 @@ function App(): JSX.Element {
     }
 
     await runUpdate(window.desktop.combatProfiles.saveProfile(profile));
+  };
+
+  const copySelectedProfile = async (): Promise<void> => {
+    const profile = buildSelectedProfileDraft();
+    if (!profile) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        formatCombatProfileScriptProperty(profile),
+      );
+      setError("");
+      markProfileCopied();
+    } catch (cause) {
+      console.error("Failed to copy combat profile:", cause);
+      setError(
+        cause instanceof Error
+          ? `Copy failed: ${cause.message}`
+          : "Copy failed",
+      );
+    }
   };
 
   const createProfile = async (): Promise<void> => {
@@ -585,7 +716,10 @@ function App(): JSX.Element {
             <Show when={error()}>
               {(message) => (
                 <Alert class="skills-error" variant="error">
-                  <AlertDescription>{message()}</AlertDescription>
+                  <AlertDescription class="skills-error__message">
+                    <Icon icon="circle_alert" aria-hidden="true" />
+                    {message()}
+                  </AlertDescription>
                 </Alert>
               )}
             </Show>
@@ -593,43 +727,63 @@ function App(): JSX.Element {
             <CardFrame>
               <CardFrameHeader class="skills-frame-header">
                 <CardFrameTitle>Details</CardFrameTitle>
-                <AlertDialog>
-                  <AlertDialogTrigger
-                    asChild={(triggerProps) => (
-                      <Button
-                        {...(triggerProps({
-                          class: "skills-profile-delete",
-                          disabled:
-                            saving() ||
-                            selectedId() === DEFAULT_COMBAT_PROFILE_ID,
-                          size: "sm",
-                          variant: "ghost",
-                        } as ButtonProps) as ButtonProps)}
-                      >
-                        Delete profile
-                      </Button>
-                    )}
-                  />
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete profile</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Delete {selectedProfile()?.label ?? "this profile"}?
-                        This skill profile will be permanently removed.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        disabled={saving()}
-                        variant="destructive"
-                        onClick={() => void deleteSelected()}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <CardFrameAction class="skills-profile-actions">
+                  <Button
+                    aria-label={
+                      profileCopied()
+                        ? "Copied profile snippet"
+                        : "Copy profile snippet"
+                    }
+                    class="skills-copy-profile"
+                    disabled={selectedProfile() === undefined}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void copySelectedProfile()}
+                  >
+                    <Icon
+                      icon={profileCopied() ? "check" : "copy"}
+                      class="button__icon"
+                    />
+                    {profileCopied() ? "Copied" : "Copy profile"}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      asChild={(triggerProps) => (
+                        <Button
+                          {...(triggerProps({
+                            class: "skills-profile-delete",
+                            disabled:
+                              saving() ||
+                              selectedId() === DEFAULT_COMBAT_PROFILE_ID,
+                            size: "sm",
+                            variant: "ghost",
+                          } as ButtonProps) as ButtonProps)}
+                        >
+                          Delete profile
+                        </Button>
+                      )}
+                    />
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete profile</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Delete {selectedProfile()?.label ?? "this profile"}?
+                          This skill profile will be permanently removed.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={saving()}
+                          variant="destructive"
+                          onClick={() => void deleteSelected()}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardFrameAction>
               </CardFrameHeader>
               <Card>
                 <CardContent class="skills-form">
@@ -660,7 +814,9 @@ function App(): JSX.Element {
                   <Label>
                     <span>Delay (ms)</span>
                     <Input
-                      inputMode="numeric"
+                      min="0"
+                      step="1"
+                      type="number"
                       value={delayMs()}
                       onInput={(event) => setDelayMs(event.currentTarget.value)}
                     />
@@ -799,7 +955,9 @@ function App(): JSX.Element {
                               tooltip="Minimum time before this trigger can cast again. Leave empty or 0 to allow every matching message."
                             />
                             <Input
-                              inputMode="numeric"
+                              min="0"
+                              step="1"
+                              type="number"
                               value={String(trigger().cooldownMs ?? "")}
                               placeholder="0"
                               onInput={(event) =>
