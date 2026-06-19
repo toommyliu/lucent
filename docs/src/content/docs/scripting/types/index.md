@@ -117,6 +117,8 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/script-event-wait-options/" data-script-type="script-event-wait-options"><code>ScriptEventWaitOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-event-zone-event/" data-script-type="script-event-zone-event"><code>ScriptEventZoneEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-exit-options/" data-script-type="script-exit-options"><code>ScriptExitOptions</code></a> | interface |  |
+| <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
+| <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-monster-wait-options/" data-script-type="script-monster-wait-options"><code>ScriptMonsterWaitOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-options/" data-script-type="script-options"><code>ScriptOptions</code></a> | interface |  |
