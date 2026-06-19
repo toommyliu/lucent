@@ -639,8 +639,16 @@ const rejectProgress = (checkpoint: ArmyProgressState, error: Error): void => {
   checkpoint.arrived.clear();
 };
 
-const armyBarrierKey = (step: number, label?: string): string =>
-  JSON.stringify([step, label ?? ""]);
+const armyBarrierKey = (
+  step: number,
+  expectedPlayerKeys: ReadonlySet<string>,
+): string =>
+  JSON.stringify([step, Array.from(expectedPlayerKeys).toSorted().join("\0")]);
+
+const syncLabel = (label?: string): string => label ?? "";
+
+const describeSyncLabel = (label?: string): string =>
+  label === undefined ? "<none>" : label;
 
 const abortSession = (
   runtime: ArmyCoordinatorShape,
@@ -664,6 +672,15 @@ const abortSession = (
 
   runtime.detachSessionFromWindows(session);
   session.windows.clear();
+};
+
+const abortSyncFailure = (
+  runtime: ArmyCoordinatorShape,
+  session: ArmySessionState,
+  error: Error,
+): Error => {
+  abortSession(runtime, session, error.message);
+  return error;
 };
 
 const abortWindowSessions = (
@@ -901,37 +918,6 @@ const resolveBarrierExpectedPlayers = (
   return { keys, players };
 };
 
-const resolveProgressExpectedPlayers = (
-  session: ArmySessionState,
-  payload: Pick<ArmyProgressPayload, "players">,
-): {
-  readonly keys: ReadonlySet<string>;
-  readonly players: readonly string[];
-} => {
-  if (payload.players !== undefined) {
-    return resolveBarrierExpectedPlayers(session, payload);
-  }
-
-  const keys = new Set<string>();
-  const players: string[] = [];
-  for (const player of session.players) {
-    const key = normalizePlayerName(player);
-    const window = session.windows.get(key);
-    if (
-      window === undefined ||
-      window.isDestroyed() ||
-      window.webContents.isDestroyed()
-    ) {
-      continue;
-    }
-
-    keys.add(key);
-    players.push(player);
-  }
-
-  return { keys, players };
-};
-
 const samePlayerSet = (
   left: ReadonlySet<string>,
   right: ReadonlySet<string>,
@@ -949,7 +935,8 @@ const samePlayerSet = (
   return true;
 };
 
-const waitAtBarrier = (
+export const waitAtBarrier = (
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   playerName: string,
   payload: ArmyBarrierPayload,
@@ -981,11 +968,15 @@ const waitAtBarrier = (
     return Promise.resolve();
   }
 
-  const key = armyBarrierKey(payload.step, payload.label);
+  const key = armyBarrierKey(payload.step, expectedPlayers.keys);
   let barrier = session.barriers.get(key);
   if (!barrier) {
     const step = payload.step;
     const timer = setTimeout(() => {
+      if (runtime.getSession(session.sessionId) !== session) {
+        return;
+      }
+
       const current = session.barriers.get(key);
       if (!current) {
         return;
@@ -995,9 +986,9 @@ const waitAtBarrier = (
       const missing = current.expectedPlayers.filter(
         (player) => !arrived.has(normalizePlayerName(player)),
       );
-      session.barriers.delete(key);
-      rejectBarrier(
-        current,
+      abortSyncFailure(
+        runtime,
+        session,
         new Error(
           `Timed out waiting for army step ${step}${
             current.label ? ` (${current.label})` : ""
@@ -1020,27 +1011,37 @@ const waitAtBarrier = (
 
   if (barrier.arrived.has(playerKey)) {
     return Promise.reject(
-      new Error(
-        `Army player already reached step ${payload.step}: ${playerName}`,
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(
+          `Army player already reached step ${payload.step}: ${playerName}`,
+        ),
       ),
     );
   }
 
-  if (
-    payload.label !== undefined &&
-    barrier.label !== undefined &&
-    payload.label !== barrier.label
-  ) {
+  if (syncLabel(barrier.label) !== syncLabel(payload.label)) {
     return Promise.reject(
-      new Error(
-        `Army step label mismatch for step ${payload.step}: expected ${barrier.label}, got ${payload.label}`,
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(
+          `Army step label mismatch for step ${payload.step}: expected ${describeSyncLabel(
+            barrier.label,
+          )}, got ${describeSyncLabel(payload.label)}`,
+        ),
       ),
     );
   }
 
   if (!samePlayerSet(barrier.expectedPlayerKeys, expectedPlayers.keys)) {
     return Promise.reject(
-      new Error(`Army step player set mismatch for step ${payload.step}`),
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(`Army step player set mismatch for step ${payload.step}`),
+      ),
     );
   }
 
@@ -1050,7 +1051,8 @@ const waitAtBarrier = (
   });
 };
 
-const waitAtProgress = (
+export const waitAtProgress = (
+  runtime: ArmyCoordinatorShape,
   session: ArmySessionState,
   playerName: string,
   payload: ArmyProgressPayload,
@@ -1073,7 +1075,7 @@ const waitAtProgress = (
     readonly players: readonly string[];
   };
   try {
-    expectedPlayers = resolveProgressExpectedPlayers(session, payload);
+    expectedPlayers = resolveBarrierExpectedPlayers(session, payload);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1086,11 +1088,15 @@ const waitAtProgress = (
     });
   }
 
-  const key = armyBarrierKey(payload.step, payload.label);
+  const key = armyBarrierKey(payload.step, expectedPlayers.keys);
   let checkpoint = session.progressCheckpoints.get(key);
   if (!checkpoint) {
     const step = payload.step;
     const timer = setTimeout(() => {
+      if (runtime.getSession(session.sessionId) !== session) {
+        return;
+      }
+
       const current = session.progressCheckpoints.get(key);
       if (!current) {
         return;
@@ -1100,9 +1106,9 @@ const waitAtProgress = (
       const missing = current.expectedPlayers.filter(
         (player) => !arrived.has(normalizePlayerName(player)),
       );
-      session.progressCheckpoints.delete(key);
-      rejectProgress(
-        current,
+      abortSyncFailure(
+        runtime,
+        session,
         new Error(
           `Timed out waiting for army progress ${step}${
             current.label ? ` (${current.label})` : ""
@@ -1125,15 +1131,37 @@ const waitAtProgress = (
 
   if (checkpoint.arrived.has(playerKey)) {
     return Promise.reject(
-      new Error(
-        `Army player already reached progress ${payload.step}: ${playerName}`,
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(
+          `Army player already reached progress ${payload.step}: ${playerName}`,
+        ),
+      ),
+    );
+  }
+
+  if (syncLabel(checkpoint.label) !== syncLabel(payload.label)) {
+    return Promise.reject(
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(
+          `Army progress label mismatch for step ${payload.step}: expected ${describeSyncLabel(
+            checkpoint.label,
+          )}, got ${describeSyncLabel(payload.label)}`,
+        ),
       ),
     );
   }
 
   if (!samePlayerSet(checkpoint.expectedPlayerKeys, expectedPlayers.keys)) {
     return Promise.reject(
-      new Error(`Army progress player set mismatch for step ${payload.step}`),
+      abortSyncFailure(
+        runtime,
+        session,
+        new Error(`Army progress player set mismatch for step ${payload.step}`),
+      ),
     );
   }
 
@@ -1239,7 +1267,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
         }
 
         yield* Effect.promise(() =>
-          waitAtBarrier(session, payload.playerName, payload),
+          waitAtBarrier(runtime, session, payload.playerName, payload),
         );
       }),
     );
@@ -1253,7 +1281,7 @@ export const registerArmyIpcHandlers = (): Effect.Effect<
         }
 
         return yield* Effect.promise(() =>
-          waitAtProgress(session, payload.playerName, payload),
+          waitAtProgress(runtime, session, payload.playerName, payload),
         );
       }),
     );
