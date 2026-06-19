@@ -2581,14 +2581,23 @@ a.badge--destructive:hover {
 }
 
 .combobox__input {
+  appearance: none;
   background: transparent;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   color: inherit;
   flex: 1 1 auto;
   font: inherit;
   min-width: 3rem;
   outline: none;
   padding: 0;
+}
+
+.combobox__input:focus,
+.combobox__input:focus-visible {
+  box-shadow: none;
+  outline: none;
 }
 
 .combobox__trigger,
@@ -2603,8 +2612,15 @@ a.badge--destructive:hover {
   flex-shrink: 0;
   height: 1.5rem;
   justify-content: center;
+  outline: none;
   padding: 0;
   width: 1.5rem;
+}
+
+.combobox__trigger:focus-visible,
+.combobox__clear:focus-visible {
+  background: rgb(var(--accent));
+  color: rgb(var(--accent-foreground));
 }
 
 .combobox__empty {

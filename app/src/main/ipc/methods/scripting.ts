@@ -1,13 +1,30 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
-import { Effect, Scope } from "effect";
+import { Data, Effect, Scope } from "effect";
 import {
   ScriptingIpcChannels,
   type ScriptExecutePayload,
 } from "../../../shared/ipc";
+import {
+  normalizeScriptInputsDefinition,
+  normalizeScriptInputValues,
+} from "../../../shared/script-inputs";
 import { DesktopIpc } from "../DesktopIpc";
 import { requireScriptingSender } from "../DesktopIpcRequest";
 import { WindowService } from "../../window/WindowService";
 import { ScriptLibrary } from "../../backend/scripting/ScriptLibrary";
+import { ScriptInputRepository } from "../../backend/scripting/ScriptInputRepository";
+
+class ScriptInputDefinitionError extends Data.TaggedError(
+  "ScriptInputDefinitionError",
+)<{
+  readonly cause: unknown;
+}> {
+  override get message() {
+    return this.cause instanceof Error && this.cause.message !== ""
+      ? this.cause.message
+      : "Invalid script input definition";
+  }
+}
 
 const getEventWindow = (senderId?: number): BrowserWindow | null => {
   if (senderId !== undefined) {
@@ -53,10 +70,20 @@ const openScriptDialog = async (
   return result.filePaths[0] ?? null;
 };
 
+const normalizeScriptInputsDefinitionEffect = (input: unknown) =>
+  Effect.try({
+    try: () => normalizeScriptInputsDefinition(input),
+    catch: (cause) => new ScriptInputDefinitionError({ cause }),
+  });
+
 export const registerScriptingIpcHandlers = (): Effect.Effect<
   void,
   never,
-  DesktopIpc | Scope.Scope | WindowService | ScriptLibrary
+  | DesktopIpc
+  | Scope.Scope
+  | WindowService
+  | ScriptLibrary
+  | ScriptInputRepository
 > =>
   Effect.gen(function* () {
     const ipc = yield* DesktopIpc;
@@ -106,5 +133,29 @@ export const registerScriptingIpcHandlers = (): Effect.Effect<
           return yield* Effect.fail(new Error(openError));
         }
       }),
+    );
+
+    yield* ipc.handle(ScriptingIpcChannels.getInputValues, (event, input) =>
+      Effect.gen(function* () {
+        yield* requireScriptingSender(event.sender);
+        const definition = yield* normalizeScriptInputsDefinitionEffect(input);
+        const repository = yield* ScriptInputRepository;
+        return yield* repository.get(definition);
+      }),
+    );
+
+    yield* ipc.handle(
+      ScriptingIpcChannels.saveInputValues,
+      (event, input, values) =>
+        Effect.gen(function* () {
+          yield* requireScriptingSender(event.sender);
+          const definition =
+            yield* normalizeScriptInputsDefinitionEffect(input);
+          const repository = yield* ScriptInputRepository;
+          return yield* repository.set(
+            definition,
+            normalizeScriptInputValues(values),
+          );
+        }),
     );
   });

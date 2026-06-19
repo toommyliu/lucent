@@ -16,6 +16,10 @@ import type {
   CombatProfileSelector,
 } from "../../../../shared/combat-profiles";
 import type { ScriptOptions } from "../../../../shared/ipc";
+import type {
+  ScriptInputValue,
+  ScriptInputValues,
+} from "../../../../shared/script-inputs";
 import type { ScriptExecutionError, ScriptNotReadyError } from "./Errors";
 import type { ScriptRecipesShape } from "./recipes";
 import type { ArmyShape } from "../army/Services/Army";
@@ -656,6 +660,11 @@ export interface ScriptOptionsApi {
   reset(): Effect.Effect<void>;
 }
 
+export interface ScriptInputsApi {
+  get(key: string): Effect.Effect<ScriptInputValue | undefined>;
+  getAll(): Effect.Effect<ScriptInputValues>;
+}
+
 export interface ScriptExitOptions {
   readonly logout?: boolean;
   readonly closeWindow?: boolean;
@@ -666,6 +675,7 @@ export interface ScriptRuntimeApi {
    * Current script cancellation signal; aborted when the script stops.
    */
   readonly signal: AbortSignal;
+  readonly inputs: ScriptInputsApi;
   readonly options: ScriptOptionsApi;
   log(message: string): void;
   /**

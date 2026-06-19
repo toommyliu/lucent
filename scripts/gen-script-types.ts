@@ -85,6 +85,12 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptExecutionError",
   "ScriptEffectModule",
   "ScriptEffectStd",
+  "ScriptInputField",
+  "ScriptInputType",
+  "ScriptInputValue",
+  "ScriptInputValues",
+  "ScriptInputsDefinition",
+  "ScriptModuleExports",
   "ScriptOpaqueModule",
   "ScriptNotReadyError",
   "ScriptOptionModule",
@@ -137,6 +143,14 @@ declare module "effect" {
 
 declare module "lucent" {
   const lucent: ScriptLucentStd;
+  namespace lucent {
+    export type ScriptInputValue = LucentScriptInputValue;
+    export type ScriptInputType = LucentScriptInputType;
+    export type ScriptInputField = LucentScriptInputField;
+    export type ScriptInputsDefinition = LucentScriptInputsDefinition;
+    export type ScriptInputValues = LucentScriptInputValues;
+    export type ScriptModuleExports = LucentScriptModuleExports;
+  }
   export = lucent;
 }
 
@@ -189,6 +203,61 @@ type MonsterName =
 type MonsterMapID = number;
 type MonsterIdentifierToken = MonsterName | MonsterMapID;
 type Skill = number | string;
+
+type LucentScriptInputValue = string | number | boolean;
+type LucentScriptInputType = "string" | "number" | "boolean" | "select";
+
+interface LucentScriptInputFieldBase<
+  Type extends LucentScriptInputType,
+  Value extends LucentScriptInputValue,
+> {
+  /** Stable key used by script.inputs.get(key). */
+  readonly key: string;
+  readonly type: Type;
+  readonly label?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly defaultValue?: Value;
+}
+
+interface LucentScriptStringInputField
+  extends LucentScriptInputFieldBase<"string", string> {}
+
+interface LucentScriptNumberInputField
+  extends LucentScriptInputFieldBase<"number", number> {}
+
+interface LucentScriptBooleanInputField
+  extends LucentScriptInputFieldBase<"boolean", boolean> {}
+
+interface LucentScriptSelectInputField
+  extends LucentScriptInputFieldBase<"select", string> {
+  readonly options: readonly string[];
+}
+
+type LucentScriptInputField =
+  | LucentScriptStringInputField
+  | LucentScriptNumberInputField
+  | LucentScriptBooleanInputField
+  | LucentScriptSelectInputField;
+
+interface LucentScriptInputsDefinition {
+  /** Stable id used to persist values for this script. */
+  readonly id: string;
+  readonly fields: readonly LucentScriptInputField[];
+}
+
+type LucentScriptInputValues = Readonly<Record<string, LucentScriptInputValue>>;
+
+interface LucentScriptModuleExports extends ScriptMain {
+  inputs?: LucentScriptInputsDefinition;
+}
+
+type ScriptInputValue = LucentScriptInputValue;
+type ScriptInputType = LucentScriptInputType;
+type ScriptInputField = LucentScriptInputField;
+interface ScriptInputsDefinition extends LucentScriptInputsDefinition {}
+type ScriptInputValues = LucentScriptInputValues;
+type ScriptModuleExports = LucentScriptModuleExports;
 `;
 
 type CliOptions = {
@@ -816,6 +885,13 @@ const declarationText = (
 
   if (ts.isTypeAliasDeclaration(declaration)) {
     return renderTypeAlias(checker, declaration);
+  }
+
+  if (ts.isEnumDeclaration(declaration)) {
+    return stripDeclarationText(declaration.getText(sourceFile)).replace(
+      /^enum\s+/,
+      "declare enum ",
+    );
   }
 
   return stripDeclarationText(declaration.getText(sourceFile));

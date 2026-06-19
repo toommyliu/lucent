@@ -100,9 +100,11 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptDiagnosticsCount: Accessor<number>;
   readonly scriptUsePrivateRooms: Accessor<boolean>;
   readonly scriptSafeStartStop: Accessor<boolean>;
+  readonly scriptInputsAvailable: Accessor<boolean>;
   readonly loadScript: () => void | Promise<void>;
   readonly startScript: () => void;
   readonly stopScript: () => void;
+  readonly openScriptInputs: () => void;
   readonly handleToggleScriptPrivateRooms: () => void;
   readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
@@ -674,6 +676,18 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   >
                     {(shortcut) => <Kbd>{shortcut()}</Kbd>}
                   </Show>
+                </MenuItem>
+                <MenuItem
+                  class="game-menu__item"
+                  disabled={
+                    !props.scriptLoaded() ||
+                    !props.scriptInputsAvailable() ||
+                    props.scriptRunning()
+                  }
+                  onSelect={props.openScriptInputs}
+                  value="script-inputs"
+                >
+                  <span class="game-menu__item-label">Edit Inputs...</span>
                 </MenuItem>
                 <MenuItem
                   class="game-menu__item"

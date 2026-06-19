@@ -12,18 +12,12 @@ import {
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
-
-interface DialogLayerState {
-  readonly layer: number;
-  readonly setNestedOpen: (id: number, open: boolean) => void;
-}
-
-const noopSetNestedOpen = (): void => undefined;
-
-const DialogLayerContext = createContext<DialogLayerState>({
-  layer: 0,
-  setNestedOpen: noopSetNestedOpen,
-});
+import {
+  DialogLayerContext,
+  type DialogLayerState,
+  dialogOverlayZIndex,
+  dialogPositionerZIndex,
+} from "./DialogLayer";
 
 let nextDialogId = 0;
 
@@ -31,10 +25,6 @@ function dataSlot(props: unknown, fallback: string): string {
   const value = (props as { readonly "data-slot"?: string })["data-slot"];
   return value ?? fallback;
 }
-
-const overlayZIndex = (layer: number): number =>
-  50 + Math.max(0, layer - 1) * 2;
-const positionerZIndex = (layer: number): number => overlayZIndex(layer) + 1;
 
 function dialogContentStyle(
   style: DialogContentProps["style"],
@@ -66,6 +56,7 @@ export function Dialog(props: DialogProps): JSX.Element {
   const parent = useContext(DialogLayerContext);
   const layer = parent.layer + 1;
   const [local, rest] = splitProps(props, ["children"]);
+  const [portalMount, setPortalMount] = createSignal<HTMLElement>();
   const [nestedOpenIds, setNestedOpenIds] = createSignal<ReadonlySet<number>>(
     new Set(),
     { equals: false },
@@ -84,7 +75,9 @@ export function Dialog(props: DialogProps): JSX.Element {
   };
 
   return (
-    <DialogLayerContext.Provider value={{ layer, setNestedOpen }}>
+    <DialogLayerContext.Provider
+      value={{ layer, portalMount, setPortalMount, setNestedOpen }}
+    >
       <DialogPrimitive.Root {...rest}>
         <DialogOpenReporter parent={parent} />
         <DialogNestedOpenProvider count={() => nestedOpenIds().size}>
@@ -190,50 +183,63 @@ export function DialogContent(props: DialogContentProps): JSX.Element {
     "style",
   ]);
 
+  onCleanup(() => dialogState.setPortalMount(undefined));
+
   return (
     <DialogPrimitive.Context>
-      {(context) => (
-        <Show when={context().open}>
-          <Portal>
-            <DialogOverlay
-              data-nested={layer > 1 ? "" : undefined}
-              style={{ "z-index": overlayZIndex(layer) }}
-            />
-            <DialogPrimitive.Positioner
-              class="dialog__positioner"
-              data-slot="dialog-positioner"
-              style={{ "z-index": positionerZIndex(layer) }}
-            >
-              <DialogPrimitive.Content
-                {...rest}
-                class={cn(
-                  "dialog__content",
-                  local.bottomStickOnMobile !== false &&
-                    "dialog__content--mobile-stick",
-                  local.class,
-                )}
+      {(context) => {
+        createEffect(() => {
+          if (!context().open) {
+            dialogState.setPortalMount(undefined);
+          }
+        });
+
+        return (
+          <Show when={context().open}>
+            <Portal>
+              <DialogOverlay
                 data-nested={layer > 1 ? "" : undefined}
-                data-nested-dialog-open={nestedOpenCount() > 0 ? "" : undefined}
-                style={dialogContentStyle(local.style, nestedOpenCount())}
-                data-slot={slot}
+                style={{ "z-index": dialogOverlayZIndex(layer) }}
+              />
+              <DialogPrimitive.Positioner
+                class="dialog__positioner"
+                data-slot="dialog-positioner"
+                ref={(element) => dialogState.setPortalMount(element)}
+                style={{ "z-index": dialogPositionerZIndex(layer) }}
               >
-                {local.children}
-                {local.showCloseButton !== false && (
-                  <DialogClose
-                    aria-label="Close"
-                    class="dialog__close"
-                    variant="ghost"
-                    size="icon-sm"
-                    {...local.closeProps}
-                  >
-                    <Icon icon="x" class="button__icon" />
-                  </DialogClose>
-                )}
-              </DialogPrimitive.Content>
-            </DialogPrimitive.Positioner>
-          </Portal>
-        </Show>
-      )}
+                <DialogPrimitive.Content
+                  {...rest}
+                  class={cn(
+                    "dialog__content",
+                    local.bottomStickOnMobile !== false &&
+                      "dialog__content--mobile-stick",
+                    local.class,
+                  )}
+                  data-nested={layer > 1 ? "" : undefined}
+                  data-nested-dialog-open={
+                    nestedOpenCount() > 0 ? "" : undefined
+                  }
+                  style={dialogContentStyle(local.style, nestedOpenCount())}
+                  data-slot={slot}
+                >
+                  {local.children}
+                  {local.showCloseButton !== false && (
+                    <DialogClose
+                      aria-label="Close"
+                      class="dialog__close"
+                      variant="ghost"
+                      size="icon-sm"
+                      {...local.closeProps}
+                    >
+                      <Icon icon="x" class="button__icon" />
+                    </DialogClose>
+                  )}
+                </DialogPrimitive.Content>
+              </DialogPrimitive.Positioner>
+            </Portal>
+          </Show>
+        );
+      }}
     </DialogPrimitive.Context>
   );
 }

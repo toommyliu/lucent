@@ -46,6 +46,14 @@ declare module "effect" {
 
 declare module "lucent" {
   const lucent: ScriptLucentStd;
+  namespace lucent {
+    export type ScriptInputValue = LucentScriptInputValue;
+    export type ScriptInputType = LucentScriptInputType;
+    export type ScriptInputField = LucentScriptInputField;
+    export type ScriptInputsDefinition = LucentScriptInputsDefinition;
+    export type ScriptInputValues = LucentScriptInputValues;
+    export type ScriptModuleExports = LucentScriptModuleExports;
+  }
   export = lucent;
 }
 
@@ -99,6 +107,61 @@ type MonsterMapID = number;
 type MonsterIdentifierToken = MonsterName | MonsterMapID;
 type Skill = number | string;
 
+type LucentScriptInputValue = string | number | boolean;
+type LucentScriptInputType = "string" | "number" | "boolean" | "select";
+
+interface LucentScriptInputFieldBase<
+  Type extends LucentScriptInputType,
+  Value extends LucentScriptInputValue,
+> {
+  /** Stable key used by script.inputs.get(key). */
+  readonly key: string;
+  readonly type: Type;
+  readonly label?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly defaultValue?: Value;
+}
+
+interface LucentScriptStringInputField
+  extends LucentScriptInputFieldBase<"string", string> {}
+
+interface LucentScriptNumberInputField
+  extends LucentScriptInputFieldBase<"number", number> {}
+
+interface LucentScriptBooleanInputField
+  extends LucentScriptInputFieldBase<"boolean", boolean> {}
+
+interface LucentScriptSelectInputField
+  extends LucentScriptInputFieldBase<"select", string> {
+  readonly options: readonly string[];
+}
+
+type LucentScriptInputField =
+  | LucentScriptStringInputField
+  | LucentScriptNumberInputField
+  | LucentScriptBooleanInputField
+  | LucentScriptSelectInputField;
+
+interface LucentScriptInputsDefinition {
+  /** Stable id used to persist values for this script. */
+  readonly id: string;
+  readonly fields: readonly LucentScriptInputField[];
+}
+
+type LucentScriptInputValues = Readonly<Record<string, LucentScriptInputValue>>;
+
+interface LucentScriptModuleExports extends ScriptMain {
+  inputs?: LucentScriptInputsDefinition;
+}
+
+type ScriptInputValue = LucentScriptInputValue;
+type ScriptInputType = LucentScriptInputType;
+type ScriptInputField = LucentScriptInputField;
+interface ScriptInputsDefinition extends LucentScriptInputsDefinition {}
+type ScriptInputValues = LucentScriptInputValues;
+type ScriptModuleExports = LucentScriptModuleExports;
+
 type ScriptMain = () => Generator<EffectYieldable<unknown, unknown>, unknown, any>;
 
 interface ScriptContext {
@@ -134,6 +197,7 @@ interface ScriptApi {
 interface ScriptRuntimeApi {
   /** Current script cancellation signal; aborted when the script stops. */
     readonly signal: AbortSignal;
+    readonly inputs: ScriptRuntimeInputsApi;
     readonly options: ScriptRuntimeOptionsApi;
     log(message: string): void;
   /** Stops the current script. */
@@ -326,6 +390,10 @@ interface ScriptFeaturesAutoZoneApi {
 interface ScriptPacketApi {
     sendClient(packet: string, type?: ClientPacketSendType): Effect<void, BridgeError>;
     sendServer(packet: string, type?: ServerPacketSendType): Effect<void, BridgeError>;
+}
+interface ScriptRuntimeInputsApi {
+    get(key: string): Effect<ScriptInputValue | undefined, never>;
+    getAll(): Effect<ScriptInputValues, never>;
 }
 interface ScriptRuntimeOptionsApi {
     getUsePrivateRooms(): Effect<boolean, never>;
@@ -1284,7 +1352,7 @@ type BaseEntityData = {
   intState: number;
   strFrame: string;
 };
-enum EntityState {
+declare enum EntityState {
   /**
    * The entity is dead.
    */

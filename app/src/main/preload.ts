@@ -92,6 +92,8 @@ import {
   type PacketSendPayload,
   type PreferencesPatch,
   type ScriptExecutePayload,
+  type ScriptInputsDefinition,
+  type ScriptInputValues,
   type ScopedDesktopBridge,
   type ToolDesktopWindowBridge,
   type UpdateCheckState,
@@ -1012,6 +1014,22 @@ const fullBridge: DesktopBridge = {
         ScriptingIpcChannels.readFile,
         path,
       )) as ScriptExecutePayload;
+    },
+    getInputValues: async (definition: ScriptInputsDefinition) => {
+      return (await ipcRenderer.invoke(
+        ScriptingIpcChannels.getInputValues,
+        definition,
+      )) as ScriptInputValues;
+    },
+    saveInputValues: async (
+      definition: ScriptInputsDefinition,
+      values: ScriptInputValues,
+    ) => {
+      return (await ipcRenderer.invoke(
+        ScriptingIpcChannels.saveInputValues,
+        definition,
+        values,
+      )) as ScriptInputValues;
     },
     onExecute: (listener) => {
       const subscription = (_event: unknown, payload: ScriptExecutePayload) => {

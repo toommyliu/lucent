@@ -5,6 +5,7 @@ import {
   type CollectionItem,
 } from "@ark-ui/solid/select";
 import {
+  Show,
   createContext,
   createEffect,
   createMemo,
@@ -16,6 +17,7 @@ import {
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
+import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 
 export interface SelectOption extends CollectionItem {
   readonly disabled?: boolean;
@@ -176,23 +178,38 @@ export interface SelectContentProps extends Omit<
 
 export function SelectContent(props: SelectContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class"]);
-  return (
-    <Portal>
-      <SelectPrimitive.Positioner
-        class="select__positioner"
-        data-slot="select-positioner"
+  const dialogPortalMount = useDialogPortalMount();
+  const dialogFloatingZIndex = useDialogFloatingZIndex();
+  const positionerStyle = (): JSX.CSSProperties | undefined =>
+    dialogFloatingZIndex === undefined
+      ? undefined
+      : { "z-index": dialogFloatingZIndex };
+  const content = () => (
+    <SelectPrimitive.Positioner
+      class="select__positioner"
+      data-slot="select-positioner"
+      style={positionerStyle()}
+    >
+      <SelectPrimitive.Content
+        {...rest}
+        class={cn("select__content", local.class)}
+        data-slot="select-content"
       >
-        <SelectPrimitive.Content
-          {...rest}
-          class={cn("select__content", local.class)}
-          data-slot="select-content"
-        >
-          <SelectPrimitive.List class="select__list" data-slot="select-list">
-            {local.children}
-          </SelectPrimitive.List>
-        </SelectPrimitive.Content>
-      </SelectPrimitive.Positioner>
-    </Portal>
+        <SelectPrimitive.List class="select__list" data-slot="select-list">
+          {local.children}
+        </SelectPrimitive.List>
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Positioner>
+  );
+
+  return (
+    <Show
+      when={dialogPortalMount()}
+      keyed
+      fallback={<Portal>{content()}</Portal>}
+    >
+      {(mount) => <Portal mount={mount}>{content()}</Portal>}
+    </Show>
   );
 }
 

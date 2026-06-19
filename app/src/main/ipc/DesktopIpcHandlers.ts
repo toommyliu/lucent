@@ -23,6 +23,7 @@ import { ArmyCoordinator } from "../backend/army/ArmyCoordinator";
 import { EnvironmentStateStore } from "../backend/environment/EnvironmentStateStore";
 import { FollowerStateStore } from "../backend/follower/FollowerStateStore";
 import { ScriptLibrary } from "../backend/scripting/ScriptLibrary";
+import { ScriptInputRepository } from "../backend/scripting/ScriptInputRepository";
 import { DesktopIpc } from "./DesktopIpc";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { UpdateChecker } from "../updates/Updates";
@@ -42,6 +43,7 @@ export const installDesktopIpcHandlers = (
   | EnvironmentStateStore
   | FastTravelRepository
   | FollowerStateStore
+  | ScriptInputRepository
   | ScriptLibrary
   | GameWindowClient
   | DesktopIpc

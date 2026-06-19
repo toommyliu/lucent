@@ -7,12 +7,13 @@ import type {
   ScriptNotReadyError,
 } from "../Errors";
 import type { ScriptDiagnostic } from "../Types";
-import type { ScriptOptions } from "../ipc";
+import type { ScriptInputValues, ScriptOptions } from "../ipc";
 import type { ScriptRunnerStatus } from "../scriptRunnerStatus";
 
 export interface RunScriptOptions {
   readonly name?: string;
   readonly options?: Partial<ScriptOptions>;
+  readonly inputs?: ScriptInputValues;
 }
 
 export type ScriptRunnerError =

@@ -88,6 +88,9 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
+      acorn:
+        specifier: 8.16.0
+        version: 8.16.0
       core-js:
         specifier: ^3.49.0
         version: 3.49.0

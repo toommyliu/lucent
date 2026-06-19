@@ -14,6 +14,7 @@ import {
   type ObservabilitySource,
 } from "../../shared/observability";
 import { makeRandomId } from "../../shared/random-id";
+import { roundTimingMs, timingNow } from "../timing";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 
 const MAX_LOG_BYTES = 20 * 1024 * 1024;
@@ -88,10 +89,6 @@ const sendToOpenDevConsole = (
         : process.stdout;
     stream.write(`[${record.source}:${record.component}] ${record.message}\n`);
   });
-
-const timingNow = (): number => performance.now();
-
-const roundTimingMs = (value: number): number => Number(value.toFixed(2));
 
 export const makeObservability = (
   logDir: string,
