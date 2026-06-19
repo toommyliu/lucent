@@ -96,6 +96,20 @@
   letter-spacing: 0;
 }
 
+.skills-profile-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.skills-copy-profile.button {
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
 .skills-profile-delete.button {
   color: var(--color-destructive-foreground);
   transition: background-color var(--duration-fast) ease;
@@ -315,9 +329,21 @@
   padding: 0.625rem 0.75rem;
 }
 
-.skills-error .alert__description {
+.skills-error__message.alert__description {
+  align-items: flex-start;
   color: inherit;
+  display: flex;
   font-size: var(--text-sm);
+  gap: 0.5rem;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.skills-error__message svg {
+  flex: 0 0 auto;
+  height: 1rem;
+  margin-top: 0.0625rem;
+  width: 1rem;
 }
 
 @media (max-width: 720px) {
