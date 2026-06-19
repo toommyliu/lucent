@@ -58,11 +58,13 @@ import { Jobs } from "../../jobs/Services/Jobs";
 interface ArmyState {
   readonly session: ArmySession | null;
   readonly nextStep: number;
+  readonly scopedNextSteps: Readonly<Record<string, number>>;
 }
 
 const DEFAULT_STATE: ArmyState = {
   session: null,
   nextStep: 0,
+  scopedNextSteps: {},
 };
 
 const DEFAULT_JOIN_CELL = "Enter";
@@ -120,6 +122,7 @@ const cloneSession = (session: ArmySession): ArmySession => ({
 const cloneState = (state: ArmyState): ArmyState => ({
   session: state.session === null ? null : cloneSession(state.session),
   nextStep: state.nextStep,
+  scopedNextSteps: { ...state.scopedNextSteps },
 });
 
 const withArmyRoom = (map: string, roomNumber: string): string => {
@@ -136,6 +139,25 @@ const fromArmyIpc = <A>(label: string, promise: () => Promise<A>) =>
     try: promise,
     catch: (cause) => new ArmyError(label, cause),
   });
+
+const normalizeSyncPlayerKey = (playerName: string): string =>
+  playerName.trim().toLowerCase();
+
+// Full-army calls share `nextStep`, so every client reaches the same step
+// number. Subset-only calls, such as Loop Taunt setup, are not run by
+// non-participants; using the full-army counter there would put participants
+// ahead and make the next full-army sync fail. Scoped counters keep each
+// explicit player set aligned without advancing everyone else's global step.
+const scopedStepKey = (players?: readonly string[]): string => {
+  if (players === undefined) {
+    return "all";
+  }
+
+  return `players:${players
+    .map(normalizeSyncPlayerKey)
+    .toSorted()
+    .join("\u0000")}`;
+};
 
 const getNestedConfigValue = (
   obj: Record<string, unknown>,
@@ -228,6 +250,7 @@ const make = Effect.gen(function* () {
       yield* SynchronizedRef.set(stateRef, {
         session,
         nextStep: 0,
+        scopedNextSteps: {},
       });
 
       return cloneSession(session);
@@ -280,12 +303,32 @@ const make = Effect.gen(function* () {
   const getPlayerNumber: ArmyShape["getPlayerNumber"] = () =>
     getState.pipe(Effect.map((state) => state.session?.playerNumber ?? -1));
 
-  const nextBarrierStep = () =>
-    SynchronizedRef.modify(
-      stateRef,
-      (state) =>
-        [state.nextStep, { ...state, nextStep: state.nextStep + 1 }] as const,
-    );
+  const nextBarrierStep = (
+    options?: ArmyRunStepOptions & {
+      readonly players?: readonly string[];
+    },
+  ) =>
+    SynchronizedRef.modify(stateRef, (state) => {
+      const key = scopedStepKey(options?.players);
+      if (key === "all") {
+        return [
+          state.nextStep,
+          { ...state, nextStep: state.nextStep + 1 },
+        ] as const;
+      }
+
+      const step = state.scopedNextSteps[key] ?? 0;
+      return [
+        step,
+        {
+          ...state,
+          scopedNextSteps: {
+            ...state.scopedNextSteps,
+            [key]: step + 1,
+          },
+        },
+      ] as const;
+    });
 
   const waitAtBarrier = (
     session: ArmySession,
@@ -377,7 +420,7 @@ const make = Effect.gen(function* () {
 
   const runStep: ArmyShape["runStep"] = (label, action, options) =>
     Effect.gen(function* () {
-      const step = yield* nextBarrierStep();
+      const step = yield* nextBarrierStep(options);
       const session = yield* getState.pipe(Effect.flatMap(assertStarted));
       const result = yield* action;
       yield* waitAtBarrier(session, step, label, options);
@@ -396,12 +439,8 @@ const make = Effect.gen(function* () {
     };
   }) =>
     Effect.gen(function* () {
-      const step = yield* nextBarrierStep();
+      const step = yield* nextBarrierStep(args.options);
       const session = yield* getState.pipe(Effect.flatMap(assertStarted));
-      const progressOptions = {
-        ...args.options,
-        players: args.options?.players ?? [session.playerName],
-      };
 
       while (true) {
         const complete = yield* args.isComplete();
@@ -410,7 +449,7 @@ const make = Effect.gen(function* () {
           step,
           args.label,
           complete,
-          progressOptions,
+          args.options,
         );
         if (progress.complete) {
           return;
@@ -1264,11 +1303,11 @@ const make = Effect.gen(function* () {
         catch: (cause) => new ArmyError("Invalid Loop Taunt options", cause),
       });
       const key = loopTauntJobKey(normalized.id);
-      const targetStep = yield* nextBarrierStep();
-      const armedStep = yield* nextBarrierStep();
       const participantNames = normalized.participants.map(
         (participant) => participant.name,
       );
+      const targetStep = yield* nextBarrierStep({ players: participantNames });
+      const armedStep = yield* nextBarrierStep({ players: participantNames });
       const monMapId = yield* prepareLoopTauntTarget(session, normalized);
       yield* Effect.logInfo({
         message: "Loop Taunt waiting for army target sync",
