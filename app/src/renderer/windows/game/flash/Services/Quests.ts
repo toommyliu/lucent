@@ -11,6 +11,7 @@ export type QuestLoadedListener = (
 export interface QuestsShape {
   abandon(questId: number): BridgeEffect<void>;
   accept(questId: number, silent?: boolean): BridgeEffect<void>;
+  acceptMany(questIds: number[], silent?: boolean): BridgeEffect<void>;
   canComplete(questId: number): BridgeEffect<boolean>;
   complete(
     questId: number,

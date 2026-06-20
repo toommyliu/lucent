@@ -188,6 +188,29 @@ const make = Effect.gen(function* () {
   const abandon: QuestsShape["abandon"] = (questId) =>
     bridge.call("quests.abandon", [questId]);
 
+  const acceptLoadedQuest = (questId: number) =>
+    Effect.gen(function* () {
+      if (yield* isInProgress(questId)) {
+        return;
+      }
+
+      const canAccept = yield* wait.forGameAction("acceptQuest");
+      if (!canAccept) {
+        return;
+      }
+
+      const sent = yield* bridge.call("quests.accept", [questId]);
+      if (!sent) {
+        yield* Effect.logWarning({
+          message: "quest accept skipped: action unavailable",
+          questId,
+        });
+        return;
+      }
+
+      yield* waitForQuestAccept(questId);
+    });
+
   const accept: QuestsShape["accept"] = (questId, silent = false) =>
     Effect.gen(function* () {
       const canAccept = yield* wait.forGameAction("acceptQuest");
@@ -204,21 +227,32 @@ const make = Effect.gen(function* () {
         }
       }
 
-      if (yield* isInProgress(questId)) {
-        return;
-      }
-
-      const sent = yield* bridge.call("quests.accept", [questId]);
-      if (!sent) {
-        yield* Effect.logWarning({
-          message: "quest accept skipped: action unavailable",
-          questId,
-        });
-        return;
-      }
-
-      yield* waitForQuestAccept(questId);
+      yield* acceptLoadedQuest(questId);
     });
+
+  const acceptMany: QuestsShape["acceptMany"] = (questIds, silent = false) => {
+    const normalizedQuestIds = normalizeQuestIds(questIds);
+    if (normalizedQuestIds.length === 0) {
+      return Effect.void;
+    }
+
+    return Effect.gen(function* () {
+      const tree = yield* SynchronizedRef.get(quests);
+      const missingQuestIds = normalizedQuestIds.filter(
+        (questId) => !tree.get(questId),
+      );
+      if (missingQuestIds.length > 0) {
+        yield* loadMany(missingQuestIds, silent);
+      }
+
+      const updatedTree = yield* SynchronizedRef.get(quests);
+      yield* Effect.forEach(
+        normalizedQuestIds.filter((questId) => updatedTree.get(questId)),
+        acceptLoadedQuest,
+        { discard: true },
+      );
+    });
+  };
 
   const canComplete: QuestsShape["canComplete"] = (questId) =>
     bridge.call("quests.canComplete", [questId]);
@@ -364,6 +398,7 @@ const make = Effect.gen(function* () {
   return {
     abandon,
     accept,
+    acceptMany,
     canComplete,
     complete,
     getMaxTurnIns,
