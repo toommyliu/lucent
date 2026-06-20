@@ -4,6 +4,7 @@ import type {
   CombatProfile,
   CombatProfileAuraCondition,
   CombatProfileCondition,
+  CombatProfileMessageTrigger,
   CombatProfileStatCondition,
   CombatProfileStep,
 } from "../../../shared/combat-profiles";
@@ -15,12 +16,13 @@ export interface CombatProfileCursor {
   readonly state: Ref.Ref<CombatProfileCursorState>;
 }
 
-export interface CombatProfileAnimationTriggerState {
+export interface CombatProfileMessageTriggerState {
   readonly state: Ref.Ref<ReadonlyMap<string, number>>;
 }
 
-export interface CombatProfileAnimationTriggerEvent {
+export interface CombatProfileMessageTriggerEvent {
   readonly message: string;
+  readonly source: "animation" | "aura";
   readonly monMapId?: number;
 }
 
@@ -40,8 +42,8 @@ export const resetCombatProfileCursor = (
     resetVersion: state.resetVersion + 1,
   }));
 
-export const makeCombatProfileAnimationTriggerState =
-  (): Effect.Effect<CombatProfileAnimationTriggerState> =>
+export const makeCombatProfileMessageTriggerState =
+  (): Effect.Effect<CombatProfileMessageTriggerState> =>
     Effect.map(Ref.make<ReadonlyMap<string, number>>(new Map()), (state) => ({
       state,
     }));
@@ -262,29 +264,39 @@ export const castNextCombatProfileStep = (
 export const isAttackableMonster = (monster: Monster): boolean =>
   monster.alive && !monster.isDead();
 
-const normalizeAnimationTriggerText = (value: string): string =>
+const normalizeMessageTriggerText = (value: string): string =>
   value.trim().replace(/\s+/gu, " ").toLowerCase();
 
-export const matchesCombatProfileAnimationTriggerMessage = (
+export const matchesCombatProfileMessageTriggerMessage = (
   configuredMessage: string,
   message: string,
 ): boolean => {
   const normalizedConfiguredMessage =
-    normalizeAnimationTriggerText(configuredMessage);
+    normalizeMessageTriggerText(configuredMessage);
   if (normalizedConfiguredMessage === "") {
     return false;
   }
 
-  return normalizeAnimationTriggerText(message).includes(
+  return normalizeMessageTriggerText(message).includes(
     normalizedConfiguredMessage,
   );
 };
 
-export const castCombatProfileAnimationTrigger = (
+export const matchesCombatProfileMessageTrigger = (
+  trigger: CombatProfileMessageTrigger,
+  event: CombatProfileMessageTriggerEvent,
+): boolean =>
+  (trigger.source === "any" || trigger.source === event.source) &&
+  matchesCombatProfileMessageTriggerMessage(
+    trigger.messageIncludes,
+    event.message,
+  );
+
+export const castCombatProfileMessageTrigger = (
   profile: CombatProfile,
-  trigger: NonNullable<CombatProfile["animationTriggers"]>[number],
-  event: CombatProfileAnimationTriggerEvent,
-  state: CombatProfileAnimationTriggerState,
+  trigger: NonNullable<CombatProfile["messageTriggers"]>[number],
+  event: CombatProfileMessageTriggerEvent,
+  state: CombatProfileMessageTriggerState,
   now = Date.now(),
 ) =>
   Effect.gen(function* () {

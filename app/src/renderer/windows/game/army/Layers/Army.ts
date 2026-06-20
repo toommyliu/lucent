@@ -1112,13 +1112,14 @@ const make = Effect.gen(function* () {
           }),
         );
 
-        const onAnimationMessage = yield* packetDomain.on(
-          "animationMessage",
+        const onUpdateMessage = yield* packetDomain.on(
+          "updateMessage",
           (event) =>
             Effect.gen(function* () {
               if (
                 !armedComplete ||
                 options.trigger.type !== "message" ||
+                event.source !== "animation" ||
                 !matchesLoopTauntMessage(options.trigger.message, event.message)
               ) {
                 return;
@@ -1134,7 +1135,7 @@ const make = Effect.gen(function* () {
                 message: event.message,
               });
               yield* log("Loop Taunt message matched", {
-                animationMessage: event.message,
+                updateMessage: event.message,
                 configuredMessage: options.trigger.message,
                 monMapId: targetMonMapId,
               });
@@ -1181,7 +1182,7 @@ const make = Effect.gen(function* () {
               onCommand();
               onAuraAdded();
               onAuraRemoved();
-              onAnimationMessage();
+              onUpdateMessage();
               onServerCastConfirmed();
               onMonsterDeath();
             });

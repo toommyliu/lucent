@@ -16,7 +16,7 @@ export type GameEvent =
   | "questComplete"
   | "zone"
   | "joinMap"
-  | "animationMessage"
+  | "updateMessage"
   | "auraAdded"
   | "auraRemoved"
   | "afk"
@@ -73,11 +73,17 @@ export interface GameJoinMapEvent {
   readonly packet: ExtensionPacket;
 }
 
-export interface GameAnimationMessageEvent {
+export interface GameUpdateMessageEvent {
   readonly message: string;
+  readonly source: "animation" | "aura";
   readonly monMapId?: number;
   readonly sourceMonMapId?: number;
   readonly targetMonMapId?: number;
+  readonly auraName?: string;
+  readonly auraPhase?: "on" | "off";
+  readonly targetType?: "monster" | "player";
+  readonly targetId?: number;
+  readonly targetName?: string;
   readonly packet: ServerPacket;
 }
 
@@ -145,7 +151,7 @@ export interface GameEventMap {
   questComplete: GameQuestCompleteEvent;
   zone: GameZoneEvent;
   joinMap: GameJoinMapEvent;
-  animationMessage: GameAnimationMessageEvent;
+  updateMessage: GameUpdateMessageEvent;
   auraAdded: GameAuraEvent;
   auraRemoved: GameAuraEvent;
   afk: GameAfkEvent;

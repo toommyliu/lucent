@@ -19,11 +19,11 @@ import {
   resolveItemIdentifier,
 } from "../itemIdentifiers";
 import {
-  castCombatProfileAnimationTrigger,
+  castCombatProfileMessageTrigger,
   castNextCombatProfileStep,
-  makeCombatProfileAnimationTriggerState,
+  makeCombatProfileMessageTriggerState,
   makeCombatProfileCursor,
-  matchesCombatProfileAnimationTriggerMessage,
+  matchesCombatProfileMessageTrigger,
   resetCombatProfileCursor,
 } from "../../combatProfiles";
 
@@ -701,7 +701,7 @@ const make = Effect.gen(function* () {
 
   const kill: CombatShape["kill"] = (target, options) => {
     let disposeMonsterDeathListener: (() => void) | undefined;
-    let disposeAnimationMessageListener: (() => void) | undefined;
+    let disposeUpdateMessageListener: (() => void) | undefined;
     const normalizedKillOptions = normalizeKillOptions(options);
 
     return Effect.gen(function* () {
@@ -717,10 +717,10 @@ const make = Effect.gen(function* () {
         combatProfile === undefined
           ? undefined
           : yield* makeCombatProfileCursor();
-      const profileAnimationTriggerState =
+      const profileMessageTriggerState =
         combatProfile === undefined
           ? undefined
-          : yield* makeCombatProfileAnimationTriggerState();
+          : yield* makeCombatProfileMessageTriggerState();
 
       if (resolvedTarget.kind === "name" && resolvedTarget.name === "") {
         return;
@@ -1016,31 +1016,26 @@ const make = Effect.gen(function* () {
 
         if (
           combatProfile !== undefined &&
-          profileAnimationTriggerState !== undefined &&
-          (combatProfile.animationTriggers?.length ?? 0) > 0
+          profileMessageTriggerState !== undefined &&
+          (combatProfile.messageTriggers?.length ?? 0) > 0
         ) {
-          disposeAnimationMessageListener = yield* packetDomain.on(
-            "animationMessage",
+          disposeUpdateMessageListener = yield* packetDomain.on(
+            "updateMessage",
             (event) =>
               Effect.gen(function* () {
-                const triggers = combatProfile.animationTriggers ?? [];
+                const triggers = combatProfile.messageTriggers ?? [];
                 if (triggers.length === 0) {
                   return;
                 }
 
                 const now = Date.now();
                 for (const trigger of triggers) {
-                  if (
-                    matchesCombatProfileAnimationTriggerMessage(
-                      trigger.messageIncludes,
-                      event.message,
-                    )
-                  ) {
-                    yield* castCombatProfileAnimationTrigger(
+                  if (matchesCombatProfileMessageTrigger(trigger, event)) {
+                    yield* castCombatProfileMessageTrigger(
                       combatProfile,
                       trigger,
                       event,
-                      profileAnimationTriggerState,
+                      profileMessageTriggerState,
                       now,
                     ).pipe(
                       Effect.provideService(Combat, service),
@@ -1135,7 +1130,7 @@ const make = Effect.gen(function* () {
           yield* stopCombat;
           yield* Effect.sync(() => {
             disposeMonsterDeathListener?.();
-            disposeAnimationMessageListener?.();
+            disposeUpdateMessageListener?.();
           });
         }),
       ),

@@ -2025,9 +2025,9 @@ const SCRIPT_EVENT_REFERENCE: readonly ScriptEventReference[] = [
   { name: "zone", waitFor: true, payload: "ScriptEventZoneEvent" },
   { name: "joinMap", waitFor: true, payload: "ScriptEventJoinMapEvent" },
   {
-    name: "animationMessage",
+    name: "updateMessage",
     waitFor: true,
-    payload: "ScriptEventAnimationMessageEvent",
+    payload: "ScriptEventUpdateMessageEvent",
   },
   { name: "auraAdded", waitFor: true, payload: "ScriptEventAuraEvent" },
   {

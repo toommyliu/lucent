@@ -42,12 +42,13 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
 | <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a> | class | A Map with additional utility methods. |
 | <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-animation-trigger/" data-script-type="combat-profile-animation-trigger"><code>CombatProfileAnimationTrigger</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-animation-trigger-definition/" data-script-type="combat-profile-animation-trigger-definition"><code>CombatProfileAnimationTriggerDefinition</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-aura-condition/" data-script-type="combat-profile-aura-condition"><code>CombatProfileAuraCondition</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-comparison/" data-script-type="combat-profile-comparison"><code>CombatProfileComparison</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-condition/" data-script-type="combat-profile-condition"><code>CombatProfileCondition</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-message-trigger/" data-script-type="combat-profile-message-trigger"><code>CombatProfileMessageTrigger</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-message-trigger-definition/" data-script-type="combat-profile-message-trigger-definition"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-message-trigger-source/" data-script-type="combat-profile-message-trigger-source"><code>CombatProfileMessageTriggerSource</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-ref/" data-script-type="combat-profile-ref"><code>CombatProfileRef</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-ref-selected/" data-script-type="combat-profile-ref-selected"><code>CombatProfileRefSelected</code></a> | interface |  |
 | <a href="/scripting/types/combat-profile-selector/" data-script-type="combat-profile-selector"><code>CombatProfileSelector</code></a> | type alias |  |
@@ -102,7 +103,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/script-enhance-item-options/" data-script-type="script-enhance-item-options"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-equip-item-by-enhancement-options/" data-script-type="script-equip-item-by-enhancement-options"><code>ScriptEquipItemByEnhancementOptions</code></a> | type alias |  |
 | <a href="/scripting/types/script-event-afk-event/" data-script-type="script-event-afk-event"><code>ScriptEventAfkEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-animation-message-event/" data-script-type="script-event-animation-message-event"><code>ScriptEventAnimationMessageEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-anti-counter-event/" data-script-type="script-event-anti-counter-event"><code>ScriptEventAntiCounterEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-aura-event/" data-script-type="script-event-aura-event"><code>ScriptEventAuraEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-disposer/" data-script-type="script-event-disposer"><code>ScriptEventDisposer</code></a> | type alias |  |
@@ -114,6 +114,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/script-event-player-location-event/" data-script-type="script-event-player-location-event"><code>ScriptEventPlayerLocationEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-predicate/" data-script-type="script-event-predicate"><code>ScriptEventPredicate</code></a> | type alias |  |
 | <a href="/scripting/types/script-event-quest-complete-event/" data-script-type="script-event-quest-complete-event"><code>ScriptEventQuestCompleteEvent</code></a> | interface |  |
+| <a href="/scripting/types/script-event-update-message-event/" data-script-type="script-event-update-message-event"><code>ScriptEventUpdateMessageEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-event-wait-options/" data-script-type="script-event-wait-options"><code>ScriptEventWaitOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-event-zone-event/" data-script-type="script-event-zone-event"><code>ScriptEventZoneEvent</code></a> | interface |  |
 | <a href="/scripting/types/script-exit-options/" data-script-type="script-exit-options"><code>ScriptExitOptions</code></a> | interface |  |

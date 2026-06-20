@@ -660,13 +660,13 @@ interface CombatProfile {
   readonly timeoutMs: number;
   readonly resetSkillIndexOnMonsterDeath?: boolean;
   readonly steps: readonly CombatProfileStep[];
-  readonly animationTriggers?: readonly CombatProfileAnimationTrigger[];
+  readonly messageTriggers?: readonly CombatProfileMessageTrigger[];
 }
 interface CombatProfileDefinition extends Partial<
-  Omit<CombatProfile, "steps" | "animationTriggers">
+  Omit<CombatProfile, "steps" | "messageTriggers">
 > {
   readonly steps: readonly CombatProfileStepDefinition[];
-  readonly animationTriggers?: readonly CombatProfileAnimationTriggerDefinition[];
+  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
 }
 type CombatProfileSelector =
   | CombatProfileRef
@@ -858,7 +858,7 @@ interface ScriptEventMap {
   questComplete: ScriptEventQuestCompleteEvent;
   zone: ScriptEventZoneEvent;
   joinMap: ScriptEventJoinMapEvent;
-  animationMessage: ScriptEventAnimationMessageEvent;
+  updateMessage: ScriptEventUpdateMessageEvent;
   auraAdded: ScriptEventAuraEvent;
   auraRemoved: Omit<ScriptEventAuraEvent, "aura">;
   afk: ScriptEventAfkEvent;
@@ -1015,17 +1015,18 @@ interface CombatProfileStep {
   readonly cooldownMode?: CombatProfileCooldownMode;
   readonly waitMs?: number;
 }
-interface CombatProfileAnimationTrigger {
+interface CombatProfileMessageTrigger {
   readonly id: string;
   readonly messageIncludes: string;
   readonly skill: number;
+  readonly source: CombatProfileMessageTriggerSource;
   readonly cooldownMs?: number;
 }
 type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
   readonly skill: number;
 };
-type CombatProfileAnimationTriggerDefinition =
-  Partial<CombatProfileAnimationTrigger> & {
+type CombatProfileMessageTriggerDefinition =
+  Partial<CombatProfileMessageTrigger> & {
     readonly messageIncludes: string;
     readonly skill: number;
   };
@@ -1237,11 +1238,17 @@ interface ScriptEventJoinMapEvent {
   readonly mapId?: number;
   readonly roomNumber?: number;
 }
-interface ScriptEventAnimationMessageEvent {
+interface ScriptEventUpdateMessageEvent {
   readonly message: string;
+  readonly source: "animation" | "aura";
   readonly monMapId?: number;
   readonly sourceMonMapId?: number;
   readonly targetMonMapId?: number;
+  readonly auraName?: string;
+  readonly auraPhase?: "on" | "off";
+  readonly targetType?: "monster" | "player";
+  readonly targetId?: number;
+  readonly targetName?: string;
 }
 interface ScriptEventAuraEvent {
   readonly auraName: string;
@@ -1369,6 +1376,7 @@ declare enum EntityState {
 type CombatProfileCondition =
   | CombatProfileStatCondition
   | CombatProfileAuraCondition;
+type CombatProfileMessageTriggerSource = "any" | "animation" | "aura";
 interface CombatProfileRefSelected {
   readonly mode: "selected";
   readonly profileId: string;

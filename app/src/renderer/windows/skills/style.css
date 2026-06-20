@@ -181,7 +181,7 @@
   align-items: end;
   display: grid;
   gap: 0.5rem;
-  grid-template-columns: minmax(0, 1fr) minmax(5rem, 7rem) minmax(7rem, 9rem) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9rem) minmax(5rem, 7rem) minmax(7rem, 9rem) auto;
 }
 
 .skills-trigger > label,
@@ -294,6 +294,14 @@
 
 .skills-select .select__trigger {
   min-width: 0;
+}
+
+.skills-select--source .select__trigger {
+  min-width: 8rem;
+}
+
+.skills-select-content--source {
+  min-width: 8rem;
 }
 
 .skills-empty-rule {

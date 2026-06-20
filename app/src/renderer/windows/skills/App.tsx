@@ -52,8 +52,9 @@ import {
   DEFAULT_COMBAT_PROFILE_ROLE,
   makeCombatProfileId,
   type CombatProfile,
-  type CombatProfileAnimationTrigger,
-  type CombatProfileAnimationTriggerDefinition,
+  type CombatProfileMessageTrigger,
+  type CombatProfileMessageTriggerDefinition,
+  type CombatProfileMessageTriggerSource,
   type CombatProfileCondition,
   type CombatProfileCooldownMode,
   type CombatProfileDefinition,
@@ -98,12 +99,26 @@ const stepCooldownModeOptions = [
   { value: "wait-for-cooldown", label: "Wait for cooldown" },
 ] as const;
 
+const messageTriggerSourceOptions = [
+  { value: "any", label: "Any" },
+  { value: "animation", label: "Animation" },
+  { value: "aura", label: "Aura" },
+] as const satisfies readonly {
+  readonly value: CombatProfileMessageTriggerSource;
+  readonly label: string;
+}[];
+
 const jsIdentifierPattern = /^[A-Za-z_$][\w$]*$/u;
 
 const isCombatProfileCooldownMode = (
   value: string | undefined,
 ): value is CombatProfileCooldownMode =>
   value === "use-if-ready" || value === "wait-for-cooldown";
+
+const isMessageTriggerSource = (
+  value: string | undefined,
+): value is CombatProfileMessageTriggerSource =>
+  value === "any" || value === "animation" || value === "aura";
 
 const isStatCondition = (
   condition: CombatProfileCondition,
@@ -209,11 +224,12 @@ const toScriptProfileStep = (
   ...(step.waitMs === undefined ? {} : { waitMs: step.waitMs }),
 });
 
-const toScriptAnimationTrigger = (
-  trigger: CombatProfileAnimationTrigger,
-): CombatProfileAnimationTriggerDefinition => ({
+const toScriptMessageTrigger = (
+  trigger: CombatProfileMessageTrigger,
+): CombatProfileMessageTriggerDefinition => ({
   messageIncludes: trigger.messageIncludes,
   skill: trigger.skill,
+  source: trigger.source,
   ...(trigger.cooldownMs === undefined
     ? {}
     : { cooldownMs: trigger.cooldownMs }),
@@ -222,11 +238,11 @@ const toScriptAnimationTrigger = (
 const toScriptProfileDefinition = (
   profile: CombatProfile,
 ): CombatProfileDefinition => {
-  const animationTriggers =
-    profile.animationTriggers === undefined ||
-    profile.animationTriggers.length === 0
+  const messageTriggers =
+    profile.messageTriggers === undefined ||
+    profile.messageTriggers.length === 0
       ? undefined
-      : profile.animationTriggers.map(toScriptAnimationTrigger);
+      : profile.messageTriggers.map(toScriptMessageTrigger);
 
   return {
     delayMs: profile.delayMs,
@@ -235,7 +251,7 @@ const toScriptProfileDefinition = (
       ? { resetSkillIndexOnMonsterDeath: true }
       : {}),
     steps: profile.steps.map(toScriptProfileStep),
-    ...(animationTriggers === undefined ? {} : { animationTriggers }),
+    ...(messageTriggers === undefined ? {} : { messageTriggers }),
   };
 };
 
@@ -281,9 +297,9 @@ function App(): JSX.Element {
   const [draftSteps, setDraftSteps] = createSignal<
     readonly CombatProfileStep[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.steps ?? []);
-  const [draftAnimationTriggers, setDraftAnimationTriggers] = createSignal<
-    readonly CombatProfileAnimationTrigger[]
-  >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.animationTriggers ?? []);
+  const [draftMessageTriggers, setDraftMessageTriggers] = createSignal<
+    readonly CombatProfileMessageTrigger[]
+  >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.messageTriggers ?? []);
   const [saving, setSaving] = createSignal(false);
   const [profileCopied, setProfileCopied] = createSignal(false);
   const [error, setError] = createSignal("");
@@ -345,8 +361,8 @@ function App(): JSX.Element {
       profile.resetSkillIndexOnMonsterDeath === true,
     );
     setDraftSteps(profile.steps.map((step) => ({ ...step })));
-    setDraftAnimationTriggers(
-      (profile.animationTriggers ?? []).map((trigger) => ({ ...trigger })),
+    setDraftMessageTriggers(
+      (profile.messageTriggers ?? []).map((trigger) => ({ ...trigger })),
     );
   });
 
@@ -437,7 +453,7 @@ function App(): JSX.Element {
 
         return step;
       }),
-      animationTriggers: draftAnimationTriggers(),
+      messageTriggers: draftMessageTriggers(),
     } satisfies CombatProfile;
     return {
       ...profileWithoutClassName,
@@ -504,7 +520,7 @@ function App(): JSX.Element {
         skill,
         conditions: [],
       })),
-      animationTriggers: [],
+      messageTriggers: [],
     };
 
     const saved = await runUpdate(
@@ -619,32 +635,33 @@ function App(): JSX.Element {
     updateCondition(stepIndex, conditionIndex, () => createCondition(type));
   };
 
-  const updateAnimationTrigger = (
+  const updateMessageTrigger = (
     triggerIndex: number,
     update: (
-      trigger: CombatProfileAnimationTrigger,
-    ) => CombatProfileAnimationTrigger,
+      trigger: CombatProfileMessageTrigger,
+    ) => CombatProfileMessageTrigger,
   ): void => {
-    setDraftAnimationTriggers((triggers) =>
+    setDraftMessageTriggers((triggers) =>
       triggers.map((trigger, index) =>
         index === triggerIndex ? update(trigger) : trigger,
       ),
     );
   };
 
-  const addAnimationTrigger = (): void => {
-    setDraftAnimationTriggers((triggers) => [
+  const addMessageTrigger = (): void => {
+    setDraftMessageTriggers((triggers) => [
       ...triggers,
       {
         id: `${selectedId()}-trigger-${Date.now()}`,
         messageIncludes: "",
         skill: 5,
+        source: "any",
       },
     ]);
   };
 
-  const removeAnimationTrigger = (triggerIndex: number): void => {
-    setDraftAnimationTriggers((triggers) =>
+  const removeMessageTrigger = (triggerIndex: number): void => {
+    setDraftMessageTriggers((triggers) =>
       triggers.filter((_, index) => index !== triggerIndex),
     );
   };
@@ -875,15 +892,15 @@ function App(): JSX.Element {
               <CardFrameHeader class="skills-frame-header">
                 <CardFrameTitle>
                   <SkillsLabelHelp
-                    label="Triggers"
-                    tooltip="Cast a skill when a matching animation message appears."
+                    label="Message triggers"
+                    tooltip="Cast a skill when a matching update message appears."
                   />
                 </CardFrameTitle>
                 <Button
                   class="skills-add-skill-button"
                   size="sm"
                   variant="ghost"
-                  onClick={addAnimationTrigger}
+                  onClick={addMessageTrigger}
                 >
                   + Trigger
                 </Button>
@@ -891,14 +908,12 @@ function App(): JSX.Element {
               <Card>
                 <CardContent class="skills-triggers">
                   <Show
-                    when={draftAnimationTriggers().length > 0}
+                    when={draftMessageTriggers().length > 0}
                     fallback={
-                      <div class="skills-empty-rule">
-                        No animation triggers.
-                      </div>
+                      <div class="skills-empty-rule">No message triggers.</div>
                     }
                   >
-                    <Index each={draftAnimationTriggers()}>
+                    <Index each={draftMessageTriggers()}>
                       {(trigger, triggerIndex) => (
                         <div class="skills-trigger">
                           <Label>
@@ -907,7 +922,7 @@ function App(): JSX.Element {
                               value={trigger().messageIncludes}
                               placeholder="message text"
                               onInput={(event) =>
-                                updateAnimationTrigger(
+                                updateMessageTrigger(
                                   triggerIndex,
                                   (current) => ({
                                     ...current,
@@ -918,12 +933,43 @@ function App(): JSX.Element {
                             />
                           </Label>
                           <Label>
+                            <span>Source</span>
+                            <Select
+                              class="skills-select skills-select--source"
+                              value={[trigger().source]}
+                              onValueChange={(details) =>
+                                updateMessageTrigger(
+                                  triggerIndex,
+                                  (current) => {
+                                    const source = details.value[0];
+                                    return isMessageTriggerSource(source)
+                                      ? { ...current, source }
+                                      : current;
+                                  },
+                                )
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Source" />
+                              </SelectTrigger>
+                              <SelectContent class="skills-select-content--source">
+                                <For each={messageTriggerSourceOptions}>
+                                  {(option) => (
+                                    <SelectItem value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  )}
+                                </For>
+                              </SelectContent>
+                            </Select>
+                          </Label>
+                          <Label>
                             <span>Skill</span>
                             <Select
                               class="skills-select skills-select--skill"
                               value={[String(trigger().skill)]}
                               onValueChange={(details) =>
-                                updateAnimationTrigger(
+                                updateMessageTrigger(
                                   triggerIndex,
                                   (current) => ({
                                     ...current,
@@ -961,7 +1007,7 @@ function App(): JSX.Element {
                               value={String(trigger().cooldownMs ?? "")}
                               placeholder="0"
                               onInput={(event) =>
-                                updateAnimationTrigger(
+                                updateMessageTrigger(
                                   triggerIndex,
                                   (current) => {
                                     const raw =
@@ -992,7 +1038,7 @@ function App(): JSX.Element {
                             aria-label="Remove trigger"
                             size="icon-sm"
                             variant="ghost"
-                            onClick={() => removeAnimationTrigger(triggerIndex)}
+                            onClick={() => removeMessageTrigger(triggerIndex)}
                           >
                             <Icon icon="x" class="button__icon" />
                           </Button>
