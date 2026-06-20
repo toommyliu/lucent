@@ -496,7 +496,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--color-foreground);
-  cursor: pointer;
+  cursor: var(--cursor-interactive);
   display: grid;
   font: inherit;
   gap: 0.375rem;
@@ -878,7 +878,7 @@
   border: 0;
   border-bottom: 1px solid rgba(var(--border), 0.5);
   color: var(--color-foreground);
-  cursor: pointer;
+  cursor: var(--cursor-interactive);
   display: grid;
   font: inherit;
   gap: 0.625rem;
