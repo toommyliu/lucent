@@ -12,6 +12,7 @@ import {
   AlertDescription,
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -146,6 +147,13 @@ import {
 import { toDiagnosticDetails, toErrorMessage } from "./scripting/errorDetails";
 import type { ScriptDiagnostic } from "./scripting/Types";
 import type { ScriptRunnerStatus } from "./scripting/scriptRunnerStatus";
+import {
+  confirmPendingManualScriptLoad,
+  requestManualScriptLoad,
+  scriptExecutePayloadName,
+  type ManualScriptLoad,
+  type PendingManualScriptLoad,
+} from "./manualScriptLoad";
 
 markGameStartup("app-module-evaluated");
 
@@ -259,12 +267,21 @@ interface ScriptInputsDialogError {
   readonly fields: readonly ScriptInputsDialogErrorField[];
 }
 
+interface ManualScriptLoadCallbacks {
+  readonly onLoaded?: (script: ManualScriptLoad) => void;
+  readonly onPending?: (pending: PendingManualScriptLoad) => void;
+  readonly onCancel?: () => void;
+}
+
+interface PendingManualScriptLoadDialog {
+  readonly request: PendingManualScriptLoad;
+  readonly callbacks: ManualScriptLoadCallbacks;
+}
+
 interface DevDebugEvaluatorProps {
-  readonly applyLoadedScript: (
-    source: string,
-    name: string,
-    path?: string,
-    inputs?: ScriptInputsDefinition,
+  readonly requestManualScriptLoad: (
+    payload: ScriptExecutePayload,
+    callbacks?: ManualScriptLoadCallbacks,
   ) => void;
   readonly refreshScriptMeta: () => Promise<void>;
 }
@@ -529,15 +546,26 @@ ${source}
             return;
           }
 
-          props.applyLoadedScript(
-            createDebugScriptSource(source),
-            DEBUG_EVAL_SOURCE_NAME,
+          props.requestManualScriptLoad(
+            {
+              source: createDebugScriptSource(source),
+              name: DEBUG_EVAL_SOURCE_NAME,
+            },
+            {
+              onLoaded: () => {
+                setStatus("Loaded into script runner");
+                setOutput("");
+                setCopyableOutput("");
+                setOutputCopied(false);
+              },
+              onPending: () => {
+                setStatus("Confirm script replacement");
+              },
+              onCancel: () => {
+                setStatus("Load cancelled");
+              },
+            },
           );
-          setStatus("Loaded into script runner");
-          setOutput("");
-          setCopyableOutput("");
-          setOutputCopied(false);
-          void props.refreshScriptMeta();
         };
 
         const markOutputCopied = () => {
@@ -905,6 +933,10 @@ export default function App(props: {
     createSignal<FatalScriptAlert | null>(null);
   const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
   const [fatalScriptAlertCopied, setFatalScriptAlertCopied] =
+    createSignal(false);
+  const [pendingManualScriptLoad, setPendingManualScriptLoad] =
+    createSignal<PendingManualScriptLoadDialog | null>(null);
+  const [manualScriptLoadConfirming, setManualScriptLoadConfirming] =
     createSignal(false);
 
   const [customName, setCustomName] = createSignal("");
@@ -1649,7 +1681,7 @@ export default function App(props: {
       }
 
       const script = payload.script;
-      const name = script.name ?? script.path ?? "script";
+      const name = scriptExecutePayloadName(script);
       const runner = yield* ScriptRunner;
       yield* Effect.sync(() => {
         applyLoadedScript(script.source, name, script.path, script.inputs);
@@ -1687,7 +1719,7 @@ export default function App(props: {
             payload.script !== undefined &&
             !isAccountLaunchInputsRequired(error)
           ) {
-            const name = payload.script.name ?? payload.script.path ?? "script";
+            const name = scriptExecutePayloadName(payload.script);
             yield* Effect.sync(() => {
               showFatalScriptError(name, error, payload.script?.path);
             });
@@ -1698,7 +1730,9 @@ export default function App(props: {
           yield* publishAccountManagerWindowStatusEffect(
             "failed",
             formatAccountLaunchError(error),
-            payload.script?.name ?? payload.script?.path,
+            payload.script === undefined
+              ? undefined
+              : scriptExecutePayloadName(payload.script),
           );
           void refreshScriptMeta();
         }),
@@ -1736,6 +1770,80 @@ export default function App(props: {
     setScriptLoaded(true);
   };
 
+  const applyManualScriptLoad = (script: ManualScriptLoad): void => {
+    applyLoadedScript(script.source, script.name, script.path, script.inputs);
+  };
+
+  const stopRunningScriptForManualLoad = (): Promise<void> =>
+    runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        yield* runner.stop("manual script replacement");
+      }),
+    );
+
+  const requestManualScriptLoadPayload = (
+    payload: ScriptExecutePayload,
+    callbacks: ManualScriptLoadCallbacks = {},
+  ): void => {
+    const result = requestManualScriptLoad(payload, {
+      scriptRunning,
+      currentScriptName: () => scriptName() || "script",
+      applyLoadedScript: applyManualScriptLoad,
+      setPendingManualScriptLoad: (request) => {
+        setPendingManualScriptLoad({ request, callbacks });
+      },
+    });
+
+    if (result.status === "loaded") {
+      callbacks.onLoaded?.(result.script);
+      setScriptStatus(`Loaded ${result.script.name}`);
+      void refreshScriptMeta();
+      return;
+    }
+
+    callbacks.onPending?.(result.pending);
+  };
+
+  const cancelPendingManualScriptLoad = (): void => {
+    if (manualScriptLoadConfirming()) {
+      return;
+    }
+
+    const pending = pendingManualScriptLoad();
+    setPendingManualScriptLoad(null);
+    pending?.callbacks.onCancel?.();
+  };
+
+  const confirmManualScriptLoadReplacement = async (): Promise<void> => {
+    const pending = pendingManualScriptLoad();
+    if (pending === null || manualScriptLoadConfirming()) {
+      return;
+    }
+
+    setManualScriptLoadConfirming(true);
+    setScriptStatus(`Stopping ${pending.request.currentScriptName}`);
+    try {
+      const loadedScript = await confirmPendingManualScriptLoad(
+        pending.request,
+        {
+          stopRunningScript: stopRunningScriptForManualLoad,
+          applyLoadedScript: applyManualScriptLoad,
+        },
+      );
+      setPendingManualScriptLoad(null);
+      pending.callbacks.onLoaded?.(loadedScript);
+      setScriptRunning(false);
+      setScriptStatus(`Loaded ${loadedScript.name}`);
+      void refreshScriptMeta();
+    } catch (error) {
+      console.error("Failed to replace running script:", error);
+      setScriptStatus(`Failed to load ${pending.request.nextScript.name}`);
+    } finally {
+      setManualScriptLoadConfirming(false);
+    }
+  };
+
   const applyAppSettings = (settings: AppSettings) => {
     setSettings(settings);
   };
@@ -1743,7 +1851,7 @@ export default function App(props: {
   const applyScriptPayload = async (
     payload: ScriptExecutePayload,
   ): Promise<string> => {
-    const name = payload.name ?? payload.path ?? "script";
+    const name = scriptExecutePayloadName(payload);
     applyLoadedScript(payload.source, name, payload.path, payload.inputs);
     return name;
   };
@@ -1805,9 +1913,7 @@ export default function App(props: {
         return;
       }
 
-      const name = await applyScriptPayload(payload);
-      setScriptStatus(`Loaded ${name}`);
-      void refreshScriptMeta();
+      requestManualScriptLoadPayload(payload);
     } catch (error) {
       console.error("Failed to load script", error);
       setScriptLoaded(false);
@@ -2852,7 +2958,7 @@ export default function App(props: {
       (payload) => {
         void runScriptPayloadFromIpc(payload)
           .catch((error) => {
-            const name = payload.name ?? payload.path ?? "script";
+            const name = scriptExecutePayloadName(payload);
             console.error("Failed to run script payload", error);
             showFatalScriptError(name, error, payload.path);
             setScriptStatus("Failed to run script");
@@ -3230,6 +3336,47 @@ export default function App(props: {
         </DialogContent>
       </Dialog>
       <AlertDialog
+        open={pendingManualScriptLoad() !== null}
+        onOpenChange={(details) => {
+          if (!details.open) {
+            cancelPendingManualScriptLoad();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace running script?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <Show when={pendingManualScriptLoad()}>
+                {(pending) => (
+                  <>
+                    Stop {pending().request.currentScriptName} before loading{" "}
+                    {pending().request.nextScript.name}? The new script will be
+                    loaded but not started.
+                  </>
+                )}
+              </Show>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={manualScriptLoadConfirming()}
+              size="sm"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              loading={manualScriptLoadConfirming()}
+              onClick={() => void confirmManualScriptLoadReplacement()}
+              size="sm"
+              variant="destructive"
+            >
+              Stop and Load
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
         open={fatalScriptAlertOpen()}
         onOpenChange={(details) => {
           setFatalScriptAlertOpen(details.open);
@@ -3397,8 +3544,8 @@ export default function App(props: {
       </Show>
       {process.env.NODE_ENV === "development" && DevDebugEvaluator ? (
         <DevDebugEvaluator
-          applyLoadedScript={applyLoadedScript}
           refreshScriptMeta={refreshScriptMeta}
+          requestManualScriptLoad={requestManualScriptLoadPayload}
         />
       ) : null}
 
