@@ -55,14 +55,6 @@ const normalizeCurrentScriptName = (name: string): string => {
   return trimmed === "" ? "script" : trimmed;
 };
 
-export const createPendingManualScriptLoad = (
-  payload: ScriptExecutePayload,
-  currentScriptName: string,
-): PendingManualScriptLoad => ({
-  currentScriptName: normalizeCurrentScriptName(currentScriptName),
-  nextScript: toManualScriptLoad(payload),
-});
-
 export const requestManualScriptLoad = (
   payload: ScriptExecutePayload,
   actions: ManualScriptLoadRequestActions,
