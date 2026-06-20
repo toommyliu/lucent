@@ -107,11 +107,17 @@ export interface ScriptEventJoinMapEvent {
   readonly roomNumber?: number;
 }
 
-export interface ScriptEventAnimationMessageEvent {
+export interface ScriptEventUpdateMessageEvent {
   readonly message: string;
+  readonly source: "animation" | "aura";
   readonly monMapId?: number;
   readonly sourceMonMapId?: number;
   readonly targetMonMapId?: number;
+  readonly auraName?: string;
+  readonly auraPhase?: "on" | "off";
+  readonly targetType?: "monster" | "player";
+  readonly targetId?: number;
+  readonly targetName?: string;
 }
 
 export interface ScriptEventAuraEvent {
@@ -152,7 +158,7 @@ export interface ScriptEventMap {
   questComplete: ScriptEventQuestCompleteEvent;
   zone: ScriptEventZoneEvent;
   joinMap: ScriptEventJoinMapEvent;
-  animationMessage: ScriptEventAnimationMessageEvent;
+  updateMessage: ScriptEventUpdateMessageEvent;
   auraAdded: ScriptEventAuraEvent;
   auraRemoved: Omit<ScriptEventAuraEvent, "aura">;
   afk: ScriptEventAfkEvent;

@@ -53,7 +53,7 @@ describe("LoopTaunt domain", () => {
     );
   });
 
-  it("matches animation messages case-insensitively with normalized whitespace", () => {
+  it("matches update messages case-insensitively with normalized whitespace", () => {
     expect(
       matchesLoopTauntMessage(" lethal   strike ", "Boss uses LEThal strike"),
     ).toBe(true);

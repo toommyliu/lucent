@@ -51,10 +51,13 @@ export interface CombatProfileStep {
   readonly waitMs?: number;
 }
 
-export interface CombatProfileAnimationTrigger {
+export type CombatProfileMessageTriggerSource = "any" | "animation" | "aura";
+
+export interface CombatProfileMessageTrigger {
   readonly id: string;
   readonly messageIncludes: string;
   readonly skill: number;
+  readonly source: CombatProfileMessageTriggerSource;
   readonly cooldownMs?: number;
 }
 
@@ -68,7 +71,7 @@ export interface CombatProfile {
   readonly timeoutMs: number;
   readonly resetSkillIndexOnMonsterDeath?: boolean;
   readonly steps: readonly CombatProfileStep[];
-  readonly animationTriggers?: readonly CombatProfileAnimationTrigger[];
+  readonly messageTriggers?: readonly CombatProfileMessageTrigger[];
 }
 
 export interface CombatProfileRefSelected {
@@ -98,17 +101,17 @@ export type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
   readonly skill: number;
 };
 
-export type CombatProfileAnimationTriggerDefinition =
-  Partial<CombatProfileAnimationTrigger> & {
+export type CombatProfileMessageTriggerDefinition =
+  Partial<CombatProfileMessageTrigger> & {
     readonly messageIncludes: string;
     readonly skill: number;
   };
 
 export interface CombatProfileDefinition extends Partial<
-  Omit<CombatProfile, "steps" | "animationTriggers">
+  Omit<CombatProfile, "steps" | "messageTriggers">
 > {
   readonly steps: readonly CombatProfileStepDefinition[];
-  readonly animationTriggers?: readonly CombatProfileAnimationTriggerDefinition[];
+  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
 }
 
 export interface CombatProfileAutoAttackState {
@@ -129,7 +132,7 @@ const MAX_LABEL_LENGTH = 80;
 const MAX_ROLE_LENGTH = 40;
 const MAX_CLASS_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
-const MAX_ANIMATION_TRIGGER_TEXT_LENGTH = 160;
+const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -143,6 +146,11 @@ const isAutoAttackMode = (
 ): value is CombatProfileAutoAttackMode =>
   typeof value === "string" &&
   CombatProfileAutoAttackModes.includes(value as CombatProfileAutoAttackMode);
+
+const isMessageTriggerSource = (
+  value: unknown,
+): value is CombatProfileMessageTriggerSource =>
+  value === "any" || value === "animation" || value === "aura";
 
 const isDefined = <T>(value: T | undefined): value is T => value !== undefined;
 
@@ -292,17 +300,17 @@ const normalizeStep = (
   };
 };
 
-const normalizeAnimationTrigger = (
+const normalizeMessageTrigger = (
   value: unknown,
   index: number,
-): CombatProfileAnimationTrigger | undefined => {
+): CombatProfileMessageTrigger | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
 
   const messageIncludes = trimString(
     value["messageIncludes"],
-    MAX_ANIMATION_TRIGGER_TEXT_LENGTH,
+    MAX_MESSAGE_TRIGGER_TEXT_LENGTH,
   );
   if (messageIncludes === undefined) {
     return undefined;
@@ -319,6 +327,7 @@ const normalizeAnimationTrigger = (
     id: trimString(value["id"], 80) ?? `trigger-${index + 1}`,
     messageIncludes,
     skill,
+    source: isMessageTriggerSource(value["source"]) ? value["source"] : "any",
     ...(cooldownMs > 0 ? { cooldownMs } : {}),
   };
 };
@@ -335,7 +344,7 @@ const genericProfile = (): CombatProfile => ({
     skill,
     conditions: [],
   })),
-  animationTriggers: [],
+  messageTriggers: [],
 });
 
 export const DEFAULT_COMBAT_PROFILE_LIBRARY: CombatProfileLibrary = {
@@ -356,10 +365,10 @@ export const cloneCombatProfileLibrary = (
       ...step,
       conditions: step.conditions.map((condition) => ({ ...condition })),
     })),
-    ...(profile.animationTriggers === undefined
+    ...(profile.messageTriggers === undefined
       ? {}
       : {
-          animationTriggers: profile.animationTriggers.map((trigger) => ({
+          messageTriggers: profile.messageTriggers.map((trigger) => ({
             ...trigger,
           })),
         }),
@@ -385,10 +394,8 @@ const normalizeProfile = (
   const steps = Array.isArray(value["steps"])
     ? value["steps"].map(normalizeStep).filter(isDefined)
     : [];
-  const animationTriggers = Array.isArray(value["animationTriggers"])
-    ? value["animationTriggers"]
-        .map(normalizeAnimationTrigger)
-        .filter(isDefined)
+  const messageTriggers = Array.isArray(value["messageTriggers"])
+    ? value["messageTriggers"].map(normalizeMessageTrigger).filter(isDefined)
     : [];
 
   return {
@@ -418,7 +425,7 @@ const normalizeProfile = (
       steps.length > 0
         ? steps
         : genericProfile().steps.map((step) => ({ ...step })),
-    ...(animationTriggers.length === 0 ? {} : { animationTriggers }),
+    ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };
 

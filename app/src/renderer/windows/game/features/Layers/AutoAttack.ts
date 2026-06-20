@@ -4,17 +4,17 @@ import {
   type CombatProfile,
 } from "../../../../../shared/combat-profiles";
 import {
-  castCombatProfileAnimationTrigger,
+  castCombatProfileMessageTrigger,
   castNextCombatProfileStep,
   isAttackableMonster,
   makeCombatProfileCursor,
-  matchesCombatProfileAnimationTriggerMessage,
+  matchesCombatProfileMessageTrigger,
   resetCombatProfileCursor,
 } from "../../combatProfiles";
 import { Combat } from "../../flash/Services/Combat";
 import { GameEvents } from "../../flash/Services/GameEvents";
 import type {
-  GameAnimationMessageEvent,
+  GameUpdateMessageEvent,
   GameEventHandler,
 } from "../../flash/Services/GameEvents";
 import { Player } from "../../flash/Services/Player";
@@ -58,7 +58,7 @@ const make = Effect.gen(function* () {
   const enabledRef = yield* Ref.make(false);
   const profileRef = yield* Ref.make<CombatProfile | undefined>(undefined);
   const lastErrorRef = yield* Ref.make<string | undefined>(undefined);
-  const animationTriggerLastCastRef = yield* Ref.make<
+  const messageTriggerLastCastRef = yield* Ref.make<
     ReadonlyMap<string, number>
   >(new Map());
   const updateSemaphore = yield* Semaphore.make(1);
@@ -113,30 +113,30 @@ const make = Effect.gen(function* () {
     }
   });
 
-  const runAnimationTrigger = (
+  const runMessageTrigger = (
     profile: CombatProfile,
-    trigger: NonNullable<CombatProfile["animationTriggers"]>[number],
-    event: GameAnimationMessageEvent,
+    trigger: NonNullable<CombatProfile["messageTriggers"]>[number],
+    event: GameUpdateMessageEvent,
     now: number,
   ) =>
     Effect.gen(function* () {
-      yield* castCombatProfileAnimationTrigger(
+      yield* castCombatProfileMessageTrigger(
         profile,
         trigger,
         event,
-        { state: animationTriggerLastCastRef },
+        { state: messageTriggerLastCastRef },
         now,
       ).pipe(
         Effect.provideService(Combat, combat),
         Effect.catch((cause) =>
           setLastError(
-            cause instanceof Error ? cause.message : "Animation trigger failed",
+            cause instanceof Error ? cause.message : "Message trigger failed",
           ),
         ),
       );
     });
 
-  const handleAnimationMessage = (event: GameAnimationMessageEvent) =>
+  const handleUpdateMessage = (event: GameUpdateMessageEvent) =>
     Effect.gen(function* () {
       if (!(yield* Ref.get(enabledRef))) {
         return;
@@ -147,20 +147,15 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      const triggers = profile.animationTriggers ?? [];
+      const triggers = profile.messageTriggers ?? [];
       if (triggers.length === 0) {
         return;
       }
 
       const now = Date.now();
       for (const trigger of triggers) {
-        if (
-          matchesCombatProfileAnimationTriggerMessage(
-            trigger.messageIncludes,
-            event.message,
-          )
-        ) {
-          yield* runAnimationTrigger(profile, trigger, event, now);
+        if (matchesCombatProfileMessageTrigger(trigger, event)) {
+          yield* runMessageTrigger(profile, trigger, event, now);
         }
       }
     });
@@ -359,7 +354,7 @@ const make = Effect.gen(function* () {
         yield* Ref.set(enabledRef, true);
         yield* Ref.set(profileRef, profile);
         yield* Ref.set(lastErrorRef, undefined);
-        yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(messageTriggerLastCastRef, new Map());
 
         const startJob: Effect.Effect<boolean, unknown> = jobs.start(
           AUTO_ATTACK_JOB_KEY,
@@ -396,7 +391,7 @@ const make = Effect.gen(function* () {
     updateSemaphore.withPermits(1)(
       Effect.gen(function* () {
         yield* Ref.set(enabledRef, false);
-        yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(messageTriggerLastCastRef, new Map());
         yield* jobs.stop(AUTO_ATTACK_JOB_KEY);
         yield* combat.cancelAutoAttack().pipe(Effect.catch(() => Effect.void));
         yield* combat.cancelTarget().pipe(Effect.catch(() => Effect.void));
@@ -429,16 +424,16 @@ const make = Effect.gen(function* () {
       };
     });
 
-  const disposeAnimationMessage = Option.isSome(maybeGameEvents)
+  const disposeUpdateMessage = Option.isSome(maybeGameEvents)
     ? yield* maybeGameEvents.value.on(
-        "animationMessage",
-        handleAnimationMessage as GameEventHandler<"animationMessage">,
+        "updateMessage",
+        handleUpdateMessage as GameEventHandler<"updateMessage">,
       )
     : undefined;
 
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
-      disposeAnimationMessage?.();
+      disposeUpdateMessage?.();
     }),
   );
   yield* Effect.addFinalizer(() => disable().pipe(Effect.asVoid));

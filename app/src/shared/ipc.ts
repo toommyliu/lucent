@@ -123,6 +123,8 @@ export type {
   CombatProfileCondition,
   CombatProfileCooldownMode,
   CombatProfileLibrary,
+  CombatProfileMessageTrigger,
+  CombatProfileMessageTriggerSource,
   CombatProfileRef,
   CombatProfileRefSelected,
   CombatProfileStatCondition,

@@ -133,7 +133,7 @@ const SCRIPT_EVENT_NAMES = new Set<ScriptEventName>([
   "questComplete",
   "zone",
   "joinMap",
-  "animationMessage",
+  "updateMessage",
   "auraAdded",
   "auraRemoved",
   "afk",
@@ -148,7 +148,7 @@ const SCRIPT_SEMANTIC_EVENT_NAMES = new Set<ScriptSemanticEventName>([
   "questComplete",
   "zone",
   "joinMap",
-  "animationMessage",
+  "updateMessage",
   "auraAdded",
   "auraRemoved",
   "afk",
@@ -786,10 +786,11 @@ const make = Effect.gen(function* () {
               : { roomNumber: payload.roomNumber }),
           } as ScriptEventMap[E];
         }
-        case "animationMessage": {
-          const payload = event as GameEventMap["animationMessage"];
+        case "updateMessage": {
+          const payload = event as GameEventMap["updateMessage"];
           return {
             message: payload.message,
+            source: payload.source,
             ...(payload.monMapId === undefined
               ? {}
               : { monMapId: payload.monMapId }),
@@ -799,6 +800,21 @@ const make = Effect.gen(function* () {
             ...(payload.targetMonMapId === undefined
               ? {}
               : { targetMonMapId: payload.targetMonMapId }),
+            ...(payload.auraName === undefined
+              ? {}
+              : { auraName: payload.auraName }),
+            ...(payload.auraPhase === undefined
+              ? {}
+              : { auraPhase: payload.auraPhase }),
+            ...(payload.targetType === undefined
+              ? {}
+              : { targetType: payload.targetType }),
+            ...(payload.targetId === undefined
+              ? {}
+              : { targetId: payload.targetId }),
+            ...(payload.targetName === undefined
+              ? {}
+              : { targetName: payload.targetName }),
           } as ScriptEventMap[E];
         }
         case "auraAdded": {

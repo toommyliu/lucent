@@ -9,7 +9,7 @@ import {
 } from "../../../../../shared/follower";
 import {
   findCombatProfileByRef,
-  type CombatProfileAnimationTrigger,
+  type CombatProfileMessageTrigger,
   type CombatProfile,
 } from "../../../../../shared/combat-profiles";
 import {
@@ -17,11 +17,12 @@ import {
   type CombatProfileCursor,
   isAttackableMonster,
   makeCombatProfileCursor,
-  matchesCombatProfileAnimationTriggerMessage,
+  matchesCombatProfileMessageTrigger,
   resetCombatProfileCursor,
 } from "../../combatProfiles";
 import { Combat } from "../../flash/Services/Combat";
 import { GameEvents } from "../../flash/Services/GameEvents";
+import type { GameUpdateMessageEvent } from "../../flash/Services/GameEvents";
 import { Player } from "../../flash/Services/Player";
 import { Packet } from "../../flash/Services/Packet";
 import { Wait } from "../../flash/Services/Wait";
@@ -145,7 +146,7 @@ const make = Effect.gen(function* () {
   const targetLocationWakeRef = yield* Ref.make<
     Deferred.Deferred<void> | undefined
   >(undefined);
-  const animationTriggerLastCastRef = yield* Ref.make<
+  const messageTriggerLastCastRef = yield* Ref.make<
     ReadonlyMap<string, number>
   >(new Map());
   const activeCombatCursorRef = yield* Ref.make<
@@ -735,21 +736,19 @@ const make = Effect.gen(function* () {
       }
     });
 
-  const runAnimationTrigger = (
-    trigger: CombatProfileAnimationTrigger,
+  const runMessageTrigger = (
+    trigger: CombatProfileMessageTrigger,
     now: number,
   ) =>
     Effect.gen(function* () {
       const cooldownMs = trigger.cooldownMs ?? 0;
       const castKey = `${trigger.id}:${trigger.skill}`;
-      const lastCast = (yield* Ref.get(animationTriggerLastCastRef)).get(
-        castKey,
-      );
+      const lastCast = (yield* Ref.get(messageTriggerLastCastRef)).get(castKey);
       if (lastCast !== undefined && now - lastCast < cooldownMs) {
         return;
       }
 
-      yield* Ref.update(animationTriggerLastCastRef, (previous) => {
+      yield* Ref.update(messageTriggerLastCastRef, (previous) => {
         const next = new Map(previous);
         next.set(castKey, now);
         return next;
@@ -759,12 +758,12 @@ const make = Effect.gen(function* () {
         .useSkill(trigger.skill, true, true)
         .pipe(
           Effect.catch((cause) =>
-            setLastError(errorMessage(cause, "Animation trigger failed")),
+            setLastError(errorMessage(cause, "Message trigger failed")),
           ),
         );
     });
 
-  const handleAnimationMessage = (message: string) =>
+  const handleUpdateMessage = (event: GameUpdateMessageEvent) =>
     Effect.gen(function* () {
       const enabled = yield* Ref.get(enabledRef);
       const running = yield* Ref.get(runningRef);
@@ -779,20 +778,15 @@ const make = Effect.gen(function* () {
         return;
       }
 
-      const triggers = profile.animationTriggers ?? [];
+      const triggers = profile.messageTriggers ?? [];
       if (triggers.length === 0) {
         return;
       }
 
       const now = Date.now();
       for (const trigger of triggers) {
-        if (
-          matchesCombatProfileAnimationTriggerMessage(
-            trigger.messageIncludes,
-            message,
-          )
-        ) {
-          yield* runAnimationTrigger(trigger, now);
+        if (matchesCombatProfileMessageTrigger(trigger, event)) {
+          yield* runMessageTrigger(trigger, now);
         }
       }
     });
@@ -888,7 +882,7 @@ const make = Effect.gen(function* () {
         yield* Ref.set(stoppedReasonRef, undefined);
         yield* Ref.set(gotoDeniedTargetNameRef, undefined);
         yield* Ref.set(lastCopyWalkTargetPositionRef, undefined);
-        yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(messageTriggerLastCastRef, new Map());
         yield* Ref.set(activeCombatCursorRef, undefined);
 
         yield* jobs.start(
@@ -923,7 +917,7 @@ const make = Effect.gen(function* () {
         yield* Ref.set(attemptsRef, DEFAULT_FOLLOWER_ATTEMPTS);
         yield* Ref.set(gotoDeniedTargetNameRef, undefined);
         yield* Ref.set(lastCopyWalkTargetPositionRef, undefined);
-        yield* Ref.set(animationTriggerLastCastRef, new Map());
+        yield* Ref.set(messageTriggerLastCastRef, new Map());
         yield* Ref.set(activeCombatCursorRef, undefined);
         yield* combat.cancelAutoAttack().pipe(Effect.catch(() => Effect.void));
         yield* combat.cancelTarget().pipe(Effect.catch(() => Effect.void));
@@ -990,9 +984,9 @@ const make = Effect.gen(function* () {
         requestTargetLocationWake(event.username),
       )
     : undefined;
-  const disposeAnimationMessage = Option.isSome(maybeGameEvents)
-    ? yield* maybeGameEvents.value.on("animationMessage", (event) =>
-        handleAnimationMessage(event.message),
+  const disposeUpdateMessage = Option.isSome(maybeGameEvents)
+    ? yield* maybeGameEvents.value.on("updateMessage", (event) =>
+        handleUpdateMessage(event),
       )
     : undefined;
   const disposeMonsterDeath = Option.isSome(maybeGameEvents)
@@ -1002,7 +996,7 @@ const make = Effect.gen(function* () {
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       disposeTargetLocationWake?.();
-      disposeAnimationMessage?.();
+      disposeUpdateMessage?.();
       disposeMonsterDeath?.();
     }),
   );

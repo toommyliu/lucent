@@ -1450,12 +1450,6 @@
       "keys": [
         {
           "kind": "property",
-          "name": "animationTriggers",
-          "signature": "readonly animationTriggers?: readonly CombatProfileAnimationTrigger[]",
-          "description": ""
-        },
-        {
-          "kind": "property",
           "name": "className",
           "signature": "readonly className?: string",
           "description": ""
@@ -1486,6 +1480,12 @@
         },
         {
           "kind": "property",
+          "name": "messageTriggers",
+          "signature": "readonly messageTriggers?: readonly CombatProfileMessageTrigger[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "resetSkillIndexOnMonsterDeath",
           "signature": "readonly resetSkillIndexOnMonsterDeath?: boolean",
           "description": ""
@@ -1510,57 +1510,8 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:61",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L61"
-      }
-    },
-    "combat-profile-animation-trigger": {
-      "name": "CombatProfileAnimationTrigger",
-      "slug": "combat-profile-animation-trigger",
-      "kind": "interface",
-      "summary": "",
-      "definition": "interface CombatProfileAnimationTrigger",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "cooldownMs",
-          "signature": "readonly cooldownMs?: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "id",
-          "signature": "readonly id: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "messageIncludes",
-          "signature": "readonly messageIncludes: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "skill",
-          "signature": "readonly skill: number",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/shared/combat-profiles.ts:54",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L54"
-      }
-    },
-    "combat-profile-animation-trigger-definition": {
-      "name": "CombatProfileAnimationTriggerDefinition",
-      "slug": "combat-profile-animation-trigger-definition",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type CombatProfileAnimationTriggerDefinition = Partial<CombatProfileAnimationTrigger> & { messageIncludes: string; skill: number }",
-      "keys": [],
-      "source": {
-        "path": "app/src/shared/combat-profiles.ts:101",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L101"
+        "path": "app/src/shared/combat-profiles.ts:64",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L64"
       }
     },
     "combat-profile-aura-condition": {
@@ -1633,12 +1584,6 @@
       "keys": [
         {
           "kind": "property",
-          "name": "animationTriggers",
-          "signature": "readonly animationTriggers?: readonly CombatProfileAnimationTriggerDefinition[]",
-          "description": ""
-        },
-        {
-          "kind": "property",
           "name": "className",
           "signature": "readonly className?: string",
           "description": ""
@@ -1669,6 +1614,12 @@
         },
         {
           "kind": "property",
+          "name": "messageTriggers",
+          "signature": "readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "resetSkillIndexOnMonsterDeath",
           "signature": "readonly resetSkillIndexOnMonsterDeath?: boolean",
           "description": ""
@@ -1693,8 +1644,75 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:107",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L107"
+        "path": "app/src/shared/combat-profiles.ts:110",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L110"
+      }
+    },
+    "combat-profile-message-trigger": {
+      "name": "CombatProfileMessageTrigger",
+      "slug": "combat-profile-message-trigger",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface CombatProfileMessageTrigger",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "cooldownMs",
+          "signature": "readonly cooldownMs?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "id",
+          "signature": "readonly id: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "messageIncludes",
+          "signature": "readonly messageIncludes: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "skill",
+          "signature": "readonly skill: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "source",
+          "signature": "readonly source: CombatProfileMessageTriggerSource",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/shared/combat-profiles.ts:56",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L56"
+      }
+    },
+    "combat-profile-message-trigger-definition": {
+      "name": "CombatProfileMessageTriggerDefinition",
+      "slug": "combat-profile-message-trigger-definition",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type CombatProfileMessageTriggerDefinition = Partial<CombatProfileMessageTrigger> & { messageIncludes: string; skill: number }",
+      "keys": [],
+      "source": {
+        "path": "app/src/shared/combat-profiles.ts:104",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L104"
+      }
+    },
+    "combat-profile-message-trigger-source": {
+      "name": "CombatProfileMessageTriggerSource",
+      "slug": "combat-profile-message-trigger-source",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type CombatProfileMessageTriggerSource = \"any\" | \"animation\" | \"aura\"",
+      "keys": [],
+      "source": {
+        "path": "app/src/shared/combat-profiles.ts:54",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L54"
       }
     },
     "combat-profile-ref": {
@@ -1705,8 +1723,8 @@
       "definition": "type CombatProfileRef = \"generic\" | \"equipped-class\" | CombatProfileRefSelected",
       "keys": [],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:79",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L79"
+        "path": "app/src/shared/combat-profiles.ts:82",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L82"
       }
     },
     "combat-profile-ref-selected": {
@@ -1730,8 +1748,8 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:74",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L74"
+        "path": "app/src/shared/combat-profiles.ts:77",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L77"
       }
     },
     "combat-profile-selector": {
@@ -1742,8 +1760,8 @@
       "definition": "type CombatProfileSelector = CombatProfileRef | string | { id: string } | { label: string } | { className: string }",
       "keys": [],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:84",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L84"
+        "path": "app/src/shared/combat-profiles.ts:87",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L87"
       }
     },
     "combat-profile-stat-condition": {
@@ -1834,8 +1852,8 @@
       "definition": "type CombatProfileStepDefinition = Partial<CombatProfileStep> & { skill: number }",
       "keys": [],
       "source": {
-        "path": "app/src/shared/combat-profiles.ts:97",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L97"
+        "path": "app/src/shared/combat-profiles.ts:100",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/combat-profiles.ts#L100"
       }
     },
     "combat-profile-threshold-unit": {
@@ -3588,8 +3606,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:502",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L502"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:508",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L508"
       }
     },
     "script-combat-profile-input": {
@@ -3600,8 +3618,8 @@
       "definition": "type ScriptCombatProfileInput = ScriptCombatProfileRef | CombatProfileDefinition | CombatProfile",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:497",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L497"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:503",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L503"
       }
     },
     "script-combat-profile-ref": {
@@ -3612,8 +3630,8 @@
       "definition": "type ScriptCombatProfileRef = CombatProfileSelector",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:495",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L495"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:501",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L501"
       }
     },
     "script-enhance-item-options": {
@@ -3674,45 +3692,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:125",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L125"
-      }
-    },
-    "script-event-animation-message-event": {
-      "name": "ScriptEventAnimationMessageEvent",
-      "slug": "script-event-animation-message-event",
-      "kind": "interface",
-      "summary": "",
-      "definition": "interface ScriptEventAnimationMessageEvent",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "message",
-          "signature": "readonly message: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "monMapId",
-          "signature": "readonly monMapId?: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "sourceMonMapId",
-          "signature": "readonly sourceMonMapId?: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "targetMonMapId",
-          "signature": "readonly targetMonMapId?: number",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:110",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L110"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:131",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L131"
       }
     },
     "script-event-anti-counter-event": {
@@ -3797,8 +3778,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:117",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L117"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:123",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L123"
       }
     },
     "script-event-disposer": {
@@ -3809,8 +3790,8 @@
       "definition": "type ScriptEventDisposer = () => void",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:191",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L191"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:197",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L197"
       }
     },
     "script-event-join-map-event": {
@@ -3852,8 +3833,8 @@
       "definition": "type ScriptEventListener<E> = (event: ScriptEventMap[E]) => void | Effect.Effect<unknown, unknown> | Generator<Effect.Yieldable<any, any, never, never>, unknown, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:177",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L177"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:183",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L183"
       }
     },
     "script-event-map": {
@@ -3867,12 +3848,6 @@
           "kind": "property",
           "name": "afk",
           "signature": "afk: ScriptEventAfkEvent",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "animationMessage",
-          "signature": "animationMessage: ScriptEventAnimationMessageEvent",
           "description": ""
         },
         {
@@ -3949,14 +3924,20 @@
         },
         {
           "kind": "property",
+          "name": "updateMessage",
+          "signature": "updateMessage: ScriptEventUpdateMessageEvent",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "zone",
           "signature": "zone: ScriptEventZoneEvent",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:147",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L147"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:153",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L153"
       }
     },
     "script-event-monster-death-event": {
@@ -4023,8 +4004,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:138",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L138"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:144",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L144"
       }
     },
     "script-event-player-location-event": {
@@ -4066,8 +4047,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:130",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L130"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:136",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L136"
       }
     },
     "script-event-predicate": {
@@ -4078,8 +4059,8 @@
       "definition": "type ScriptEventPredicate<E> = (event: ScriptEventMap[E]) => boolean | Effect.Effect<boolean, unknown> | Generator<Effect.Yieldable<any, any, never, never>, boolean, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:184",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L184"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:190",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L190"
       }
     },
     "script-event-quest-complete-event": {
@@ -4119,6 +4100,79 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L86"
       }
     },
+    "script-event-update-message-event": {
+      "name": "ScriptEventUpdateMessageEvent",
+      "slug": "script-event-update-message-event",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ScriptEventUpdateMessageEvent",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "auraName",
+          "signature": "readonly auraName?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "auraPhase",
+          "signature": "readonly auraPhase?: \"on\" | \"off\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "message",
+          "signature": "readonly message: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "monMapId",
+          "signature": "readonly monMapId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "source",
+          "signature": "readonly source: \"aura\" | \"animation\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "sourceMonMapId",
+          "signature": "readonly sourceMonMapId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "targetId",
+          "signature": "readonly targetId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "targetMonMapId",
+          "signature": "readonly targetMonMapId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "targetName",
+          "signature": "readonly targetName?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "targetType",
+          "signature": "readonly targetType?: \"player\" | \"monster\"",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:110",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L110"
+      }
+    },
     "script-event-wait-options": {
       "name": "ScriptEventWaitOptions",
       "slug": "script-event-wait-options",
@@ -4146,8 +4200,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:193",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L193"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:199",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L199"
       }
     },
     "script-event-zone-event": {
@@ -4196,8 +4250,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:668",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L668"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:674",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L674"
       }
     },
     "script-input-value": {
@@ -4251,8 +4305,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:282",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L282"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:288",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L288"
       }
     },
     "script-monster-wait-options": {
@@ -4288,8 +4342,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:277",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L277"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:283",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L283"
       }
     },
     "script-options": {
@@ -4313,8 +4367,8 @@
         }
       ],
       "source": {
-        "path": "app/src/shared/ipc.ts:427",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L427"
+        "path": "app/src/shared/ipc.ts:429",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/ipc.ts#L429"
       }
     },
     "script-player-count-wait-options": {
@@ -4344,8 +4398,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:273",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L273"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:279",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L279"
       }
     },
     "script-recipe-effect": {
@@ -4381,8 +4435,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:268",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L268"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:274",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L274"
       }
     },
     "script-wait-predicate": {
@@ -4393,8 +4447,8 @@
       "definition": "type ScriptWaitPredicate = () => boolean | Effect.Effect<boolean, unknown> | Generator<Effect.Yieldable<any, any, never, never>, boolean, never>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:286",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L286"
+        "path": "app/src/renderer/windows/game/scripting/ScriptApi.ts:292",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L292"
       }
     },
     "server": {
