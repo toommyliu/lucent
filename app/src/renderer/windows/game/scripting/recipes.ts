@@ -369,6 +369,7 @@ const ensureLifeSteal = (
       maximum: 99,
     });
     const itemName = "Scroll of Life Steal";
+    yield* deps.bank.withdraw(itemName);
     const current = yield* deps.inventory.getItem(itemName);
     const needed = targetQuantity - (current?.quantity ?? 0);
     if (needed <= 0) {
@@ -667,7 +668,6 @@ const ensureScrollOfEnrage = (
       minimum: 1,
       maximum: 1_000,
     });
-    const initialQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
     const initiallySatisfied = yield* deps.inventory.contains(
       SCROLL_OF_ENRAGE,
       targetQuantity,
@@ -677,12 +677,17 @@ const ensureScrollOfEnrage = (
       return;
     }
 
-    yield* deps.bank.withdrawMany(GOLD_VOUCHER_100K, ARCANE_QUILL, ZEALOUS_INK);
+    yield* deps.bank.withdrawMany(
+      GOLD_VOUCHER_100K,
+      ARCANE_QUILL,
+      ZEALOUS_INK,
+      SCROLL_OF_ENRAGE,
+    );
     yield* deps.player.joinMap("spellcraft");
     yield* loadShopById(deps, 693);
 
     let iteration = 0;
-    let currentQuantity = initialQuantity;
+    let currentQuantity = yield* getInventoryQuantity(deps, SCROLL_OF_ENRAGE);
     let targetSatisfied = yield* deps.inventory.contains(
       SCROLL_OF_ENRAGE,
       targetQuantity,
