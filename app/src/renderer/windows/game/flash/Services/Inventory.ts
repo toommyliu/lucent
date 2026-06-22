@@ -5,6 +5,7 @@ import type { BridgeEffect } from "./Bridge";
 export interface InventoryShape {
   contains(item: ItemIdentifierToken, quantity?: number): BridgeEffect<boolean>;
   equip(item: ItemIdentifierToken): BridgeEffect<boolean>;
+  unequipConsumable(item: ItemIdentifierToken): BridgeEffect<boolean>;
   getItem(item: ItemIdentifierToken): BridgeEffect<Item | null>;
   getItems(): BridgeEffect<readonly Item[]>;
   getSlots(): BridgeEffect<number>;

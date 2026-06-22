@@ -80,6 +80,7 @@ package lucent.generated
       external.externalize("inventory.getItems", Inventory.getItems);
       external.externalize("inventory.getSlots", Inventory.getSlots);
       external.externalize("inventory.getUsedSlots", Inventory.getUsedSlots);
+      external.externalize("inventory.unequipConsumable", Inventory.unequipConsumable);
       external.externalize("outfits.equip", Outfits.equip);
       external.externalize("outfits.get", Outfits.get);
       external.externalize("outfits.getAll", Outfits.getAll);

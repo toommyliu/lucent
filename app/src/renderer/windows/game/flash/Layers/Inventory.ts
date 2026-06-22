@@ -94,6 +94,32 @@ const make = Effect.gen(function* () {
       }).pipe(Effect.ensuring(Effect.sync(dispose)));
     });
 
+  const unequipConsumable: InventoryShape["unequipConsumable"] = (item) =>
+    Effect.gen(function* () {
+      const toUnequip = yield* getItem(item);
+      if (!toUnequip || toUnequip.category !== "Item") {
+        return false;
+      }
+
+      if (!toUnequip.isEquipped()) {
+        return true;
+      }
+
+      const canUnequip = yield* wait.forGameAction("unequipItem");
+      if (!canUnequip) {
+        return false;
+      }
+
+      const unequipped = yield* bridge.call("inventory.unequipConsumable", [
+        toUnequip.id,
+      ]);
+      if (unequipped) {
+        yield* itemCache.clear;
+      }
+
+      return unequipped;
+    });
+
   const getItem: InventoryShape["getItem"] = (item) =>
     bridge
       .call("inventory.getItem", [item])
@@ -116,6 +142,7 @@ const make = Effect.gen(function* () {
   return {
     contains,
     equip,
+    unequipConsumable,
     getItem,
     getItems,
     getSlots,

@@ -54,5 +54,20 @@ package lucent.game {
       game.world.sendEquipItemRequest({ItemID: itemObj.ItemID});
       return true;
     }
+
+    [BridgeExport]
+    public static function unequipConsumable(item:*):Boolean {
+      var itemObj:Object = getItem(item);
+      if (!itemObj || itemObj.sType != "Item") {
+        return false;
+      }
+
+      if (itemObj.bEquip != 1) {
+        return true;
+      }
+
+      game.world.unequipUseableItem(itemObj);
+      return true;
+    }
   }
 }

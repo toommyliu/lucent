@@ -310,6 +310,7 @@ interface HouseApi {
 interface InventoryApi {
     contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
     equip(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
+    unequipConsumable(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
     getItem(item: ItemIdentifierToken): Effect<Item | null, BridgeError>;
     getItems(): Effect<readonly Item[], BridgeError>;
     getSlots(): Effect<number, BridgeError>;
