@@ -60,6 +60,7 @@ export const bridgeFallbacks = {
   "inventory.getItems": () => [],
   "inventory.getSlots": () => 0,
   "inventory.getUsedSlots": () => 0,
+  "inventory.unequipConsumable": () => false,
   "outfits.equip": () => false,
   "outfits.get": () => null,
   "outfits.getAll": () => [],

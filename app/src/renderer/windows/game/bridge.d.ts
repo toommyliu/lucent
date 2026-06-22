@@ -74,6 +74,7 @@ declare global {
       "inventory.getItems": () => unknown[];
       "inventory.getSlots": () => number;
       "inventory.getUsedSlots": () => number;
+      "inventory.unequipConsumable": (item: unknown) => boolean;
       "outfits.equip": (name: string, keepColors?: boolean) => boolean;
       "outfits.get": (name: string) => Record<string, unknown> | null;
       "outfits.getAll": () => unknown[];
