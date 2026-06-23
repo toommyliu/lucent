@@ -1,7 +1,0 @@
-{
-  "extends": "../../../../tsconfig.json",
-  "compilerOptions": {
-    "lib": ["esnext", "dom"]
-  },
-  "include": ["bridge.d.ts", "global.d.ts", "**/*.ts", "**/*.tsx"],
-}
