@@ -14,7 +14,7 @@ Lucent is a third-party toolkit for enhancing gameplay experiences in AdventureQ
 2. Reliability first.
 3. Keep behavior predictable under load and during failures (unexpected failures, timeouts, disconnects, etc.).
 
-Proposing sweeping changes that improve long-term maintainabilty is encouraged .If a tradeoff is required, choose correctness and robustness over short-term convenience.
+Proposing sweeping changes that improve long-term maintainability is encouraged. If a tradeoff is required, choose correctness and robustness over short-term convenience.
 
 ## Maintainability
 
@@ -27,6 +27,13 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - `app/src/shared`: Shared code between main and renderer processes. This includes shared types, utilities, and any logic that needs to be used in both contexts.
 - `packages/`: Shared packages consumed by the app.
 
-## References
+## Vendored Repositories
 
-- Effect v3 to v4 beta (Effect smol) migration guide: https://github.com/Effect-TS/effect-smol/blob/main/MIGRATION.md https://github.com/Effect-TS/effect-smol/blob/main/migration/schema.md
+This project vendors external repositories under `.repos/` as read-only reference material for coding agents. Do not modify vendored repositories unless the user explicitly asks for that specific repository to be edited.
+
+Use vendored repositories only as coding-agent reference material:
+
+- Use `.repos/aqw-client-decompiled` when checking AQW client behavior, packet shapes, game object names, UI symbols, or ActionScript implementation details.
+- Use `.repos/Grimlite-Li` and `.repos/skua` as references for other popular AQW botting clients when comparing bot-client behavior, hooks, loaders, APIs, abstractions, script behavior, or implementation conventions.
+- Use `.repos/effect-smol` when working with Effect Smol patterns, APIs, migrations, or package behavior.
+- Use `.repos/t3code` as an example of Electron, TypeScript, and Effect architecture, patterns, and tooling.
