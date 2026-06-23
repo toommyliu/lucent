@@ -29,7 +29,7 @@
     "abort-controller": "^3.0.0",
     "acorn": "8.16.0",
     "core-js": "^3.49.0",
-    "effect": "4.0.0-beta.43",
+    "effect": "4.0.0-beta.83",
     "solid-js": "^1.9.12",
     "yaml": "^2.8.3"
   },
@@ -39,7 +39,7 @@
     "cross-env": "^10.0.0",
     "electron": "workspace:*",
     "electron-builder": "^26.15.0",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.28.1",
     "esbuild-plugin-solid": "^0.6.0",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3"

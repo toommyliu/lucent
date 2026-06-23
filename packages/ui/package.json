@@ -56,7 +56,7 @@
   "devDependencies": {
     "@types/node": "^24.12.2",
     "electron": "workspace:*",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.28.1",
     "esbuild-plugin-solid": "^0.6.0",
     "happy-dom": "^20.9.0",
     "tsx": "^4.21.0",
