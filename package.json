@@ -28,18 +28,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.43"
+    "effect": "4.0.0-beta.83"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.84.3",
-    "@effect/platform-node": "4.0.0-beta.43",
-    "@effect/tsgo": "0.11.0",
-    "@effect/vitest": "4.0.0-beta.43",
+    "@effect/language-service": "^0.86.2",
+    "@effect/platform-node": "4.0.0-beta.83",
+    "@effect/tsgo": "0.14.4",
+    "@effect/vitest": "4.0.0-beta.83",
     "@types/node": "^24.12.2",
     "@typescript/native-preview": "7.0.0-dev.20260524.1",
     "asconfigc": "^1.9.0",
     "git-cliff": "^2.9.1",
-    "oxfmt": "^0.51.0",
+    "oxfmt": "^0.55.0",
     "oxlint": "^1.66.0",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.19",
