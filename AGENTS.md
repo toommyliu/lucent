@@ -14,7 +14,7 @@ Lucent is a third-party toolkit for enhancing gameplay experiences in AdventureQ
 2. Reliability first.
 3. Keep behavior predictable under load and during failures (unexpected failures, timeouts, disconnects, etc.).
 
-Proposing sweeping changes that improve long-term maintainabilty is encouraged .If a tradeoff is required, choose correctness and robustness over short-term convenience.
+Proposing sweeping changes that improve long-term maintainability is encouraged. If a tradeoff is required, choose correctness and robustness over short-term convenience.
 
 ## Maintainability
 
@@ -27,6 +27,8 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - `app/src/shared`: Shared code between main and renderer processes. This includes shared types, utilities, and any logic that needs to be used in both contexts.
 - `packages/`: Shared packages consumed by the app.
 
-## References
+## Vendored Repositories
 
-- Effect v3 to v4 beta (Effect smol) migration guide: https://github.com/Effect-TS/effect-smol/blob/main/MIGRATION.md https://github.com/Effect-TS/effect-smol/blob/main/migration/schema.md
+Treat `.repos/effect-smol/` as read-only reference material. Do not edit or import from it unless explicitly requested.
+
+- When writing Effect (EffectTS) code, read `.repos/effect-smol/LLMS.md` first, then inspect `.repos/effect-smol/` for idiomatic APIs, tests, module structure, and patterns.
