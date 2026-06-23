@@ -219,6 +219,8 @@ export const AccountManagerIpcChannels = {
   focusGameWindow: "desktop:account-manager:focus-game-window",
   closeGameWindow: "desktop:account-manager:close-game-window",
   updateScriptStatus: "desktop:account-manager:update-script-status",
+  updateGameWindowIdentity:
+    "desktop:account-manager:update-game-window-identity",
   changed: "desktop:account-manager:changed",
   gameLaunch: "desktop:account-manager:game-launch",
   gameWindowShutdownRequest:
@@ -605,6 +607,10 @@ export interface AccountScriptStatusUpdate {
   readonly message?: string;
 }
 
+export interface AccountGameWindowIdentityUpdate {
+  readonly currentUsername: string;
+}
+
 export interface AccountGameWindowShutdownRequest {
   readonly requestId: string;
   readonly gameWindowId: number;
@@ -834,6 +840,10 @@ export interface AccountManagerInvokeChannels {
     [update: AccountScriptStatusUpdate],
     void
   >;
+  readonly [AccountManagerIpcChannels.updateGameWindowIdentity]: IpcInvokeDefinition<
+    [update: AccountGameWindowIdentityUpdate],
+    void
+  >;
 }
 
 export interface AccountManagerRendererEventChannels {
@@ -872,6 +882,9 @@ export interface AccountManagerBridge {
     request: AccountGameWindowTargetRequest,
   ): Promise<AccountManagerState>;
   updateScriptStatus(update: AccountScriptStatusUpdate): Promise<void>;
+  updateGameWindowIdentity(
+    update: AccountGameWindowIdentityUpdate,
+  ): Promise<void>;
   onChanged(listener: (state: AccountManagerState) => void): () => void;
   onGameLaunch(
     listener: (payload: AccountGameLaunchPayload) => void,

@@ -93,6 +93,7 @@ const makeObservability = (): DesktopObservabilityShape => {
       logPath: "/tmp/lucent-test.ndjson",
       records: [],
     }),
+    subscribe: () => Effect.succeed(() => undefined),
     installProcessHooks: Effect.void,
     observeWindow: () => Effect.void,
   };

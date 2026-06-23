@@ -9,6 +9,7 @@ import {
   type AccountGameServer,
   type AccountGameServerPingsResult,
   type AccountGameServersResult,
+  type AccountGameWindowIdentityUpdate,
   type AccountGameWindowShutdownResponse,
   type AccountGameWindowTargetRequest,
   type AccountLaunchResult,
@@ -128,6 +129,9 @@ const optionalTrimmedString = (value: unknown): string | undefined => {
   const normalized = normalizeOptionalString(value);
   return normalized === "" ? undefined : normalized;
 };
+
+const hasOwn = (value: object, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key);
 
 const hasAccountUsername = (
   accounts: readonly ManagedAccount[],
@@ -609,6 +613,8 @@ type AccountRuntimeSessionUpdate = AccountScriptStatusUpdate & {
   readonly launchUsername?: string;
 };
 
+type GameWindowIdentityCleanupRegistry = Map<number, () => void>;
+
 const setSession = async (
   update: AccountRuntimeSessionUpdate,
   runWindowEffect: WindowEffectRunner,
@@ -639,13 +645,104 @@ const setSession = async (
   await publishStateToAccountManager(runWindowEffect, repository, runtime);
 };
 
+const setGameWindowIdentity = async (
+  gameWindowId: number,
+  currentUsername: string,
+  runWindowEffect: WindowEffectRunner,
+  repository: AccountManagerRepositoryShape,
+  runtime: AccountSessionsShape,
+): Promise<boolean> => {
+  const previousIdentity = runtime.getGameWindowIdentity(gameWindowId);
+  const previousSession = runtime.getSession(gameWindowId);
+  const shouldStoreIdentity =
+    currentUsername !== "" ||
+    previousIdentity !== undefined ||
+    previousSession?.currentUsername !== undefined;
+
+  if (
+    shouldStoreIdentity &&
+    previousIdentity?.currentUsername !== currentUsername
+  ) {
+    runtime.setGameWindowIdentity(gameWindowId, {
+      currentUsername,
+      updatedAt: now(),
+    });
+  }
+
+  if (!runtime.hasSession(gameWindowId)) {
+    return runtime.getGameWindowIdentity(gameWindowId) !== undefined;
+  }
+
+  if (
+    !shouldStoreIdentity ||
+    previousSession?.currentUsername === currentUsername
+  ) {
+    return runtime.getGameWindowIdentity(gameWindowId) !== undefined;
+  }
+
+  await setSession(
+    {
+      gameWindowId,
+      currentUsername,
+      status: previousSession?.status ?? "idle",
+      ...(previousSession?.scriptName === undefined
+        ? {}
+        : { scriptName: previousSession.scriptName }),
+      ...(previousSession?.message === undefined
+        ? {}
+        : { message: previousSession.message }),
+    },
+    runWindowEffect,
+    repository,
+    runtime,
+  );
+  return runtime.getGameWindowIdentity(gameWindowId) !== undefined;
+};
+
+const ensureGameWindowIdentityCleanup = async (
+  gameWindowId: number,
+  runWindowEffect: WindowEffectRunner,
+  runtime: AccountSessionsShape,
+  cleanupRegistry: GameWindowIdentityCleanupRegistry,
+): Promise<void> => {
+  if (cleanupRegistry.has(gameWindowId)) {
+    return;
+  }
+
+  const gameWindow: GameWindowRef = { kind: "game", id: gameWindowId };
+  const removeClosedListener = await runWindowEffect(
+    Effect.gen(function* () {
+      const windows = yield* WindowService;
+      return yield* windows.onWindowClosed(gameWindow, () => {
+        runtime.deleteGameWindowIdentity(gameWindowId);
+        cleanupRegistry.delete(gameWindowId);
+      });
+    }),
+  ).catch(() => {
+    runtime.deleteGameWindowIdentity(gameWindowId);
+    return null;
+  });
+
+  if (removeClosedListener === null) {
+    return;
+  }
+
+  cleanupRegistry.set(gameWindowId, () => {
+    removeClosedListener();
+    runtime.deleteGameWindowIdentity(gameWindowId);
+    cleanupRegistry.delete(gameWindowId);
+  });
+};
+
 const clearSession = async (
   gameWindowId: number,
   runWindowEffect: WindowEffectRunner,
   repository: AccountManagerRepositoryShape,
   runtime: AccountSessionsShape,
 ): Promise<void> => {
-  runtime.deleteSession(normalizeGameWindowId(gameWindowId));
+  const normalizedGameWindowId = normalizeGameWindowId(gameWindowId);
+  runtime.deleteSession(normalizedGameWindowId);
+  runtime.deleteGameWindowIdentity(normalizedGameWindowId);
   await publishStateToAccountManager(runWindowEffect, repository, runtime);
 };
 
@@ -1189,6 +1286,17 @@ export const registerAccountManagerIpcHandlers = (
     const ipc = yield* DesktopIpc;
     const observability = yield* DesktopObservability;
     const runtime = yield* AccountSessions;
+    const gameWindowIdentityCleanupRegistry: GameWindowIdentityCleanupRegistry =
+      new Map();
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        for (const removeCleanup of gameWindowIdentityCleanupRegistry.values()) {
+          removeCleanup();
+        }
+        gameWindowIdentityCleanupRegistry.clear();
+      }),
+    );
 
     const withServices = <A>(
       run: (services: {
@@ -1608,22 +1716,61 @@ export const registerAccountManagerIpcHandlers = (
             throw new Error("Invalid script status");
           }
 
-          const currentUsername = optionalTrimmedString(input.currentUsername);
+          const hasCurrentUsername = hasOwn(input, "currentUsername");
+          const currentUsername = hasCurrentUsername
+            ? normalizeOptionalString(input.currentUsername)
+            : undefined;
+          const previousSession = runtime.getSession(gameWindowId);
+          const shouldIncludeCurrentUsername =
+            hasCurrentUsername &&
+            (currentUsername !== "" ||
+              previousSession?.currentUsername !== undefined);
           const scriptName = optionalTrimmedString(input.scriptName);
           const message = optionalTrimmedString(input.message);
+          const sessionUpdate: AccountRuntimeSessionUpdate = {
+            status,
+            gameWindowId,
+            ...(shouldIncludeCurrentUsername
+              ? { currentUsername: currentUsername ?? "" }
+              : {}),
+            ...(scriptName === undefined ? {} : { scriptName }),
+            ...(message === undefined ? {} : { message }),
+          };
 
-          await setSession(
-            {
-              status,
-              gameWindowId,
-              ...(currentUsername === undefined ? {} : { currentUsername }),
-              ...(scriptName === undefined ? {} : { scriptName }),
-              ...(message === undefined ? {} : { message }),
-            },
+          await setSession(sessionUpdate, runWindowEffect, repository, runtime);
+        }),
+    );
+
+    yield* ipc.handle(
+      AccountManagerIpcChannels.updateGameWindowIdentity,
+      (event, update) =>
+        withServices(async ({ repository }) => {
+          await runWindowEffect(requireGameWindowSender(event.sender));
+          if (typeof update !== "object" || update === null) {
+            throw new Error("Identity update must be an object");
+          }
+
+          const gameWindowId = getEventWindowId(event);
+          if (gameWindowId === null) {
+            throw new Error("Missing sender game window");
+          }
+
+          const input = update as Partial<AccountGameWindowIdentityUpdate>;
+          const hasIdentity = await setGameWindowIdentity(
+            gameWindowId,
+            normalizeOptionalString(input.currentUsername),
             runWindowEffect,
             repository,
             runtime,
           );
+          if (hasIdentity) {
+            await ensureGameWindowIdentityCleanup(
+              gameWindowId,
+              runWindowEffect,
+              runtime,
+              gameWindowIdentityCleanupRegistry,
+            );
+          }
         }),
     );
   });

@@ -25,6 +25,11 @@ export interface AccountServerPingCacheSnapshot {
 
 type AccountRuntimeSession = AccountScriptSession;
 
+export interface AccountGameWindowIdentity {
+  readonly currentUsername: string;
+  readonly updatedAt: number;
+}
+
 export const mergeAccountSessionDisplayMetadata = (
   previous: AccountScriptSession | undefined,
   next: AccountScriptSession,
@@ -70,6 +75,14 @@ export interface AccountSessionsShape {
     payload: AccountGameLaunchPayload,
   ) => void;
   readonly deleteGameLaunchPayload: (gameWindowId: number) => void;
+  readonly getGameWindowIdentity: (
+    gameWindowId: number,
+  ) => AccountGameWindowIdentity | undefined;
+  readonly setGameWindowIdentity: (
+    gameWindowId: number,
+    identity: AccountGameWindowIdentity,
+  ) => void;
+  readonly deleteGameWindowIdentity: (gameWindowId: number) => void;
   readonly registerShutdownRequest: (
     requestId: string,
     request: ShutdownRequest,
@@ -92,6 +105,7 @@ export const makeAccountSessions = (): AccountSessionsShape => {
   let cachedServerPings: AccountServerPingCacheSnapshot | null = null;
   const sessions = new Map<number, AccountScriptSession>();
   const gameLaunchPayloads = new Map<number, AccountGameLaunchPayload>();
+  const gameWindowIdentities = new Map<number, AccountGameWindowIdentity>();
   const pendingGameWindowShutdowns = new Map<string, ShutdownRequest>();
 
   const takeShutdownRequest = (
@@ -161,6 +175,14 @@ export const makeAccountSessions = (): AccountSessionsShape => {
     },
     deleteGameLaunchPayload: (gameWindowId) => {
       gameLaunchPayloads.delete(gameWindowId);
+    },
+    getGameWindowIdentity: (gameWindowId) =>
+      gameWindowIdentities.get(gameWindowId),
+    setGameWindowIdentity: (gameWindowId, identity) => {
+      gameWindowIdentities.set(gameWindowId, identity);
+    },
+    deleteGameWindowIdentity: (gameWindowId) => {
+      gameWindowIdentities.delete(gameWindowId);
     },
     registerShutdownRequest: (requestId, request) => {
       pendingGameWindowShutdowns.set(requestId, request);

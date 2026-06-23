@@ -81,6 +81,49 @@ describe("AccountSessions", () => {
     ]);
   });
 
+  it("allows current username metadata to be cleared on logout", () => {
+    const sessions = makeAccountSessions();
+
+    sessions.upsertSession({
+      gameWindowId: 7,
+      launchUsername: "launch-user",
+      currentUsername: "first-user",
+      status: "running",
+      updatedAt: 1,
+    });
+    sessions.upsertSession({
+      gameWindowId: 7,
+      launchUsername: "launch-user",
+      currentUsername: "",
+      status: "running",
+      updatedAt: 2,
+    });
+
+    expect(sessions.getSession(7)?.currentUsername).toBe("");
+  });
+
+  it("stores live game window identity independent from script sessions", () => {
+    const sessions = makeAccountSessions();
+
+    sessions.setGameWindowIdentity(7, {
+      currentUsername: "first-user",
+      updatedAt: 1,
+    });
+    sessions.setGameWindowIdentity(7, {
+      currentUsername: "second-user",
+      updatedAt: 2,
+    });
+
+    expect(sessions.getGameWindowIdentity(7)).toEqual({
+      currentUsername: "second-user",
+      updatedAt: 2,
+    });
+
+    sessions.deleteGameWindowIdentity(7);
+
+    expect(sessions.getGameWindowIdentity(7)).toBeUndefined();
+  });
+
   it("preserves display metadata when a status update omits usernames", () => {
     expect(
       mergeAccountSessionDisplayMetadata(

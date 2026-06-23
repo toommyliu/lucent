@@ -34,6 +34,22 @@ export interface ObservabilityRecord {
   readonly error?: ObservabilityErrorInfo;
 }
 
+export interface ObservabilityConsoleMessageData {
+  readonly kind: "console-message";
+  readonly consoleLevel: ObservabilityLevel;
+  readonly electronLevel: number;
+  readonly line: number;
+  readonly sourceId: string;
+  readonly capturedBy?: "electron" | "renderer-console";
+  readonly args?: readonly unknown[];
+  readonly renderedArgs?: readonly string[];
+  readonly nativeMessage?: string;
+  readonly account?: {
+    readonly label: string;
+    readonly username: string;
+  };
+}
+
 export interface ObservabilitySnapshot {
   readonly runId: string;
   readonly logPath: string;
@@ -137,6 +153,39 @@ const sanitizeValue = (
 
 export const sanitizeLogValue = (value: unknown): unknown =>
   sanitizeValue(value, 0, new WeakSet<object>());
+
+export const isObservabilityConsoleMessageData = (
+  value: unknown,
+): value is ObservabilityConsoleMessageData =>
+  isPlainRecord(value) &&
+  value["kind"] === "console-message" &&
+  (value["consoleLevel"] === "debug" ||
+    value["consoleLevel"] === "info" ||
+    value["consoleLevel"] === "warn" ||
+    value["consoleLevel"] === "error") &&
+  typeof value["electronLevel"] === "number" &&
+  Number.isFinite(value["electronLevel"]) &&
+  typeof value["line"] === "number" &&
+  Number.isFinite(value["line"]) &&
+  typeof value["sourceId"] === "string" &&
+  (value["capturedBy"] === undefined ||
+    value["capturedBy"] === "electron" ||
+    value["capturedBy"] === "renderer-console") &&
+  (value["args"] === undefined || Array.isArray(value["args"])) &&
+  (value["renderedArgs"] === undefined ||
+    (Array.isArray(value["renderedArgs"]) &&
+      value["renderedArgs"].every((item) => typeof item === "string"))) &&
+  (value["nativeMessage"] === undefined ||
+    typeof value["nativeMessage"] === "string") &&
+  (value["account"] === undefined ||
+    (isPlainRecord(value["account"]) &&
+      typeof value["account"]["label"] === "string" &&
+      typeof value["account"]["username"] === "string"));
+
+export const isGameConsoleObservabilityRecord = (
+  record: ObservabilityRecord,
+): boolean =>
+  record.source === "game" && isObservabilityConsoleMessageData(record.data);
 
 export const formatErrorInfo = (error: unknown): ObservabilityErrorInfo => {
   if (error instanceof Error) {

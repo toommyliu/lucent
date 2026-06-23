@@ -1,6 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import {
   formatErrorInfo,
+  isGameConsoleObservabilityRecord,
+  isObservabilityConsoleMessageData,
   makeRecordLine,
   normalizeObservabilityInput,
   sanitizeLogValue,
@@ -93,5 +95,34 @@ describe("observability sanitization", () => {
     });
 
     expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(128_001);
+  });
+
+  it("identifies game console observability records", () => {
+    const data = {
+      kind: "console-message",
+      consoleLevel: "debug",
+      electronLevel: 0,
+      line: 12,
+      sourceId: "script.js",
+      capturedBy: "renderer-console",
+      args: [{ ok: true }],
+      renderedArgs: ['{"ok":true}'],
+      nativeMessage: "[object Object]",
+      account: { label: "Main Farmer", username: "hero" },
+    };
+
+    expect(isObservabilityConsoleMessageData(data)).toBe(true);
+    expect(
+      isGameConsoleObservabilityRecord({
+        id: 1,
+        runId: "run",
+        timestamp: "2026-05-22T00:00:00.000Z",
+        level: "debug",
+        source: "game",
+        component: "game-window:1",
+        message: "ready",
+        data,
+      }),
+    ).toBe(true);
   });
 });

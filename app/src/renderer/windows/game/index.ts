@@ -7,9 +7,22 @@ import {
 import "../../polyfills";
 import "./entrypoint";
 import "./style.css";
+import { installGameConsoleObservabilityBridge } from "./consoleObservabilityBridge";
+
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      readonly NODE_ENV?: string;
+    }
+  }
+}
 
 markGameStartup("game-entry-module-evaluated");
 markGameStartup("app-module-import-start");
+
+if (process.env.NODE_ENV === "development") {
+  installGameConsoleObservabilityBridge(window.desktop.observability, console);
+}
 
 void import("./App")
   .then(() => {

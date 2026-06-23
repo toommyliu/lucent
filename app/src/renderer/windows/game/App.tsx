@@ -136,7 +136,10 @@ import {
   type TopNavOptionItem,
 } from "./topNavOptions";
 import { ScriptRunner } from "./scripting/Services/ScriptRunner";
-import { createAccountManagerStatusPublisher } from "./accountManagerStatusBridge";
+import {
+  createAccountManagerStatusPublisher,
+  createGameWindowIdentityPublisher,
+} from "./accountManagerStatusBridge";
 import { DEBUG_EVAL_SOURCE_NAME, createDebugScriptSource } from "./debugEval";
 import {
   diagnosticDetailsText,
@@ -167,6 +170,7 @@ declare global {
 
 const AUTO_RELOGIN_DEFAULT_DELAY_MS = 3000;
 const AUTO_RELOGIN_MAX_DELAY_MS = 300_000;
+const GAME_WINDOW_IDENTITY_PUBLISH_INTERVAL_MS = 1200;
 const DEFAULT_CELL = "Enter";
 const DEFAULT_PAD = "Spawn";
 const MS_PER_SECOND = 1000;
@@ -1047,6 +1051,27 @@ export default function App(props: {
       ),
     publish: (update) => window.desktop.accounts.updateScriptStatus(update),
   });
+  const gameWindowIdentityPublisher = createGameWindowIdentityPublisher({
+    getCurrentUsername: () =>
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const auth = yield* Auth;
+          return yield* auth
+            .getUsername()
+            .pipe(Effect.catch(() => Effect.succeed("")));
+        }),
+      ),
+    publish: (update) =>
+      window.desktop.accounts.updateGameWindowIdentity(update),
+  });
+
+  const publishGameWindowIdentity = (): void => {
+    void gameWindowIdentityPublisher
+      .publishIdentity()
+      .catch((error: unknown) => {
+        console.error("Failed to publish game window identity:", error);
+      });
+  };
 
   const publishAccountManagerStatus = (
     status: ScriptRunnerStatus,
@@ -3052,6 +3077,11 @@ export default function App(props: {
 
     refreshPlayerReadyState();
     const playerReadyStateInterval = setInterval(refreshPlayerReadyState, 1200);
+    publishGameWindowIdentity();
+    const gameWindowIdentityInterval = setInterval(
+      publishGameWindowIdentity,
+      GAME_WINDOW_IDENTITY_PUBLISH_INTERVAL_MS,
+    );
 
     void refreshScriptMeta();
     const scriptMetaInterval = setInterval(() => {
@@ -3167,6 +3197,7 @@ export default function App(props: {
       disposeGameLoadState();
       clearInterval(scriptMetaInterval);
       clearInterval(playerReadyStateInterval);
+      clearInterval(gameWindowIdentityInterval);
     });
   });
 

@@ -36,6 +36,7 @@ import {
 } from "./DesktopObservability";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { UpdateChecker } from "../updates/Updates";
+import { startDevObservabilityServer } from "./DevObservabilityServer";
 
 const gameUserAgent = getArtixLauncherUserAgent();
 
@@ -227,6 +228,14 @@ export const makeProgram = (
       });
       yield* installDesktopIpcHandlers(runWindowEffect);
       yield* installDevRendererReloadWatcher(env.devRendererReloadPath);
+      if (env.isDev) {
+        const accountSessions = yield* AccountSessions;
+        yield* startDevObservabilityServer({
+          accountSessions,
+          observability,
+          rendererDir: env.rendererDir,
+        });
+      }
 
       yield* Effect.promise(() => app.whenReady());
       yield* observability.info("startup", "Electron app ready");

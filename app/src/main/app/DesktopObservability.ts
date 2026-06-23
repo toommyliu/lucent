@@ -4,10 +4,12 @@ import { BrowserWindow, app, type WebContents } from "electron";
 import { Data, Effect, Layer, ServiceMap } from "effect";
 import {
   formatErrorInfo,
+  isObservabilityConsoleMessageData,
   makeRecordLine,
   normalizeObservabilityInput,
   sanitizeLogValue,
   type ObservabilityInput,
+  type ObservabilityConsoleMessageData,
   type ObservabilityLevel,
   type ObservabilityRecord,
   type ObservabilitySnapshot,
@@ -20,6 +22,7 @@ import { DesktopEnvironment } from "./DesktopEnvironment";
 const MAX_LOG_BYTES = 20 * 1024 * 1024;
 const MAX_ROTATED_FILES = 5;
 const MAX_RECORDS = 2_000;
+const RENDERER_CONSOLE_ECHO_SUPPRESSION_MS = 1_500;
 
 export class ObservabilityWriteError extends Data.TaggedError(
   "ObservabilityWriteError",
@@ -56,6 +59,9 @@ export interface DesktopObservabilityShape {
     data?: unknown,
   ) => Effect.Effect<ObservabilityRecord>;
   readonly snapshot: Effect.Effect<ObservabilitySnapshot>;
+  readonly subscribe: (
+    listener: (record: ObservabilityRecord) => void,
+  ) => Effect.Effect<() => void>;
   readonly installProcessHooks: Effect.Effect<void>;
   readonly observeWindow: (
     window: BrowserWindow,
@@ -90,6 +96,17 @@ const sendToOpenDevConsole = (
     stream.write(`[${record.source}:${record.component}] ${record.message}\n`);
   });
 
+const mapElectronConsoleLevel = (
+  level: number,
+): ObservabilityConsoleMessageData["consoleLevel"] =>
+  level >= 3 ? "error" : level === 2 ? "warn" : level === 1 ? "info" : "debug";
+
+const rendererConsoleEchoKey = (
+  component: string,
+  level: ObservabilityLevel,
+  message: string,
+): string => `${component}\u0000${level}\u0000${message}`;
+
 export const makeObservability = (
   logDir: string,
   options: {
@@ -101,9 +118,59 @@ export const makeObservability = (
   const now = options.now ?? (() => new Date());
   const logPath = join(logDir, "logs.ndjson");
   const records: ObservabilityRecord[] = [];
+  const listeners = new Set<(record: ObservabilityRecord) => void>();
+  const rendererConsoleEchoes = new Map<string, number>();
   let nextRecordId = 0;
   let writeChain: Promise<void> = Promise.resolve();
   let processHooksInstalled = false;
+
+  const pruneRendererConsoleEchoes = (timestamp: number): void => {
+    for (const [key, seenAt] of rendererConsoleEchoes) {
+      if (timestamp - seenAt > RENDERER_CONSOLE_ECHO_SUPPRESSION_MS) {
+        rendererConsoleEchoes.delete(key);
+      }
+    }
+  };
+
+  const rememberRendererConsoleEcho = (record: ObservabilityRecord): void => {
+    if (!isObservabilityConsoleMessageData(record.data)) {
+      return;
+    }
+
+    if (
+      record.data.capturedBy !== "renderer-console" ||
+      record.data.nativeMessage === undefined
+    ) {
+      return;
+    }
+
+    const timestamp = Date.now();
+    pruneRendererConsoleEchoes(timestamp);
+    rendererConsoleEchoes.set(
+      rendererConsoleEchoKey(
+        record.component,
+        record.level,
+        record.data.nativeMessage,
+      ),
+      timestamp,
+    );
+  };
+
+  const shouldSuppressRendererConsoleEcho = (
+    component: string,
+    level: ObservabilityLevel,
+    message: string,
+  ): boolean => {
+    const timestamp = Date.now();
+    pruneRendererConsoleEchoes(timestamp);
+    const seenAt = rendererConsoleEchoes.get(
+      rendererConsoleEchoKey(component, level, message),
+    );
+    return (
+      seenAt !== undefined &&
+      timestamp - seenAt <= RENDERER_CONSOLE_ECHO_SUPPRESSION_MS
+    );
+  };
 
   const rotateIfNeeded = async (): Promise<void> => {
     let currentSize = 0;
@@ -152,6 +219,15 @@ export const makeObservability = (
           records.splice(0, records.length - MAX_RECORDS);
         }
 
+        for (const listener of listeners) {
+          try {
+            listener(record);
+          } catch {
+            // Observability subscribers are auxiliary sinks and must not affect
+            // the primary in-memory/file logging path.
+          }
+        }
+
         writeChain = writeChain
           .catch(() => undefined)
           .then(async () => {
@@ -185,6 +261,7 @@ export const makeObservability = (
         ? {}
         : { error: formatErrorInfo(normalized.error) }),
     };
+    rememberRendererConsoleEcho(record);
 
     return writeRecord(record).pipe(
       Effect.catchCause(() =>
@@ -225,6 +302,14 @@ export const makeObservability = (
       message,
       ...(data === undefined ? {} : { data }),
       ...(error === undefined ? {} : { error }),
+    });
+
+  const subscribe: DesktopObservabilityShape["subscribe"] = (listener) =>
+    Effect.sync(() => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     });
 
   const observeWindow: DesktopObservabilityShape["observeWindow"] = (
@@ -280,15 +365,26 @@ export const makeObservability = (
       webContents.on(
         "console-message",
         (_event, level, message, line, sourceId) => {
-          const logLevel: ObservabilityLevel =
-            level >= 3 ? "error" : level === 2 ? "warn" : "info";
+          const logLevel = mapElectronConsoleLevel(level);
+          if (shouldSuppressRendererConsoleEcho(component, logLevel, message)) {
+            return;
+          }
+
+          const data: ObservabilityConsoleMessageData = {
+            kind: "console-message",
+            consoleLevel: logLevel,
+            electronLevel: level,
+            line,
+            sourceId,
+            capturedBy: "electron",
+          };
           void Effect.runPromise(
             write({
               level: logLevel,
               source,
               component,
               message,
-              data: { line, sourceId },
+              data,
             }),
           );
         },
@@ -414,6 +510,7 @@ export const makeObservability = (
       logPath,
       records: [...records],
     })),
+    subscribe,
     installProcessHooks,
     observeWindow,
   };

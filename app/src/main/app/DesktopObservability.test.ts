@@ -167,4 +167,180 @@ describe("main observability", () => {
       });
     }),
   );
+
+  it.effect(
+    "tags game window console messages and preserves debug levels",
+    () =>
+      Effect.gen(function* () {
+        const observability = makeObservability(testDir, {
+          runId: "run-1",
+          now: () => new Date("2026-05-22T12:00:00.000Z"),
+        });
+        const window = new FakeObservedWindow();
+
+        yield* observability.observeWindow(window as unknown as BrowserWindow, {
+          source: "game",
+          component: "game-window:9",
+        });
+
+        window.webContents.emit(
+          "console-message",
+          {},
+          0,
+          "debug message",
+          12,
+          "debug.js",
+        );
+        window.webContents.emit(
+          "console-message",
+          {},
+          1,
+          "info message",
+          14,
+          "info.js",
+        );
+        window.webContents.emit(
+          "console-message",
+          {},
+          2,
+          "warn message",
+          16,
+          "warn.js",
+        );
+        window.webContents.emit(
+          "console-message",
+          {},
+          3,
+          "error message",
+          18,
+          "error.js",
+        );
+
+        yield* Effect.promise(() =>
+          vi.waitFor(async () => {
+            const log = await readFile(observability.logPath, "utf8");
+            const records = log
+              .trim()
+              .split("\n")
+              .map((line) => JSON.parse(line) as unknown);
+            expect(records.slice(-4)).toMatchObject([
+              {
+                level: "debug",
+                source: "game",
+                component: "game-window:9",
+                message: "debug message",
+                data: {
+                  kind: "console-message",
+                  consoleLevel: "debug",
+                  electronLevel: 0,
+                  line: 12,
+                  sourceId: "debug.js",
+                },
+              },
+              {
+                level: "info",
+                data: {
+                  kind: "console-message",
+                  consoleLevel: "info",
+                  electronLevel: 1,
+                },
+              },
+              {
+                level: "warn",
+                data: {
+                  kind: "console-message",
+                  consoleLevel: "warn",
+                  electronLevel: 2,
+                },
+              },
+              {
+                level: "error",
+                data: {
+                  kind: "console-message",
+                  consoleLevel: "error",
+                  electronLevel: 3,
+                },
+              },
+            ]);
+          }),
+        );
+      }),
+  );
+
+  it.effect(
+    "suppresses Electron echoes for structured renderer console records",
+    () =>
+      Effect.gen(function* () {
+        const observability = makeObservability(testDir, {
+          runId: "run-1",
+          now: () => new Date("2026-05-22T12:00:00.000Z"),
+        });
+        const window = new FakeObservedWindow();
+
+        yield* observability.observeWindow(window as unknown as BrowserWindow, {
+          source: "game",
+          component: "game-window:9",
+        });
+
+        yield* observability.write({
+          level: "info",
+          source: "game",
+          component: "game-window:9",
+          message: '{"count":1}',
+          data: {
+            kind: "console-message",
+            consoleLevel: "info",
+            electronLevel: 1,
+            line: 0,
+            sourceId: "renderer-console",
+            capturedBy: "renderer-console",
+            renderedArgs: ['{"count":1}'],
+            nativeMessage: "[object Object]",
+          },
+        });
+        window.webContents.emit(
+          "console-message",
+          {},
+          1,
+          "[object Object]",
+          20,
+          "script.js",
+        );
+
+        yield* Effect.promise(() =>
+          vi.waitFor(async () => {
+            const log = await readFile(observability.logPath, "utf8");
+            const consoleMessages = log
+              .trim()
+              .split("\n")
+              .map((line) => JSON.parse(line) as { readonly message: string })
+              .map((record) => record.message)
+              .filter(
+                (message) =>
+                  message === '{"count":1}' || message === "[object Object]",
+              );
+            expect(consoleMessages).toEqual(['{"count":1}']);
+          }),
+        );
+      }),
+  );
+
+  it.effect("notifies subscribers for accepted records", () =>
+    Effect.gen(function* () {
+      const observability = makeObservability(testDir, {
+        runId: "run-1",
+        now: () => new Date("2026-05-22T12:00:00.000Z"),
+      });
+      const records: string[] = [];
+      const unsubscribe = yield* observability.subscribe((record) => {
+        records.push(record.message);
+      });
+
+      yield* observability.info("startup", "first");
+      unsubscribe();
+      yield* observability.info("startup", "second");
+
+      expect(records).toEqual(["first"]);
+    }),
+  );
 });

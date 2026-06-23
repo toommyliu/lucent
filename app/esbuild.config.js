@@ -65,6 +65,11 @@ const solidRendererTargets = [
     entryPoint: "./src/renderer/windows/packets/App.tsx",
     html: "src/renderer/windows/index.html",
   },
+  {
+    name: "observability",
+    entryPoint: "./src/renderer/windows/observability/App.tsx",
+    html: "src/renderer/windows/observability/index.html",
+  },
 ];
 const rendererEntryPoints = Object.fromEntries(
   solidRendererTargets.map((target) => [

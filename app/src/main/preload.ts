@@ -28,6 +28,7 @@ import {
   ScriptingIpcChannels,
   UpdatesIpcChannels,
   WindowIpcContracts,
+  type AccountGameWindowIdentityUpdate,
   type AccountGameWindowTargetRequest,
   type AccountGameLaunchPayload,
   type AccountGameServerPingsResult,
@@ -513,6 +514,14 @@ const fullBridge: DesktopBridge = {
     updateScriptStatus: async (update: AccountScriptStatusUpdate) => {
       await ipcRenderer.invoke(
         AccountManagerIpcChannels.updateScriptStatus,
+        update,
+      );
+    },
+    updateGameWindowIdentity: async (
+      update: AccountGameWindowIdentityUpdate,
+    ) => {
+      await ipcRenderer.invoke(
+        AccountManagerIpcChannels.updateGameWindowIdentity,
         update,
       );
     },

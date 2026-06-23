@@ -2,6 +2,8 @@ import { describe, expect, it } from "@effect/vitest";
 import type { AccountGameLaunchPayload } from "../../../shared/ipc";
 import {
   createAccountManagerStatusPublisher,
+  createGameWindowIdentityPublisher,
+  toAccountGameWindowIdentityUpdate,
   toAccountScriptStatusUpdate,
 } from "./accountManagerStatusBridge";
 
@@ -16,7 +18,7 @@ const launchPayload: AccountGameLaunchPayload = {
 };
 
 describe("account manager status bridge", () => {
-  it("builds script status updates with optional current username metadata", () => {
+  it("builds script status updates with current username metadata", () => {
     expect(
       toAccountScriptStatusUpdate(
         {
@@ -45,6 +47,7 @@ describe("account manager status bridge", () => {
       ),
     ).toEqual({
       status: "idle",
+      currentUsername: "",
       message: "No script loaded",
     });
   });
@@ -88,6 +91,33 @@ describe("account manager status bridge", () => {
         scriptName: "farm.js",
         message: "Running farm.js",
       },
+    ]);
+  });
+
+  it("publishes live game window identity after login and clears after logout", async () => {
+    let username = "";
+    const updates: unknown[] = [];
+    const publisher = createGameWindowIdentityPublisher({
+      getCurrentUsername: async () => username,
+      publish: async (update) => {
+        updates.push(update);
+      },
+    });
+
+    expect(toAccountGameWindowIdentityUpdate(" Hero ")).toEqual({
+      currentUsername: "Hero",
+    });
+
+    await publisher.publishIdentity();
+    username = "Hero";
+    await publisher.publishIdentity();
+    await publisher.publishIdentity();
+    username = "";
+    await publisher.publishIdentity();
+
+    expect(updates).toEqual([
+      { currentUsername: "Hero" },
+      { currentUsername: "" },
     ]);
   });
 });
