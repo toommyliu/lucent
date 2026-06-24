@@ -5,8 +5,8 @@ const {
   renameSync,
   statSync,
   writeFileSync,
-} = require("node:fs");
-const { join } = require("node:path");
+} = require("fs");
+const { join } = require("path");
 
 exports.default = async function afterPackLinuxSandbox(context) {
   if (context.electronPlatformName !== "linux") {

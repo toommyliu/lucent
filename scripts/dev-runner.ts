@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Console, Data, Effect, Option, Queue, Ref } from "effect";
+import { Console, Data, Effect, Option, Queue, Ref, Scope } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { ChildProcess } from "effect/unstable/process";
 import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpawner";
@@ -44,6 +44,7 @@ const FORCE_KILL_AFTER_MS = 1500;
 const FORCE_KILL_AFTER = `${FORCE_KILL_AFTER_MS} millis`;
 const PROCESS_GROUP_POLL_INTERVAL_MS = 50;
 const DEV_RUNNER_MODES = ["dev", "app", "docs"] as const;
+const TERMINATION_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 type DevMode = (typeof DEV_RUNNER_MODES)[number];
 
@@ -82,6 +83,8 @@ type ExistingDevElectronProcess = {
   readonly pid: number;
   readonly processGroupId: number;
 };
+
+type TerminationSignal = (typeof TERMINATION_SIGNALS)[number];
 
 class DevRunnerError extends Data.TaggedError("DevRunnerError")<{
   readonly message: string;
@@ -138,6 +141,12 @@ const spawnPnpm = (
   env: NodeJS.ProcessEnv,
 ) => ChildProcess.make("pnpm", args, childOptions(cwd, env));
 
+const spawnNode = (
+  args: ReadonlyArray<string>,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+) => ChildProcess.make(process.execPath, args, childOptions(cwd, env));
+
 const isProcessGroupAlive = (processGroupId: number): boolean => {
   try {
     process.kill(-processGroupId, 0);
@@ -152,22 +161,27 @@ const signalProcessGroup = (
   processGroupId: number,
   signal: NodeJS.Signals,
 ) =>
-  Effect.sync(() => {
-    try {
-      process.kill(-processGroupId, signal);
-      return true;
-    } catch (cause) {
-      if (isNoSuchProcessError(cause)) {
-        return false;
-      }
+  Effect.try({
+    try: () => {
+      try {
+        process.kill(-processGroupId, signal);
+        return true;
+      } catch (cause) {
+        if (isNoSuchProcessError(cause)) {
+          return false;
+        }
 
-      throw cause;
-    }
+        throw cause;
+      }
+    },
+    catch: (cause) =>
+      new DevRunnerError({
+        message: `[dev-runner] failed to send ${signal} to ${label} process group ${processGroupId}`,
+        cause,
+      }),
   }).pipe(
-    Effect.catch((cause) =>
-      Console.error(
-        `[dev-runner] failed to send ${signal} to ${label} process group ${processGroupId}: ${String(cause)}`,
-      ).pipe(Effect.as(false)),
+    Effect.catch((error) =>
+      Console.error(error.message).pipe(Effect.as(false)),
     ),
   );
 
@@ -273,21 +287,17 @@ const stopChildProcess = (label: string, child: ChildProcessHandle) =>
       `[dev-runner] ${label} did not stop after ${FORCE_KILL_AFTER}; force killing`,
     );
 
-    yield* child
-      .kill({ killSignal: "SIGKILL" })
-      .pipe(
-        Effect.timeoutOrElse({
-          duration: FORCE_KILL_AFTER,
-          orElse: () => Effect.void,
-        }),
-      )
-      .pipe(
-        Effect.catch((cause) =>
-          Console.error(
-            `[dev-runner] failed to force kill ${label}: ${String(cause)}`,
-          ),
+    yield* child.kill({ killSignal: "SIGKILL" }).pipe(
+      Effect.timeoutOrElse({
+        duration: FORCE_KILL_AFTER,
+        orElse: () => Effect.void,
+      }),
+      Effect.catch((cause) =>
+        Console.error(
+          `[dev-runner] failed to force kill ${label}: ${String(cause)}`,
         ),
-      );
+      ),
+    );
   });
 
 const runRequiredCommand = (
@@ -347,6 +357,59 @@ const stopChild = (label: string, child: ChildProcessHandle) =>
     }
 
     yield* stopChildProcess(label, child);
+  });
+
+const exitCodeForSignal = (signal: TerminationSignal): number => {
+  switch (signal) {
+    case "SIGINT":
+      return 130;
+    case "SIGTERM":
+      return 143;
+    case "SIGHUP":
+      return 129;
+  }
+};
+
+const installTerminationCleanup = (
+  cleanup: Effect.Effect<void, unknown>,
+): Effect.Effect<void, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const context = yield* Effect.context<never>();
+    const runPromise = Effect.runPromiseWith(context);
+
+    const dispose = yield* Effect.sync(() => {
+      const handlers = new Map<TerminationSignal, () => void>();
+      let cleaningUp = false;
+
+      const removeHandlers = (): void => {
+        for (const [signal, handler] of handlers) {
+          process.removeListener(signal, handler);
+        }
+        handlers.clear();
+      };
+
+      for (const signal of TERMINATION_SIGNALS) {
+        const handler = (): void => {
+          if (cleaningUp) {
+            return;
+          }
+
+          cleaningUp = true;
+          removeHandlers();
+          void runPromise(cleanup.pipe(Effect.catch(() => Effect.void))).finally(
+            () => {
+              process.exit(exitCodeForSignal(signal));
+            },
+          );
+        };
+        handlers.set(signal, handler);
+        process.once(signal, handler);
+      }
+
+      return removeHandlers;
+    });
+
+    yield* Effect.addFinalizer(() => Effect.sync(dispose));
   });
 
 const commandHasAppDevRootArg = (command: string): boolean => {
@@ -746,8 +809,8 @@ const runDevLoop = (electronArgs: ReadonlyArray<string>) =>
 
     const startElectron = Effect.gen(function* () {
       yield* Console.log("[dev-runner] starting electron");
-      const electron = yield* spawnPnpm(
-        ["electron", "--", APP_DEV_ROOT_ARG, ...electronArgs],
+      const electron = yield* spawnNode(
+        ["scripts/start-electron.mjs", "--", APP_DEV_ROOT_ARG, ...electronArgs],
         APP_DIR,
         electronEnv,
       );
@@ -777,6 +840,13 @@ const runDevLoop = (electronArgs: ReadonlyArray<string>) =>
         yield* Ref.set(activeElectron, null);
       }
     });
+
+    yield* installTerminationCleanup(
+      Effect.gen(function* () {
+        yield* stopActiveElectron;
+        yield* stopChild("compile watcher", compileWatch);
+      }),
+    );
 
     yield* startElectron;
 
@@ -889,7 +959,7 @@ const dryRun = (mode: DevMode, electronArgs: ReadonlyArray<string>) =>
       yield* Console.log("app.initial=pnpm compile");
       yield* Console.log("app.watch=pnpm compile:watch");
       yield* Console.log(
-        `app.electron=pnpm electron -- ${[
+        `app.electron=node scripts/start-electron.mjs -- ${[
           APP_DEV_ROOT_ARG,
           ...electronArgs,
         ].join(" ")}`,
