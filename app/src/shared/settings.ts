@@ -1,20 +1,30 @@
 import { Option, Schema } from "effect";
 
+import {
+  DEFAULT_HOTKEYS,
+  HotkeysSettingsSchema,
+  HotkeysPatchSchema,
+  normalizeHotkeySettings,
+  type HotkeysPatch,
+  type HotkeysSettings,
+} from "./hotkeys";
+
 const APP_SETTINGS_VERSION = 1;
 
-const AppLaunchModeSchema = Schema.Literals(["game", "account-manager"]);
-const ThemeModeSchema = Schema.Literals(["system", "light", "dark"]);
-const MotionModeSchema = Schema.Literals(["system", "on", "off"]);
+export const AppLaunchModeSchema = Schema.Literals(["game", "account-manager"]);
+export const ThemeModeSchema = Schema.Literals(["system", "light", "dark"]);
+export const MotionModeSchema = Schema.Literals(["system", "on", "off"]);
+export const ThemeVariantSchema = Schema.Literals(["light", "dark"]);
 
 export type AppSettingsVersion = typeof APP_SETTINGS_VERSION;
 
 export type AppLaunchMode = typeof AppLaunchModeSchema.Type;
 export type ThemeMode = typeof ThemeModeSchema.Type;
 export type MotionMode = typeof MotionModeSchema.Type;
-export type ThemeVariant = "light" | "dark";
+export type ThemeVariant = typeof ThemeVariantSchema.Type;
 export type ThemeRgb = readonly [number, number, number];
 
-const THEME_TOKEN_NAMES = [
+export const THEME_TOKEN_NAMES = [
   "background",
   "foreground",
   "card",
@@ -42,19 +52,129 @@ const THEME_TOKEN_NAMES = [
   "ring",
 ] as const;
 
-const ThemeTokenNameSchema = Schema.Literals(THEME_TOKEN_NAMES);
-const ThemeRgbSchema = Schema.Tuple([
+export const ThemeTokenNameSchema = Schema.Literals(THEME_TOKEN_NAMES);
+export const ThemeRgbSchema = Schema.Tuple([
   Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 })),
   Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 })),
   Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 })),
 ]);
-const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
+export const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
+export const THEME_FONT_MIN_LENGTH = 1;
+export const THEME_FONT_MAX_LENGTH = 256;
+export const THEME_FONT_SIZE_MIN = 10;
+export const THEME_FONT_SIZE_MAX = 24;
+export const THEME_ROUNDING_MIN = 0;
+export const THEME_ROUNDING_MAX = 2;
+export const ThemeFontSchema = Schema.String.check(
+  Schema.isLengthBetween(THEME_FONT_MIN_LENGTH, THEME_FONT_MAX_LENGTH),
+);
+export const ThemeFontSizeSchema = Schema.Int.check(
+  Schema.isBetween({
+    minimum: THEME_FONT_SIZE_MIN,
+    maximum: THEME_FONT_SIZE_MAX,
+  }),
+);
+export const ThemeRoundingSchema = Schema.Finite.check(
+  Schema.isBetween({
+    minimum: THEME_ROUNDING_MIN,
+    maximum: THEME_ROUNDING_MAX,
+  }),
+);
+
+export const ThemeTokenValuesSchema = Schema.Record(
+  ThemeTokenNameSchema,
+  ThemeRgbSchema,
+);
+const OptionalThemeRgbSchema = Schema.optionalKey(
+  Schema.NullOr(ThemeRgbSchema),
+);
+const ThemeTokenPatchSchema = Schema.Struct({
+  background: OptionalThemeRgbSchema,
+  foreground: OptionalThemeRgbSchema,
+  card: OptionalThemeRgbSchema,
+  cardForeground: OptionalThemeRgbSchema,
+  popover: OptionalThemeRgbSchema,
+  popoverForeground: OptionalThemeRgbSchema,
+  primary: OptionalThemeRgbSchema,
+  primaryForeground: OptionalThemeRgbSchema,
+  secondary: OptionalThemeRgbSchema,
+  secondaryForeground: OptionalThemeRgbSchema,
+  muted: OptionalThemeRgbSchema,
+  mutedForeground: OptionalThemeRgbSchema,
+  accent: OptionalThemeRgbSchema,
+  accentForeground: OptionalThemeRgbSchema,
+  destructive: OptionalThemeRgbSchema,
+  destructiveForeground: OptionalThemeRgbSchema,
+  success: OptionalThemeRgbSchema,
+  successForeground: OptionalThemeRgbSchema,
+  warning: OptionalThemeRgbSchema,
+  warningForeground: OptionalThemeRgbSchema,
+  info: OptionalThemeRgbSchema,
+  infoForeground: OptionalThemeRgbSchema,
+  border: OptionalThemeRgbSchema,
+  input: OptionalThemeRgbSchema,
+  ring: OptionalThemeRgbSchema,
+});
+
+export const ThemeProfileSchema = Schema.Struct({
+  tokens: ThemeTokenValuesSchema,
+  sansFont: ThemeFontSchema,
+  monoFont: ThemeFontSchema,
+  sansFontSize: ThemeFontSizeSchema,
+  monoFontSize: ThemeFontSizeSchema,
+  rounding: ThemeRoundingSchema,
+});
+
+export const ThemeProfilePatchSchema = Schema.Struct({
+  tokens: Schema.optionalKey(ThemeTokenPatchSchema),
+  sansFont: Schema.optionalKey(ThemeFontSchema),
+  monoFont: Schema.optionalKey(ThemeFontSchema),
+  sansFontSize: Schema.optionalKey(ThemeFontSizeSchema),
+  monoFontSize: Schema.optionalKey(ThemeFontSizeSchema),
+  rounding: Schema.optionalKey(ThemeRoundingSchema),
+});
+
+export const PreferencesPatchSchema = Schema.Struct({
+  checkForUpdates: Schema.optionalKey(Schema.Boolean),
+  launchMode: Schema.optionalKey(AppLaunchModeSchema),
+});
+
+export const AppearancePatchSchema = Schema.Struct({
+  themeMode: Schema.optionalKey(ThemeModeSchema),
+  reduceMotion: Schema.optionalKey(MotionModeSchema),
+  useCursorPointers: Schema.optionalKey(Schema.Boolean),
+  themes: Schema.optionalKey(
+    Schema.Struct({
+      light: Schema.optionalKey(ThemeProfilePatchSchema),
+      dark: Schema.optionalKey(ThemeProfilePatchSchema),
+    }),
+  ),
+});
 
 export type ThemeTokenName = (typeof THEME_TOKEN_NAMES)[number];
 export type ThemeTokenValues = Record<ThemeTokenName, ThemeRgb>;
+export interface PreferencesPatch {
+  readonly checkForUpdates?: boolean;
+  readonly launchMode?: AppLaunchMode;
+}
+export interface ThemeProfilePatch {
+  readonly monoFont?: string;
+  readonly monoFontSize?: number;
+  readonly rounding?: number;
+  readonly sansFont?: string;
+  readonly sansFontSize?: number;
+  readonly tokens?: Partial<Record<ThemeTokenName, ThemeRgb | null>>;
+}
+export interface AppearancePatch {
+  readonly reduceMotion?: MotionMode;
+  readonly themeMode?: ThemeMode;
+  readonly themes?: Partial<Record<ThemeVariant, ThemeProfilePatch>>;
+  readonly useCursorPointers?: boolean;
+}
+export type { HotkeysPatch, HotkeysSettings };
 
 export interface ThemeProfile {
-  readonly tokens: Partial<Record<ThemeTokenName, ThemeRgb>>;
+  readonly tokens: ThemeTokenValues;
   readonly sansFont: string;
   readonly monoFont: string;
   readonly sansFontSize: number;
@@ -74,7 +194,26 @@ export interface AppSettings {
     readonly useCursorPointers: boolean;
     readonly themes: Record<ThemeVariant, ThemeProfile>;
   };
+  readonly hotkeys: HotkeysSettings;
 }
+
+export const AppSettingsSchema = Schema.Struct({
+  version: Schema.Literal(APP_SETTINGS_VERSION),
+  preferences: Schema.Struct({
+    checkForUpdates: Schema.Boolean,
+    launchMode: AppLaunchModeSchema,
+  }),
+  appearance: Schema.Struct({
+    themeMode: ThemeModeSchema,
+    reduceMotion: MotionModeSchema,
+    useCursorPointers: Schema.Boolean,
+    themes: Schema.Struct({
+      light: ThemeProfileSchema,
+      dark: ThemeProfileSchema,
+    }),
+  }),
+  hotkeys: HotkeysSettingsSchema,
+});
 
 const DEFAULT_SANS_FONT = '"Inter Variable", sans-serif';
 const DEFAULT_MONO_FONT = '"JetBrains Mono Variable", monospace';
@@ -171,6 +310,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
       dark: DEFAULT_DARK_THEME_PROFILE,
     },
   },
+  hotkeys: DEFAULT_HOTKEYS,
 };
 
 const decodeAppLaunchMode = Schema.decodeUnknownOption(AppLaunchModeSchema);
@@ -237,7 +377,10 @@ const normalizeFont = (value: unknown, fallback: string): string => {
   }
 
   const font = decoded.value.trim();
-  return font.length > 0 && font.length <= 256 ? font : fallback;
+  return font.length >= THEME_FONT_MIN_LENGTH &&
+    font.length <= THEME_FONT_MAX_LENGTH
+    ? font
+    : fallback;
 };
 
 const normalizeFontSize = (value: unknown, fallback: number): number => {
@@ -246,7 +389,10 @@ const normalizeFontSize = (value: unknown, fallback: number): number => {
     return fallback;
   }
 
-  return Math.min(24, Math.max(10, Math.round(decoded.value)));
+  return Math.min(
+    THEME_FONT_SIZE_MAX,
+    Math.max(THEME_FONT_SIZE_MIN, Math.round(decoded.value)),
+  );
 };
 
 const normalizeRounding = (value: unknown, fallback: number): number => {
@@ -255,13 +401,16 @@ const normalizeRounding = (value: unknown, fallback: number): number => {
     return fallback;
   }
 
-  return Math.min(2, Math.max(0, decoded.value));
+  return Math.min(
+    THEME_ROUNDING_MAX,
+    Math.max(THEME_ROUNDING_MIN, decoded.value),
+  );
 };
 
 const normalizeThemeTokens = (
   value: unknown,
-  fallback: Partial<Record<ThemeTokenName, ThemeRgb>>,
-): Partial<Record<ThemeTokenName, ThemeRgb>> => {
+  fallback: ThemeTokenValues,
+): ThemeTokenValues => {
   const tokenRecord = decodeRecord(value);
   if (Option.isNone(tokenRecord)) {
     return fallback;
@@ -354,13 +503,14 @@ export const normalizeAppSettings = (value: unknown): AppSettings => {
         ),
       },
     },
+    hotkeys: normalizeHotkeySettings(settings["hotkeys"]),
   };
 };
 
 const serializeTokens = (
-  tokens: Partial<Record<ThemeTokenName, ThemeRgb>>,
-): Partial<Record<ThemeTokenName, string>> => {
-  const serialized: Partial<Record<ThemeTokenName, string>> = {};
+  tokens: ThemeTokenValues,
+): Record<ThemeTokenName, string> => {
+  const serialized = {} as Record<ThemeTokenName, string>;
   for (const [name, value] of Object.entries(tokens)) {
     const tokenName = name as ThemeTokenName;
     const rgb = normalizeRgb(value);
@@ -398,5 +548,8 @@ export const serializeAppSettings = (settings: AppSettings): unknown => {
         dark: serializeThemeProfile(normalized.appearance.themes.dark),
       },
     },
+    hotkeys: normalized.hotkeys,
   };
 };
+
+export { HotkeysPatchSchema };

@@ -1,17 +1,29 @@
 import { randomBytes } from "crypto";
+import { join } from "path";
 
 import type { BrowserWindowConstructorOptions } from "electron";
 
 import { Context, Effect, Layer, Schema } from "effect";
 
+import {
+  type AppearanceSnapshot,
+  createAppearanceSnapshot,
+  serializeDesktopViewArgument,
+  serializeAppearanceSnapshotArgument,
+  serializeSettingsSnapshotArgument,
+} from "../../shared/appearance";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronSession } from "../electron/ElectronSession";
+import { ElectronTheme } from "../electron/ElectronTheme";
 import {
   ElectronWindow,
+  isElectronWindowUsable,
   type ElectronWindowHandle,
 } from "../electron/ElectronWindow";
+import { DesktopSettings } from "../settings/DesktopSettings";
 import {
   getDesktopWindowDefinition,
   type DesktopViewId,
@@ -51,18 +63,13 @@ export class DesktopWindows extends Context.Service<
 const viewHtmlPath = (
   env: DesktopEnvironment["Service"],
   view: DesktopViewId,
-): string => {
-  if (view === "game") {
-    return env.gameHtmlPath;
-  }
-
-  const exhaustive: never = view;
-  return exhaustive;
-};
+): string => join(env.rendererDir, view, "index.html");
 
 const createWindowOptions = (
   env: DesktopEnvironment["Service"],
   definition: DesktopWindowDefinition,
+  settings: AppSettings,
+  snapshot: AppearanceSnapshot,
 ): BrowserWindowConstructorOptions => ({
   width: definition.width,
   height: definition.height,
@@ -73,32 +80,43 @@ const createWindowOptions = (
     ? {}
     : { minHeight: definition.minHeight }),
   ...(env.platform === "linux" ? { icon: env.appIconPath } : {}),
-  backgroundColor: "#0e0e0f",
+  backgroundColor: snapshot.backgroundColor,
   show: false,
   webPreferences: {
+    additionalArguments: [
+      serializeDesktopViewArgument(definition.view),
+      serializeAppearanceSnapshotArgument(snapshot),
+      serializeSettingsSnapshotArgument(settings),
+    ],
     contextIsolation: true,
     nodeIntegration: false,
+    preload: env.preloadPath,
     sandbox: false,
     plugins: definition.requiresFlashPlugin,
   },
 });
 
-const isUsable = (
-  window: ElectronWindowHandle | undefined,
-): window is ElectronWindowHandle =>
-  window !== undefined &&
-  !window.isDestroyed() &&
-  !window.webContents.isDestroyed();
-
 interface DesktopWindowRecord {
   readonly kind: DesktopWindowKind;
   // ownerId is logical ownership only; Electron parent windows are intentionally not used.
   readonly ownerId?: DesktopWindowInstanceId;
+  readonly unregisterGameWebContents?: () => void;
   readonly window: ElectronWindowHandle;
 }
 
 const makeInstanceId = (kind: DesktopWindowKind): DesktopWindowInstanceId =>
   `${kind}-${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`;
+
+const preventWindowClose = (event: unknown): void => {
+  if (
+    typeof event === "object" &&
+    event !== null &&
+    "preventDefault" in event &&
+    typeof event.preventDefault === "function"
+  ) {
+    event.preventDefault();
+  }
+};
 
 const makeDesktopWindows = Effect.gen(function* () {
   const app = yield* ElectronApp;
@@ -106,21 +124,28 @@ const makeDesktopWindows = Effect.gen(function* () {
   const electronWindow = yield* ElectronWindow;
   const session = yield* ElectronSession;
   const observability = yield* DesktopObservability;
+  const settings = yield* DesktopSettings;
+  const theme = yield* ElectronTheme;
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const windows = new Map<DesktopWindowInstanceId, DesktopWindowRecord>();
+  let appIsQuitting = false;
+
+  yield* app.on("before-quit", () => {
+    appIsQuitting = true;
+  });
 
   const hasOpenRootGameWindows = (): boolean =>
     [...windows.values()].some(
       (record) =>
         record.kind === "game" &&
         record.ownerId === undefined &&
-        isUsable(record.window),
+        isElectronWindowUsable(record.window),
     );
 
   const revealExisting = (id: DesktopWindowInstanceId) => {
     const record = windows.get(id);
-    if (record === undefined || !isUsable(record.window)) {
+    if (record === undefined || !isElectronWindowUsable(record.window)) {
       windows.delete(id);
       return Effect.succeed(false);
     }
@@ -140,23 +165,81 @@ const makeDesktopWindows = Effect.gen(function* () {
       ),
     );
 
+  const findOpenInstance = (
+    kind: DesktopWindowKind,
+  ): readonly [DesktopWindowInstanceId, DesktopWindowRecord] | null => {
+    for (const entry of windows.entries()) {
+      const [, record] = entry;
+      if (record.kind === kind && isElectronWindowUsable(record.window)) {
+        return entry;
+      }
+    }
+    return null;
+  };
+
+  const getBootstrapSettings = settings.get.pipe(
+    Effect.catch((cause) =>
+      observability
+        .warn(
+          "window",
+          "Falling back to default settings for window bootstrap",
+          {
+            cause,
+          },
+        )
+        .pipe(Effect.as(DEFAULT_APP_SETTINGS)),
+    ),
+  );
+
   const open: DesktopWindowsShape["open"] = (kind) =>
     Effect.gen(function* () {
       const definition = getDesktopWindowDefinition(kind);
+      if (definition.singleInstance) {
+        const existing = findOpenInstance(kind);
+        if (existing !== null) {
+          const [id] = existing;
+          yield* revealExisting(id);
+          return id;
+        }
+      }
+
       const id = makeInstanceId(kind);
       const openEffect = Effect.gen(function* () {
-        const window = yield* electronWindow.create(
-          createWindowOptions(env, definition),
+        const bootstrapSettings = yield* getBootstrapSettings;
+        const systemPrefersDark = yield* theme.shouldUseDarkColors;
+        const snapshot = createAppearanceSnapshot(
+          bootstrapSettings,
+          systemPrefersDark,
         );
-        windows.set(id, { kind, window });
-        if (kind === "game") {
-          yield* session.installGameRequestHeaders({
-            platform: env.platform,
-            webContentsId: window.webContents.id,
+        const window = yield* electronWindow.create(
+          createWindowOptions(env, definition, bootstrapSettings, snapshot),
+        );
+        const unregisterGameWebContents =
+          kind === "game"
+            ? yield* session.registerGameWebContents(window.webContents.id)
+            : undefined;
+        windows.set(id, {
+          kind,
+          ...(unregisterGameWebContents === undefined
+            ? {}
+            : { unregisterGameWebContents }),
+          window,
+        });
+
+        if (definition.closeBehavior === "hide") {
+          window.on("close", (event) => {
+            if (appIsQuitting || window.isDestroyed()) {
+              return;
+            }
+
+            preventWindowClose(event);
+            window.hide();
           });
         }
 
         window.once("closed", () => {
+          const record = windows.get(id);
+          record?.unregisterGameWebContents?.();
           windows.delete(id);
           if (kind === "game" && !hasOpenRootGameWindows()) {
             void runPromise(app.quit);

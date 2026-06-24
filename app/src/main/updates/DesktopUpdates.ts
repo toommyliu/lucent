@@ -10,8 +10,10 @@ import {
 } from "../../shared/updates";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
-import { DesktopData } from "../data/DesktopData";
 import { ElectronApp } from "../electron/ElectronApp";
+import { ElectronShell } from "../electron/ElectronShell";
+import { DesktopSettings } from "../settings/DesktopSettings";
+import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
 
 const RELEASE_URL =
   "https://api.github.com/repos/toommyliu/lucent/releases/latest";
@@ -45,6 +47,10 @@ export interface DesktopUpdatesShape {
     readonly force?: boolean;
   }) => Effect.Effect<UpdateCheckState>;
   readonly getState: Effect.Effect<UpdateCheckState>;
+  readonly onStateChanged: (
+    listener: (state: UpdateCheckState) => void,
+  ) => Effect.Effect<() => void>;
+  readonly openReleasePage: Effect.Effect<boolean>;
 }
 
 export class DesktopUpdates extends Context.Service<
@@ -283,6 +289,7 @@ interface DesktopUpdatesOptions {
   readonly saveCache: (
     cache: UpdateReleaseCache,
   ) => Effect.Effect<void, unknown>;
+  readonly openExternal: (url: string) => Effect.Effect<boolean>;
 }
 
 const makeDesktopUpdates = (
@@ -293,13 +300,36 @@ const makeDesktopUpdates = (
     const now = options.now ?? (() => new Date());
     const context = yield* Effect.context<never>();
     const runPromise = Effect.runPromiseWith(context);
-    const stateRef = yield* Ref.make<UpdateCheckState>({
-      status: "idle",
+    const disabledState = (): UpdateCheckState => ({
+      status: "disabled",
       currentVersion,
+      reason: "Update checks are disabled.",
     });
+    const updatesEnabled = yield* options.isEnabled.pipe(
+      Effect.catch(() => Effect.succeed(true)),
+    );
+    const stateRef = yield* Ref.make<UpdateCheckState>(
+      updatesEnabled
+        ? {
+            status: "idle",
+            currentVersion,
+          }
+        : disabledState(),
+    );
     const cacheRef = yield* Ref.make<UpdateReleaseCache | null>(null);
     const cacheLoadedRef = yield* Ref.make(false);
+    const listeners = new Set<(state: UpdateCheckState) => void>();
     let inFlight: Promise<UpdateCheckState> | null = null;
+
+    const publish = (state: UpdateCheckState): Effect.Effect<void> =>
+      Effect.sync(() => {
+        for (const listener of listeners) {
+          listener(state);
+        }
+      });
+
+    const setState = (state: UpdateCheckState): Effect.Effect<void> =>
+      Ref.set(stateRef, state).pipe(Effect.flatMap(() => publish(state)));
 
     const loadCacheOnce = Effect.gen(function* () {
       const loaded = yield* Ref.get(cacheLoadedRef);
@@ -342,17 +372,13 @@ const makeDesktopUpdates = (
       Effect.gen(function* () {
         const enabled = yield* options.isEnabled;
         if (!enabled && !force) {
-          const disabled: UpdateCheckState = {
-            status: "disabled",
-            currentVersion,
-            reason: "Update checks are disabled.",
-          };
-          yield* Ref.set(stateRef, disabled);
+          const disabled = disabledState();
+          yield* setState(disabled);
           return disabled;
         }
 
         const startedAt = now().toISOString();
-        yield* Ref.set(stateRef, {
+        yield* setState({
           status: "checking",
           currentVersion,
           startedAt,
@@ -373,12 +399,12 @@ const makeDesktopUpdates = (
               latestVersion: currentVersion,
               checkedAt,
             };
-            yield* Ref.set(stateRef, current);
+            yield* setState(current);
             return current;
           }
 
           const next = stateFromRelease(release, checkedAt);
-          yield* Ref.set(stateRef, next);
+          yield* setState(next);
           return next;
         }
 
@@ -389,7 +415,7 @@ const makeDesktopUpdates = (
         yield* saveCache(nextCache);
 
         const next = stateFromRelease(result.release, checkedAt);
-        yield* Ref.set(stateRef, next);
+        yield* setState(next);
         return next;
       }).pipe(
         Effect.catch((error) =>
@@ -401,7 +427,7 @@ const makeDesktopUpdates = (
               checkedAt,
               message: errorMessage(error, "Failed to check for updates."),
             };
-            yield* Ref.set(stateRef, next);
+            yield* setState(next);
             return next;
           }),
         ),
@@ -409,6 +435,20 @@ const makeDesktopUpdates = (
 
     return {
       getState: Ref.get(stateRef),
+      onStateChanged: (listener) =>
+        Effect.sync(() => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        }),
+      openReleasePage: Ref.get(stateRef).pipe(
+        Effect.flatMap((state) =>
+          state.status === "available"
+            ? options.openExternal(state.release.htmlUrl)
+            : Effect.succeed(false),
+        ),
+      ),
       checkNow: (checkOptions) => {
         if (inFlight !== null) {
           const active = inFlight;
@@ -432,19 +472,22 @@ export const layer = Layer.effect(
   DesktopUpdates,
   Effect.gen(function* () {
     const app = yield* ElectronApp;
-    const data = yield* DesktopData;
     const env = yield* DesktopEnvironment;
     const observability = yield* DesktopObservability;
+    const shell = yield* ElectronShell;
+    const settings = yield* DesktopSettings;
     const currentVersion = yield* app.getVersion;
 
     return DesktopUpdates.of(
       yield* makeDesktopUpdates({
         currentVersion,
         fetchRelease: fetchLatestGitHubRelease,
-        isEnabled: data.getSettings.pipe(
-          Effect.map((settings) => settings.preferences.checkForUpdates),
+        isEnabled: settings.get.pipe(
+          Effect.map(
+            (currentSettings) => currentSettings.preferences.checkForUpdates,
+          ),
         ),
-        loadCache: data.readJson(env.releaseCachePath).pipe(
+        loadCache: readJsonFile(env.releaseCachePath).pipe(
           Effect.map((result) =>
             result.status === "ok"
               ? normalizeUpdateReleaseCache(result.value)
@@ -457,15 +500,17 @@ export const layer = Layer.effect(
           ),
         ),
         saveCache: (cache) =>
-          data
-            .writeJson(env.releaseCachePath, serializeUpdateReleaseCache(cache))
-            .pipe(
-              Effect.catch((cause) =>
-                observability.warn("updates", "Failed to save release cache", {
-                  cause,
-                }),
-              ),
+          writeJsonFile(
+            env.releaseCachePath,
+            serializeUpdateReleaseCache(cache),
+          ).pipe(
+            Effect.catch((cause) =>
+              observability.warn("updates", "Failed to save release cache", {
+                cause,
+              }),
             ),
+          ),
+        openExternal: (url) => shell.openExternal(url),
       }),
     );
   }),

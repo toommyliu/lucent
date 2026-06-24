@@ -1439,46 +1439,10 @@ a.badge--destructive:hover {
 /* Pill button */
 
 .pill-button {
-  align-items: center;
-  background: rgb(var(--muted) / 0.4);
-  border: 1px solid rgb(var(--border) / 0.72);
   border-radius: 9999px;
-  color: rgb(var(--muted-foreground));
-  cursor: var(--cursor-interactive);
-  display: inline-flex;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  gap: 0.375rem;
-  min-height: 1.75rem;
-  min-width: 0;
-  padding: 0.125rem 0.375rem 0.125rem 0.75rem;
-  transition:
-    background-color var(--duration-fast) ease,
-    border-color var(--duration-fast) ease,
-    color var(--duration-fast) ease;
 }
 
-.pill-button:hover:not(:disabled),
-.pill-button:focus-visible {
-  background: rgb(var(--accent));
-  border-color: rgb(var(--border));
-  color: rgb(var(--accent-foreground));
-}
-
-.pill-button:focus-visible {
-  box-shadow:
-    0 0 0 1px rgb(var(--background)),
-    0 0 0 3px rgba(var(--ring), 0.42);
-  outline: none;
-}
-
-.pill-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-
-.pill-button--pressed {
+.pill-button.button--secondary[data-pressed] {
   background: rgb(var(--primary) / 0.13);
   border-color: rgb(var(--primary) / 0.3);
   color: rgb(var(--primary));

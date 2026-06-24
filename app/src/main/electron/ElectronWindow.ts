@@ -6,6 +6,12 @@ import {
 
 import { Context, Effect, Layer, Schema } from "effect";
 
+export {
+  isElectronWindowUsable,
+  type ElectronWindowUsabilityTarget,
+} from "./windowUsability";
+import { isElectronWindowUsable } from "./windowUsability";
+
 export interface ElectronWindowWebContents {
   readonly id: number;
   readonly isDestroyed: () => boolean;
@@ -20,10 +26,12 @@ export interface ElectronWindowHandle {
   readonly id: number;
   readonly webContents: ElectronWindowWebContents;
   readonly focus: () => void;
+  readonly hide: () => void;
   readonly isDestroyed: () => boolean;
   readonly isMinimized: () => boolean;
   readonly isVisible: () => boolean;
   readonly loadFile: (path: string) => Promise<void>;
+  readonly on: (eventName: string, listener: (...args: any[]) => void) => void;
   readonly once: (eventName: string, listener: () => void) => void;
   readonly restore: () => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
@@ -117,7 +125,7 @@ export const layer = Layer.succeed(
       }),
     reveal: (window) =>
       Effect.sync(() => {
-        if (window.isDestroyed()) {
+        if (!isElectronWindowUsable(window)) {
           return;
         }
 

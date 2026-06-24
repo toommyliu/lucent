@@ -21,9 +21,9 @@ export interface DesktopEnvironmentShape extends DesktopEnvironmentConfig {
   readonly appIconPath: string;
   readonly flashPluginPath: string | null;
   readonly flashTrustRootPath: string;
-  readonly gameHtmlPath: string;
   readonly logFilePath: string;
   readonly logsDir: string;
+  readonly preloadPath: string;
   readonly releaseCachePath: string;
   readonly settingsPath: string;
 }
@@ -113,9 +113,9 @@ export const makeDesktopEnvironment = (
       config.flashPluginPathOverride ??
       resolvePepperFlashPluginPath(config.workspaceDir, config.platform),
     flashTrustRootPath: resolveFlashTrustRootPath(config.appDataDir),
-    gameHtmlPath: join(config.rendererDir, "game", "index.html"),
     logFilePath: join(logsDir, "lucent.log"),
     logsDir,
+    preloadPath: join(config.rendererDir, "preload.js"),
     releaseCachePath: appDataPath("release-cache.json"),
     settingsPath: appDataPath("settings.json"),
   };

@@ -14,6 +14,7 @@ export interface ElectronAppShape {
     eventName: string,
     listener: (...args: readonly unknown[]) => void,
   ) => Effect.Effect<() => void>;
+  readonly relaunch: Effect.Effect<void>;
   readonly quit: Effect.Effect<void>;
   readonly whenReady: Effect.Effect<void>;
 }
@@ -47,6 +48,9 @@ export const layer = Layer.succeed(
           app.removeListener(eventName as never, listener as never);
         };
       }),
+    relaunch: Effect.sync(() => {
+      app.relaunch();
+    }),
     quit: Effect.sync(() => {
       app.quit();
     }),
