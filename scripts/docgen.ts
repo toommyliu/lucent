@@ -177,6 +177,11 @@ type RenderedFile = {
 
 class DocgenError extends Error {
   override readonly name = "DocgenError";
+
+  constructor(message: string, options?: { readonly cause?: unknown }) {
+    super(message);
+    this.cause = options?.cause;
+  }
 }
 
 const fail = (message: string): never => {
@@ -1554,44 +1559,55 @@ const createTypeDocProject = (
     ts.InterfaceDeclaration | ts.TypeAliasDeclaration
   >,
   typeReferences: ReadonlySet<string>,
-): Effect.Effect<ProjectReflection, unknown> =>
-  Effect.tryPromise(async () => {
-    const app = await Application.bootstrap(
-      {
-        entryPoints: [
-          ...typedocEntryPoints(program, options, declarations, typeReferences),
-        ],
-        excludeExternals: false,
-        excludePrivate: true,
-        excludeProtected: true,
-        skipErrorChecking: true,
-        logLevel: "Error",
-        compilerOptions: {
-          target: "esnext",
-          module: "esnext",
-          moduleResolution: "bundler",
-          lib: ["esnext", "dom", "dom.iterable"],
-          strict: true,
-          skipLibCheck: true,
-          jsx: "react-jsx",
-          jsxImportSource: "solid-js",
-          resolveJsonModule: true,
-          esModuleInterop: true,
-          allowSyntheticDefaultImports: true,
-          noEmit: true,
-          baseUrl: "app",
-          paths: {
-            "*": ["./*"],
+): Effect.Effect<ProjectReflection, DocgenError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const app = await Application.bootstrap(
+        {
+          entryPoints: [
+            ...typedocEntryPoints(
+              program,
+              options,
+              declarations,
+              typeReferences,
+            ),
+          ],
+          excludeExternals: false,
+          excludePrivate: true,
+          excludeProtected: true,
+          skipErrorChecking: true,
+          logLevel: "Error",
+          compilerOptions: {
+            target: "esnext",
+            module: "esnext",
+            moduleResolution: "bundler",
+            lib: ["esnext", "dom", "dom.iterable"],
+            strict: true,
+            skipLibCheck: true,
+            jsx: "react-jsx",
+            jsxImportSource: "solid-js",
+            resolveJsonModule: true,
+            esModuleInterop: true,
+            allowSyntheticDefaultImports: true,
+            noEmit: true,
+            baseUrl: "app",
+            paths: {
+              "*": ["./*"],
+            },
           },
         },
-      },
-      [],
-    );
-    const project = await app.convert();
-    if (project === undefined) {
-      return fail("TypeDoc was unable to convert scripting API entry points");
-    }
-    return project;
+        [],
+      );
+      const project = await app.convert();
+      if (project === undefined) {
+        return fail("TypeDoc was unable to convert scripting API entry points");
+      }
+      return project;
+    },
+    catch: (cause) =>
+      cause instanceof DocgenError
+        ? cause
+        : new DocgenError("Failed to create TypeDoc project", { cause }),
   });
 
 const renderTypeExpression = (

@@ -20,9 +20,6 @@
     "electron-builder": "electron-builder"
   },
   "dependencies": {
-    "@lucent/collection": "workspace:*",
-    "@lucent/game": "workspace:*",
-    "@lucent/shared": "workspace:*",
     "@lucent/ui": "workspace:*",
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-virtual": "3.13.24",

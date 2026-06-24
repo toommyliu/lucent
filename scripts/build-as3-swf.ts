@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Console, Effect, Option } from "effect";
+import { Console, Data, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
 import { generateBridgeArtifacts } from "./gen-as3-bridge";
@@ -30,11 +30,18 @@ type AsconfigJson = {
   compilerOptions?: { output?: string };
 };
 
+class As3BuildError extends Data.TaggedError("As3BuildError")<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
+
 const directoryExists = (path: string): Effect.Effect<boolean> =>
-  Effect.tryPromise({
-    try: () => fs.stat(path).then((stats) => stats.isDirectory()),
-    catch: (cause) => cause,
-  }).pipe(Effect.catch(() => Effect.succeed(false)));
+  Effect.promise(() =>
+    fs
+      .stat(path)
+      .then((stats) => stats.isDirectory())
+      .catch(() => false),
+  );
 
 const resolveSdkFromVscodeSettings = (
   repoRoot: string
@@ -42,10 +49,9 @@ const resolveSdkFromVscodeSettings = (
   Effect.gen(function* () {
     const settingsPath = join(repoRoot, ".vscode", "settings.json");
 
-    const source = yield* Effect.tryPromise({
-      try: () => fs.readFile(settingsPath, "utf8"),
-      catch: (cause) => cause,
-    }).pipe(Effect.catch(() => Effect.succeed("")));
+    const source = yield* Effect.promise(() =>
+      fs.readFile(settingsPath, "utf8").catch(() => ""),
+    );
 
     const match = source.match(/"as3mxml\.sdk\.framework"\s*:\s*"([^"]+)"/);
     if (!match || !match[1]) {
@@ -79,21 +85,25 @@ const resolveSdkPath = (repoRoot: string): Effect.Effect<string | null> =>
     return yield* resolveSdkFromVscodeSettings(repoRoot);
   });
 
-const loadAsconfigc = (): Effect.Effect<AsconfigcModule, Error> =>
+const loadAsconfigc = (): Effect.Effect<AsconfigcModule, As3BuildError> =>
   Effect.gen(function* () {
     const moduleName = "asconfigc";
     const moduleNamespace = yield* Effect.tryPromise({
       try: () => import(moduleName) as Promise<unknown>,
-      catch: (cause) => cause instanceof Error ? cause : new Error(String(cause)),
+      catch: (cause) =>
+        new As3BuildError({
+          message: "Unable to import asconfigc",
+          cause,
+        }),
     });
 
     const fromDefault = (moduleNamespace as { default?: unknown }).default;
     const candidate = (fromDefault ?? moduleNamespace) as Partial<AsconfigcModule>;
 
     if (typeof candidate.buildWithArgs !== "function") {
-      return yield* Effect.fail(
-        new Error("Unable to load asconfigc.buildWithArgs()")
-      );
+      return yield* new As3BuildError({
+        message: "Unable to load asconfigc.buildWithArgs()",
+      });
     }
 
     return candidate as AsconfigcModule;
@@ -176,19 +186,21 @@ const resolveOutputPath = (projectPath: string): Effect.Effect<string> =>
   Effect.gen(function* () {
     const asconfigPath = join(projectPath, "asconfig.json");
 
-    const configSource = yield* Effect.tryPromise({
-      try: () => fs.readFile(asconfigPath, "utf8"),
-      catch: (cause) => cause,
-    }).pipe(Effect.catch(() => Effect.succeed("")));
+    const configSource = yield* Effect.promise(() =>
+      fs.readFile(asconfigPath, "utf8").catch(() => ""),
+    );
 
     if (!configSource) {
       return DEFAULT_OUTPUT_FILE;
     }
 
-    const parsed: AsconfigJson = yield* Effect.try({
-      try: () => JSON.parse(configSource) as AsconfigJson,
-      catch: (cause) => cause,
-    }).pipe(Effect.catch(() => Effect.succeed({ compilerOptions: {} })));
+    const parsed = yield* Effect.sync((): AsconfigJson => {
+      try {
+        return JSON.parse(configSource) as AsconfigJson;
+      } catch {
+        return { compilerOptions: {} };
+      }
+    });
 
     const configuredOutput = parsed.compilerOptions?.output;
     if (!configuredOutput) {

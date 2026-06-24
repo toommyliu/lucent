@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "child_process";
 import {
   copyFileSync,
   cpSync,
@@ -11,10 +11,10 @@ import {
   rmSync,
   statSync,
   writeFileSync,
-} from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+} from "fs";
+import { createRequire } from "module";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
 
 const LAUNCHER_VERSION = 3;
 
