@@ -35,7 +35,6 @@ describe("DesktopEnvironment", () => {
     expect(env.releaseCachePath).toBe("/internal/Lucent/release-cache.json");
     expect(env.logFilePath).toBe("/internal/Lucent/logs/lucent.log");
     expect(env.flashPluginPath).toBe("/custom/pepflashplayer.dll");
-    expect(env.gameHtmlPath).toBe("/renderer/game/index.html");
   });
 
   it("resolves default Pepper Flash plugin paths per platform", () => {

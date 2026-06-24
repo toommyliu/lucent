@@ -12,6 +12,7 @@ void Effect.runPromise(
   makeDesktopRuntime(bootstrap.cliOptions, bootstrap.flash).pipe(
     Effect.provide(makeDesktopLayer(bootstrap.envConfig)),
   ),
-).catch(() => {
+).catch((cause) => {
+  console.error("Lucent desktop runtime failed to start.", cause);
   app.exit(1);
 });

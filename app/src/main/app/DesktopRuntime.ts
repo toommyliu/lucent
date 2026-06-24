@@ -1,16 +1,49 @@
 import { Cause, Effect } from "effect";
 
+import type { AppSettings } from "../../shared/settings";
 import type { CliOptions } from "../cli";
+import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import { DesktopObservability } from "./DesktopObservability";
-import { DesktopData } from "../data/DesktopData";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
+import { ElectronTheme } from "../electron/ElectronTheme";
 import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
+import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers";
+import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
+import { DesktopApplicationMenu } from "../window/DesktopApplicationMenu";
 import { DesktopWindows } from "../window/DesktopWindows";
+
+export const installDesktopNativeThemeSync = (initialSettings: AppSettings) =>
+  Effect.gen(function* () {
+    const observability = yield* DesktopObservability;
+    const settingsService = yield* DesktopSettings;
+    const theme = yield* ElectronTheme;
+    const context = yield* Effect.context<never>();
+    const runPromise = Effect.runPromiseWith(context);
+
+    const applyNativeTheme = (settings: AppSettings) =>
+      theme
+        .setThemeMode(settings.appearance.themeMode)
+        .pipe(
+          Effect.catch((cause) =>
+            observability.warn(
+              "appearance",
+              "Failed to update Electron native theme",
+              { cause },
+            ),
+          ),
+        );
+
+    yield* applyNativeTheme(initialSettings);
+    const unsubscribe = yield* settingsService.onChanged((settings) => {
+      void runPromise(applyNativeTheme(settings)).catch(() => undefined);
+    });
+    yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+  });
 
 export const makeDesktopRuntime = (
   cliOptions: CliOptions,
@@ -19,11 +52,12 @@ export const makeDesktopRuntime = (
   Effect.scoped(
     Effect.gen(function* () {
       const app = yield* ElectronApp;
-      const data = yield* DesktopData;
+      const applicationMenu = yield* DesktopApplicationMenu;
       const dialog = yield* ElectronDialog;
       const env = yield* DesktopEnvironment;
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
+      const settingsService = yield* DesktopSettings;
       const updates = yield* DesktopUpdates;
       const windows = yield* DesktopWindows;
 
@@ -35,9 +69,12 @@ export const makeDesktopRuntime = (
         workspaceDir: env.workspaceDir,
       });
 
-      const settings = yield* data.loadSettings;
+      const settings = yield* settingsService.load;
 
       yield* app.whenReady;
+      yield* installDesktopNativeThemeSync(settings);
+      yield* installDesktopIpcHandlers;
+      yield* applicationMenu.install;
 
       if (flash.status === "missing-plugin") {
         yield* observability.warn("startup", "Pepper Flash plugin missing", {
@@ -84,6 +121,7 @@ export const makeDesktopRuntime = (
       }
 
       yield* windows.open("game");
+      yield* installDesktopDevRendererReload;
 
       if (settings.preferences.checkForUpdates) {
         const updateState = yield* updates.checkNow();

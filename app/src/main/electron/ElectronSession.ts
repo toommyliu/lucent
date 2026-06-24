@@ -2,11 +2,12 @@ import { session } from "electron";
 
 import { Context, Effect, Layer } from "effect";
 
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
+
 export interface ElectronSessionShape {
-  readonly installGameRequestHeaders: (input: {
-    readonly platform: NodeJS.Platform;
-    readonly webContentsId: number;
-  }) => Effect.Effect<void>;
+  readonly registerGameWebContents: (
+    webContentsId: number,
+  ) => Effect.Effect<() => void>;
 }
 
 export class ElectronSession extends Context.Service<
@@ -34,25 +35,47 @@ const getGameRequestHeaders = (
   artixmode: "launcher",
 });
 
-export const layer = Layer.succeed(
+export const layer = Layer.effect(
   ElectronSession,
-  ElectronSession.of({
-    installGameRequestHeaders: (input) =>
-      Effect.sync(() => {
-        session.defaultSession.webRequest.onBeforeSendHeaders(
-          (details, callback) => {
-            const requestHeaders = details.requestHeaders;
-            if (details.webContentsId === input.webContentsId) {
-              for (const [name, value] of Object.entries(
-                getGameRequestHeaders(input.platform),
-              )) {
-                requestHeaders[name] = value;
-              }
-            }
+  Effect.gen(function* () {
+    const env = yield* DesktopEnvironment;
+    const gameWebContentsIds = new Set<number>();
+    const gameRequestHeaders = getGameRequestHeaders(env.platform);
+    let gameHeaderHookInstalled = false;
 
-            callback({ cancel: false, requestHeaders });
-          },
-        );
-      }),
+    const installGameHeaderHook = (): void => {
+      if (gameHeaderHookInstalled) {
+        return;
+      }
+
+      gameHeaderHookInstalled = true;
+      session.defaultSession.webRequest.onBeforeSendHeaders(
+        (details, callback) => {
+          const requestHeaders = details.requestHeaders;
+          const webContentsId = details.webContentsId;
+          if (
+            webContentsId !== undefined &&
+            gameWebContentsIds.has(webContentsId)
+          ) {
+            for (const [name, value] of Object.entries(gameRequestHeaders)) {
+              requestHeaders[name] = value;
+            }
+          }
+
+          callback({ cancel: false, requestHeaders });
+        },
+      );
+    };
+
+    return ElectronSession.of({
+      registerGameWebContents: (webContentsId) =>
+        Effect.sync(() => {
+          installGameHeaderHook();
+          gameWebContentsIds.add(webContentsId);
+          return () => {
+            gameWebContentsIds.delete(webContentsId);
+          };
+        }),
+    });
   }),
 );

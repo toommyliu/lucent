@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { get as httpsGet } from "https";
+import { tmpdir } from "os";
 import { join } from "path";
 
 import { describe, expect, it } from "@effect/vitest";
@@ -12,12 +14,16 @@ import {
   makeDesktopEnvironment,
 } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
-import { DesktopData, type JsonFileReadResult } from "../data/DesktopData";
 import { ElectronApp } from "../electron/ElectronApp";
+import { ElectronShell } from "../electron/ElectronShell";
+import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates, layer as desktopUpdatesLayer } from "./DesktopUpdates";
 
 vi.mock("electron", () => ({
   app: {},
+  shell: {
+    openExternal: vi.fn(),
+  },
 }));
 
 vi.mock("https", () => ({
@@ -98,68 +104,113 @@ const testSettings = (checkForUpdates: boolean): AppSettings => ({
   },
 });
 
-const makeUpdatesHarness = (options: {
-  readonly cache?: JsonFileReadResult;
-  readonly checkForUpdates: boolean;
-  readonly currentVersion: string;
-}) => {
-  const appDataDir = "/tmp/lucent-updates";
-  const env = makeDesktopEnvironment({
-    appDataDir,
-    assetsDir: join(appDataDir, "assets"),
-    isDev: true,
-    platform: "darwin",
-    rendererDir: join(appDataDir, "renderer"),
-    workspaceDir: join(appDataDir, "workspace"),
-  });
-  const writes: Array<{ readonly path: string; readonly value: unknown }> = [];
-  const settings = testSettings(options.checkForUpdates);
-  const data = DesktopData.of({
-    getSettings: Effect.succeed(settings),
-    loadSettings: Effect.succeed(settings),
-    readJson: () =>
-      Effect.succeed(options.cache ?? ({ status: "missing" } as const)),
-    saveSettings: (nextSettings) => Effect.succeed(nextSettings),
-    writeJson: (path, value) =>
-      Effect.sync(() => {
-        writes.push({ path, value });
-      }),
-  });
-  const observability = DesktopObservability.of({
-    debug: () => Effect.void,
-    error: () => Effect.void,
-    info: () => Effect.void,
-    installProcessHooks: Effect.void,
-    warn: () => Effect.void,
-  });
-  const app = ElectronApp.of({
-    appendCommandLineSwitch: () => Effect.void,
-    exit: () => Effect.void,
-    getVersion: Effect.succeed(options.currentVersion),
-    isPackaged: Effect.succeed(false),
-    on: () => Effect.succeed(() => undefined),
-    quit: Effect.void,
-    whenReady: Effect.void,
-  });
-  const layer = desktopUpdatesLayer.pipe(
-    Layer.provide(
-      Layer.mergeAll(
-        Layer.succeed(DesktopEnvironment, env),
-        Layer.succeed(DesktopData, data),
-        Layer.succeed(DesktopObservability, observability),
-        Layer.succeed(ElectronApp, app),
-      ),
-    ),
-  );
+const tempDirs = new Set<string>();
 
-  return { env, layer, writes };
+const makeTempDir = async (prefix: string): Promise<string> => {
+  const path = await mkdtemp(join(tmpdir(), prefix));
+  tempDirs.add(path);
+  return path;
 };
 
-afterEach(() => {
+const makeUpdatesHarness = (options: {
+  readonly cache?: unknown;
+  readonly checkForUpdates: boolean;
+  readonly currentVersion: string;
+}) =>
+  Effect.gen(function* () {
+    const appDataDir = yield* Effect.promise(() =>
+      makeTempDir("lucent-updates-data-"),
+    );
+    const workspaceDir = yield* Effect.promise(() =>
+      makeTempDir("lucent-updates-workspace-"),
+    );
+    const env = makeDesktopEnvironment({
+      appDataDir,
+      assetsDir: join(appDataDir, "assets"),
+      isDev: true,
+      platform: "darwin",
+      rendererDir: join(appDataDir, "renderer"),
+      workspaceDir,
+    });
+    if (options.cache !== undefined) {
+      yield* Effect.promise(() =>
+        writeFile(env.releaseCachePath, JSON.stringify(options.cache), "utf8"),
+      );
+    }
+
+    const settings = testSettings(options.checkForUpdates);
+    const settingsService = DesktopSettings.of({
+      get: Effect.succeed(settings),
+      load: Effect.succeed(settings),
+      onChanged: () => Effect.succeed(() => undefined),
+      resetAppearance: Effect.succeed(settings),
+      resetHotkeys: Effect.succeed(settings),
+      updateAppearance: () => Effect.succeed(settings),
+      updateHotkeys: () => Effect.succeed(settings),
+      updatePreferences: () => Effect.succeed(settings),
+    });
+    const observability = DesktopObservability.of({
+      debug: () => Effect.void,
+      error: () => Effect.void,
+      info: () => Effect.void,
+      installProcessHooks: Effect.void,
+      warn: () => Effect.void,
+    });
+    const app = ElectronApp.of({
+      appendCommandLineSwitch: () => Effect.void,
+      exit: () => Effect.void,
+      getVersion: Effect.succeed(options.currentVersion),
+      isPackaged: Effect.succeed(false),
+      on: () => Effect.succeed(() => undefined),
+      relaunch: Effect.void,
+      quit: Effect.void,
+      whenReady: Effect.void,
+    });
+    const shell = ElectronShell.of({
+      openExternal: () => Effect.succeed(true),
+    });
+    const layer = desktopUpdatesLayer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(DesktopEnvironment, env),
+          Layer.succeed(DesktopObservability, observability),
+          Layer.succeed(ElectronApp, app),
+          Layer.succeed(ElectronShell, shell),
+          Layer.succeed(DesktopSettings, settingsService),
+        ),
+      ),
+    );
+
+    return { env, layer };
+  });
+
+afterEach(async () => {
   vi.clearAllMocks();
+  await Promise.all(
+    [...tempDirs].map((path) => rm(path, { force: true, recursive: true })),
+  );
+  tempDirs.clear();
 });
 
 describe("DesktopUpdates", () => {
+  it.effect("starts disabled when update checks are disabled", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeUpdatesHarness({
+        checkForUpdates: false,
+        currentVersion: "1.0.0",
+      });
+      const updates = yield* DesktopUpdates.pipe(Effect.provide(harness.layer));
+
+      const state = yield* updates.getState;
+
+      expect(state.status).toBe("disabled");
+      if (state.status === "disabled") {
+        expect(state.reason).toContain("disabled");
+      }
+      expect(vi.mocked(httpsGet)).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect(
     "parses stable GitHub releases and reports newer semver versions",
     () =>
@@ -175,7 +226,7 @@ describe("DesktopUpdates", () => {
           }),
           headers: { etag: "etag-2" },
         });
-        const { env, layer, writes } = makeUpdatesHarness({
+        const { env, layer } = yield* makeUpdatesHarness({
           checkForUpdates: true,
           currentVersion: "1.2.2",
         });
@@ -188,11 +239,14 @@ describe("DesktopUpdates", () => {
           expect(state.latestVersion).toBe("1.2.3");
           expect(state.release.tagName).toBe("v1.2.3");
         }
-        expect(writes).toHaveLength(1);
-        expect(writes[0]).toMatchObject({
-          path: env.releaseCachePath,
-          value: { etag: "etag-2" },
-        });
+        const cache = JSON.parse(
+          yield* Effect.promise(() => readFile(env.releaseCachePath, "utf8")),
+        ) as {
+          readonly etag?: string;
+          readonly release?: { readonly tagName?: string };
+        };
+        expect(cache.etag).toBe("etag-2");
+        expect(cache.release?.tagName).toBe("v1.2.3");
       }),
   );
 
@@ -206,7 +260,7 @@ describe("DesktopUpdates", () => {
           tag_name: "v1.2.3",
         }),
       });
-      const draftHarness = makeUpdatesHarness({
+      const draftHarness = yield* makeUpdatesHarness({
         checkForUpdates: true,
         currentVersion: "1.2.2",
       });
@@ -228,7 +282,7 @@ describe("DesktopUpdates", () => {
           tag_name: "v1.2.3",
         }),
       });
-      const prereleaseHarness = makeUpdatesHarness({
+      const prereleaseHarness = yield* makeUpdatesHarness({
         checkForUpdates: true,
         currentVersion: "1.2.2",
       });
@@ -251,16 +305,13 @@ describe("DesktopUpdates", () => {
         mockGitHubResponse({
           statusCode: 304,
         });
-        const harness = makeUpdatesHarness({
+        const harness = yield* makeUpdatesHarness({
           cache: {
-            status: "ok",
-            value: {
-              etag: "etag-1",
-              release: {
-                htmlUrl: "https://example.test/release",
-                tagName: "v1.0.0",
-                version: "1.0.0",
-              },
+            etag: "etag-1",
+            release: {
+              htmlUrl: "https://example.test/release",
+              tagName: "v1.0.0",
+              version: "1.0.0",
             },
           },
           checkForUpdates: true,
@@ -278,7 +329,7 @@ describe("DesktopUpdates", () => {
         });
 
         vi.clearAllMocks();
-        const disabledHarness = makeUpdatesHarness({
+        const disabledHarness = yield* makeUpdatesHarness({
           checkForUpdates: false,
           currentVersion: "1.0.0",
         });

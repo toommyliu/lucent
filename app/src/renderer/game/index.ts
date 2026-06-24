@@ -1,6 +1,11 @@
+import "../../shared/polyfills";
+
+import { installRendererThemeSync } from "../theme";
+
 const documentElement = document.documentElement;
 const statusLabel = document.getElementById("status-label");
 const statusProgress = document.getElementById("status-progress");
+const themeSync = installRendererThemeSync();
 
 const setStatus = (label: string, progress?: number): void => {
   if (statusLabel !== null) {
@@ -43,3 +48,11 @@ window.packetFromServer = (packet: string): void => {
 };
 
 setStatus("Loading AQW", 0);
+
+window.addEventListener(
+  "beforeunload",
+  () => {
+    themeSync.dispose();
+  },
+  { once: true },
+);

@@ -87,12 +87,11 @@
   --color-scrollbar-corner: rgb(var(--scrollbar-corner));
   --font-sans: "Inter Variable", Arial, sans-serif;
   --font-mono: "JetBrains Mono Variable", monospace;
-  --font-sans-size-base: 13px;
   --font-mono-size: 12px;
   --text-2xs: 10px;
   --text-xs: 11px;
   --text-sm: 12px;
-  --text-base: var(--font-sans-size-base);
+  --text-base: 13px;
   --text-md: 14px;
   --text-lg: 15px;
   --text-xl: 16px;

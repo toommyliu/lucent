@@ -31,8 +31,6 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
-    "@tanstack/solid-devtools": "^0.8.2",
-    "@tanstack/solid-hotkeys-devtools": "^0.7.0",
     "cross-env": "^10.0.0",
     "electron": "workspace:*",
     "electron-builder": "^26.15.0",

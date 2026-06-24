@@ -1,24 +1,17 @@
-import { splitProps, type JSX } from "solid-js";
+import { splitProps } from "solid-js";
 import { cn } from "../lib/cn";
+import { Button, type ButtonProps } from "./Button";
 
-export interface PillButtonProps extends Omit<
-  JSX.ButtonHTMLAttributes<HTMLButtonElement>,
-  "class"
-> {
+export interface PillButtonProps extends Omit<ButtonProps, "class"> {
   readonly class?: string;
   readonly pressed?: boolean;
 }
 
-export function PillButton(props: PillButtonProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    "children",
-    "class",
-    "pressed",
-    "type",
-  ]);
+export function PillButton(props: PillButtonProps) {
+  const [local, rest] = splitProps(props, ["children", "class", "pressed"]);
 
   return (
-    <button
+    <Button
       {...rest}
       aria-pressed={
         local.pressed === undefined
@@ -32,9 +25,9 @@ export function PillButton(props: PillButtonProps): JSX.Element {
         local.pressed && "pill-button--pressed",
         local.class,
       )}
-      type={local.type ?? "button"}
+      data-pressed={local.pressed ? "" : undefined}
     >
       {local.children}
-    </button>
+    </Button>
   );
 }

@@ -1,4 +1,5 @@
 const { build, context } = require("esbuild");
+const { solidPlugin } = require("esbuild-plugin-solid");
 const {
   copyFileSync,
   existsSync,
@@ -23,6 +24,18 @@ const baseOptions = {
   sourcemap: !isProduction,
 };
 
+const rendererViews = [
+  {
+    entryPoint: "src/renderer/game/index.ts",
+    id: "game",
+  },
+  {
+    entryPoint: "src/renderer/settings/index.tsx",
+    id: "settings",
+    plugins: [solidPlugin()],
+  },
+];
+
 const mainOptions = {
   ...baseOptions,
   entryPoints: ["src/main/index.ts"],
@@ -33,19 +46,50 @@ const mainOptions = {
   target: "node12",
 };
 
-const rendererOptions = {
+const rendererOptions = (view) => ({
   ...baseOptions,
-  entryPoints: ["src/renderer/game/index.ts"],
+  entryPoints: [view.entryPoint],
   format: "esm",
-  outfile: "dist/renderer/game/index.js",
+  outfile: `dist/renderer/${view.id}/index.js`,
   platform: "browser",
+  ...(view.plugins === undefined ? {} : { plugins: view.plugins }),
   target: "chrome87",
+});
+
+const rendererBuildOptions = rendererViews.map(rendererOptions);
+
+const sharedCssOptions = {
+  ...baseOptions,
+  assetNames: "assets/[name]-[hash]",
+  entryPoints: ["src/renderer/styles.css"],
+  loader: {
+    ".woff2": "file",
+  },
+  outfile: "dist/renderer/styles.css",
+};
+
+const preloadOptions = {
+  ...baseOptions,
+  entryPoints: ["src/main/preload.ts"],
+  external: ["electron"],
+  format: "cjs",
+  outfile: "dist/renderer/preload.js",
+  platform: "node",
+  target: "node12",
 };
 
 const copyRendererFiles = () => {
-  mkdirSync("dist/renderer/game", { recursive: true });
-  copyFileSync("src/renderer/game/index.html", "dist/renderer/game/index.html");
-  copyFileSync("src/renderer/game/style.css", "dist/renderer/game/style.css");
+  for (const view of rendererViews) {
+    const sourceDir = `src/renderer/${view.id}`;
+    const targetDir = `dist/renderer/${view.id}`;
+    mkdirSync(targetDir, { recursive: true });
+    copyFileSync(`${sourceDir}/index.html`, `${targetDir}/index.html`);
+
+    const stylePath = `${sourceDir}/style.css`;
+    if (existsSync(stylePath)) {
+      copyFileSync(stylePath, `${targetDir}/style.css`);
+    }
+  }
 };
 
 const removeRecursive = (path) => {
@@ -95,7 +139,12 @@ const notifyBuild = (label) => {
 
 const buildOnce = async () => {
   clean();
-  await Promise.all([build(mainOptions), build(rendererOptions)]);
+  await Promise.all([
+    build(mainOptions),
+    ...rendererBuildOptions.map((options) => build(options)),
+    build(sharedCssOptions),
+    build(preloadOptions),
+  ]);
   copyRendererFiles();
 };
 
@@ -118,15 +167,50 @@ const watch = async () => {
       },
     ],
   });
-  const rendererContext = await context({
-    ...rendererOptions,
+  const rendererContexts = await Promise.all(
+    rendererBuildOptions.map((options, index) =>
+      context({
+        ...options,
+        plugins: [
+          ...(options.plugins ?? []),
+          {
+            name: `lucent-${rendererViews[index].id}-renderer-watch-copy`,
+            setup(pluginBuild) {
+              pluginBuild.onEnd((result) => {
+                if (result.errors.length === 0) {
+                  copyRendererFiles();
+                  notifyBuild("renderer");
+                }
+              });
+            },
+          },
+        ],
+      }),
+    ),
+  );
+  const preloadContext = await context({
+    ...preloadOptions,
     plugins: [
       {
-        name: "lucent-renderer-watch-copy",
+        name: "lucent-preload-watch-notify",
         setup(pluginBuild) {
           pluginBuild.onEnd((result) => {
             if (result.errors.length === 0) {
-              copyRendererFiles();
+              notifyBuild("renderer");
+            }
+          });
+        },
+      },
+    ],
+  });
+  const sharedCssContext = await context({
+    ...sharedCssOptions,
+    plugins: [
+      {
+        name: "lucent-shared-css-watch-notify",
+        setup(pluginBuild) {
+          pluginBuild.onEnd((result) => {
+            if (result.errors.length === 0) {
               notifyBuild("renderer");
             }
           });
@@ -135,7 +219,12 @@ const watch = async () => {
     ],
   });
 
-  await Promise.all([mainContext.watch(), rendererContext.watch()]);
+  await Promise.all([
+    mainContext.watch(),
+    ...rendererContexts.map((rendererContext) => rendererContext.watch()),
+    preloadContext.watch(),
+    sharedCssContext.watch(),
+  ]);
   copyRendererFiles();
 };
 
