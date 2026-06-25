@@ -35,6 +35,6 @@ Use vendored repositories only as coding-agent reference material:
 
 - Use `.repos/lucent` as the legacy Lucent repository only when reviewing prior capabilities, user-facing behavior, edge cases, packet/game behavior, and compatibility expectations that may be worth re-implementing in this fresh version. Never use `.repos/lucent` as an implementation template. Never reuse or mirror legacy implementation details, including class names, service names, file names, folder architecture, module boundaries, naming conventions, IPC shape, storage layout, window architecture, or code organization. If behavior is re-implemented from legacy Lucent, design the new implementation from first principles in the current codebase's architecture.
 - Use `.repos/aqw-client-decompiled` when checking AQW client behavior, packet shapes, game object names, UI symbols, or ActionScript implementation details.
-- Use `.repos/Grimlite-Li` and `.repos/skua` as references for other popular AQW botting clients when comparing bot-client behavior, hooks, loaders, APIs, abstractions, script behavior, or implementation conventions.
+- Use `.repos/Grimlite-Li`, `.repos/skua`, `.repos/floob` as references for other popular AQW botting clients when comparing bot-client behavior, hooks, loaders, APIs, abstractions, script behavior, or automation implementation inspiration.
 - Use `.repos/effect-smol` when working with Effect Smol patterns, APIs, migrations, or package behavior.
 - Use `.repos/t3code` as an example of Electron, TypeScript, and Effect architecture, patterns, and tooling.
