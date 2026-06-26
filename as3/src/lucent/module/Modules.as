@@ -19,7 +19,7 @@ package lucent.module {
 				var toggle:Boolean = !module.enabled;
 				module.enabled = true;
 				if (toggle) {
-					module.onToggle(lucent.Main.getInstance().getGame());
+					module.onToggle(Main.Game);
 				}
 			}
 		}
@@ -30,7 +30,7 @@ package lucent.module {
 				var toggle:Boolean = module.enabled;
 				module.enabled = false;
 				if (toggle) {
-					module.onToggle(lucent.Main.getInstance().getGame());
+					module.onToggle(Main.Game);
 				}
 			}
 		}
@@ -39,7 +39,7 @@ package lucent.module {
 			for (var name:String in _modules) {
 				var module:Module = _modules[name];
 				if (module.enabled) {
-					module.onFrame(lucent.Main.getInstance().getGame());
+					module.onFrame(Main.Game);
 				}
 			}
 		}
@@ -47,7 +47,7 @@ package lucent.module {
 		public static function init():void {
 			registerModule(new HidePlayers());
 			registerModule(new DisableCollisions());
-			registerModule(new DisableFX());
+			registerModule(new AnimationLimiter());
 
 			var customName:CustomName = CustomName.instance;
 			customName.enabled = true;

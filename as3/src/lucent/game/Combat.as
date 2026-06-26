@@ -1,11 +1,9 @@
 package lucent.game {
   import lucent.Main;
-  import lucent.util.Util;
 
   [BridgeNamespace("combat")]
   public class Combat {
     private static const CONSUMABLE_SKILL_INDEX:int = 5;
-    private static var game:Object = Main.getInstance().getGame();
 
     private static function isMonsterAttackable(monster:Object):Boolean {
       if (monster == null || monster.dataLeaf == null) {
@@ -15,8 +13,35 @@ package lucent.game {
       return monster.dataLeaf.intState > 0 && monster.dataLeaf.intHP > 0;
     }
 
+    private static function getSkillCooldownRemainingValue(skill:*):int {
+      var game:* = Main.Game;
+
+      var actionCooldown:* = NaN;
+      var now:* = new Date().getTime();
+      var haste:* = 1 - Math.min(Math.max(game.world.myAvatar.dataLeaf.sta.$tha, -1), 0.5);
+      if (skill.OldCD != null) {
+        actionCooldown = Math.round(skill.OldCD * haste);
+      }
+      else {
+        actionCooldown = Math.round(skill.cd * haste);
+      }
+
+      var globalCooldown:* = game.world.GCD - (now - game.world.GCDTS);
+      if (globalCooldown < 0) {
+        globalCooldown = 0;
+      }
+
+      var remaining:* = actionCooldown - (now - skill.ts);
+      if (remaining < 0) {
+        remaining = 0;
+      }
+
+      return Math.max(globalCooldown, remaining);
+    }
+
     [BridgeExport]
     public static function hasTarget():Boolean {
+      var game:Object = Main.Game;
       var target:Object = game.world.myAvatar.target;
       if (target != null && target.dataLeaf != null) {
         return target.dataLeaf.intHP > 0;
@@ -28,6 +53,7 @@ package lucent.game {
     [BridgeExport]
     [BridgeTsReturnType("FlashTypes.TargetInfo | null")]
     public static function getTarget():Object {
+      var game:Object = Main.Game;
       var target:Object = game.world.myAvatar.target;
       if (target != null) {
         var dataLeaf:Object = target.dataLeaf;
@@ -37,37 +63,40 @@ package lucent.game {
           return null;
         }
 
-        if (target.npcType === "monster" || target.npcType == "player") {
-          var ret:* = {};
-
-          ret.type = target.npcType;
-          ret.intHP = dataLeaf.intHP;
-          ret.intHPMax = dataLeaf.intHPMax;
-          ret.intState = dataLeaf.intState;
-          ret.strFrame = dataLeaf.strFrame;
-
-          if (target.npcType === "monster") {
-            ret.MonID = dataLeaf.MonID;
-            ret.MonMapID = dataLeaf.MonMapID;
-            ret.iLvl = dataLeaf.iLvl;
-            ret.sRace = objData.sRace;
-            ret.strMonName = objData.strMonName;
-          }
-          else if (target.npcType === "player") {
-            ret.afk = dataLeaf.afk;
-            ret.entID = dataLeaf.entID;
-            ret.entType = dataLeaf.entType;
-            ret.intLevel = dataLeaf.intLevel;
-            ret.intMP = dataLeaf.intMP;
-            ret.intMPMax = dataLeaf.intMPMax;
-            ret.intSP = dataLeaf.intSP;
-            ret.strPad = dataLeaf.strPad;
-            ret.strUsername = dataLeaf.strUsername;
-            ret.uoName = dataLeaf.uoName;
-          }
+        if (target.npcType == "monster") {
+          return {
+            type: "monster",
+            hp: dataLeaf.intHP,
+            maxHp: dataLeaf.intHPMax,
+            state: dataLeaf.intState,
+            cell: dataLeaf.strFrame,
+            monsterId: dataLeaf.MonID,
+            monsterMapId: dataLeaf.MonMapID,
+            level: dataLeaf.iLvl,
+            race: objData.sRace,
+            name: objData.strMonName
+          };
         }
 
-        return ret;
+        if (target.npcType == "player") {
+          return {
+            type: "player",
+            hp: dataLeaf.intHP,
+            maxHp: dataLeaf.intHPMax,
+            state: dataLeaf.intState,
+            cell: dataLeaf.strFrame,
+            afk: dataLeaf.afk,
+            entityId: dataLeaf.entID,
+            entityType: dataLeaf.entType,
+            level: dataLeaf.intLevel,
+            mp: dataLeaf.intMP,
+            maxMp: dataLeaf.intMPMax,
+            sp: dataLeaf.intSP,
+            pad: dataLeaf.strPad,
+            username: dataLeaf.strUsername,
+            name: dataLeaf.uoName
+          };
+        }
       }
 
       return null;
@@ -75,8 +104,13 @@ package lucent.game {
 
     [BridgeExport]
     public static function forceUseSkill(index:String):void {
+      var game:Object = Main.Game;
       var skill:Object = game.world.actions.active[parseInt(index)];
-      if (Util.getSkillCooldownRemaining(skill) == 0) {
+      if (!skill) {
+        return;
+      }
+
+      if (getSkillCooldownRemainingValue(skill) == 0) {
         if (game.world.myAvatar.dataLeaf.intMP >= skill.mp) {
           if (skill.isOK && !skill.skillLock) {
             game.world.testAction(skill);
@@ -88,6 +122,7 @@ package lucent.game {
     [BridgeExport]
     [BridgeTsReturnType("FlashTypes.ConsumableSkillItem | null")]
     public static function getConsumableSkillItem():Object {
+      var game:Object = Main.Game;
       if (!game.world.actions || !game.world.actions.active) {
         return null;
       }
@@ -107,7 +142,11 @@ package lucent.game {
 
     [BridgeExport]
     public static function useSkill(index:String):void {
+      var game:Object = Main.Game;
       var skill:Object = game.world.actions.active[parseInt(index)];
+      if (!skill) {
+        return;
+      }
 
       if (skill.tgt == "s" || skill.tgt == "f") {
         forceUseSkill(index);
@@ -127,39 +166,36 @@ package lucent.game {
 
     [BridgeExport]
     public static function getSkillCooldownRemaining(index:int):int {
+      var game:Object = Main.Game;
       var skill:* = game.world.actions.active[index];
-      return Util.getSkillCooldownRemaining(skill);
+      if (!skill) {
+        return 0;
+      }
+
+      return getSkillCooldownRemainingValue(skill);
     }
 
     [BridgeExport]
     public static function cancelAutoAttack():void {
+      var game:Object = Main.Game;
       game.world.cancelAutoAttack();
     }
 
     [BridgeExport]
     public static function cancelTarget():void {
+      var game:Object = Main.Game;
       game.world.cancelTarget(); // cancel auto attack
       game.world.cancelTarget(); // cancel target
     }
 
+    [BridgeTsParamType("selector: FlashTypes.MonsterSelector")]
     [BridgeExport]
-    public static function attackMonster(mon:String):void {
-      if (!mon)
+    public static function attackMonster(selector:Object):void {
+      if (!selector)
         return;
 
-      var monster:Object = World.getMonsterByName(mon);
-      if (isMonsterAttackable(monster)) {
-        game.world.setTarget(monster);
-        game.world.approachTarget();
-      }
-    }
-
-    [BridgeExport]
-    public static function attackMonsterById(monMapId:int):void {
-      if (!monMapId)
-        return;
-
-      var monster:Object = World.getMonsterByMonMapId(monMapId);
+      var game:Object = Main.Game;
+      var monster:Object = World.getMonster(selector);
       if (isMonsterAttackable(monster)) {
         game.world.setTarget(monster);
         game.world.approachTarget();

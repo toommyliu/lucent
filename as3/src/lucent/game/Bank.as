@@ -6,15 +6,12 @@ package lucent.game
   [BridgeNamespace("bank")]
   public class Bank
   {
-    // BankController game.world.bankinfo
-
-    private static var game:Object = Main.getInstance().getGame();
-
     private static var loaded:Boolean = false;
 
     [BridgeExport]
     public static function getItems():Array
     {
+      var game:Object = Main.Game;
       if (!game.world.bankinfo || !(game.world.bankinfo.items is Array))
       {
         return [];
@@ -23,15 +20,17 @@ package lucent.game
       return game.world.bankinfo.items;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function getItem(item:*):Object
+    public static function getItem(selector:Object):Object
     {
+      var game:Object = Main.Game;
       if (!game.world.bankinfo)
       {
         return null;
       }
 
-      var itemId:Number = ItemLookup.toItemId(item);
+      var itemId:Number = ItemLookup.toItemId(selector);
       if (!isNaN(itemId) && game.world.bankinfo.getBankItem is Function)
       {
         var bankItem:Object = game.world.bankinfo.getBankItem(int(itemId));
@@ -41,13 +40,14 @@ package lucent.game
         }
       }
 
-      return ItemLookup.find(game.world.bankinfo.items, item);
+      return ItemLookup.find(game.world.bankinfo.items, selector);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function contains(item:*, quantity:int = 1):Boolean
+    public static function contains(selector:Object, quantity:int = 1):Boolean
     {
-      var itemObj:Object = getItem(item);
+      var itemObj:Object = getItem(selector);
       if (!itemObj)
       {
         return false;
@@ -59,6 +59,7 @@ package lucent.game
     [BridgeExport]
     public static function loadItems(force:Boolean = false):void
     {
+      var game:Object = Main.Game;
       if (loaded && !force)
       {
         return;
@@ -71,60 +72,69 @@ package lucent.game
     [BridgeExport]
     public static function getSlots():int
     {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.iBankSlots;
     }
 
     [BridgeExport]
     public static function getUsedSlots():int
     {
+      var game:Object = Main.Game;
       return game.world.myAvatar.iBankCount;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function deposit(key:*):Boolean
+    public static function deposit(selector:Object):Boolean
     {
-      var item:Object = Inventory.getItem(key);
+      var item:Object = Inventory.getItem(selector);
       if (!item)
       {
         return false;
       }
 
+      var game:Object = Main.Game;
       game.world.sendBankFromInvRequest(item);
       return true;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function withdraw(key:*):Boolean
+    public static function withdraw(selector:Object):Boolean
     {
-      var item:Object = getItem(key);
+      var item:Object = getItem(selector);
       if (!item)
       {
         return false;
       }
 
+      var game:Object = Main.Game;
       game.world.sendBankToInvRequest(item);
       return true;
     }
 
+    [BridgeTsParamType("inventorySelector: FlashTypes.InventoryItemSelector")]
+    [BridgeTsParamType("bankSelector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function swap(invKey:*, bankKey:*):Boolean
+    public static function swap(inventorySelector:Object, bankSelector:Object):Boolean
     {
-      var invItem:Object = Inventory.getItem(invKey);
-      var bankItem:Object = getItem(bankKey);
+      var invItem:Object = Inventory.getItem(inventorySelector);
+      var bankItem:Object = getItem(bankSelector);
 
       if (!invItem || !bankItem)
       {
         return false;
       }
 
+      var game:Object = Main.Game;
       game.world.sendBankSwapInvRequest(bankItem, invItem);
       return true;
     }
 
-    // world.toggleBank
     [BridgeExport]
     public static function open():void
     {
+      var game:Object = Main.Game;
       if (!loaded)
       {
         loadItems();
@@ -145,6 +155,7 @@ package lucent.game
     [BridgeExport]
     public static function isOpen():Boolean
     {
+      var game:Object = Main.Game;
       return game.ui.mcPopup.currentLabel === "Bank";
     }
 

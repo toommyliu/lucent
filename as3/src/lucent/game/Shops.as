@@ -1,10 +1,8 @@
 package lucent.game {
   import lucent.Main;
-  import lucent.util.Util;
 
   [BridgeNamespace("shops")]
   public class Shops {
-    private static var game:Object = Main.getInstance().getGame();
     private static const SHOP_POPUP_LABELS:Object = {
       "Shop": true,
       "MergeShop": true,
@@ -12,6 +10,7 @@ package lucent.game {
     };
 
     private static function getShopInfo():Object {
+      var game:Object = Main.Game;
       return game.world.shopinfo;
     }
 
@@ -24,13 +23,31 @@ package lucent.game {
       return info.items;
     }
 
-    private static function getItemByShopItemId(shopItemId:String):Object {
-      if (!shopItemId) {
+    private static function getStringSelector(selector:Object, key:String):String {
+      var value:* = selector[key];
+      if (!(value is String)) {
+        return null;
+      }
+
+      return String(value);
+    }
+
+    private static function getNumberSelector(selector:Object, key:String):Number {
+      var value:* = selector[key];
+      if (!(value is Number) && !(value is int) && !(value is uint)) {
+        return NaN;
+      }
+
+      return Number(value);
+    }
+
+    private static function getItemByShopItemId(shopItemId:Number):Object {
+      if (isNaN(shopItemId) || shopItemId <= 0) {
         return null;
       }
 
       for each (var item:Object in getShopItems()) {
-        if (item && "ShopItemID" in item && String(item.ShopItemID) == shopItemId) {
+        if (item && "ShopItemID" in item && Number(item.ShopItemID) === shopItemId) {
           return item;
         }
       }
@@ -38,21 +55,36 @@ package lucent.game {
       return null;
     }
 
-    private static function getInventoryItem(key:*):Object {
-      var item:Object = Inventory.getItem(key);
-      if (item || !(key is String)) {
-        return item;
+    private static function getShopItem(selector:Object):Object {
+      if ("name" in selector) {
+        return ItemLookup.find(getShopItems(), selector);
       }
 
-      var itemId:Number = Number(key);
-      if (isNaN(itemId)) {
-        return null;
+      if ("itemId" in selector) {
+        return ItemLookup.find(getShopItems(), selector);
       }
 
-      return Inventory.getItem(int(itemId));
+      if ("shopItemId" in selector) {
+        return getItemByShopItemId(getNumberSelector(selector, "shopItemId"));
+      }
+
+      return null;
+    }
+
+    private static function getInventoryItem(selector:Object):Object {
+      if ("name" in selector) {
+        return Inventory.getItem(selector);
+      }
+
+      if ("itemId" in selector) {
+        return Inventory.getItem(selector);
+      }
+
+      return null;
     }
 
     private static function sendBuy(item:Object, quantity:int):void {
+      var game:Object = Main.Game;
       if (!game.world.coolDown("buyItem")) {
         return;
       }
@@ -76,6 +108,7 @@ package lucent.game {
     }
 
     private static function sendSell(item:Object, quantity:int):void {
+      var game:Object = Main.Game;
       if (quantity === -1) {
         game.world.sendSellItemRequest(item);
         return;
@@ -88,59 +121,34 @@ package lucent.game {
       });
     }
 
+    [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
     [BridgeExport]
-    public static function getItem(key:*):Object {
-      if (!key) {
+    public static function getItem(selector:Object):Object {
+      if (!selector) {
         return null;
       }
 
-      var items:Array = getShopItems();
-      if (items.length === 0) {
-        return null;
-      }
-
-      var item:Object = ItemLookup.find(items, key);
-      if (item || !(key is String)) {
-        return item;
-      }
-
-      var itemId:Number = Number(key);
-      if (isNaN(itemId)) {
-        return null;
-      }
-
-      return ItemLookup.find(items, int(itemId));
+      return getShopItem(selector);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
     [BridgeExport]
-    public static function getMaxBuyQuantity(key:*):int {
-      if (!getShopInfo()) {
+    public static function getMaxBuyQuantity(selector:Object):int {
+      if (!selector || !getShopInfo()) {
         return 0;
       }
 
-      var item:Object = getItem(key);
+      var item:Object = getShopItem(selector);
       if (!item) {
         return 0;
       }
 
-      return game.world.maximumShopBuys(item);
-    }
-
-    [BridgeExport]
-    public static function getMaxBuyQuantityByShopItemId(shopItemId:String):int {
-      if (!getShopInfo()) {
-        return 0;
-      }
-
-      var item:Object = getItemByShopItemId(shopItemId);
-      if (!item) {
-        return 0;
-      }
-
+      var game:Object = Main.Game;
       return game.world.maximumShopBuys(item);
     }
 
     private static function isShopPopupOpen():Boolean {
+      var game:Object = Main.Game;
       var popup:* = game.ui.mcPopup;
 
       return popup != null &&
@@ -165,8 +173,118 @@ package lucent.game {
         return false;
       }
 
+      var game:Object = Main.Game;
       game.ui.mcPopup.onClose();
       return true;
+    }
+
+    private static function canBuyShopItem(item:Object):Boolean {
+      var game:Object = Main.Game;
+      if (item.bStaff == 1 && game.world.myAvatar.objData.intAccessLevel < 40) {
+        return false;
+      }
+      else if (game.world.shopinfo.sField != "" && game.world.getAchievement(game.world.shopinfo.sField, game.world.shopinfo.iIndex) != 1) {
+        return false;
+      }
+      else if (item.bUpg == 1 && !game.world.myAvatar.isUpgraded()) {
+        return false;
+      }
+      else if (item.FactionID > 1 && game.world.myAvatar.getRep(item.FactionID) < item.iReqRep) {
+        return false;
+      }
+      else if (!validateArmor(item)) {
+        return false;
+      }
+      else if (item.iQSindex >= 0 && game.world.getQuestValue(item.iQSindex) < int(item.iQSvalue)) {
+        return false;
+      }
+      else if (
+          (game.world.myAvatar.isItemInInventory(item.ItemID) || game.world.myAvatar.isItemInBank(item.ItemID)) &&
+          game.world.myAvatar.isItemStackMaxed(item.ItemID)
+        ) {
+        return false;
+      }
+      else if (item.bCoins == 0 && item.iCost > game.world.myAvatar.objData.intGold) {
+        return false;
+      }
+      else if (item.bCoins == 1 && item.iCost > game.world.myAvatar.objData.intCoins) {
+        return false;
+      }
+      else if (
+          !game.isHouseItem(item) && game.world.myAvatar.items.length >= game.world.myAvatar.objData.iBagSlots ||
+          game.isHouseItem(item) && game.world.myAvatar.houseitems.length >= game.world.myAvatar.objData.iHouseSlots
+        ) {
+        return false;
+      }
+
+      return true;
+    }
+
+    private static function validateArmor(item:Object):Boolean {
+      var game:Object = Main.Game;
+
+      var index:uint = 0;
+      var classIndex:uint = 0;
+      var classIds:Array = [];
+      var valid:Boolean = true;
+      var requiresAll:Boolean = false;
+      var requiresAny:Boolean = false;
+      var itemId:int = int(item.ItemID);
+      switch (itemId) {
+        case 319:
+        case 2083:
+          requiresAll = true;
+          classIds = [16, 15654, 407, 20, 15651, 409];
+          break;
+        case 409:
+          requiresAny = true;
+          classIds = [20, 15651];
+          break;
+        case 408:
+          requiresAny = true;
+          classIds = [17, 15653];
+          break;
+        case 410:
+          requiresAny = true;
+          classIds = [18, 15652];
+          break;
+        case 407:
+          requiresAny = true;
+          classIds = [16, 15654];
+      }
+
+      if (requiresAll) {
+        index = 0;
+        while (index < classIds.length) {
+          if (game.world.myAvatar.getCPByID(classIds[index]) < 302500) {
+            valid = false;
+          }
+          else {
+            valid = true;
+            if (index < 2) {
+              index = 2;
+            }
+            if (index < 5 && index > 2) {
+              break;
+            }
+          }
+          index++;
+        }
+        return valid;
+      }
+
+      if (requiresAny) {
+        classIndex = 0;
+        while (classIndex < classIds.length) {
+          if (game.world.myAvatar.getCPByID(classIds[classIndex]) >= item.iReqCP) {
+            return true;
+          }
+          classIndex++;
+        }
+        return false;
+      }
+
+      return !(Number(item.iClass) > 0 && game.world.myAvatar.getCPByID(item.iClass) < item.iReqCP);
     }
 
     private static function canBuyQuantity(item:Object, quantity:int):Boolean {
@@ -174,20 +292,22 @@ package lucent.game {
         return false;
       }
 
-      if (!Util.canBuyItem(item)) {
+      if (!canBuyShopItem(item)) {
         return false;
       }
 
+      var game:Object = Main.Game;
       return game.world.maximumShopBuys(item) >= quantity;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
     [BridgeExport]
-    public static function buyByName(name:String, quantity:int = 1):void {
-      if (!name || quantity <= 0) {
+    public static function buy(selector:Object, quantity:int = 1):void {
+      if (!selector || quantity <= 0) {
         return;
       }
 
-      var item:Object = getItem(name);
+      var item:Object = getShopItem(selector);
       if (!canBuyQuantity(item, quantity)) {
         return;
       }
@@ -195,56 +315,14 @@ package lucent.game {
       sendBuy(item, quantity);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function buyById(id:int, quantity:int = 1):void {
-      if (id <= 0 || quantity <= 0) {
-        return;
-      }
-
-      var item:Object = getItem(id);
-      if (!canBuyQuantity(item, quantity)) {
-        return;
-      }
-
-      sendBuy(item, quantity);
-    }
-
-    [BridgeExport]
-    public static function buyByShopItemId(shopItemId:String, quantity:int = 1):void {
-      if (!shopItemId || quantity <= 0) {
-        return;
-      }
-
-      var item:Object = getItemByShopItemId(shopItemId);
-      if (!canBuyQuantity(item, quantity)) {
-        return;
-      }
-
-      sendBuy(item, quantity);
-    }
-
-    [BridgeExport]
-    public static function sellByName(name:String, quantity:int = -1):Boolean {
-      if (!name || (quantity !== -1 && quantity <= 0)) {
+    public static function sell(selector:Object, quantity:int = -1):Boolean {
+      if (!selector || (quantity !== -1 && quantity <= 0)) {
         return false;
       }
 
-      var item:Object = Inventory.getItem(name);
-      if (!item) {
-        return false;
-      }
-
-      sendSell(item, quantity);
-      return true;
-    }
-
-    [BridgeExport]
-    public static function sellById(id:int, quantity:int = -1):Boolean {
-      if (id <= 0 || (quantity !== -1 && quantity <= 0)) {
-        return false;
-      }
-
-      var item:Object = getInventoryItem(id);
+      var item:Object = getInventoryItem(selector);
       if (!item) {
         return false;
       }
@@ -255,16 +333,19 @@ package lucent.game {
 
     [BridgeExport]
     public static function load(shopId:int):void {
+      var game:Object = Main.Game;
       game.world.sendLoadShopRequest(shopId);
     }
 
     [BridgeExport]
     public static function loadHairShop(shopId:int):void {
+      var game:Object = Main.Game;
       game.world.sendLoadHairShopRequest(shopId);
     }
 
     [BridgeExport]
     public static function loadArmorCustomize():void {
+      var game:Object = Main.Game;
       game.openArmorCustomize();
     }
 
@@ -275,30 +356,18 @@ package lucent.game {
         return false;
       }
 
+      var game:Object = Main.Game;
       return game.isMergeShop(info);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
     [BridgeExport]
-    public static function canBuyItem(key:*, quantity:int = 1):Boolean {
-      if (!getShopInfo()) {
+    public static function canBuyItem(selector:Object, quantity:int = 1):Boolean {
+      if (!selector || !getShopInfo()) {
         return false;
       }
 
-      var item:Object = getItem(key);
-      if (!item) {
-        return false;
-      }
-
-      return canBuyQuantity(item, quantity);
-    }
-
-    [BridgeExport]
-    public static function canBuyByShopItemId(shopItemId:String, quantity:int = 1):Boolean {
-      if (!getShopInfo()) {
-        return false;
-      }
-
-      var item:Object = getItemByShopItemId(shopItemId);
+      var item:Object = getShopItem(selector);
       if (!item) {
         return false;
       }

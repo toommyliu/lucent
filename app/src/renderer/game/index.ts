@@ -1,5 +1,3 @@
-import "../../shared/polyfills";
-
 import { installRendererThemeSync } from "../theme";
 
 const documentElement = document.documentElement;

@@ -3,21 +3,24 @@ package lucent.game {
 
   [BridgeNamespace("inventory")]
   public class Inventory {
-    private static var game:Object = Main.getInstance().getGame();
 
     [BridgeExport]
     public static function getItems():Array {
+      var game:Object = Main.Game;
       return game.world.myAvatar.items;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function getItem(item:*):Object {
-      return ItemLookup.find(game.world.myAvatar.items, item);
+    public static function getItem(selector:Object):Object {
+      var game:Object = Main.Game;
+      return ItemLookup.find(game.world.myAvatar.items, selector);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function contains(item:*, quantity:int = 1):Boolean {
-      var itemObj:Object = getItem(item);
+    public static function contains(selector:Object, quantity:int = 1):Boolean {
+      var itemObj:Object = getItem(selector);
       if (!itemObj) {
         return false;
       }
@@ -27,21 +30,25 @@ package lucent.game {
 
     [BridgeExport]
     public static function getSlots():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.iBagSlots;
     }
 
     [BridgeExport]
     public static function getUsedSlots():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.items.length;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function equip(item:*):Boolean {
-      var itemObj:Object = getItem(item);
+    public static function equip(selector:Object):Boolean {
+      var itemObj:Object = getItem(selector);
       if (!itemObj) {
         return false;
       }
 
+      var game:Object = Main.Game;
       if (itemObj.sType == "Item") {
         if (!itemObj.ItemID || !itemObj.sDesc || !itemObj.sFile || !itemObj.sName) {
           return false;
@@ -55,9 +62,10 @@ package lucent.game {
       return true;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function unequipConsumable(item:*):Boolean {
-      var itemObj:Object = getItem(item);
+    public static function unequipConsumable(selector:Object):Boolean {
+      var itemObj:Object = getItem(selector);
       if (!itemObj || itemObj.sType != "Item") {
         return false;
       }
@@ -66,6 +74,7 @@ package lucent.game {
         return true;
       }
 
+      var game:Object = Main.Game;
       game.world.unequipUseableItem(itemObj);
       return true;
     }

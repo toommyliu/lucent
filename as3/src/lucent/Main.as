@@ -14,7 +14,6 @@ package lucent {
 
 	import lucent.Externalizer;
 	import lucent.game.Bank;
-	import lucent.game.DropList;
 	import lucent.module.Modules;
 	import lucent.util.SFSEvent;
 
@@ -23,8 +22,6 @@ package lucent {
 		private static var _instance:Main;
 
 		private static var _gameClass:Class;
-		private static var _fxStore:* = new Object();
-		private static var _fxLastOpt:Boolean = false;
 		private static var _handler:*;
 
 		private var game:*;
@@ -134,18 +131,6 @@ package lucent {
 			else {
 				var pkt:String = processPacket(packet.params.message);
 				this.emitPacketFromServer(pkt);
-
-				if (pkt && pkt.indexOf('dropItem') > -1) {
-					var pktObj:Object = JSON.parse(pkt);
-					if (pktObj && pktObj.b && pktObj.b.o && pktObj.b.o.items) {
-						var itemsObj:Object = pktObj.b.o.items;
-						for (var itemId:* in itemsObj) {
-							var itemData:Object = itemsObj[itemId];
-							DropList.saveItem(itemId, itemData);
-							DropList.updateCount(itemData.sName, itemData.iQty);
-						}
-					}
-				}
 			}
 		}
 
@@ -205,6 +190,10 @@ package lucent {
 		[BridgeIgnore]
 		public static function getInstance():Main {
 			return _instance;
+		}
+
+		public static function get Game():* {
+			return _instance == null ? null : _instance.game;
 		}
 
 		public function getGame():* {
@@ -312,16 +301,32 @@ package lucent {
 			return JSON.stringify(narray);
 		}
 
+		[BridgeIgnore]
+		public static function resolvePath(root:*, parts:Array, nullOnMissing:Boolean = false):* {
+			try {
+				var obj:* = root;
+				for (var i:int = 0; i < parts.length; i++) {
+					if (nullOnMissing && obj == null) {
+						return null;
+					}
+					obj = obj[parts[i]];
+				}
+				return obj;
+			}
+			catch (e:Error) {
+				if (nullOnMissing) {
+					return null;
+				}
+				throw e;
+			}
+		}
+
 		private static function _getObjectS(root:*, path:String):* {
 			return _getObjectA(root, path.split('.'));
 		}
 
 		private static function _getObjectA(root:*, parts:Array):* {
-			var obj:* = root;
-			for (var i:int = 0; i < parts.length; i++) {
-				obj = obj[parts[i]];
-			}
-			return obj;
+			return resolvePath(root, parts);
 		}
 
 		[BridgeExport]
@@ -372,7 +377,7 @@ package lucent {
 
 		[BridgeExport]
 		public static function isTextFieldFocused():Boolean {
-			var game:* = Main.getInstance().getGame();
+			var game:* = Main.Game;
 
 			try {
 				return game.stage.focus is TextField;

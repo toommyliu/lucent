@@ -2,104 +2,91 @@ package lucent.game {
   import lucent.Main;
   import flash.events.MouseEvent;
   import flash.utils.getQualifiedClassName;
-  import flash.utils.Dictionary;
-  import mx.utils.StringUtil;
 
   [BridgeNamespace("drops")]
   public class DropList {
-    private static var game:* = Main.getInstance().getGame();
-
-    private static var cls:Class = Main.getInstance().getGameDomain().getDefinition("liteAssets.draw.customDrops") as Class;
-
-    public static var drops:Dictionary = new Dictionary();
-
-    private static var items:Object = {};
-
-    private static const DROP_REGEX:RegExp = /(.*)\s+x\s*(\d*)/i;
-
     private static const DROP_MC:String = "DFrame2MC";
 
-    // Save item data
-    [BridgeIgnore]
-    public static function saveItem(itemId:int, itemData:Object):void {
-      if (!items[itemId])
-        items[itemId] = itemData;
+    private static function getItemId(item:Object):int {
+      if (!item || !("ItemID" in item)) {
+        return 0;
+      }
+
+      return int(item.ItemID);
     }
 
-    // Get item data
-    [BridgeExport]
-    public static function getItems():Object {
-      return items;
+    private static function isDefaultDropFrame(child:*):Boolean {
+      return getQualifiedClassName(child) == DROP_MC && Boolean(child.fData);
     }
 
-    // Update qty of drops
-    [BridgeIgnore]
-    public static function updateCount(itemName:String, qty:int):void {
-      if (!drops[itemName])
-        drops[itemName] = 0;
-      drops[itemName] += qty;
-    }
+    private static function getCustomDropItem(itemId:int):Object {
+      var game:Object = Main.Game;
+      if (!game.cDropsUI || !(game.cDropsUI.invTree is Array)) {
+        return null;
+      }
 
-    // Get qty of drops
-    [BridgeExport]
-    public static function getDrops():Object {
-      var json:Object = {};
-      for (var itemName:String in drops)
-        json[itemName] = drops[itemName];
-      return JSON.stringify(json);
-    }
-
-    // Parse the item name and count from the drop string
-    [BridgeIgnore]
-    public static function parseDrop(name:String):Object {
-      var ret:Object = new Object();
-      var lowerName:String = StringUtil.trim(name.toLowerCase());
-      ret.name = lowerName;
-      ret.count = 1;
-
-      var res:Array = DROP_REGEX.exec(lowerName);
-      if (res != null && res.length > 2) {
-        ret.name = String(res[1]).replace(/\s+$/, "");
-        var countStr:String = String(res[2]);
-        if (countStr != null && countStr != "") {
-          var parsedCount:int = parseInt(countStr);
-          if (!isNaN(parsedCount) && parsedCount > 0)
-            ret.count = parsedCount;
+      for each (var item:Object in game.cDropsUI.invTree) {
+        if (item && int(item.ItemID) == itemId) {
+          return item;
         }
       }
 
-      return ret;
+      return null;
+    }
+
+    private static function getCustomDropEntry(itemId:int):* {
+      var source:* = getCustomDropSource();
+      if (!source) {
+        return null;
+      }
+
+      for (var i:int = 0; i < source.numChildren; i++) {
+        var child:* = source.getChildAt(i);
+        if (child.itemObj && int(child.itemObj.ItemID) == itemId) {
+          return child;
+        }
+      }
+
+      return null;
+    }
+
+    private static function getDefaultDropFrame(itemId:int):* {
+      var game:Object = Main.Game;
+      var children:int = game.ui.dropStack.numChildren;
+      for (var i:int = 0; i < children; i++) {
+        var child:* = game.ui.dropStack.getChildAt(i);
+        if (isDefaultDropFrame(child) && int(child.fData.ItemID) == itemId) {
+          return child;
+        }
+      }
+
+      return null;
     }
 
     [BridgeExport]
     public static function acceptDrop(itemId:int):void {
-      var itemObj:* = items[itemId];
+      var game:Object = Main.Game;
       if (isUsingCustomDrops()) {
+        var itemObj:* = getCustomDropItem(itemId);
+        if (!itemObj)
+          return;
+
         if (!isCustomDropsUiOpen())
           toggleUi();
 
-        if (itemObj) {
-          game.cDropsUI.acceptDrop(itemObj); // Updates the ui, removing the item
-          game.sfc.sendXtMessage("zm", "getDrop", [itemId], "str", game.world.curRoom); // Adds the item to the inventory
-        }
+        game.cDropsUI.acceptDrop(itemObj);
+        game.sfc.sendXtMessage("zm", "getDrop", [itemId], "str", game.world.curRoom);
       }
       else {
-        var children:int = game.ui.dropStack.numChildren;
-        for (var i:int = 0; i < children; i++) {
-          var child:* = game.ui.dropStack.getChildAt(i);
-          var mcName:String = getQualifiedClassName(child);
-          var dropItemName:String = child.cnt.strName.text; // Defeated Makai x1
-          var data:* = parseDrop(dropItemName); // {name: "defeated makai", count: 1}
-
-          if (mcName == DROP_MC && data.name == StringUtil.trim(itemObj.sName.toLowerCase()))
-            child.cnt.ybtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
-        }
+        var frame:* = getDefaultDropFrame(itemId);
+        if (frame)
+          frame.cnt.ybtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
       }
     }
 
-    // Toggle open/closed of custom ui
     [BridgeExport]
     public static function toggleUi():void {
+      var game:Object = Main.Game;
       if (isDraggable()) {
         game.cDropsUI.mcDraggable.menuBar.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
       }
@@ -108,60 +95,38 @@ package lucent.game {
       }
     }
 
-    // 0 : not found
-    // 1 : rejected drop
-    // -1 : not found
     [BridgeExport]
-    public static function rejectDrop(itemId:int):Boolean {
-      var itemObj:Object = items[itemId];
-      if (!itemObj)
-        return false;
-
+    public static function rejectDrop(itemId:int):void {
       if (isUsingCustomDrops()) {
         if (!isCustomDropsUiOpen())
           toggleUi();
 
-        // Check the ui has the item before bothering to reject
-        // Avoids "ghost drops"
-        var source:* = getCustomDropSource();
-        for (var i:int = 0; i < source.numChildren; i++) {
-          var child:* = source.getChildAt(i);
-          if (child.itemObj) {
-            var itemName:String = child.itemObj.sName.toLowerCase();
-            if (itemName == StringUtil.trim(itemObj.sName.toLowerCase())) {
-              child.btNo.dispatchEvent(new MouseEvent(MouseEvent.CLICK)); // Removes item and updates the UI
-              return true;
-            }
-          }
-        }
-      }
-      else {
-        itemName = StringUtil.trim(itemObj.sName.toLowerCase());
-        for (var idx:int = game.ui.dropStack.numChildren - 1; idx >= 0; idx--) {
-          child = game.ui.dropStack.getChildAt(idx);
-          var data:* = parseDrop(child.cnt.strName.text);
-          if (data.name == itemName) {
-            game.ui.dropStack.removeChildAt(idx);
-          }
-        }
+        var entry:* = getCustomDropEntry(itemId);
+        if (entry)
+          entry.btNo.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+
+        return;
       }
 
-      return false;
+      var frame:* = getDefaultDropFrame(itemId);
+      if (frame)
+        frame.cnt.nbtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
     }
 
-    // Whether using custom drops ui
     [BridgeExport]
     public static function isUsingCustomDrops():Boolean {
+      var game:Object = Main.Game;
       return Boolean(game.cDropsUI) && game.litePreference.data.bCustomDrops;
     }
 
-    // Whether using custom drops ui with draggable mode
     [BridgeIgnore]
     public static function isDraggable():Boolean {
+      var game:Object = Main.Game;
       return isUsingCustomDrops() && Boolean(game.cDropsUI.mcDraggable);
     }
 
     private static function getCustomDropSource():* {
+      var game:Object = Main.Game;
       if (isDraggable())
         return game.cDropsUI.mcDraggable.menu;
       else if (isUsingCustomDrops())
@@ -172,6 +137,7 @@ package lucent.game {
 
     [BridgeIgnore]
     public static function isCustomDropsUiOpen():Boolean {
+      var game:Object = Main.Game;
       if (game.cDropsUI)
         return game.cDropsUI.isMenuOpen();
 
