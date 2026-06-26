@@ -6,8 +6,9 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
 
 const BRIDGE_TS_RETURN_TYPE_METADATA = "BridgeTsReturnType";
+const BRIDGE_TS_PARAM_TYPE_METADATA = "BridgeTsParamType";
 const BRIDGE_TS_TYPES_ALIAS = "FlashTypes";
-const BRIDGE_TS_TYPES_MODULE = "./flash/Types";
+const BRIDGE_TS_TYPES_MODULE = "./Types";
 const BRIDGE_FALLBACK_METADATA = "BridgeFallback";
 
 type Metadata = {
@@ -19,6 +20,7 @@ type Metadata = {
 type BridgeParameter = {
   name: string;
   type: string;
+  tsType: string | null;
   optional: boolean;
   rest: boolean;
 };
@@ -215,6 +217,7 @@ export function parseParameterList(rawParams: string): BridgeParameter[] {
         return {
           name: restName,
           type: "*",
+          tsType: null,
           optional: false,
           rest: true,
         } satisfies BridgeParameter;
@@ -236,6 +239,7 @@ export function parseParameterList(rawParams: string): BridgeParameter[] {
       return {
         name,
         type: (type ?? "*").trim(),
+        tsType: null,
         optional: defaultValue != null,
         rest: false,
       } satisfies BridgeParameter;
@@ -291,6 +295,87 @@ function resolveTsReturnType(method: ParsedMethod): string | null {
   return value;
 }
 
+function validateTsTypeMetadataValue(
+  metadataName: string,
+  value: string | null | undefined,
+  filePath: string,
+  line: number,
+): string {
+  const type = value?.trim();
+  if (!type) {
+    throw new Error(
+      `${metadataName} metadata requires a non-empty value in ${relative(DEFAULT_REPO_ROOT, filePath)}:${line}`,
+    );
+  }
+
+  if (type.includes("import(")) {
+    throw new Error(
+      `${metadataName} in ${relative(DEFAULT_REPO_ROOT, filePath)}:${line} should not use import() expressions. Use ${BRIDGE_TS_TYPES_ALIAS}.TypeName (for example: ${BRIDGE_TS_TYPES_ALIAS}.TargetInfo | null).`,
+    );
+  }
+
+  return type;
+}
+
+function resolveTsParameterTypes(method: ParsedMethod): Map<string, string> {
+  const overrides = new Map<string, string>();
+
+  for (const metadata of method.metadata) {
+    if (metadata.name !== BRIDGE_TS_PARAM_TYPE_METADATA) {
+      continue;
+    }
+
+    const value = validateTsTypeMetadataValue(
+      BRIDGE_TS_PARAM_TYPE_METADATA,
+      metadata.arg,
+      method.filePath,
+      metadata.line,
+    );
+    const separatorIndex = value.indexOf(":");
+    if (separatorIndex <= 0) {
+      throw new Error(
+        `${BRIDGE_TS_PARAM_TYPE_METADATA} metadata must use "parameterName: Type" in ${relative(DEFAULT_REPO_ROOT, method.filePath)}:${metadata.line}`,
+      );
+    }
+
+    const parameterName = value.slice(0, separatorIndex).trim();
+    const tsType = value.slice(separatorIndex + 1).trim();
+    if (!parameterName || !tsType) {
+      throw new Error(
+        `${BRIDGE_TS_PARAM_TYPE_METADATA} metadata must use "parameterName: Type" in ${relative(DEFAULT_REPO_ROOT, method.filePath)}:${metadata.line}`,
+      );
+    }
+
+    if (!method.parameters.some((parameter) => parameter.name === parameterName)) {
+      throw new Error(
+        `${BRIDGE_TS_PARAM_TYPE_METADATA} references unknown parameter "${parameterName}" in ${relative(DEFAULT_REPO_ROOT, method.filePath)}:${metadata.line}`,
+      );
+    }
+
+    if (overrides.has(parameterName)) {
+      throw new Error(
+        `Duplicate ${BRIDGE_TS_PARAM_TYPE_METADATA} metadata for parameter "${parameterName}" in ${relative(DEFAULT_REPO_ROOT, method.filePath)}:${metadata.line}`,
+      );
+    }
+
+    overrides.set(parameterName, tsType);
+  }
+
+  return overrides;
+}
+
+function applyTsParameterTypes(method: ParsedMethod): BridgeParameter[] {
+  const overrides = resolveTsParameterTypes(method);
+  if (overrides.size === 0) {
+    return method.parameters;
+  }
+
+  return method.parameters.map((parameter) => ({
+    ...parameter,
+    tsType: overrides.get(parameter.name) ?? parameter.tsType,
+  }));
+}
+
 function resolveBridgeFallback(method: ParsedMethod): string | null {
   const metadata = findMetadata(method.metadata, BRIDGE_FALLBACK_METADATA);
   if (!metadata) {
@@ -343,19 +428,19 @@ export function resolveBridgeFallbackExpression(
   }
 }
 
-function formatFunctionParameters(parameters: BridgeParameter[]): string {
-  return parameters
-    .map((parameter) => {
-      if (parameter.rest) {
-        const baseType = mapAs3Type(parameter.type);
-        const restType = baseType.endsWith("[]") ? baseType : `${baseType}[]`;
-        return `...${parameter.name}: ${restType}`;
-      }
+function formatFunctionParameter(parameter: BridgeParameter): string {
+  if (parameter.rest) {
+    const baseType = parameter.tsType ?? mapAs3Type(parameter.type);
+    const restType = baseType.endsWith("[]") ? baseType : `${baseType}[]`;
+    return `...${parameter.name}: ${restType}`;
+  }
 
-      const suffix = parameter.optional ? "?" : "";
-      return `${parameter.name}${suffix}: ${mapAs3Type(parameter.type)}`;
-    })
-    .join(", ");
+  const suffix = parameter.optional ? "?" : "";
+  return `${parameter.name}${suffix}: ${parameter.tsType ?? mapAs3Type(parameter.type)}`;
+}
+
+function formatFunctionParameters(parameters: BridgeParameter[]): string {
+  return parameters.map(formatFunctionParameter).join(", ");
 }
 
 function formatFunctionSignature(
@@ -365,20 +450,58 @@ function formatFunctionSignature(
   return `(${formatFunctionParameters(parameters)}) => ${returnType}`;
 }
 
+function formatFunctionProperty(
+  name: string,
+  parameters: BridgeParameter[],
+  returnType: string,
+  indent: string,
+  optional = false,
+  quoteName = true,
+): string[] {
+  const canUseIdentifier = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name);
+  const renderedName = quoteName || !canUseIdentifier ? JSON.stringify(name) : name;
+  const propertyName = `${renderedName}${optional ? "?" : ""}`;
+  const singleLine = `${indent}${propertyName}: ${formatFunctionSignature(parameters, returnType)};`;
+  if (singleLine.length <= 80 || parameters.length === 0) {
+    return [singleLine];
+  }
+
+  const parameterIndent = `${indent}  `;
+  return [
+    `${indent}${propertyName}: (`,
+    ...parameters.map(
+      (parameter) => `${parameterIndent}${formatFunctionParameter(parameter)},`,
+    ),
+    `${indent}) => ${returnType};`,
+  ];
+}
+
 function resolveRenderedReturnType(
   as3ReturnType: string,
   tsReturnType: string | null,
 ): string {
-  return tsReturnType ?? mapAs3Type(as3ReturnType);
+  if (tsReturnType !== null) {
+    return tsReturnType;
+  }
+
+  if (as3ReturnType.trim() === "Object") {
+    return "Record<string, unknown> | null";
+  }
+
+  return mapAs3Type(as3ReturnType);
 }
 
 function shouldImportFlashTypes(model: BridgeModel): boolean {
   const usesAlias = (tsReturnType: string | null) =>
     tsReturnType?.includes(`${BRIDGE_TS_TYPES_ALIAS}.`) ?? false;
+  const parameterUsesAlias = (parameters: BridgeParameter[]) =>
+    parameters.some((parameter) => usesAlias(parameter.tsType));
 
   return (
     model.exports.some((entry) => usesAlias(entry.tsReturnType)) ||
-    model.events.some((entry) => usesAlias(entry.tsReturnType))
+    model.exports.some((entry) => parameterUsesAlias(entry.parameters)) ||
+    model.events.some((entry) => usesAlias(entry.tsReturnType)) ||
+    model.events.some((entry) => parameterUsesAlias(entry.parameters))
   );
 }
 
@@ -519,6 +642,7 @@ function buildBridgeModel(parsedFiles: ParsedFile[]): BridgeModel {
 
       const tsReturnType = resolveTsReturnType(method);
       const fallback = resolveBridgeFallback(method);
+      const parameters = applyTsParameterTypes(method);
 
       if (eventMetadata) {
         if (!eventMetadata.arg) {
@@ -539,7 +663,7 @@ function buildBridgeModel(parsedFiles: ParsedFile[]): BridgeModel {
           className: method.className,
           classFqn: method.classFqn,
           methodName: method.name,
-          parameters: method.parameters,
+          parameters,
           returnType: method.returnType,
           tsReturnType,
           filePath: method.filePath,
@@ -590,7 +714,7 @@ function buildBridgeModel(parsedFiles: ParsedFile[]): BridgeModel {
         className: method.className,
         classFqn: method.classFqn,
         methodName: method.name,
-        parameters: method.parameters,
+        parameters,
         returnType: method.returnType,
         tsReturnType,
         fallback,
@@ -677,8 +801,6 @@ export function renderWindowSwfDts(model: BridgeModel): string {
   const lines: string[] = [
     "// AUTO-GENERATED FILE. DO NOT EDIT.",
     "",
-    "export {};",
-    "",
   ];
 
   if (shouldImportFlashTypes(model)) {
@@ -687,12 +809,20 @@ export function renderWindowSwfDts(model: BridgeModel): string {
       "",
     );
   }
+  else {
+    lines.push("export {};", "");
+  }
 
   lines.push("declare global {", "  interface Window {", "    swf: {");
 
   for (const entry of model.exports) {
     lines.push(
-      `      "${entry.externalName}": ${formatFunctionSignature(entry.parameters, resolveRenderedReturnType(entry.returnType, entry.tsReturnType))};`,
+      ...formatFunctionProperty(
+        entry.externalName,
+        entry.parameters,
+        resolveRenderedReturnType(entry.returnType, entry.tsReturnType),
+        "      ",
+      ),
     );
   }
 
@@ -700,7 +830,14 @@ export function renderWindowSwfDts(model: BridgeModel): string {
 
   for (const entry of model.events) {
     lines.push(
-      `    "${entry.eventName}"?: ${formatFunctionSignature(entry.parameters, resolveRenderedReturnType(entry.returnType, entry.tsReturnType))};`,
+      ...formatFunctionProperty(
+        entry.eventName,
+        entry.parameters,
+        resolveRenderedReturnType(entry.returnType, entry.tsReturnType),
+        "    ",
+        true,
+        false,
+      ),
     );
   }
 
@@ -774,9 +911,7 @@ export async function generateBridgeArtifacts(
     "app",
     "src",
     "renderer",
-    "windows",
     "game",
-    "flash",
     "BridgeFallbacks.ts",
   );
   const swfDtsOutputPath = join(
@@ -784,7 +919,6 @@ export async function generateBridgeArtifacts(
     "app",
     "src",
     "renderer",
-    "windows",
     "game",
     "bridge.d.ts",
   );

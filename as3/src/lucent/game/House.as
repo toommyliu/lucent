@@ -3,25 +3,29 @@ package lucent.game {
 
   [BridgeNamespace("house")]
   public class House {
-    private static var game:Object = Main.getInstance().getGame();
 
     [BridgeExport]
     public static function getItems():Array {
+      var game:Object = Main.Game;
       return game.world.myAvatar.houseitems;
     }
 
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
-    public static function getItem(item:*):Object {
-      return ItemLookup.find(game.world.myAvatar.houseitems, item);
+    public static function getItem(selector:Object):Object {
+      var game:Object = Main.Game;
+      return ItemLookup.find(game.world.myAvatar.houseitems, selector);
     }
 
     [BridgeExport]
     public static function getSlots():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.iHouseSlots;
     }
 
     [BridgeExport]
     public static function getUsedSlots():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.houseitems.length;
     }
   }

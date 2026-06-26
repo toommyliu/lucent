@@ -3,18 +3,19 @@ package lucent.game {
 
   [BridgeNamespace("player")]
   public class Player {
-    private static var game:Object = Main.getInstance().getGame();
 
     [BridgeExport]
     public static function joinMap(map:String, cell:String = "Enter", pad:String = "Spawn"):void {
       if (!map)
         return;
 
+      var game:Object = Main.Game;
       game.world.gotoTown(map, cell, pad);
     }
 
     [BridgeExport]
     public static function getMap():String {
+      var game:Object = Main.Game;
       return game.world.strMapName;
     }
 
@@ -23,80 +24,92 @@ package lucent.game {
       if (!cell)
         return;
 
+      var game:Object = Main.Game;
       game.world.moveToCell(cell, pad);
     }
 
     [BridgeExport]
     public static function getCell():String {
+      var game:Object = Main.Game;
       return game.world.strFrame;
     }
 
     [BridgeExport]
     public static function getPad():String {
+      var game:Object = Main.Game;
       return game.world.strPad;
     }
 
     [BridgeExport]
     public static function getFactions():Array {
+      var game:Object = Main.Game;
       return game.world.myAvatar.factions;
     }
 
     [BridgeExport]
     public static function getState():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intState;
     }
 
     [BridgeExport]
     public static function getHp():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intHP;
     }
 
     [BridgeExport]
     public static function getMaxHp():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intHPMax;
     }
 
     [BridgeExport]
     public static function getMp():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intMP;
     }
 
     [BridgeExport]
     public static function getMaxMp():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intMPMax;
     }
 
     [BridgeExport]
     public static function getLevel():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.intLevel;
     }
 
     [BridgeExport]
     public static function getGold():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.intGold;
     }
 
     [BridgeExport]
     public static function isMember():Boolean {
+      var game:Object = Main.Game;
       return game.world.myAvatar.isUpgraded();
     }
 
     [BridgeExport]
     public static function isAfk():Boolean {
+      var game:Object = Main.Game;
       return game.world.myAvatar.dataLeaf.afk;
     }
 
     [BridgeExport]
     public static function getPosition():Array {
+      var game:Object = Main.Game;
       return [game.world.myAvatar.pMC.x, game.world.myAvatar.pMC.y];
     }
 
     [BridgeExport]
-    public static function walkTo(x:int, y:int, walkSpeed:* = null):Boolean {
-      if (!x || !y)
-        return false;
-
-      if (!walkSpeed)
+    public static function walkTo(x:int, y:int, walkSpeed:Number = NaN):Boolean {
+      var game:Object = Main.Game;
+      if (isNaN(walkSpeed) || walkSpeed <= 0)
         walkSpeed = game.world.WALKSPEED;
 
       game.world.myAvatar.pMC.walkTo(x, y, walkSpeed);
@@ -106,16 +119,18 @@ package lucent.game {
 
     [BridgeExport]
     public static function rest():void {
+      var game:Object = Main.Game;
       game.world.rest();
     }
 
     [BridgeExport]
     public static function useBoost(itemId:int):Boolean {
-      var item:Object = Inventory.getItem(itemId);
+      var item:Object = Inventory.getItem({itemId: itemId});
       if (!item) {
         return false;
       }
 
+      var game:Object = Main.Game;
       game.world.sendUseItemRequest(item);
       return true;
     }
@@ -125,6 +140,7 @@ package lucent.game {
       if (!boostType)
         return false;
 
+      var game:Object = Main.Game;
       if (boostType.indexOf("gold") > -1) {
         return game.world.myAvatar.objData.iBoostG > 0;
       }
@@ -146,26 +162,31 @@ package lucent.game {
 
     [BridgeExport]
     public static function getClassName():String {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.strClassName.toUpperCase();
     }
 
     [BridgeExport]
     public static function getUserId():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.uid;
     }
 
     [BridgeExport]
     public static function getCharId():int {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.CharID;
     }
 
     [BridgeExport]
     public static function getGender():String {
+      var game:Object = Main.Game;
       return game.world.myAvatar.objData.strGender.toUpperCase();
     }
 
     [BridgeExport]
     public static function getData():Object {
+      var game:Object = Main.Game;
       if (!game.world.myAvatar) {
         return null;
       }
@@ -175,6 +196,7 @@ package lucent.game {
 
     [BridgeExport]
     public static function isLoaded():Boolean {
+      var game:Object = Main.Game;
       return game.world.myAvatar.items.length > 0 && World.isLoaded() && game.world.myAvatar.pMC.artLoaded();
     }
 
@@ -184,6 +206,7 @@ package lucent.game {
         return;
       }
 
+      var game:Object = Main.Game;
       game.world['goto'](name);
     }
   }

@@ -5,25 +5,52 @@ package lucent.module {
 		}
 
 		override public function onToggle(game:*):void {
-			for (var id:* in game.world.avatars) {
-				var player:* = game.world.avatars[id];
-				if (!player.isMyAvatar && player.pMC) {
-					player.pMC.mcChar.visible = !enabled;
-					player.pMC.pname.visible = !enabled;
-					player.pMC.shadow.visible = !enabled;
-
-					if (Boolean(player.petMC)) {
-						player.petMC.visible = !enabled;
-					}
-
-					player.pMC.cShadow.visible = !enabled;
-					player.pMC.shadow.alpha = enabled ? 0 : 1;
-				}
-			}
+			applyNativePreference(game);
+			reconcilePlayers(game);
 		}
 
 		override public function onFrame(game:*):void {
-			onToggle(game);
+			applyNativePreference(game);
+			reconcilePlayers(game);
+		}
+
+		private function applyNativePreference(game:*):void {
+			if (game.litePreference.data.bHidePlayers != enabled) {
+				game.litePreference.data.bHidePlayers = enabled;
+			}
+		}
+
+		private function reconcilePlayers(game:*):void {
+			for (var id:* in game.world.avatars) {
+				var player:* = game.world.avatars[id];
+				reconcilePlayer(player);
+			}
+		}
+
+		private function reconcilePlayer(player:*):void {
+			if (!player || player.isMyAvatar || !player.pMC) {
+				return;
+			}
+
+			var visible:Boolean = !enabled;
+			setVisible(player.pMC.mcChar, visible);
+			setVisible(player.pMC.pname, visible);
+			setVisible(player.pMC.shadow, visible);
+			setVisible(player.petMC, visible);
+			setVisible(player.pMC.cShadow, visible);
+			setAlpha(player.pMC.shadow, enabled ? 0 : 1);
+		}
+
+		private function setVisible(target:*, visible:Boolean):void {
+			if (target && target.visible != visible) {
+				target.visible = visible;
+			}
+		}
+
+		private function setAlpha(target:*, alpha:Number):void {
+			if (target && target.alpha != alpha) {
+				target.alpha = alpha;
+			}
 		}
 	}
 }

@@ -3,12 +3,9 @@ package lucent.game {
 
   [BridgeNamespace("outfits")]
   public class Outfits {
-    private static function getGame():Object {
-      return Main.getInstance().getGame();
-    }
 
     private static function getLoadouts():Object {
-      var game:Object = getGame();
+      var game:Object = Main.Game;
       if (!game || !game.world || !game.world.objInfo) {
         return null;
       }
@@ -53,7 +50,7 @@ package lucent.game {
     }
 
     private static function sendLoadoutCommand(command:String, name:String, keepColors:Boolean = false):Boolean {
-      var game:Object = getGame();
+      var game:Object = Main.Game;
       if (!game || !game.world || !game.sfc) {
         return false;
       }

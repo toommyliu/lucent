@@ -6,17 +6,18 @@ package lucent.game
   [BridgeNamespace("auth")]
   public class Auth
   {
-    private static var game:Object = Main.getInstance().getGame();
 
     [BridgeExport]
     public static function isLoggedIn():Boolean
     {
+      var game:Object = Main.Game;
       return game !== null && game.sfc !== null && game.sfc.isConnected;
     }
 
     [BridgeExport]
     public static function isTemporarilyKicked():Boolean
     {
+      var game:Object = Main.Game;
       var mcLogin:* = game.mcLogin;
       return mcLogin !== null && mcLogin.btnLogin !== null &&
         !mcLogin.btnLogin.visible;
@@ -25,6 +26,7 @@ package lucent.game
     [BridgeExport]
     public static function login(username:String, password:String):void
     {
+      var game:Object = Main.Game;
       if (game.mcLogin == null || game.mcLogin.btnLogin == null)
       {
         game.removeAllChildren();
@@ -36,6 +38,7 @@ package lucent.game
     [BridgeExport]
     public static function logout():void
     {
+      var game:Object = Main.Game;
       if (game.sfc.isConnected)
       {
         game.sfc.disconnect();
@@ -47,6 +50,7 @@ package lucent.game
     [BridgeExport]
     public static function getServers():Array
     {
+      var game:Object = Main.Game;
       if (game.serialCmd != null && game.serialCmd.servers is Array)
       {
         return game.serialCmd.servers;
@@ -55,12 +59,18 @@ package lucent.game
       return null;
     }
 
-    private static function connectResult(status:String, message:String, serverName:String = null):Object
+    private static function connectResult(status:String, message:String, serverName:String = null, reason:String = null):Object
     {
       var result:Object = {
+        ok: status == "selected",
         status: status,
         message: message
       };
+
+      if (reason != null)
+      {
+        result.reason = reason;
+      }
 
       if (serverName != null)
       {
@@ -70,35 +80,14 @@ package lucent.game
       return result;
     }
 
-    private static function getPath(root:*, path:Array):*
-    {
-      try
-      {
-        var value:* = root;
-        for each (var key:String in path)
-        {
-          if (value == null)
-          {
-            return null;
-          }
-          value = value[key];
-        }
-        return value;
-      }
-      catch (e:Error)
-      {
-        return null;
-      }
-    }
-
     private static function getServerListSource(currentGame:*):*
     {
-      return getPath(currentGame, ["mcLogin", "sl", "iList"]);
+      return Main.resolvePath(currentGame, ["mcLogin", "sl", "iList"], true);
     }
 
     private static function getLoginInfo(currentGame:*):Object
     {
-      var login:Object = getPath(currentGame, ["objLogin"]);
+      var login:Object = Main.resolvePath(currentGame, ["objLogin"], true);
       if (login != null)
       {
         return login;
@@ -119,7 +108,7 @@ package lucent.game
 
     private static function getServerData(row:*):Object
     {
-      return getPath(row, ["obj"]);
+      return Main.resolvePath(row, ["obj"], true);
     }
 
     private static function getServerName(row:*):String
@@ -130,7 +119,7 @@ package lucent.game
         return data.sName;
       }
 
-      var label:* = getPath(row, ["tName", "ti", "text"]);
+      var label:* = Main.resolvePath(row, ["tName", "ti", "text"], true);
       return label is String ? label : "";
     }
 
@@ -168,45 +157,45 @@ package lucent.game
     {
       if (selected.bOnline == 0)
       {
-        return connectResult("offline", "server is offline", serverName);
+        return connectResult("blocked", "server is offline", serverName, "offline");
       }
 
       if (selected.iCount >= selected.iMax)
       {
-        return connectResult("full", "server is full", serverName);
+        return connectResult("blocked", "server is full", serverName, "full");
       }
 
       if (login != null && selected.iChat > 0 && login.bCCOnly == 1)
       {
-        return connectResult("chat-restricted", "account is restricted to canned-chat servers", serverName);
+        return connectResult("blocked", "account is restricted to canned-chat servers", serverName, "chat-restricted");
       }
 
       if (login != null && selected.iChat > 0 && login.iAge < 13 && login.iUpgDays < 0)
       {
-        return connectResult("underage-chat", "account is not authorized for chat-enabled servers", serverName);
+        return connectResult("blocked", "account is not authorized for chat-enabled servers", serverName, "underage-chat");
       }
 
       if (login != null && selected.bUpg == 1 && login.iUpgDays < 0)
       {
-        return connectResult("member-only", "account is not authorized for member-only servers", serverName);
+        return connectResult("blocked", "account is not authorized for member-only servers", serverName, "member-only");
       }
 
       // Intentional check.
       if (selected.iMax % 2 > 0)
       {
-        return connectResult("test-client-required", "server requires the testing game client", serverName);
+        return connectResult("blocked", "server requires the testing game client", serverName, "test-client-required");
       }
 
       if (login != null && selected.iLevel > 0 && login.iEmailStatus <= 2)
       {
-        return connectResult("email-unconfirmed", "server requires a confirmed email address", serverName);
+        return connectResult("blocked", "server requires a confirmed email address", serverName, "email-unconfirmed");
       }
 
       return null;
     }
 
     [BridgeExport]
-    [BridgeTsReturnType("FlashTypes.ConnectToSelectionResult")]
+    [BridgeTsReturnType("FlashTypes.ConnectToSelectionResult | null")]
     public static function connectTo(server:String):Object
     {
       var result:Object;
@@ -229,7 +218,7 @@ package lucent.game
         return connectResult("not-found", "server is required");
       }
 
-      var currentGame:* = Main.getInstance().getGame();
+      var currentGame:* = Main.Game;
       var source:* = getServerListSource(currentGame);
       if (source == null)
       {

@@ -6,17 +6,18 @@ package lucent.game
   [BridgeNamespace("quests")]
   public class Quests
   {
-    private static var game:Object = Main.getInstance().getGame();
 
     [BridgeExport]
     public static function isInProgress(questId:int):Boolean
     {
+      var game:Object = Main.Game;
       return game.world.isQuestInProgress(questId);
     }
 
     [BridgeExport]
     public static function complete(questId:int, turnIns:int = 1, itemId:int = -1, special:Boolean = false /* idk */):void
     {
+      var game:Object = Main.Game;
       if (!game.world.coolDown("tryQuestComplete"))
       {
         return;
@@ -28,12 +29,14 @@ package lucent.game
     [BridgeExport]
     public static function getMaxTurnIns(questId:int):int
     {
+      var game:Object = Main.Game;
       return int(game.world.maximumQuestTurnIns(questId));
     }
 
     [BridgeExport]
     public static function accept(questId:int):Boolean
     {
+      var game:Object = Main.Game;
       if (!game.world.coolDown("acceptQuest"))
       {
         return false;
@@ -54,36 +57,42 @@ package lucent.game
     [BridgeExport]
     public static function abandon(questId:int):void
     {
+      var game:Object = Main.Game;
       game.world.abandonQuest(questId);
     }
 
     [BridgeExport]
     public static function load(questId:int):void
     {
+      var game:Object = Main.Game;
       game.world.showQuests([questId], "q");
     }
 
     [BridgeExport]
     public static function loadMultiple(questIds:String):void
     {
+      var game:Object = Main.Game;
       game.world.showQuests(questIds.split(","), "q");
     }
 
     [BridgeExport]
     public static function get (questId:int):void
     {
+      var game:Object = Main.Game;
       game.world.getQuests([questId]);
     }
 
     [BridgeExport]
     public static function getMultiple(questIds:String):void
     {
+      var game:Object = Main.Game;
       game.world.getQuests(questIds.split(","));
     }
 
     [BridgeExport]
     public static function getTree():Array
     {
+      var game:Object = Main.Game;
       var quests:Array = [];
       for each (var q:Object in game.world.questTree)
       {
@@ -138,6 +147,7 @@ package lucent.game
     [BridgeExport]
     public static function getAccepted():Array
     {
+      var game:Object = Main.Game;
       var quests:Array = [];
       // questTree is a {id:Object} map - we only want the ids
       for (var id:String in game.world.questTree)
@@ -154,6 +164,7 @@ package lucent.game
     [BridgeExport]
     public static function getQuestValidationString(questObj:Object):String
     {
+      var game:Object = Main.Game;
       var _loc2_:int = 0;
       var _loc3_:* = undefined;
       var _loc4_:int = 0;
@@ -249,6 +260,7 @@ package lucent.game
     [BridgeExport]
     public static function hasRequiredItemsForQuest(questObj:Object):Boolean
     {
+      var game:Object = Main.Game;
       var _loc2_:int = 0;
       var _loc3_:* = undefined;
       var _loc4_:int = 0;
@@ -272,6 +284,7 @@ package lucent.game
     [BridgeExport]
     public static function isAvailable(questId:int):Boolean
     {
+      var game:Object = Main.Game;
       var quest:Object = game.world.questTree[questId];
 
       if (!quest)
@@ -283,6 +296,7 @@ package lucent.game
     [BridgeExport]
     public static function canComplete(questId:int):Boolean
     {
+      var game:Object = Main.Game;
       var quest:Object = game.world.questTree[questId];
 
       if (!quest)
@@ -294,6 +308,7 @@ package lucent.game
     [BridgeExport]
     public static function isOneTimeQuestDone(questId:int):Boolean
     {
+      var game:Object = Main.Game;
       var quest:Object = game.world.questTree[questId];
 
       if (!quest)

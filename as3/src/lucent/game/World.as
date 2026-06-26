@@ -6,14 +6,34 @@ import flash.display.DisplayObject;
 [BridgeNamespace("world")]
 public class World
   {
-    private static var game:Object = Main.getInstance().getGame();
-
     private static var padNames:RegExp = /(Spawn|Center|Left|Right|Up|Down|Top|Bottom)/;
 
+    private static function getStringSelector(selector:Object, key:String):String
+    {
+      var value:* = selector[key];
+      if (!(value is String))
+      {
+        return null;
+      }
+
+      return String(value);
+    }
+
+    private static function getNumberSelector(selector:Object, key:String):Number
+    {
+      var value:* = selector[key];
+      if (!(value is Number) && !(value is int) && !(value is uint))
+      {
+        return NaN;
+      }
+
+      return Number(value);
+    }
 
     [BridgeExport]
     public static function isLoaded():Boolean
     {
+      var game:Object = Main.Game;
       if (!game.world.mapLoadInProgress)
       {
         try
@@ -33,6 +53,7 @@ public class World
     [BridgeExport]
     public static function isActionAvailable(gameAction:String):Boolean
     {
+      var game:Object = Main.Game;
       var _loc_2:* = undefined;
       var _loc_3:* = undefined;
       var _loc_4:* = undefined;
@@ -44,42 +65,10 @@ public class World
       return _loc_5 < _loc_2.cd ? false : true;
     }
 
-    //[BridgeExport]
-    //public static function getCellMonsters():Array
-    //  {
-      //var monsters:Array = game.world.getMonstersByCell(game.world.strFrame);
-      //var ret:Array = [];
-
-      //for (var id:Object in monsters)
-      //{
-        //var monster:Object = monsters[id];
-
-        //if (!Boolean(monster.pMC) || !Boolean(monster.pMC.visible) || monster.dataLeaf.intState <= 0)
-        //{
-          //continue;
-        //}
-
-        //var mon:Object = new Object();
-        //mon.intHP = monster.dataLeaf.intHP;
-        //mon.intHPMax = monster.dataLeaf.intHPMax;
-        //mon.intState = monster.dataLeaf.intState;
-        //mon.iLvl = monster.dataLeaf.iLvl;
-        //mon.intMP = monster.dataLeaf.intMP;
-        //mon.intMPMax = monster.dataLeaf.intMPMax;
-        //mon.monId = monster.dataLeaf.MonID;
-        //mon.monMapId = monster.dataLeaf.MonMapID;
-        //mon.sRace = monster.objData.sRace;
-        //mon.sFrame = monster.dataLeaf.strFrame;
-        //mon.strMonName = monster.objData.strMonName;
-        //ret.push(mon);
-      //}
-
-      //return ret;
-    //}
-
     [BridgeExport]
     public static function isMonsterAvailable(monMapId:Number):Boolean
     {
+      var game:Object = Main.Game;
       var monster:Object = game.world.getMonster(monMapId);
       if (!monster)
       {
@@ -93,6 +82,7 @@ public class World
     [BridgeTsReturnType("number[]")]
     public static function getAvailableMonsterMapIds():Array
     {
+      var game:Object = Main.Game;
       var ids:Array = [];
 
       for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
@@ -112,14 +102,14 @@ public class World
       return ids;
     }
 
-    [BridgeExport]
-    public static function getMonsterByName(name:String):Object
+    private static function getMonsterByName(name:String):Object
     {
       if (!name)
       {
         return null;
       }
 
+      var game:Object = Main.Game;
       name = name.toLowerCase();
       for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
       {
@@ -137,19 +127,18 @@ public class World
     }
 
 
-    [BridgeExport]
-    public static function getMonsterByMonMapId(monMapId:*):Object
+    private static function getMonsterByMonMapId(monMapId:Number):Object
     {
-      if (!monMapId)
+      if (isNaN(monMapId) || monMapId <= 0)
       {
         return null;
       }
 
+      var game:Object = Main.Game;
       for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
       {
         if (mon.pMC)
         {
-          var monster:int = mon.dataLeaf.MonMapID;
           if (mon != null && mon.dataLeaf != null && mon.dataLeaf.MonMapID == monMapId)
           {
             return mon;
@@ -161,9 +150,33 @@ public class World
     }
 
 
+    [BridgeTsParamType("selector: FlashTypes.MonsterSelector")]
+    [BridgeExport]
+    public static function getMonster(selector:Object):Object
+    {
+      if (!selector)
+      {
+        return null;
+      }
+
+      if ("name" in selector)
+      {
+        return getMonsterByName(getStringSelector(selector, "name"));
+      }
+
+      if ("monMapId" in selector)
+      {
+        return getMonsterByMonMapId(getNumberSelector(selector, "monMapId"));
+      }
+
+      return null;
+    }
+
+
     [BridgeExport]
     public static function getCells():Array
     {
+      var game:Object = Main.Game;
       var cells:Array = [];
       for each (var cell:Object in game.world.map.currentScene.labels)
       {
@@ -176,6 +189,7 @@ public class World
     [BridgeExport]
     public static function getCellPads():Array
     {
+      var game:Object = Main.Game;
       var cellPads:Array = new Array();
       var cellPadsCnt:int = game.world.map.numChildren;
       for (var i:int = 0; i < cellPadsCnt; ++i)
@@ -193,6 +207,7 @@ public class World
     [BridgeExport]
     public static function reload():void
     {
+      var game:Object = Main.Game;
       game.world.reloadCurrentMap();
     }
 
@@ -200,6 +215,7 @@ public class World
     [BridgeExport]
     public static function loadSwf(swf:String):void
     {
+      var game:Object = Main.Game;
       game.world.loadMap(swf);
     }
 
@@ -212,6 +228,7 @@ public class World
         return;
       }
 
+      var game:Object = Main.Game;
       game.world.getMapItem(itemId);
     }
 
@@ -219,6 +236,7 @@ public class World
     [BridgeExport]
     public static function setSpawnPoint(cell:String = null, pad:String = null):void
     {
+      var game:Object = Main.Game;
       if (!cell)
       {
         cell = game.world.strFrame;

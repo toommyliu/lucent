@@ -27,12 +27,12 @@ package lucent.game {
     }
 
     private static function applyWorldVisibility():void {
-      Main.getInstance().getGame().world.visible = !lagKillerEnabled;
+      Main.Game.world.visible = !lagKillerEnabled;
     }
 
     [BridgeExport]
     public static function infiniteRange():void {
-      var world:Object = Main.getInstance().getGame().world;
+      var world:Object = Main.Game.world;
       for (var i:int = 0; i <= 5; i++) {
         world.actions.active[i].range = 20000;
       }
@@ -40,12 +40,12 @@ package lucent.game {
 
     [BridgeExport]
     public static function provokeCell():void {
-      Main.getInstance().getGame().world.aggroAllMon();
+      Main.Game.world.aggroAllMon();
     }
 
     [BridgeExport]
     public static function enemyMagnet():void {
-      var world:Object = Main.getInstance().getGame().world;
+      var world:Object = Main.Game.world;
       if (world.myAvatar && world.myAvatar.target != null && world.myAvatar.target.npcType == "monster") {
         world.myAvatar.target.pMC.x = world.myAvatar.pMC.x;
         world.myAvatar.target.pMC.y = world.myAvatar.pMC.y;
@@ -54,7 +54,7 @@ package lucent.game {
 
     [BridgeExport]
     public static function skipCutscenes():void {
-      Main.getInstance().getGame().clearExternamSWF();
+      Main.Game.clearExternamSWF();
       applyWorldVisibility();
     }
 
@@ -70,12 +70,12 @@ package lucent.game {
 
     [BridgeExport]
     public static function setWalkSpeed(speed:int):void {
-      Main.getInstance().getGame().world.WALKSPEED = speed;
+      Main.Game.world.WALKSPEED = speed;
     }
 
     [BridgeExport]
     public static function setDeathAdsVisible(visible:Boolean):void {
-      Main.getInstance().getGame().userPreference.data.bDeathAd = visible;
+      Main.Game.userPreference.data.bDeathAd = visible;
     }
 
     [BridgeExport]
@@ -84,8 +84,8 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function setEffectsEnabled(enabled:Boolean):void {
-      setModuleEnabled("DisableFX", !enabled);
+    public static function setAnimationsEnabled(enabled:Boolean):void {
+      setModuleEnabled("AnimationLimiter", !enabled);
     }
 
     [BridgeExport]
