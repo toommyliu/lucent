@@ -161,8 +161,7 @@ package lucent.game
       return quests;
     }
 
-    [BridgeExport]
-    public static function getQuestValidationString(questObj:Object):String
+    private static function getQuestValidationString(questObj:Object):String
     {
       var game:Object = Main.Game;
       var _loc2_:int = 0;
@@ -257,8 +256,7 @@ package lucent.game
       return "";
     }
 
-    [BridgeExport]
-    public static function hasRequiredItemsForQuest(questObj:Object):Boolean
+    private static function hasRequiredItemsForQuest(questObj:Object):Boolean
     {
       var game:Object = Main.Game;
       var _loc2_:int = 0;
@@ -303,18 +301,6 @@ package lucent.game
         return false;
 
       return game.world.canTurnInQuest(questId) && getQuestValidationString(quest) == "";
-    }
-
-    [BridgeExport]
-    public static function isOneTimeQuestDone(questId:int):Boolean
-    {
-      var game:Object = Main.Game;
-      var quest:Object = game.world.questTree[questId];
-
-      if (!quest)
-        return false;
-
-      return quest.bOnce == 1 && (quest.iSlot < 0 || game.world.getQuestValue(quest.iSlot) >= quest.iValue);
     }
 
     private static function cloneObject(source:Object):Object
