@@ -135,16 +135,9 @@ declare global {
       "quests.getAccepted": () => unknown[];
       "quests.getMaxTurnIns": (questId: number) => number;
       "quests.getMultiple": (questIds: string) => void;
-      "quests.getQuestValidationString": (
-        questObj: Record<string, unknown>,
-      ) => string;
       "quests.getTree": () => unknown[];
-      "quests.hasRequiredItemsForQuest": (
-        questObj: Record<string, unknown>,
-      ) => boolean;
       "quests.isAvailable": (questId: number) => boolean;
       "quests.isInProgress": (questId: number) => boolean;
-      "quests.isOneTimeQuestDone": (questId: number) => boolean;
       "quests.load": (questId: number) => void;
       "quests.loadMultiple": (questIds: string) => void;
       "settings.enemyMagnet": () => void;

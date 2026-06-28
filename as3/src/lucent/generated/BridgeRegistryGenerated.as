@@ -117,12 +117,9 @@ package lucent.generated
       external.externalize("quests.getAccepted", Quests.getAccepted);
       external.externalize("quests.getMaxTurnIns", Quests.getMaxTurnIns);
       external.externalize("quests.getMultiple", Quests.getMultiple);
-      external.externalize("quests.getQuestValidationString", Quests.getQuestValidationString);
       external.externalize("quests.getTree", Quests.getTree);
-      external.externalize("quests.hasRequiredItemsForQuest", Quests.hasRequiredItemsForQuest);
       external.externalize("quests.isAvailable", Quests.isAvailable);
       external.externalize("quests.isInProgress", Quests.isInProgress);
-      external.externalize("quests.isOneTimeQuestDone", Quests.isOneTimeQuestDone);
       external.externalize("quests.load", Quests.load);
       external.externalize("quests.loadMultiple", Quests.loadMultiple);
       external.externalize("settings.enemyMagnet", Settings.enemyMagnet);
