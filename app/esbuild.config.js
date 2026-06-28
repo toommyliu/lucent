@@ -19,6 +19,9 @@ const notifiedLabels = new Set();
 
 const baseOptions = {
   bundle: true,
+  define: {
+    LUCENT_DEV: JSON.stringify(!isProduction),
+  },
   logLevel: "info",
   minify: isProduction,
   sourcemap: !isProduction,
@@ -26,13 +29,12 @@ const baseOptions = {
 
 const rendererViews = [
   {
-    entryPoint: "src/renderer/game/index.ts",
+    entryPoint: "src/renderer/game/index.tsx",
     id: "game",
   },
   {
     entryPoint: "src/renderer/settings/index.tsx",
     id: "settings",
-    plugins: [solidPlugin()],
   },
 ];
 
@@ -52,7 +54,7 @@ const rendererOptions = (view) => ({
   format: "esm",
   outfile: `dist/renderer/${view.id}/index.js`,
   platform: "browser",
-  ...(view.plugins === undefined ? {} : { plugins: view.plugins }),
+  plugins: [solidPlugin(), ...(view.plugins ?? [])],
   target: "chrome87",
 });
 
