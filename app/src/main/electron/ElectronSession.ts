@@ -1,13 +1,11 @@
-import { session } from "electron";
+import { app, session, type Session } from "electron";
 
 import { Context, Effect, Layer } from "effect";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 
 export interface ElectronSessionShape {
-  readonly registerGameWebContents: (
-    webContentsId: number,
-  ) => Effect.Effect<() => void>;
+  readonly prepareGameNetworking: Effect.Effect<void>;
 }
 
 export class ElectronSession extends Context.Service<
@@ -39,43 +37,38 @@ export const layer = Layer.effect(
   ElectronSession,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const gameWebContentsIds = new Set<number>();
     const gameRequestHeaders = getGameRequestHeaders(env.platform);
-    let gameHeaderHookInstalled = false;
+    const gameUserAgent = getArtixLauncherUserAgent(env.platform);
+    const configuredSessions = new WeakSet<Session>();
+    let sessionCreatedHookInstalled = false;
 
-    const installGameHeaderHook = (): void => {
-      if (gameHeaderHookInstalled) {
+    const configureSession = (targetSession: Session): void => {
+      if (configuredSessions.has(targetSession)) {
         return;
       }
 
-      gameHeaderHookInstalled = true;
-      session.defaultSession.webRequest.onBeforeSendHeaders(
-        (details, callback) => {
-          const requestHeaders = details.requestHeaders;
-          const webContentsId = details.webContentsId;
-          if (
-            webContentsId !== undefined &&
-            gameWebContentsIds.has(webContentsId)
-          ) {
-            for (const [name, value] of Object.entries(gameRequestHeaders)) {
-              requestHeaders[name] = value;
-            }
-          }
+      configuredSessions.add(targetSession);
+      targetSession.setUserAgent(gameUserAgent);
+      targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        const requestHeaders = { ...details.requestHeaders };
+        for (const [name, value] of Object.entries(gameRequestHeaders)) {
+          requestHeaders[name] = value;
+        }
 
-          callback({ cancel: false, requestHeaders });
-        },
-      );
+        callback({ cancel: false, requestHeaders });
+      });
     };
 
-    return ElectronSession.of({
-      registerGameWebContents: (webContentsId) =>
-        Effect.sync(() => {
-          installGameHeaderHook();
-          gameWebContentsIds.add(webContentsId);
-          return () => {
-            gameWebContentsIds.delete(webContentsId);
-          };
-        }),
+    const prepareGameNetworking = Effect.sync(() => {
+      configureSession(session.defaultSession);
+      if (sessionCreatedHookInstalled) {
+        return;
+      }
+
+      sessionCreatedHookInstalled = true;
+      app.on("session-created", configureSession);
     });
+
+    return ElectronSession.of({ prepareGameNetworking });
   }),
 );

@@ -143,9 +143,7 @@ describe("DesktopWindows", () => {
       });
 
       let createCount = 0;
-      let registeredGameWebContentsCount = 0;
-      let unregisteredGameWebContentsCount = 0;
-      const registeredGameWebContentsIds: number[] = [];
+      let prepareGameNetworkingCount = 0;
       let loadCount = 0;
       let revealCount = 0;
       const createdHandles: TestWindowHandle[] = [];
@@ -169,14 +167,9 @@ describe("DesktopWindows", () => {
           }),
       });
       const session = ElectronSession.of({
-        registerGameWebContents: (webContentsId) =>
-          Effect.sync(() => {
-            registeredGameWebContentsCount += 1;
-            registeredGameWebContentsIds.push(webContentsId);
-            return () => {
-              unregisteredGameWebContentsCount += 1;
-            };
-          }),
+        prepareGameNetworking: Effect.sync(() => {
+          prepareGameNetworkingCount += 1;
+        }),
       });
       const app = ElectronApp.of({
         appendCommandLineSwitch: () => Effect.void,
@@ -233,14 +226,11 @@ describe("DesktopWindows", () => {
           expect.stringContaining(`${SETTINGS_SNAPSHOT_ARGUMENT}=`),
         ]),
       );
-      expect(registeredGameWebContentsCount).toBe(2);
-      expect(registeredGameWebContentsIds).toEqual([101, 102]);
+      expect(prepareGameNetworkingCount).toBe(2);
       expect(loadCount).toBe(2);
       expect(revealCount).toBe(2);
 
       createdHandles[0]?.emit("closed");
-
-      expect(unregisteredGameWebContentsCount).toBe(1);
     }),
   );
 
@@ -271,6 +261,7 @@ describe("DesktopWindows", () => {
       let createCount = 0;
       let loadCount = 0;
       let revealCount = 0;
+      let prepareGameNetworkingCount = 0;
       const createdHandles: TestWindowHandle[] = [];
       const electronWindow = ElectronWindow.of({
         create: () =>
@@ -294,7 +285,9 @@ describe("DesktopWindows", () => {
           }),
       });
       const session = ElectronSession.of({
-        registerGameWebContents: () => Effect.succeed(() => undefined),
+        prepareGameNetworking: Effect.sync(() => {
+          prepareGameNetworkingCount += 1;
+        }),
       });
       const app = ElectronApp.of({
         appendCommandLineSwitch: () => Effect.void,
@@ -348,6 +341,7 @@ describe("DesktopWindows", () => {
       expect(closePrevented).toBe(true);
       expect(createdHandles[0]?.hideCount()).toBe(1);
       expect(createCount).toBe(1);
+      expect(prepareGameNetworkingCount).toBe(0);
       expect(loadCount).toBe(1);
       expect(revealCount).toBe(2);
     }),

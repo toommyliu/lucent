@@ -100,7 +100,6 @@ interface DesktopWindowRecord {
   readonly kind: DesktopWindowKind;
   // ownerId is logical ownership only; Electron parent windows are intentionally not used.
   readonly ownerId?: DesktopWindowInstanceId;
-  readonly unregisterGameWebContents?: () => void;
   readonly window: ElectronWindowHandle;
 }
 
@@ -122,7 +121,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const app = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
   const electronWindow = yield* ElectronWindow;
-  const session = yield* ElectronSession;
+  const electronSession = yield* ElectronSession;
   const observability = yield* DesktopObservability;
   const settings = yield* DesktopSettings;
   const theme = yield* ElectronTheme;
@@ -211,18 +210,15 @@ const makeDesktopWindows = Effect.gen(function* () {
           bootstrapSettings,
           systemPrefersDark,
         );
+        if (definition.requiresFlashPlugin) {
+          yield* electronSession.prepareGameNetworking;
+        }
+
         const window = yield* electronWindow.create(
           createWindowOptions(env, definition, bootstrapSettings, snapshot),
         );
-        const unregisterGameWebContents =
-          kind === "game"
-            ? yield* session.registerGameWebContents(window.webContents.id)
-            : undefined;
         windows.set(id, {
           kind,
-          ...(unregisterGameWebContents === undefined
-            ? {}
-            : { unregisterGameWebContents }),
           window,
         });
 
@@ -238,8 +234,6 @@ const makeDesktopWindows = Effect.gen(function* () {
         }
 
         window.once("closed", () => {
-          const record = windows.get(id);
-          record?.unregisterGameWebContents?.();
           windows.delete(id);
           if (kind === "game" && !hasOpenRootGameWindows()) {
             void runPromise(app.quit);
