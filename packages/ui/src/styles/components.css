@@ -2745,6 +2745,15 @@ a.badge--destructive:hover {
   color: rgb(var(--accent-foreground));
 }
 
+.menu__item[data-highlighted] .kbd,
+.menu__item[data-focus] .kbd,
+.menu__item:hover .kbd,
+.context-menu__item[data-highlighted] .kbd,
+.context-menu__item[data-focus] .kbd,
+.context-menu__item:hover .kbd {
+  background: rgba(var(--foreground), 0.08);
+}
+
 .menu__item[data-disabled],
 .context-menu__item[data-disabled] {
   opacity: 0.64;

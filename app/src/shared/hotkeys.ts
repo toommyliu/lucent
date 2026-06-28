@@ -14,7 +14,6 @@ export const SETTINGS_COMMAND_IDS = [
   "toggleScript",
   "toggleOptionsMenu",
   "openEnvironment",
-  "openFastTravels",
   "openLoaderGrabber",
   "openFollower",
   "openPackets",
@@ -28,7 +27,7 @@ export const SETTINGS_COMMAND_IDS = [
   "toggleHidePlayers",
   "toggleSkipCutscenes",
   "toggleAntiCounter",
-  "toggleDisableFx",
+  "toggleAnimations",
   "toggleCollisions",
   "toggleDeathAds",
 ] as const;
@@ -105,7 +104,7 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
   {
     id: "toggleScript",
     category: "Scripts",
-    label: "Start/Stop Script",
+    label: "Toggle Script",
     defaultHotkey: "Mod+Shift+X",
   },
   {
@@ -119,12 +118,6 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
     category: "Tools",
     label: "Open Environment",
     defaultHotkey: "Alt+E",
-  },
-  {
-    id: "openFastTravels",
-    category: "Tools",
-    label: "Open Fast Travels",
-    defaultHotkey: "",
   },
   {
     id: "openLoaderGrabber",
@@ -205,9 +198,9 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
     defaultHotkey: "",
   },
   {
-    id: "toggleDisableFx",
+    id: "toggleAnimations",
     category: "Options",
-    label: "Toggle Disable FX",
+    label: "Toggle Animations",
     defaultHotkey: "",
   },
   {
