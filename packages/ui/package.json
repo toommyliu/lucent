@@ -34,13 +34,10 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "clean": "rm -rf dist dist-demo",
+    "clean": "rm -rf dist",
     "build": "tsx scripts/build.ts",
     "postinstall": "tsx scripts/build.ts",
     "icon:print": "tsx scripts/print-lucide-icon.ts",
-    "demo": "vite --config vite.demo.config.ts --host 127.0.0.1",
-    "demo:build": "vite build --config vite.demo.config.ts",
-    "demo:electron11": "node scripts/start-electron11-demo.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -55,7 +52,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.12.2",
-    "electron": "workspace:*",
     "esbuild": "^0.28.1",
     "esbuild-plugin-solid": "^0.6.0",
     "happy-dom": "^20.9.0",
