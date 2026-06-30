@@ -15,5 +15,5 @@
     "allowSyntheticDefaultImports": true,
     "skipDefaultLibCheck": true
   },
-  "include": ["src/**/*", "demo/**/*", "scripts/**/*", "vitest.config.ts"]
+  "include": ["src/**/*", "scripts/**/*", "vitest.config.ts"]
 }
