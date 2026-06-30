@@ -3,6 +3,7 @@ import {
   Icon,
   Input,
   Kbd,
+  Label,
   Menu,
   MenuCheckboxItem,
   MenuContent,
@@ -334,7 +335,7 @@ export function TopNavOptionsMenuContent(
       </div>
       <MenuSeparator />
       <div class="game-menu__fields">
-        <label class="game-menu__field">
+        <Label class="game-menu__field">
           <span>Walk Speed</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -344,8 +345,8 @@ export function TopNavOptionsMenuContent(
             onKeyDown={stopMenuInputKeyPropagation}
             onInput={(event) => props.setWalkSpeed(event.currentTarget.value)}
           />
-        </label>
-        <label class="game-menu__field">
+        </Label>
+        <Label class="game-menu__field">
           <span>FPS</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -355,8 +356,8 @@ export function TopNavOptionsMenuContent(
             onKeyDown={stopMenuInputKeyPropagation}
             onInput={(event) => props.setFrameRate(event.currentTarget.value)}
           />
-        </label>
-        <label class="game-menu__field game-menu__field--wide">
+        </Label>
+        <Label class="game-menu__field game-menu__field--wide">
           <span>Custom Name</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -367,8 +368,8 @@ export function TopNavOptionsMenuContent(
             onKeyDown={stopMenuInputKeyPropagation}
             onInput={(event) => props.setCustomName(event.currentTarget.value)}
           />
-        </label>
-        <label class="game-menu__field game-menu__field--wide">
+        </Label>
+        <Label class="game-menu__field game-menu__field--wide">
           <span>Custom Guild</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -379,7 +380,7 @@ export function TopNavOptionsMenuContent(
             onKeyDown={stopMenuInputKeyPropagation}
             onInput={(event) => props.setCustomGuild(event.currentTarget.value)}
           />
-        </label>
+        </Label>
       </div>
     </>
   );
@@ -1012,7 +1013,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
               </MenuSub>
               <MenuSeparator />
               <div class="game-menu__fields game-menu__fields--single-row">
-                <div class="game-menu__field game-menu__field--inline game-menu__field--wide game-menu__field--menu-inset">
+                <Label class="game-menu__field game-menu__field--inline game-menu__field--wide game-menu__field--menu-inset">
                   <span>Delay</span>
                   <div class="game-menu__delay-control">
                     <Input
@@ -1034,7 +1035,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     />
                     <span class="game-menu__delay-unit">sec</span>
                   </div>
-                </div>
+                </Label>
               </div>
             </MenuContent>
           </Menu>
