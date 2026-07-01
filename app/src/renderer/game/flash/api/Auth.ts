@@ -6,7 +6,13 @@ import type {
   ServerRecord,
 } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { normalizeServerRecord } from "../payload";
+import {
+  asArray,
+  asBoolean,
+  asRecord,
+  asString,
+  normalizeServerRecord,
+} from "../payload";
 import { FlashProtocol } from "../protocol/FlashProtocol";
 import { WaitApi } from "./Wait";
 
@@ -16,6 +22,7 @@ export interface AuthApiShape {
   readonly getServers: Effect.Effect<readonly ServerRecord[]>;
   readonly getUsername: Effect.Effect<string>;
   readonly isLoggedIn: Effect.Effect<boolean>;
+  readonly isServerSelectReady: Effect.Effect<boolean>;
   readonly isTemporarilyKicked: Effect.Effect<boolean>;
   readonly login: (
     username: string,
@@ -33,6 +40,14 @@ interface AuthRuntimeState {
   loggedIn: boolean;
   password: string;
   username: string;
+}
+
+interface FlashSessionSnapshot {
+  readonly authenticated: boolean;
+  readonly connected: boolean;
+  readonly password: string;
+  readonly servers: readonly ServerRecord[];
+  readonly username: string;
 }
 
 const initialState = (): AuthRuntimeState => ({
@@ -111,6 +126,27 @@ const temporaryKickOutcome = (
 ): AuthConnectOutcome =>
   connectFailure("timeout", "temporary kick did not clear", true, serverName);
 
+const parseFlashJsonObject = (
+  value: unknown,
+): Record<string, unknown> | null => {
+  if (typeof value !== "string") {
+    return asRecord(value);
+  }
+
+  try {
+    return asRecord(JSON.parse(value) as unknown);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeServers = (value: unknown): readonly ServerRecord[] =>
+  Array.isArray(value)
+    ? value
+        .map(normalizeServerRecord)
+        .filter((server): server is ServerRecord => server !== null)
+    : [];
+
 export const layer = Layer.effect(
   AuthApi,
   Effect.gen(function* () {
@@ -149,12 +185,105 @@ export const layer = Layer.effect(
         return state;
       });
 
+    const readLoginServers = bridge
+      .call("flash.getGameObjectS", ["objLogin"])
+      .pipe(
+        Effect.map((rawLogin) => {
+          const login = parseFlashJsonObject(rawLogin);
+          return normalizeServers(asArray(login?.["servers"]));
+        }),
+        Effect.catchCause(() => Effect.succeed([])),
+      );
+
+    const readBridgeServers = Effect.gen(function* () {
+      const servers = yield* bridge.call("auth.getServers").pipe(
+        Effect.map(normalizeServers),
+        Effect.catchCause(() => Effect.succeed([])),
+      );
+      return servers.length > 0 ? servers : yield* readLoginServers;
+    });
+
+    const readFlashSession: Effect.Effect<FlashSessionSnapshot> = Effect.gen(
+      function* () {
+        const connected = yield* bridge
+          .call("auth.isLoggedIn")
+          .pipe(Effect.catchCause(() => Effect.succeed(false)));
+        const [rawLogin, rawCredentials] = yield* Effect.all([
+          bridge.call("flash.getGameObjectS", ["objLogin"]),
+          bridge.call("flash.getGameObjectS", ["loginInfo"]),
+        ]);
+        const login = parseFlashJsonObject(rawLogin);
+        const credentials = parseFlashJsonObject(rawCredentials);
+        const username = (
+          asString(login?.["unm"]) ??
+          asString(credentials?.["strUsername"]) ??
+          ""
+        ).trim();
+        const password = asString(credentials?.["strPassword"]) ?? "";
+        const servers = asArray(login?.["servers"])
+          .map(normalizeServerRecord)
+          .filter((server): server is ServerRecord => server !== null);
+        const authenticated =
+          connected ||
+          asBoolean(login?.["bSuccess"]) === true ||
+          servers.length > 0;
+
+        return {
+          authenticated,
+          connected,
+          password,
+          servers,
+          username,
+        };
+      },
+    );
+
+    const refreshCachedSession = Effect.gen(function* () {
+      const session = yield* readFlashSession;
+      if (
+        !session.authenticated ||
+        session.username === "" ||
+        session.password === ""
+      ) {
+        return false;
+      }
+
+      yield* SynchronizedRef.update(ref, (state) => {
+        state.loggedIn = session.connected;
+        state.username = session.username;
+        state.password = session.password;
+        if (session.servers.length > 0) {
+          state.servers.clear();
+          for (const server of session.servers) {
+            state.servers.set(server.name.toLowerCase(), server);
+          }
+        }
+        return state;
+      });
+      return true;
+    }).pipe(Effect.catchCause(() => Effect.succeed(false)));
+
+    const getCachedCredential = (field: "password" | "username") =>
+      Effect.gen(function* () {
+        const cached = yield* SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => state[field]),
+        );
+        if (cached !== "") {
+          return cached;
+        }
+
+        yield* refreshCachedSession;
+        return yield* SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => state[field]),
+        );
+      });
+
     const disposeConnection = yield* protocol.onEvent(
       { type: "connection" },
       (event) => {
         const status = event.type === "connection" ? event.payload.status : "";
         if (status === "OnConnection") {
-          return setLoggedIn(true);
+          return setLoggedIn(true).pipe(Effect.andThen(refreshCachedSession));
         }
         if (status === "OnConnectionLost" || status === "OnConnectionFailed") {
           return clear;
@@ -164,20 +293,25 @@ export const layer = Layer.effect(
     );
     yield* Effect.addFinalizer(() => Effect.sync(disposeConnection));
 
-    const getServers = bridge.call("auth.getServers").pipe(
-      Effect.map((rawServers) =>
-        Array.isArray(rawServers)
-          ? rawServers
-              .map(normalizeServerRecord)
-              .filter((server): server is ServerRecord => server !== null)
-          : [],
+    const getServers = readBridgeServers.pipe(
+      Effect.flatMap((servers) =>
+        servers.length > 0
+          ? setServers(servers).pipe(Effect.as(servers))
+          : SynchronizedRef.get(ref).pipe(
+              Effect.map((state) => Array.from(state.servers.values())),
+            ),
       ),
-      Effect.tap(setServers),
     );
 
     const isLoggedIn = SynchronizedRef.get(ref).pipe(
       Effect.map((state) => state.loggedIn),
     );
+    const isServerSelectReady = bridge
+      .call("flash.isNull", ["mcLogin.sl.iList"])
+      .pipe(
+        Effect.map((isNull) => !isNull),
+        Effect.catchCause(() => Effect.succeed(false)),
+      );
     const isTemporarilyKicked = bridge.call("auth.isTemporarilyKicked");
     const waitForTemporaryKickClear = wait.until(
       isTemporarilyKicked.pipe(
@@ -217,15 +351,14 @@ export const layer = Layer.effect(
 
         yield* bridge.call("auth.login", [user, password]);
         yield* setCredentials(user, password);
-        const connection = yield* protocol.onceEvent(
-          { type: "connection" },
-          { timeout: "10 seconds" },
+        return yield* wait.until(
+          refreshCachedSession.pipe(
+            Effect.flatMap((captured) =>
+              captured ? isServerSelectReady : Effect.succeed(false),
+            ),
+          ),
+          { interval: "100 millis", timeout: "15 seconds" },
         );
-        const status =
-          connection?.type === "connection" ? connection.payload.status : "";
-        const loggedIn = status === "OnConnection";
-        yield* setLoggedIn(loggedIn);
-        return loggedIn;
       });
 
     const connectTo: AuthApiShape["connectTo"] = (server) =>
@@ -239,10 +372,24 @@ export const layer = Layer.effect(
           return temporaryKickOutcome(requestedServer);
         }
 
-        const selection = yield* bridge.call("auth.connectTo", [
-          requestedServer,
-        ]);
-        const initial = selectionOutcome(selection, requestedServer);
+        const selectServer = bridge
+          .call("auth.connectTo", [requestedServer])
+          .pipe(
+            Effect.map((selection) =>
+              selectionOutcome(selection, requestedServer),
+            ),
+          );
+        let initial = yield* selectServer;
+        if (initial.status === "not-ready") {
+          const ready = yield* wait.until(isServerSelectReady, {
+            interval: "100 millis",
+            timeout: "5 seconds",
+          });
+          if (ready) {
+            initial = yield* selectServer;
+          }
+        }
+
         if (initial.status !== "connected") {
           return initial;
         }
@@ -268,14 +415,11 @@ export const layer = Layer.effect(
 
     return AuthApi.of({
       connectTo,
-      getPassword: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => state.password),
-      ),
+      getPassword: getCachedCredential("password"),
       getServers,
-      getUsername: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => state.username),
-      ),
+      getUsername: getCachedCredential("username"),
       isLoggedIn,
+      isServerSelectReady,
       isTemporarilyKicked,
       login,
       logout,

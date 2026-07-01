@@ -240,6 +240,13 @@ const getAutoZoneMapLabel = (map: AutoZoneSupportedMap | undefined): string =>
     : (AUTO_ZONE_MAP_OPTIONS.find((option) => option.value === map)?.label ??
       map);
 
+const parseAutoZoneMapValue = (
+  value: string,
+): AutoZoneSupportedMap | undefined =>
+  AUTO_ZONE_MAP_OPTIONS.some((option) => option.value === value)
+    ? (value as AutoZoneSupportedMap)
+    : undefined;
+
 const MenuAutofocusAnchor = (): JSX.Element => (
   <span
     aria-hidden="true"
@@ -422,6 +429,11 @@ export function TopNav(props: TopNavProps): JSX.Element {
     props.autoReloginAttempting() ||
     props.autoReloginWaitingDelay() ||
     autoReloginNeedsAttention();
+
+  const autoReloginMenuHasStatus = (): boolean =>
+    props.autoReloginToggling() ||
+    autoReloginTriggerHasStatus() ||
+    autoReloginAttemptsRemainingLabel() !== "";
 
   const autoReloginTriggerStatusKind = ():
     | "waiting"
@@ -787,7 +799,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 value={props.autoZoneMap() ?? ""}
                 onValueChange={(details) =>
                   props.handleSelectAutoZoneMap(
-                    details.value as AutoZoneSupportedMap,
+                    parseAutoZoneMapValue(details.value),
                   )
                 }
               >
@@ -872,14 +884,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
               portal={false}
             >
               <MenuAutofocusAnchor />
-              <Show
-                when={
-                  props.autoReloginToggling() ||
-                  props.autoReloginAttempting() ||
-                  props.autoReloginLastError() ||
-                  autoReloginAttemptsRemainingLabel()
-                }
-              >
+              <Show when={autoReloginMenuHasStatus()}>
                 <div class="game-menu__status game-menu__status--relogin">
                   <Show when={props.autoReloginToggling()}>
                     <span class="game-menu__status-row">
@@ -891,6 +896,16 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       <span>
                         {props.autoReloginEnabled() ? "Enabling" : "Disabling"}
                       </span>
+                    </span>
+                  </Show>
+                  <Show when={props.autoReloginWaitingDelay()}>
+                    <span class="game-menu__status-row">
+                      <Icon
+                        icon="clock"
+                        aria-hidden="true"
+                        class="game-menu__status-icon"
+                      />
+                      <span>Waiting before reconnect</span>
                     </span>
                   </Show>
                   <Show when={props.autoReloginAttempting()}>
@@ -933,10 +948,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 checked={props.autoReloginEnabled()}
                 class="game-menu__item"
                 closeOnSelect={false}
-                disabled={
-                  props.autoReloginToggling() ||
-                  (!props.autoReloginCaptured() && !props.autoReloginEnabled())
-                }
+                disabled={props.autoReloginToggling()}
                 onClick={props.handleToggleAutoRelogin}
                 value="toggle-autorelogin"
               >
@@ -995,10 +1007,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                         {(serverName) => (
                           <MenuRadioItem
                             class="game-menu__item"
-                            disabled={
-                              !props.autoReloginCaptured() ||
-                              props.autoReloginAttempting()
-                            }
+                            disabled={props.autoReloginAttempting()}
                             value={serverName}
                           >
                             <span class="game-menu__item-label">

@@ -106,6 +106,9 @@ const defaultPlayer: PlayerRecord = {
   username: "",
 };
 
+const playerIsAlive = (player: PlayerRecord): boolean =>
+  player.hp > 0 && player.state !== 0;
+
 const normalizeFaction = (value: unknown): FactionRecord | null => {
   const record = asRecord(value);
   if (record === null) {
@@ -202,20 +205,22 @@ export const layer = Layer.effect(
 
     const auras: SelfAurasApi = {
       get: (auraName) =>
-        self.pipe(
-          Effect.flatMap((player) =>
-            player.entityId === 0
-              ? Effect.succeed(null)
-              : players.auras.get(player.entityId, auraName),
-          ),
-        ),
-      getAll: self.pipe(
-        Effect.flatMap((player) =>
-          player.entityId === 0
-            ? Effect.succeed([])
-            : world.getPlayerAuras(player.entityId),
-        ),
-      ),
+        Effect.gen(function* () {
+          const player = yield* self;
+          if (player.entityId === 0) {
+            return null;
+          }
+
+          return yield* players.auras.get(player.entityId, auraName);
+        }),
+      getAll: Effect.gen(function* () {
+        const player = yield* self;
+        if (player.entityId === 0) {
+          return [];
+        }
+
+        return yield* world.getPlayerAuras(player.entityId);
+      }),
       has: (auraName) =>
         auras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
@@ -291,7 +296,18 @@ export const layer = Layer.effect(
           ),
     };
 
-    const isAlive = project((player) => player.hp > 0 && player.state !== 0);
+    const isAlive = Effect.gen(function* () {
+      const player = yield* world.getMe;
+      if (player !== null && playerIsAlive(player)) {
+        return true;
+      }
+
+      const [hp, state] = yield* Effect.all([
+        bridge.call("player.getHp"),
+        bridge.call("player.getState"),
+      ]);
+      return hp > 0 && state !== 0;
+    });
 
     const jumpToCell: PlayerApiShape["jumpToCell"] = (
       cell,
@@ -458,14 +474,31 @@ export const layer = Layer.effect(
             return false;
           }
 
-          return yield* wait.until(
-            project(
-              (player) =>
-                player.position[0] === targetX &&
-                player.position[1] === targetY,
-            ),
+          yield* wait.forPacket({
+            command: "mv",
+            direction: "client",
+            wireType: "str",
+          });
+
+          const settled = yield* wait.until(
+            Effect.gen(function* () {
+              const projected = yield* world.getMe;
+              if (projected !== null) {
+                return (
+                  projected.position[0] === targetX &&
+                  projected.position[1] === targetY
+                );
+              }
+
+              const position = yield* bridge.call("player.getPosition");
+              const parts = Array.isArray(position) ? position : [];
+              const currentX = asInt(parts[0]);
+              const currentY = asInt(parts[1]);
+              return currentX === targetX && currentY === targetY;
+            }),
             { timeout: "3 seconds" },
           );
+          return settled;
         }),
     });
   }),

@@ -12,7 +12,8 @@ import {
 
 import type { AppPlatform } from "../../shared/desktopBridge";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
-import * as Api from "./flash/api";
+import * as Api from "./flash";
+import { flashRuntime as runtime } from "./flash";
 import {
   AutoRelogin,
   type AutoReloginState,
@@ -22,8 +23,6 @@ import {
   type AutoZoneState,
   type AutoZoneSupportedMap,
 } from "./flash/features/AutoZone";
-import { runtime } from "./flash/FlashRuntime";
-import * as State from "./flash/state";
 import {
   TopNav,
   type CombatProfileAutoAttackMode,
@@ -33,7 +32,7 @@ import {
 
 declare const LUCENT_DEV: boolean;
 
-export interface GameLoadState {
+interface GameLoadState {
   readonly loaded: boolean;
   readonly progress: number;
 }
@@ -53,7 +52,6 @@ const DEBUG_PANEL_MIN_WIDTH_PX = 320;
 const DEBUG_PANEL_MIN_HEIGHT_PX = 220;
 const DEBUG_PANEL_DEFAULT_WIDTH_PX = 432;
 const DEBUG_PANEL_DEFAULT_HEIGHT_PX = 360;
-const PLAYER_READY_ACTION_TIMEOUT = "10 seconds";
 
 const DEFAULT_INTERNAL_DEBUG_SOURCE = `return yield* services.player.getCell;`;
 const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
@@ -89,35 +87,8 @@ const openScriptInputsNoop = (): void => {
   console.debug("[game:script:no-op]", "inputs");
 };
 
-let setCurrentLoadState:
-  | ((updater: (state: GameLoadState) => GameLoadState) => void)
-  | undefined;
-let currentLoadState: GameLoadState = {
-  loaded: false,
-  progress: 0,
-};
-
 const writeDocumentLoaded = (loaded: boolean): void => {
   document.documentElement.dataset["loaded"] = loaded ? "true" : "false";
-};
-
-export const setGameLoadProgress = (percent: number): void => {
-  const progress = Math.max(0, Math.min(100, Math.round(percent)));
-  const next = {
-    loaded: progress >= 100 ? currentLoadState.loaded : false,
-    progress,
-  };
-  currentLoadState = next;
-  setCurrentLoadState?.(() => next);
-};
-
-export const markGameLoaded = (): void => {
-  const next = {
-    loaded: true,
-    progress: 100,
-  };
-  currentLoadState = next;
-  setCurrentLoadState?.(() => next);
 };
 
 const EffectFunction = Function as unknown as new (
@@ -134,13 +105,11 @@ const collectFlashServices = () =>
       const bank = yield* Api.BankApi.BankApi;
       const combat = yield* Api.CombatApi.CombatApi;
       const drops = yield* Api.DropsApi.DropsApi;
-      const event = yield* Api.EventApi.EventApi;
-      const flash = yield* Api.FlashApi.FlashApi;
+      const events = yield* Api.EventsApi.EventsApi;
       const house = yield* Api.HouseApi.HouseApi;
       const inventory = yield* Api.InventoryApi.InventoryApi;
       const map = yield* Api.MapApi.MapApi;
       const monsters = yield* Api.MonstersApi.MonstersApi;
-      const outfits = yield* Api.OutfitsApi.OutfitsApi;
       const packet = yield* Api.PacketApi.PacketApi;
       const player = yield* Api.PlayerApi.PlayerApi;
       const players = yield* Api.PlayersApi.PlayersApi;
@@ -155,13 +124,12 @@ const collectFlashServices = () =>
         bank,
         combat,
         drops,
-        event,
-        flash,
+        events,
         house,
         inventory,
         map,
         monsters,
-        outfits,
+        outfits: player.outfits,
         packet,
         player,
         players,
@@ -287,20 +255,18 @@ ${source}
 const readCachedTravelOptions = (): Promise<TravelOptions> =>
   runtime.runPromise(
     Effect.gen(function* () {
-      const map = yield* State.MapState.MapState;
-      const players = yield* State.PlayersState.PlayersState;
-      const [mapCells, mapPads, currentCell, currentPad, self] =
-        yield* Effect.all([
-          map.getCells,
-          map.getCellPads,
-          map.getCurrentCell,
-          map.getCurrentPad,
-          players.getSelf,
-        ]);
+      const map = yield* Api.MapApi.MapApi;
+      const player = yield* Api.PlayerApi.PlayerApi;
+      const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
+        map.getCells,
+        map.getCellPads,
+        player.getCell,
+        player.getPad,
+      ]);
 
       return {
-        currentCell: self?.cell || currentCell,
-        currentPad: self?.pad || currentPad,
+        currentCell,
+        currentPad,
         mapCells,
         mapPads,
       };
@@ -631,8 +597,10 @@ export function App(props: {
   readonly platform: AppPlatform;
 }): JSX.Element {
   const settings = () => props.initialSettings ?? DEFAULT_APP_SETTINGS;
-  const [loadState, setLoadState] =
-    createSignal<GameLoadState>(currentLoadState);
+  const [loadState, setLoadState] = createSignal<GameLoadState>({
+    loaded: false,
+    progress: 0,
+  });
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(null);
   const [walkSpeed, setWalkSpeed] = createSignal("8");
   const [frameRate, setFrameRate] = createSignal("24");
@@ -676,6 +644,19 @@ export function App(props: {
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
   const scriptStatus = createMemo(() => "No script loaded");
+  const setLoadProgress = (percent: number) => {
+    const progress = Math.max(0, Math.min(100, Math.round(percent)));
+    setLoadState((state) => ({
+      loaded: progress >= 100 ? state.loaded : false,
+      progress,
+    }));
+  };
+  const markLoaded = () => {
+    setLoadState({
+      loaded: true,
+      progress: 100,
+    });
+  };
   const optionItems = createMemo<readonly TopNavOptionItem[]>(() => [
     {
       id: "infinite-range",
@@ -874,11 +855,6 @@ export function App(props: {
   };
 
   const refreshAutoReloginServers = () => {
-    if (!gameLoaded()) {
-      setAutoReloginServers([]);
-      return;
-    }
-
     void runtime
       .runPromise(
         Effect.gen(function* () {
@@ -960,36 +936,21 @@ export function App(props: {
       });
   };
 
-  const refreshPlayerReady = () => {
-    void readPlayerReady()
-      .then(setPlayerReady)
-      .catch((error: unknown) => {
-        console.error("[game:player]", "readiness refresh failed", error);
-        setPlayerReady(false);
-      });
-  };
-
-  const waitForPlayerReady = (): Promise<boolean> => {
-    return runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const player = yield* Api.PlayerApi.PlayerApi;
-          const wait = yield* Api.WaitApi.WaitApi;
-          return yield* wait.until(player.isReady, {
-            timeout: PLAYER_READY_ACTION_TIMEOUT,
-          });
-        }),
-      )
+  const refreshPlayerReady = (): Promise<boolean> =>
+    readPlayerReady()
       .then((ready) => {
-        setPlayerReady(ready);
+        if (ready) {
+          setPlayerReady(true);
+        }
         return ready;
       })
       .catch((error: unknown) => {
-        console.error("[game:player]", "readiness wait failed", error);
-        setPlayerReady(false);
+        console.error("[game:player]", "readiness refresh failed", error);
         return false;
       });
-  };
+
+  const ensurePlayerReady = (): Promise<boolean> =>
+    playerReady() ? Promise.resolve(true) : refreshPlayerReady();
 
   const applyTravelOptions = ({
     currentCell,
@@ -997,7 +958,6 @@ export function App(props: {
     mapCells,
     mapPads,
   }: TravelOptions) => {
-    setPlayerReady(true);
     setCells(mapCells.length > 0 ? mapCells : DEFAULT_CELLS);
     setValidPads(mapPads);
     setSelectedCell(currentCell || mapCells[0] || DEFAULT_CELL);
@@ -1005,7 +965,7 @@ export function App(props: {
   };
 
   const syncTravelOptionsFromState = () => {
-    void waitForPlayerReady()
+    void ensurePlayerReady()
       .then((ready) => (ready ? readCachedTravelOptions() : null))
       .then((options) => {
         if (options !== null) {
@@ -1018,8 +978,11 @@ export function App(props: {
   };
 
   const refreshTravelOptions = () => {
-    void waitForPlayerReady()
-      .then((ready) => (ready ? readCachedTravelOptions() : null))
+    if (!playerReady()) {
+      return;
+    }
+
+    void readCachedTravelOptions()
       .then((options) => {
         if (options === null) {
           return null;
@@ -1039,8 +1002,11 @@ export function App(props: {
   };
 
   const refreshTravelOptionsAfterJump = () => {
-    void waitForPlayerReady()
-      .then((ready) => (ready ? readBridgeTravelOptions() : null))
+    if (!playerReady()) {
+      return;
+    }
+
+    void readBridgeTravelOptions()
       .then((options) => {
         if (options !== null) {
           applyTravelOptions(options);
@@ -1060,6 +1026,10 @@ export function App(props: {
   };
 
   const jumpToCellPad = (cell: string, pad: string) => {
+    if (!playerReady() || travelBusy()) {
+      return;
+    }
+
     const targetCell = cell.trim() || DEFAULT_CELL;
     const targetPad = pad.trim();
 
@@ -1074,14 +1044,6 @@ export function App(props: {
       .runPromise(
         Effect.gen(function* () {
           const player = yield* Api.PlayerApi.PlayerApi;
-          const wait = yield* Api.WaitApi.WaitApi;
-          const ready = yield* wait.until(player.isReady, {
-            timeout: PLAYER_READY_ACTION_TIMEOUT,
-          });
-          if (!ready) {
-            return null;
-          }
-
           yield* player.jumpToCell(
             targetCell,
             targetPad === "" ? undefined : targetPad,
@@ -1098,16 +1060,14 @@ export function App(props: {
           };
         }),
       )
-      .then((result) => {
-        setPlayerReady(result !== null);
-        if (result === null) {
-          return;
-        }
-
-        const { currentCell, currentPad } = result;
+      .then(({ currentCell, currentPad }) => {
         setSelectedCell(currentCell.trim() || targetCell);
         setSelectedPad(currentPad.trim() || targetPad || DEFAULT_PAD);
         refreshTravelOptionsAfterJump();
+      })
+      .catch((error: unknown) => {
+        console.error("[game:travel]", "jump failed", error);
+        void refreshPlayerReady();
       })
       .finally(() => {
         setTravelBusy(false);
@@ -1123,33 +1083,22 @@ export function App(props: {
   };
 
   const handleOpenBank = () => {
+    if (!playerReady()) {
+      return;
+    }
+
     setOpenMenu(null);
 
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const player = yield* Api.PlayerApi.PlayerApi;
-          const wait = yield* Api.WaitApi.WaitApi;
-          const ready = yield* wait.until(player.isReady, {
-            timeout: PLAYER_READY_ACTION_TIMEOUT,
-          });
-          if (!ready) {
-            return false;
-          }
-
           const bank = yield* Api.BankApi.BankApi;
-          const isOpen = yield* bank.isOpen;
-          if (!isOpen) {
-            yield* bank.open();
-          }
-
-          return true;
+          yield* bank.open();
         }),
       )
-      .then(setPlayerReady)
       .catch((error: unknown) => {
         console.error("[game:bank]", "open failed", error);
-        setPlayerReady(false);
+        void refreshPlayerReady();
       });
   };
 
@@ -1158,33 +1107,40 @@ export function App(props: {
     let autoZoneDisposer: (() => void) | undefined;
     let cleanedUp = false;
 
-    setCurrentLoadState = (updater) => {
-      currentLoadState = updater(currentLoadState);
-      setLoadState(currentLoadState);
-    };
-    writeDocumentLoaded(loadState().loaded);
     refreshAntiCounterEnabled();
 
     const travelEventFiber = runtime.runFork(
       Effect.scoped(
         Effect.gen(function* () {
-          const event = yield* Api.EventApi.EventApi;
-          yield* event.on("mapJoined", () =>
-            Effect.sync(syncTravelOptionsFromState),
-          );
-          yield* event.on("playerLocation", () =>
-            Effect.sync(syncTravelOptionsFromState),
-          );
-          yield* event.on("connectionLost", () =>
+          const events = yield* Api.EventsApi.EventsApi;
+          yield* events.on({ type: "progress" }, (event) =>
             Effect.sync(() => {
-              setPlayerReady(false);
-              resetTravelOptions();
+              if (event.type === "progress") {
+                setLoadProgress(event.payload.percent);
+              }
             }),
           );
-          yield* event.on("connectionStatus", () =>
+          yield* events.on({ type: "loaded" }, () => Effect.sync(markLoaded));
+          yield* events.on({ type: "joinMap" }, () =>
+            Effect.sync(syncTravelOptionsFromState),
+          );
+          yield* events.on({ type: "playerLocation" }, () =>
+            Effect.sync(syncTravelOptionsFromState),
+          );
+          yield* events.on({ type: "connection" }, (event) =>
             Effect.sync(() => {
-              if (currentLoadState.loaded) {
-                refreshPlayerReady();
+              const status =
+                event.type === "connection" ? event.payload.status : "";
+              if (
+                status === "OnConnectionLost" ||
+                status === "OnConnectionFailed"
+              ) {
+                setPlayerReady(false);
+                resetTravelOptions();
+              }
+
+              if (status === "OnConnection") {
+                void refreshPlayerReady();
               }
               refreshAutoReloginState();
             }),
@@ -1236,9 +1192,6 @@ export function App(props: {
       cleanedUp = true;
       autoReloginDisposer?.();
       autoZoneDisposer?.();
-      if (setCurrentLoadState !== undefined) {
-        setCurrentLoadState = undefined;
-      }
       resetTravelOptions();
       runtime.runFork(Fiber.interrupt(travelEventFiber));
     });
@@ -1248,7 +1201,7 @@ export function App(props: {
     const loaded = gameLoaded();
     writeDocumentLoaded(loaded);
     if (loaded) {
-      refreshPlayerReady();
+      void refreshPlayerReady();
     }
   });
 

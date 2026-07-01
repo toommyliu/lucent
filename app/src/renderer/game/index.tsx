@@ -13,25 +13,9 @@ void flashRuntime.context().catch((cause) => {
   console.warn("[flash] runtime initialization failed", cause);
 });
 
-// window.onDebug = (message: string): void => {
-//   console.debug("[flash]", message);
-// };
-
-window.onProgress = (_percent: number): void => {};
-
-window.onLoaded = (): void => {};
-
-// window.packetFromClient = (packet: string): void => {
-//   console.debug("[flash:client]", packet);
-// };
-
-// window.packetFromServer = (packet: string): void => {
-//   console.debug("[flash:server]", packet);
-// };
-
-// window.onExtensionResponse = (packet: string): void => {
-//   console.debug("[flash:extension]", packet);
-// };
+window.onDebug = (message: string): void => {
+  console.debug("[flash:Debug]", message);
+};
 
 if (root !== null) {
   disposeRender = render(
