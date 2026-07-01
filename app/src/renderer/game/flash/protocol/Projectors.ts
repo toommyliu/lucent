@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect";
 
 import type { FlashPacket } from "../Types";
+import { AuthApi, type AuthApiShape } from "../api/Auth";
 import {
   asArray,
   asBoolean,
@@ -8,6 +9,7 @@ import {
   asPositiveInt,
   asRecord,
   asString,
+  equalsIgnoreCase,
   normalizeAuraRecord,
   normalizeMonsterRecord,
   normalizePlayerRecord,
@@ -25,12 +27,54 @@ import type { WorldStateShape } from "../state/World";
 import { FlashProtocol } from "./FlashProtocol";
 import type { FlashProtocolShape } from "./FlashProtocol";
 
+const auraAddCommands = new Set(["aura+", "aura++", "aura+p"]);
+const auraRemoveCommands = new Set(["aura-", "aura--"]);
+
+type AuraTargetType = "monster" | "player";
+
+interface AuraTargetRef {
+  readonly targetId: number;
+  readonly targetType: AuraTargetType;
+}
+
 const packetData = (packet: FlashPacket): unknown => {
   if (packet.direction === "client") {
     return packet.params;
   }
 
   return packet.data;
+};
+
+const shouldProjectPacket = (packet: FlashPacket): boolean =>
+  packet.direction !== "server" || packet.command === "ct";
+
+const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] => {
+  const info = asString(targetInfo);
+  if (info === undefined) {
+    return [];
+  }
+
+  return info.split(",").flatMap((rawToken): readonly AuraTargetRef[] => {
+    const trimmed = rawToken.trim();
+    const token = trimmed.includes(">")
+      ? trimmed.slice(trimmed.lastIndexOf(">") + 1)
+      : trimmed;
+    const [rawType, rawId] = token.split(":");
+    const targetId = asPositiveInt(rawId);
+    if (targetId === undefined) {
+      return [];
+    }
+
+    if (rawType === "p") {
+      return [{ targetId, targetType: "player" as const }];
+    }
+
+    if (rawType === "m") {
+      return [{ targetId, targetType: "monster" as const }];
+    }
+
+    return [];
+  });
 };
 
 const syncDropState = (items: ItemsStateShape, drops: DropsStateShape) =>
@@ -181,6 +225,7 @@ const reduceShopPacket = (packet: FlashPacket, shops: ShopsStateShape) =>
 
 const addMoveToAreaState = (
   packet: FlashPacket,
+  auth: AuthApiShape,
   world: WorldStateShape,
   protocol: FlashProtocolShape,
 ) =>
@@ -249,6 +294,10 @@ const addMoveToAreaState = (
       }
     }
 
+    const currentUsername = yield* auth.getUsername.pipe(
+      Effect.orElseSucceed(() => ""),
+    );
+
     for (const rawPlayer of asArray(payload["uoBranch"])) {
       const normalized = normalizePlayerRecord(rawPlayer);
       if (normalized === null) {
@@ -256,11 +305,21 @@ const addMoveToAreaState = (
       }
 
       yield* world.addPlayer(normalized);
+      const self = yield* world.getMe;
+      if (
+        (self !== null &&
+          equalsIgnoreCase(self.username, normalized.username)) ||
+        (currentUsername !== "" &&
+          equalsIgnoreCase(currentUsername, normalized.username))
+      ) {
+        yield* world.setSelf(normalized.username);
+      }
     }
   });
 
 const reduceWorldPacket = (
   packet: FlashPacket,
+  auth: AuthApiShape,
   world: WorldStateShape,
   protocol: FlashProtocolShape,
 ) =>
@@ -270,17 +329,33 @@ const reduceWorldPacket = (
 
     switch (packet.command) {
       case "moveToArea":
-        yield* addMoveToAreaState(packet, world, protocol);
+        yield* addMoveToAreaState(packet, auth, world, protocol);
         return;
+      case "event": {
+        const args = asRecord(payload?.["args"]);
+        const map = yield* world.getMap;
+        yield* protocol.emitEvent({
+          packet,
+          payload: {
+            map: map.name,
+            zone: asString(args?.["zoneSet"]) ?? "",
+          },
+          type: "zone",
+        });
+        return;
+      }
       case "initUserData": {
         const root = payload;
         const userData = asRecord(root?.["data"]);
         const username = asString(userData?.["strUsername"]);
-        const entityId = asPositiveInt(root?.["uid"] ?? userData?.["entID"]);
+        const entityId = asPositiveInt(userData?.["entID"]);
         const player =
           userData !== null && username !== undefined && entityId !== undefined
             ? normalizePlayerRecord({ ...userData, entID: entityId })
             : null;
+        if (username !== undefined) {
+          yield* world.setSelf(username);
+        }
         if (player !== null) {
           yield* world.addPlayer(player);
           yield* world.setSelf(player.username);
@@ -291,15 +366,22 @@ const reduceWorldPacket = (
         for (const rawUser of asArray(payload?.["a"])) {
           const user = asRecord(rawUser);
           const dataRecord = asRecord(user?.["data"]);
-          const entityId = asPositiveInt(
-            user?.["uid"] ?? dataRecord?.["entID"],
-          );
+          const entityId = asPositiveInt(dataRecord?.["entID"]);
           const player =
             dataRecord !== null && entityId !== undefined
               ? normalizePlayerRecord({ ...dataRecord, entID: entityId })
               : null;
           if (player !== null) {
             yield* world.addPlayer(player);
+            const currentUsername = yield* auth.getUsername.pipe(
+              Effect.orElseSucceed(() => ""),
+            );
+            if (
+              currentUsername !== "" &&
+              equalsIgnoreCase(currentUsername, player.username)
+            ) {
+              yield* world.setSelf(player.username);
+            }
           }
         }
         return;
@@ -440,38 +522,43 @@ const reduceWorldPacket = (
         for (const rawAuraEvent of asArray(payload?.["a"])) {
           const auraEvent = asRecord(rawAuraEvent);
           const command = asString(auraEvent?.["cmd"]);
-          const targetInfo = asString(auraEvent?.["tInf"]);
-          const target = targetInfo?.split(":");
-          const targetId = asPositiveInt(target?.[1]);
-          const targetType = target?.[0] === "p" ? "player" : "monster";
-          if (command === undefined || targetId === undefined) {
+          const targets = parseAuraTargets(auraEvent?.["tInf"]);
+          if (command === undefined || targets.length === 0) {
             continue;
           }
 
-          if (command === "aura+" || command === "aura++") {
+          if (auraAddCommands.has(command)) {
             for (const rawAura of asArray(auraEvent?.["auras"])) {
               const aura = normalizeAuraRecord(rawAura);
               if (aura !== null) {
-                yield* world.setAura(targetType, targetId, aura);
-                yield* protocol.emitEvent({
-                  packet,
-                  payload: { aura, targetId, targetType },
-                  type: "auraAdded",
-                });
+                for (const { targetId, targetType } of targets) {
+                  yield* world.setAura(targetType, targetId, aura);
+                  yield* protocol.emitEvent({
+                    packet,
+                    payload: { aura, targetId, targetType },
+                    type: "auraAdded",
+                  });
+                }
               }
             }
           }
 
-          if (command === "aura-" || command === "aura--") {
-            for (const rawAura of asArray(auraEvent?.["auras"])) {
+          if (auraRemoveCommands.has(command)) {
+            const rawAuras =
+              asArray(auraEvent?.["auras"]).length > 0
+                ? asArray(auraEvent?.["auras"])
+                : [auraEvent?.["aura"]];
+            for (const rawAura of rawAuras) {
               const auraName = asString(asRecord(rawAura)?.["nam"]);
               if (auraName !== undefined) {
-                yield* world.unsetAura(targetType, targetId, auraName);
-                yield* protocol.emitEvent({
-                  packet,
-                  payload: { auraName, targetId, targetType },
-                  type: "auraRemoved",
-                });
+                for (const { targetId, targetType } of targets) {
+                  yield* world.unsetAura(targetType, targetId, auraName);
+                  yield* protocol.emitEvent({
+                    packet,
+                    payload: { auraName, targetId, targetType },
+                    type: "auraRemoved",
+                  });
+                }
               }
             }
           }
@@ -488,6 +575,14 @@ const reduceWorldPacket = (
             cell,
             ...(pad === undefined ? {} : { pad }),
           });
+          yield* protocol.emitEvent({
+            packet,
+            payload: {
+              cell,
+              ...(pad === undefined ? {} : { pad }),
+            },
+            type: "playerLocation",
+          });
         }
         return;
       }
@@ -498,6 +593,11 @@ const reduceWorldPacket = (
         const y = asInt(parts[5]);
         if (self !== null && x !== undefined && y !== undefined) {
           yield* world.patchPlayer(self.username, { position: [x, y] });
+          yield* protocol.emitEvent({
+            packet,
+            payload: { position: { x, y } },
+            type: "playerLocation",
+          });
         }
         return;
       }
@@ -519,6 +619,7 @@ const reduceWorldPacket = (
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const drops = yield* DropsState;
+    const auth = yield* AuthApi;
     const items = yield* ItemsState;
     const protocol = yield* FlashProtocol;
     const quests = yield* QuestsState;
@@ -546,10 +647,14 @@ export const layer = Layer.effectDiscard(
 
     const disposePackets = yield* protocol.onPacket(undefined, (packet) =>
       Effect.gen(function* () {
+        if (!shouldProjectPacket(packet)) {
+          return;
+        }
+
         yield* reduceShopPacket(packet, shops);
         yield* reduceInventoryPacket(packet, items, shops, drops);
         yield* reduceQuestPacket(packet, quests, protocol);
-        yield* reduceWorldPacket(packet, world, protocol);
+        yield* reduceWorldPacket(packet, auth, world, protocol);
       }),
     );
 

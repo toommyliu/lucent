@@ -18,6 +18,8 @@ import * as ShopsApi from "./api/Shops";
 import * as TempInventoryApi from "./api/TempInventory";
 import * as WaitApi from "./api/Wait";
 import * as FlashCallbacks from "./FlashCallbacks";
+import * as AutoRelogin from "./features/AutoRelogin";
+import * as AutoZone from "./features/AutoZone";
 import * as SwfBridge from "./SwfBridge";
 import * as FlashProtocol from "./protocol/FlashProtocol";
 import * as Projectors from "./protocol/Projectors";
@@ -76,8 +78,13 @@ export const FlashApiLayer = CombatApi.layer.pipe(
   Layer.provideMerge(FlashDependentApiLayer),
 );
 
+export const FlashFeatureLayer = Layer.mergeAll(
+  AutoRelogin.layer,
+  AutoZone.layer,
+).pipe(Layer.provideMerge(FlashApiLayer));
+
 export const FlashLiveLayer = Projectors.layer.pipe(
-  Layer.provideMerge(FlashApiLayer),
+  Layer.provideMerge(FlashFeatureLayer),
 );
 
 export const flashRuntime = ManagedRuntime.make(FlashLiveLayer);

@@ -151,4 +151,35 @@ describe("FlashProtocol", () => {
       );
     }),
   );
+
+  it.effect("dispatches progress and loaded callback events", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const protocol = yield* FlashProtocol;
+          const progressFiber = yield* protocol
+            .onceEvent({ type: "progress" }, { timeout: "1 second" })
+            .pipe(Effect.forkScoped);
+          const loadedFiber = yield* protocol
+            .onceEvent({ type: "loaded" }, { timeout: "1 second" })
+            .pipe(Effect.forkScoped);
+          yield* Effect.yieldNow;
+
+          yield* harness.publish({ percent: 42, type: "progress" });
+          yield* harness.publish({ type: "loaded" });
+          yield* Effect.yieldNow;
+
+          const progress = yield* Fiber.join(progressFiber);
+          const loaded = yield* Fiber.join(loadedFiber);
+          expect(progress?.type).toBe("progress");
+          expect(
+            progress?.type === "progress" ? progress.payload.percent : 0,
+          ).toBe(42);
+          expect(loaded?.type).toBe("loaded");
+        }).pipe(Effect.provide(harness.layer)),
+      );
+    }),
+  );
 });

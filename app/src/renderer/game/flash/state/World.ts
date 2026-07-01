@@ -50,6 +50,9 @@ export interface WorldStateShape {
   readonly getPlayerAuras: (
     entityId: number,
   ) => Effect.Effect<readonly AuraRecord[]>;
+  readonly getPlayerAuraTargetsByName: (
+    auraName: string,
+  ) => Effect.Effect<readonly number[]>;
   readonly getPlayers: Effect.Effect<readonly PlayerRecord[]>;
   readonly patchMap: (patch: Partial<MapRecord>) => Effect.Effect<void>;
   readonly patchMonster: (
@@ -191,6 +194,15 @@ export const layer = Layer.effect(
           Effect.map((state) =>
             Array.from(state.playerAuras.get(entityId)?.values() ?? []),
           ),
+        ),
+      getPlayerAuraTargetsByName: (auraName) =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => {
+            const key = auraName.toLowerCase();
+            return Array.from(state.playerAuras.entries()).flatMap(
+              ([entityId, auras]) => (auras.has(key) ? [entityId] : []),
+            );
+          }),
         ),
       getPlayers: SynchronizedRef.get(ref).pipe(
         Effect.map((state) => Array.from(state.players.values())),

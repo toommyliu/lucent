@@ -1,6 +1,8 @@
 export * from "./Types";
 export * from "./runtime";
 
+export * from "./features";
+
 export * as AuthApi from "./api/Auth";
 export * as BankApi from "./api/Bank";
 export * as CombatApi from "./api/Combat";

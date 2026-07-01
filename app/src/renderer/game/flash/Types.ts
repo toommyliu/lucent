@@ -256,6 +256,23 @@ export type FlashEvent =
     }
   | {
       readonly packet: FlashPacket;
+      readonly payload: {
+        readonly map: string;
+        readonly zone: string;
+      };
+      readonly type: "zone";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly cell?: string;
+        readonly pad?: string;
+        readonly position?: Position;
+      };
+      readonly type: "playerLocation";
+    }
+  | {
+      readonly packet: FlashPacket;
       readonly payload: { readonly monsterMapId: number };
       readonly type: "monsterDeath";
     }
