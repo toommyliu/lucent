@@ -1,29 +1,25 @@
 import "../../shared/polyfills";
 
 import { render } from "solid-js/web";
-
+import { App } from "./App";
 import { installRendererThemeSync } from "../theme";
-import { App, markGameLoaded, setGameLoadProgress } from "./App";
-import {
-  disposeFlashRuntime,
-  keepFlashRuntimeAlive,
-} from "./flash/FlashRuntime";
+import { flashRuntime } from "./flash";
 
 const themeSync = installRendererThemeSync();
 const root = document.getElementById("root");
 let disposeRender: (() => void) | undefined;
 
+void flashRuntime.context().catch((cause) => {
+  console.warn("[flash] runtime initialization failed", cause);
+});
+
 // window.onDebug = (message: string): void => {
 //   console.debug("[flash]", message);
 // };
 
-window.onProgress = (percent: number): void => {
-  setGameLoadProgress(percent);
-};
+window.onProgress = (_percent: number): void => {};
 
-window.onLoaded = (): void => {
-  markGameLoaded();
-};
+window.onLoaded = (): void => {};
 
 // window.packetFromClient = (packet: string): void => {
 //   console.debug("[flash:client]", packet);
@@ -49,14 +45,11 @@ if (root !== null) {
   );
 }
 
-keepFlashRuntimeAlive();
-setGameLoadProgress(0);
-
 window.addEventListener(
   "beforeunload",
   () => {
+    void flashRuntime.dispose();
     disposeRender?.();
-    disposeFlashRuntime();
     themeSync.dispose();
   },
   { once: true },
