@@ -372,7 +372,7 @@ body {
 }
 
 .game-menu--autozone {
-  width: min(15rem, calc(100vw - 1rem)) !important;
+  width: min(14rem, calc(100vw - 1rem)) !important;
 }
 
 .game-menu--combat {
@@ -492,6 +492,29 @@ body {
   flex: 0 1 auto;
 }
 
+.game-menu__option-content {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.game-menu__option-content > .game-menu__item-label {
+  flex: 0 1 auto;
+}
+
+.game-menu__inline-input {
+  width: 4.5rem !important;
+}
+
+.game-menu--autozone-maps {
+  width: max-content;
+  min-width: 10rem !important;
+  max-width: 16rem;
+}
+
 .game-menu__status {
   display: grid;
   gap: 4px;
@@ -579,6 +602,12 @@ body {
   gap: 8px;
   padding: 0 4px;
   font-size: var(--text-base);
+}
+
+.game-menu__field--wide.game-menu__field--inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
 }
 
 .game-menu__delay-control {

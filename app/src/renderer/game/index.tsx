@@ -14,7 +14,7 @@ void flashRuntime.context().catch((cause) => {
 });
 
 window.onDebug = (message: string): void => {
-  console.debug("[flash:Debug]", message);
+  console.debug("[flash:debug]", message);
 };
 
 if (root !== null) {

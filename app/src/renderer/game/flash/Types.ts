@@ -167,6 +167,10 @@ export interface FlashSettingsSnapshot {
   readonly walkSpeed: number;
 }
 
+export type FlashSettingsPatch = {
+  -readonly [Key in keyof FlashSettingsSnapshot]?: FlashSettingsSnapshot[Key];
+};
+
 export const FlashPacketDirectionSchema = Schema.Literals([
   "client",
   "server",

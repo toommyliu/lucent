@@ -240,13 +240,6 @@ const getAutoZoneMapLabel = (map: AutoZoneSupportedMap | undefined): string =>
     : (AUTO_ZONE_MAP_OPTIONS.find((option) => option.value === map)?.label ??
       map);
 
-const parseAutoZoneMapValue = (
-  value: string,
-): AutoZoneSupportedMap | undefined =>
-  AUTO_ZONE_MAP_OPTIONS.some((option) => option.value === value)
-    ? (value as AutoZoneSupportedMap)
-    : undefined;
-
 const MenuAutofocusAnchor = (): JSX.Element => (
   <span
     aria-hidden="true"
@@ -273,6 +266,16 @@ const stopMenuInputKeyPropagation: JSX.EventHandler<
     event.stopPropagation();
   }
 };
+
+const commitMenuInputOnEnter =
+  (commit: () => void): JSX.EventHandler<HTMLInputElement, KeyboardEvent> =>
+  (event) => {
+    stopMenuInputKeyPropagation(event);
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    commit();
+  };
 
 type TopNavMenuTriggerProps = Omit<ButtonProps, "as" | "size" | "type"> & {
   readonly expanded?: boolean;
@@ -342,29 +345,35 @@ export function TopNavOptionsMenuContent(
       </div>
       <MenuSeparator />
       <div class="game-menu__fields">
-        <Label class="game-menu__field">
+        <Label class="game-menu__field game-menu__field--inline">
           <span>Walk Speed</span>
           <Input
+            class="game-menu__inline-input"
             disabled={gameInteractionDisabled()}
+            inputMode="decimal"
             size="sm"
+            type="number"
             value={props.walkSpeed()}
             onBlur={props.handleSetWalkSpeed}
-            onKeyDown={stopMenuInputKeyPropagation}
+            onKeyDown={commitMenuInputOnEnter(props.handleSetWalkSpeed)}
             onInput={(event) => props.setWalkSpeed(event.currentTarget.value)}
           />
         </Label>
-        <Label class="game-menu__field">
+        <Label class="game-menu__field game-menu__field--inline">
           <span>FPS</span>
           <Input
+            class="game-menu__inline-input"
             disabled={gameInteractionDisabled()}
+            inputMode="decimal"
             size="sm"
+            type="number"
             value={props.frameRate()}
             onBlur={props.handleSetFrameRate}
-            onKeyDown={stopMenuInputKeyPropagation}
+            onKeyDown={commitMenuInputOnEnter(props.handleSetFrameRate)}
             onInput={(event) => props.setFrameRate(event.currentTarget.value)}
           />
         </Label>
-        <Label class="game-menu__field game-menu__field--wide">
+        <Label class="game-menu__field game-menu__field--wide game-menu__field--inline">
           <span>Custom Name</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -372,11 +381,11 @@ export function TopNavOptionsMenuContent(
             size="sm"
             value={props.customName()}
             onBlur={props.handleSetCustomName}
-            onKeyDown={stopMenuInputKeyPropagation}
+            onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
             onInput={(event) => props.setCustomName(event.currentTarget.value)}
           />
         </Label>
-        <Label class="game-menu__field game-menu__field--wide">
+        <Label class="game-menu__field game-menu__field--wide game-menu__field--inline">
           <span>Custom Guild</span>
           <Input
             disabled={gameInteractionDisabled()}
@@ -384,7 +393,7 @@ export function TopNavOptionsMenuContent(
             size="sm"
             value={props.customGuild()}
             onBlur={props.handleSetCustomGuild}
-            onKeyDown={stopMenuInputKeyPropagation}
+            onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
             onInput={(event) => props.setCustomGuild(event.currentTarget.value)}
           />
         </Label>
@@ -794,27 +803,38 @@ export function TopNav(props: TopNavProps): JSX.Element {
               >
                 {props.autoZoneEnabled() ? "Disable" : "Enable"}
               </MenuCheckboxItem>
-              <MenuSeparator />
-              <MenuRadioGroup
-                value={props.autoZoneMap() ?? ""}
-                onValueChange={(details) =>
-                  props.handleSelectAutoZoneMap(
-                    parseAutoZoneMapValue(details.value),
-                  )
-                }
-              >
-                <For each={AUTO_ZONE_MAP_OPTIONS}>
-                  {(option) => (
-                    <MenuRadioItem
-                      class="game-menu__item"
-                      closeOnSelect={false}
-                      value={option.value}
-                    >
-                      <span class="game-menu__item-label">{option.label}</span>
-                    </MenuRadioItem>
-                  )}
-                </For>
-              </MenuRadioGroup>
+              <MenuSub closeOnSelect={false}>
+                <MenuSubTrigger class="game-menu__item game-menu__server-trigger">
+                  <span class="game-menu__item-label">Map</span>
+                  <span class="game-menu__item-value">
+                    {getAutoZoneMapLabel(props.autoZoneMap()) || "None"}
+                  </span>
+                </MenuSubTrigger>
+                <MenuSubContent
+                  class="game-menu game-menu--compact game-menu--autozone-maps"
+                  portal={false}
+                >
+                  <For each={AUTO_ZONE_MAP_OPTIONS}>
+                    {(option) => (
+                      <MenuCheckboxItem
+                        checked={props.autoZoneMap() === option.value}
+                        class="game-menu__item"
+                        closeOnSelect={false}
+                        onClick={() =>
+                          props.handleSelectAutoZoneMap(
+                            option.value as AutoZoneSupportedMap,
+                          )
+                        }
+                        value={option.value}
+                      >
+                        <span class="game-menu__item-label">
+                          {option.label}
+                        </span>
+                      </MenuCheckboxItem>
+                    )}
+                  </For>
+                </MenuSubContent>
+              </MenuSub>
             </MenuContent>
           </Menu>
 
@@ -973,7 +993,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     props.autoReloginAttempting() ? "true" : undefined
                   }
                   class="game-menu__item game-menu__server-trigger"
-                  inset
                 >
                   <span class="game-menu__item-label">Server</span>
                   <span class="game-menu__item-value">
@@ -997,26 +1016,24 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       </MenuItem>
                     }
                   >
-                    <MenuRadioGroup
-                      value={props.autoReloginServer()}
-                      onValueChange={(details) =>
-                        props.handleSelectAutoReloginServer(details.value)
-                      }
-                    >
-                      <For each={props.autoReloginServers()}>
-                        {(serverName) => (
-                          <MenuRadioItem
-                            class="game-menu__item"
-                            disabled={props.autoReloginAttempting()}
-                            value={serverName}
-                          >
-                            <span class="game-menu__item-label">
-                              {serverName}
-                            </span>
-                          </MenuRadioItem>
-                        )}
-                      </For>
-                    </MenuRadioGroup>
+                    <For each={props.autoReloginServers()}>
+                      {(serverName) => (
+                        <MenuCheckboxItem
+                          checked={props.autoReloginServer() === serverName}
+                          class="game-menu__item"
+                          closeOnSelect={false}
+                          disabled={props.autoReloginAttempting()}
+                          onClick={() =>
+                            props.handleSelectAutoReloginServer(serverName)
+                          }
+                          value={serverName}
+                        >
+                          <span class="game-menu__item-label">
+                            {serverName}
+                          </span>
+                        </MenuCheckboxItem>
+                      )}
+                    </For>
                   </Show>
                 </MenuSubContent>
               </MenuSub>
