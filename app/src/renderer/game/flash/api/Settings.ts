@@ -1,14 +1,23 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { FlashSettingsSnapshot } from "../Types";
+import type { FlashSettingsPatch, FlashSettingsSnapshot } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { SettingsState } from "../state/Settings";
+import { normalizeSettingsPatch, SettingsState } from "../state/Settings";
+import type {
+  StateDisposer,
+  StateSubscriptionOptions,
+} from "../StateListeners";
 
 export interface SettingsApiShape {
+  readonly apply: (patch: FlashSettingsPatch) => Effect.Effect<void>;
   readonly enemyMagnet: Effect.Effect<void>;
   readonly get: Effect.Effect<FlashSettingsSnapshot>;
   readonly infiniteRange: Effect.Effect<void>;
   readonly isAntiCounterEnabled: Effect.Effect<boolean>;
+  readonly onState: (
+    listener: (state: FlashSettingsSnapshot) => void,
+    options?: StateSubscriptionOptions,
+  ) => Effect.Effect<StateDisposer>;
   readonly provokeCell: Effect.Effect<void>;
   readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
@@ -32,9 +41,6 @@ export class SettingsApi extends Context.Service<
   SettingsApiShape
 >()("lucent/game/flash/api/Settings") {}
 
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, Math.trunc(value)));
-
 export const layer = Layer.effect(
   SettingsApi,
   Effect.gen(function* () {
@@ -46,74 +52,123 @@ export const layer = Layer.effect(
     const provokeCell = bridge.call("settings.provokeCell");
     const skipCutscenes = bridge.call("settings.skipCutscenes");
 
+    const applyPersistentPatch = (patch: FlashSettingsPatch) =>
+      Effect.gen(function* () {
+        if (patch.animationsEnabled !== undefined) {
+          yield* bridge.call("settings.setAnimationsEnabled", [
+            patch.animationsEnabled,
+          ]);
+        }
+
+        if (patch.collisionsEnabled !== undefined) {
+          yield* bridge.call("settings.setCollisionsEnabled", [
+            patch.collisionsEnabled,
+          ]);
+        }
+
+        if (patch.customGuild !== undefined && patch.customGuild !== "") {
+          yield* bridge.call("settings.setCustomGuild", [patch.customGuild]);
+        }
+
+        if (patch.customName !== undefined && patch.customName !== "") {
+          yield* bridge.call("settings.setCustomName", [patch.customName]);
+        }
+
+        if (patch.deathAdsVisible !== undefined) {
+          yield* bridge.call("settings.setDeathAdsVisible", [
+            patch.deathAdsVisible,
+          ]);
+        }
+
+        if (patch.frameRate !== undefined) {
+          yield* bridge.call("settings.setFrameRate", [patch.frameRate]);
+        }
+
+        if (patch.lagKillerEnabled !== undefined) {
+          yield* bridge.call("settings.setLagKillerEnabled", [
+            patch.lagKillerEnabled,
+          ]);
+        }
+
+        if (patch.otherPlayersVisible !== undefined) {
+          yield* bridge.call("settings.setOtherPlayersVisible", [
+            patch.otherPlayersVisible,
+          ]);
+        }
+
+        if (patch.walkSpeed !== undefined) {
+          yield* bridge.call("settings.setWalkSpeed", [patch.walkSpeed]);
+        }
+      });
+
+    const applyActionPatch = (patch: FlashSettingsPatch) =>
+      Effect.gen(function* () {
+        if (patch.enemyMagnetEnabled === true) {
+          yield* enemyMagnet;
+        }
+
+        if (patch.infiniteRangeEnabled === true) {
+          yield* infiniteRange;
+        }
+
+        if (patch.provokeCellEnabled === true) {
+          yield* provokeCell;
+        }
+
+        if (patch.skipCutscenesEnabled === true) {
+          yield* skipCutscenes;
+        }
+      });
+
+    const apply: SettingsApiShape["apply"] = (patch) => {
+      const normalized = normalizeSettingsPatch(patch);
+      return applyPersistentPatch(normalized).pipe(
+        Effect.andThen(applyActionPatch(normalized)),
+      );
+    };
+
+    const applyAndPatch = (patch: FlashSettingsPatch) => {
+      const normalized = normalizeSettingsPatch(patch);
+      return applyPersistentPatch(normalized).pipe(
+        Effect.andThen(state.patch(normalized)),
+        Effect.asVoid,
+      );
+    };
+
     return SettingsApi.of({
+      apply,
       enemyMagnet,
       get: state.get,
       infiniteRange,
       isAntiCounterEnabled: state.get.pipe(
         Effect.map((settings) => settings.antiCounterEnabled),
       ),
+      onState: state.onState,
       provokeCell,
       setAnimationsEnabled: (enabled) =>
-        bridge
-          .call("settings.setAnimationsEnabled", [enabled])
-          .pipe(
-            Effect.flatMap(() => state.patch({ animationsEnabled: enabled })),
-          ),
+        applyAndPatch({ animationsEnabled: enabled }),
       setAntiCounterEnabled: (enabled) =>
-        state.patch({ antiCounterEnabled: enabled }),
+        state.patch({ antiCounterEnabled: enabled }).pipe(Effect.asVoid),
       setCollisionsEnabled: (enabled) =>
-        bridge
-          .call("settings.setCollisionsEnabled", [enabled])
-          .pipe(
-            Effect.flatMap(() => state.patch({ collisionsEnabled: enabled })),
-          ),
-      setCustomGuild: (name) =>
-        bridge
-          .call("settings.setCustomGuild", [name])
-          .pipe(Effect.flatMap(() => state.patch({ customGuild: name }))),
-      setCustomName: (name) =>
-        bridge
-          .call("settings.setCustomName", [name])
-          .pipe(Effect.flatMap(() => state.patch({ customName: name }))),
+        applyAndPatch({ collisionsEnabled: enabled }),
+      setCustomGuild: (name) => applyAndPatch({ customGuild: name }),
+      setCustomName: (name) => applyAndPatch({ customName: name }),
       setDeathAdsVisible: (visible) =>
-        bridge
-          .call("settings.setDeathAdsVisible", [visible])
-          .pipe(
-            Effect.flatMap(() => state.patch({ deathAdsVisible: visible })),
-          ),
+        applyAndPatch({ deathAdsVisible: visible }),
       setEnemyMagnetEnabled: (enabled) =>
-        state.patch({ enemyMagnetEnabled: enabled }),
-      setFrameRate: (fps) => {
-        const normalized = clamp(fps, 1, 120);
-        return bridge
-          .call("settings.setFrameRate", [normalized])
-          .pipe(Effect.flatMap(() => state.patch({ frameRate: normalized })));
-      },
+        state.patch({ enemyMagnetEnabled: enabled }).pipe(Effect.asVoid),
+      setFrameRate: (fps) => applyAndPatch({ frameRate: fps }),
       setInfiniteRangeEnabled: (enabled) =>
-        state.patch({ infiniteRangeEnabled: enabled }),
+        state.patch({ infiniteRangeEnabled: enabled }).pipe(Effect.asVoid),
       setLagKillerEnabled: (enabled) =>
-        bridge
-          .call("settings.setLagKillerEnabled", [enabled])
-          .pipe(
-            Effect.flatMap(() => state.patch({ lagKillerEnabled: enabled })),
-          ),
+        applyAndPatch({ lagKillerEnabled: enabled }),
       setOtherPlayersVisible: (visible) =>
-        bridge
-          .call("settings.setOtherPlayersVisible", [visible])
-          .pipe(
-            Effect.flatMap(() => state.patch({ otherPlayersVisible: visible })),
-          ),
+        applyAndPatch({ otherPlayersVisible: visible }),
       setProvokeCellEnabled: (enabled) =>
-        state.patch({ provokeCellEnabled: enabled }),
+        state.patch({ provokeCellEnabled: enabled }).pipe(Effect.asVoid),
       setSkipCutscenesEnabled: (enabled) =>
-        state.patch({ skipCutscenesEnabled: enabled }),
-      setWalkSpeed: (speed) => {
-        const normalized = clamp(speed, 1, 100);
-        return bridge
-          .call("settings.setWalkSpeed", [normalized])
-          .pipe(Effect.flatMap(() => state.patch({ walkSpeed: normalized })));
-      },
+        state.patch({ skipCutscenesEnabled: enabled }).pipe(Effect.asVoid),
+      setWalkSpeed: (speed) => applyAndPatch({ walkSpeed: speed }),
       skipCutscenes,
     });
   }),

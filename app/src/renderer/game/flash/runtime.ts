@@ -20,6 +20,8 @@ import * as WaitApi from "./api/Wait";
 import * as FlashCallbacks from "./FlashCallbacks";
 import * as AutoRelogin from "./features/AutoRelogin";
 import * as AutoZone from "./features/AutoZone";
+import * as Jobs from "./jobs/Jobs";
+import * as SettingsPolicy from "./policies/SettingsPolicy";
 import * as SwfBridge from "./SwfBridge";
 import * as FlashProtocol from "./protocol/FlashProtocol";
 import * as Projectors from "./protocol/Projectors";
@@ -78,13 +80,27 @@ export const FlashApiLayer = CombatApi.layer.pipe(
   Layer.provideMerge(FlashDependentApiLayer),
 );
 
+export const FlashJobsLayer = Jobs.layer;
+
+const FlashRuntimeServicesLayer = Layer.mergeAll(FlashApiLayer, FlashJobsLayer);
+
+const FlashPolicyLayer = SettingsPolicy.layer.pipe(
+  Layer.provideMerge(FlashRuntimeServicesLayer),
+);
+
 export const FlashFeatureLayer = Layer.mergeAll(
   AutoRelogin.layer,
   AutoZone.layer,
-).pipe(Layer.provideMerge(FlashApiLayer));
+).pipe(Layer.provideMerge(FlashRuntimeServicesLayer));
 
 export const FlashLiveLayer = Projectors.layer.pipe(
-  Layer.provideMerge(FlashFeatureLayer),
+  Layer.provideMerge(
+    Layer.mergeAll(
+      FlashRuntimeServicesLayer,
+      FlashPolicyLayer,
+      FlashFeatureLayer,
+    ),
+  ),
 );
 
 export const flashRuntime = ManagedRuntime.make(FlashLiveLayer);

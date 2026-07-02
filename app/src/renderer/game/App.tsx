@@ -13,6 +13,7 @@ import {
 import type { AppPlatform } from "../../shared/desktopBridge";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
 import * as Api from "./flash";
+import type { FlashSettingsPatch, FlashSettingsSnapshot } from "./flash";
 import { flashRuntime as runtime } from "./flash";
 import {
   AutoRelogin,
@@ -55,6 +56,24 @@ const DEBUG_PANEL_DEFAULT_HEIGHT_PX = 360;
 
 const DEFAULT_INTERNAL_DEBUG_SOURCE = `return yield* services.player.getCell;`;
 const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
+const PLAYER_READY_RETRY_INTERVAL_MS = 250;
+const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
+const DEFAULT_FLASH_SETTINGS: FlashSettingsSnapshot = {
+  animationsEnabled: true,
+  antiCounterEnabled: true,
+  collisionsEnabled: true,
+  customGuild: "",
+  customName: "",
+  deathAdsVisible: true,
+  enemyMagnetEnabled: false,
+  frameRate: 30,
+  infiniteRangeEnabled: false,
+  lagKillerEnabled: false,
+  otherPlayersVisible: true,
+  provokeCellEnabled: false,
+  skipCutscenesEnabled: false,
+  walkSpeed: 8,
+};
 const DEFAULT_CELL = "Enter";
 const DEFAULT_PAD = "Spawn";
 const DEFAULT_PADS = [
@@ -174,6 +193,11 @@ const formatDelaySeconds = (delayMs: number): string =>
 const parseDelayMs = (delaySeconds: string): number | null => {
   const seconds = Number.parseFloat(delaySeconds);
   return Number.isFinite(seconds) ? Math.max(0, seconds * 1_000) : null;
+};
+
+const parseFiniteNumber = (value: string): number | null => {
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : null;
 };
 
 const clampPanelFrame = (frame: DebugPanelFrame): DebugPanelFrame => {
@@ -602,13 +626,19 @@ export function App(props: {
     progress: 0,
   });
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(null);
-  const [walkSpeed, setWalkSpeed] = createSignal("8");
-  const [frameRate, setFrameRate] = createSignal("24");
+  const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
+    DEFAULT_FLASH_SETTINGS,
+  );
+  const [walkSpeed, setWalkSpeed] = createSignal(
+    String(DEFAULT_FLASH_SETTINGS.walkSpeed),
+  );
+  const [frameRate, setFrameRate] = createSignal(
+    String(DEFAULT_FLASH_SETTINGS.frameRate),
+  );
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(true);
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
-  const [antiCounterEnabled, setAntiCounterEnabled] = createSignal(false);
   const [autoAttackMode, setAutoAttackMode] =
     createSignal<CombatProfileAutoAttackMode>("equipped-class");
   const [selectedAutoAttackProfileId, setSelectedAutoAttackProfileId] =
@@ -643,6 +673,9 @@ export function App(props: {
   const progress = createMemo(() => loadState().progress);
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
+  let playerReadyRefreshVersion = 0;
+  let playerReadyRetryTimer: number | undefined;
+  let playerReadyRetryToken = 0;
   const scriptStatus = createMemo(() => "No script loaded");
   const setLoadProgress = (percent: number) => {
     const progress = Math.max(0, Math.min(100, Math.round(percent)));
@@ -657,78 +690,250 @@ export function App(props: {
       progress: 100,
     });
   };
+
+  const applyFlashSettingsState = (state: FlashSettingsSnapshot) => {
+    setFlashSettings(state);
+    setWalkSpeed(String(state.walkSpeed));
+    setFrameRate(String(state.frameRate));
+    setCustomName(state.customName);
+    setCustomGuild(state.customGuild);
+  };
+
+  const patchFlashSettingsState = (patch: FlashSettingsPatch) => {
+    setFlashSettings((state) => ({
+      ...state,
+      ...patch,
+    }));
+  };
+
+  const refreshFlashSettings = () => {
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const settings = yield* Api.SettingsApi.SettingsApi;
+          return yield* settings.get;
+        }),
+      )
+      .then(applyFlashSettingsState)
+      .catch((error: unknown) => {
+        console.error("[game:settings]", "refresh failed", error);
+      });
+  };
+
+  const runSettingsUpdate = (
+    label: string,
+    optimisticPatch: FlashSettingsPatch,
+    update: (settings: Api.SettingsApi.SettingsApiShape) => Effect.Effect<void>,
+  ) => {
+    patchFlashSettingsState(optimisticPatch);
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const settings = yield* Api.SettingsApi.SettingsApi;
+          yield* update(settings);
+          return yield* settings.get;
+        }),
+      )
+      .then(applyFlashSettingsState)
+      .catch((error: unknown) => {
+        console.error("[game:settings]", `${label} failed`, error);
+        refreshFlashSettings();
+      });
+  };
+
+  const toggleFlashSetting = (
+    label: string,
+    key: keyof Pick<
+      FlashSettingsSnapshot,
+      | "animationsEnabled"
+      | "antiCounterEnabled"
+      | "collisionsEnabled"
+      | "deathAdsVisible"
+      | "enemyMagnetEnabled"
+      | "infiniteRangeEnabled"
+      | "lagKillerEnabled"
+      | "otherPlayersVisible"
+      | "provokeCellEnabled"
+      | "skipCutscenesEnabled"
+    >,
+    update: (
+      settings: Api.SettingsApi.SettingsApiShape,
+      enabled: boolean,
+    ) => Effect.Effect<void>,
+  ) => {
+    const enabled = !flashSettings()[key];
+    runSettingsUpdate(
+      label,
+      { [key]: enabled } as FlashSettingsPatch,
+      (settings) => update(settings, enabled),
+    );
+  };
+
+  const handleToggleHidePlayers = () => {
+    const visible = flashSettings().otherPlayersVisible;
+    runSettingsUpdate(
+      "hide players",
+      { otherPlayersVisible: !visible },
+      (settings) => settings.setOtherPlayersVisible(!visible),
+    );
+  };
+
+  const handleSetWalkSpeed = () => {
+    const speed = parseFiniteNumber(walkSpeed());
+    if (speed === null) {
+      refreshFlashSettings();
+      return;
+    }
+
+    runSettingsUpdate("set walk speed", { walkSpeed: speed }, (settings) =>
+      settings.setWalkSpeed(speed),
+    );
+  };
+
+  const handleSetFrameRate = () => {
+    const fps = parseFiniteNumber(frameRate());
+    if (fps === null) {
+      refreshFlashSettings();
+      return;
+    }
+
+    runSettingsUpdate("set frame rate", { frameRate: fps }, (settings) =>
+      settings.setFrameRate(fps),
+    );
+  };
+
+  const handleSetCustomName = () => {
+    const name = customName();
+    runSettingsUpdate("set custom name", { customName: name }, (settings) =>
+      settings.setCustomName(name),
+    );
+  };
+
+  const handleSetCustomGuild = () => {
+    const guild = customGuild();
+    runSettingsUpdate("set custom guild", { customGuild: guild }, (settings) =>
+      settings.setCustomGuild(guild),
+    );
+  };
+
+  const optionsDisabled = () => !gameLoaded() || !playerReady();
+
   const optionItems = createMemo<readonly TopNavOptionItem[]>(() => [
     {
       id: "infinite-range",
       label: "Infinite Range",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().infiniteRangeEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle infinite range",
+          "infiniteRangeEnabled",
+          (settings, enabled) => settings.setInfiniteRangeEnabled(enabled),
+        ),
     },
     {
       id: "provoke-cell",
       label: "Provoke Cell",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().provokeCellEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle provoke cell",
+          "provokeCellEnabled",
+          (settings, enabled) => settings.setProvokeCellEnabled(enabled),
+        ),
     },
     {
       id: "enemy-magnet",
       label: "Enemy Magnet",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().enemyMagnetEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle enemy magnet",
+          "enemyMagnetEnabled",
+          (settings, enabled) => settings.setEnemyMagnetEnabled(enabled),
+        ),
     },
     {
       id: "lag-killer",
       label: "Lag Killer",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().lagKillerEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle lag killer",
+          "lagKillerEnabled",
+          (settings, enabled) => settings.setLagKillerEnabled(enabled),
+        ),
     },
     {
       id: "hide-players",
       label: "Hide Players",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: !flashSettings().otherPlayersVisible,
+      disabled: optionsDisabled(),
+      onSelect: handleToggleHidePlayers,
     },
     {
       id: "skip-cutscenes",
       label: "Skip Cutscenes",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().skipCutscenesEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle skip cutscenes",
+          "skipCutscenesEnabled",
+          (settings, enabled) => settings.setSkipCutscenesEnabled(enabled),
+        ),
     },
     {
       id: "anti-counter",
       label: "Anti-Counter",
-      checked: antiCounterEnabled(),
-      disabled: !gameLoaded(),
-      onSelect: () => {
-        handleToggleAntiCounter();
-      },
+      checked: flashSettings().antiCounterEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle anti-counter",
+          "antiCounterEnabled",
+          (settings, enabled) => settings.setAntiCounterEnabled(enabled),
+        ),
     },
     {
       id: "animations",
       label: "Animations",
-      checked: false,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().animationsEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle animations",
+          "animationsEnabled",
+          (settings, enabled) => settings.setAnimationsEnabled(enabled),
+        ),
     },
     {
       id: "collisions",
       label: "Collisions",
-      checked: true,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().collisionsEnabled,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle collisions",
+          "collisionsEnabled",
+          (settings, enabled) => settings.setCollisionsEnabled(enabled),
+        ),
     },
     {
       id: "death-ads",
       label: "Death Ads",
-      checked: true,
-      disabled: !gameLoaded(),
-      onSelect: noop,
+      checked: flashSettings().deathAdsVisible,
+      disabled: optionsDisabled(),
+      onSelect: () =>
+        toggleFlashSetting(
+          "toggle death ads",
+          "deathAdsVisible",
+          (settings, enabled) => settings.setDeathAdsVisible(enabled),
+        ),
     },
   ]);
 
@@ -738,39 +943,6 @@ export function App(props: {
   ) => {
     setAutoAttackMode(mode);
     setSelectedAutoAttackProfileId(profileId);
-  };
-
-  const refreshAntiCounterEnabled = () => {
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const settings = yield* Api.SettingsApi.SettingsApi;
-          return yield* settings.isAntiCounterEnabled;
-        }),
-      )
-      .then(setAntiCounterEnabled)
-      .catch((error: unknown) => {
-        console.error("[game:anti-counter]", "refresh failed", error);
-      });
-  };
-
-  const handleToggleAntiCounter = () => {
-    const nextEnabled = !antiCounterEnabled();
-    setAntiCounterEnabled(nextEnabled);
-
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const settings = yield* Api.SettingsApi.SettingsApi;
-          yield* settings.setAntiCounterEnabled(nextEnabled);
-          return yield* settings.isAntiCounterEnabled;
-        }),
-      )
-      .then(setAntiCounterEnabled)
-      .catch((error: unknown) => {
-        console.error("[game:anti-counter]", "toggle failed", error);
-        refreshAntiCounterEnabled();
-      });
   };
 
   const applyAutoZoneState = (state: AutoZoneState) => {
@@ -936,18 +1108,82 @@ export function App(props: {
       });
   };
 
-  const refreshPlayerReady = (): Promise<boolean> =>
-    readPlayerReady()
+  const refreshPlayerReady = (): Promise<boolean> => {
+    const version = ++playerReadyRefreshVersion;
+    return readPlayerReady()
       .then((ready) => {
-        if (ready) {
-          setPlayerReady(true);
+        if (version === playerReadyRefreshVersion) {
+          setPlayerReady(ready);
         }
         return ready;
       })
       .catch((error: unknown) => {
         console.error("[game:player]", "readiness refresh failed", error);
+        if (version === playerReadyRefreshVersion) {
+          setPlayerReady(false);
+        }
         return false;
       });
+  };
+
+  const clearPlayerReadyRetry = () => {
+    if (playerReadyRetryTimer === undefined) {
+      return;
+    }
+
+    window.clearTimeout(playerReadyRetryTimer);
+    playerReadyRetryTimer = undefined;
+  };
+
+  const stopPlayerReadyRetry = () => {
+    playerReadyRetryToken += 1;
+    playerReadyRefreshVersion += 1;
+    clearPlayerReadyRetry();
+  };
+
+  const schedulePlayerReadyRefresh = ({
+    onReady,
+    retry = false,
+  }: {
+    readonly onReady?: () => void;
+    readonly retry?: boolean;
+  } = {}) => {
+    const token = ++playerReadyRetryToken;
+    const startedAt = Date.now();
+
+    playerReadyRefreshVersion += 1;
+    clearPlayerReadyRetry();
+
+    const run = () => {
+      playerReadyRetryTimer = undefined;
+
+      if (token !== playerReadyRetryToken || !gameLoaded()) {
+        return;
+      }
+
+      void refreshPlayerReady().then(() => {
+        if (token !== playerReadyRetryToken || !gameLoaded()) {
+          return;
+        }
+
+        if (playerReady()) {
+          onReady?.();
+          return;
+        }
+
+        if (!retry || Date.now() - startedAt >= PLAYER_READY_RETRY_TIMEOUT_MS) {
+          return;
+        }
+
+        playerReadyRetryTimer = window.setTimeout(
+          run,
+          PLAYER_READY_RETRY_INTERVAL_MS,
+        );
+      });
+    };
+
+    run();
+  };
 
   const ensurePlayerReady = (): Promise<boolean> =>
     playerReady() ? Promise.resolve(true) : refreshPlayerReady();
@@ -1067,7 +1303,7 @@ export function App(props: {
       })
       .catch((error: unknown) => {
         console.error("[game:travel]", "jump failed", error);
-        void refreshPlayerReady();
+        schedulePlayerReadyRefresh({ retry: true });
       })
       .finally(() => {
         setTravelBusy(false);
@@ -1098,16 +1334,15 @@ export function App(props: {
       )
       .catch((error: unknown) => {
         console.error("[game:bank]", "open failed", error);
-        void refreshPlayerReady();
+        schedulePlayerReadyRefresh({ retry: true });
       });
   };
 
   onMount(() => {
     let autoReloginDisposer: (() => void) | undefined;
     let autoZoneDisposer: (() => void) | undefined;
+    let flashSettingsDisposer: (() => void) | undefined;
     let cleanedUp = false;
-
-    refreshAntiCounterEnabled();
 
     const travelEventFiber = runtime.runFork(
       Effect.scoped(
@@ -1122,10 +1357,20 @@ export function App(props: {
           );
           yield* events.on({ type: "loaded" }, () => Effect.sync(markLoaded));
           yield* events.on({ type: "joinMap" }, () =>
-            Effect.sync(syncTravelOptionsFromState),
+            Effect.sync(() =>
+              schedulePlayerReadyRefresh({
+                onReady: syncTravelOptionsFromState,
+                retry: true,
+              }),
+            ),
           );
           yield* events.on({ type: "playerLocation" }, () =>
-            Effect.sync(syncTravelOptionsFromState),
+            Effect.sync(() =>
+              schedulePlayerReadyRefresh({
+                onReady: syncTravelOptionsFromState,
+                retry: true,
+              }),
+            ),
           );
           yield* events.on({ type: "connection" }, (event) =>
             Effect.sync(() => {
@@ -1135,12 +1380,13 @@ export function App(props: {
                 status === "OnConnectionLost" ||
                 status === "OnConnectionFailed"
               ) {
+                stopPlayerReadyRetry();
                 setPlayerReady(false);
                 resetTravelOptions();
               }
 
               if (status === "OnConnection") {
-                void refreshPlayerReady();
+                schedulePlayerReadyRefresh({ retry: true });
               }
               refreshAutoReloginState();
             }),
@@ -1149,6 +1395,26 @@ export function App(props: {
         }),
       ),
     );
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const settings = yield* Api.SettingsApi.SettingsApi;
+          return yield* settings.onState(applyFlashSettingsState);
+        }),
+      )
+      .then((dispose) => {
+        if (cleanedUp) {
+          dispose();
+          return;
+        }
+
+        flashSettingsDisposer = dispose;
+      })
+      .catch((error: unknown) => {
+        console.error("[game:settings]", "state subscription failed", error);
+        refreshFlashSettings();
+      });
 
     void runtime
       .runPromise(
@@ -1192,6 +1458,8 @@ export function App(props: {
       cleanedUp = true;
       autoReloginDisposer?.();
       autoZoneDisposer?.();
+      flashSettingsDisposer?.();
+      stopPlayerReadyRetry();
       resetTravelOptions();
       runtime.runFork(Fiber.interrupt(travelEventFiber));
     });
@@ -1201,7 +1469,10 @@ export function App(props: {
     const loaded = gameLoaded();
     writeDocumentLoaded(loaded);
     if (loaded) {
-      void refreshPlayerReady();
+      schedulePlayerReadyRefresh({ retry: true });
+    } else {
+      stopPlayerReadyRetry();
+      setPlayerReady(false);
     }
   });
 
@@ -1217,16 +1488,16 @@ export function App(props: {
         optionItems={optionItems}
         walkSpeed={walkSpeed}
         setWalkSpeed={setWalkSpeed}
-        handleSetWalkSpeed={noop}
+        handleSetWalkSpeed={handleSetWalkSpeed}
         frameRate={frameRate}
         setFrameRate={setFrameRate}
-        handleSetFrameRate={noop}
+        handleSetFrameRate={handleSetFrameRate}
         customName={customName}
         setCustomName={setCustomName}
-        handleSetCustomName={noop}
+        handleSetCustomName={handleSetCustomName}
         customGuild={customGuild}
         setCustomGuild={setCustomGuild}
-        handleSetCustomGuild={noop}
+        handleSetCustomGuild={handleSetCustomGuild}
         autoAttackEnabled={() => false}
         autoAttackProfileLabel={() => "Equipped Class"}
         autoAttackConfiguredProfileLabel={() => "Equipped Class"}

@@ -10,7 +10,7 @@ import {
   makeStateListeners,
   type StateDisposer,
   type StateSubscriptionOptions,
-} from "./StateListeners";
+} from "../StateListeners";
 
 export interface AutoReloginState {
   readonly attemptsRemaining?: number;
