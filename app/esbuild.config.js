@@ -8,6 +8,8 @@ const {
   readdirSync,
   rmdirSync,
   unlinkSync,
+  unwatchFile,
+  watchFile,
 } = require("fs");
 const { dirname, join } = require("path");
 
@@ -16,6 +18,7 @@ const isWatch = process.argv.includes("--watch") || process.argv.includes("-w");
 const skipInitialBuildNotify =
   process.env.LUCENT_DEV_BUILD_NOTIFY_SKIP_INITIAL === "1";
 const notifiedLabels = new Set();
+const staticAssetWatchIntervalMs = 100;
 
 const baseOptions = {
   bundle: true,
@@ -88,8 +91,11 @@ const copyRendererFiles = () => {
     copyFileSync(`${sourceDir}/index.html`, `${targetDir}/index.html`);
 
     const stylePath = `${sourceDir}/style.css`;
+    const targetStylePath = `${targetDir}/style.css`;
     if (existsSync(stylePath)) {
-      copyFileSync(stylePath, `${targetDir}/style.css`);
+      copyFileSync(stylePath, targetStylePath);
+    } else if (existsSync(targetStylePath)) {
+      unlinkSync(targetStylePath);
     }
   }
 };
@@ -115,13 +121,17 @@ const clean = () => {
   removeRecursive("dist");
 };
 
-const notifyBuild = (label) => {
+const notifyBuild = (label, options = {}) => {
   const notifyPath = process.env.LUCENT_DEV_BUILD_NOTIFY;
   if (!notifyPath) {
     return;
   }
 
-  if (skipInitialBuildNotify && !notifiedLabels.has(label)) {
+  if (
+    options.skipInitial !== false &&
+    skipInitialBuildNotify &&
+    !notifiedLabels.has(label)
+  ) {
     notifiedLabels.add(label);
     return;
   }
@@ -137,6 +147,41 @@ const notifyBuild = (label) => {
       time: Date.now(),
     })}\n`,
   );
+};
+
+const rendererStaticFilePaths = () =>
+  rendererViews.flatMap((view) => {
+    const sourceDir = `src/renderer/${view.id}`;
+    return [`${sourceDir}/index.html`, `${sourceDir}/style.css`];
+  });
+
+const watchRendererStaticFiles = () => {
+  const watchedPaths = rendererStaticFilePaths();
+  const listener = (current, previous) => {
+    if (
+      current.mtimeMs === previous.mtimeMs &&
+      current.size === previous.size
+    ) {
+      return;
+    }
+
+    try {
+      copyRendererFiles();
+      notifyBuild("renderer-html", { skipInitial: false });
+    } catch (error) {
+      console.error("Failed to copy renderer static files", error);
+    }
+  };
+
+  for (const path of watchedPaths) {
+    watchFile(path, { interval: staticAssetWatchIntervalMs }, listener);
+  }
+
+  return () => {
+    for (const path of watchedPaths) {
+      unwatchFile(path, listener);
+    }
+  };
 };
 
 const buildOnce = async () => {
@@ -228,6 +273,7 @@ const watch = async () => {
     sharedCssContext.watch(),
   ]);
   copyRendererFiles();
+  watchRendererStaticFiles();
 };
 
 const run = isWatch ? watch : buildOnce;
