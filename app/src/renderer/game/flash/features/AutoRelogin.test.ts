@@ -120,74 +120,78 @@ const makeHarness = (
         }
         return result;
       }),
-    getPassword: Effect.sync(() => {
-      passwordReadCount += 1;
-      return controls.password;
-    }),
-    getServers: Effect.succeed([
-      {
-        chat: 1,
-        count: 1,
-        language: "en",
-        max: 100,
-        memberOnly: false,
-        name: "Artix",
-        online: true,
-        raw: {},
-      },
-    ]),
-    getUsername: Effect.sync(() => {
-      usernameReadCount += 1;
-      return controls.username;
-    }),
-    isLoggedIn: Effect.sync(() => controls.loggedIn),
-    isServerSelectReady: Effect.sync(() => controls.serverSelectReady),
-    isTemporarilyKicked: Effect.succeed(false),
+    getPassword: () =>
+      Effect.sync(() => {
+        passwordReadCount += 1;
+        return controls.password;
+      }),
+    getServers: () =>
+      Effect.succeed([
+        {
+          chat: 1,
+          count: 1,
+          language: "en",
+          max: 100,
+          memberOnly: false,
+          name: "Artix",
+          online: true,
+          raw: {},
+        },
+      ]),
+    getUsername: () =>
+      Effect.sync(() => {
+        usernameReadCount += 1;
+        return controls.username;
+      }),
+    isLoggedIn: () => Effect.sync(() => controls.loggedIn),
+    isServerSelectReady: () => Effect.sync(() => controls.serverSelectReady),
+    isTemporarilyKicked: () => Effect.succeed(false),
     login: () =>
       Effect.sync(() => {
         loginCount += 1;
         return controls.loginReady;
       }),
-    logout: Effect.sync(() => {
-      logoutCount += 1;
-      controls.loggedIn = false;
-      controls.ready = false;
-    }),
+    logout: () =>
+      Effect.sync(() => {
+        logoutCount += 1;
+        controls.loggedIn = false;
+        controls.ready = false;
+      }),
   } satisfies AuthApiShape);
   const player = PlayerApi.of({
     auras: {
       get: () => Effect.succeed(null),
-      getAll: Effect.succeed([]),
+      getAll: () => Effect.succeed([]),
       has: () => Effect.succeed(false),
     },
     factions: {
       get: () => Effect.succeed(null),
-      getAll: Effect.succeed([]),
+      getAll: () => Effect.succeed([]),
     },
-    getCell: Effect.succeed("Enter"),
-    getClassName: Effect.succeed("Class"),
-    getGender: Effect.succeed("M"),
-    getGold: Effect.succeed(0),
-    getHp: Effect.succeed(100),
-    getLevel: Effect.succeed(1),
-    getMaxHp: Effect.succeed(100),
-    getMaxMp: Effect.succeed(100),
-    getMp: Effect.succeed(100),
-    getPad: Effect.succeed("Spawn"),
-    getPosition: Effect.succeed({ x: 0, y: 0 }),
-    getState: Effect.succeed(1),
+    getCell: () => Effect.succeed("Enter"),
+    getClassName: () => Effect.succeed("Class"),
+    getGender: () => Effect.succeed("M"),
+    getGold: () => Effect.succeed(0),
+    getHp: () => Effect.succeed(100),
+    getLevel: () => Effect.succeed(1),
+    getMaxHp: () => Effect.succeed(100),
+    getMaxMp: () => Effect.succeed(100),
+    getMp: () => Effect.succeed(100),
+    getPad: () => Effect.succeed("Spawn"),
+    getPosition: () => Effect.succeed({ x: 0, y: 0 }),
+    getState: () => Effect.succeed(1),
     goToPlayer: () => Effect.void,
     hasActiveBoost: () => Effect.succeed(false),
-    isAfk: Effect.succeed(false),
-    isAlive: Effect.succeed(true),
-    isMember: Effect.succeed(false),
-    isReady: Effect.sync(() => controls.ready),
+    isAfk: () => Effect.succeed(false),
+    isAlive: () => Effect.succeed(true),
+    isMember: () => Effect.succeed(false),
+    isReady: () => Effect.sync(() => controls.ready),
     joinMap: () => Effect.succeed(true),
     jumpToCell: () => Effect.void,
     outfits: {
       equip: () => Effect.succeed(false),
       get: () => Effect.succeed(null),
-      getAll: Effect.succeed([]),
+      getAll: () => Effect.succeed([]),
       wear: () => Effect.succeed(false),
     },
     rest: () => Effect.void,
@@ -250,7 +254,7 @@ describe("AutoRelogin", () => {
           Effect.gen(function* () {
             const autoRelogin = yield* AutoRelogin;
             yield* autoRelogin.setServer("Artix");
-            const state = yield* autoRelogin.enable;
+            const state = yield* autoRelogin.enable();
 
             expect(state.enabled).toBe(true);
             expect(state.captured).toBe(true);
@@ -269,7 +273,7 @@ describe("AutoRelogin", () => {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
-          const state = yield* autoRelogin.enable;
+          const state = yield* autoRelogin.enable();
 
           expect(state.enabled).toBe(true);
           expect(state.captured).toBe(false);
@@ -285,7 +289,7 @@ describe("AutoRelogin", () => {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
-          const initial = yield* autoRelogin.enable;
+          const initial = yield* autoRelogin.enable();
           expect(initial.captured).toBe(false);
           expect(initial.lastError).toBe("current session is not capturable");
 
@@ -294,7 +298,7 @@ describe("AutoRelogin", () => {
           yield* harness.emit(connectionEvent("OnConnection"));
           yield* Effect.yieldNow;
 
-          const state = yield* autoRelogin.getState;
+          const state = yield* autoRelogin.getState();
           expect(state.enabled).toBe(true);
           expect(state.captured).toBe(true);
           expect(state.username).toBe("Hero");
@@ -341,11 +345,11 @@ describe("AutoRelogin", () => {
         yield* Effect.scoped(
           Effect.gen(function* () {
             const autoRelogin = yield* AutoRelogin;
-            yield* autoRelogin.enable;
+            yield* autoRelogin.enable();
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* advance("10 seconds");
 
-            const state = yield* autoRelogin.getState;
+            const state = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(0);
             expect(harness.connectCalls).toEqual([]);
             expect(harness.logoutCalls()).toBe(0);
@@ -364,12 +368,12 @@ describe("AutoRelogin", () => {
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable;
+          yield* autoRelogin.enable();
           yield* harness.emit(connectionEvent("OnConnectionLost"));
 
           yield* advance("2 seconds");
           expect(harness.loginCalls()).toBe(0);
-          expect((yield* autoRelogin.getState).waitingDelay).toBe(true);
+          expect((yield* autoRelogin.getState()).waitingDelay).toBe(true);
 
           yield* advance("2 seconds");
           expect(harness.loginCalls()).toBeGreaterThan(0);
@@ -388,12 +392,12 @@ describe("AutoRelogin", () => {
           Effect.gen(function* () {
             const autoRelogin = yield* AutoRelogin;
             yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable;
+            yield* autoRelogin.enable();
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             harness.setReady(true);
             yield* advance();
 
-            const state = yield* autoRelogin.getState;
+            const state = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(0);
             expect(state.enabled).toBe(true);
             expect(state.attempting).toBe(false);
@@ -414,11 +418,11 @@ describe("AutoRelogin", () => {
             const autoRelogin = yield* AutoRelogin;
             yield* autoRelogin.setDelay(0);
             yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable;
+            yield* autoRelogin.enable();
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* advance();
 
-            const state = yield* autoRelogin.getState;
+            const state = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(1);
             expect(harness.connectCalls).toEqual(["Artix"]);
             expect(harness.logoutCalls()).toBe(1);
@@ -448,11 +452,11 @@ describe("AutoRelogin", () => {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setDelay(0);
           yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable;
+          yield* autoRelogin.enable();
           yield* harness.emit(connectionEvent("OnConnectionLost"));
           yield* advance();
 
-          const state = yield* autoRelogin.getState;
+          const state = yield* autoRelogin.getState();
           expect(harness.connectCalls).toEqual(["Artix"]);
           expect(harness.logoutCalls()).toBe(0);
           expect(state.enabled).toBe(true);
@@ -471,7 +475,7 @@ describe("AutoRelogin", () => {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setDelay(0);
           yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable;
+          yield* autoRelogin.enable();
           yield* harness.emit(connectionEvent("OnConnectionLost"));
 
           yield* advance();
@@ -481,7 +485,7 @@ describe("AutoRelogin", () => {
           yield* advance("5 seconds");
           expect(harness.loginCalls()).toBe(2);
           expect(harness.logoutCalls()).toBe(2);
-          const state = yield* autoRelogin.getState;
+          const state = yield* autoRelogin.getState();
           expect(state.attempting).toBe(true);
           expect(state.lastError).toBe("player did not become ready");
         }).pipe(Effect.provide(testClockLayer(harness))),
@@ -499,11 +503,11 @@ describe("AutoRelogin", () => {
             const autoRelogin = yield* AutoRelogin;
             yield* autoRelogin.setDelay(0);
             yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable;
+            yield* autoRelogin.enable();
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* exhaustRetries;
 
-            const stopped = yield* autoRelogin.getState;
+            const stopped = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(4);
             expect(harness.connectCalls).toEqual([]);
             expect(stopped.enabled).toBe(true);
@@ -531,16 +535,16 @@ describe("AutoRelogin", () => {
             const autoRelogin = yield* AutoRelogin;
             yield* autoRelogin.setDelay(0);
             yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable;
+            yield* autoRelogin.enable();
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* exhaustRetries;
-            expect((yield* autoRelogin.getState).lastError).toBe(
+            expect((yield* autoRelogin.getState()).lastError).toBe(
               "login did not reach server selection",
             );
 
             harness.setReady(true);
             yield* advance();
-            const ready = yield* autoRelogin.getState;
+            const ready = yield* autoRelogin.getState();
             expect(ready.lastError).toBeUndefined();
             expect(ready.attemptsRemaining).toBeUndefined();
             expect(ready.attempting).toBe(false);
@@ -562,10 +566,10 @@ describe("AutoRelogin", () => {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setDelay(0);
           yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable;
+          yield* autoRelogin.enable();
           yield* harness.emit(connectionEvent("OnConnectionLost"));
           yield* exhaustRetries;
-          expect((yield* autoRelogin.getState).lastError).toBe(
+          expect((yield* autoRelogin.getState()).lastError).toBe(
             "login did not reach server selection",
           );
 

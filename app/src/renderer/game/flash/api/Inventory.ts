@@ -13,10 +13,10 @@ export interface InventoryApiShape {
   ) => Effect.Effect<boolean>;
   readonly equip: (selector: ItemSelector) => Effect.Effect<boolean>;
   readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: Effect.Effect<readonly ItemRecord[]>;
-  readonly getAvailableSlots: Effect.Effect<number>;
-  readonly getSlots: Effect.Effect<number>;
-  readonly getUsedSlots: Effect.Effect<number>;
+  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
+  readonly getAvailableSlots: () => Effect.Effect<number>;
+  readonly getSlots: () => Effect.Effect<number>;
+  readonly getUsedSlots: () => Effect.Effect<number>;
   readonly unequipConsumable: (
     selector: ItemSelector,
   ) => Effect.Effect<boolean>;
@@ -41,13 +41,12 @@ export const layer = Layer.effect(
     const contains: InventoryApiShape["contains"] = (selector, quantity) =>
       items.contains("inventory-or-house", selector, quantity);
 
-    const getSlots = bridge.call("inventory.getSlots");
+    const getSlots = () => bridge.call("inventory.getSlots");
     const getUsedSlots = items.getUsedSlots("inventory");
-    const getAvailableSlots = Effect.zipWith(
-      getSlots,
-      getUsedSlots,
-      (slots, used) => Math.max(0, slots - used),
-    );
+    const getAvailableSlots = () =>
+      Effect.zipWith(getSlots(), getUsedSlots, (slots, used) =>
+        Math.max(0, slots - used),
+      );
 
     const equip: InventoryApiShape["equip"] = (selector) =>
       Effect.gen(function* () {
@@ -120,10 +119,10 @@ export const layer = Layer.effect(
       contains,
       equip,
       get,
-      getAll: items.getAll("inventory"),
+      getAll: () => items.getAll("inventory"),
       getAvailableSlots,
       getSlots,
-      getUsedSlots,
+      getUsedSlots: () => getUsedSlots,
       unequipConsumable,
     });
   }),

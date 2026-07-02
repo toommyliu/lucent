@@ -25,12 +25,12 @@ export interface AutoReloginState {
 }
 
 export interface AutoReloginShape {
-  readonly disable: Effect.Effect<AutoReloginState>;
-  readonly enable: Effect.Effect<AutoReloginState>;
-  readonly getDelay: Effect.Effect<number>;
-  readonly getServer: Effect.Effect<string | undefined>;
-  readonly getState: Effect.Effect<AutoReloginState>;
-  readonly isEnabled: Effect.Effect<boolean>;
+  readonly disable: () => Effect.Effect<AutoReloginState>;
+  readonly enable: () => Effect.Effect<AutoReloginState>;
+  readonly getDelay: () => Effect.Effect<number>;
+  readonly getServer: () => Effect.Effect<string | undefined>;
+  readonly getState: () => Effect.Effect<AutoReloginState>;
+  readonly isEnabled: () => Effect.Effect<boolean>;
   readonly onState: (
     listener: (state: AutoReloginState) => void,
     options?: StateSubscriptionOptions,
@@ -203,16 +203,16 @@ export const layer = Layer.effect(
         return state;
       });
 
-    const readyNow = player.isReady.pipe(
-      Effect.catchCause(() => Effect.succeed(false)),
-    );
+    const readyNow = player
+      .isReady()
+      .pipe(Effect.catchCause(() => Effect.succeed(false)));
 
     const captureCredentials = (options?: {
       readonly reportFailure?: boolean;
     }) =>
       Effect.gen(function* () {
-        const username = (yield* auth.getUsername).trim();
-        const password = yield* auth.getPassword;
+        const username = (yield* auth.getUsername()).trim();
+        const password = yield* auth.getPassword();
 
         if (username === "" || password === "") {
           yield* updateState((state) => {
@@ -355,7 +355,7 @@ export const layer = Layer.effect(
           return { status: "success" };
         }
 
-        const loggedOut = yield* auth.logout.pipe(
+        const loggedOut = yield* auth.logout().pipe(
           Effect.as(true),
           Effect.catchCause((cause) =>
             Effect.logWarning({
@@ -573,9 +573,9 @@ export const layer = Layer.effect(
       }
 
       if (state.loggedOutSince === undefined && canRelogin(state)) {
-        const loggedIn = yield* auth.isLoggedIn.pipe(
-          Effect.catchCause(() => Effect.succeed(false)),
-        );
+        const loggedIn = yield* auth
+          .isLoggedIn()
+          .pipe(Effect.catchCause(() => Effect.succeed(false)));
         if (!loggedIn) {
           yield* markLoggedOut(yield* Clock.currentTimeMillis);
         }
@@ -673,9 +673,9 @@ export const layer = Layer.effect(
           });
         }
 
-        const servers = yield* auth.getServers.pipe(
-          Effect.catchCause(() => Effect.succeed([])),
-        );
+        const servers = yield* auth
+          .getServers()
+          .pipe(Effect.catchCause(() => Effect.succeed([])));
         const selected =
           servers.length === 0 ? undefined : findServer(servers, normalized);
         const canonicalName = selected?.name ?? normalized;
@@ -695,12 +695,12 @@ export const layer = Layer.effect(
       });
 
     return AutoRelogin.of({
-      disable: setEnabled(false),
-      enable: setEnabled(true),
-      getDelay: snapshot.pipe(Effect.map((state) => state.delayMs)),
-      getServer: snapshot.pipe(Effect.map((state) => state.server)),
-      getState: snapshot,
-      isEnabled: snapshot.pipe(Effect.map((state) => state.enabled)),
+      disable: () => setEnabled(false),
+      enable: () => setEnabled(true),
+      getDelay: () => snapshot.pipe(Effect.map((state) => state.delayMs)),
+      getServer: () => snapshot.pipe(Effect.map((state) => state.server)),
+      getState: () => snapshot,
+      isEnabled: () => snapshot.pipe(Effect.map((state) => state.enabled)),
       onState: (listener, options) => listeners.on(snapshot, listener, options),
       setDelay: (delayMs) =>
         updateState((state) => {

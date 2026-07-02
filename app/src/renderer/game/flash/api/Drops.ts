@@ -9,10 +9,10 @@ import { AuthApi } from "./Auth";
 export interface DropsApiShape {
   readonly accept: (selector: ItemSelector) => Effect.Effect<boolean>;
   readonly contains: (selector: ItemSelector) => Effect.Effect<boolean>;
-  readonly getAll: Effect.Effect<readonly DropRecord[]>;
-  readonly isCustomUiEnabled: Effect.Effect<boolean>;
+  readonly getAll: () => Effect.Effect<readonly DropRecord[]>;
+  readonly isCustomUiEnabled: () => Effect.Effect<boolean>;
   readonly reject: (selector: ItemSelector) => Effect.Effect<boolean>;
-  readonly toggleUi: Effect.Effect<void>;
+  readonly toggleUi: () => Effect.Effect<void>;
 }
 
 export class DropsApi extends Context.Service<DropsApi, DropsApiShape>()(
@@ -38,7 +38,7 @@ export const layer = Layer.effect(
     return DropsApi.of({
       accept: (selector) =>
         Effect.gen(function* () {
-          if (!(yield* auth.isLoggedIn)) {
+          if (!(yield* auth.isLoggedIn())) {
             return false;
           }
 
@@ -53,10 +53,10 @@ export const layer = Layer.effect(
         }),
       contains: drops.contains,
       getAll: drops.getAll,
-      isCustomUiEnabled: bridge.call("drops.isUsingCustomDrops"),
+      isCustomUiEnabled: () => bridge.call("drops.isUsingCustomDrops"),
       reject: (selector) =>
         Effect.gen(function* () {
-          if (!(yield* auth.isLoggedIn)) {
+          if (!(yield* auth.isLoggedIn())) {
             return false;
           }
 
@@ -69,7 +69,7 @@ export const layer = Layer.effect(
           yield* drops.remove(drop.itemId);
           return true;
         }),
-      toggleUi: bridge.call("drops.toggleUi"),
+      toggleUi: () => bridge.call("drops.toggleUi"),
     });
   }),
 );

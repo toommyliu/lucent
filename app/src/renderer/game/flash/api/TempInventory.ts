@@ -9,7 +9,7 @@ export interface TempInventoryApiShape {
     quantity?: number,
   ) => Effect.Effect<boolean>;
   readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: Effect.Effect<readonly ItemRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
 }
 
 export class TempInventoryApi extends Context.Service<
@@ -26,7 +26,7 @@ export const layer = Layer.effect(
       contains: (selector, quantity) =>
         items.contains("temp", selector, quantity),
       get: (selector) => items.get("temp", selector),
-      getAll: items.getAll("temp"),
+      getAll: () => items.getAll("temp"),
     });
   }),
 );

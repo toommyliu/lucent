@@ -27,7 +27,7 @@ const makeHarness = (): Effect.Effect<ProtocolHarness> =>
       PubSub.publish(pubsub, event).pipe(Effect.asVoid);
     const callbacks = FlashCallbacks.of({
       publish,
-      subscribe: PubSub.subscribe(pubsub),
+      subscribe: () => PubSub.subscribe(pubsub),
     });
     const calls: ProtocolHarness["calls"] = [];
     const bridge = SwfBridge.of({

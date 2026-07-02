@@ -49,7 +49,7 @@ describe("SettingsApi", () => {
           yield* settings.setFrameRate(Number.NaN);
           yield* settings.setCustomName("  Hero  ");
 
-          expect(yield* settings.get).toMatchObject({
+          expect(yield* settings.get()).toMatchObject({
             customName: "Hero",
             frameRate: 30,
             walkSpeed: 100,
@@ -78,7 +78,7 @@ describe("SettingsApi", () => {
             yield* settings.setEnemyMagnetEnabled(true);
             yield* settings.setInfiniteRangeEnabled(true);
 
-            expect(yield* settings.get).toMatchObject({
+            expect(yield* settings.get()).toMatchObject({
               enemyMagnetEnabled: true,
               infiniteRangeEnabled: true,
             });
@@ -98,10 +98,10 @@ describe("SettingsApi", () => {
 
           yield* settings.setCustomName("   ");
           yield* settings.setCustomGuild("");
-          const current = yield* settings.get;
+          const current = yield* settings.get();
           yield* settings.apply(current);
 
-          expect(yield* settings.get).toMatchObject({
+          expect(yield* settings.get()).toMatchObject({
             customGuild: "",
             customName: "",
           });
@@ -141,7 +141,7 @@ describe("SettingsApi", () => {
               { args: [], method: "settings.enemyMagnet" },
               { args: [], method: "settings.provokeCell" },
             ]);
-            expect(yield* settings.get).toMatchObject({
+            expect(yield* settings.get()).toMatchObject({
               enemyMagnetEnabled: false,
               frameRate: 30,
               provokeCellEnabled: false,
@@ -162,7 +162,7 @@ describe("SettingsApi", () => {
 
           yield* settings.setAntiCounterEnabled(false);
 
-          expect(yield* settings.get).toMatchObject({
+          expect(yield* settings.get()).toMatchObject({
             antiCounterEnabled: false,
           });
           expect(harness.calls).toEqual([]);

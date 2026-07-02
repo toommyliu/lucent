@@ -8,10 +8,10 @@ interface DropsRuntimeState {
 }
 
 export interface DropsStateShape {
-  readonly clear: Effect.Effect<void>;
+  readonly clear: () => Effect.Effect<void>;
   readonly contains: (selector: ItemSelector) => Effect.Effect<boolean>;
   readonly get: (selector: ItemSelector) => Effect.Effect<DropRecord | null>;
-  readonly getAll: Effect.Effect<readonly DropRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly DropRecord[]>;
   readonly remove: (itemId: number) => Effect.Effect<void>;
   readonly replace: (drops: readonly DropRecord[]) => Effect.Effect<void>;
   readonly upsert: (drop: DropRecord) => Effect.Effect<void>;
@@ -45,16 +45,18 @@ export const layer = Layer.effect(
       );
 
     return DropsState.of({
-      clear: SynchronizedRef.update(ref, (state) => {
-        state.drops.clear();
-        return state;
-      }),
+      clear: () =>
+        SynchronizedRef.update(ref, (state) => {
+          state.drops.clear();
+          return state;
+        }),
       contains: (selector) =>
         get(selector).pipe(Effect.map((drop) => drop !== null)),
       get,
-      getAll: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => Array.from(state.drops.values())),
-      ),
+      getAll: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => Array.from(state.drops.values())),
+        ),
       remove: (itemId) =>
         SynchronizedRef.update(ref, (state) => {
           state.drops.delete(itemId);

@@ -20,3 +20,4 @@ export * as SettingsApi from "./api/Settings";
 export * as ShopsApi from "./api/Shops";
 export * as TempInventoryApi from "./api/TempInventory";
 export * as WaitApi from "./api/Wait";
+export * as Scripting from "../scripting/ScriptRunner";

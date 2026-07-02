@@ -40,7 +40,7 @@ describe("Jobs", () => {
 
         expect(started).toBe(true);
         expect(yield* jobs.isRunning("once")).toBe(false);
-        expect(yield* jobs.getRunningKeys).toEqual([]);
+        expect(yield* jobs.getRunningKeys()).toEqual([]);
       }),
     ),
   );
@@ -170,10 +170,10 @@ describe("Jobs", () => {
         );
         yield* Effect.yieldNow;
 
-        yield* jobs.stopAll;
+        yield* jobs.stopAll();
         yield* Deferred.await(interruptedA);
         yield* Deferred.await(interruptedB);
-        expect(yield* jobs.getRunningKeys).toEqual([]);
+        expect(yield* jobs.getRunningKeys()).toEqual([]);
       }),
     ),
   );

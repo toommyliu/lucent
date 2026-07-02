@@ -33,16 +33,16 @@ export const layer = Layer.effectDiscard(
     const settings = yield* SettingsApi;
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
-    const isLoggedIn = player.isReady.pipe(
-      Effect.catchCause(() => Effect.succeed(false)),
-    );
+    const isLoggedIn = player
+      .isReady()
+      .pipe(Effect.catchCause(() => Effect.succeed(false)));
 
-    const applyCurrentSettings = settings.get.pipe(
-      Effect.flatMap((current) => settings.apply(current)),
-    );
+    const applyCurrentSettings = settings
+      .get()
+      .pipe(Effect.flatMap((current) => settings.apply(current)));
 
     const applyRecurringSettingActions = Effect.gen(function* () {
-      const current = yield* settings.get;
+      const current = yield* settings.get();
       if (!hasRecurringSettingActions(current)) {
         return;
       }

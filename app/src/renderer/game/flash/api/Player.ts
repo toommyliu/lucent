@@ -22,7 +22,7 @@ export interface FactionsApi {
   readonly get: (
     selector: string | number,
   ) => Effect.Effect<FactionRecord | null>;
-  readonly getAll: Effect.Effect<readonly FactionRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly FactionRecord[]>;
 }
 
 export interface OutfitsApi {
@@ -31,7 +31,7 @@ export interface OutfitsApi {
     options?: OutfitOptions,
   ) => Effect.Effect<boolean>;
   readonly get: (name: string) => Effect.Effect<OutfitRecord | null>;
-  readonly getAll: Effect.Effect<readonly OutfitRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly OutfitRecord[]>;
   readonly wear: (
     name: string,
     options?: OutfitOptions,
@@ -40,31 +40,31 @@ export interface OutfitsApi {
 
 export interface SelfAurasApi {
   readonly get: (auraName: string) => Effect.Effect<AuraRecord | null>;
-  readonly getAll: Effect.Effect<readonly AuraRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly AuraRecord[]>;
   readonly has: (auraName: string) => Effect.Effect<boolean>;
 }
 
 export interface PlayerApiShape {
   readonly auras: SelfAurasApi;
   readonly factions: FactionsApi;
-  readonly getCell: Effect.Effect<string>;
-  readonly getClassName: Effect.Effect<string>;
-  readonly getGender: Effect.Effect<string>;
-  readonly getGold: Effect.Effect<number>;
-  readonly getHp: Effect.Effect<number>;
-  readonly getLevel: Effect.Effect<number>;
-  readonly getMaxHp: Effect.Effect<number>;
-  readonly getMaxMp: Effect.Effect<number>;
-  readonly getMp: Effect.Effect<number>;
-  readonly getPad: Effect.Effect<string>;
-  readonly getPosition: Effect.Effect<Position>;
-  readonly getState: Effect.Effect<number>;
+  readonly getCell: () => Effect.Effect<string>;
+  readonly getClassName: () => Effect.Effect<string>;
+  readonly getGender: () => Effect.Effect<string>;
+  readonly getGold: () => Effect.Effect<number>;
+  readonly getHp: () => Effect.Effect<number>;
+  readonly getLevel: () => Effect.Effect<number>;
+  readonly getMaxHp: () => Effect.Effect<number>;
+  readonly getMaxMp: () => Effect.Effect<number>;
+  readonly getMp: () => Effect.Effect<number>;
+  readonly getPad: () => Effect.Effect<string>;
+  readonly getPosition: () => Effect.Effect<Position>;
+  readonly getState: () => Effect.Effect<number>;
   readonly goToPlayer: (name: string) => Effect.Effect<void>;
   readonly hasActiveBoost: (boostType: string) => Effect.Effect<boolean>;
-  readonly isAfk: Effect.Effect<boolean>;
-  readonly isAlive: Effect.Effect<boolean>;
-  readonly isMember: Effect.Effect<boolean>;
-  readonly isReady: Effect.Effect<boolean>;
+  readonly isAfk: () => Effect.Effect<boolean>;
+  readonly isAlive: () => Effect.Effect<boolean>;
+  readonly isMember: () => Effect.Effect<boolean>;
+  readonly isReady: () => Effect.Effect<boolean>;
   readonly joinMap: (
     map: string,
     cell?: string,
@@ -197,9 +197,9 @@ export const layer = Layer.effect(
     const wait = yield* WaitApi;
     const world = yield* WorldState;
 
-    const self = world.getMe.pipe(
-      Effect.map((player) => player ?? defaultPlayer),
-    );
+    const self = world
+      .getMe()
+      .pipe(Effect.map((player) => player ?? defaultPlayer));
     const project = <A>(f: (player: PlayerRecord) => A) =>
       self.pipe(Effect.map(f));
 
@@ -213,14 +213,15 @@ export const layer = Layer.effect(
 
           return yield* players.auras.get(player.entityId, auraName);
         }),
-      getAll: Effect.gen(function* () {
-        const player = yield* self;
-        if (player.entityId === 0) {
-          return [];
-        }
+      getAll: () =>
+        Effect.gen(function* () {
+          const player = yield* self;
+          if (player.entityId === 0) {
+            return [];
+          }
 
-        return yield* world.getPlayerAuras(player.entityId);
-      }),
+          return yield* world.getPlayerAuras(player.entityId);
+        }),
       has: (auraName) =>
         auras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
@@ -249,7 +250,7 @@ export const layer = Layer.effect(
               ) ?? null,
           ),
         ),
-      getAll: getFactions,
+      getAll: () => getFactions,
     };
 
     const getOutfits = bridge
@@ -283,7 +284,7 @@ export const layer = Layer.effect(
               null,
           ),
         ),
-      getAll: getOutfits,
+      getAll: () => getOutfits,
       wear: (name, options) =>
         wait
           .forGameAction("wearLoadout")
@@ -297,7 +298,7 @@ export const layer = Layer.effect(
     };
 
     const isAlive = Effect.gen(function* () {
-      const player = yield* world.getMe;
+      const player = yield* world.getMe();
       if (player !== null && playerIsAlive(player)) {
         return true;
       }
@@ -362,7 +363,7 @@ export const layer = Layer.effect(
 
         const loaded = yield* wait.until(
           Effect.gen(function* () {
-            const current = yield* map.getName;
+            const current = yield* map.getName();
             if (!equalsIgnoreCase(current, parsed.name)) {
               return false;
             }
@@ -371,7 +372,7 @@ export const layer = Layer.effect(
               return true;
             }
 
-            return (yield* map.getRoomNumber) === parsed.roomNumber;
+            return (yield* map.getRoomNumber()) === parsed.roomNumber;
           }),
           { timeout: "10 seconds" },
         );
@@ -388,37 +389,39 @@ export const layer = Layer.effect(
     return PlayerApi.of({
       auras,
       factions,
-      getCell: project((player) => player.cell),
-      getClassName: bridge.call("player.getClassName"),
-      getGender: bridge.call("player.getGender"),
-      getGold: bridge.call("player.getGold"),
-      getHp: project((player) => player.hp),
-      getLevel: project((player) => player.level),
-      getMaxHp: project((player) => player.maxHp),
-      getMaxMp: project((player) => player.maxMp),
-      getMp: project((player) => player.mp),
-      getPad: project((player) => player.pad),
-      getPosition: project((player) => ({
-        x: player.position[0],
-        y: player.position[1],
-      })),
-      getState: project((player) => player.state),
+      getCell: () => project((player) => player.cell),
+      getClassName: () => bridge.call("player.getClassName"),
+      getGender: () => bridge.call("player.getGender"),
+      getGold: () => bridge.call("player.getGold"),
+      getHp: () => project((player) => player.hp),
+      getLevel: () => project((player) => player.level),
+      getMaxHp: () => project((player) => player.maxHp),
+      getMaxMp: () => project((player) => player.maxMp),
+      getMp: () => project((player) => player.mp),
+      getPad: () => project((player) => player.pad),
+      getPosition: () =>
+        project((player) => ({
+          x: player.position[0],
+          y: player.position[1],
+        })),
+      getState: () => project((player) => player.state),
       goToPlayer: (name) =>
         name.trim() === ""
           ? Effect.void
           : bridge.call("player.goToPlayer", [name.trim()]),
       hasActiveBoost: (boostType) =>
         bridge.call("player.hasActiveBoost", [boostType]),
-      isAfk: project((player) => player.afk),
-      isAlive,
-      isMember: bridge.call("player.isMember"),
-      isReady: Effect.gen(function* () {
-        return (
-          (yield* auth.isLoggedIn) &&
-          (yield* map.isLoaded) &&
-          (yield* bridge.call("player.isLoaded"))
-        );
-      }),
+      isAfk: () => project((player) => player.afk),
+      isAlive: () => isAlive,
+      isMember: () => bridge.call("player.isMember"),
+      isReady: () =>
+        Effect.gen(function* () {
+          return (
+            (yield* auth.isLoggedIn()) &&
+            (yield* map.isLoaded()) &&
+            (yield* bridge.call("player.isLoaded"))
+          );
+        }),
       joinMap,
       jumpToCell,
       outfits,
@@ -482,7 +485,7 @@ export const layer = Layer.effect(
 
           const settled = yield* wait.until(
             Effect.gen(function* () {
-              const projected = yield* world.getMe;
+              const projected = yield* world.getMe();
               if (projected !== null) {
                 return (
                   projected.position[0] === targetX &&

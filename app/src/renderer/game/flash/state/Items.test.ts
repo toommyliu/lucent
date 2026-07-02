@@ -74,14 +74,14 @@ describe("ItemsState reducers", () => {
           99: item(4, "Dropped Token", { iQty: 5, sES: "", sType: "Item" }),
         },
       });
-      expect((yield* items.getDrops)[0]?.dropQuantity).toBe(5);
+      expect((yield* items.getDrops())[0]?.dropQuantity).toBe(5);
 
       yield* items.reduceGetDrop({
         ItemID: 4,
         bSuccess: true,
         iQty: 5,
       });
-      expect(yield* items.getDrops).toHaveLength(0);
+      expect(yield* items.getDrops()).toHaveLength(0);
       expect((yield* items.get("inventory", 4))?.quantity).toBe(5);
 
       yield* items.reduceAddItems({

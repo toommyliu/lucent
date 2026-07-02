@@ -684,9 +684,13 @@ export function TopNav(props: TopNavProps): JSX.Element {
               Scripts
             </TopNavMenuTrigger>
             <MenuContent class="game-menu game-menu--scripts" portal={false}>
+              <div class="game-menu__status" role="status">
+                {props.scriptStatus()}
+              </div>
               <MenuGroup>
                 <MenuItem
                   class="game-menu__item"
+                  disabled={props.scriptRunning()}
                   onSelect={() => void props.loadScript()}
                   value="loadScript"
                 >
@@ -714,7 +718,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </MenuItem>
                 <MenuItem
                   class="game-menu__item"
-                  disabled={!props.scriptLoaded() || props.scriptRunning()}
+                  disabled={!props.scriptLoaded()}
                   onSelect={props.toggleScript}
                   value="start-script"
                 >

@@ -66,7 +66,7 @@ const makeHarness = () => {
     once: () => Effect.succeed(null),
   } satisfies EventsApiShape);
   const player = PlayerApi.of({
-    isReady: Effect.sync(() => ready),
+    isReady: () => Effect.sync(() => ready),
   } as PlayerApiShape);
 
   const base = Layer.mergeAll(

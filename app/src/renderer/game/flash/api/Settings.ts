@@ -10,15 +10,15 @@ import type {
 
 export interface SettingsApiShape {
   readonly apply: (patch: FlashSettingsPatch) => Effect.Effect<void>;
-  readonly enemyMagnet: Effect.Effect<void>;
-  readonly get: Effect.Effect<FlashSettingsSnapshot>;
-  readonly infiniteRange: Effect.Effect<void>;
-  readonly isAntiCounterEnabled: Effect.Effect<boolean>;
+  readonly enemyMagnet: () => Effect.Effect<void>;
+  readonly get: () => Effect.Effect<FlashSettingsSnapshot>;
+  readonly infiniteRange: () => Effect.Effect<void>;
+  readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
   readonly onState: (
     listener: (state: FlashSettingsSnapshot) => void,
     options?: StateSubscriptionOptions,
   ) => Effect.Effect<StateDisposer>;
-  readonly provokeCell: Effect.Effect<void>;
+  readonly provokeCell: () => Effect.Effect<void>;
   readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setCollisionsEnabled: (enabled: boolean) => Effect.Effect<void>;
@@ -33,7 +33,7 @@ export interface SettingsApiShape {
   readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
-  readonly skipCutscenes: Effect.Effect<void>;
+  readonly skipCutscenes: () => Effect.Effect<void>;
 }
 
 export class SettingsApi extends Context.Service<
@@ -47,10 +47,10 @@ export const layer = Layer.effect(
     const bridge = yield* SwfBridge;
     const state = yield* SettingsState;
 
-    const enemyMagnet = bridge.call("settings.enemyMagnet");
-    const infiniteRange = bridge.call("settings.infiniteRange");
-    const provokeCell = bridge.call("settings.provokeCell");
-    const skipCutscenes = bridge.call("settings.skipCutscenes");
+    const enemyMagnet = () => bridge.call("settings.enemyMagnet");
+    const infiniteRange = () => bridge.call("settings.infiniteRange");
+    const provokeCell = () => bridge.call("settings.provokeCell");
+    const skipCutscenes = () => bridge.call("settings.skipCutscenes");
 
     const applyPersistentPatch = (patch: FlashSettingsPatch) =>
       Effect.gen(function* () {
@@ -104,19 +104,19 @@ export const layer = Layer.effect(
     const applyActionPatch = (patch: FlashSettingsPatch) =>
       Effect.gen(function* () {
         if (patch.enemyMagnetEnabled === true) {
-          yield* enemyMagnet;
+          yield* enemyMagnet();
         }
 
         if (patch.infiniteRangeEnabled === true) {
-          yield* infiniteRange;
+          yield* infiniteRange();
         }
 
         if (patch.provokeCellEnabled === true) {
-          yield* provokeCell;
+          yield* provokeCell();
         }
 
         if (patch.skipCutscenesEnabled === true) {
-          yield* skipCutscenes;
+          yield* skipCutscenes();
         }
       });
 
@@ -140,9 +140,8 @@ export const layer = Layer.effect(
       enemyMagnet,
       get: state.get,
       infiniteRange,
-      isAntiCounterEnabled: state.get.pipe(
-        Effect.map((settings) => settings.antiCounterEnabled),
-      ),
+      isAntiCounterEnabled: () =>
+        state.get().pipe(Effect.map((settings) => settings.antiCounterEnabled)),
       onState: state.onState,
       provokeCell,
       setAnimationsEnabled: (enabled) =>

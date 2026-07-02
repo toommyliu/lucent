@@ -8,9 +8,9 @@ interface QuestsRuntimeState {
 }
 
 export interface QuestsStateShape {
-  readonly clear: Effect.Effect<void>;
+  readonly clear: () => Effect.Effect<void>;
   readonly get: (questId: number) => Effect.Effect<QuestRecord | null>;
-  readonly getAll: Effect.Effect<readonly QuestRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly QuestRecord[]>;
   readonly has: (questId: number) => Effect.Effect<boolean>;
   readonly reduceGetQuests: (payload: unknown) => Effect.Effect<void>;
 }
@@ -28,17 +28,19 @@ export const layer = Layer.effect(
     });
 
     return QuestsState.of({
-      clear: SynchronizedRef.update(ref, (state) => {
-        state.quests.clear();
-        return state;
-      }),
+      clear: () =>
+        SynchronizedRef.update(ref, (state) => {
+          state.quests.clear();
+          return state;
+        }),
       get: (questId) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => state.quests.get(questId) ?? null),
         ),
-      getAll: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => Array.from(state.quests.values())),
-      ),
+      getAll: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => Array.from(state.quests.values())),
+        ),
       has: (questId) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => state.quests.has(questId)),

@@ -25,8 +25,8 @@ export interface MonstersApiShape {
   readonly get: (
     selector: MonsterSelector,
   ) => Effect.Effect<MonsterRecord | null>;
-  readonly getAll: Effect.Effect<readonly MonsterRecord[]>;
-  readonly getAvailable: Effect.Effect<readonly MonsterRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly MonsterRecord[]>;
+  readonly getAvailable: () => Effect.Effect<readonly MonsterRecord[]>;
   readonly isAvailable: (selector: MonsterSelector) => Effect.Effect<boolean>;
 }
 
@@ -84,22 +84,23 @@ export const layer = Layer.effect(
       auras,
       get: world.getMonster,
       getAll: world.getMonsters,
-      getAvailable: bridge.call("world.getAvailableMonsterMapIds").pipe(
-        Effect.flatMap((ids) =>
-          Effect.forEach(
-            Array.isArray(ids) ? ids.map(asPositiveInt) : [],
-            (id) =>
-              id === undefined
-                ? Effect.succeed(null)
-                : world.getMonster({ monMapId: id }),
+      getAvailable: () =>
+        bridge.call("world.getAvailableMonsterMapIds").pipe(
+          Effect.flatMap((ids) =>
+            Effect.forEach(
+              Array.isArray(ids) ? ids.map(asPositiveInt) : [],
+              (id) =>
+                id === undefined
+                  ? Effect.succeed(null)
+                  : world.getMonster({ monMapId: id }),
+            ),
+          ),
+          Effect.map((monsters) =>
+            monsters.filter(
+              (monster): monster is MonsterRecord => monster !== null,
+            ),
           ),
         ),
-        Effect.map((monsters) =>
-          monsters.filter(
-            (monster): monster is MonsterRecord => monster !== null,
-          ),
-        ),
-      ),
       isAvailable,
     });
   }),
