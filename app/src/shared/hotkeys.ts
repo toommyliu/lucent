@@ -243,6 +243,19 @@ const modifierOrder = new Map([
   ["Meta", 4],
 ]);
 
+const punctuationCodeMap: Readonly<Record<string, string>> = {
+  Backquote: "`",
+  Backslash: "\\",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Equal: "=",
+  Minus: "-",
+  Period: ".",
+  Semicolon: ";",
+  Slash: "/",
+};
+
 const normalizeKey = (value: string): string | null => {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
@@ -255,6 +268,20 @@ const normalizeKey = (value: string): string | null => {
   }
 
   return /^[a-z]$/i.test(trimmed) ? trimmed.toUpperCase() : trimmed;
+};
+
+const readPhysicalKeyFromCode = (code: string): string | null => {
+  if (code.startsWith("Key")) {
+    const value = code.slice(3);
+    return /^[A-Z]$/.test(value) ? value : null;
+  }
+
+  if (code.startsWith("Digit")) {
+    const value = code.slice(5);
+    return /^[0-9]$/.test(value) ? value : null;
+  }
+
+  return punctuationCodeMap[code] ?? null;
 };
 
 export const isSettingsCommandId = (
@@ -319,6 +346,77 @@ export const normalizeHotkeyBindingValue = (value: unknown): string | null => {
 
   return [...modifiers, nonModifiers[0]].join("+");
 };
+
+export const readHotkeyInputFromEvent = (
+  event: Pick<
+    KeyboardEvent,
+    "altKey" | "code" | "ctrlKey" | "key" | "metaKey" | "shiftKey"
+  >,
+): string => {
+  const parts: string[] = [];
+  if (event.ctrlKey) {
+    parts.push("Control");
+  }
+  if (event.altKey) {
+    parts.push("Alt");
+  }
+  if (event.shiftKey) {
+    parts.push("Shift");
+  }
+  if (event.metaKey) {
+    parts.push("Meta");
+  }
+
+  const hasModifier =
+    event.ctrlKey || event.altKey || event.shiftKey || event.metaKey;
+  const physicalKey =
+    hasModifier && event.code.length > 0
+      ? readPhysicalKeyFromCode(event.code)
+      : null;
+  parts.push(physicalKey ?? event.key);
+  return parts.join("+");
+};
+
+const resolveHotkeyModifier = (
+  part: string,
+  platform: HotkeyDisplayPlatform,
+): string => {
+  if (part !== "Mod") {
+    return part;
+  }
+
+  return platform === "mac" ? "Meta" : "Control";
+};
+
+export const hotkeyBindingMatchKey = (
+  value: string,
+  platform: HotkeyDisplayPlatform,
+): string | null => {
+  const normalized = normalizeHotkeyBindingValue(value);
+  if (normalized === null || normalized.length === 0) {
+    return null;
+  }
+
+  const resolved = normalized
+    .split("+")
+    .map((part) => resolveHotkeyModifier(part, platform))
+    .join("+");
+  const normalizedResolved = normalizeHotkeyBindingValue(resolved);
+  if (normalizedResolved === null || normalizedResolved.length === 0) {
+    return null;
+  }
+
+  return normalizedResolved.toLowerCase();
+};
+
+export const hotkeyInputMatchKey = (
+  event: Pick<
+    KeyboardEvent,
+    "altKey" | "code" | "ctrlKey" | "key" | "metaKey" | "shiftKey"
+  >,
+  platform: HotkeyDisplayPlatform,
+): string | null =>
+  hotkeyBindingMatchKey(readHotkeyInputFromEvent(event), platform);
 
 export const normalizeHotkeySettings = (value: unknown): HotkeysSettings => {
   const defaultValues = new Map<SettingsCommandId, string>(

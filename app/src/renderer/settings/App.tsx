@@ -54,6 +54,7 @@ import {
   formatHotkeyDisplay as displayHotkey,
   formatHotkeyDisplayParts as displayHotkeyParts,
   normalizeHotkeyBindingValue,
+  readHotkeyInputFromEvent,
   readHotkeyBinding,
   type HotkeyBinding,
   type SettingsCommandCategory as CommandCategory,
@@ -75,7 +76,6 @@ import {
   type ThemeVariant,
 } from "../../shared/settings";
 import type { UpdateCheckState } from "../../shared/updates";
-import { readRecordedHotkeyFromEvent } from "./hotkeyRecording";
 
 type HotkeyBindings = readonly HotkeyBinding[];
 type SettingsWindowDesktopBridge = DesktopBridge & {
@@ -807,7 +807,7 @@ function HotkeySettingsSection(props: {
       }
 
       const normalized = normalizeHotkeyBinding(
-        readRecordedHotkeyFromEvent(event),
+        readHotkeyInputFromEvent(event),
         props.platform,
       );
       if (normalized === undefined) {

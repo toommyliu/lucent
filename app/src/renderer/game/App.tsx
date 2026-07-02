@@ -11,6 +11,13 @@ import {
 } from "solid-js";
 
 import type { AppPlatform } from "../../shared/desktopBridge";
+import {
+  SETTINGS_COMMANDS,
+  hotkeyBindingMatchKey,
+  hotkeyInputMatchKey,
+  readHotkeyBinding,
+  type SettingsCommandId,
+} from "../../shared/hotkeys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
 import * as Api from "./flash";
 import type { FlashSettingsPatch, FlashSettingsSnapshot } from "./flash";
@@ -29,6 +36,9 @@ import {
   type CombatProfileAutoAttackMode,
   type GameTopNavMenu,
   type TopNavOptionItem,
+  type WindowId,
+  topNavOptionCommandIds,
+  windowCommandIds,
 } from "./TopNav";
 
 declare const LUCENT_DEV: boolean;
@@ -95,6 +105,14 @@ interface TravelOptions {
   readonly mapPads: readonly string[];
 }
 
+type GameHotkeyHandler = () => void | Promise<void>;
+
+const windowIdsByCommandId = new Map<SettingsCommandId, WindowId>(
+  Object.entries(windowCommandIds).flatMap(([id, commandId]) =>
+    commandId === undefined ? [] : [[commandId, id as WindowId] as const],
+  ),
+);
+
 const noop = (): void => {};
 const loadScriptNoop = (): void => {
   console.debug("[game:script:no-op]", "load");
@@ -108,6 +126,31 @@ const openScriptInputsNoop = (): void => {
 
 const writeDocumentLoaded = (loaded: boolean): void => {
   document.documentElement.dataset["loaded"] = loaded ? "true" : "false";
+};
+
+const writeTopNavHidden = (hidden: boolean): void => {
+  document.documentElement.toggleAttribute("data-topnav-hidden", hidden);
+};
+
+const isEditableHotkeyTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  const editable = target.closest("input, textarea, select, [contenteditable]");
+  if (editable === null) {
+    return false;
+  }
+
+  return editable.getAttribute("contenteditable") !== "false";
+};
+
+const isFlashTextFieldFocused = (): boolean => {
+  try {
+    return window.swf["flash.isTextFieldFocused"]();
+  } catch {
+    return false;
+  }
 };
 
 const EffectFunction = Function as unknown as new (
@@ -620,12 +663,15 @@ export function App(props: {
   readonly initialSettings?: AppSettings | null;
   readonly platform: AppPlatform;
 }): JSX.Element {
-  const settings = () => props.initialSettings ?? DEFAULT_APP_SETTINGS;
+  const [settings, setSettings] = createSignal<AppSettings>(
+    props.initialSettings ?? DEFAULT_APP_SETTINGS,
+  );
   const [loadState, setLoadState] = createSignal<GameLoadState>({
     loaded: false,
     progress: 0,
   });
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(null);
+  const [topNavVisible, setTopNavVisible] = createSignal(true);
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
     DEFAULT_FLASH_SETTINGS,
   );
@@ -1338,6 +1384,147 @@ export function App(props: {
       });
   };
 
+  const toggleTopNav = () => {
+    setTopNavVisible((visible) => !visible);
+    setOpenMenu(null);
+  };
+
+  const toggleOptionsMenu = () => {
+    setOpenMenu((menu) => (menu === "options" ? null : "options"));
+  };
+
+  const handleOpenWindow = (id: WindowId) => {
+    console.debug("[game:window:no-op]", id);
+    setOpenMenu(null);
+  };
+
+  const handleToggleFollower = () => {
+    console.debug("[game:follower:no-op]", "toggle");
+    setOpenMenu(null);
+  };
+
+  const selectOptionCommand = (commandId: SettingsCommandId) => {
+    const optionId = topNavOptionCommandIds[commandId];
+    if (optionId === undefined) {
+      return;
+    }
+
+    const option = optionItems().find((item) => item.id === optionId);
+    if (option === undefined || option.disabled === true) {
+      return;
+    }
+
+    option.onSelect();
+    setOpenMenu(null);
+  };
+
+  const commandHandlers = createMemo<
+    ReadonlyMap<SettingsCommandId, GameHotkeyHandler>
+  >(() => {
+    const handlers = new Map<SettingsCommandId, GameHotkeyHandler>([
+      ["toggleTopBar", toggleTopNav],
+      ["loadScript", loadScriptNoop],
+      ["toggleScript", toggleScriptNoop],
+      ["toggleOptionsMenu", toggleOptionsMenu],
+      ["toggleAutoattack", noop],
+      ["toggleFollower", handleToggleFollower],
+      ["toggleBank", handleOpenBank],
+    ]);
+
+    for (const commandId of Object.keys(
+      topNavOptionCommandIds,
+    ) as SettingsCommandId[]) {
+      handlers.set(commandId, () => selectOptionCommand(commandId));
+    }
+
+    for (const commandId of windowIdsByCommandId.keys()) {
+      handlers.set(commandId, () => {
+        const windowId = windowIdsByCommandId.get(commandId);
+        if (windowId !== undefined) {
+          handleOpenWindow(windowId);
+        }
+      });
+    }
+
+    return handlers;
+  });
+
+  const hotkeyHandlersByMatchKey = createMemo(() => {
+    const handlers = commandHandlers();
+    const byMatchKey = new Map<string, GameHotkeyHandler>();
+
+    for (const command of SETTINGS_COMMANDS) {
+      const handler = handlers.get(command.id);
+      if (handler === undefined) {
+        continue;
+      }
+
+      const matchKey = hotkeyBindingMatchKey(
+        readHotkeyBinding(settings().hotkeys.bindings, command.id),
+        props.platform,
+      );
+      if (matchKey !== null && !byMatchKey.has(matchKey)) {
+        byMatchKey.set(matchKey, handler);
+      }
+    }
+
+    return byMatchKey;
+  });
+
+  onMount(() => {
+    let disposed = false;
+    const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
+
+    void window.desktop.settings
+      .get()
+      .then((nextSettings) => {
+        if (!disposed) {
+          setSettings(nextSettings);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("[game:settings]", "desktop sync failed", error);
+      });
+
+    onCleanup(() => {
+      disposed = true;
+      unsubscribeSettings();
+    });
+  });
+
+  onMount(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.isComposing ||
+        isEditableHotkeyTarget(event.target) ||
+        isFlashTextFieldFocused()
+      ) {
+        return;
+      }
+
+      const matchKey = hotkeyInputMatchKey(event, props.platform);
+      if (matchKey === null) {
+        return;
+      }
+
+      const handler = hotkeyHandlersByMatchKey().get(matchKey);
+      if (handler === undefined) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void handler();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    onCleanup(() => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    });
+  });
+
   onMount(() => {
     let autoReloginDisposer: (() => void) | undefined;
     let autoZoneDisposer: (() => void) | undefined;
@@ -1476,8 +1663,20 @@ export function App(props: {
     }
   });
 
+  createEffect(() => {
+    writeTopNavHidden(!topNavVisible());
+  });
+
+  onCleanup(() => {
+    writeTopNavHidden(false);
+  });
+
   return (
-    <main class="game-app" data-platform={platformLabel()}>
+    <main
+      class="game-app"
+      classList={{ "game-app--topnav-hidden": !topNavVisible() }}
+      data-platform={platformLabel()}
+    >
       <TopNav
         openMenu={openMenu}
         setOpenMenu={setOpenMenu}
@@ -1551,6 +1750,7 @@ export function App(props: {
         handleSelectCell={handleSelectCell}
         handleSelectPad={handleSelectPad}
         handleOpenBank={handleOpenBank}
+        handleOpenWindow={handleOpenWindow}
       />
 
       <section
