@@ -2473,6 +2473,7 @@ a.badge--destructive:hover {
 .combobox__item {
   align-items: center;
   border-radius: var(--radius-sm);
+  box-sizing: border-box;
   color: rgb(var(--foreground));
   cursor: default;
   display: grid;
@@ -2482,8 +2483,10 @@ a.badge--destructive:hover {
   grid-template-columns: 1rem minmax(0, 1fr);
   line-height: 1.2;
   min-height: 1.75rem;
+  min-width: 0;
   outline: none;
   padding: 0.25rem 1rem 0.25rem 0.5rem;
+  width: 100%;
 }
 
 .select__item[data-highlighted],
@@ -2524,7 +2527,8 @@ a.badge--destructive:hover {
 .combobox__item-text {
   grid-column: 2;
   min-width: 0;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .select__label,
