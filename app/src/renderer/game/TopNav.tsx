@@ -158,6 +158,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly handleSelectCell: (cell: string) => void;
   readonly handleSelectPad: (pad: string) => void;
   readonly handleOpenBank: () => void;
+  readonly handleOpenWindow: (id: WindowId) => void;
 }
 
 const gameWindowGroups: readonly {
@@ -181,7 +182,9 @@ const gameWindowGroups: readonly {
   },
 ];
 
-const topNavOptionCommandIds: Partial<Record<SettingsCommandId, string>> = {
+export const topNavOptionCommandIds: Partial<
+  Record<SettingsCommandId, string>
+> = {
   toggleInfiniteRange: "infinite-range",
   toggleProvokeCell: "provoke-cell",
   toggleEnemyMagnet: "enemy-magnet",
@@ -201,7 +204,7 @@ const commandIdsByOptionId = new Map<string, SettingsCommandId>(
   ]),
 );
 
-const windowCommandIds: Partial<Record<WindowId, SettingsCommandId>> = {
+export const windowCommandIds: Partial<Record<WindowId, SettingsCommandId>> = {
   environment: "openEnvironment",
   "loader-grabber": "openLoaderGrabber",
   follower: "openFollower",
@@ -565,11 +568,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
       props.setOpenMenu((current) => (current === menu ? null : menu));
     };
 
-  const openWindow = (id: WindowId) => {
-    console.debug("[game:window:no-op]", id);
-    props.setOpenMenu(null);
-  };
-
   const gameInteractionDisabled = () => !props.playerReady();
 
   const travelDisabled = () => gameInteractionDisabled() || props.travelBusy();
@@ -651,7 +649,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                         {(item) => (
                           <MenuItem
                             class="game-menu__item"
-                            onSelect={() => openWindow(item.id)}
+                            onSelect={() => props.handleOpenWindow(item.id)}
                             value={item.id}
                           >
                             <span class="game-menu__item-label">
