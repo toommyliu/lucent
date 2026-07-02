@@ -152,13 +152,13 @@ describe("AuthApi", () => {
         Effect.gen(function* () {
           const auth = yield* AuthApi;
           const loggedIn = yield* auth.login("Hero", "pw");
-          const servers = yield* auth.getServers;
+          const servers = yield* auth.getServers();
 
           expect(loggedIn).toBe(true);
           expect(harness.loginCalls()).toBe(1);
           expect(servers.map((server) => server.name)).toEqual(["Artix"]);
-          expect(yield* auth.getUsername).toBe("Hero");
-          expect(yield* auth.getPassword).toBe("pw");
+          expect(yield* auth.getUsername()).toBe("Hero");
+          expect(yield* auth.getPassword()).toBe("pw");
         }).pipe(Effect.provide(harness.layer)),
       );
     }),
@@ -175,7 +175,7 @@ describe("AuthApi", () => {
           Effect.gen(function* () {
             const auth = yield* AuthApi;
             const loggedIn = yield* auth.login("Hero", "pw");
-            const servers = yield* auth.getServers;
+            const servers = yield* auth.getServers();
 
             expect(loggedIn).toBe(false);
             expect(harness.loginCalls()).toBe(1);

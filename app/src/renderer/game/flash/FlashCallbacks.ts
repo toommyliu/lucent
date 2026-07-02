@@ -41,7 +41,7 @@ type CallbackKey =
 
 export interface FlashCallbacksShape {
   readonly publish: (event: FlashCallback) => Effect.Effect<void>;
-  readonly subscribe: Effect.Effect<
+  readonly subscribe: () => Effect.Effect<
     PubSub.Subscription<FlashCallback>,
     never,
     Scope.Scope
@@ -143,7 +143,7 @@ export const layer = Layer.effect(
 
     return FlashCallbacks.of({
       publish,
-      subscribe: PubSub.subscribe(pubsub),
+      subscribe: () => PubSub.subscribe(pubsub),
     });
   }),
 );

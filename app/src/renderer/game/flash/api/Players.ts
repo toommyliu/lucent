@@ -20,8 +20,8 @@ export interface PlayersApiShape {
   readonly get: (
     selector: string | number,
   ) => Effect.Effect<PlayerRecord | null>;
-  readonly getAll: Effect.Effect<readonly PlayerRecord[]>;
-  readonly getMe: Effect.Effect<PlayerRecord | null>;
+  readonly getAll: () => Effect.Effect<readonly PlayerRecord[]>;
+  readonly getMe: () => Effect.Effect<PlayerRecord | null>;
 }
 
 export class PlayersApi extends Context.Service<PlayersApi, PlayersApiShape>()(

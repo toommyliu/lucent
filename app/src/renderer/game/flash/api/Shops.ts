@@ -28,15 +28,15 @@ export interface ShopsApiShape {
   readonly get: (
     selector: ShopItemSelector,
   ) => Effect.Effect<ShopItemRecord | null>;
-  readonly getAll: Effect.Effect<readonly ShopItemRecord[]>;
-  readonly getInfo: Effect.Effect<ShopInfoRecord | null>;
+  readonly getAll: () => Effect.Effect<readonly ShopItemRecord[]>;
+  readonly getInfo: () => Effect.Effect<ShopInfoRecord | null>;
   readonly getMaxBuyQuantity: (
     selector: ShopItemSelector,
   ) => Effect.Effect<number>;
-  readonly isMergeShop: Effect.Effect<boolean>;
+  readonly isMergeShop: () => Effect.Effect<boolean>;
   readonly isOpen: (shopId?: number) => Effect.Effect<boolean>;
   readonly load: (shopId: number) => Effect.Effect<boolean>;
-  readonly loadArmorCustomize: Effect.Effect<void>;
+  readonly loadArmorCustomize: () => Effect.Effect<void>;
   readonly loadHairShop: (shopId: number) => Effect.Effect<void>;
   readonly sell: (
     selector: ItemSelector,
@@ -172,7 +172,7 @@ export const layer = Layer.effect(
           return false;
         }
 
-        const info = yield* shops.getInfo;
+        const info = yield* shops.getInfo();
         if (info !== null && info.id !== id && (yield* isOpen(info.id))) {
           yield* close(info.id);
         }
@@ -207,10 +207,10 @@ export const layer = Layer.effect(
             bridgeSelector,
           ]);
         }),
-      isMergeShop: bridge.call("shops.isMergeShop"),
+      isMergeShop: () => bridge.call("shops.isMergeShop"),
       isOpen,
       load,
-      loadArmorCustomize: bridge.call("shops.loadArmorCustomize"),
+      loadArmorCustomize: () => bridge.call("shops.loadArmorCustomize"),
       loadHairShop: (shopId) =>
         asPositiveInt(shopId) === undefined
           ? Effect.void

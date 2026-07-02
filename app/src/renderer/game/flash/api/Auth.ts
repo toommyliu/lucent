@@ -18,17 +18,17 @@ import { WaitApi } from "./Wait";
 
 export interface AuthApiShape {
   readonly connectTo: (server: string) => Effect.Effect<AuthConnectOutcome>;
-  readonly getPassword: Effect.Effect<string>;
-  readonly getServers: Effect.Effect<readonly ServerRecord[]>;
-  readonly getUsername: Effect.Effect<string>;
-  readonly isLoggedIn: Effect.Effect<boolean>;
-  readonly isServerSelectReady: Effect.Effect<boolean>;
-  readonly isTemporarilyKicked: Effect.Effect<boolean>;
+  readonly getPassword: () => Effect.Effect<string>;
+  readonly getServers: () => Effect.Effect<readonly ServerRecord[]>;
+  readonly getUsername: () => Effect.Effect<string>;
+  readonly isLoggedIn: () => Effect.Effect<boolean>;
+  readonly isServerSelectReady: () => Effect.Effect<boolean>;
+  readonly isTemporarilyKicked: () => Effect.Effect<boolean>;
   readonly login: (
     username: string,
     password: string,
   ) => Effect.Effect<boolean>;
-  readonly logout: Effect.Effect<void>;
+  readonly logout: () => Effect.Effect<void>;
 }
 
 export class AuthApi extends Context.Service<AuthApi, AuthApiShape>()(
@@ -415,14 +415,14 @@ export const layer = Layer.effect(
 
     return AuthApi.of({
       connectTo,
-      getPassword: getCachedCredential("password"),
-      getServers,
-      getUsername: getCachedCredential("username"),
-      isLoggedIn,
-      isServerSelectReady,
-      isTemporarilyKicked,
+      getPassword: () => getCachedCredential("password"),
+      getServers: () => getServers,
+      getUsername: () => getCachedCredential("username"),
+      isLoggedIn: () => isLoggedIn,
+      isServerSelectReady: () => isServerSelectReady,
+      isTemporarilyKicked: () => isTemporarilyKicked,
       login,
-      logout,
+      logout: () => logout,
     });
   }),
 );

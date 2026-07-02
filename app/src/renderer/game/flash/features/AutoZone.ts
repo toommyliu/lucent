@@ -48,9 +48,9 @@ export interface AutoZoneState {
 }
 
 export interface AutoZoneShape {
-  readonly getMap: Effect.Effect<AutoZoneSupportedMap | undefined>;
-  readonly getState: Effect.Effect<AutoZoneState>;
-  readonly isEnabled: Effect.Effect<boolean>;
+  readonly getMap: () => Effect.Effect<AutoZoneSupportedMap | undefined>;
+  readonly getState: () => Effect.Effect<AutoZoneState>;
+  readonly isEnabled: () => Effect.Effect<boolean>;
   readonly onState: (
     listener: (state: AutoZoneState) => void,
     options?: StateSubscriptionOptions,
@@ -211,7 +211,7 @@ export const layer = Layer.effect(
     const ref = yield* SynchronizedRef.make(initialState());
     const listeners = makeStateListeners<AutoZoneState>("autozone");
 
-    const getState = SynchronizedRef.get(ref).pipe(Effect.map(publicState));
+    const snapshot = SynchronizedRef.get(ref).pipe(Effect.map(publicState));
 
     const updateState = (
       update: (state: AutoZoneRuntimeState) => void,
@@ -243,7 +243,7 @@ export const layer = Layer.effect(
 
     const fallbackHasProjectedPlayerAura = (auraNames: readonly string[]) =>
       Effect.gen(function* () {
-        const self = yield* world.getMe;
+        const self = yield* world.getMe();
         if (self !== null && self.entityId !== 0) {
           return false;
         }
@@ -283,7 +283,7 @@ export const layer = Layer.effect(
           return false;
         }
 
-        const map = yield* world.getMap;
+        const map = yield* world.getMap();
         return equalsIgnoreCase(map.name, QUEENIONA_MAP);
       });
 
@@ -365,10 +365,10 @@ export const layer = Layer.effect(
     yield* Effect.addFinalizer(() => Effect.sync(disposeZone));
 
     return AutoZone.of({
-      getMap: getState.pipe(Effect.map((state) => state.map)),
-      getState,
-      isEnabled: getState.pipe(Effect.map((state) => state.enabled)),
-      onState: (listener, options) => listeners.on(getState, listener, options),
+      getMap: () => snapshot.pipe(Effect.map((state) => state.map)),
+      getState: () => snapshot,
+      isEnabled: () => snapshot.pipe(Effect.map((state) => state.enabled)),
+      onState: (listener, options) => listeners.on(snapshot, listener, options),
       setEnabled: (enabled) =>
         updateState((state) => {
           state.enabled = enabled;

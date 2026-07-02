@@ -118,7 +118,7 @@ export const normalizeSettingsPatch = (
 };
 
 export interface SettingsStateShape {
-  readonly get: Effect.Effect<FlashSettingsSnapshot>;
+  readonly get: () => Effect.Effect<FlashSettingsSnapshot>;
   readonly onState: (
     listener: (state: FlashSettingsSnapshot) => void,
     options?: StateSubscriptionOptions,
@@ -138,16 +138,16 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const ref = yield* SynchronizedRef.make(defaultSettings());
     const listeners = makeStateListeners<FlashSettingsSnapshot>("settings");
-    const get = SynchronizedRef.get(ref).pipe(Effect.map(cloneSettings));
+    const get = () => SynchronizedRef.get(ref).pipe(Effect.map(cloneSettings));
 
     return SettingsState.of({
       get,
-      onState: (listener, options) => listeners.on(get, listener, options),
+      onState: (listener, options) => listeners.on(get(), listener, options),
       patch: (patch) =>
         Effect.gen(function* () {
           const normalized = normalizeSettingsPatch(patch);
           if (!hasPatchKeys(normalized)) {
-            return yield* get;
+            return yield* get();
           }
 
           const result = yield* SynchronizedRef.modify(ref, (state) => {

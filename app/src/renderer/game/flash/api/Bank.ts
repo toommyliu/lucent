@@ -19,11 +19,11 @@ export interface BankApiShape {
     selectors: readonly ItemSelector[],
   ) => Effect.Effect<readonly boolean[]>;
   readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: Effect.Effect<readonly ItemRecord[]>;
-  readonly getAvailableSlots: Effect.Effect<number>;
-  readonly getSlots: Effect.Effect<number>;
-  readonly getUsedSlots: Effect.Effect<number>;
-  readonly isOpen: Effect.Effect<boolean>;
+  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
+  readonly getAvailableSlots: () => Effect.Effect<number>;
+  readonly getSlots: () => Effect.Effect<number>;
+  readonly getUsedSlots: () => Effect.Effect<number>;
+  readonly isOpen: () => Effect.Effect<boolean>;
   readonly open: (force?: boolean) => Effect.Effect<void>;
   readonly swap: (
     inventorySelector: ItemSelector,
@@ -48,22 +48,22 @@ export const layer = Layer.effect(
     const protocol = yield* FlashProtocol;
     const wait = yield* WaitApi;
 
-    const isOpen = bridge.call("bank.isOpen");
+    const isOpen = () => bridge.call("bank.isOpen");
 
     const open: BankApiShape["open"] = (force = false) =>
       Effect.gen(function* () {
-        if (!(yield* auth.isLoggedIn)) {
+        if (!(yield* auth.isLoggedIn())) {
           return;
         }
 
-        const currentlyOpen = yield* isOpen;
+        const currentlyOpen = yield* isOpen();
         if (currentlyOpen && !force) {
           return;
         }
 
         if (currentlyOpen && force) {
           yield* bridge.call("bank.open");
-          yield* wait.until(isOpen.pipe(Effect.map((openNow) => !openNow)), {
+          yield* wait.until(isOpen().pipe(Effect.map((openNow) => !openNow)), {
             timeout: "3 seconds",
           });
         }
@@ -71,14 +71,15 @@ export const layer = Layer.effect(
         yield* bridge.call("bank.open");
       });
 
-    const getAll = bridge.call("bank.getItems").pipe(
-      Effect.flatMap((rawItems) =>
-        Array.isArray(rawItems)
-          ? items.replaceBank(rawItems)
-          : items.replaceBank([]),
-      ),
-      Effect.flatMap(() => items.getAll("bank")),
-    );
+    const getAll = () =>
+      bridge.call("bank.getItems").pipe(
+        Effect.flatMap((rawItems) =>
+          Array.isArray(rawItems)
+            ? items.replaceBank(rawItems)
+            : items.replaceBank([]),
+        ),
+        Effect.flatMap(() => items.getAll("bank")),
+      );
 
     const get: BankApiShape["get"] = (selector) =>
       Effect.gen(function* () {
@@ -172,8 +173,8 @@ export const layer = Layer.effect(
         return sent && (yield* settleBankPacket("bankSwapInv"));
       });
 
-    const getSlots = bridge.call("bank.getSlots");
-    const getUsedSlots = bridge.call("bank.getUsedSlots");
+    const getSlots = () => bridge.call("bank.getSlots");
+    const getUsedSlots = () => bridge.call("bank.getUsedSlots");
 
     return BankApi.of({
       contains,
@@ -182,9 +183,10 @@ export const layer = Layer.effect(
         Effect.forEach(selectors, deposit, { concurrency: 1 }),
       get,
       getAll,
-      getAvailableSlots: Effect.zipWith(getSlots, getUsedSlots, (slots, used) =>
-        Math.max(0, slots - used),
-      ),
+      getAvailableSlots: () =>
+        Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
+          Math.max(0, slots - used),
+        ),
       getSlots,
       getUsedSlots,
       isOpen,

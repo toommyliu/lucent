@@ -41,9 +41,9 @@ export interface JobsShape {
     definition: PeriodicJobDefinition,
   ) => Effect.Effect<boolean>;
   readonly stop: (key: string) => Effect.Effect<boolean>;
-  readonly stopAll: Effect.Effect<void>;
+  readonly stopAll: () => Effect.Effect<void>;
   readonly isRunning: (key: string) => Effect.Effect<boolean>;
-  readonly getRunningKeys: Effect.Effect<readonly string[]>;
+  readonly getRunningKeys: () => Effect.Effect<readonly string[]>;
 }
 
 export class Jobs extends Context.Service<Jobs, JobsShape>()(
@@ -117,18 +117,19 @@ export const layer = Layer.effect(
         return true;
       });
 
-    const stopAll = Effect.gen(function* () {
-      const fibers = yield* SynchronizedRef.modify(activeJobs, (jobs) => {
-        const current = Array.from(jobs.values(), (entry) => entry.fiber);
-        return [current, new Map<string, JobEntry>()] as const;
+    const stopAll: JobsShape["stopAll"] = () =>
+      Effect.gen(function* () {
+        const fibers = yield* SynchronizedRef.modify(activeJobs, (jobs) => {
+          const current = Array.from(jobs.values(), (entry) => entry.fiber);
+          return [current, new Map<string, JobEntry>()] as const;
+        });
+
+        yield* Effect.forEach(fibers, (fiber) => Fiber.interrupt(fiber), {
+          discard: true,
+        });
       });
 
-      yield* Effect.forEach(fibers, (fiber) => Fiber.interrupt(fiber), {
-        discard: true,
-      });
-    });
-
-    yield* Effect.addFinalizer(() => stopAll);
+    yield* Effect.addFinalizer(stopAll);
 
     const startInternal = (
       key: string,
@@ -260,9 +261,10 @@ export const layer = Layer.effect(
       );
 
     return Jobs.of({
-      getRunningKeys: SynchronizedRef.get(activeJobs).pipe(
-        Effect.map((jobs) => Array.from(jobs.keys()).sort()),
-      ),
+      getRunningKeys: () =>
+        SynchronizedRef.get(activeJobs).pipe(
+          Effect.map((jobs) => Array.from(jobs.keys()).sort()),
+        ),
       isRunning: (key) =>
         SynchronizedRef.get(activeJobs).pipe(
           Effect.map((jobs) => jobs.has(key)),

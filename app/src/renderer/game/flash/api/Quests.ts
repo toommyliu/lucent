@@ -20,8 +20,8 @@ export interface QuestsApiShape {
     special?: boolean,
   ) => Effect.Effect<boolean>;
   readonly get: (questId: number) => Effect.Effect<QuestRecord | null>;
-  readonly getAccepted: Effect.Effect<readonly QuestRecord[]>;
-  readonly getAll: Effect.Effect<readonly QuestRecord[]>;
+  readonly getAccepted: () => Effect.Effect<readonly QuestRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly QuestRecord[]>;
   readonly getMaxTurnIns: (questId: number) => Effect.Effect<number>;
   readonly isAvailable: (questId: number) => Effect.Effect<boolean>;
   readonly isInProgress: (questId: number) => Effect.Effect<boolean>;
@@ -166,21 +166,22 @@ export const layer = Layer.effect(
         normalizeQuestId(questId) === null
           ? Effect.succeed(null)
           : quests.get(Math.trunc(questId)),
-      getAccepted: bridge.call("quests.getAccepted").pipe(
-        Effect.flatMap((rawQuestIds) =>
-          Effect.forEach(
-            Array.isArray(rawQuestIds)
-              ? rawQuestIds
-                  .map(asPositiveInt)
-                  .filter((id): id is number => id !== undefined)
-              : [],
-            quests.get,
+      getAccepted: () =>
+        bridge.call("quests.getAccepted").pipe(
+          Effect.flatMap((rawQuestIds) =>
+            Effect.forEach(
+              Array.isArray(rawQuestIds)
+                ? rawQuestIds
+                    .map(asPositiveInt)
+                    .filter((id): id is number => id !== undefined)
+                : [],
+              quests.get,
+            ),
+          ),
+          Effect.map((accepted) =>
+            accepted.filter((quest): quest is QuestRecord => quest !== null),
           ),
         ),
-        Effect.map((accepted) =>
-          accepted.filter((quest): quest is QuestRecord => quest !== null),
-        ),
-      ),
       getAll: quests.getAll,
       getMaxTurnIns,
       isAvailable: (questId) =>

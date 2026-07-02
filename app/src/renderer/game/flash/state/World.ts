@@ -30,20 +30,20 @@ interface WorldRuntimeState {
 export interface WorldStateShape {
   readonly addMonster: (monster: MonsterRecord) => Effect.Effect<void>;
   readonly addPlayer: (player: PlayerRecord) => Effect.Effect<void>;
-  readonly clear: Effect.Effect<void>;
+  readonly clear: () => Effect.Effect<void>;
   readonly clearAuras: (
     target: AuraTarget,
     targetId: number,
   ) => Effect.Effect<void>;
-  readonly getMap: Effect.Effect<MapRecord>;
-  readonly getMe: Effect.Effect<PlayerRecord | null>;
+  readonly getMap: () => Effect.Effect<MapRecord>;
+  readonly getMe: () => Effect.Effect<PlayerRecord | null>;
   readonly getMonster: (
     selector: MonsterSelector,
   ) => Effect.Effect<MonsterRecord | null>;
   readonly getMonsterAuras: (
     monsterMapId: number,
   ) => Effect.Effect<readonly AuraRecord[]>;
-  readonly getMonsters: Effect.Effect<readonly MonsterRecord[]>;
+  readonly getMonsters: () => Effect.Effect<readonly MonsterRecord[]>;
   readonly getPlayer: (
     selector: string | number,
   ) => Effect.Effect<PlayerRecord | null>;
@@ -53,7 +53,7 @@ export interface WorldStateShape {
   readonly getPlayerAuraTargetsByName: (
     auraName: string,
   ) => Effect.Effect<readonly number[]>;
-  readonly getPlayers: Effect.Effect<readonly PlayerRecord[]>;
+  readonly getPlayers: () => Effect.Effect<readonly PlayerRecord[]>;
   readonly patchMap: (patch: Partial<MapRecord>) => Effect.Effect<void>;
   readonly patchMonster: (
     monsterMapId: number,
@@ -145,7 +145,7 @@ export const layer = Layer.effect(
           state.playerEntityIds.set(player.entityId, key);
           return state;
         }),
-      clear: SynchronizedRef.update(ref, () => initialState()),
+      clear: () => SynchronizedRef.update(ref, () => initialState()),
       clearAuras: (target, targetId) =>
         SynchronizedRef.update(ref, (state) => {
           const source =
@@ -153,14 +153,16 @@ export const layer = Layer.effect(
           source.delete(targetId);
           return state;
         }),
-      getMap: SynchronizedRef.get(ref).pipe(Effect.map((state) => state.map)),
-      getMe: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) =>
-          state.selfUsername === ""
-            ? null
-            : (state.players.get(playerKey(state.selfUsername)) ?? null),
+      getMap: () =>
+        SynchronizedRef.get(ref).pipe(Effect.map((state) => state.map)),
+      getMe: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) =>
+            state.selfUsername === ""
+              ? null
+              : (state.players.get(playerKey(state.selfUsername)) ?? null),
+          ),
         ),
-      ),
       getMonster: (selector) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => {
@@ -182,9 +184,10 @@ export const layer = Layer.effect(
             Array.from(state.monsterAuras.get(monsterMapId)?.values() ?? []),
           ),
         ),
-      getMonsters: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => Array.from(state.monsters.values())),
-      ),
+      getMonsters: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => Array.from(state.monsters.values())),
+        ),
       getPlayer: (selector) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => getPlayerBySelector(state, selector)),
@@ -204,9 +207,10 @@ export const layer = Layer.effect(
             );
           }),
         ),
-      getPlayers: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => Array.from(state.players.values())),
-      ),
+      getPlayers: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => Array.from(state.players.values())),
+        ),
       patchMap: (patch) =>
         SynchronizedRef.update(ref, (state) => {
           Object.assign(state.map, patch);

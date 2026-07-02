@@ -78,7 +78,7 @@ const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] => {
 };
 
 const syncDropState = (items: ItemsStateShape, drops: DropsStateShape) =>
-  items.getDrops.pipe(Effect.flatMap(drops.replace));
+  items.getDrops().pipe(Effect.flatMap(drops.replace));
 
 const reduceInventoryPacket = (
   packet: FlashPacket,
@@ -243,7 +243,7 @@ const addMoveToAreaState = (
     };
     yield* world.patchMap(mapPatch);
 
-    const map = yield* world.getMap;
+    const map = yield* world.getMap();
     yield* protocol.emitEvent({
       packet,
       payload: map,
@@ -294,9 +294,9 @@ const addMoveToAreaState = (
       }
     }
 
-    const currentUsername = yield* auth.getUsername.pipe(
-      Effect.orElseSucceed(() => ""),
-    );
+    const currentUsername = yield* auth
+      .getUsername()
+      .pipe(Effect.orElseSucceed(() => ""));
 
     for (const rawPlayer of asArray(payload["uoBranch"])) {
       const normalized = normalizePlayerRecord(rawPlayer);
@@ -305,7 +305,7 @@ const addMoveToAreaState = (
       }
 
       yield* world.addPlayer(normalized);
-      const self = yield* world.getMe;
+      const self = yield* world.getMe();
       if (
         (self !== null &&
           equalsIgnoreCase(self.username, normalized.username)) ||
@@ -333,7 +333,7 @@ const reduceWorldPacket = (
         return;
       case "event": {
         const args = asRecord(payload?.["args"]);
-        const map = yield* world.getMap;
+        const map = yield* world.getMap();
         yield* protocol.emitEvent({
           packet,
           payload: {
@@ -373,9 +373,9 @@ const reduceWorldPacket = (
               : null;
           if (player !== null) {
             yield* world.addPlayer(player);
-            const currentUsername = yield* auth.getUsername.pipe(
-              Effect.orElseSucceed(() => ""),
-            );
+            const currentUsername = yield* auth
+              .getUsername()
+              .pipe(Effect.orElseSucceed(() => ""));
             if (
               currentUsername !== "" &&
               equalsIgnoreCase(currentUsername, player.username)
@@ -566,7 +566,7 @@ const reduceWorldPacket = (
         return;
       }
       case "moveToCell": {
-        const self = yield* world.getMe;
+        const self = yield* world.getMe();
         const parts = Array.isArray(data) ? data : [];
         const cell = asString(parts[4]);
         const pad = asString(parts[5]);
@@ -587,7 +587,7 @@ const reduceWorldPacket = (
         return;
       }
       case "mv": {
-        const self = yield* world.getMe;
+        const self = yield* world.getMe();
         const parts = Array.isArray(data) ? data : [];
         const x = asInt(parts[4]);
         const y = asInt(parts[5]);
@@ -636,11 +636,11 @@ export const layer = Layer.effectDiscard(
             status === "OnConnectionLost" ||
             status === "OnConnectionFailed"
           ) {
-            yield* items.clear;
-            yield* drops.clear;
-            yield* shops.clear;
-            yield* quests.clear;
-            yield* world.clear;
+            yield* items.clear();
+            yield* drops.clear();
+            yield* shops.clear();
+            yield* quests.clear();
+            yield* world.clear();
           }
         }),
     );

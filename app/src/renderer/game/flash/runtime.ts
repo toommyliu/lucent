@@ -22,6 +22,7 @@ import * as AutoRelogin from "./features/AutoRelogin";
 import * as AutoZone from "./features/AutoZone";
 import * as Jobs from "./jobs/Jobs";
 import * as SettingsPolicy from "./policies/SettingsPolicy";
+import * as ScriptRunner from "../scripting/ScriptRunner";
 import * as SwfBridge from "./SwfBridge";
 import * as FlashProtocol from "./protocol/FlashProtocol";
 import * as Projectors from "./protocol/Projectors";
@@ -103,4 +104,8 @@ export const FlashLiveLayer = Projectors.layer.pipe(
   ),
 );
 
-export const flashRuntime = ManagedRuntime.make(FlashLiveLayer);
+export const FlashScriptingLayer = ScriptRunner.layer.pipe(
+  Layer.provideMerge(FlashLiveLayer),
+);
+
+export const flashRuntime = ManagedRuntime.make(FlashScriptingLayer);

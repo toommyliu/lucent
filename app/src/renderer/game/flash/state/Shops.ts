@@ -16,12 +16,12 @@ interface ShopsRuntimeState {
 }
 
 export interface ShopsStateShape {
-  readonly clear: Effect.Effect<void>;
+  readonly clear: () => Effect.Effect<void>;
   readonly findByItemId: (
     itemId: number,
   ) => Effect.Effect<ShopItemRecord | null>;
-  readonly getAll: Effect.Effect<readonly ShopItemRecord[]>;
-  readonly getInfo: Effect.Effect<ShopInfoRecord | null>;
+  readonly getAll: () => Effect.Effect<readonly ShopItemRecord[]>;
+  readonly getInfo: () => Effect.Effect<ShopInfoRecord | null>;
   readonly getOne: (
     selector: ShopItemSelector,
   ) => Effect.Effect<ShopItemRecord | null>;
@@ -38,10 +38,11 @@ export const layer = Layer.effect(
     const ref = yield* SynchronizedRef.make<ShopsRuntimeState>({ info: null });
 
     return ShopsState.of({
-      clear: SynchronizedRef.update(ref, (state) => {
-        state.info = null;
-        return state;
-      }),
+      clear: () =>
+        SynchronizedRef.update(ref, (state) => {
+          state.info = null;
+          return state;
+        }),
       findByItemId: (itemId) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map(
@@ -49,10 +50,12 @@ export const layer = Layer.effect(
               state.info?.items.find((item) => item.itemId === itemId) ?? null,
           ),
         ),
-      getAll: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => state.info?.items ?? []),
-      ),
-      getInfo: SynchronizedRef.get(ref).pipe(Effect.map((state) => state.info)),
+      getAll: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => state.info?.items ?? []),
+        ),
+      getInfo: () =>
+        SynchronizedRef.get(ref).pipe(Effect.map((state) => state.info)),
       getOne: (selector) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => {

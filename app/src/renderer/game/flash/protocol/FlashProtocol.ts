@@ -146,7 +146,7 @@ export const layer = Layer.effect(
         yield* packetBus.dispatch(parsed.value);
       });
 
-    const subscription = yield* callbacks.subscribe;
+    const subscription = yield* callbacks.subscribe();
     yield* Effect.forkScoped(
       Effect.forever(
         PubSub.take(subscription).pipe(
@@ -168,10 +168,10 @@ export const layer = Layer.effect(
         }
 
         const map = Option.isSome(maybeWorld)
-          ? yield* maybeWorld.value.getMap
+          ? yield* maybeWorld.value.getMap()
           : { id: 0, name: "", roomNumber: 0 };
         const player = Option.isSome(maybeWorld)
-          ? yield* maybeWorld.value.getMe
+          ? yield* maybeWorld.value.getMe()
           : null;
         const playerName = player?.username ?? player?.name ?? "";
 

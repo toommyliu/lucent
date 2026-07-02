@@ -22,22 +22,22 @@ import { WaitApi } from "./Wait";
 
 export interface CombatTargetApi {
   readonly auras: TargetAurasApi;
-  readonly get: Effect.Effect<TargetInfo | null>;
+  readonly get: () => Effect.Effect<TargetInfo | null>;
 }
 
 export interface TargetAurasApi {
   readonly get: (auraName: string) => Effect.Effect<AuraRecord | null>;
-  readonly getAll: Effect.Effect<readonly AuraRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly AuraRecord[]>;
   readonly has: (auraName: string) => Effect.Effect<boolean>;
 }
 
 export interface CombatApiShape {
   readonly attackMonster: (selector: MonsterSelector) => Effect.Effect<boolean>;
-  readonly cancelAutoAttack: Effect.Effect<void>;
-  readonly cancelTarget: Effect.Effect<void>;
+  readonly cancelAutoAttack: () => Effect.Effect<void>;
+  readonly cancelTarget: () => Effect.Effect<void>;
   readonly canUseSkill: (index: number) => Effect.Effect<boolean>;
-  readonly exit: Effect.Effect<boolean>;
-  readonly getConsumableSkillItem: Effect.Effect<{
+  readonly exit: () => Effect.Effect<boolean>;
+  readonly getConsumableSkillItem: () => Effect.Effect<{
     readonly itemId: number;
   } | null>;
   readonly hunt: (
@@ -140,16 +140,17 @@ export const layer = Layer.effect(
               : player.auras.get(auraName);
           }),
         ),
-      getAll: targetGet.pipe(
-        Effect.flatMap((target) => {
-          if (target === null) {
-            return Effect.succeed([]);
-          }
-          return target.type === "monster"
-            ? monsters.auras.getAll(target.monsterMapId)
-            : player.auras.getAll;
-        }),
-      ),
+      getAll: () =>
+        targetGet.pipe(
+          Effect.flatMap((target) => {
+            if (target === null) {
+              return Effect.succeed([]);
+            }
+            return target.type === "monster"
+              ? monsters.auras.getAll(target.monsterMapId)
+              : player.auras.getAll();
+          }),
+        ),
       has: (auraName) =>
         targetAuras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
@@ -157,11 +158,11 @@ export const layer = Layer.effect(
     const attackMonster: CombatApiShape["attackMonster"] = (selector) =>
       Effect.gen(function* () {
         const normalized = normalizeMonsterSelector(selector);
-        if (normalized === null || !(yield* player.isAlive)) {
+        if (normalized === null || !(yield* player.isAlive())) {
           return false;
         }
 
-        const antiCounter = yield* settings.isAntiCounterEnabled;
+        const antiCounter = yield* settings.isAntiCounterEnabled();
         if (antiCounter) {
           // TODO: replace name-based counter detection with exact aura metadata when projected.
           const monster = yield* monsters.get(selector);
@@ -182,7 +183,7 @@ export const layer = Layer.effect(
     const useSkill: CombatApiShape["useSkill"] = (index, options) =>
       Effect.gen(function* () {
         const skill = normalizeSkill(index);
-        if (skill === null || !(yield* player.isAlive)) {
+        if (skill === null || !(yield* player.isAlive())) {
           return false;
         }
 
@@ -219,7 +220,7 @@ export const layer = Layer.effect(
           return null;
         }
 
-        const allMonsters = yield* monsters.getAll;
+        const allMonsters = yield* monsters.getAll();
         const matches = allMonsters.filter((monster) => {
           if ("monMapId" in normalized) {
             return monster.monsterMapId === normalized.monMapId;
@@ -295,17 +296,19 @@ export const layer = Layer.effect(
 
     return CombatApi.of({
       attackMonster,
-      cancelAutoAttack: bridge.call("combat.cancelAutoAttack"),
-      cancelTarget: bridge.call("combat.cancelTarget"),
+      cancelAutoAttack: () => bridge.call("combat.cancelAutoAttack"),
+      cancelTarget: () => bridge.call("combat.cancelTarget"),
       canUseSkill,
-      exit: Effect.gen(function* () {
-        yield* stopCombat;
-        return yield* wait.until(
-          targetGet.pipe(Effect.map((target) => target === null)),
-          { timeout: "5 seconds" },
-        );
-      }),
-      getConsumableSkillItem: bridge.call("combat.getConsumableSkillItem"),
+      exit: () =>
+        Effect.gen(function* () {
+          yield* stopCombat;
+          return yield* wait.until(
+            targetGet.pipe(Effect.map((target) => target === null)),
+            { timeout: "5 seconds" },
+          );
+        }),
+      getConsumableSkillItem: () =>
+        bridge.call("combat.getConsumableSkillItem"),
       hunt,
       kill,
       killForItem: (monster, item, quantity, options) =>
@@ -314,7 +317,7 @@ export const layer = Layer.effect(
         killFor(monster, item, quantity, options, tempInventory.contains),
       target: {
         auras: targetAuras,
-        get: targetGet,
+        get: () => targetGet,
       },
       useSkill,
     });

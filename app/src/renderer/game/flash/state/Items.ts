@@ -29,7 +29,7 @@ interface ItemsRuntimeState {
 
 export interface ItemsStateShape {
   readonly addDrop: (item: DropRecord) => Effect.Effect<void>;
-  readonly clear: Effect.Effect<void>;
+  readonly clear: () => Effect.Effect<void>;
   readonly contains: (
     container: ItemContainer | "inventory-or-house",
     selector: ItemSelector,
@@ -42,8 +42,8 @@ export interface ItemsStateShape {
   readonly getAll: (
     container: ItemContainer,
   ) => Effect.Effect<readonly ItemRecord[]>;
-  readonly getBankCount: Effect.Effect<number>;
-  readonly getDrops: Effect.Effect<readonly DropRecord[]>;
+  readonly getBankCount: () => Effect.Effect<number>;
+  readonly getDrops: () => Effect.Effect<readonly DropRecord[]>;
   readonly getUsedSlots: (
     container: Exclude<ItemContainer, "bank">,
   ) => Effect.Effect<number>;
@@ -276,7 +276,7 @@ export const layer = Layer.effect(
           state.catalog.set(item.itemId, item);
           return state;
         }),
-      clear: SynchronizedRef.update(ref, () => initialState()),
+      clear: () => SynchronizedRef.update(ref, () => initialState()),
       contains: (container, selector, quantity) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => {
@@ -317,12 +317,12 @@ export const layer = Layer.effect(
             Array.from(mapForContainer(state, container).values()),
           ),
         ),
-      getBankCount: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => state.bankCount),
-      ),
-      getDrops: SynchronizedRef.get(ref).pipe(
-        Effect.map((state) => Array.from(state.drops.values())),
-      ),
+      getBankCount: () =>
+        SynchronizedRef.get(ref).pipe(Effect.map((state) => state.bankCount)),
+      getDrops: () =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => Array.from(state.drops.values())),
+        ),
       getUsedSlots: (container) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => mapForContainer(state, container).size),
