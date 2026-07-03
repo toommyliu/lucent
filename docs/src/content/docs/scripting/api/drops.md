@@ -12,87 +12,86 @@ tableOfContents:
 
 ## Members
 
-<a id="member-api-drops-acceptdrop"></a>
+<a id="member-api-drops-accept"></a>
 
-### `api.drops.acceptDrop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L7" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:7" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.drops.accept()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L10" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:10" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.drops.acceptDrop(item: ItemIdentifierToken): BridgeEffect<void>
+api.drops.accept(selector: ItemSelector): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `void`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-drops-containsdrop"></a>
-
-### `api.drops.containsDrop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L8" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:8" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.drops.containsDrop(item: ItemIdentifierToken): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-drops-getdrops"></a>
-
-### `api.drops.getDrops()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L9" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:9" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.drops.getDrops(): Effect.Effect<readonly ItemData[], never, never>
-```
-
-**Yields:** `readonly` <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a>[]
 
 **Errors:** `never`
 
-<a id="member-api-drops-isusingcustomdrops"></a>
+<a id="member-api-drops-contains"></a>
 
-### `api.drops.isUsingCustomDrops()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L10" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:10" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.drops.isUsingCustomDrops(): BridgeEffect<boolean>
-```
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-drops-rejectdrop"></a>
-
-### `api.drops.rejectDrop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L11" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:11" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.drops.contains()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L11" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:11" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.drops.rejectDrop(itemId: number, visual?: boolean): BridgeEffect<boolean>
+api.drops.contains(selector: ItemSelector): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `itemId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `visual` | `boolean` |  |  |
+| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
+
+<a id="member-api-drops-getall"></a>
+
+### `api.drops.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.drops.getAll(): Effect.Effect<readonly DropRecord[], never, never>
+```
+
+**Yields:** `readonly` <a href="/scripting/types/drop-record/" data-script-type="drop-record"><code>DropRecord</code></a>[]
+
+**Errors:** `never`
+
+<a id="member-api-drops-iscustomuienabled"></a>
+
+### `api.drops.isCustomUiEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L13" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:13" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.drops.isCustomUiEnabled(): Effect.Effect<boolean, never, never>
+```
+
+**Yields:** `boolean`
+
+**Errors:** `never`
+
+<a id="member-api-drops-reject"></a>
+
+### `api.drops.reject()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L14" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:14" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.drops.reject(selector: ItemSelector): Effect.Effect<boolean, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** `boolean`
+
+**Errors:** `never`
 
 <a id="member-api-drops-toggleui"></a>
 
-### `api.drops.toggleUi()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Drops.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Drops.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.drops.toggleUi()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Drops.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Drops.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.drops.toggleUi(): BridgeEffect<void>
+api.drops.toggleUi(): Effect.Effect<void, never, never>
 ```
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`

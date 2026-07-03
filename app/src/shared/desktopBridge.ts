@@ -4,6 +4,8 @@ import type {
   PreferencesPatch,
 } from "./settings";
 import type { HotkeysPatch } from "./hotkeys";
+import type { ScriptFile, ScriptOpenFileResult } from "./ipc/scripting";
+import type { ScriptInputsDefinition, ScriptInputValues } from "./scriptInputs";
 import type { UpdateCheckState } from "./updates";
 
 export type AppPlatform = "linux" | "mac" | "windows";
@@ -33,10 +35,24 @@ export interface DesktopUpdatesBridge {
   readonly openReleasePage: () => Promise<boolean>;
 }
 
+export interface DesktopScriptingBridge {
+  readonly getInputValues: (
+    definition: ScriptInputsDefinition,
+  ) => Promise<ScriptInputValues>;
+  readonly openFile: () => Promise<ScriptOpenFileResult>;
+  readonly openPath: (path: string) => Promise<boolean>;
+  readonly readFile: (path: string) => Promise<ScriptFile>;
+  readonly saveInputValues: (
+    definition: ScriptInputsDefinition,
+    values: ScriptInputValues,
+  ) => Promise<ScriptInputValues>;
+}
+
 export interface DesktopBridge {
   readonly platform: {
     readonly os: AppPlatform;
   };
   readonly settings: DesktopSettingsBridge;
+  readonly scripting?: DesktopScriptingBridge;
   readonly updates?: DesktopUpdatesBridge;
 }

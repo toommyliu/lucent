@@ -51,13 +51,13 @@ describe("SettingsApi", () => {
 
           expect(yield* settings.get()).toMatchObject({
             customName: "Hero",
-            frameRate: 30,
+            frameRate: 24,
             walkSpeed: 100,
           });
-          expect(seen).toEqual(["8:30:", "100:30:", "100:30:Hero"]);
+          expect(seen).toEqual(["8:24:", "100:24:", "100:24:Hero"]);
           expect(harness.calls).toEqual([
             { args: [100], method: "settings.setWalkSpeed" },
-            { args: [30], method: "settings.setFrameRate" },
+            { args: [24], method: "settings.setFrameRate" },
             { args: ["Hero"], method: "settings.setCustomName" },
           ]);
         }).pipe(Effect.provide(harness.layer)),
@@ -136,14 +136,14 @@ describe("SettingsApi", () => {
             });
 
             expect(harness.calls).toEqual([
-              { args: [120], method: "settings.setFrameRate" },
+              { args: [60], method: "settings.setFrameRate" },
               { args: [12], method: "settings.setWalkSpeed" },
               { args: [], method: "settings.enemyMagnet" },
               { args: [], method: "settings.provokeCell" },
             ]);
             expect(yield* settings.get()).toMatchObject({
               enemyMagnetEnabled: false,
-              frameRate: 30,
+              frameRate: 24,
               provokeCellEnabled: false,
               walkSpeed: 8,
             });

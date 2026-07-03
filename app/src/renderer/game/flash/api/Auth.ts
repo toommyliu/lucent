@@ -60,6 +60,8 @@ const initialState = (): AuthRuntimeState => ({
 const serverNameField = (serverName: string | undefined) =>
   serverName === undefined || serverName === "" ? {} : { serverName };
 
+// TODO: simplify outcomes to true/false
+
 const connectedOutcome = (
   serverName: string | undefined,
 ): AuthConnectOutcome => ({

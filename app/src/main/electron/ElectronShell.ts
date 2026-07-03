@@ -19,6 +19,7 @@ export const parseSafeExternalUrl = (rawUrl: unknown): string | null => {
 
 export interface ElectronShellShape {
   readonly openExternal: (rawUrl: unknown) => Effect.Effect<boolean>;
+  readonly openPath: (path: string) => Effect.Effect<boolean>;
 }
 
 export class ElectronShell extends Context.Service<
@@ -42,5 +43,12 @@ export const layer = Layer.succeed(
         ),
       );
     },
+    openPath: (path) =>
+      Effect.promise(() =>
+        shell.openPath(path).then(
+          (message) => message === "",
+          () => false,
+        ),
+      ),
   }),
 );

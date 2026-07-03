@@ -1,9 +1,32 @@
-import { Button, Icon, Spinner, Textarea } from "@lucent/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Checkbox,
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Icon,
+  Input,
+  Label,
+  Spinner,
+  Textarea,
+} from "@lucent/ui";
 import { Effect, Fiber } from "effect";
 import {
   createEffect,
   createMemo,
   createSignal,
+  For,
   onCleanup,
   onMount,
   Show,
@@ -11,6 +34,15 @@ import {
 } from "solid-js";
 
 import type { AppPlatform } from "../../shared/desktopBridge";
+import type { ScriptFile } from "../../shared/ipc/scripting";
+import {
+  normalizeScriptInputValues,
+  validateScriptInputValues,
+  type ScriptInputField,
+  type ScriptInputValue,
+  type ScriptInputValues,
+  type ScriptInputsDefinition,
+} from "../../shared/scriptInputs";
 import {
   SETTINGS_COMMANDS,
   hotkeyBindingMatchKey,
@@ -31,6 +63,10 @@ import {
   type AutoZoneState,
   type AutoZoneSupportedMap,
 } from "./flash/features/AutoZone";
+import {
+  ScriptRunner,
+  type ScriptRunnerStatus,
+} from "./scripting/ScriptRunner";
 import {
   TopNav,
   type CombatProfileAutoAttackMode,
@@ -64,7 +100,7 @@ const DEBUG_PANEL_MIN_HEIGHT_PX = 220;
 const DEBUG_PANEL_DEFAULT_WIDTH_PX = 432;
 const DEBUG_PANEL_DEFAULT_HEIGHT_PX = 360;
 
-const DEFAULT_INTERNAL_DEBUG_SOURCE = `return yield* services.player.getCell;`;
+const DEFAULT_INTERNAL_DEBUG_SOURCE = `return yield* services.player.getCell();`;
 const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
 const PLAYER_READY_RETRY_INTERVAL_MS = 250;
 const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
@@ -114,15 +150,6 @@ const windowIdsByCommandId = new Map<SettingsCommandId, WindowId>(
 );
 
 const noop = (): void => {};
-const loadScriptNoop = (): void => {
-  console.debug("[game:script:no-op]", "load");
-};
-const toggleScriptNoop = (): void => {
-  console.debug("[game:script:no-op]", "toggle");
-};
-const openScriptInputsNoop = (): void => {
-  console.debug("[game:script:no-op]", "inputs");
-};
 
 const writeDocumentLoaded = (loaded: boolean): void => {
   document.documentElement.dataset["loaded"] = loaded ? "true" : "false";
@@ -243,6 +270,156 @@ const parseFiniteNumber = (value: string): number | null => {
   return Number.isFinite(number) ? number : null;
 };
 
+const scriptStatusLabel = (
+  loaded: ScriptFile | null,
+  status: ScriptRunnerStatus,
+): string => {
+  if (status.state === "running") {
+    return `Running ${status.name}`;
+  }
+
+  if (status.state === "stopping") {
+    return `Stopping ${status.name}`;
+  }
+
+  if (status.state === "failed") {
+    return `Failed: ${status.message}`;
+  }
+
+  if (status.state === "completed") {
+    return `Completed ${status.name}`;
+  }
+
+  if (status.state === "stopped") {
+    return status.reason === undefined
+      ? "Stopped"
+      : `Stopped: ${status.reason}`;
+  }
+
+  return loaded === null ? "No script loaded" : `Loaded ${loaded.name}`;
+};
+
+type ScriptInputsDialogMode = "manual" | "required";
+type ScriptInputDraftValue = boolean | string;
+type ScriptInputDraftValues = Readonly<Record<string, ScriptInputDraftValue>>;
+
+interface ScriptInputsDialogErrorField {
+  readonly key: string;
+  readonly label: string;
+  readonly message: string;
+}
+
+interface ScriptInputsDialogError {
+  readonly fields: readonly ScriptInputsDialogErrorField[];
+  readonly message: string;
+}
+
+const fieldLabel = (field: ScriptInputField): string =>
+  field.label || field.key;
+
+const scriptInputFieldError = (
+  field: ScriptInputField,
+  message: string,
+): ScriptInputsDialogErrorField => ({
+  key: field.key,
+  label: fieldLabel(field),
+  message,
+});
+
+const scriptInputFieldByKey = (
+  definition: ScriptInputsDefinition,
+  key: string,
+): ScriptInputField | undefined =>
+  definition.fields.find((field) => field.key === key);
+
+const scriptInputDraftFromValues = (
+  definition: ScriptInputsDefinition,
+  values: ScriptInputValues,
+): ScriptInputDraftValues => {
+  const normalized = normalizeScriptInputValues(definition, values);
+  const draft: Record<string, ScriptInputDraftValue> = {};
+
+  for (const field of definition.fields) {
+    const value = normalized[field.key];
+    draft[field.key] =
+      field.type === "boolean" ? value === true : String(value ?? "");
+  }
+
+  return draft;
+};
+
+const scriptInputValuesFromDraft = (
+  definition: ScriptInputsDefinition,
+  draft: ScriptInputDraftValues,
+):
+  | { readonly ok: true; readonly values: ScriptInputValues }
+  | { readonly error: ScriptInputsDialogError; readonly ok: false } => {
+  const values: Record<string, ScriptInputValue> = {};
+  const invalidFields: ScriptInputsDialogErrorField[] = [];
+
+  for (const field of definition.fields) {
+    const draftValue = draft[field.key];
+    if (field.type === "boolean") {
+      values[field.key] = draftValue === true;
+      continue;
+    }
+
+    const text = typeof draftValue === "string" ? draftValue.trim() : "";
+    if (text === "") {
+      continue;
+    }
+
+    if (field.type === "number") {
+      const value = Number(text);
+      if (!Number.isFinite(value)) {
+        invalidFields.push(scriptInputFieldError(field, "must be a number"));
+        continue;
+      }
+      values[field.key] = value;
+      continue;
+    }
+
+    if (field.type === "select" && !field.options.includes(text)) {
+      invalidFields.push(
+        scriptInputFieldError(field, "must match a declared option"),
+      );
+      continue;
+    }
+
+    values[field.key] = text;
+  }
+
+  const validation = validateScriptInputValues(definition, values);
+  const invalidKeys = new Set(invalidFields.map((field) => field.key));
+  const missingFields =
+    validation.status === "missing-required"
+      ? validation.fieldKeys
+          .filter((key) => !invalidKeys.has(key))
+          .map((key) => scriptInputFieldByKey(definition, key))
+          .filter((field): field is ScriptInputField => field !== undefined)
+          .map((field) => scriptInputFieldError(field, ""))
+      : [];
+  const fields = [...invalidFields, ...missingFields];
+
+  if (fields.length > 0) {
+    const message =
+      invalidFields.length > 0 && missingFields.length > 0
+        ? "Please correct the invalid script inputs."
+        : invalidFields.length > 0
+          ? "Some script inputs are invalid."
+          : "Please fill in all required script inputs.";
+    return {
+      error: { fields, message },
+      ok: false,
+    };
+  }
+
+  return { ok: true, values: validation.values };
+};
+
+const selectFieldOptions = (field: ScriptInputField): readonly string[] =>
+  field.type === "select" ? field.options : [];
+
 const clampPanelFrame = (frame: DebugPanelFrame): DebugPanelFrame => {
   const maxWidth = Math.max(
     DEBUG_PANEL_MIN_WIDTH_PX,
@@ -325,10 +502,10 @@ const readCachedTravelOptions = (): Promise<TravelOptions> =>
       const map = yield* Api.MapApi.MapApi;
       const player = yield* Api.PlayerApi.PlayerApi;
       const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
-        map.getCells,
-        map.getCellPads,
-        player.getCell,
-        player.getPad,
+        map.getCells(),
+        map.getCellPads(),
+        player.getCell(),
+        player.getPad(),
       ]);
 
       return {
@@ -346,10 +523,10 @@ const readBridgeTravelOptions = (): Promise<TravelOptions> =>
       const map = yield* Api.MapApi.MapApi;
       const player = yield* Api.PlayerApi.PlayerApi;
       const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
-        map.getCells,
-        map.getCellPads,
-        player.getCell,
-        player.getPad,
+        map.getCells(),
+        map.getCellPads(),
+        player.getCell(),
+        player.getPad(),
       ]);
 
       return {
@@ -365,7 +542,7 @@ const readPlayerReady = (): Promise<boolean> =>
   runtime.runPromise(
     Effect.gen(function* () {
       const player = yield* Api.PlayerApi.PlayerApi;
-      return yield* player.isReady;
+      return yield* player.isReady();
     }),
   );
 
@@ -685,6 +862,23 @@ export function App(props: {
   const [customGuild, setCustomGuild] = createSignal("");
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(true);
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
+  const [loadedScript, setLoadedScript] = createSignal<ScriptFile | null>(null);
+  const [scriptInputValues, setScriptInputValues] =
+    createSignal<ScriptInputValues>({});
+  const [scriptInputDialogOpen, setScriptInputDialogOpen] = createSignal(false);
+  const [scriptInputDialogMode, setScriptInputDialogMode] =
+    createSignal<ScriptInputsDialogMode>("manual");
+  const [scriptInputDraftValues, setScriptInputDraftValues] =
+    createSignal<ScriptInputDraftValues>({});
+  const [scriptInputDialogError, setScriptInputDialogError] =
+    createSignal<ScriptInputsDialogError | null>(null);
+  const [scriptInputDialogSaving, setScriptInputDialogSaving] =
+    createSignal(false);
+  const [scriptRunnerStatus, setScriptRunnerStatus] =
+    createSignal<ScriptRunnerStatus>({ state: "idle" });
+  const [scriptBusy, setScriptBusy] = createSignal(false);
+  const scriptInputFieldRefs = new Map<string, HTMLElement>();
+  const scriptInputEditorRefs = new Map<string, HTMLElement>();
   const [autoAttackMode, setAutoAttackMode] =
     createSignal<CombatProfileAutoAttackMode>("equipped-class");
   const [selectedAutoAttackProfileId, setSelectedAutoAttackProfileId] =
@@ -722,7 +916,18 @@ export function App(props: {
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
-  const scriptStatus = createMemo(() => "No script loaded");
+  const scriptLoaded = createMemo(() => loadedScript() !== null);
+  const scriptRunning = createMemo(() => {
+    const state = scriptRunnerStatus().state;
+    return state === "running" || state === "stopping";
+  });
+  const scriptInputsAvailable = createMemo(
+    () =>
+      loadedScript()?.inputs !== null && loadedScript()?.inputs !== undefined,
+  );
+  const scriptStatus = createMemo(() =>
+    scriptStatusLabel(loadedScript(), scriptRunnerStatus()),
+  );
   const setLoadProgress = (percent: number) => {
     const progress = Math.max(0, Math.min(100, Math.round(percent)));
     setLoadState((state) => ({
@@ -757,7 +962,7 @@ export function App(props: {
       .runPromise(
         Effect.gen(function* () {
           const settings = yield* Api.SettingsApi.SettingsApi;
-          return yield* settings.get;
+          return yield* settings.get();
         }),
       )
       .then(applyFlashSettingsState)
@@ -778,7 +983,7 @@ export function App(props: {
         Effect.gen(function* () {
           const settings = yield* Api.SettingsApi.SettingsApi;
           yield* update(settings);
-          return yield* settings.get;
+          return yield* settings.get();
         }),
       )
       .then(applyFlashSettingsState)
@@ -1001,7 +1206,7 @@ export function App(props: {
       .runPromise(
         Effect.gen(function* () {
           const autoZone = yield* AutoZone;
-          return yield* autoZone.getState;
+          return yield* autoZone.getState();
         }),
       )
       .then(applyAutoZoneState)
@@ -1019,7 +1224,7 @@ export function App(props: {
         Effect.gen(function* () {
           const autoZone = yield* AutoZone;
           yield* autoZone.setEnabled(nextEnabled);
-          return yield* autoZone.getState;
+          return yield* autoZone.getState();
         }),
       )
       .then(applyAutoZoneState)
@@ -1037,7 +1242,7 @@ export function App(props: {
         Effect.gen(function* () {
           const autoZone = yield* AutoZone;
           yield* autoZone.setMap(map);
-          return yield* autoZone.getState;
+          return yield* autoZone.getState();
         }),
       )
       .then(applyAutoZoneState)
@@ -1063,7 +1268,7 @@ export function App(props: {
       .runPromise(
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
-          return yield* autoRelogin.getState;
+          return yield* autoRelogin.getState();
         }),
       )
       .then(applyAutoReloginState)
@@ -1077,7 +1282,7 @@ export function App(props: {
       .runPromise(
         Effect.gen(function* () {
           const auth = yield* Api.AuthApi.AuthApi;
-          return yield* auth.getServers;
+          return yield* auth.getServers();
         }),
       )
       .then((servers) => {
@@ -1101,7 +1306,7 @@ export function App(props: {
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setEnabled(nextEnabled);
-          return yield* autoRelogin.getState;
+          return yield* autoRelogin.getState();
         }),
       )
       .then(applyAutoReloginState)
@@ -1122,7 +1327,7 @@ export function App(props: {
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setServer(server);
-          return yield* autoRelogin.getState;
+          return yield* autoRelogin.getState();
         }),
       )
       .then(applyAutoReloginState)
@@ -1144,7 +1349,7 @@ export function App(props: {
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setDelay(delayMs);
-          return yield* autoRelogin.getState;
+          return yield* autoRelogin.getState();
         }),
       )
       .then(applyAutoReloginState)
@@ -1332,8 +1537,8 @@ export function App(props: {
             true,
           );
           const [currentCell, currentPad] = yield* Effect.all([
-            player.getCell,
-            player.getPad,
+            player.getCell(),
+            player.getPad(),
           ]);
 
           return {
@@ -1398,6 +1603,339 @@ export function App(props: {
     setOpenMenu(null);
   };
 
+  const getScriptInputsDefinition = (): ScriptInputsDefinition | null =>
+    loadedScript()?.inputs ?? null;
+
+  const resetScriptInputDialogRefs = (): void => {
+    scriptInputFieldRefs.clear();
+    scriptInputEditorRefs.clear();
+  };
+
+  const setScriptInputFieldRef = (key: string, element: HTMLElement): void => {
+    scriptInputFieldRefs.set(key, element);
+  };
+
+  const setScriptInputEditorRef = (key: string, element: HTMLElement): void => {
+    scriptInputEditorRefs.set(key, element);
+  };
+
+  const scriptInputFieldHasError = (key: string): boolean =>
+    scriptInputDialogError()?.fields.some((field) => field.key === key) ??
+    false;
+
+  const scriptInputFieldErrorMessage = (key: string): string | undefined =>
+    scriptInputDialogError()?.fields.find((field) => field.key === key)
+      ?.message;
+
+  const scriptInputFieldElement = (key: string): HTMLElement | undefined =>
+    scriptInputFieldRefs.get(key) ??
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".game-script-inputs-dialog__field[data-script-input-key]",
+      ),
+    ).find((element) => element.dataset["scriptInputKey"] === key);
+
+  const scriptInputEditorElement = (
+    fieldElement: HTMLElement | undefined,
+    key: string,
+  ): HTMLElement | undefined =>
+    fieldElement?.querySelector<HTMLElement>(
+      "[data-slot='combobox-input'], [data-slot='input'], .checkbox__input, input, button, [tabindex]:not([tabindex='-1'])",
+    ) ??
+    scriptInputEditorRefs.get(key) ??
+    undefined;
+
+  const focusScriptInputField = (key: string): void => {
+    const fieldElement = scriptInputFieldElement(key);
+    fieldElement?.scrollIntoView({ block: "center", inline: "nearest" });
+    window.requestAnimationFrame(() => {
+      const editorElement = scriptInputEditorElement(
+        scriptInputFieldElement(key),
+        key,
+      );
+      try {
+        editorElement?.focus({ preventScroll: true });
+      } catch {
+        editorElement?.focus();
+      }
+    });
+  };
+
+  const refreshScriptInputValues = (
+    definition: ScriptInputsDefinition,
+  ): Promise<ScriptInputValues> => {
+    const bridge = window.desktop.scripting;
+    return bridge === undefined
+      ? Promise.resolve(normalizeScriptInputValues(definition, {}))
+      : bridge.getInputValues(definition);
+  };
+
+  const saveScriptInputValues = (
+    definition: ScriptInputsDefinition,
+    values: ScriptInputValues,
+  ): Promise<ScriptInputValues> => {
+    const normalized = normalizeScriptInputValues(definition, values);
+    const bridge = window.desktop.scripting;
+    return bridge === undefined
+      ? Promise.resolve(normalized)
+      : bridge.saveInputValues(definition, normalized);
+  };
+
+  const loadScript = async () => {
+    if (scriptRunning() || scriptBusy()) {
+      return;
+    }
+
+    const bridge = window.desktop.scripting;
+    if (bridge === undefined) {
+      console.warn("[game:script]", "desktop scripting bridge unavailable");
+      return;
+    }
+
+    setScriptBusy(true);
+    try {
+      const result = await bridge.openFile();
+      if (result.canceled) {
+        return;
+      }
+
+      setLoadedScript(result.file);
+      setScriptRunnerStatus({ state: "idle" });
+      setScriptInputDialogError(null);
+      if (result.file.inputs === null) {
+        setScriptInputValues({});
+      } else {
+        setScriptInputValues(
+          await refreshScriptInputValues(result.file.inputs),
+        );
+      }
+      setOpenMenu(null);
+    } catch (error) {
+      console.error("[game:script]", "load failed", error);
+    } finally {
+      setScriptBusy(false);
+    }
+  };
+
+  const openScriptInputsDialog = (
+    mode: ScriptInputsDialogMode,
+    definition: ScriptInputsDefinition,
+    values: ScriptInputValues,
+  ): void => {
+    resetScriptInputDialogRefs();
+    setScriptInputDialogMode(mode);
+    setScriptInputDraftValues(scriptInputDraftFromValues(definition, values));
+    setScriptInputDialogError(null);
+    setScriptInputDialogSaving(false);
+    setScriptInputDialogOpen(true);
+    setOpenMenu(null);
+  };
+
+  const openScriptInputs = () => {
+    const definition = getScriptInputsDefinition();
+    if (definition === null || scriptRunning() || scriptInputDialogSaving()) {
+      return;
+    }
+
+    openScriptInputsDialog("manual", definition, scriptInputValues());
+  };
+
+  const cancelScriptInputsDialog = (): void => {
+    if (scriptInputDialogSaving()) {
+      return;
+    }
+
+    resetScriptInputDialogRefs();
+    setScriptInputDialogOpen(false);
+    setScriptInputDialogError(null);
+  };
+
+  const startLoadedScript = async (
+    file: ScriptFile,
+    inputValues: ScriptInputValues,
+  ): Promise<void> => {
+    const status = await runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        return yield* runner.start(file, inputValues);
+      }),
+    );
+    setScriptRunnerStatus(status);
+    setOpenMenu(null);
+  };
+
+  const persistScriptInputs = async () => {
+    const definition = getScriptInputsDefinition();
+    if (definition === null) {
+      setScriptInputDialogOpen(false);
+      return;
+    }
+
+    if (scriptInputDialogSaving()) {
+      return;
+    }
+
+    const result = scriptInputValuesFromDraft(
+      definition,
+      scriptInputDraftValues(),
+    );
+    if (!result.ok) {
+      setScriptInputDialogError(result.error);
+      window.requestAnimationFrame(() => {
+        const first = result.error.fields[0];
+        if (first !== undefined) {
+          focusScriptInputField(first.key);
+        }
+      });
+      return;
+    }
+
+    setScriptInputDialogSaving(true);
+    const shouldStart = scriptInputDialogMode() === "required";
+    if (shouldStart) {
+      setScriptBusy(true);
+    }
+
+    try {
+      const saved = await saveScriptInputValues(definition, result.values);
+      setScriptInputValues(saved);
+      setScriptInputDialogError(null);
+      setScriptInputDialogOpen(false);
+      resetScriptInputDialogRefs();
+
+      if (shouldStart) {
+        const file = loadedScript();
+        if (file !== null) {
+          await startLoadedScript(file, saved);
+        }
+      }
+    } catch (error) {
+      console.error("[game:script]", "save inputs failed", error);
+      setScriptInputDialogError({
+        fields: [],
+        message: shouldStart
+          ? "Failed to save inputs or start script."
+          : "Failed to save inputs.",
+      });
+    } finally {
+      setScriptInputDialogSaving(false);
+      if (shouldStart) {
+        setScriptBusy(false);
+      }
+    }
+  };
+
+  const updateScriptInputDraft = (
+    key: string,
+    value: ScriptInputDraftValue,
+  ): void => {
+    setScriptInputDraftValues((current) => ({ ...current, [key]: value }));
+    setScriptInputDialogError(null);
+  };
+
+  const toggleScript = async () => {
+    if (scriptBusy()) {
+      return;
+    }
+
+    setScriptBusy(true);
+    try {
+      if (scriptRunning()) {
+        const status = await runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.stop("user requested stop");
+          }),
+        );
+        setScriptRunnerStatus(status);
+        return;
+      }
+
+      const file = loadedScript();
+      if (file === null) {
+        return;
+      }
+
+      let inputValues = scriptInputValues();
+      if (file.inputs !== null) {
+        const validation = validateScriptInputValues(file.inputs, inputValues);
+        inputValues = validation.values;
+        setScriptInputValues(inputValues);
+
+        if (validation.status === "missing-required") {
+          openScriptInputsDialog("required", file.inputs, inputValues);
+          return;
+        }
+
+        inputValues = await saveScriptInputValues(file.inputs, inputValues);
+        setScriptInputValues(inputValues);
+      }
+
+      await startLoadedScript(file, inputValues);
+    } catch (error) {
+      console.error("[game:script]", "toggle failed", error);
+    } finally {
+      setScriptBusy(false);
+    }
+  };
+
+  const syncScriptOptions = () => {
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.getOptions();
+        }),
+      )
+      .then((options) => {
+        setScriptUsePrivateRooms(options.usePrivateRooms);
+        setScriptSafeStartStop(options.safeStartStop);
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script]", "option sync failed", error);
+      });
+  };
+
+  const handleToggleScriptPrivateRooms = () => {
+    const enabled = !scriptUsePrivateRooms();
+    setScriptUsePrivateRooms(enabled);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.setUsePrivateRooms(enabled);
+        }),
+      )
+      .then((options) => {
+        setScriptUsePrivateRooms(options.usePrivateRooms);
+        setScriptSafeStartStop(options.safeStartStop);
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script]", "private-room toggle failed", error);
+        syncScriptOptions();
+      });
+  };
+
+  const handleToggleScriptSafeStartStop = () => {
+    const enabled = !scriptSafeStartStop();
+    setScriptSafeStartStop(enabled);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.setSafeStartStop(enabled);
+        }),
+      )
+      .then((options) => {
+        setScriptUsePrivateRooms(options.usePrivateRooms);
+        setScriptSafeStartStop(options.safeStartStop);
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script]", "safe-start-stop toggle failed", error);
+        syncScriptOptions();
+      });
+  };
+
   const handleToggleFollower = () => {
     console.debug("[game:follower:no-op]", "toggle");
     setOpenMenu(null);
@@ -1423,8 +1961,8 @@ export function App(props: {
   >(() => {
     const handlers = new Map<SettingsCommandId, GameHotkeyHandler>([
       ["toggleTopBar", toggleTopNav],
-      ["loadScript", loadScriptNoop],
-      ["toggleScript", toggleScriptNoop],
+      ["loadScript", loadScript],
+      ["toggleScript", toggleScript],
       ["toggleOptionsMenu", toggleOptionsMenu],
       ["toggleAutoattack", noop],
       ["toggleFollower", handleToggleFollower],
@@ -1529,6 +2067,8 @@ export function App(props: {
     let autoReloginDisposer: (() => void) | undefined;
     let autoZoneDisposer: (() => void) | undefined;
     let flashSettingsDisposer: (() => void) | undefined;
+    let scriptOptionsDisposer: (() => void) | undefined;
+    let scriptStatusDisposer: (() => void) | undefined;
     let cleanedUp = false;
 
     const travelEventFiber = runtime.runFork(
@@ -1641,11 +2181,45 @@ export function App(props: {
         console.error("[game:autorelogin]", "state subscription failed", error);
       });
 
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          const status = yield* runner.getStatus();
+          const options = yield* runner.getOptions();
+          const dispose = yield* runner.onStatus(setScriptRunnerStatus);
+          const disposeOptions = yield* runner.onOptions((nextOptions) => {
+            setScriptUsePrivateRooms(nextOptions.usePrivateRooms);
+            setScriptSafeStartStop(nextOptions.safeStartStop);
+          });
+          return { dispose, disposeOptions, options, status };
+        }),
+      )
+      .then(({ dispose, disposeOptions, options, status }) => {
+        setScriptRunnerStatus(status);
+        setScriptUsePrivateRooms(options.usePrivateRooms);
+        setScriptSafeStartStop(options.safeStartStop);
+
+        if (cleanedUp) {
+          dispose();
+          disposeOptions();
+          return;
+        }
+
+        scriptStatusDisposer = dispose;
+        scriptOptionsDisposer = disposeOptions;
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script]", "state subscription failed", error);
+      });
+
     onCleanup(() => {
       cleanedUp = true;
       autoReloginDisposer?.();
       autoZoneDisposer?.();
       flashSettingsDisposer?.();
+      scriptOptionsDisposer?.();
+      scriptStatusDisposer?.();
       stopPlayerReadyRetry();
       resetTravelOptions();
       runtime.runFork(Fiber.interrupt(travelEventFiber));
@@ -1671,12 +2245,289 @@ export function App(props: {
     writeTopNavHidden(false);
   });
 
+  const renderScriptInputField = (field: ScriptInputField): JSX.Element => {
+    const value = () => scriptInputDraftValues()[field.key];
+    const label = () => fieldLabel(field);
+    const hasError = () => scriptInputFieldHasError(field.key);
+
+    if (field.type === "boolean") {
+      return (
+        <div
+          class="game-script-inputs-dialog__field"
+          data-invalid={hasError() ? "" : undefined}
+          data-script-input-key={field.key}
+          ref={(element) => setScriptInputFieldRef(field.key, element)}
+        >
+          <Checkbox
+            aria-label={label()}
+            checked={value() === true}
+            disabled={scriptInputDialogSaving()}
+            invalid={hasError()}
+            ref={(element) => setScriptInputEditorRef(field.key, element)}
+            onInput={(event) =>
+              updateScriptInputDraft(field.key, event.currentTarget.checked)
+            }
+          >
+            <span class="game-script-inputs-dialog__checkbox-label-content">
+              <span class="game-script-inputs-dialog__checkbox-label-text">
+                {label()}
+                <Show when={field.required === true}>
+                  <span
+                    aria-hidden="true"
+                    class="game-script-inputs-dialog__field-required game-script-inputs-dialog__field-required--inline"
+                  >
+                    {" "}
+                    *
+                  </span>
+                </Show>
+                <Show when={field.required !== true}>
+                  <span class="game-script-inputs-dialog__field-optional game-script-inputs-dialog__field-optional--inline">
+                    {" "}
+                    (optional)
+                  </span>
+                </Show>
+              </span>
+            </span>
+          </Checkbox>
+          <Show when={field.description}>
+            {(description) => (
+              <span class="game-script-inputs-dialog__description">
+                {description()}
+              </span>
+            )}
+          </Show>
+          <Show when={scriptInputFieldErrorMessage(field.key)}>
+            {(message) => (
+              <span class="game-script-inputs-dialog__field-error-msg">
+                {message()}
+              </span>
+            )}
+          </Show>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        class="game-script-inputs-dialog__field"
+        data-invalid={hasError() ? "" : undefined}
+        data-script-input-key={field.key}
+        ref={(element) => setScriptInputFieldRef(field.key, element)}
+      >
+        <Label class="game-script-inputs-dialog__label">
+          <span class="game-script-inputs-dialog__label-text">
+            {label()}
+            <Show when={field.required === true}>
+              <span
+                aria-hidden="true"
+                class="game-script-inputs-dialog__field-required game-script-inputs-dialog__field-required--inline"
+              >
+                {" "}
+                *
+              </span>
+            </Show>
+            <Show when={field.required !== true}>
+              <span class="game-script-inputs-dialog__field-optional game-script-inputs-dialog__field-optional--inline">
+                {" "}
+                (optional)
+              </span>
+            </Show>
+          </span>
+        </Label>
+        <Show when={field.description}>
+          {(description) => (
+            <span class="game-script-inputs-dialog__description">
+              {description()}
+            </span>
+          )}
+        </Show>
+        <Show
+          when={field.type === "select"}
+          fallback={
+            <Input
+              aria-label={label()}
+              disabled={scriptInputDialogSaving()}
+              fullWidth
+              invalid={hasError()}
+              inputMode={field.type === "number" ? "decimal" : undefined}
+              ref={(element) => setScriptInputEditorRef(field.key, element)}
+              type={field.type === "number" ? "number" : "text"}
+              value={String(value() ?? "")}
+              onInput={(event) =>
+                updateScriptInputDraft(field.key, event.currentTarget.value)
+              }
+            />
+          }
+        >
+          <Combobox
+            class={
+              hasError()
+                ? "game-script-inputs-dialog__combobox--invalid"
+                : undefined
+            }
+            disabled={scriptInputDialogSaving()}
+            inputBehavior="autohighlight"
+            openOnClick
+            value={value() ? [String(value())] : []}
+            onValueChange={(details) =>
+              updateScriptInputDraft(field.key, details.value[0] ?? "")
+            }
+          >
+            <ComboboxInput
+              aria-label={label()}
+              aria-invalid={hasError() ? "true" : undefined}
+              disabled={scriptInputDialogSaving()}
+              placeholder={field.required === true ? "Select a value" : ""}
+              ref={(element) => setScriptInputEditorRef(field.key, element)}
+              showClear={field.required !== true}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No matching options</ComboboxEmpty>
+              <ComboboxList>
+                <For each={selectFieldOptions(field)}>
+                  {(option) => (
+                    <ComboboxItem value={option}>{option}</ComboboxItem>
+                  )}
+                </For>
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </Show>
+        <Show when={scriptInputFieldErrorMessage(field.key)}>
+          {(message) => (
+            <span class="game-script-inputs-dialog__field-error-msg">
+              {message()}
+            </span>
+          )}
+        </Show>
+      </div>
+    );
+  };
+
   return (
     <main
       class="game-app"
       classList={{ "game-app--topnav-hidden": !topNavVisible() }}
       data-platform={platformLabel()}
     >
+      <Dialog
+        open={scriptInputDialogOpen()}
+        onOpenChange={(details) => {
+          if (details.open) {
+            setScriptInputDialogOpen(true);
+            return;
+          }
+
+          cancelScriptInputsDialog();
+        }}
+      >
+        <DialogContent
+          class="game-script-inputs-dialog"
+          closeProps={{ disabled: scriptInputDialogSaving() }}
+          showCloseButton
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {scriptInputDialogMode() === "required"
+                ? "Script inputs required"
+                : "Script inputs"}
+            </DialogTitle>
+            <DialogDescription>
+              {loadedScript()?.name ?? "script"}
+            </DialogDescription>
+          </DialogHeader>
+          <Show when={scriptInputDialogError()}>
+            {(error) => (
+              <Alert class="game-script-inputs-dialog__error" variant="error">
+                <AlertDescription>
+                  <Icon
+                    aria-hidden="true"
+                    class="game-script-inputs-dialog__error-icon"
+                    icon="circle_alert"
+                  />
+                  <span class="game-script-inputs-dialog__error-message">
+                    <span>{error().message} </span>
+                    <Show when={error().fields.length > 0}>
+                      <span class="game-script-inputs-dialog__error-fields">
+                        <For each={error().fields}>
+                          {(field, index) => (
+                            <>
+                              <a
+                                class="game-script-inputs-dialog__error-field-link"
+                                href={`#script-input-${field.key}`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  focusScriptInputField(field.key);
+                                }}
+                              >
+                                <Show
+                                  when={field.message !== ""}
+                                  fallback={
+                                    <span class="game-script-inputs-dialog__error-field-link-label">
+                                      {field.label}
+                                      <Show
+                                        when={
+                                          index() < error().fields.length - 1
+                                        }
+                                      >
+                                        ,
+                                      </Show>
+                                    </span>
+                                  }
+                                >
+                                  <span>
+                                    <span class="game-script-inputs-dialog__error-field-link-label">
+                                      {field.label}
+                                    </span>
+                                    : {field.message}
+                                    <Show
+                                      when={index() < error().fields.length - 1}
+                                    >
+                                      ,
+                                    </Show>
+                                  </span>
+                                </Show>
+                              </a>{" "}
+                            </>
+                          )}
+                        </For>
+                      </span>
+                    </Show>
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </Show>
+          <div class="game-script-inputs-dialog__fields">
+            <div class="game-script-inputs-dialog__field-list">
+              <For each={getScriptInputsDefinition()?.fields ?? []}>
+                {renderScriptInputField}
+              </For>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={scriptInputDialogSaving()}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={cancelScriptInputsDialog}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={scriptInputDialogSaving()}
+              size="sm"
+              type="button"
+              onClick={() => void persistScriptInputs()}
+            >
+              {scriptInputDialogMode() === "required"
+                ? "Save and Start"
+                : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <TopNav
         openMenu={openMenu}
         setOpenMenu={setOpenMenu}
@@ -1706,21 +2557,17 @@ export function App(props: {
         selectedAutoAttackProfileId={selectedAutoAttackProfileId}
         handleToggleAutoAttack={noop}
         handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
-        scriptLoaded={() => false}
-        scriptRunning={() => false}
+        scriptLoaded={scriptLoaded}
+        scriptRunning={scriptRunning}
         scriptStatus={scriptStatus}
         scriptUsePrivateRooms={scriptUsePrivateRooms}
         scriptSafeStartStop={scriptSafeStartStop}
-        scriptInputsAvailable={() => false}
-        loadScript={loadScriptNoop}
-        toggleScript={toggleScriptNoop}
-        openScriptInputs={openScriptInputsNoop}
-        handleToggleScriptPrivateRooms={() =>
-          setScriptUsePrivateRooms((value) => !value)
-        }
-        handleToggleScriptSafeStartStop={() =>
-          setScriptSafeStartStop((value) => !value)
-        }
+        scriptInputsAvailable={scriptInputsAvailable}
+        loadScript={loadScript}
+        toggleScript={toggleScript}
+        openScriptInputs={openScriptInputs}
+        handleToggleScriptPrivateRooms={handleToggleScriptPrivateRooms}
+        handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
         autoZoneEnabled={autoZoneEnabled}
         autoZoneMap={autoZoneMap}
         handleToggleAutoZone={handleToggleAutoZone}

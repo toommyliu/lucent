@@ -11,8 +11,7 @@ import {
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
-const DEFAULT_SOURCE_FILE =
-  "app/src/renderer/windows/game/scripting/ScriptApi.ts";
+const DEFAULT_SOURCE_FILE = "app/src/renderer/game/scripting/ScriptApi.ts";
 const DEFAULT_OUTPUT_FILE = "docs/public/script-api.d.ts";
 const APP_TSCONFIG = "app/tsconfig.json";
 const GENERATED_HEADER =
@@ -71,16 +70,10 @@ const BUILTIN_TYPE_NAMES = new Set([
 ]);
 
 const SUPPORT_TYPE_NAMES = new Set([
-  "ArmyError",
-  "BridgeError",
   "DurationInput",
   "DurationLike",
   "Effect",
   "EffectYieldable",
-  "ItemIdentifierToken",
-  "MonsterIdentifierToken",
-  "MonsterMapID",
-  "MonsterName",
   "Option",
   "ScriptExecutionError",
   "ScriptEffectModule",
@@ -181,27 +174,16 @@ interface Effect<
 
 interface ScriptExecutionError extends Error {
   readonly _tag: "ScriptExecutionError";
-  readonly sourceName: string;
 }
 
 interface ScriptNotReadyError extends Error {
   readonly _tag: "ScriptNotReadyError";
-  readonly sourceName: string;
 }
 
-interface BridgeError extends Error {}
+interface ScriptStopSignal extends Error {
+  readonly _tag: "ScriptStopSignal";
+}
 
-interface ArmyError extends Error {}
-
-type ItemIdentifierToken = number | string;
-type MonsterName =
-  | string
-  | \`id'\${number}\`
-  | \`id.\${number}\`
-  | \`id:\${number}\`
-  | \`id-\${number}\`;
-type MonsterMapID = number;
-type MonsterIdentifierToken = MonsterName | MonsterMapID;
 type Skill = number | string;
 
 type LucentScriptInputValue = string | number | boolean;
@@ -214,10 +196,10 @@ interface LucentScriptInputFieldBase<
   /** Stable key used by script.inputs.get(key). */
   readonly key: string;
   readonly type: Type;
-  readonly label?: string;
+  readonly label: string;
   readonly description?: string;
   readonly required?: boolean;
-  readonly defaultValue?: Value;
+  readonly default?: Value;
 }
 
 interface LucentScriptStringInputField
@@ -390,6 +372,18 @@ const transformTypeText = (type: string): string => {
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
   output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
   output = output.replace(/\bReadonlyArray\s*</g, "readonly ");
+  output = output.replace(
+    /\bBridgeTypes\.InventoryItemSelector\b/g,
+    "ObjectSelector<InventoryItemSelectorShape>",
+  );
+  output = output.replace(
+    /\bBridgeTypes\.MonsterSelector\b/g,
+    "ObjectSelector<MonsterSelectorShape>",
+  );
+  output = output.replace(
+    /\bBridgeTypes\.ShopItemSelector\b/g,
+    "ObjectSelector<ShopItemSelectorShape>",
+  );
   output = output.replace(/\bSchema\.Schema\.Type<[^>]+>/g, "unknown");
   output = output.replace(
     /\bData\.TaggedError\([^)]*\)<([^>]*)>/g,
@@ -690,58 +684,12 @@ const renderInterfaceFromDeclaration = (
   return lines.join("\n");
 };
 
-const renderPacketApiInterface = (
-  state: RenderState,
-  outputName: string,
-): void => {
-  if (state.rendered.has(outputName)) {
-    return;
-  }
-
-  const packetShape = getInterface(state.declarations, "PacketShape");
-  const packetApi = getInterface(state.declarations, "ScriptPacketApi");
-  const exposedSendMethods = new Set(["sendClient", "sendServer"]);
-  const lines: string[] = [`interface ${outputName} {`];
-
-  for (const declaration of [packetShape, packetApi]) {
-    for (const member of declaration.members) {
-      if (!ts.isMethodSignature(member)) {
-        continue;
-      }
-      const name = getPropertyName(member.name);
-      if (name === null) {
-        continue;
-      }
-      if (declaration === packetShape && !exposedSendMethods.has(name)) {
-        continue;
-      }
-      if (declaration === packetApi && exposedSendMethods.has(name)) {
-        continue;
-      }
-      const signature = renderMethodSignature(state.checker, member, name);
-      collectTypeNames(signature, state.referencedTypes);
-      lines.push(`${getJsDocComment(member)}    ${signature}`);
-    }
-  }
-
-  lines.push("}");
-  state.rendered.set(outputName, {
-    name: outputName,
-    content: lines.join("\n"),
-  });
-};
-
 const renderApiInterface = (
   state: RenderState,
   sourceName: string,
   outputName: string,
 ): void => {
   if (state.rendered.has(outputName)) {
-    return;
-  }
-
-  if (sourceName === "ScriptPacketApi") {
-    renderPacketApiInterface(state, outputName);
     return;
   }
 
@@ -873,8 +821,7 @@ const declarationText = (
   if (
     name === "ScriptExecutionError" ||
     name === "ScriptNotReadyError" ||
-    name === "BridgeError" ||
-    name === "ArmyError"
+    name === "ScriptStopSignal"
   ) {
     return null;
   }
@@ -976,7 +923,7 @@ const renderScriptTypes = (
     "",
     SUPPORT_DECLARATIONS.trimEnd(),
     "",
-    "type ScriptMain = () => Generator<EffectYieldable<unknown, unknown>, unknown, any>;",
+    "type ScriptMain = () => Generator<Effect<any, any, never>, unknown, any>;",
     "",
     ...interfaces,
     "",

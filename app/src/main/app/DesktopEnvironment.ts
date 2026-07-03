@@ -25,6 +25,7 @@ export interface DesktopEnvironmentShape extends DesktopEnvironmentConfig {
   readonly logsDir: string;
   readonly preloadPath: string;
   readonly releaseCachePath: string;
+  readonly scriptsDir: string;
   readonly settingsPath: string;
 }
 
@@ -117,6 +118,7 @@ export const makeDesktopEnvironment = (
     logsDir,
     preloadPath: join(config.rendererDir, "preload.js"),
     releaseCachePath: appDataPath("release-cache.json"),
+    scriptsDir: workspacePath("scripts"),
     settingsPath: appDataPath("settings.json"),
   };
 };

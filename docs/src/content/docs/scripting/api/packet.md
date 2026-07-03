@@ -12,12 +12,46 @@ tableOfContents:
 
 ## Members
 
-<a id="member-api-packet-sendclient"></a>
+<a id="member-api-packet-on"></a>
 
-### `api.packet.sendClient()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Packet.ts#L29" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Packet.ts:29" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Packet.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Packet.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.sendClient(packet: string, type?: ClientPacketSendType): BridgeEffect<void>
+api.packet.on(selector: PacketSelector | undefined, handler: PacketHandler): Effect.Effect<() => void, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `handler` | <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** () =&gt; `void`
+
+**Errors:** `never`
+
+<a id="member-api-packet-once"></a>
+
+### `api.packet.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Packet.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Packet.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.packet.once(selector?: PacketSelector, options?: WaitOptions): Effect.Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | null, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> |  |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+
+**Yields:** <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> \| `null`
+
+**Errors:** `never`
+
+<a id="member-api-packet-sendclient"></a>
+
+### `api.packet.sendClient()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Packet.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Packet.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.packet.sendClient(packet: string, type?: ClientPacketSendType): Effect.Effect<void, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -27,14 +61,14 @@ api.packet.sendClient(packet: string, type?: ClientPacketSendType): BridgeEffect
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-packet-sendserver"></a>
 
-### `api.packet.sendServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Packet.ts#L30" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Packet.ts:30" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.sendServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Packet.ts#L27" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Packet.ts:27" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.sendServer(packet: string, type?: ServerPacketSendType): BridgeEffect<void>
+api.packet.sendServer(packet: string, type?: ServerPacketSendType): Effect.Effect<void, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -44,4 +78,4 @@ api.packet.sendServer(packet: string, type?: ServerPacketSendType): BridgeEffect
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`

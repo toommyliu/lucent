@@ -84,27 +84,16 @@ interface Effect<
 
 interface ScriptExecutionError extends Error {
   readonly _tag: "ScriptExecutionError";
-  readonly sourceName: string;
 }
 
 interface ScriptNotReadyError extends Error {
   readonly _tag: "ScriptNotReadyError";
-  readonly sourceName: string;
 }
 
-interface BridgeError extends Error {}
+interface ScriptStopSignal extends Error {
+  readonly _tag: "ScriptStopSignal";
+}
 
-interface ArmyError extends Error {}
-
-type ItemIdentifierToken = number | string;
-type MonsterName =
-  | string
-  | `id'${number}`
-  | `id.${number}`
-  | `id:${number}`
-  | `id-${number}`;
-type MonsterMapID = number;
-type MonsterIdentifierToken = MonsterName | MonsterMapID;
 type Skill = number | string;
 
 type LucentScriptInputValue = string | number | boolean;
@@ -117,10 +106,10 @@ interface LucentScriptInputFieldBase<
   /** Stable key used by script.inputs.get(key). */
   readonly key: string;
   readonly type: Type;
-  readonly label?: string;
+  readonly label: string;
   readonly description?: string;
   readonly required?: boolean;
-  readonly defaultValue?: Value;
+  readonly default?: Value;
 }
 
 interface LucentScriptStringInputField
@@ -162,1317 +151,651 @@ interface ScriptInputsDefinition extends LucentScriptInputsDefinition {}
 type ScriptInputValues = LucentScriptInputValues;
 type ScriptModuleExports = LucentScriptModuleExports;
 
-type ScriptMain = () => Generator<EffectYieldable<unknown, unknown>, unknown, any>;
+type ScriptMain = () => Generator<Effect<any, any, never>, unknown, any>;
 
 interface ScriptContext {
     readonly api: ScriptApi;
-    readonly script: ScriptRuntimeApi;
     readonly features: ScriptFeaturesApi;
+    readonly script: ScriptRuntimeApi;
 }
 interface ScriptLucentStd {
     readonly api: ScriptApi;
-    readonly script: ScriptRuntimeApi;
     readonly features: ScriptFeaturesApi;
+    readonly script: ScriptRuntimeApi;
 }
 interface ScriptApi {
-    readonly army: ArmyApi;
-    readonly auth: AuthApi;
-    readonly bank: BankApi;
-    readonly combat: CombatApi;
-    readonly drops: DropsApi;
-    readonly environment: EnvironmentApi;
+    readonly auth: ScriptAuthApi;
+    readonly bank: ScriptBankApi;
+    readonly combat: ScriptCombatApi;
+    readonly drops: ScriptDropsApi;
     readonly events: ScriptEventsApi;
-    readonly house: HouseApi;
-    readonly inventory: InventoryApi;
+    readonly house: ScriptHouseApi;
+    readonly inventory: ScriptInventoryApi;
+    readonly map: ScriptMapApi;
+    readonly monsters: ScriptMonstersApi;
     readonly packet: ScriptPacketApi;
-    readonly player: PlayerApi;
-    readonly quests: QuestsApi;
-    readonly recipes: RecipesApi;
-    readonly settings: SettingsApi;
-    readonly shops: ShopsApi;
-    readonly tempInventory: TempInventoryApi;
-    readonly wait: WaitApi;
-    readonly world: WorldApi;
+    readonly player: ScriptPlayerApi;
+    readonly players: ScriptPlayersApi;
+    readonly quests: ScriptQuestsApi;
+    readonly settings: ScriptSettingsApi;
+    readonly shops: ScriptShopsApi;
+    readonly tempInventory: ScriptTempInventoryApi;
+    readonly wait: ScriptWaitApi;
 }
 interface ScriptRuntimeApi {
-  /** Current script cancellation signal; aborted when the script stops. */
     readonly signal: AbortSignal;
     readonly inputs: ScriptRuntimeInputsApi;
     readonly options: ScriptRuntimeOptionsApi;
-    log(message: string): void;
-  /** Stops the current script. */
-    stop(reason?: string): Effect<never, never>;
-  /** Waits for milliseconds and cancels when the script stops. Prefer this over homemade `setTimeout` helpers to avoid background timers that keep running after the script is stopped. */
+    exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect<never, ScriptStopSignal>;
+    log(message: unknown): Effect<void, never>;
     sleep(ms: number): Effect<void, ScriptExecutionError>;
-  /** Intentionally exits the current script, optionally logging out and closing the owning game window during teardown. */
-    exit(options?: ScriptExitOptions): Effect<never, ScriptExecutionError | BridgeError>;
+    stop(reason?: string): Effect<never, ScriptStopSignal>;
 }
-interface ArmyApi {
-    kill(target: MonsterIdentifierToken, options?: ScriptCombatKillOptions): Effect<void, unknown>;
-    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
-    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+interface ScriptAuthApi {
+    connectTo(server: string): Effect<AuthConnectOutcome, never>;
+    getPassword(): Effect<string, never>;
+    getServers(): Effect<readonly ServerRecord[], never>;
+    getUsername(): Effect<string, never>;
+    isLoggedIn(): Effect<boolean, never>;
+    isServerSelectReady(): Effect<boolean, never>;
+    isTemporarilyKicked(): Effect<boolean, never>;
+    login(username: string, password: string): Effect<boolean, never>;
+    logout(): Effect<void, never>;
 }
-interface AuthApi {
-    connectTo(server: string): Effect<AuthConnectOutcome, BridgeError>;
-    getServers(): Effect<Server[], BridgeError>;
-    getUsername(): Effect<string, BridgeError>;
-    getPassword(): Effect<string, BridgeError>;
-    isLoggedIn(): Effect<boolean, BridgeError>;
-    isTemporarilyKicked(): Effect<boolean, BridgeError>;
-    login(username: string, password: string): Effect<void, BridgeError>;
-    logout(): Effect<void, BridgeError>;
+interface ScriptBankApi {
+    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
+    deposit(selector: ItemSelector): Effect<boolean, never>;
+    depositBatch(selectors: readonly ItemSelector[]): Effect<readonly boolean[], never>;
+    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
+    getAll(): Effect<readonly ItemRecord[], never>;
+    getAvailableSlots(): Effect<number, never>;
+    getSlots(): Effect<number, never>;
+    getUsedSlots(): Effect<number, never>;
+    isOpen(): Effect<boolean, never>;
+    open(force?: boolean): Effect<void, never>;
+    swap(inventorySelector: ItemSelector, bankSelector: ItemSelector): Effect<boolean, never>;
+    withdraw(selector: ItemSelector): Effect<boolean, never>;
+    withdrawBatch(selectors: readonly ItemSelector[]): Effect<readonly boolean[], never>;
 }
-interface BankApi {
-    contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
-    deposit(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    depositMany(...items: ItemIdentifierToken[]): Effect<void, BridgeError>;
-    getItem(item: ItemIdentifierToken): Effect<Item | null, BridgeError>;
-    getItems(): Effect<readonly Item[], BridgeError>;
-    getSlots(): Effect<number, BridgeError>;
-    getUsedSlots(): Effect<number, BridgeError>;
-    getAvailableSlots(): Effect<number, BridgeError>;
-    isOpen(): Effect<boolean, BridgeError>;
-    open(force?: boolean): Effect<void, BridgeError>;
-    swap(invKey: ItemIdentifierToken, bankKey: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    withdraw(key: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    withdrawMany(...items: ItemIdentifierToken[]): Effect<void, BridgeError>;
+interface ScriptCombatApi {
+    attackMonster(selector: MonsterSelector): Effect<boolean, never>;
+    cancelAutoAttack(): Effect<void, never>;
+    cancelTarget(): Effect<void, never>;
+    canUseSkill(index: number): Effect<boolean, never>;
+    exit(): Effect<boolean, never>;
+    getConsumableSkillItem(): Effect<{ readonly itemId: number; } | null, never>;
+    hunt(selector: MonsterSelector, options?: HuntOptions): Effect<MonsterRecord | null, never>;
+    kill(selector: MonsterSelector, options?: CombatKillOptions): Effect<boolean, never>;
+    killForItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+    killForTempItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+    readonly target: ScriptCombatTargetApi;
+    useSkill(index: number, options?: SkillUseOptions): Effect<boolean, never>;
 }
-interface CombatApi {
-    readonly target: CombatTargetApi;
-    readonly profiles: CombatProfilesApi;
-    kill(target: MonsterIdentifierToken, options?: ScriptCombatKillOptions): Effect<void, unknown>;
-    killForItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
-    killForTempItem(target: MonsterIdentifierToken, item: ItemIdentifierToken, quantity?: number, options?: ScriptCombatKillOptions): Effect<void, unknown>;
+interface ScriptCombatTargetApi {
+    readonly auras: ScriptCombatTargetAurasApi;
+    get(): Effect<TargetInfo | null, never>;
 }
-interface CombatProfilesApi {
-    list(): Effect<readonly CombatProfile[], unknown>;
-    find(ref: CombatProfileSelector): Effect<CombatProfile | null, unknown>;
-    get(ref: CombatProfileSelector): Effect<CombatProfile, unknown>;
-    normalize(definition: CombatProfileDefinition | CombatProfile): Effect<CombatProfile, unknown>;
+interface ScriptCombatTargetAurasApi {
+    get(auraName: string): Effect<AuraRecord | null, never>;
+    getAll(): Effect<readonly AuraRecord[], never>;
+    has(auraName: string): Effect<boolean, never>;
 }
-interface CombatTargetApi {
-    get(): Effect<WorldEntity | null, BridgeError>;
-    readonly auras: CombatTargetAurasApi;
-}
-interface CombatTargetAurasApi {
-    getAll(): Effect<Collection<string, Aura>, BridgeError>;
-    get(auraName: string): Effect<Aura | null, BridgeError>;
-    has(auraName: string, options?: AuraMatchOptions): Effect<boolean, BridgeError>;
-}
-interface DropsApi {
-    acceptDrop(item: ItemIdentifierToken): Effect<void, BridgeError>;
-    containsDrop(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    getDrops(): Effect<readonly ItemData[], never>;
-    isUsingCustomDrops(): Effect<boolean, BridgeError>;
-    rejectDrop(itemId: number, visual?: boolean): Effect<boolean, BridgeError>;
-    toggleUi(): Effect<void, BridgeError>;
-}
-interface EnvironmentApi {
-    getState(): Effect<EnvironmentState, unknown>;
-    clear(): Effect<EnvironmentState, unknown>;
-    addQuest(questId: string | number, rewardItemId?: string | number): Effect<EnvironmentState, unknown>;
-    removeQuest(questId: string | number): Effect<EnvironmentState, unknown>;
-    setQuestReward(questId: string | number, rewardItemId: string | number): Effect<EnvironmentState, unknown>;
-    clearQuestReward(questId: string | number): Effect<EnvironmentState, unknown>;
-    clearQuests(): Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto registration of quest requirements in the drop list. */
-    setAutoRegisterRequirements(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto registration of quest rewards in the drop list. */
-    setAutoRegisterRewards(enabled: boolean): Effect<EnvironmentState, unknown>;
-    addItem(name: string): Effect<EnvironmentState, unknown>;
-    removeItem(name: string): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only AC-tagged items. */
-    setAcceptAcMemberOnlyDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member AC-tagged items. */
-    setAcceptAcNonMemberDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only non-AC items. */
-    setAcceptNonAcMemberOnlyDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member non-AC items. */
-    setAcceptNonAcNonMemberDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Reject or ignore unregistered drops that are not accepted by policy. */
-    setRejectUnregisteredDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Update one or more drop handling options. */
-    setDropPolicy(policy: Partial<EnvironmentDropPolicy>): Effect<EnvironmentState, unknown>;
-    clearItems(): Effect<EnvironmentState, unknown>;
-    addBoost(name: string): Effect<EnvironmentState, unknown>;
-    removeBoost(name: string): Effect<EnvironmentState, unknown>;
-    clearBoosts(): Effect<EnvironmentState, unknown>;
-    fetchBoosts(): Effect<readonly string[], unknown>;
-    syncToAll(): Effect<EnvironmentState, unknown>;
-}
-interface HouseApi {
-    getItem(item: ItemIdentifierToken): Effect<Item | null, BridgeError>;
-    getItems(): Effect<readonly Item[], BridgeError>;
-    getSlots(): Effect<number, BridgeError>;
-    getUsedSlots(): Effect<number, BridgeError>;
-    getAvailableSlots(): Effect<number, BridgeError>;
-}
-interface InventoryApi {
-    contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
-    equip(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    unequipConsumable(item: ItemIdentifierToken): Effect<boolean, BridgeError>;
-    getItem(item: ItemIdentifierToken): Effect<Item | null, BridgeError>;
-    getItems(): Effect<readonly Item[], BridgeError>;
-    getSlots(): Effect<number, BridgeError>;
-    getUsedSlots(): Effect<number, BridgeError>;
-    getAvailableSlots(): Effect<number, BridgeError>;
-}
-interface PlayerApi {
-    readonly auras: PlayerAurasApi;
-    readonly factions: PlayerFactionsApi;
-    readonly outfits: PlayerOutfitsApi;
-}
-interface PlayerAurasApi {
-    getAll(): Effect<Collection<string, Aura>, never>;
-    get(auraName: string): Effect<Aura | null, never>;
-    has(auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
-}
-interface PlayerFactionsApi {
-    getAll(): Effect<Collection<string, Faction>, BridgeError>;
-    get(name: string): Effect<Faction | null, BridgeError>;
-    hasRank(name: string, rank: number): Effect<boolean, BridgeError>;
-}
-interface PlayerOutfitsApi {
-    getAll(): Effect<Collection<string, Outfit>, BridgeError>;
-    get(name: string): Effect<Outfit | null, BridgeError>;
-    equip(name: string, options?: OutfitEquipOptions): Effect<boolean, BridgeError>;
-    wear(name: string, options?: OutfitEquipOptions): Effect<boolean, BridgeError>;
-}
-interface QuestsApi {
-    get(questId: number): Effect<Quest | null, never>;
-}
-interface RecipesApi {
-    buff(skillList?: readonly number[] | null, wait?: boolean): Effect<void, unknown>;
-    ensureLifeSteal(quantity: number): Effect<void, unknown>;
-    ensureScrollOfEnrage(quantity: number): Effect<void, unknown>;
-    useConsumables(items: string | readonly string[], equipAfter?: string): Effect<void, unknown>;
-    goToHouse(player?: string): Effect<void, unknown>;
-    beep(times?: number): Effect<void, unknown>;
-    doWheelOfDoom(toBank?: boolean): Effect<void, unknown>;
-    waitForPlayerCount(count: number, exact?: boolean): Effect<void, unknown>;
-    equipItemByEnhancement(options: EquipEnhancementSelector): Effect<void, unknown>;
-    enhanceItem(item: string, options: ScriptEnhanceItemOptions): Effect<void, unknown>;
+interface ScriptDropsApi {
+    accept(selector: ItemSelector): Effect<boolean, never>;
+    contains(selector: ItemSelector): Effect<boolean, never>;
+    getAll(): Effect<readonly DropRecord[], never>;
+    isCustomUiEnabled(): Effect<boolean, never>;
+    reject(selector: ItemSelector): Effect<boolean, never>;
+    toggleUi(): Effect<void, never>;
 }
 interface ScriptEventsApi {
-  /** Subscribes to an event. */
-    on<E extends ScriptEventName>(eventName: E, handler: ScriptEventListener<E>): Effect<ScriptEventDisposer, ScriptExecutionError | ScriptNotReadyError>;
-  /** Subscribes once, then disposes the listener. */
-    once<E extends ScriptEventName>(eventName: E, handler: ScriptEventListener<E>): Effect<ScriptEventDisposer, ScriptExecutionError | ScriptNotReadyError>;
-  /** Waits for the next matching game event. Packet events are not supported. */
-    waitFor<E extends ScriptSemanticEventName>(eventName: E, options?: ScriptEventWaitOptions<E>): Effect<ScriptEventMap[E] | null, ScriptNotReadyError | unknown>;
+    on(selector: EventSelector | undefined, handler: FlashEventHandler): Effect<() => void, never>;
+    once(selector?: EventSelector, options?: WaitOptions): Effect<FlashEvent | null, never>;
 }
 interface ScriptFeaturesAntiCounterApi {
     isEnabled(): Effect<boolean, never>;
     setEnabled(enabled: boolean): Effect<void, never>;
-    enable(): Effect<void, never>;
-    disable(): Effect<void, never>;
 }
 interface ScriptFeaturesApi {
+    readonly antiCounter: ScriptFeaturesAntiCounterApi;
     readonly autoRelogin: ScriptFeaturesAutoReloginApi;
     readonly autoZone: ScriptFeaturesAutoZoneApi;
-    readonly antiCounter: ScriptFeaturesAntiCounterApi;
 }
 interface ScriptFeaturesAutoReloginApi {
-    isEnabled(): Effect<boolean, never>;
-    enable(): Effect<void, never>;
-    disable(): Effect<void, never>;
+    disable(): Effect<AutoReloginState, never>;
+    enable(): Effect<AutoReloginState, never>;
     getDelay(): Effect<number, never>;
-    setDelay(delayMs: number): Effect<void, never>;
     getServer(): Effect<string | undefined, never>;
-    setServer(serverName: string): Effect<void, never>;
+    getState(): Effect<AutoReloginState, never>;
+    isEnabled(): Effect<boolean, never>;
+    onState(listener: (state: AutoReloginState) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
+    setDelay(delayMs: number): Effect<AutoReloginState, never>;
+    setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
+    setServer(serverName: string): Effect<AutoReloginState, never>;
 }
 interface ScriptFeaturesAutoZoneApi {
-    isEnabled(): Effect<boolean, never>;
     getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
-    enable(): Effect<void, never>;
-    disable(): Effect<void, never>;
-    setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<void, never>;
+    getState(): Effect<AutoZoneState, never>;
+    isEnabled(): Effect<boolean, never>;
+    onState(listener: (state: AutoZoneState) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
+    setEnabled(enabled: boolean): Effect<AutoZoneState, never>;
+    setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
+}
+interface ScriptHouseApi {
+    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
+    getAll(): Effect<readonly ItemRecord[], never>;
+    getAvailableSlots(): Effect<number, never>;
+    getSlots(): Effect<number, never>;
+    getUsedSlots(): Effect<number, never>;
+}
+interface ScriptInventoryApi {
+    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
+    equip(selector: ItemSelector): Effect<boolean, never>;
+    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
+    getAll(): Effect<readonly ItemRecord[], never>;
+    getAvailableSlots(): Effect<number, never>;
+    getSlots(): Effect<number, never>;
+    getUsedSlots(): Effect<number, never>;
+    unequipConsumable(selector: ItemSelector): Effect<boolean, never>;
+}
+interface ScriptMapApi {
+    getCellPads(): Effect<readonly string[], never>;
+    getCells(): Effect<readonly string[], never>;
+    getId(): Effect<number, never>;
+    getMapItem(itemId: number): Effect<void, never>;
+    getName(): Effect<string, never>;
+    getRoomNumber(): Effect<number, never>;
+    isLoaded(): Effect<boolean, never>;
+    loadSwf(swf: string): Effect<void, never>;
+    reload(): Effect<void, never>;
+    setSpawnPoint(cell?: string, pad?: string): Effect<void, never>;
+}
+interface ScriptMonstersApi {
+    readonly auras: ScriptMonstersAurasApi;
+    get(selector: MonsterSelector): Effect<MonsterRecord | null, never>;
+    getAll(): Effect<readonly MonsterRecord[], never>;
+    getAvailable(): Effect<readonly MonsterRecord[], never>;
+    isAvailable(selector: MonsterSelector): Effect<boolean, never>;
+}
+interface ScriptMonstersAurasApi {
+    get(monster: MonsterSelector, auraName: string): Effect<AuraRecord | null, never>;
+    getAll(monster: MonsterSelector): Effect<readonly AuraRecord[], never>;
+    has(monster: MonsterSelector, auraName: string): Effect<boolean, never>;
 }
 interface ScriptPacketApi {
-    sendClient(packet: string, type?: ClientPacketSendType): Effect<void, BridgeError>;
-    sendServer(packet: string, type?: ServerPacketSendType): Effect<void, BridgeError>;
+    on(selector: PacketSelector | undefined, handler: PacketHandler): Effect<() => void, never>;
+    once(selector?: PacketSelector, options?: WaitOptions): Effect<FlashPacket | null, never>;
+    sendClient(packet: string, type?: ClientPacketSendType): Effect<void, never>;
+    sendServer(packet: string, type?: ServerPacketSendType): Effect<void, never>;
+}
+interface ScriptPlayerApi {
+    readonly auras: ScriptPlayerAurasApi;
+    readonly factions: ScriptPlayerFactionsApi;
+    getCell(): Effect<string, never>;
+    getClassName(): Effect<string, never>;
+    getGender(): Effect<string, never>;
+    getGold(): Effect<number, never>;
+    getHp(): Effect<number, never>;
+    getLevel(): Effect<number, never>;
+    getMaxHp(): Effect<number, never>;
+    getMaxMp(): Effect<number, never>;
+    getMp(): Effect<number, never>;
+    getPad(): Effect<string, never>;
+    getPosition(): Effect<Position, never>;
+    getState(): Effect<number, never>;
+    goToPlayer(name: string): Effect<void, never>;
+    hasActiveBoost(boostType: string): Effect<boolean, never>;
+    isAfk(): Effect<boolean, never>;
+    isAlive(): Effect<boolean, never>;
+    isMember(): Effect<boolean, never>;
+    isReady(): Effect<boolean, never>;
+    joinMap(map: string, cell?: string, pad?: string): Effect<boolean, never>;
+    jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<void, never>;
+    readonly outfits: ScriptPlayerOutfitsApi;
+    rest(full?: boolean): Effect<void, never>;
+    useBoost(selector: ItemSelector): Effect<boolean, never>;
+    walkTo(x: number, y: number, walkSpeed?: number): Effect<boolean, never>;
+}
+interface ScriptPlayerAurasApi {
+    get(auraName: string): Effect<AuraRecord | null, never>;
+    getAll(): Effect<readonly AuraRecord[], never>;
+    has(auraName: string): Effect<boolean, never>;
+}
+interface ScriptPlayerFactionsApi {
+    get(selector: string | number): Effect<FactionRecord | null, never>;
+    getAll(): Effect<readonly FactionRecord[], never>;
+}
+interface ScriptPlayerOutfitsApi {
+    equip(name: string, options?: OutfitOptions): Effect<boolean, never>;
+    get(name: string): Effect<OutfitRecord | null, never>;
+    getAll(): Effect<readonly OutfitRecord[], never>;
+    wear(name: string, options?: OutfitOptions): Effect<boolean, never>;
+}
+interface ScriptPlayersApi {
+    readonly auras: ScriptPlayersAurasApi;
+    get(selector: string | number): Effect<PlayerRecord | null, never>;
+    getAll(): Effect<readonly PlayerRecord[], never>;
+    getMe(): Effect<PlayerRecord | null, never>;
+}
+interface ScriptPlayersAurasApi {
+    get(player: string | number, auraName: string): Effect<AuraRecord | null, never>;
+    has(player: string | number, auraName: string): Effect<boolean, never>;
+}
+interface ScriptQuestsApi {
+    abandon(questId: number): Effect<void, never>;
+    accept(questId: number): Effect<boolean, never>;
+    acceptBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
+    complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect<boolean, never>;
+    get(questId: number): Effect<QuestRecord | null, never>;
+    getAccepted(): Effect<readonly QuestRecord[], never>;
+    getAll(): Effect<readonly QuestRecord[], never>;
+    getMaxTurnIns(questId: number): Effect<number, never>;
+    isAvailable(questId: number): Effect<boolean, never>;
+    isInProgress(questId: number): Effect<boolean, never>;
+    load(questId: number): Effect<boolean, never>;
+    loadBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
 }
 interface ScriptRuntimeInputsApi {
     get(key: string): Effect<ScriptInputValue | undefined, never>;
     getAll(): Effect<ScriptInputValues, never>;
 }
 interface ScriptRuntimeOptionsApi {
-    getUsePrivateRooms(): Effect<boolean, never>;
-    setUsePrivateRooms(enabled: boolean): Effect<void, ScriptExecutionError>;
+    getAll(): Effect<ScriptRuntimeOptions, never>;
     getSafeStartStop(): Effect<boolean, never>;
-    setSafeStartStop(enabled: boolean): Effect<void, ScriptExecutionError>;
-    getAll(): Effect<Readonly<ScriptOptions>, never>;
-    reset(): Effect<void, never>;
+    getUsePrivateRooms(): Effect<boolean, never>;
+    reset(): Effect<ScriptRuntimeOptions, never>;
+    setSafeStartStop(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
+    setUsePrivateRooms(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
 }
-interface SettingsApi {
-    setEnemyMagnet(enabled: boolean): Effect<void, BridgeError>;
-    setInfiniteRange(enabled: boolean): Effect<void, BridgeError>;
-    setProvokeCell(enabled: boolean): Effect<void, BridgeError>;
-    setSkipCutscenes(enabled: boolean): Effect<void, BridgeError>;
-    setCustomName(name: string): Effect<void, BridgeError>;
-    setCustomGuild(name: string): Effect<void, BridgeError>;
-    setWalkSpeed(speed: number): Effect<void, BridgeError>;
-    setDeathAdsVisible(visible: boolean): Effect<void, BridgeError>;
-    setCollisionsEnabled(enabled: boolean): Effect<void, BridgeError>;
-    setEffectsEnabled(enabled: boolean): Effect<void, BridgeError>;
-    setOtherPlayersVisible(visible: boolean): Effect<void, BridgeError>;
-    setLagKillerEnabled(enabled: boolean): Effect<void, BridgeError>;
-    setFrameRate(fps: number): Effect<void, BridgeError>;
+interface ScriptSettingsApi {
+    apply(patch: FlashSettingsPatch): Effect<void, never>;
+    enemyMagnet(): Effect<void, never>;
+    get(): Effect<FlashSettingsSnapshot, never>;
+    infiniteRange(): Effect<void, never>;
+    isAntiCounterEnabled(): Effect<boolean, never>;
+    onState(listener: (state: FlashSettingsSnapshot) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
+    provokeCell(): Effect<void, never>;
+    setAnimationsEnabled(enabled: boolean): Effect<void, never>;
+    setAntiCounterEnabled(enabled: boolean): Effect<void, never>;
+    setCollisionsEnabled(enabled: boolean): Effect<void, never>;
+    setCustomGuild(name: string): Effect<void, never>;
+    setCustomName(name: string): Effect<void, never>;
+    setDeathAdsVisible(visible: boolean): Effect<void, never>;
+    setEnemyMagnetEnabled(enabled: boolean): Effect<void, never>;
+    setFrameRate(fps: number): Effect<void, never>;
+    setInfiniteRangeEnabled(enabled: boolean): Effect<void, never>;
+    setLagKillerEnabled(enabled: boolean): Effect<void, never>;
+    setOtherPlayersVisible(visible: boolean): Effect<void, never>;
+    setProvokeCellEnabled(enabled: boolean): Effect<void, never>;
+    setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
+    setWalkSpeed(speed: number): Effect<void, never>;
+    skipCutscenes(): Effect<void, never>;
 }
-interface ShopsApi {
-    getItem(selector: ShopItemSelector): ShopItemSelectionEffect<ShopItem | null>;
-    getItems(): Effect<Collection<string, ShopItem>, BridgeError>;
-    buy(selector: ShopItemSelector, options?: ShopQuantityOptions): ShopItemSelectionEffect<boolean>;
-    sell(selector: InventoryItemSelector, options?: ShopQuantityOptions): Effect<boolean, BridgeError>;
-    canBuy(selector: ShopItemSelector, options?: ShopQuantityOptions): ShopItemSelectionEffect<boolean>;
-    getMaxBuyQuantity(selector: ShopItemSelector): ShopItemSelectionEffect<number>;
+interface ScriptShopsApi {
+    buy(selector: ShopItemSelector, options?: QuantityOptions): Effect<boolean, never>;
+    canBuy(selector: ShopItemSelector, options?: QuantityOptions): Effect<boolean, never>;
+    close(shopId?: number): Effect<boolean, never>;
+    get(selector: ShopItemSelector): Effect<ShopItemRecord | null, never>;
+    getAll(): Effect<readonly ShopItemRecord[], never>;
+    getInfo(): Effect<ShopInfoRecord | null, never>;
+    getMaxBuyQuantity(selector: ShopItemSelector): Effect<number, never>;
+    isMergeShop(): Effect<boolean, never>;
+    isOpen(shopId?: number): Effect<boolean, never>;
+    load(shopId: number): Effect<boolean, never>;
+    loadArmorCustomize(): Effect<void, never>;
+    loadHairShop(shopId: number): Effect<void, never>;
+    sell(selector: ItemSelector, options?: QuantityOptions): Effect<boolean, never>;
 }
-interface TempInventoryApi {
-    contains(item: ItemIdentifierToken, quantity?: number): Effect<boolean, BridgeError>;
-    getItem(item: ItemIdentifierToken): Effect<Item | null, BridgeError>;
-    getItems(): Effect<readonly Item[], BridgeError>;
+interface ScriptTempInventoryApi {
+    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
+    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
+    getAll(): Effect<readonly ItemRecord[], never>;
 }
-interface WaitApi {
-  /** Waits until a predicate returns true, or returns false when the optional timeout expires.
-
-```js
-const loaded = yield* api.wait.until(
-  function* () {
-    const map = yield* api.world.map.getName();
-    return map === "battleon";
-  },
-  { timeout: "10 seconds", interval: "250 millis" },
-);
-
-if (!loaded) {
-  script.log("Battleon did not load in time.");
-}
-``` */
-    until(predicate: ScriptWaitPredicate, options?: ScriptWaitOptions): Effect<boolean, unknown>;
-    isGameActionAvailable(gameAction: 'acceptQuest' | 'addLoadout' | 'buyItem' | 'doIA' | 'equipLoadout' | 'equipItem' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'removeLoadout' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearLoadout' | 'who'): Effect<boolean, BridgeError>;
-    forGameAction(gameAction: 'acceptQuest' | 'addLoadout' | 'buyItem' | 'doIA' | 'equipLoadout' | 'equipItem' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'removeLoadout' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearLoadout' | 'who', options?: ScriptWaitOptions | DurationInput): Effect<boolean, BridgeError>;
-    forPlayerReady(options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forPlayerPosition(x: number, y: number, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forCombatExit(options?: ScriptWaitOptions): Effect<boolean, unknown>;
-    forFullyRested(options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forMapLoaded(map?: string, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forLocation(location: { readonly cell?: string; readonly pad?: string; }, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forPlayerCount(count: number, options?: ScriptPlayerCountWaitOptions): Effect<boolean, unknown>;
-    forMonsterSpawn(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): Effect<boolean, unknown>;
-    forMonsterAvailable(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): Effect<boolean, BridgeError>;
-    forMonsterDeath(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): Effect<boolean, unknown>;
-    forDrop(item: ItemIdentifierToken, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forDropRemoved(item: ItemIdentifierToken, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forInventoryItem(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): Effect<boolean, BridgeError>;
-    forInventoryItemRemoved(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): Effect<boolean, BridgeError>;
-    forItemEquipped(item: ItemIdentifierToken, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forBankOpen(options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forBankItem(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): Effect<boolean, BridgeError>;
-    forBankItemRemoved(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): Effect<boolean, BridgeError>;
-    forHouseItem(item: ItemIdentifierToken, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forQuestLoaded(questId: number, options?: ScriptWaitOptions): Effect<boolean, unknown>;
-    forQuestAccepted(questId: number, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forQuestCompleted(questId: number, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-    forSkillReady(index: string | number, options?: ScriptWaitOptions): Effect<boolean, BridgeError>;
-}
-interface WorldApi {
-    readonly map: WorldMapApi;
-    readonly players: WorldPlayersApi;
-    readonly monsters: WorldMonstersApi;
-    readonly entities: WorldEntitiesApi;
-}
-interface WorldEntitiesApi {
-    getMe(): Effect<WorldEntity | null, never>;
-    get(selector: WorldEntitySelector): Effect<WorldEntity | null, never>;
-}
-interface WorldMapApi {
-    getCells(): Effect<string[], BridgeError>;
-    getCellPads(): Effect<string[], BridgeError>;
-    isLoaded(): Effect<boolean, BridgeError>;
-    getMapItem(itemId: number): Effect<void, BridgeError>;
-    loadSwf(path: string): Effect<void, BridgeError>;
-    reload(): Effect<void, BridgeError>;
-    setSpawnPoint(cell?: string, pad?: string): Effect<void, BridgeError>;
-    getName(): Effect<string, never>;
-    getId(): Effect<number, never>;
-    getRoomNumber(): Effect<number, never>;
-}
-interface WorldMonstersApi {
-    getAll(): Effect<Collection<number, Monster>, never>;
-    get(selector: MonsterSelector): Effect<Monster | null, never>;
-    getAvailable(): Effect<Collection<number, Monster>, BridgeError>;
-    isAvailable(selector: MonsterSelector): Effect<boolean, BridgeError>;
-    readonly auras: WorldMonstersAurasApi;
-}
-interface WorldMonstersAurasApi {
-    getAll(monster: MonsterSelector): Effect<Collection<string, Aura>, never>;
-    get(monster: MonsterSelector, auraName: string): Effect<Aura | null, never>;
-    has(monster: MonsterSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
-}
-interface WorldPlayersApi {
-    getAll(): Effect<Collection<string, Avatar>, never>;
-    getMe(): Effect<Avatar | null, never>;
-    get(selector: PlayerSelector): Effect<Avatar | null, never>;
-    readonly auras: WorldPlayersAurasApi;
-}
-interface WorldPlayersAurasApi {
-    getAll(player: PlayerSelector): Effect<Collection<string, Aura>, never>;
-    get(player: PlayerSelector, auraName: string): Effect<Aura | null, never>;
-    has(player: PlayerSelector, auraName: string, options?: AuraMatchOptions): Effect<boolean, never>;
+interface ScriptWaitApi {
+    forEvent(selector?: EventSelector, options?: WaitOptions): Effect<FlashEvent | null, never>;
+    forGameAction(action: string, options?: WaitOptions | DurationInput): Effect<boolean, never>;
+    forPacket(selector?: PacketSelector, options?: WaitOptions): Effect<FlashPacket | null, never>;
+    isGameActionAvailable(action: string): Effect<boolean, never>;
+    until(condition: Effect<boolean, never, never>, options?: WaitOptions): Effect<boolean, never>;
+    untilSome<A>(condition: Effect<Option<A>, never, never>, options?: WaitOptions): Effect<A | null, never>;
 }
 
-type Aura = {
-  cat?: string;
-  duration?: number;
-  icon?: string;
-  isNew?: boolean;
-  name: string;
-  /**
-   * Number of active instances tracked for this aura name.
-   */
-  stack?: number;
-  /**
-   * The aura's value, if applicable.
-   * Can be an integer or float.
-   */
-  value?: number;
-};
-interface AuraMatchOptions {
-  readonly minStacks?: number;
-  readonly minValue?: number;
+interface AuraRecord {
+  readonly category?: string;
+  readonly duration: number;
+  readonly icon?: string;
+  readonly name: string;
+  readonly stack: number;
+  readonly value?: number;
 }
-type AuthConnectOutcome =
-  | {
-      readonly status: "connected";
-      readonly message: string;
-      readonly retryable: false;
-      readonly serverName?: string;
-    }
-  | {
-      readonly status: AuthConnectFailureStatus;
-      readonly message: string;
-      readonly retryable: boolean;
-      readonly serverName?: string;
-    };
-type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus';
-interface Avatar extends BaseEntity {
-  readonly data: AvatarData;
-  readonly pad: string;
-  readonly mp: number;
-  readonly maxMp: number;
-  readonly mpPercentage: number;
-  readonly level: number;
-  readonly username: string;
-  isAFK(): boolean;
-  readonly position: [number, number];
+interface AuthConnectOutcome {
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly serverName?: string;
+  readonly status:
+    | "blocked"
+    | "connected"
+    | "connection-error"
+    | "connection-failed"
+    | "full"
+    | "not-found"
+    | "not-ready"
+    | "timeout";
 }
-type ClientPacketSendType = "str" | "json" | "xml";
-interface Collection<Key, Value> extends Map<Key, Value> {
-  ensure(key: Key, defaultValueGenerator: (key: Key, collection: this) => Value): Value;
-  hasAll(...keys: Key[]): boolean;
-  hasAny(...keys: Key[]): boolean;
-  first(): Value | undefined;
-  first(amount: number): Value[];
-  firstKey(): Key | undefined;
-  firstKey(amount: number): Key[];
-  last(): Value | undefined;
-  last(amount: number): Value[];
-  lastKey(): Key | undefined;
-  lastKey(amount: number): Key[];
-  at(index: number): Value | undefined;
-  keyAt(index: number): Key | undefined;
-  random(): Value | undefined;
-  random(amount: number): Value[];
-  randomKey(): Key | undefined;
-  randomKey(amount: number): Key[];
-  reverse(): this;
-  find<NewValue extends Value>(fn: (value: Value, key: Key, collection: this) => value is NewValue): NewValue | undefined;
-  find(fn: (value: Value, key: Key, collection: this) => unknown): Value | undefined;
-  find<This, NewValue extends Value>(fn: (this: This, value: Value, key: Key, collection: this) => value is NewValue, thisArg: This): NewValue | undefined;
-  find<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): Value | undefined;
-  findKey<NewKey extends Key>(fn: (value: Value, key: Key, collection: this) => key is NewKey): NewKey | undefined;
-  findKey(fn: (value: Value, key: Key, collection: this) => unknown): Key | undefined;
-  findKey<This, NewKey extends Key>(fn: (this: This, value: Value, key: Key, collection: this) => key is NewKey, thisArg: This): NewKey | undefined;
-  findKey<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): Key | undefined;
-  findLast<NewValue extends Value>(fn: (value: Value, key: Key, collection: this) => value is NewValue): NewValue | undefined;
-  findLast(fn: (value: Value, key: Key, collection: this) => unknown): Value | undefined;
-  findLast<This, NewValue extends Value>(fn: (this: This, value: Value, key: Key, collection: this) => value is NewValue, thisArg: This): NewValue | undefined;
-  findLast<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): Value | undefined;
-  findLastKey<NewKey extends Key>(fn: (value: Value, key: Key, collection: this) => key is NewKey): NewKey | undefined;
-  findLastKey(fn: (value: Value, key: Key, collection: this) => unknown): Key | undefined;
-  findLastKey<This, NewKey extends Key>(fn: (this: This, value: Value, key: Key, collection: this) => key is NewKey, thisArg: This): NewKey | undefined;
-  findLastKey<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): Key | undefined;
-  sweep(fn: (value: Value, key: Key, collection: this) => unknown): number;
-  sweep<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): number;
-  filter<NewKey extends Key>(fn: (value: Value, key: Key, collection: this) => key is NewKey): Collection<NewKey, Value>;
-  filter<NewValue extends Value>(fn: (value: Value, key: Key, collection: this) => value is NewValue): Collection<Key, NewValue>;
-  filter(fn: (value: Value, key: Key, collection: this) => unknown): Collection<Key, Value>;
-  filter<This, NewKey extends Key>(fn: (this: This, value: Value, key: Key, collection: this) => key is NewKey, thisArg: This): Collection<NewKey, Value>;
-  filter<This, NewValue extends Value>(fn: (this: This, value: Value, key: Key, collection: this) => value is NewValue, thisArg: This): Collection<Key, NewValue>;
-  filter<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): Collection<Key, Value>;
-  partition<NewKey extends Key>(fn: (value: Value, key: Key, collection: this) => key is NewKey): [Collection<NewKey, Value>, Collection<Exclude<Key, NewKey>, Value>];
-  partition<NewValue extends Value>(fn: (value: Value, key: Key, collection: this) => value is NewValue): [Collection<Key, NewValue>, Collection<Key, Exclude<Value, NewValue>>];
-  partition(fn: (value: Value, key: Key, collection: this) => unknown): [Collection<Key, Value>, Collection<Key, Value>];
-  partition<This, NewKey extends Key>(fn: (this: This, value: Value, key: Key, collection: this) => key is NewKey, thisArg: This): [Collection<NewKey, Value>, Collection<Exclude<Key, NewKey>, Value>];
-  partition<This, NewValue extends Value>(fn: (this: This, value: Value, key: Key, collection: this) => value is NewValue, thisArg: This): [Collection<Key, NewValue>, Collection<Key, Exclude<Value, NewValue>>];
-  partition<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): [Collection<Key, Value>, Collection<Key, Value>];
-  flatMap<NewValue>(fn: (value: Value, key: Key, collection: this) => Collection<Key, NewValue>): Collection<Key, NewValue>;
-  flatMap<NewValue, This>(fn: (this: This, value: Value, key: Key, collection: this) => Collection<Key, NewValue>, thisArg: This): Collection<Key, NewValue>;
-  map<NewValue>(fn: (value: Value, key: Key, collection: this) => NewValue): NewValue[];
-  map<This, NewValue>(fn: (this: This, value: Value, key: Key, collection: this) => NewValue, thisArg: This): NewValue[];
-  mapValues<NewValue>(fn: (value: Value, key: Key, collection: this) => NewValue): Collection<Key, NewValue>;
-  mapValues<This, NewValue>(fn: (this: This, value: Value, key: Key, collection: this) => NewValue, thisArg: This): Collection<Key, NewValue>;
-  some(fn: (value: Value, key: Key, collection: this) => unknown): boolean;
-  some<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): boolean;
-  every<NewKey extends Key>(fn: (value: Value, key: Key, collection: this) => key is NewKey): boolean;
-  every<NewValue extends Value>(fn: (value: Value, key: Key, collection: this) => value is NewValue): boolean;
-  every(fn: (value: Value, key: Key, collection: this) => unknown): boolean;
-  every<This, NewKey extends Key>(fn: (this: This, value: Value, key: Key, collection: this) => key is NewKey, thisArg: This): boolean;
-  every<This, NewValue extends Value>(fn: (this: This, value: Value, key: Key, collection: this) => value is NewValue, thisArg: This): boolean;
-  every<This>(fn: (this: This, value: Value, key: Key, collection: this) => unknown, thisArg: This): boolean;
-  reduce(fn: (accumulator: Value, value: Value, key: Key, collection: this) => Value, initialValue?: Value): Value;
-  reduce<InitialValue>(fn: (accumulator: InitialValue, value: Value, key: Key, collection: this) => InitialValue, initialValue: InitialValue): InitialValue;
-  reduceRight(fn: (accumulator: Value, value: Value, key: Key, collection: this) => Value, initialValue?: Value): Value;
-  reduceRight<InitialValue>(fn: (accumulator: InitialValue, value: Value, key: Key, collection: this) => InitialValue, initialValue: InitialValue): InitialValue;
-  each(fn: (value: Value, key: Key, collection: this) => void): this;
-  each<This>(fn: (this: This, value: Value, key: Key, collection: this) => void, thisArg: This): this;
-  tap(fn: (collection: this) => void): this;
-  tap<This>(fn: (this: This, collection: this) => void, thisArg: This): this;
-  clone(): Collection<Key, Value>;
-  concat(...collections: ReadonlyCollection<Key, Value>[]): Collection<Key, Value>;
-  equals(collection: ReadonlyCollection<Key, Value>): boolean;
-  sort(compareFunction?: Comparator<Key, Value>): this;
-  intersection(other: ReadonlyCollection<Key, any>): Collection<Key, Value>;
-  union<OtherValue>(other: ReadonlyCollection<Key, OtherValue>): Collection<Key, Value | OtherValue>;
-  difference(other: ReadonlyCollection<Key, any>): Collection<Key, Value>;
-  symmetricDifference<OtherValue>(other: ReadonlyCollection<Key, OtherValue>): Collection<Key, Value | OtherValue>;
-  merge<OtherValue, ResultValue>(other: ReadonlyCollection<Key, OtherValue>, whenInSelf: (value: Value, key: Key) => Keep<ResultValue>, whenInOther: (valueOther: OtherValue, key: Key) => Keep<ResultValue>, whenInBoth: (value: Value, valueOther: OtherValue, key: Key) => Keep<ResultValue>): Collection<Key, ResultValue>;
-  toReversed(): Collection<Key, Value>;
-  toSorted(compareFunction?: Comparator<Key, Value>): Collection<Key, Value>;
-  toJSON(): [Key, Value][];
-}
-interface CombatProfile {
-  readonly id: string;
-  readonly label: string;
-  readonly className?: string;
-  readonly role: string;
+interface AutoReloginState {
+  readonly attemptsRemaining?: number;
+  readonly attempting: boolean;
+  readonly captured: boolean;
   readonly delayMs: number;
-  readonly cooldownMode: CombatProfileCooldownMode;
-  readonly timeoutMs: number;
-  readonly resetSkillIndexOnMonsterDeath?: boolean;
-  readonly steps: readonly CombatProfileStep[];
-  readonly messageTriggers?: readonly CombatProfileMessageTrigger[];
+  readonly enabled: boolean;
+  readonly lastError?: string;
+  readonly server?: string;
+  readonly username?: string;
+  readonly waitingDelay: boolean;
 }
-interface CombatProfileDefinition extends Partial<
-  Omit<CombatProfile, "steps" | "messageTriggers">
-> {
-  readonly steps: readonly CombatProfileStepDefinition[];
-  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
+interface AutoZoneState {
+  readonly enabled: boolean;
+  readonly map: AutoZoneSupportedMap | undefined;
 }
-type CombatProfileSelector =
-  | CombatProfileRef
-  | string
-  | {
-      readonly id: string;
-    }
-  | {
-      readonly label: string;
-    }
-  | {
-      readonly className: string;
-    };
-interface EnvironmentDropPolicy {
-  /** Accept member-only AC-tagged items. */
-  readonly acceptAcMemberOnlyDrops: boolean;
-  /** Accept non-member AC-tagged items. */
-  readonly acceptAcNonMemberDrops: boolean;
-  /** Accept member-only non-AC items. */
-  readonly acceptNonAcMemberOnlyDrops: boolean;
-  /** Accept non-member non-AC items. */
-  readonly acceptNonAcNonMemberDrops: boolean;
-  /** Reject any unregistered drop that is not accepted by this policy. */
-  readonly rejectUnregisteredDrops: boolean;
+type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus';
+type ClientPacketSendType = "str" | "json" | "xml";
+interface CombatKillOptions {
+  readonly findMost?: boolean;
+  readonly killPriority?: readonly MonsterSelector[] | string;
+  readonly maxKills?: number;
+  readonly profile?: unknown;
+  readonly skillDelay?: number;
+  readonly skillSet?: readonly Skill[];
+  readonly skillWait?: boolean;
+  readonly timeout?: DurationInput;
 }
-interface EnvironmentState {
-  readonly questIds: readonly number[];
-  readonly questAutoRegister: EnvironmentQuestAutoRegisterOptions;
-  readonly questRewards: Readonly<Record<number, number>>;
-  readonly itemNames: readonly string[];
-  readonly itemRules: EnvironmentItemRules;
-  readonly boosts: readonly string[];
+interface DropRecord extends ItemRecord {
+  readonly dropId: number;
+  readonly dropQuantity: number;
 }
-type EquipEnhancementSelector = {
-  /**
-   * The base enhancement name to match, such as "lucky" or "forge".
-   */
-  readonly enhancement: string;
-  /**
-   * The slot of the item, one of "weapon", "cape", "helm", "class".
-   */
-  readonly slot?: EquipEnhancementSelectorSlot;
-  /**
-   * Optional special enhancement variant, such as a weapon proc or Forge special ("anima", "vainglory").
-   */
-  readonly special?: string;
-};
-interface Faction {
-  data: FactionData;
+interface EventSelector {
+  readonly type?: FlashEventType;
+}
+interface FactionRecord {
   readonly id: number;
   readonly name: string;
   readonly rank: number;
-  readonly totalRep: number;
-  readonly rep: number;
-  readonly requiredRep: number;
-  readonly remainingRep: number;
+  readonly reputation: number;
 }
-type InventoryItemSelector =
+type FlashEvent =
   | {
-      readonly name: string;
-      readonly itemId?: number;
+      readonly payload: { readonly status: string };
+      readonly type: "connection";
     }
   | {
-      readonly itemId: number;
-      readonly name?: string;
+      readonly payload: { readonly message: string };
+      readonly type: "debug";
+    }
+  | {
+      readonly type: "loaded";
+    }
+  | {
+      readonly payload: { readonly percent: number };
+      readonly type: "progress";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: UnknownRecord;
+      readonly type: "questComplete";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: MapRecord;
+      readonly type: "joinMap";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly map: string;
+        readonly zone: string;
+      };
+      readonly type: "zone";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly cell?: string;
+        readonly pad?: string;
+        readonly position?: Position;
+      };
+      readonly type: "playerLocation";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: { readonly monsterMapId: number };
+      readonly type: "monsterDeath";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly aura: AuraRecord;
+        readonly targetId: number;
+        readonly targetType: "monster" | "player";
+      };
+      readonly type: "auraAdded";
+    }
+  | {
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly auraName: string;
+        readonly targetId: number;
+        readonly targetType: "monster" | "player";
+      };
+      readonly type: "auraRemoved";
     };
-interface Item {
-  data: ItemData;
-  readonly id: number;
-  readonly name: string;
-  readonly description: string;
-  readonly quantity: number;
-  readonly maxStack: number;
-  isUpgrade(): boolean;
-  isAC(): boolean;
+type FlashEventHandler = (event: FlashEvent) => Effect<void>;
+type FlashPacket = { readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; };
+type FlashSettingsPatch = {
+  -readonly [Key in keyof FlashSettingsSnapshot]?: FlashSettingsSnapshot[Key];
+};
+interface FlashSettingsSnapshot {
+  readonly animationsEnabled: boolean;
+  readonly antiCounterEnabled: boolean;
+  readonly collisionsEnabled: boolean;
+  readonly customGuild: string;
+  readonly customName: string;
+  readonly deathAdsVisible: boolean;
+  readonly enemyMagnetEnabled: boolean;
+  readonly frameRate: number;
+  readonly infiniteRangeEnabled: boolean;
+  readonly lagKillerEnabled: boolean;
+  readonly otherPlayersVisible: boolean;
+  readonly provokeCellEnabled: boolean;
+  readonly skipCutscenesEnabled: boolean;
+  readonly walkSpeed: number;
+}
+interface HuntOptions {
+  readonly findMost?: boolean;
+}
+interface ItemRecord {
+  readonly banked: boolean;
   readonly category: string;
-  isTemp(): boolean;
-  readonly itemGroup: string;
-  isArmor(): boolean;
-  isClass(): boolean;
-  isCape(): boolean;
-  isHelm(): boolean;
-  isPet(): boolean;
-  isWeapon(): boolean;
-  readonly fileName: string;
-  readonly fileLink: string;
-  readonly meta: Record<string, number> | null;
-  readonly classRank: number | null;
-  isMaxed(): boolean;
-  isMember(): boolean;
-  readonly charItemId: number;
-  isEquipped(): boolean;
-  isWearing(): boolean;
-  readonly level: number;
-  readonly enhancementLevel: number;
-  readonly enhancementPatternId: number;
-  isBoost(): boolean;
-}
-type ItemData = {
-  CharID: number;
-  CharItemID: number;
-  EnhDPS: number;
-  EnhID: number;
-  EnhLvl: number;
-  EnhPatternID: number;
-  PatternID?: number | string;
-  EnhRng: number;
-  EnhRty: number;
-  ItemID: number;
-  ProcID?: number;
-  bBank: number;
-  bHouse: number;
-  bCoins: number;
-  bEquip: number;
-  bStaff: number;
-  bTemp: number;
-  bUpg: number;
-  bWear: number;
-  dPurchase: string;
-  iCost: number;
-  iDPS: number;
-  iHrs: number;
-  iLvl: number;
-  iQty: number;
-  iRng: number;
-  iRty: number;
-  iStk: number;
-  iType: number;
-  sDesc: string;
-  sES: string;
-  sElmt: string;
-  sFile: string;
-  sIcon: string;
-  sLink: string;
-  sMeta: string;
-  sName: string;
-  sType: string;
-};
-interface Monster extends BaseEntity {
-  readonly data: MonsterData;
-  readonly monMapId: number;
-  readonly id: number;
-  readonly level: number;
-  readonly race: string;
+  readonly charItemId?: number;
+  readonly coins: boolean;
+  readonly cost: number;
+  readonly description: string;
+  readonly enhancement?: {
+    readonly dps?: number;
+    readonly id?: number;
+    readonly level?: number;
+    readonly patternId?: number;
+    readonly range?: number;
+    readonly rarity?: number;
+  };
+  readonly equipped: boolean;
+  readonly equipmentSlot: string;
+  readonly file: string;
+  readonly house: boolean;
+  readonly itemId: number;
+  readonly link: string;
+  readonly meta: string;
   readonly name: string;
+  readonly quantity: number;
+  readonly temp: boolean;
+  readonly virtual: boolean;
 }
-type MonsterSelector = MonsterIdentifierToken | MonsterSelectorObject;
-interface Outfit {
-  readonly name: string;
-  readonly data: Record<string, unknown>;
-}
-interface OutfitEquipOptions {
-  readonly keepColors?: boolean;
-}
-type PlayerSelector = string | number | PlayerSelectorObject;
-interface Quest {
-  data: QuestInfo;
-  readonly name: string;
-  readonly id: number;
-  readonly once: boolean;
-  readonly rewards: QuestReward[];
-  readonly requirements: QuestRequirement[];
-  isDaily(): boolean;
-  isWeekly(): boolean;
-  isMonthly(): boolean;
-}
-interface ScriptCombatKillOptions extends Omit<
-  CombatKillOptions,
-  "profile"
-> {
-  readonly profile?: ScriptCombatProfileInput;
-}
-interface ScriptEnhanceItemOptions {
-  readonly enhancement: string;
-  readonly special?: string;
-}
-type ScriptEventDisposer = () => void;
-type ScriptEventListener<E extends ScriptEventName = ScriptEventName> = (
-  event: ScriptEventMap[E],
-) =>
-  | void
-  | Effect<unknown, unknown>
-  | Generator<EffectYieldable<any, any, never, never>, unknown, never>;
-interface ScriptEventMap {
-  packetFromClient: string;
-  packetFromServer: string;
-  extensionResponse: string;
-  monsterDeath: ScriptEventMonsterDeathEvent;
-  questComplete: ScriptEventQuestCompleteEvent;
-  zone: ScriptEventZoneEvent;
-  joinMap: ScriptEventJoinMapEvent;
-  updateMessage: ScriptEventUpdateMessageEvent;
-  auraAdded: ScriptEventAuraEvent;
-  auraRemoved: Omit<ScriptEventAuraEvent, "aura">;
-  afk: ScriptEventAfkEvent;
-  antiCounterStart: ScriptEventAntiCounterEvent;
-  antiCounterEnd: Omit<ScriptEventAntiCounterEvent, "durationMs">;
-  playerDeath: ScriptEventPlayerDeathEvent;
-  playerLocation: ScriptEventPlayerLocationEvent;
-}
-type ScriptEventName = keyof ScriptEventMap;
-interface ScriptEventWaitOptions<
-  E extends ScriptSemanticEventName,
-> extends ScriptWaitOptions {
-  readonly predicate?: ScriptEventPredicate<E>;
-}
-interface ScriptExitOptions {
-  readonly logout?: boolean;
-  readonly closeWindow?: boolean;
-}
-interface ScriptItemWaitOptions extends ScriptWaitOptions {
-  readonly quantity?: number;
-}
-interface ScriptMonsterWaitOptions extends ScriptWaitOptions {
-  readonly cell?: string;
-  readonly currentCell?: boolean;
-}
-interface ScriptOptions {
-  readonly usePrivateRooms: boolean;
-  readonly safeStartStop: boolean;
-}
-interface ScriptPlayerCountWaitOptions extends ScriptWaitOptions {
-  readonly exact?: boolean;
-}
-type ScriptSemanticEventName = Exclude<
-  ScriptEventName,
-  ScriptPacketEventName
->;
-interface ScriptWaitOptions {
-  readonly timeout?: DurationInput;
-  readonly interval?: DurationInput;
-}
-type ScriptWaitPredicate = () =>
-  | boolean
-  | Effect<boolean, unknown>
-  | Generator<EffectYieldable<any, any, never, never>, boolean, never>;
-interface Server {
-  data: { readonly bOnline: number; readonly bUpg: number; readonly iChat: number; readonly iCount: number; readonly iLevel: number; readonly iMax: number; readonly iPort: number; readonly sIP: string; readonly sLang: string; readonly sName: string; };
-  readonly maxPlayers: number;
-  readonly port: number;
-  readonly langCode: string;
-  readonly name: string;
-  readonly ip: string;
-  readonly playerCount: number;
-  isUpgrade(): boolean;
-  isCanned(): boolean;
-  isOnline(): boolean;
-  isFull(): boolean;
-}
-type ServerPacketSendType = "String" | "Json";
-interface ShopItem extends Item {
-  data: ShopItemData;
-}
-type ShopItemSelectionEffect<A> = Effect<
-  A,
-  BridgeError | ShopItemSelectorAmbiguousError
->;
-type ShopItemSelector =
-  | {
-      readonly name: string;
-      readonly itemId?: number;
-      readonly shopItemId?: string | number;
-    }
-  | {
-      readonly itemId: number;
-      readonly name?: string;
-      readonly shopItemId?: string | number;
-    }
-  | {
-      readonly shopItemId: string | number;
-      readonly name?: string;
-      readonly itemId?: number;
-    };
-interface ShopQuantityOptions {
-  readonly quantity?: number;
-}
-type WorldEntity =
-  | {
-      readonly type: "player";
-      readonly key: WorldEntityKey;
-      readonly entId: number;
-      readonly username: string;
-      readonly entity: Avatar;
-    }
-  | {
-      readonly type: "monster";
-      readonly key: WorldEntityKey;
-      readonly monMapId: number;
-      readonly name: string;
-      readonly entity: Monster;
-    };
-type WorldEntitySelector =
-  | { readonly type: "self" }
-  | ({ readonly type: "player" } & PlayerSelectorObject)
-  | ({ readonly type: "monster" } & MonsterSelectorObject);
-type AuthConnectFailureStatus =
-  | Exclude<ConnectToSelectionStatus, "selected">
-  | "connection-failed"
-  | "connection-error"
-  | "timeout";
-interface BaseEntity {
-  readonly data: BaseEntityData;
-  readonly hp: number;
-  readonly maxHp: number;
-  readonly hpPercentage: number;
-  readonly state: EntityState;
-  readonly alive: boolean;
-  isHpLessThan(value: number): boolean;
-  isHpGreaterThan(value: number): boolean;
-  isHpPercentageLessThan(value: number): boolean;
-  isHpPercentageGreaterThan(value: number): boolean;
-  isInCombat(): boolean;
-  isDead(): boolean;
-  isIdle(): boolean;
-  isPlayer(): boolean;
-  isMonster(): boolean;
+type ItemSelector = ObjectSelector<InventoryItemSelectorShape> | number | string;
+interface MonsterRecord {
   readonly cell: string;
-  isInCell(cell: string): boolean;
-}
-type AvatarData = BaseEntityData & {
-  afk: boolean;
-  entID: number;
-  entType: string;
-  intLevel: number;
-  intMP: number;
-  intMPMax: number;
-  strPad: string;
-  strUsername: string;
-  tx: number;
-  ty: number;
-  uoName: string;
-};
-type ReadonlyCollection<Key, Value> = Omit<Collection<Key, Value>, keyof Map<Key, Value> | "ensure" | "reverse" | "sort" | "sweep"> & ReadonlyMap<Key, Value>;
-type Comparator<Key, Value> = (firstValue: Value, secondValue: Value, firstKey: Key, secondKey: Key) => number;
-type Keep<Value> = {
-    keep: false;
-} | {
-    keep: true;
-    value: Value;
-};
-type CombatProfileCooldownMode = 'use-if-ready' | 'wait-for-cooldown';
-interface CombatProfileStep {
-  readonly id: string;
-  readonly skill: number;
-  readonly conditions: readonly CombatProfileCondition[];
-  readonly cooldownMode?: CombatProfileCooldownMode;
-  readonly waitMs?: number;
-}
-interface CombatProfileMessageTrigger {
-  readonly id: string;
-  readonly messageIncludes: string;
-  readonly skill: number;
-  readonly source: CombatProfileMessageTriggerSource;
-  readonly cooldownMs?: number;
-}
-type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
-  readonly skill: number;
-};
-type CombatProfileMessageTriggerDefinition =
-  Partial<CombatProfileMessageTrigger> & {
-    readonly messageIncludes: string;
-    readonly skill: number;
-  };
-type CombatProfileRef =
-  | "generic"
-  | "equipped-class"
-  | CombatProfileRefSelected;
-interface EnvironmentQuestAutoRegisterOptions {
-  readonly requirements: boolean;
-  readonly rewards: boolean;
-}
-interface EnvironmentItemRules {
-  readonly buckets: readonly EnvironmentItemBucket[];
-  readonly rejectElse: boolean;
-}
-type EquipEnhancementSelectorSlot = EquipItemTypeFilter | "armor";
-type FactionData = {
-  CharFactionID: string;
-  /**
-   * The ID of the faction.
-   */
-  FactionID: string;
-  /**
-   * The rank that the player has achieved in this faction.
-   */
-  iRank: number;
-  /**
-   * The total amount of rep the player has for this faction.
-   */
-  iRep: number;
-  /**
-   * The total required rep for the player to rank up.
-   */
-  iRepToRank: number;
-  /**
-   * The amount of rep the player has for their current rank.
-   */
-  iSpillRep: number;
-  /**
-   * The name of the faction.
-   */
-  sName: string;
-};
-interface CharID { readonly [key: string]: unknown; }
-interface CharItemID { readonly [key: string]: unknown; }
-interface EnhDPS { readonly [key: string]: unknown; }
-interface EnhID { readonly [key: string]: unknown; }
-interface EnhLvl { readonly [key: string]: unknown; }
-interface EnhPatternID { readonly [key: string]: unknown; }
-interface PatternID { readonly [key: string]: unknown; }
-interface EnhRng { readonly [key: string]: unknown; }
-interface EnhRty { readonly [key: string]: unknown; }
-interface ItemID { readonly [key: string]: unknown; }
-interface ProcID { readonly [key: string]: unknown; }
-type MonsterData = BaseEntityData & {
-  iLvl: number;
-  intMP: number;
-  intMPMax: number;
-  monId: number;
-  monMapId: number;
-  sRace: string;
-  strFrame: string;
-  strMonName: string;
-};
-interface MonsterSelectorObject {
-  readonly monMapId?: number;
-  readonly name?: string;
-}
-interface PlayerSelectorObject {
-  readonly username?: string;
-  readonly entId?: number;
-}
-type QuestInfo = {
-  FactionID: string;
-  /**
-   * The ID of this quest.
-   */
-  QuestID: string;
-  RequiredItems: QuestRequirementData[];
-  Rewards: QuestBonusRewardData[];
-  bGuild: string;
-  /**
-   * Whether this quest can only be completed once.
-   */
-  bOnce: string;
-  bStaff: string;
-  bUpg: string;
-  bitSuccess: string;
-  iClass: number;
-  /**
-   * The amount of experience rewarded for completing this quest.
-   */
-  iExp: number;
-  /**
-   * The amount of gold rewarded for completing this quest.
-   */
-  iGold: number;
-  iIndex?: number;
-  /**
-   * The required level to accept this quest.
-   */
-  iLvl: number;
-  /**
-   * The amount of reputation rewarded for completing this quest. 0 if not applicable.
-   */
-  iRep: number;
-  /**
-   * The class points required to accept this quest. 0 if not applicable.
-   */
-  iReqCP: number;
-  /**
-   * The required faction reputation to accept this quest.
-   */
-  iReqRep: number;
-  iSlot: number;
-  iValue: number;
-  iWar: number;
-  metaValues: Record<string, string>;
-  oItems: Record<string, ItemData>;
-  oRewards: Record<string, QuestBonusRewardData>;
-  reward: QuestRewardData[];
-  /**
-   * The description of this quest.
-   */
-  sDesc: string;
-  /**
-   * The text displayed when this quest can be completed.
-   */
-  sEndText: string;
-  /**
-   * The name of the faction that this quest is for.
-   */
-  sFaction: string;
-  sField?: string;
-  /**
-   * The name of this quest.
-   */
-  sName: string;
-  /**
-   * The status of the quest.
-   */
-  status: string;
-  turnin: QuestTurnInData[];
-};
-type QuestReward = {
-  /**
-   * The drop chance of the item with a percent sign.
-   */
-  dropChance: string;
-  /**
-   * The item ID.
-   */
-  itemId: string;
-  /**
-   * The name of the item.
-   */
-  itemName: string;
-  /**
-   * The quantity of the item.
-   */
-  quantity: number;
-};
-type QuestRequirement = {
-  /**
-   * The item ID.
-   */
-  itemId: string;
-  /**
-   * The name of the item.
-   */
-  itemName: string;
-  /**
-   * The quantity of the item.
-   */
-  quantity: number;
-};
-interface CombatKillOptions {
-  readonly killPriority?: readonly MonsterIdentifierToken[] | string;
-  readonly skillSet?: readonly Skill[] | string;
-  readonly skillDelay?: number;
-  readonly skillWait?: boolean;
-  readonly profile?: CombatProfile;
-}
-type ScriptCombatProfileInput =
-  | ScriptCombatProfileRef
-  | CombatProfileDefinition
-  | CombatProfile;
-interface ScriptEventMonsterDeathEvent {
-  readonly monMapId: number;
-}
-interface ScriptEventQuestCompleteEvent {
-  readonly QuestID: number;
-  readonly bSuccess: number;
-  readonly sName: string;
-  readonly rewardObj: {
-    readonly intGold?: number;
-    readonly intExp?: number;
-    readonly iCP?: number;
-    readonly typ?: string;
-    readonly intCoins?: number;
-  };
-}
-interface ScriptEventZoneEvent {
-  readonly map: string;
-  readonly zone: string;
-}
-interface ScriptEventJoinMapEvent {
-  readonly mapName?: string;
-  readonly mapId?: number;
-  readonly roomNumber?: number;
-}
-interface ScriptEventUpdateMessageEvent {
-  readonly message: string;
-  readonly source: "animation" | "aura";
-  readonly monMapId?: number;
-  readonly sourceMonMapId?: number;
-  readonly targetMonMapId?: number;
-  readonly auraName?: string;
-  readonly auraPhase?: "on" | "off";
-  readonly targetType?: "monster" | "player";
-  readonly targetId?: number;
-  readonly targetName?: string;
-}
-interface ScriptEventAuraEvent {
-  readonly auraName: string;
-  readonly targetId: number;
-  readonly targetName?: string;
-  readonly targetType: "monster" | "player";
-  readonly aura?: Aura;
-}
-interface ScriptEventAfkEvent {
-  readonly username: string;
-  readonly afk: boolean;
-}
-interface ScriptEventAntiCounterEvent {
-  readonly monMapId: number;
-  readonly source: "message" | "aura";
-  readonly triggerId: string;
-  readonly triggerText: string;
-  readonly durationMs?: number;
-}
-interface ScriptEventPlayerDeathEvent {
-  readonly username: string;
-  readonly entId: number;
-  readonly cell?: string;
-  readonly pad?: string;
   readonly hp: number;
+  readonly level: number;
+  readonly maxHp: number;
+  readonly maxMp: number;
+  readonly monsterId: number;
+  readonly monsterMapId: number;
+  readonly mp: number;
+  readonly name: string;
+  readonly race: string;
   readonly state: number;
 }
-interface ScriptEventPlayerLocationEvent {
-  readonly username: string;
-  readonly cell?: string;
-  readonly pad?: string;
-  readonly x?: number;
-  readonly y?: number;
+type MonsterSelector = ObjectSelector<MonsterSelectorShape> | number | string;
+interface OutfitOptions {
+  readonly keepColors?: boolean;
 }
-type ScriptEventPredicate<E extends ScriptSemanticEventName> = (
-  event: ScriptEventMap[E],
-) =>
-  | boolean
-  | Effect<boolean, unknown>
-  | Generator<EffectYieldable<any, any, never, never>, boolean, never>;
-type ScriptPacketEventName =
-  | "packetFromClient"
-  | "packetFromServer"
-  | "extensionResponse";
-interface Json { readonly [key: string]: unknown; }
-type ShopItemData = ItemData & {
-  /**
-   * Faction ID associated with the item.
-   */
-  FactionID: string;
-  /**
-   * Proc ID for Forge/Awe weapon enhancements
-   */
-  ItemProcID?: string;
-  /**
-   * Shop item id.
-   */
-  ShopItemID: string;
-  /**
-   * Enhancement-specific properties
-   */
-  bEnhShop?: boolean;
-  /**
-   * Whether the item can be placed in a house.
-   */
-  bHouse: string;
-  iClass: string;
-  iQSindex: string;
-  iQSvalue: string;
-  iQtyRemain: string;
-  iReqCP: string;
-  iReqRep: string;
-  /**
-   * Faction associated with the item.
-   */
-  sFaction: string;
-  sQuest?: string;
-  /**
-   * Items required to merge this item.
-   */
-  turnin?: {
-    ItemID: string;
-    iQty: string;
-    sName: string;
-  }[];
-};
-interface ShopItemSelectorAmbiguousError {
-  readonly _tag: "ShopItemSelectorAmbiguousError";
-  readonly message: string;
-  readonly selector: ShopItemSelector;
-  readonly matches: readonly ShopItemMatchSummary[];
-}
-type WorldEntityKey = `player:${number}` | `monster:${number}`;
-type ConnectToSelectionStatus =
-  | "selected"
-  | "not-ready"
-  | "offline"
-  | "full"
-  | "member-only"
-  | "chat-restricted"
-  | "underage-chat"
-  | "email-unconfirmed"
-  | "test-client-required"
-  | "not-found";
-type BaseEntityData = {
-  intHP: number;
-  intHPMax: number;
-  intState: number;
-  strFrame: string;
-};
-declare enum EntityState {
-  /**
-   * The entity is dead.
-   */
-  Dead = 0,
-  /**
-   * The entity is idle.
-   */
-  Idle = 1,
-  /**
-   * The entity is in combat.
-   */
-  InCombat = 2
-}
-type CombatProfileCondition =
-  | CombatProfileStatCondition
-  | CombatProfileAuraCondition;
-type CombatProfileMessageTriggerSource = "any" | "animation" | "aura";
-interface CombatProfileRefSelected {
-  readonly mode: "selected";
-  readonly profileId: string;
-}
-type EnvironmentItemBucket = 'ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member';
-type EquipItemTypeFilter = "weapon" | "cape" | "helm" | "class";
-interface CharFactionID { readonly [key: string]: unknown; }
-interface FactionID { readonly [key: string]: unknown; }
-interface QuestID { readonly [key: string]: unknown; }
-interface RequiredItems { readonly [key: string]: unknown; }
-type QuestRequirementData = {
-  /**
-   * The item ID.
-   */
-  ItemID: string;
-  /**
-   * The quantity of the item.
-   */
-  iQty: number;
-  /**
-   * The name of the item.
-   */
-  sName: string;
-};
-interface Rewards { readonly [key: string]: unknown; }
-type QuestBonusRewardData = {
-  /**
-   * The drop chance of the item with a percent sign.
-   */
-  DropChance: string;
-  /**
-   * The item ID.
-   */
-  ItemID: string;
-  /**
-   * The quantity of the item.
-   */
-  iQty: number;
-  /**
-   * The name of the item.
-   */
-  sName: string;
-};
-type QuestRewardData = {
-  /**
-   * The item ID.
-   */
-  ItemID: string;
-  /**
-   * The quantity of the item.
-   */
-  iQty: number;
-  /**
-   * The rate of the reward without a percent sign.
-   */
-  iRate: string;
-  /**
-   * The type of the reward.
-   */
-  iType: string;
-};
-type QuestTurnInData = {
-  /**
-   * The item ID.
-   */
-  ItemID: string;
-  /**
-   * The quantity of the item.
-   */
-  iQty: number;
-};
-type ScriptCombatProfileRef = CombatProfileSelector;
-interface ItemProcID { readonly [key: string]: unknown; }
-interface ShopItemID { readonly [key: string]: unknown; }
-interface _tag { readonly [key: string]: unknown; }
-interface ShopItemMatchSummary {
+interface OutfitRecord {
   readonly name: string;
-  readonly itemId: number;
-  readonly shopItemId?: string;
+  readonly raw: UnknownRecord;
 }
-interface Dead { readonly [key: string]: unknown; }
-interface Idle { readonly [key: string]: unknown; }
-interface InCombat { readonly [key: string]: unknown; }
-type CombatProfileStatCondition = {
-  readonly type: "self-hp" | "self-mp" | "ally-hp";
-  readonly op: CombatProfileComparison;
-  readonly value: number;
-  readonly unit: CombatProfileThresholdUnit;
+type PacketHandler = (packet: FlashPacket) => Effect<void>;
+interface PacketSelector {
+  readonly command?: string;
+  readonly direction?: FlashPacketDirection;
+  readonly wireType?: FlashPacketWireType;
+}
+interface PlayerRecord {
+  readonly afk: boolean;
+  readonly cell: string;
+  readonly entityId: number;
+  readonly entityType: string;
+  readonly hp: number;
+  readonly level: number;
+  readonly maxHp: number;
+  readonly maxMp: number;
+  readonly mp: number;
+  readonly name: string;
+  readonly pad: string;
+  readonly position: readonly [number, number];
+  readonly state: number;
+  readonly username: string;
+}
+interface Position {
+  readonly x: number;
+  readonly y: number;
+}
+interface QuantityOptions {
+  readonly quantity?: number;
+}
+interface QuestRecord {
+  readonly id: number;
+  readonly name: string;
+  readonly raw: UnknownRecord;
+}
+interface ScriptRuntimeOptions {
+  readonly safeStartStop: boolean;
+  readonly usePrivateRooms: boolean;
+}
+type ServerPacketSendType = "String" | "Json";
+interface ServerRecord {
+  readonly chat: number;
+  readonly count: number;
+  readonly language: string;
+  readonly max: number;
+  readonly memberOnly: boolean;
+  readonly name: string;
+  readonly online: boolean;
+  readonly raw: UnknownRecord;
+}
+interface ShopInfoRecord {
+  readonly house: boolean;
+  readonly id: number;
+  readonly items: readonly ShopItemRecord[];
+  readonly limited: boolean;
+  readonly merge: boolean;
+  readonly name: string;
+}
+interface ShopItemRecord extends ItemRecord {
+  readonly shopItemId?: number | string;
+}
+type ShopItemSelector =
+  | ObjectSelector<ShopItemSelectorShape>
+  | ObjectSelector<InventoryItemSelectorShape>
+  | number
+  | string;
+interface SkillUseOptions {
+  readonly force?: boolean;
+  readonly wait?: boolean;
+}
+type StateDisposer = () => void;
+interface StateSubscriptionOptions {
+  readonly emitCurrent?: boolean;
+}
+type TargetInfo = MonsterTargetInfo | PlayerTargetInfo;
+interface WaitOptions {
+  readonly interval?: DurationInput;
+  readonly timeout?: DurationInput;
+}
+type FlashEventType = FlashEvent["type"];
+type UnknownRecord = Record<string, unknown>;
+interface MapRecord {
+  readonly id: number;
+  readonly name: string;
+  readonly roomNumber: number;
+}
+type ObjectSelector<Shape extends Record<string, unknown>> = {
+  [Key in keyof Shape]: {
+    [SelectedKey in Key]: Shape[SelectedKey];
+  } & {
+    [OtherKey in Exclude<keyof Shape, Key>]?: never;
+  };
+}[keyof Shape];
+type InventoryItemSelectorShape = ItemSelectorShape;
+type MonsterSelectorShape = {
+  name: string;
+  monMapId: number;
 };
-type CombatProfileAuraCondition = {
-  readonly type: "self-aura" | "target-aura";
-  readonly auraName: string;
-  readonly op: CombatProfileComparison;
-  readonly value: number;
+type FlashPacketDirection = 'client' | 'server' | 'extension';
+type FlashPacketWireType = 'str' | 'json' | 'xml' | 'unknown';
+interface Json { readonly [key: string]: unknown; }
+type ShopItemSelectorShape = ItemSelectorShape & {
+  shopItemId: number;
 };
-interface DropChance { readonly [key: string]: unknown; }
-type CombatProfileComparison = "<=" | ">=";
-type CombatProfileThresholdUnit = "percent" | "value";
+type MonsterTargetInfo = TargetBaseInfo & {
+  type: "monster";
+  monsterId: number;
+  monsterMapId: number;
+  level: number;
+  race: string;
+  name: string;
+};
+type PlayerTargetInfo = TargetBaseInfo & {
+  type: "player";
+  afk: boolean;
+  entityId: number;
+  entityType: string;
+  level: number;
+  mp: number;
+  maxMp: number;
+  sp: number;
+  pad: string;
+  username: string;
+  name: string;
+};
+interface Shape { readonly [key: string]: unknown; }
+interface SelectedKey { readonly [key: string]: unknown; }
+interface OtherKey { readonly [key: string]: unknown; }
+type ItemSelectorShape = {
+  name: string;
+  itemId: number;
+};
+type TargetBaseInfo = {
+  type: "monster" | "player";
+  hp: number;
+  maxHp: number;
+  state: number;
+  cell: string;
+};

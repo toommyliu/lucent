@@ -14,10 +14,10 @@ tableOfContents:
 
 <a id="member-api-quests-abandon"></a>
 
-### `api.quests.abandon()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.abandon()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L11" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:11" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.abandon(questId: number): BridgeEffect<void>
+api.quests.abandon(questId: number): Effect.Effect<void, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -26,48 +26,14 @@ api.quests.abandon(questId: number): BridgeEffect<void>
 
 **Yields:** `void`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-quests-accept"></a>
 
-### `api.quests.accept()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L13" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:13" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.accept()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.accept(questId: number, silent?: boolean): BridgeEffect<void>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `silent` | `boolean` |  |  |
-
-**Yields:** `void`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-quests-acceptmany"></a>
-
-### `api.quests.acceptMany()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L14" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:14" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.quests.acceptMany(questIds: number[], silent?: boolean): BridgeEffect<void>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questIds` | `number`[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `silent` | `boolean` |  |  |
-
-**Yields:** `void`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-quests-cancomplete"></a>
-
-### `api.quests.canComplete()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.quests.canComplete(questId: number): BridgeEffect<boolean>
+api.quests.accept(questId: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -76,14 +42,30 @@ api.quests.canComplete(questId: number): BridgeEffect<boolean>
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
+
+<a id="member-api-quests-acceptbatch"></a>
+
+### `api.quests.acceptBatch()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L13" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:13" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.quests.acceptBatch(questIds: readonly number[]): Effect.Effect<readonly boolean[], never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `questIds` | `readonly` `number`[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** `readonly` `boolean`[]
+
+**Errors:** `never`
 
 <a id="member-api-quests-complete"></a>
 
-### `api.quests.complete()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L16" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:16" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.complete()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L16" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:16" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): BridgeEffect<boolean>
+api.quests.complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -95,54 +77,54 @@ api.quests.complete(questId: number, turnIns?: number, itemId?: number, special?
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-quests-get"></a>
 
-### `api.quests.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L271" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:271" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.get(questId: number): Effect.Effect<Quest | null, never, never>
+api.quests.get(questId: number): Effect.Effect<QuestRecord | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> \| `null`
+**Yields:** <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-quests-getaccepted"></a>
 
-### `api.quests.getAccepted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L29" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:29" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.getAccepted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.getAccepted(): BridgeEffect<Quest[]>
+api.quests.getAccepted(): Effect.Effect<readonly QuestRecord[], never, never>
 ```
 
-**Yields:** <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a>[]
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-quests-getall"></a>
 
-### `api.quests.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L25" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:25" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L24" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:24" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.getAll(): Effect.Effect<Collection<number, Quest>, never, never>
+api.quests.getAll(): Effect.Effect<readonly QuestRecord[], never, never>
 ```
 
-**Yields:** <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a>&lt;`number`, <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a>&gt;
+**Yields:** `readonly` <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-quests-getmaxturnins"></a>
 
-### `api.quests.getMaxTurnIns()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.getMaxTurnIns()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L25" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:25" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.getMaxTurnIns(questId: number): BridgeEffect<number>
+api.quests.getMaxTurnIns(questId: number): Effect.Effect<number, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -151,14 +133,14 @@ api.quests.getMaxTurnIns(questId: number): BridgeEffect<number>
 
 **Yields:** `number`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
-<a id="member-api-quests-has"></a>
+<a id="member-api-quests-isavailable"></a>
 
-### `api.quests.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.isAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L26" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:26" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.has(questId: number): Effect.Effect<boolean, never, never>
+api.quests.isAvailable(questId: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -169,28 +151,12 @@ api.quests.has(questId: number): Effect.Effect<boolean, never, never>
 
 **Errors:** `never`
 
-<a id="member-api-quests-isavailable"></a>
-
-### `api.quests.isAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L30" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:30" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.quests.isAvailable(questId: number): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
 <a id="member-api-quests-isinprogress"></a>
 
-### `api.quests.isInProgress()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L31" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:31" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.isInProgress()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L27" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:27" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.isInProgress(questId: number): BridgeEffect<boolean>
+api.quests.isInProgress(questId: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -199,38 +165,36 @@ api.quests.isInProgress(questId: number): BridgeEffect<boolean>
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-quests-load"></a>
 
-### `api.quests.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.load(questId: number, silent?: boolean): BridgeEffect<void>
+api.quests.load(questId: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `silent` | `boolean` |  |  |
 
-**Yields:** `void`
+**Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
-<a id="member-api-quests-loadmany"></a>
+<a id="member-api-quests-loadbatch"></a>
 
-### `api.quests.loadMany()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/flash/Services/Quests.ts#L24" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/flash/Services/Quests.ts:24" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.quests.loadBatch()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L29" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:29" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.loadMany(questIds: number[], silent?: boolean): BridgeEffect<void>
+api.quests.loadBatch(questIds: readonly number[]): Effect.Effect<readonly boolean[], never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `questIds` | `number`[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `silent` | `boolean` |  |  |
+| `questIds` | `readonly` `number`[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `void`
+**Yields:** `readonly` `boolean`[]
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`

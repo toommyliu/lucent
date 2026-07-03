@@ -201,6 +201,8 @@ describe("DesktopApplicationMenu", () => {
           showErrorBox: () => Effect.void,
           showMessageBox: () =>
             Effect.succeed({ checkboxChecked: false, response: 1 }),
+          showOpenDialog: () =>
+            Effect.succeed({ canceled: true, filePaths: [] }),
           showWarningAndQuit: () => Effect.void,
         });
         const env = makeDesktopEnvironment({
@@ -310,6 +312,8 @@ describe("DesktopApplicationMenu", () => {
                 messages.push(options);
                 return { checkboxChecked: false, response: 1 };
               }),
+            showOpenDialog: () =>
+              Effect.succeed({ canceled: true, filePaths: [] }),
             showWarningAndQuit: () => Effect.void,
           });
           const env = makeDesktopEnvironment({

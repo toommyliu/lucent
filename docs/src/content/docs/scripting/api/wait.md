@@ -12,456 +12,103 @@ tableOfContents:
 
 ## Members
 
-<a id="member-api-wait-forbankitem"></a>
+<a id="member-api-wait-forevent"></a>
 
-### `api.wait.forBankItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L377" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:377" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forEvent()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forBankItem(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): BridgeEffect<boolean>
+api.wait.forEvent(selector?: EventSelector, options?: WaitOptions): Effect.Effect<FlashEvent | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> |  |  |
+| `selector` | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> |  |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
 
-**Yields:** `boolean`
+**Yields:** <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> \| `null`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forbankitemremoved"></a>
-
-### `api.wait.forBankItemRemoved()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L381" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:381" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forBankItemRemoved(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forbankopen"></a>
-
-### `api.wait.forBankOpen()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L376" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:376" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forBankOpen(options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forcombatexit"></a>
-
-### `api.wait.forCombatExit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L330" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:330" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forCombatExit(options?: ScriptWaitOptions): Effect.Effect<boolean, unknown, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** `unknown`
-
-<a id="member-api-wait-fordrop"></a>
-
-### `api.wait.forDrop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L356" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:356" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forDrop(item: ItemIdentifierToken, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-fordropremoved"></a>
-
-### `api.wait.forDropRemoved()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L360" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:360" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forDropRemoved(item: ItemIdentifierToken, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forfullyrested"></a>
-
-### `api.wait.forFullyRested()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L331" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:331" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forFullyRested(options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-wait-forgameaction"></a>
 
-### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L320" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:320" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forGameAction(gameAction: 'acceptQuest' | 'addLoadout' | 'buyItem' | 'doIA' | 'equipLoadout' | 'equipItem' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'removeLoadout' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearLoadout' | 'who', options?: ScriptWaitOptions | Duration.Input): BridgeEffect<boolean>
+api.wait.forGameAction(action: string, options?: WaitOptions | Duration.Input): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `gameAction` | '`acceptQuest`' \| '`addLoadout`' \| '`buyItem`' \| '`doIA`' \| '`equipLoadout`' \| '`equipItem`' \| '`getMapItem`' \| '`loadEnhShop`' \| '`loadHairShop`' \| '`loadShop`' \| '`removeLoadout`' \| '`rest`' \| '`sellItem`' \| '`tfer`' \| '`tryQuestComplete`' \| '`unequipItem`' \| '`wearLoadout`' \| '`who`' | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> \| `Duration`.`Input` |  |  |
+| `action` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> \| `Duration`.`Input` |  |  |
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
-<a id="member-api-wait-forhouseitem"></a>
+<a id="member-api-wait-forpacket"></a>
 
-### `api.wait.forHouseItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L385" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:385" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forPacket()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forHouseItem(item: ItemIdentifierToken, options?: ScriptWaitOptions): BridgeEffect<boolean>
+api.wait.forPacket(selector?: PacketSelector, options?: WaitOptions): Effect.Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
+| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> |  |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
 
-**Yields:** `boolean`
+**Yields:** <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> \| `null`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forinventoryitem"></a>
-
-### `api.wait.forInventoryItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L364" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:364" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forInventoryItem(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forinventoryitemremoved"></a>
-
-### `api.wait.forInventoryItemRemoved()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L368" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:368" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forInventoryItemRemoved(item: ItemIdentifierToken, options?: ScriptItemWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-foritemequipped"></a>
-
-### `api.wait.forItemEquipped()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L372" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:372" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forItemEquipped(item: ItemIdentifierToken, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `item` | <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forlocation"></a>
-
-### `api.wait.forLocation()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L336" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:336" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forLocation(location: { readonly cell?: string; readonly pad?: string; }, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `location` | { `readonly` `cell`?: `string`; `readonly` `pad`?: `string`; } | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-formaploaded"></a>
-
-### `api.wait.forMapLoaded()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L332" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:332" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forMapLoaded(map?: string, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `map` | `string` |  |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-formonsteravailable"></a>
-
-### `api.wait.forMonsterAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L348" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:348" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forMonsterAvailable(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-monster-wait-options/" data-script-type="script-monster-wait-options"><code>ScriptMonsterWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-formonsterdeath"></a>
-
-### `api.wait.forMonsterDeath()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L352" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:352" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forMonsterDeath(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): Effect.Effect<boolean, unknown, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-monster-wait-options/" data-script-type="script-monster-wait-options"><code>ScriptMonsterWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** `unknown`
-
-<a id="member-api-wait-formonsterspawn"></a>
-
-### `api.wait.forMonsterSpawn()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L344" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:344" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forMonsterSpawn(monster: MonsterIdentifierToken, options?: ScriptMonsterWaitOptions): Effect.Effect<boolean, unknown, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-monster-wait-options/" data-script-type="script-monster-wait-options"><code>ScriptMonsterWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** `unknown`
-
-<a id="member-api-wait-forplayercount"></a>
-
-### `api.wait.forPlayerCount()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L340" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:340" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forPlayerCount(count: number, options?: ScriptPlayerCountWaitOptions): Effect.Effect<boolean, unknown, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `count` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-player-count-wait-options/" data-script-type="script-player-count-wait-options"><code>ScriptPlayerCountWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** `unknown`
-
-<a id="member-api-wait-forplayerposition"></a>
-
-### `api.wait.forPlayerPosition()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L325" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:325" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forPlayerPosition(x: number, y: number, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `x` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `y` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forplayerready"></a>
-
-### `api.wait.forPlayerReady()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L324" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:324" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forPlayerReady(options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forquestaccepted"></a>
-
-### `api.wait.forQuestAccepted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L393" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:393" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forQuestAccepted(questId: number, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forquestcompleted"></a>
-
-### `api.wait.forQuestCompleted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L397" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:397" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forQuestCompleted(questId: number, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
-
-<a id="member-api-wait-forquestloaded"></a>
-
-### `api.wait.forQuestLoaded()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L389" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:389" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forQuestLoaded(questId: number, options?: ScriptWaitOptions): Effect.Effect<boolean, unknown, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** `unknown`
-
-<a id="member-api-wait-forskillready"></a>
-
-### `api.wait.forSkillReady()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L401" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:401" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-```ts
-api.wait.forSkillReady(index: string | number, options?: ScriptWaitOptions): BridgeEffect<boolean>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `index` | `string` \| `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
-
-**Yields:** `boolean`
-
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-wait-isgameactionavailable"></a>
 
-### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L319" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:319" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L27" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:27" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.isGameActionAvailable(gameAction: 'acceptQuest' | 'addLoadout' | 'buyItem' | 'doIA' | 'equipLoadout' | 'equipItem' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'removeLoadout' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearLoadout' | 'who'): BridgeEffect<boolean>
+api.wait.isGameActionAvailable(action: string): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `gameAction` | '`acceptQuest`' \| '`addLoadout`' \| '`buyItem`' \| '`doIA`' \| '`equipLoadout`' \| '`equipItem`' \| '`getMapItem`' \| '`loadEnhShop`' \| '`loadHairShop`' \| '`loadShop`' \| '`removeLoadout`' \| '`rest`' \| '`sellItem`' \| '`tfer`' \| '`tryQuestComplete`' \| '`unequipItem`' \| '`wearLoadout`' \| '`who`' | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `action` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
-**Errors:** <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a>
+**Errors:** `never`
 
 <a id="member-api-wait-until"></a>
 
-### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/windows/game/scripting/ScriptApi.ts#L315" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/windows/game/scripting/ScriptApi.ts:315" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-Waits until a predicate returns true, or returns false when the optional timeout expires.
-
-```js
-const loaded = yield* api.wait.until(
-  function* () {
-    const map = yield* api.world.map.getName();
-    return map === "battleon";
-  },
-  { timeout: "10 seconds", interval: "250 millis" },
-);
-
-if (!loaded) {
-  script.log("Battleon did not load in time.");
-}
-```
+### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.until(predicate: ScriptWaitPredicate, options?: ScriptWaitOptions): Effect.Effect<boolean, unknown, never>
+api.wait.until(condition: Effect.Effect<boolean, never, never>, options?: WaitOptions): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `predicate` | <a href="/scripting/types/script-wait-predicate/" data-script-type="script-wait-predicate"><code>ScriptWaitPredicate</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> |  |  |
+| `condition` | `Effect`.`Effect`&lt;`boolean`, `never`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
-**Errors:** `unknown`
+**Errors:** `never`
+
+<a id="member-api-wait-untilsome"></a>
+
+### `api.wait.untilSome()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L32" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:32" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+api.wait.untilSome(condition: Effect.Effect<Option.Option<A>, never, never>, options?: WaitOptions): Effect.Effect<A | null, never, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `condition` | `Effect`.`Effect`&lt;`Option`.`Option`&lt;`A`&gt;, `never`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+
+**Yields:** `A` \| `null`
+
+**Errors:** `never`
