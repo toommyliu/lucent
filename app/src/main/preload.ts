@@ -9,7 +9,7 @@ import {
   readSettingsSnapshotArgument,
 } from "../shared/appearance";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
-import { SettingsIpc, UpdatesIpc } from "../shared/ipc";
+import { ScriptingIpc, SettingsIpc, UpdatesIpc } from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
 const applyBootstrapAppearance = (): void => {
@@ -78,6 +78,19 @@ const bridge: DesktopBridge = {
     os: platform,
   },
   settings: settingsBridge,
+  ...(bridgeView === "game"
+    ? {
+        scripting: {
+          getInputValues: (definition) =>
+            invoke(ScriptingIpc.getInputValues, definition),
+          openFile: () => invoke(ScriptingIpc.openFile, undefined),
+          openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
+          readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
+          saveInputValues: (definition, values) =>
+            invoke(ScriptingIpc.saveInputValues, { definition, values }),
+        },
+      }
+    : {}),
   ...(bridgeView === "settings"
     ? {
         updates: {

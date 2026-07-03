@@ -22,7 +22,7 @@ const { features, script, api } = require("lucent")
 module.exports = function* run() {
   yield* api.player.joinMap("battleon")
   yield* api.wait.forMapLoaded("battleon", { timeout: "10 seconds" })
-  script.log("ready")
+  yield* script.log("ready")
 }
 ```
 
@@ -47,9 +47,9 @@ const { features, script, api } = require("lucent")
 const { Effect, pipe } = require("effect")
 
 module.exports = function* run() {
-  const me = yield* api.world.players.getMe()
+  const me = yield* api.players.getMe()
   if (me !== null) {
-    script.log(me.username)
+    yield* script.log(me.username)
   }
 }
 ```

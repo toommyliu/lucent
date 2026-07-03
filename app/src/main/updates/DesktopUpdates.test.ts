@@ -168,6 +168,7 @@ const makeUpdatesHarness = (options: {
     });
     const shell = ElectronShell.of({
       openExternal: () => Effect.succeed(true),
+      openPath: () => Effect.succeed(true),
     });
     const layer = desktopUpdatesLayer.pipe(
       Layer.provide(

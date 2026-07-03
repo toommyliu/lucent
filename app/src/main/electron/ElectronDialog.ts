@@ -3,6 +3,8 @@ import {
   dialog,
   type MessageBoxOptions,
   type MessageBoxReturnValue,
+  type OpenDialogOptions,
+  type OpenDialogReturnValue,
 } from "electron";
 
 import { Context, Effect, Layer, Schema } from "effect";
@@ -18,10 +20,24 @@ export class ElectronDialogMessageBoxError extends Schema.TaggedErrorClass<Elect
   }
 }
 
+export class ElectronDialogOpenDialogError extends Schema.TaggedErrorClass<ElectronDialogOpenDialogError>()(
+  "ElectronDialogOpenDialogError",
+  {
+    cause: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return "Failed to show Electron open dialog.";
+  }
+}
+
 export interface ElectronDialogShape {
   readonly showMessageBox: (
     options: MessageBoxOptions,
   ) => Effect.Effect<MessageBoxReturnValue, ElectronDialogMessageBoxError>;
+  readonly showOpenDialog: (
+    options: OpenDialogOptions,
+  ) => Effect.Effect<OpenDialogReturnValue, ElectronDialogOpenDialogError>;
   readonly showErrorBox: (
     title: string,
     content: string,
@@ -45,6 +61,11 @@ export const layer = Layer.succeed(
       Effect.tryPromise({
         try: () => dialog.showMessageBox(options),
         catch: (cause) => new ElectronDialogMessageBoxError({ cause }),
+      }),
+    showOpenDialog: (options) =>
+      Effect.tryPromise({
+        try: () => dialog.showOpenDialog(options),
+        catch: (cause) => new ElectronDialogOpenDialogError({ cause }),
       }),
     showErrorBox: (title, content) =>
       Effect.sync(() => {

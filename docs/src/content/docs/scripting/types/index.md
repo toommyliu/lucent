@@ -14,134 +14,52 @@ Referenced types are generated from the types directly linked by the documented 
 
 | Type | Kind | Summary |
 | --- | --- | --- |
-| <a href="/scripting/types/army-config-raw/" data-script-type="army-config-raw"><code>ArmyConfigRaw</code></a> | type alias |  |
-| <a href="/scripting/types/army-effect/" data-script-type="army-effect"><code>ArmyEffect</code></a> | type alias |  |
-| <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
-| <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
-| <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface |  |
-| <a href="/scripting/types/army-loop-taunt-options/" data-script-type="army-loop-taunt-options"><code>ArmyLoopTauntOptions</code></a> | interface |  |
-| <a href="/scripting/types/army-loop-taunt-player-ref/" data-script-type="army-loop-taunt-player-ref"><code>ArmyLoopTauntPlayerRef</code></a> | type alias |  |
-| <a href="/scripting/types/army-loop-taunt-should-taunt/" data-script-type="army-loop-taunt-should-taunt"><code>ArmyLoopTauntShouldTaunt</code></a> | type alias |  |
-| <a href="/scripting/types/army-loop-taunt-trigger-payload/" data-script-type="army-loop-taunt-trigger-payload"><code>ArmyLoopTauntTriggerPayload</code></a> | type alias |  |
-| <a href="/scripting/types/army-loop-taunt-turn-context/" data-script-type="army-loop-taunt-turn-context"><code>ArmyLoopTauntTurnContext</code></a> | interface |  |
-| <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
-| <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
-| <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
-| <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | type alias |  |
-| <a href="/scripting/types/aura-match-options/" data-script-type="aura-match-options"><code>AuraMatchOptions</code></a> | interface |  |
-| <a href="/scripting/types/auth-connect-failure-status/" data-script-type="auth-connect-failure-status"><code>AuthConnectFailureStatus</code></a> | type alias |  |
-| <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | type alias |  |
+| <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a> | interface |  |
+| <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | interface |  |
+| <a href="/scripting/types/auto-relogin-state/" data-script-type="auto-relogin-state"><code>AutoReloginState</code></a> | interface |  |
+| <a href="/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a> | interface |  |
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
-| <a href="/scripting/types/avatar/" data-script-type="avatar"><code>Avatar</code></a> | class | Represents a player in the world. |
-| <a href="/scripting/types/avatar-data/" data-script-type="avatar-data"><code>AvatarData</code></a> | type alias |  |
-| <a href="/scripting/types/base-entity/" data-script-type="base-entity"><code>BaseEntity</code></a> | class | Base class for entities in the game world. |
-| <a href="/scripting/types/base-entity-data/" data-script-type="base-entity-data"><code>BaseEntityData</code></a> | type alias |  |
-| <a href="/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
-| <a href="/scripting/types/bridge-effect/" data-script-type="bridge-effect"><code>BridgeEffect</code></a> | type alias |  |
-| <a href="/scripting/types/bridge-error/" data-script-type="bridge-error"><code>BridgeError</code></a> | type alias |  |
 | <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
-| <a href="/scripting/types/collection/" data-script-type="collection"><code>Collection</code></a> | class | A Map with additional utility methods. |
-| <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-aura-condition/" data-script-type="combat-profile-aura-condition"><code>CombatProfileAuraCondition</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-comparison/" data-script-type="combat-profile-comparison"><code>CombatProfileComparison</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-condition/" data-script-type="combat-profile-condition"><code>CombatProfileCondition</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-message-trigger/" data-script-type="combat-profile-message-trigger"><code>CombatProfileMessageTrigger</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-message-trigger-definition/" data-script-type="combat-profile-message-trigger-definition"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-message-trigger-source/" data-script-type="combat-profile-message-trigger-source"><code>CombatProfileMessageTriggerSource</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-ref/" data-script-type="combat-profile-ref"><code>CombatProfileRef</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-ref-selected/" data-script-type="combat-profile-ref-selected"><code>CombatProfileRefSelected</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-selector/" data-script-type="combat-profile-selector"><code>CombatProfileSelector</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-stat-condition/" data-script-type="combat-profile-stat-condition"><code>CombatProfileStatCondition</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | interface |  |
-| <a href="/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
-| <a href="/scripting/types/combat-profile-threshold-unit/" data-script-type="combat-profile-threshold-unit"><code>CombatProfileThresholdUnit</code></a> | type alias |  |
-| <a href="/scripting/types/comparator/" data-script-type="comparator"><code>Comparator</code></a> | type alias |  |
-| <a href="/scripting/types/connect-to-selection-status/" data-script-type="connect-to-selection-status"><code>ConnectToSelectionStatus</code></a> | type alias |  |
-| <a href="/scripting/types/consumable-skill-item/" data-script-type="consumable-skill-item"><code>ConsumableSkillItem</code></a> | type alias |  |
-| <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | enumeration |  |
-| <a href="/scripting/types/environment-drop-policy/" data-script-type="environment-drop-policy"><code>EnvironmentDropPolicy</code></a> | interface | Handling options for drops that are not registered by name. |
-| <a href="/scripting/types/environment-item-rules/" data-script-type="environment-item-rules"><code>EnvironmentItemRules</code></a> | interface |  |
-| <a href="/scripting/types/environment-quest-auto-register-options/" data-script-type="environment-quest-auto-register-options"><code>EnvironmentQuestAutoRegisterOptions</code></a> | interface |  |
-| <a href="/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a> | interface |  |
-| <a href="/scripting/types/equip-enhancement-selector/" data-script-type="equip-enhancement-selector"><code>EquipEnhancementSelector</code></a> | type alias |  |
-| <a href="/scripting/types/equip-enhancement-selector-slot/" data-script-type="equip-enhancement-selector-slot"><code>EquipEnhancementSelectorSlot</code></a> | type alias |  |
-| <a href="/scripting/types/equip-item-type-filter/" data-script-type="equip-item-type-filter"><code>EquipItemTypeFilter</code></a> | type alias |  |
-| <a href="/scripting/types/faction/" data-script-type="faction"><code>Faction</code></a> | class | Represents a game faction. |
-| <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | type alias |  |
-| <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |
+| <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
+| <a href="/scripting/types/drop-record/" data-script-type="drop-record"><code>DropRecord</code></a> | interface |  |
+| <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | interface |  |
+| <a href="/scripting/types/faction-record/" data-script-type="faction-record"><code>FactionRecord</code></a> | interface |  |
+| <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> | type alias |  |
+| <a href="/scripting/types/flash-event-handler/" data-script-type="flash-event-handler"><code>FlashEventHandler</code></a> | type alias |  |
+| <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> | type alias |  |
+| <a href="/scripting/types/flash-settings-patch/" data-script-type="flash-settings-patch"><code>FlashSettingsPatch</code></a> | type alias |  |
+| <a href="/scripting/types/flash-settings-snapshot/" data-script-type="flash-settings-snapshot"><code>FlashSettingsSnapshot</code></a> | interface |  |
+| <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
 | <a href="/scripting/types/inventory-item-selector/" data-script-type="inventory-item-selector"><code>InventoryItemSelector</code></a> | type alias |  |
-| <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> | class | The base class for all-things item related. |
-| <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | type alias |  |
-| <a href="/scripting/types/item-identifier-token/" data-script-type="item-identifier-token"><code>ItemIdentifierToken</code></a> | type alias |  |
-| <a href="/scripting/types/keep/" data-script-type="keep"><code>Keep</code></a> | type alias |  |
-| <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a> | class | Represents a monster. |
-| <a href="/scripting/types/monster-data/" data-script-type="monster-data"><code>MonsterData</code></a> | type alias |  |
-| <a href="/scripting/types/monster-identifier-token/" data-script-type="monster-identifier-token"><code>MonsterIdentifierToken</code></a> | type alias |  |
-| <a href="/scripting/types/monster-map-id/" data-script-type="monster-map-id"><code>MonsterMapID</code></a> | type alias |  |
-| <a href="/scripting/types/monster-name/" data-script-type="monster-name"><code>MonsterName</code></a> | type alias |  |
+| <a href="/scripting/types/inventory-item-selector-shape/" data-script-type="inventory-item-selector-shape"><code>InventoryItemSelectorShape</code></a> | type alias |  |
+| <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a> | interface |  |
+| <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | type alias |  |
+| <a href="/scripting/types/map-record/" data-script-type="map-record"><code>MapRecord</code></a> | interface |  |
+| <a href="/scripting/types/monster-record/" data-script-type="monster-record"><code>MonsterRecord</code></a> | interface |  |
 | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
-| <a href="/scripting/types/monster-selector-object/" data-script-type="monster-selector-object"><code>MonsterSelectorObject</code></a> | interface |  |
-| <a href="/scripting/types/normalized-loop-taunt-trigger/" data-script-type="normalized-loop-taunt-trigger"><code>NormalizedLoopTauntTrigger</code></a> | type alias |  |
-| <a href="/scripting/types/outfit/" data-script-type="outfit"><code>Outfit</code></a> | interface |  |
-| <a href="/scripting/types/outfit-equip-options/" data-script-type="outfit-equip-options"><code>OutfitEquipOptions</code></a> | interface |  |
-| <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | type alias |  |
-| <a href="/scripting/types/player-selector-object/" data-script-type="player-selector-object"><code>PlayerSelectorObject</code></a> | interface |  |
-| <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> | class | Represents a quest. |
-| <a href="/scripting/types/quest-bonus-reward-data/" data-script-type="quest-bonus-reward-data"><code>QuestBonusRewardData</code></a> | type alias | Represents the raw data structure for additional quest rewards. |
-| <a href="/scripting/types/quest-info/" data-script-type="quest-info"><code>QuestInfo</code></a> | type alias | Represents the main quest information structure. |
-| <a href="/scripting/types/quest-requirement/" data-script-type="quest-requirement"><code>QuestRequirement</code></a> | type alias | Represents a required item for a quest. |
-| <a href="/scripting/types/quest-requirement-data/" data-script-type="quest-requirement-data"><code>QuestRequirementData</code></a> | type alias | Represents the raw data structure for a quest's required item. |
-| <a href="/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | type alias | Represents a reward for a quest. |
-| <a href="/scripting/types/quest-reward-data/" data-script-type="quest-reward-data"><code>QuestRewardData</code></a> | type alias | Represents the raw data structure for a quest reward. |
-| <a href="/scripting/types/quest-turn-in-data/" data-script-type="quest-turn-in-data"><code>QuestTurnInData</code></a> | type alias | Represents the raw data structure for quest turn-in requirements. |
-| <a href="/scripting/types/readonly-collection/" data-script-type="readonly-collection"><code>ReadonlyCollection</code></a> | type alias | Represents an immutable version of a collection |
-| <a href="/scripting/types/resolved-army-player/" data-script-type="resolved-army-player"><code>ResolvedArmyPlayer</code></a> | interface |  |
-| <a href="/scripting/types/script-combat-kill-options/" data-script-type="script-combat-kill-options"><code>ScriptCombatKillOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
-| <a href="/scripting/types/script-combat-profile-ref/" data-script-type="script-combat-profile-ref"><code>ScriptCombatProfileRef</code></a> | type alias |  |
-| <a href="/scripting/types/script-enhance-item-options/" data-script-type="script-enhance-item-options"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-equip-item-by-enhancement-options/" data-script-type="script-equip-item-by-enhancement-options"><code>ScriptEquipItemByEnhancementOptions</code></a> | type alias |  |
-| <a href="/scripting/types/script-event-afk-event/" data-script-type="script-event-afk-event"><code>ScriptEventAfkEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-anti-counter-event/" data-script-type="script-event-anti-counter-event"><code>ScriptEventAntiCounterEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-aura-event/" data-script-type="script-event-aura-event"><code>ScriptEventAuraEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-disposer/" data-script-type="script-event-disposer"><code>ScriptEventDisposer</code></a> | type alias |  |
-| <a href="/scripting/types/script-event-join-map-event/" data-script-type="script-event-join-map-event"><code>ScriptEventJoinMapEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-listener/" data-script-type="script-event-listener"><code>ScriptEventListener</code></a> | type alias |  |
-| <a href="/scripting/types/script-event-map/" data-script-type="script-event-map"><code>ScriptEventMap</code></a> | interface |  |
-| <a href="/scripting/types/script-event-monster-death-event/" data-script-type="script-event-monster-death-event"><code>ScriptEventMonsterDeathEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-player-death-event/" data-script-type="script-event-player-death-event"><code>ScriptEventPlayerDeathEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-player-location-event/" data-script-type="script-event-player-location-event"><code>ScriptEventPlayerLocationEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-predicate/" data-script-type="script-event-predicate"><code>ScriptEventPredicate</code></a> | type alias |  |
-| <a href="/scripting/types/script-event-quest-complete-event/" data-script-type="script-event-quest-complete-event"><code>ScriptEventQuestCompleteEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-update-message-event/" data-script-type="script-event-update-message-event"><code>ScriptEventUpdateMessageEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-event-wait-options/" data-script-type="script-event-wait-options"><code>ScriptEventWaitOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-event-zone-event/" data-script-type="script-event-zone-event"><code>ScriptEventZoneEvent</code></a> | interface |  |
-| <a href="/scripting/types/script-exit-options/" data-script-type="script-exit-options"><code>ScriptExitOptions</code></a> | interface |  |
+| <a href="/scripting/types/monster-target-info/" data-script-type="monster-target-info"><code>MonsterTargetInfo</code></a> | type alias |  |
+| <a href="/scripting/types/object-selector/" data-script-type="object-selector"><code>ObjectSelector</code></a> | type alias |  |
+| <a href="/scripting/types/outfit-options/" data-script-type="outfit-options"><code>OutfitOptions</code></a> | interface |  |
+| <a href="/scripting/types/outfit-record/" data-script-type="outfit-record"><code>OutfitRecord</code></a> | interface |  |
+| <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | type alias |  |
+| <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
+| <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a> | interface |  |
+| <a href="/scripting/types/player-target-info/" data-script-type="player-target-info"><code>PlayerTargetInfo</code></a> | type alias |  |
+| <a href="/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
+| <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> | interface |  |
+| <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a> | interface |  |
 | <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
-| <a href="/scripting/types/script-item-wait-options/" data-script-type="script-item-wait-options"><code>ScriptItemWaitOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-monster-wait-options/" data-script-type="script-monster-wait-options"><code>ScriptMonsterWaitOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-options/" data-script-type="script-options"><code>ScriptOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-player-count-wait-options/" data-script-type="script-player-count-wait-options"><code>ScriptPlayerCountWaitOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-recipe-effect/" data-script-type="script-recipe-effect"><code>ScriptRecipeEffect</code></a> | type alias |  |
-| <a href="/scripting/types/script-wait-options/" data-script-type="script-wait-options"><code>ScriptWaitOptions</code></a> | interface |  |
-| <a href="/scripting/types/script-wait-predicate/" data-script-type="script-wait-predicate"><code>ScriptWaitPredicate</code></a> | type alias |  |
-| <a href="/scripting/types/server/" data-script-type="server"><code>Server</code></a> | class | Represents a game server. |
+| <a href="/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
 | <a href="/scripting/types/server-packet-send-type/" data-script-type="server-packet-send-type"><code>ServerPacketSendType</code></a> | type alias |  |
-| <a href="/scripting/types/shop-info/" data-script-type="shop-info"><code>ShopInfo</code></a> | type alias |  |
-| <a href="/scripting/types/shop-item/" data-script-type="shop-item"><code>ShopItem</code></a> | class | The base class for all-things item related. |
-| <a href="/scripting/types/shop-item-data/" data-script-type="shop-item-data"><code>ShopItemData</code></a> | type alias | Represents the data structure for an item. |
-| <a href="/scripting/types/shop-item-match-summary/" data-script-type="shop-item-match-summary"><code>ShopItemMatchSummary</code></a> | interface |  |
-| <a href="/scripting/types/shop-item-selection-effect/" data-script-type="shop-item-selection-effect"><code>ShopItemSelectionEffect</code></a> | type alias |  |
+| <a href="/scripting/types/server-record/" data-script-type="server-record"><code>ServerRecord</code></a> | interface |  |
+| <a href="/scripting/types/shop-info-record/" data-script-type="shop-info-record"><code>ShopInfoRecord</code></a> | interface |  |
+| <a href="/scripting/types/shop-item-record/" data-script-type="shop-item-record"><code>ShopItemRecord</code></a> | interface |  |
 | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
-| <a href="/scripting/types/shop-item-selector-ambiguous-error/" data-script-type="shop-item-selector-ambiguous-error"><code>ShopItemSelectorAmbiguousError</code></a> | interface |  |
-| <a href="/scripting/types/shop-quantity-options/" data-script-type="shop-quantity-options"><code>ShopQuantityOptions</code></a> | interface |  |
-| <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
-| <a href="/scripting/types/world-entity/" data-script-type="world-entity"><code>WorldEntity</code></a> | type alias |  |
-| <a href="/scripting/types/world-entity-key/" data-script-type="world-entity-key"><code>WorldEntityKey</code></a> | type alias |  |
-| <a href="/scripting/types/world-entity-selector/" data-script-type="world-entity-selector"><code>WorldEntitySelector</code></a> | type alias |  |
-| <a href="/scripting/types/world-monster-auras-shape/" data-script-type="world-monster-auras-shape"><code>WorldMonsterAurasShape</code></a> | interface |  |
-| <a href="/scripting/types/world-monsters-shape/" data-script-type="world-monsters-shape"><code>WorldMonstersShape</code></a> | interface |  |
-| <a href="/scripting/types/world-player-auras-shape/" data-script-type="world-player-auras-shape"><code>WorldPlayerAurasShape</code></a> | interface |  |
-| <a href="/scripting/types/world-players-shape/" data-script-type="world-players-shape"><code>WorldPlayersShape</code></a> | interface |  |
+| <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
+| <a href="/scripting/types/state-disposer/" data-script-type="state-disposer"><code>StateDisposer</code></a> | type alias |  |
+| <a href="/scripting/types/state-subscription-options/" data-script-type="state-subscription-options"><code>StateSubscriptionOptions</code></a> | interface |  |
+| <a href="/scripting/types/target-base-info/" data-script-type="target-base-info"><code>TargetBaseInfo</code></a> | type alias |  |
+| <a href="/scripting/types/target-info/" data-script-type="target-info"><code>TargetInfo</code></a> | type alias |  |
+| <a href="/scripting/types/unknown-record/" data-script-type="unknown-record"><code>UnknownRecord</code></a> | type alias |  |
+| <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> | interface |  |

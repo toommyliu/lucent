@@ -16,6 +16,6 @@ tableOfContents:
 
 | Namespace | Description |
 | --- | --- |
-| [`features.antiCounter`](/scripting/features/anti-counter/) | Controls anti counter-attack behavior from scripts. |
-| [`features.autoRelogin`](/scripting/features/auto-relogin/) | Controls automatic relogin behavior from scripts. |
-| [`features.autoZone`](/scripting/features/auto-zone/) | Controls automatic boss zone movement from scripts. |
+| [`features.antiCounter`](/scripting/features/anti-counter/) | Anti Counter feature controls. |
+| [`features.autoRelogin`](/scripting/features/auto-relogin/) | Auto Relogin feature controls. |
+| [`features.autoZone`](/scripting/features/auto-zone/) | Auto Zone feature controls. |

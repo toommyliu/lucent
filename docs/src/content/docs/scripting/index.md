@@ -16,11 +16,11 @@ Scripts export a CommonJS generator function and import script APIs from `requir
 const { features, script, api } = require("lucent")
 
 module.exports = function* run() {
-  script.log("started")
+  yield* script.log("started")
   yield* script.options.setUsePrivateRooms(true)
   yield* api.player.joinMap("battleon")
-  const me = yield* api.world.players.getMe()
-  if (me !== null) script.log(`Logged in as ${me.username}`)
+  const me = yield* api.players.getMe()
+  if (me !== null) yield* script.log(`Logged in as ${me.username}`)
 }
 ```
 
@@ -53,8 +53,8 @@ const { features, script, api } = require("lucent")
 module.exports = function* run() {
   yield* script.options.setUsePrivateRooms(true)
   yield* api.player.joinMap("battleon")
-  const me = yield* api.world.players.getMe()
-  if (me !== null) script.log(me.username)
+  const me = yield* api.players.getMe()
+  if (me !== null) yield* script.log(me.username)
 }
 ```
 

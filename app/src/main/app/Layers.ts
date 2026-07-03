@@ -5,6 +5,9 @@ import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
+import * as ScriptInputRepository from "../scripting/ScriptInputRepository";
+import * as ScriptInputsExtractor from "../scripting/ScriptInputsExtractor";
+import * as ScriptLibrary from "../scripting/ScriptLibrary";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
 import * as DesktopWindows from "../window/DesktopWindows";
@@ -43,6 +46,21 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
 
+  const scriptingLayer = Layer.mergeAll(
+    ScriptInputsExtractor.layer,
+    ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
+    ScriptLibrary.layer.pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(
+          ElectronDialog.layer,
+          ElectronShell.layer,
+          environmentLayer,
+          ScriptInputsExtractor.layer,
+        ),
+      ),
+    ),
+  );
+
   const updatesLayer = DesktopUpdates.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -77,6 +95,7 @@ export const makeDesktopLayer = (
         environmentLayer,
         observabilityLayer,
         settingsLayer,
+        scriptingLayer,
         updatesLayer,
         windowsLayer,
       ),
@@ -88,6 +107,7 @@ export const makeDesktopLayer = (
     environmentLayer,
     observabilityLayer,
     settingsLayer,
+    scriptingLayer,
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,

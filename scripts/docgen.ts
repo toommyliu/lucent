@@ -27,15 +27,12 @@ const execFileAsync = promisify(execFile);
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
-const DEFAULT_SOURCE_FILE =
-  "app/src/renderer/windows/game/scripting/ScriptApi.ts";
+const DEFAULT_SOURCE_FILE = "app/src/renderer/game/scripting/ScriptApi.ts";
 const DEFAULT_OUTPUT_DIR = "docs/src/content/docs/scripting";
 const LEGACY_OUTPUT_DIR = "docs/src/content/docs/script-commands";
 const SOURCE_LINKS_OUTPUT = "docs/src/generated/script-source-links.ts";
 const TYPE_PREVIEWS_OUTPUT = "docs/public/script-type-previews.json";
 const APP_TSCONFIG = "app/tsconfig.json";
-const GAME_API_ENTRYPOINT = "packages/game/src/index.ts";
-const COLLECTION_API_ENTRYPOINT = "packages/collection/src/index.ts";
 const SOURCE_REF_ENV = "DOCGEN_SOURCE_REF";
 const DEFAULT_SOURCE_REF = "dev";
 const GENERATED_HEADER =
@@ -1009,51 +1006,6 @@ const collectMembersFromInterface = (
   return docs.sort((a, b) => a.path.localeCompare(b.path));
 };
 
-const collectScriptPacketMembers = (
-  checker: ts.TypeChecker,
-  declarations: ReadonlyMap<
-    string,
-    ts.InterfaceDeclaration | ts.TypeAliasDeclaration
-  >,
-  options: CliOptions,
-  git: GitSourceInfo | null,
-  typeReferences: Set<string>,
-): MemberDoc[] => {
-  const packetShape = getInterface(declarations, "PacketShape");
-  const packetApi = getInterface(declarations, "ScriptPacketApi");
-  const exposedSendMethods = new Set(["sendClient", "sendServer"]);
-
-  return [
-    ...collectMembersFromInterface(
-      checker,
-      declarations,
-      options,
-      git,
-      {
-        ...packetShape,
-        members: ts.factory.createNodeArray(
-          packetShape.members.filter(
-            (member) =>
-              ts.isMethodSignature(member) &&
-              exposedSendMethods.has(getPropertyName(member.name) ?? ""),
-          ),
-        ),
-      } as ts.InterfaceDeclaration,
-      "api.packet",
-      typeReferences,
-    ),
-    ...collectMembersFromInterface(
-      checker,
-      declarations,
-      options,
-      git,
-      packetApi,
-      "api.packet",
-      typeReferences,
-    ),
-  ].sort((a, b) => a.path.localeCompare(b.path));
-};
-
 const collectApiGroups = (
   checker: ts.TypeChecker,
   declarations: ReadonlyMap<
@@ -1094,33 +1046,21 @@ const collectApiGroups = (
       continue;
     }
 
-    const shapeName =
-      name === "packet"
-        ? "ScriptPacketApi"
-        : parseInterfaceShape(declarations, member.type);
+    const shapeName = parseInterfaceShape(declarations, member.type);
     if (shapeName === null) {
       continue;
     }
 
     const typeReferences = new Set<string>();
-    const members =
-      name === "packet"
-        ? collectScriptPacketMembers(
-            checker,
-            declarations,
-            options,
-            git,
-            typeReferences,
-          )
-        : collectMembersFromInterface(
-            checker,
-            declarations,
-            options,
-            git,
-            getInterface(declarations, shapeName),
-            `api.${name}`,
-            typeReferences,
-          );
+    const members = collectMembersFromInterface(
+      checker,
+      declarations,
+      options,
+      git,
+      getInterface(declarations, shapeName),
+      `api.${name}`,
+      typeReferences,
+    );
 
     const id = `api/${kebabCase(name)}`;
     namespaces.push({
@@ -1152,7 +1092,7 @@ const collectApiGroups = (
       continue;
     }
 
-    const shapeName = parseEffectValueShape(member.type);
+    const shapeName = parseInterfaceShape(declarations, member.type);
     if (shapeName === null) {
       continue;
     }
@@ -1302,6 +1242,7 @@ const isDocSourceReflection = (
   );
   return (
     relativePath.startsWith("app/src/shared/") ||
+    relativePath.startsWith("app/src/renderer/game/") ||
     relativePath.startsWith("app/src/renderer/windows/game/") ||
     relativePath.startsWith("packages/game/src/") ||
     relativePath.startsWith("packages/collection/src/")
@@ -1546,8 +1487,6 @@ const typedocEntryPoints = (
       addSourceFile(declaration.getSourceFile().fileName);
     }
   }
-  entryPoints.add(GAME_API_ENTRYPOINT);
-  entryPoints.add(COLLECTION_API_ENTRYPOINT);
   return Array.from(entryPoints).sort();
 };
 
@@ -1815,11 +1754,11 @@ const renderIndex = (_namespaces: readonly ApiNamespace[]): string => {
     'const { features, script, api } = require("lucent")',
     "",
     "module.exports = function* run() {",
-    '  script.log("started")',
+    '  yield* script.log("started")',
     "  yield* script.options.setUsePrivateRooms(true)",
     '  yield* api.player.joinMap("battleon")',
-    "  const me = yield* api.world.players.getMe()",
-    "  if (me !== null) script.log(`Logged in as ${me.username}`)",
+    "  const me = yield* api.players.getMe()",
+    "  if (me !== null) yield* script.log(`Logged in as ${me.username}`)",
     "}",
     "```",
     "",
@@ -1852,8 +1791,8 @@ const renderIndex = (_namespaces: readonly ApiNamespace[]): string => {
     "module.exports = function* run() {",
     "  yield* script.options.setUsePrivateRooms(true)",
     '  yield* api.player.joinMap("battleon")',
-    "  const me = yield* api.world.players.getMe()",
-    "  if (me !== null) script.log(me.username)",
+    "  const me = yield* api.players.getMe()",
+    "  if (me !== null) yield* script.log(me.username)",
     "}",
     "```",
     "",
@@ -1896,7 +1835,7 @@ const renderImportsOverview = (): string => {
     "module.exports = function* run() {",
     '  yield* api.player.joinMap("battleon")',
     '  yield* api.wait.forMapLoaded("battleon", { timeout: "10 seconds" })',
-    '  script.log("ready")',
+    '  yield* script.log("ready")',
     "}",
     "```",
     "",
@@ -1921,9 +1860,9 @@ const renderImportsOverview = (): string => {
     'const { Effect, pipe } = require("effect")',
     "",
     "module.exports = function* run() {",
-    "  const me = yield* api.world.players.getMe()",
+    "  const me = yield* api.players.getMe()",
     "  if (me !== null) {",
-    "    script.log(me.username)",
+    "    yield* script.log(me.username)",
     "  }",
     "}",
     "```",
