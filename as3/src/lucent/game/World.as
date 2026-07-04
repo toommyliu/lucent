@@ -34,16 +34,19 @@ public class World
     public static function isLoaded():Boolean
     {
       var game:Object = Main.Game;
-      if (!game.world.mapLoadInProgress)
+      var world:Object = game ? game.world : null;
+      if (!world || world.mapLoadInProgress)
       {
-        try
-        {
-          return game.getChildAt((game.numChildren - 1)) != game.mcConnDetail;
-        }
-        catch (e:Error)
-        {
-          return false;
-        }
+        return false;
+      }
+
+      try
+      {
+        return game.numChildren > 0 && game.getChildAt((game.numChildren - 1)) != game.mcConnDetail;
+      }
+      catch (e:Error)
+      {
+        return false;
       }
 
       return false;

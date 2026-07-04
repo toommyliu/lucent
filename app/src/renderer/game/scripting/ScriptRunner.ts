@@ -299,7 +299,9 @@ export const layer = Layer.effect(
         }
 
         yield* combat.exit();
+        yield* Effect.sleep("1 second");
         yield* packet.sendServer(`%xt%zm%house%1%${username}%`);
+        yield* Effect.sleep("1 second");
         const moved = yield* wait.until(
           Effect.gen(function* () {
             const [mapName, ready] = yield* Effect.all([

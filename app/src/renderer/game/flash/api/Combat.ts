@@ -12,8 +12,15 @@ import type {
   TargetInfo,
 } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { normalizeMonsterSelector } from "../selectors";
+import {
+  antiCounterExpiresAtMs,
+  isAntiCounterAura,
+  isAntiCounterAuraName,
+} from "../antiCounter";
+import { monsterMatchesSelector, normalizeMonsterSelector } from "../selectors";
+import { EventsApi } from "./Events";
 import { InventoryApi } from "./Inventory";
+import { MapApi } from "./Map";
 import { MonstersApi } from "./Monsters";
 import { PlayerApi } from "./Player";
 import { SettingsApi } from "./Settings";
@@ -74,6 +81,34 @@ export class CombatApi extends Context.Service<CombatApi, CombatApiShape>()(
 const normalizeSkill = (index: number): number | null =>
   Number.isInteger(index) && index >= 0 && index <= 5 ? index : null;
 
+const defaultSkillDelay = 150;
+const combatExitSettleDelay = 500;
+const skillReadyConfirmationDelay = 150;
+const entityState = {
+  dead: 0,
+  inCombat: 2,
+} as const;
+
+interface TrackedAntiCounter {
+  readonly auraName: string;
+  readonly expiresAtMs: number;
+}
+
+interface MonsterTargetResolutionOptions extends HuntOptions {
+  readonly includeDead: boolean;
+}
+
+const monsterTargetResolutionOptions = (
+  options: HuntOptions | undefined,
+  includeDead: boolean,
+): MonsterTargetResolutionOptions =>
+  options?.findMost === undefined
+    ? { includeDead }
+    : { findMost: options.findMost, includeDead };
+
+const antiCounterAuraKey = (monsterMapId: number, auraName: string): string =>
+  `${monsterMapId}:${auraName.trim().toLowerCase()}`;
+
 const killTimeout = (options?: CombatKillOptions): Duration.Input =>
   options?.timeout ?? "60 seconds";
 
@@ -115,11 +150,30 @@ const chooseHuntTarget = (
   return best;
 };
 
+const isMonsterDead = (monster: MonsterRecord | null): boolean =>
+  monster === null || monster.hp <= 0 || monster.state === entityState.dead;
+
+const isCombatExitCandidateCell = (
+  cell: string,
+  currentCell: string,
+): boolean => {
+  const normalized = cell.trim().toLowerCase();
+  return (
+    normalized !== "" &&
+    normalized !== currentCell.trim().toLowerCase() &&
+    normalized !== "blank" &&
+    normalized !== "wait" &&
+    !/^cut\d+$/i.test(normalized)
+  );
+};
+
 export const layer = Layer.effect(
   CombatApi,
   Effect.gen(function* () {
     const bridge = yield* SwfBridge;
+    const events = yield* EventsApi;
     const inventory = yield* InventoryApi;
+    const map = yield* MapApi;
     const monsters = yield* MonstersApi;
     const player = yield* PlayerApi;
     const settings = yield* SettingsApi;
@@ -155,6 +209,237 @@ export const layer = Layer.effect(
         targetAuras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
 
+    const antiCounterMonsters = new Map<number, TrackedAntiCounter>();
+    const expiredAntiCounterAuraKeys = new Set<string>();
+    const stoppedAntiCounterTargets = new Set<number>();
+
+    const trackAntiCounterAura = (
+      monsterMapId: number,
+      aura: AuraRecord,
+    ): void => {
+      antiCounterMonsters.set(monsterMapId, {
+        auraName: aura.name,
+        expiresAtMs: antiCounterExpiresAtMs(aura),
+      });
+      expiredAntiCounterAuraKeys.delete(
+        antiCounterAuraKey(monsterMapId, aura.name),
+      );
+    };
+
+    const clearAntiCounterTracking = (monsterMapId: number): void => {
+      antiCounterMonsters.delete(monsterMapId);
+      stoppedAntiCounterTargets.delete(monsterMapId);
+
+      const prefix = `${monsterMapId}:`;
+      for (const key of expiredAntiCounterAuraKeys) {
+        if (key.startsWith(prefix)) {
+          expiredAntiCounterAuraKeys.delete(key);
+        }
+      }
+    };
+
+    const pruneExpiredAntiCounters = Effect.sync(() => {
+      const now = Date.now();
+      for (const [monsterMapId, tracked] of antiCounterMonsters) {
+        if (tracked.expiresAtMs > now) {
+          continue;
+        }
+
+        antiCounterMonsters.delete(monsterMapId);
+        expiredAntiCounterAuraKeys.add(
+          antiCounterAuraKey(monsterMapId, tracked.auraName),
+        );
+      }
+    });
+
+    const getProjectedAntiCounterAura = (monsterMapId: number) =>
+      monsters.auras
+        .getAll(monsterMapId)
+        .pipe(
+          Effect.map(
+            (auras) => auras.find((aura) => isAntiCounterAura(aura)) ?? null,
+          ),
+        );
+
+    const isAntiCounterActive = (monsterMapId: number) =>
+      Effect.gen(function* () {
+        yield* pruneExpiredAntiCounters;
+
+        const projectedAura = yield* getProjectedAntiCounterAura(monsterMapId);
+        if (projectedAura === null) {
+          antiCounterMonsters.delete(monsterMapId);
+          return false;
+        }
+
+        if (
+          expiredAntiCounterAuraKeys.has(
+            antiCounterAuraKey(monsterMapId, projectedAura.name),
+          )
+        ) {
+          return false;
+        }
+
+        trackAntiCounterAura(monsterMapId, projectedAura);
+        return true;
+      });
+
+    const isAntiCounterAvoidanceActive = (monsterMapId: number) =>
+      Effect.gen(function* () {
+        if (!(yield* settings.isAntiCounterEnabled())) {
+          return false;
+        }
+
+        return yield* isAntiCounterActive(monsterMapId);
+      });
+
+    const getCurrentTargetMonsterMapId = () =>
+      targetGet.pipe(
+        Effect.map((target) =>
+          target !== null && target.type === "monster"
+            ? target.monsterMapId
+            : undefined,
+        ),
+      );
+
+    const stopCombat = Effect.gen(function* () {
+      yield* bridge.call("combat.cancelAutoAttack");
+      yield* bridge.call("combat.cancelTarget");
+    });
+
+    const stopAntiCounterCombat = (monsterMapId: number) =>
+      Effect.gen(function* () {
+        yield* stopCombat;
+        stoppedAntiCounterTargets.add(monsterMapId);
+      });
+
+    const resolveAntiCounterMonsterMapIdForAttack = (
+      normalized: NonNullable<ReturnType<typeof normalizeMonsterSelector>>,
+    ) =>
+      Effect.gen(function* () {
+        const currentTarget = yield* targetGet;
+        if (currentTarget !== null && currentTarget.type === "monster") {
+          const matchesCurrentTarget =
+            "monMapId" in normalized
+              ? currentTarget.monsterMapId === normalized.monMapId
+              : normalized.name === "*" ||
+                currentTarget.name
+                  .toLowerCase()
+                  .includes(normalized.name.toLowerCase());
+
+          if (
+            matchesCurrentTarget &&
+            (yield* isAntiCounterAvoidanceActive(currentTarget.monsterMapId))
+          ) {
+            return currentTarget.monsterMapId;
+          }
+        }
+
+        if ("monMapId" in normalized) {
+          return (yield* isAntiCounterAvoidanceActive(normalized.monMapId))
+            ? normalized.monMapId
+            : undefined;
+        }
+
+        const currentCell = (yield* player.getCell()).trim().toLowerCase();
+        const candidates = (yield* monsters.getAll()).filter(
+          (monster) =>
+            !isMonsterDead(monster) &&
+            monsterMatchesSelector(monster, normalized) &&
+            (currentCell === "" ||
+              monster.cell.trim().toLowerCase() === currentCell),
+        );
+
+        for (const monster of candidates) {
+          if (yield* isAntiCounterAvoidanceActive(monster.monsterMapId)) {
+            return monster.monsterMapId;
+          }
+        }
+
+        return undefined;
+      });
+
+    const disposeAuraAdded = yield* events.on({ type: "auraAdded" }, (event) =>
+      Effect.gen(function* () {
+        if (event.type !== "auraAdded") {
+          return;
+        }
+
+        const { aura, targetId, targetType } = event.payload;
+        if (targetType !== "monster" || !isAntiCounterAura(aura)) {
+          return;
+        }
+
+        trackAntiCounterAura(targetId, aura);
+        if (!(yield* settings.isAntiCounterEnabled())) {
+          return;
+        }
+
+        const currentTarget = yield* getCurrentTargetMonsterMapId();
+        if (currentTarget === targetId) {
+          yield* stopAntiCounterCombat(targetId);
+        }
+      }),
+    );
+
+    const disposeAuraRemoved = yield* events.on(
+      { type: "auraRemoved" },
+      (event) =>
+        Effect.gen(function* () {
+          if (event.type !== "auraRemoved") {
+            return;
+          }
+
+          const { auraName, targetId, targetType } = event.payload;
+          if (targetType !== "monster" || !isAntiCounterAuraName(auraName)) {
+            return;
+          }
+
+          antiCounterMonsters.delete(targetId);
+          expiredAntiCounterAuraKeys.delete(
+            antiCounterAuraKey(targetId, auraName),
+          );
+          const wasStopped = stoppedAntiCounterTargets.delete(targetId);
+          if (!wasStopped || !(yield* settings.isAntiCounterEnabled())) {
+            return;
+          }
+
+          if (!(yield* isAntiCounterActive(targetId))) {
+            yield* bridge.call("combat.attackMonster", [
+              { monMapId: targetId },
+            ]);
+          }
+        }),
+    );
+
+    const disposeMonsterDeath = yield* events.on(
+      { type: "monsterDeath" },
+      (event) =>
+        Effect.sync(() => {
+          if (event.type !== "monsterDeath") {
+            return;
+          }
+
+          clearAntiCounterTracking(event.payload.monsterMapId);
+        }),
+    );
+
+    const disposeJoinMap = yield* events.on({ type: "joinMap" }, () =>
+      Effect.sync(() => {
+        antiCounterMonsters.clear();
+        expiredAntiCounterAuraKeys.clear();
+        stoppedAntiCounterTargets.clear();
+      }),
+    );
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        disposeAuraAdded();
+        disposeAuraRemoved();
+        disposeMonsterDeath();
+        disposeJoinMap();
+      }),
+    );
+
     const attackMonster: CombatApiShape["attackMonster"] = (selector) =>
       Effect.gen(function* () {
         const normalized = normalizeMonsterSelector(selector);
@@ -162,22 +447,42 @@ export const layer = Layer.effect(
           return false;
         }
 
-        const antiCounter = yield* settings.isAntiCounterEnabled();
-        if (antiCounter) {
-          // TODO: replace name-based counter detection with exact aura metadata when projected.
-          const monster = yield* monsters.get(selector);
-          if (monster !== null) {
-            const auras = yield* monsters.auras.getAll(monster.monsterMapId);
-            if (
-              auras.some((aura) => aura.name.toLowerCase().includes("counter"))
-            ) {
-              return false;
-            }
-          }
+        const blockedMonsterMapId =
+          yield* resolveAntiCounterMonsterMapIdForAttack(normalized);
+        if (blockedMonsterMapId !== undefined) {
+          yield* stopAntiCounterCombat(blockedMonsterMapId);
+          return false;
         }
 
         yield* bridge.call("combat.attackMonster", [normalized]);
         return true;
+      });
+
+    const getSkillCooldownRemaining = (index: number) =>
+      bridge
+        .call("combat.getSkillCooldownRemaining", [index])
+        .pipe(
+          Effect.map((remaining) =>
+            Number.isFinite(remaining) ? Math.max(0, Math.trunc(remaining)) : 0,
+          ),
+        );
+
+    const waitForSkillReady = (index: number) =>
+      Effect.gen(function* () {
+        while (true) {
+          const remaining = yield* getSkillCooldownRemaining(index);
+          if (remaining > 0) {
+            yield* Effect.sleep(remaining);
+            continue;
+          }
+
+          yield* Effect.sleep(skillReadyConfirmationDelay);
+
+          const confirmed = yield* getSkillCooldownRemaining(index);
+          if (confirmed === 0) {
+            return true;
+          }
+        }
       });
 
     const useSkill: CombatApiShape["useSkill"] = (index, options) =>
@@ -187,14 +492,36 @@ export const layer = Layer.effect(
           return false;
         }
 
+        const targetBeforeWait = yield* getCurrentTargetMonsterMapId();
+        if (
+          targetBeforeWait !== undefined &&
+          (yield* isAntiCounterAvoidanceActive(targetBeforeWait))
+        ) {
+          yield* stopAntiCounterCombat(targetBeforeWait);
+          return false;
+        }
+
         if (options?.wait) {
-          const ready = yield* wait.until(canUseSkill(skill), {
+          const ready = yield* wait.until(waitForSkillReady(skill), {
             timeout: "5 seconds",
           });
           if (!ready) {
             return false;
           }
         } else if (!(yield* canUseSkill(skill))) {
+          return false;
+        }
+
+        if (!(yield* player.isAlive())) {
+          return false;
+        }
+
+        const targetBeforeCast = yield* getCurrentTargetMonsterMapId();
+        if (
+          targetBeforeCast !== undefined &&
+          (yield* isAntiCounterAvoidanceActive(targetBeforeCast))
+        ) {
+          yield* stopAntiCounterCombat(targetBeforeCast);
           return false;
         }
 
@@ -207,28 +534,31 @@ export const layer = Layer.effect(
       });
 
     const canUseSkill: CombatApiShape["canUseSkill"] = (index) =>
-      Number.isFinite(index)
-        ? bridge
-            .call("combat.getSkillCooldownRemaining", [Math.trunc(index)])
-            .pipe(Effect.map((remaining) => remaining <= 0))
-        : Effect.succeed(false);
+      Effect.gen(function* () {
+        const skill = normalizeSkill(index);
+        if (skill === null) {
+          return false;
+        }
 
-    const hunt: CombatApiShape["hunt"] = (selector, options) =>
+        const remaining = yield* getSkillCooldownRemaining(skill);
+        return remaining === 0;
+      });
+
+    const resolveMonsterTarget = (
+      selector: MonsterSelector,
+      options: MonsterTargetResolutionOptions,
+    ) =>
       Effect.gen(function* () {
         const normalized = normalizeMonsterSelector(selector);
         if (normalized === null) {
           return null;
         }
 
-        const allMonsters = yield* monsters.getAll();
-        const matches = allMonsters.filter((monster) => {
-          if ("monMapId" in normalized) {
-            return monster.monsterMapId === normalized.monMapId;
-          }
-          return monster.name
-            .toLowerCase()
-            .includes(normalized.name.toLowerCase());
-        });
+        const matches = (yield* monsters.getAll()).filter(
+          (monster) =>
+            (options.includeDead || !isMonsterDead(monster)) &&
+            monsterMatchesSelector(monster, normalized),
+        );
         const monster = chooseHuntTarget(matches, options);
         if (monster === null) {
           return null;
@@ -240,34 +570,125 @@ export const layer = Layer.effect(
         return monster;
       });
 
-    const stopCombat = Effect.gen(function* () {
-      yield* bridge.call("combat.cancelAutoAttack");
-      yield* bridge.call("combat.cancelTarget");
+    const hunt: CombatApiShape["hunt"] = (selector, options) =>
+      resolveMonsterTarget(
+        selector,
+        monsterTargetResolutionOptions(options, true),
+      );
+
+    const isPlayerInCombat = Effect.gen(function* () {
+      const projectedState = yield* player.getState();
+      return projectedState === entityState.inCombat;
+    });
+
+    const waitUntilOutOfCombat = (timeout: Duration.Input) =>
+      wait.until(
+        Effect.gen(function* () {
+          if (yield* isPlayerInCombat) {
+            return false;
+          }
+
+          yield* Effect.sleep(combatExitSettleDelay);
+          return !(yield* isPlayerInCombat);
+        }),
+        {
+          interval: "100 millis",
+          timeout,
+        },
+      );
+
+    const exitCombat = Effect.gen(function* () {
+      const currentCell = yield* player.getCell();
+      const currentPad = yield* player.getPad();
+      const cellsWithMonsters = new Set(
+        (yield* monsters.getAll()).map((monster) =>
+          monster.cell.trim().toLowerCase(),
+        ),
+      );
+
+      const candidates = (yield* map.getCells())
+        .filter((cell) => isCombatExitCandidateCell(cell, currentCell))
+        .toSorted((left, right) => {
+          const leftHasMonsters = cellsWithMonsters.has(
+            left.trim().toLowerCase(),
+          );
+          const rightHasMonsters = cellsWithMonsters.has(
+            right.trim().toLowerCase(),
+          );
+          return leftHasMonsters === rightHasMonsters
+            ? 0
+            : leftHasMonsters
+              ? 1
+              : -1;
+        });
+
+      for (const cell of candidates) {
+        yield* stopCombat;
+        if (yield* waitUntilOutOfCombat("1 second")) {
+          return true;
+        }
+
+        yield* player.jumpToCell(cell, undefined, true);
+        if (yield* waitUntilOutOfCombat("2 seconds")) {
+          return true;
+        }
+      }
+
+      for (let attempts = 0; attempts < 3; attempts += 1) {
+        yield* stopCombat;
+        if (yield* waitUntilOutOfCombat("1 second")) {
+          return true;
+        }
+
+        yield* player.jumpToCell(currentCell, currentPad, true);
+        if (yield* waitUntilOutOfCombat("2 seconds")) {
+          return true;
+        }
+      }
+
+      yield* stopCombat;
+      const exited = yield* waitUntilOutOfCombat("1 second");
+      return exited;
     });
 
     const kill: CombatApiShape["kill"] = (selector, options) =>
       Effect.gen(function* () {
-        const initial = yield* hunt(selector, options);
-        if (initial === null) {
+        if (normalizeMonsterSelector(selector) === null) {
           return false;
         }
 
-        // TODO: settle kills on semantic monsterDeath events instead of polling projected hp/state.
+        const timeout = killTimeout(options);
+        let target: MonsterRecord | null = null;
         const killed = yield* wait.until(
           Effect.gen(function* () {
-            const monster = yield* monsters.get(selector);
-            if (monster === null || monster.hp <= 0 || monster.state === 0) {
-              return true;
+            if (target !== null) {
+              const current = yield* monsters.get({
+                monMapId: target.monsterMapId,
+              });
+              if (isMonsterDead(current)) {
+                return true;
+              }
+              target = current;
             }
 
-            yield* attackMonster({ monMapId: monster.monsterMapId });
-            for (const skill of skillSet(options)) {
-              yield* useSkill(skill, { wait: options?.skillWait === true });
-              yield* Effect.sleep(options?.skillDelay ?? 150);
+            target ??= yield* resolveMonsterTarget(
+              selector,
+              monsterTargetResolutionOptions(options, false),
+            );
+            if (target === null) {
+              return false;
             }
+
+            if (yield* attackMonster({ monMapId: target.monsterMapId })) {
+              for (const skill of skillSet(options)) {
+                yield* useSkill(skill, { wait: options?.skillWait === true });
+                yield* Effect.sleep(options?.skillDelay ?? defaultSkillDelay);
+              }
+            }
+
             return false;
           }),
-          { interval: "250 millis", timeout: killTimeout(options) },
+          { interval: "250 millis", timeout },
         );
 
         yield* stopCombat;
@@ -299,14 +720,7 @@ export const layer = Layer.effect(
       cancelAutoAttack: () => bridge.call("combat.cancelAutoAttack"),
       cancelTarget: () => bridge.call("combat.cancelTarget"),
       canUseSkill,
-      exit: () =>
-        Effect.gen(function* () {
-          yield* stopCombat;
-          return yield* wait.until(
-            targetGet.pipe(Effect.map((target) => target === null)),
-            { timeout: "5 seconds" },
-          );
-        }),
+      exit: () => exitCombat,
       getConsumableSkillItem: () =>
         bridge.call("combat.getConsumableSkillItem"),
       hunt,
