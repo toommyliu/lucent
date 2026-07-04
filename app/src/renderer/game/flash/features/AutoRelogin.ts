@@ -1,4 +1,12 @@
-import { Cause, Clock, Context, Effect, Layer, SynchronizedRef } from "effect";
+import {
+  Cause,
+  Clock,
+  Context,
+  Effect,
+  Layer,
+  SynchronizedRef,
+  Number as EffectNumber,
+} from "effect";
 
 import type { AuthConnectOutcome, ServerRecord } from "../Types";
 import { AuthApi } from "../api/Auth";
@@ -115,7 +123,7 @@ const initialState = (): RuntimeState => ({
 
 const normalizeDelayMs = (delayMs: number): number =>
   Number.isFinite(delayMs)
-    ? Math.min(MAX_DELAY_MS, Math.max(0, Math.trunc(delayMs)))
+    ? EffectNumber.clamp({ minimum: 0, maximum: MAX_DELAY_MS })(delayMs)
     : DEFAULT_DELAY_MS;
 
 const isAttempting = (phase: ReloginPhase): boolean =>

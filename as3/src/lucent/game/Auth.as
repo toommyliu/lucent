@@ -11,7 +11,8 @@ package lucent.game
     public static function isLoggedIn():Boolean
     {
       var game:Object = Main.Game;
-      return game !== null && game.sfc !== null && game.sfc.isConnected;
+      var sfc:Object = game ? game.sfc : null;
+      return Boolean(sfc) && Boolean(sfc.isConnected);
     }
 
     [BridgeExport]

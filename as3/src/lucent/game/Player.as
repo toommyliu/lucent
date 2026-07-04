@@ -197,7 +197,19 @@ package lucent.game {
     [BridgeExport]
     public static function isLoaded():Boolean {
       var game:Object = Main.Game;
-      return game.world.myAvatar.items.length > 0 && World.isLoaded() && game.world.myAvatar.pMC.artLoaded();
+      var world:Object = game ? game.world : null;
+      if (!world) {
+        return false;
+      }
+
+      var avatar:Object = world.myAvatar;
+      if (!avatar) {
+        return false;
+      }
+
+      var items:Array = avatar.items as Array;
+      var playerMovie:Object = avatar.pMC;
+      return Boolean(items) && items.length > 0 && World.isLoaded() && Boolean(playerMovie) && playerMovie.artLoaded();
     }
 
     [BridgeExport]

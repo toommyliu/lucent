@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Random } from "effect";
+import { Context, Effect, Layer } from "effect";
 
 import type {
   AuraRecord,
@@ -10,6 +10,8 @@ import type {
   Position,
 } from "../Types";
 import { SwfBridge } from "../SwfBridge";
+import { parseMapTarget } from "../MapTarget";
+import type { MapTarget } from "../MapTarget";
 import { asInt, asRecord, asString, equalsIgnoreCase } from "../payload";
 import { AuthApi } from "./Auth";
 import { InventoryApi } from "./Inventory";
@@ -135,57 +137,6 @@ const normalizeOutfit = (value: unknown): OutfitRecord | null => {
   return record === null || name === undefined ? null : { name, raw: record };
 };
 
-const minRoomNumber = 1;
-const minDirectRoomNumber = 1_000;
-const maxRoomNumber = 99_999;
-
-interface MapTarget {
-  readonly map: string;
-  readonly name: string;
-  readonly requireExactRoom: boolean;
-  readonly roomNumber?: number;
-}
-
-const parseRoomNumber = (roomToken: string): number | null => {
-  if (!/^\d+$/.test(roomToken)) {
-    return null;
-  }
-
-  const roomNumber = Number(roomToken);
-  return Number.isSafeInteger(roomNumber) &&
-    roomNumber >= minRoomNumber &&
-    roomNumber <= maxRoomNumber
-    ? roomNumber
-    : null;
-};
-
-const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
-  Effect.gen(function* () {
-    const trimmed = map.trim();
-    const separatorIndex = trimmed.indexOf("-");
-    if (separatorIndex <= 0) {
-      return {
-        map: trimmed,
-        name: trimmed,
-        requireExactRoom: false,
-      };
-    }
-
-    const name = trimmed.slice(0, separatorIndex);
-    const roomToken = trimmed.slice(separatorIndex + 1);
-    const parsedRoomNumber = parseRoomNumber(roomToken);
-    const roomNumber =
-      parsedRoomNumber ??
-      (yield* Random.nextIntBetween(minDirectRoomNumber, maxRoomNumber));
-
-    return {
-      map: `${name}-${roomNumber}`,
-      name,
-      requireExactRoom: roomNumber >= minDirectRoomNumber,
-      roomNumber,
-    };
-  });
-
 export const layer = Layer.effect(
   PlayerApi,
   Effect.gen(function* () {
@@ -202,6 +153,8 @@ export const layer = Layer.effect(
       .pipe(Effect.map((player) => player ?? defaultPlayer));
     const project = <A>(f: (player: PlayerRecord) => A) =>
       self.pipe(Effect.map(f));
+    const getCell = () => project((player) => player.cell);
+    const getPad = () => project((player) => player.pad);
 
     const auras: SelfAurasApi = {
       get: (auraName) =>
@@ -310,6 +263,14 @@ export const layer = Layer.effect(
       return hp > 0 && state !== 0;
     });
 
+    const isReady = Effect.gen(function* () {
+      return (
+        (yield* auth.isLoggedIn()) &&
+        (yield* map.isLoaded()) &&
+        (yield* bridge.call("player.isLoaded"))
+      );
+    });
+
     const jumpToCell: PlayerApiShape["jumpToCell"] = (
       cell,
       pad,
@@ -335,10 +296,98 @@ export const layer = Layer.effect(
         }
       });
 
+    const isTargetMapLoaded = (targetMap: MapTarget) =>
+      Effect.gen(function* () {
+        if (!(yield* map.isLoaded())) {
+          return false;
+        }
+
+        const current = yield* map.getName();
+        if (!equalsIgnoreCase(current, targetMap.name)) {
+          return false;
+        }
+
+        if (
+          targetMap.requireExactRoom &&
+          targetMap.roomNumber !== undefined &&
+          (yield* map.getRoomNumber()) !== targetMap.roomNumber
+        ) {
+          return false;
+        }
+
+        return yield* bridge.call("player.isLoaded");
+      });
+
+    const isAtLocation = (
+      targetCell: string | undefined,
+      targetPad: string | undefined,
+    ) =>
+      Effect.gen(function* () {
+        if (
+          targetCell !== undefined &&
+          !equalsIgnoreCase(yield* getCell(), targetCell)
+        ) {
+          return false;
+        }
+
+        if (
+          targetPad !== undefined &&
+          !equalsIgnoreCase(yield* getPad(), targetPad)
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+    const targetCellExists = (targetCell: string) =>
+      map
+        .getCells()
+        .pipe(
+          Effect.map((cells) =>
+            cells.some((cell) => equalsIgnoreCase(cell, targetCell)),
+          ),
+        );
+
+    const correctJoinLocation = (
+      targetCell: string | undefined,
+      targetPad: string | undefined,
+      options?: { readonly force?: boolean },
+    ) =>
+      Effect.gen(function* () {
+        if (targetCell === undefined) {
+          return;
+        }
+
+        if (
+          options?.force !== true &&
+          (yield* isAtLocation(targetCell, targetPad))
+        ) {
+          return;
+        }
+
+        if (!(yield* targetCellExists(targetCell))) {
+          return;
+        }
+
+        yield* jumpToCell(targetCell, targetPad, true);
+      });
+
     const joinMap: PlayerApiShape["joinMap"] = (target, cell, pad) =>
       Effect.gen(function* () {
         const parsed = yield* parseMapTarget(target);
         if (parsed.map === "") {
+          return false;
+        }
+
+        const targetCell = cell ?? (pad !== undefined ? "Enter" : undefined);
+        if (yield* isTargetMapLoaded(parsed)) {
+          yield* correctJoinLocation(targetCell, pad, { force: true });
+          return true;
+        }
+
+        const ready = yield* wait.until(isReady, { timeout: "10 seconds" });
+        if (!ready) {
           return false;
         }
 
@@ -361,35 +410,21 @@ export const layer = Layer.effect(
           ]);
         }
 
-        const loaded = yield* wait.until(
-          Effect.gen(function* () {
-            const current = yield* map.getName();
-            if (!equalsIgnoreCase(current, parsed.name)) {
-              return false;
-            }
-
-            if (!parsed.requireExactRoom || parsed.roomNumber === undefined) {
-              return true;
-            }
-
-            return (yield* map.getRoomNumber()) === parsed.roomNumber;
-          }),
-          { timeout: "10 seconds" },
-        );
+        const loaded = yield* wait.until(isTargetMapLoaded(parsed), {
+          timeout: "20 seconds",
+        });
         if (!loaded) {
           return false;
         }
 
-        if (cell !== undefined) {
-          yield* jumpToCell(cell, pad, true);
-        }
+        yield* correctJoinLocation(targetCell, pad);
         return true;
       });
 
     return PlayerApi.of({
       auras,
       factions,
-      getCell: () => project((player) => player.cell),
+      getCell,
       getClassName: () => bridge.call("player.getClassName"),
       getGender: () => bridge.call("player.getGender"),
       getGold: () => bridge.call("player.getGold"),
@@ -398,7 +433,7 @@ export const layer = Layer.effect(
       getMaxHp: () => project((player) => player.maxHp),
       getMaxMp: () => project((player) => player.maxMp),
       getMp: () => project((player) => player.mp),
-      getPad: () => project((player) => player.pad),
+      getPad,
       getPosition: () =>
         project((player) => ({
           x: player.position[0],
@@ -414,14 +449,7 @@ export const layer = Layer.effect(
       isAfk: () => project((player) => player.afk),
       isAlive: () => isAlive,
       isMember: () => bridge.call("player.isMember"),
-      isReady: () =>
-        Effect.gen(function* () {
-          return (
-            (yield* auth.isLoggedIn()) &&
-            (yield* map.isLoaded()) &&
-            (yield* bridge.call("player.isLoaded"))
-          );
-        }),
+      isReady: () => isReady,
       joinMap,
       jumpToCell,
       outfits,

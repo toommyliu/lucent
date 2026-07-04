@@ -1,4 +1,4 @@
-import { Cause, Effect, Random } from "effect";
+import { Cause, Effect } from "effect";
 
 import type { AuthApiShape } from "../flash/api/Auth";
 import type { BankApiShape } from "../flash/api/Bank";
@@ -17,6 +17,7 @@ import type { SettingsApiShape } from "../flash/api/Settings";
 import type { ShopsApiShape } from "../flash/api/Shops";
 import type { TempInventoryApiShape } from "../flash/api/TempInventory";
 import type { WaitApiShape } from "../flash/api/Wait";
+import { randomPrivateRoomNumber, withPrivateRoom } from "../flash/MapTarget";
 import type { AutoReloginShape } from "../flash/features/AutoRelogin";
 import type { AutoZoneShape } from "../flash/features/AutoZone";
 import type { FlashEvent, FlashPacket } from "../flash/Types";
@@ -61,27 +62,18 @@ export interface ScriptRuntimeStdOptions {
   readonly services: ScriptRuntimeServices;
 }
 
-const privateRoomMin = 1_000;
-const privateRoomMax = 99_999;
-
-const hasExplicitNumericRoom = (map: string): boolean => /-\d+$/.test(map);
-
 const applyPrivateRoom = (
   map: string,
   script: ScriptRuntimeApi,
 ): Effect.Effect<string> =>
   Effect.gen(function* () {
     const trimmed = map.trim();
-    if (
-      trimmed === "" ||
-      hasExplicitNumericRoom(trimmed) ||
-      !(yield* script.options.getUsePrivateRooms())
-    ) {
+    if (trimmed === "" || !(yield* script.options.getUsePrivateRooms())) {
       return map;
     }
 
-    const room = yield* Random.nextIntBetween(privateRoomMin, privateRoomMax);
-    return `${trimmed}-${room}`;
+    const room = yield* randomPrivateRoomNumber();
+    return withPrivateRoom(trimmed, room);
   });
 
 const isGenerator = (value: unknown): value is Generator =>
