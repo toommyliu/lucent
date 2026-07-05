@@ -151,6 +151,7 @@ const causeMessage = (cause: Cause.Cause<unknown>): string => {
 };
 
 const isConnectionLoss = (event: FlashEvent): boolean =>
+  event.kind === "runtime" &&
   event.type === "connection" &&
   (event.payload.status === "OnConnectionLost" ||
     event.payload.status === "OnConnectionFailed");
@@ -432,7 +433,7 @@ export const layer = Layer.effect(
 
     const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>
       events
-        .on({ type: "connection" }, (event) =>
+        .on({ kind: "runtime", type: "connection" }, (event) =>
           isConnectionLoss(event)
             ? failActiveCause(
                 id,

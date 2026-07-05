@@ -87,14 +87,21 @@ describe("ItemsState reducers", () => {
       yield* items.reduceAddItems({
         items: {
           5: item(5, "Temp Gem", {
-            bTemp: 1,
+            bTemp: true,
             iQty: 3,
+            sES: "",
+            sType: "Item",
+          }),
+          6: item(6, "Numeric Temp Gem", {
+            bTemp: 1,
+            iQty: 1,
             sES: "",
             sType: "Item",
           }),
         },
       });
       expect((yield* items.get("temp", 5))?.quantity).toBe(3);
+      expect((yield* items.get("temp", 6))?.quantity).toBe(1);
 
       yield* items.reduceTurnIn({ sItems: "5:2" });
       expect((yield* items.get("temp", 5))?.quantity).toBe(1);

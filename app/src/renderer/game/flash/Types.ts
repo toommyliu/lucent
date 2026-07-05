@@ -232,33 +232,59 @@ export interface PacketSelector {
   readonly wireType?: FlashPacketWireType;
 }
 
-export type FlashEvent =
+export type FlashEventKind = "packet" | "projection" | "runtime";
+
+export type FlashRuntimeEvent =
   | {
+      readonly kind: "runtime";
       readonly payload: { readonly status: string };
       readonly type: "connection";
     }
   | {
+      readonly kind: "runtime";
       readonly payload: { readonly message: string };
       readonly type: "debug";
     }
   | {
+      readonly kind: "runtime";
       readonly type: "loaded";
     }
   | {
+      readonly kind: "runtime";
       readonly payload: { readonly percent: number };
       readonly type: "progress";
+    };
+
+export type FlashPacketEvent =
+  | {
+      readonly kind: "packet";
+      readonly payload: FlashPacket;
+      readonly type: "packetReceived";
     }
   | {
+      readonly kind: "packet";
+      readonly payload: {
+        readonly direction: FlashPacketDirection;
+        readonly raw: string;
+      };
+      readonly type: "packetParseFailed";
+    };
+
+export type FlashProjectionEvent =
+  | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: UnknownRecord;
       readonly type: "questComplete";
     }
   | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: MapRecord;
       readonly type: "joinMap";
     }
   | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
         readonly map: string;
@@ -267,20 +293,37 @@ export type FlashEvent =
       readonly type: "zone";
     }
   | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly afk: boolean;
+        readonly entityId?: number;
+        readonly isSelf: boolean;
+        readonly username: string;
+      };
+      readonly type: "playerAfk";
+    }
+  | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
         readonly cell?: string;
+        readonly entityId?: number;
+        readonly isSelf: boolean;
         readonly pad?: string;
         readonly position?: Position;
+        readonly username: string;
       };
       readonly type: "playerLocation";
     }
   | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: { readonly monsterMapId: number };
       readonly type: "monsterDeath";
     }
   | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
         readonly aura: AuraRecord;
@@ -290,6 +333,7 @@ export type FlashEvent =
       readonly type: "auraAdded";
     }
   | {
+      readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
         readonly auraName: string;
@@ -299,9 +343,15 @@ export type FlashEvent =
       readonly type: "auraRemoved";
     };
 
+export type FlashEvent =
+  | FlashPacketEvent
+  | FlashProjectionEvent
+  | FlashRuntimeEvent;
+
 export type FlashEventType = FlashEvent["type"];
 
 export interface EventSelector {
+  readonly kind?: FlashEventKind;
   readonly type?: FlashEventType;
 }
 

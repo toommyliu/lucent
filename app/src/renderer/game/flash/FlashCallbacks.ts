@@ -39,6 +39,8 @@ type CallbackKey =
   | "packetFromClient"
   | "packetFromServer";
 
+type WindowCallback = (...args: readonly unknown[]) => void;
+
 export interface FlashCallbacksShape {
   readonly publish: (event: FlashCallback) => Effect.Effect<void>;
   readonly subscribe: () => Effect.Effect<
@@ -59,6 +61,9 @@ const normalizeString = (value: unknown): string | null =>
 const normalizeNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+const asWindowCallback = (value: unknown): WindowCallback | undefined =>
+  typeof value === "function" ? (value as WindowCallback) : undefined;
+
 export const layer = Layer.effect(
   FlashCallbacks,
   Effect.gen(function* () {
@@ -73,12 +78,12 @@ export const layer = Layer.effect(
       toEvent: (...args: readonly unknown[]) => FlashCallback | null,
     ): Effect.Effect<() => void> =>
       Effect.sync(() => {
-        const previous = window[key] as
-          | ((...args: readonly unknown[]) => void)
-          | undefined;
+        // Keep our publisher installed while letting later window callback assignments chain through it.
+        const originalDescriptor = Object.getOwnPropertyDescriptor(window, key);
+        let external = asWindowCallback(window[key]);
 
         const next = (...args: readonly unknown[]): void => {
-          previous?.(...args);
+          external?.(...args);
           const event = toEvent(...args);
           if (event === null) {
             return;
@@ -97,10 +102,40 @@ export const layer = Layer.effect(
           );
         };
 
-        (window as Record<CallbackKey, unknown>)[key] = next;
+        if (originalDescriptor?.configurable === false) {
+          (window as Record<CallbackKey, unknown>)[key] = next;
+          return () => {
+            if (window[key] === next) {
+              (window as Record<CallbackKey, unknown>)[key] = external;
+            }
+          };
+        }
+
+        const get = (): WindowCallback => next;
+        const set = (value: unknown): void => {
+          external = value === next ? undefined : asWindowCallback(value);
+        };
+
+        Object.defineProperty(window, key, {
+          configurable: true,
+          enumerable: originalDescriptor?.enumerable ?? true,
+          get,
+          set,
+        });
+
         return () => {
-          if (window[key] === next) {
-            (window as Record<CallbackKey, unknown>)[key] = previous;
+          const currentDescriptor = Object.getOwnPropertyDescriptor(
+            window,
+            key,
+          );
+          if (currentDescriptor?.get !== get || currentDescriptor.set !== set) {
+            return;
+          }
+
+          if (originalDescriptor === undefined) {
+            delete (window as Record<CallbackKey, unknown>)[key];
+          } else {
+            Object.defineProperty(window, key, originalDescriptor);
           }
         };
       });

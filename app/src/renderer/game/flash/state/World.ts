@@ -35,6 +35,8 @@ export interface WorldStateShape {
     target: AuraTarget,
     targetId: number,
   ) => Effect.Effect<void>;
+  readonly clearMonsters: () => Effect.Effect<void>;
+  readonly clearPlayers: () => Effect.Effect<void>;
   readonly getMap: () => Effect.Effect<MapRecord>;
   readonly getMe: () => Effect.Effect<PlayerRecord | null>;
   readonly getMonster: (
@@ -71,6 +73,12 @@ export interface WorldStateShape {
     aura: AuraRecord,
   ) => Effect.Effect<void>;
   readonly setMap: (map: MapRecord) => Effect.Effect<void>;
+  readonly setMonsters: (
+    monsters: readonly MonsterRecord[],
+  ) => Effect.Effect<void>;
+  readonly setPlayers: (
+    players: readonly PlayerRecord[],
+  ) => Effect.Effect<void>;
   readonly setSelf: (username: string) => Effect.Effect<void>;
   readonly unsetAura: (
     target: AuraTarget,
@@ -151,6 +159,19 @@ export const layer = Layer.effect(
           const source =
             target === "monster" ? state.monsterAuras : state.playerAuras;
           source.delete(targetId);
+          return state;
+        }),
+      clearMonsters: () =>
+        SynchronizedRef.update(ref, (state) => {
+          state.monsters.clear();
+          state.monsterAuras.clear();
+          return state;
+        }),
+      clearPlayers: () =>
+        SynchronizedRef.update(ref, (state) => {
+          state.players.clear();
+          state.playerEntityIds.clear();
+          state.playerAuras.clear();
           return state;
         }),
       getMap: () =>
@@ -263,6 +284,27 @@ export const layer = Layer.effect(
       setMap: (map) =>
         SynchronizedRef.update(ref, (state) => {
           Object.assign(state.map, map);
+          return state;
+        }),
+      setMonsters: (monsters) =>
+        SynchronizedRef.update(ref, (state) => {
+          state.monsters.clear();
+          state.monsterAuras.clear();
+          for (const monster of monsters) {
+            state.monsters.set(monster.monsterMapId, monster);
+          }
+          return state;
+        }),
+      setPlayers: (players) =>
+        SynchronizedRef.update(ref, (state) => {
+          state.players.clear();
+          state.playerEntityIds.clear();
+          state.playerAuras.clear();
+          for (const player of players) {
+            const key = playerKey(player.username);
+            state.players.set(key, player);
+            state.playerEntityIds.set(player.entityId, key);
+          }
           return state;
         }),
       setSelf: (username) =>

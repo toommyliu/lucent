@@ -126,6 +126,7 @@ const makeHarness = (
   });
 
 const zoneEvent = (map: string, zone: string): FlashEvent => ({
+  kind: "projection",
   packet,
   payload: { map, zone },
   type: "zone",

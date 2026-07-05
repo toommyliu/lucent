@@ -358,31 +358,33 @@ export const layer = Layer.effect(
         return undefined;
       });
 
-    const disposeAuraAdded = yield* events.on({ type: "auraAdded" }, (event) =>
-      Effect.gen(function* () {
-        if (event.type !== "auraAdded") {
-          return;
-        }
+    const disposeAuraAdded = yield* events.on(
+      { kind: "projection", type: "auraAdded" },
+      (event) =>
+        Effect.gen(function* () {
+          if (event.type !== "auraAdded") {
+            return;
+          }
 
-        const { aura, targetId, targetType } = event.payload;
-        if (targetType !== "monster" || !isAntiCounterAura(aura)) {
-          return;
-        }
+          const { aura, targetId, targetType } = event.payload;
+          if (targetType !== "monster" || !isAntiCounterAura(aura)) {
+            return;
+          }
 
-        trackAntiCounterAura(targetId, aura);
-        if (!(yield* settings.isAntiCounterEnabled())) {
-          return;
-        }
+          trackAntiCounterAura(targetId, aura);
+          if (!(yield* settings.isAntiCounterEnabled())) {
+            return;
+          }
 
-        const currentTarget = yield* getCurrentTargetMonsterMapId();
-        if (currentTarget === targetId) {
-          yield* stopAntiCounterCombat(targetId);
-        }
-      }),
+          const currentTarget = yield* getCurrentTargetMonsterMapId();
+          if (currentTarget === targetId) {
+            yield* stopAntiCounterCombat(targetId);
+          }
+        }),
     );
 
     const disposeAuraRemoved = yield* events.on(
-      { type: "auraRemoved" },
+      { kind: "projection", type: "auraRemoved" },
       (event) =>
         Effect.gen(function* () {
           if (event.type !== "auraRemoved") {
@@ -412,7 +414,7 @@ export const layer = Layer.effect(
     );
 
     const disposeMonsterDeath = yield* events.on(
-      { type: "monsterDeath" },
+      { kind: "projection", type: "monsterDeath" },
       (event) =>
         Effect.sync(() => {
           if (event.type !== "monsterDeath") {
@@ -423,12 +425,14 @@ export const layer = Layer.effect(
         }),
     );
 
-    const disposeJoinMap = yield* events.on({ type: "joinMap" }, () =>
-      Effect.sync(() => {
-        antiCounterMonsters.clear();
-        expiredAntiCounterAuraKeys.clear();
-        stoppedAntiCounterTargets.clear();
-      }),
+    const disposeJoinMap = yield* events.on(
+      { kind: "projection", type: "joinMap" },
+      () =>
+        Effect.sync(() => {
+          antiCounterMonsters.clear();
+          expiredAntiCounterAuraKeys.clear();
+          stoppedAntiCounterTargets.clear();
+        }),
     );
 
     yield* Effect.addFinalizer(() =>
