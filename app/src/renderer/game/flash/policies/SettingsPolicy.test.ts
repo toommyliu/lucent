@@ -15,6 +15,7 @@ import { layer as SettingsPolicyLayer } from "./SettingsPolicy";
 const SETTINGS_ACTION_JOB_KEY = "settings/actions";
 
 const connectionEvent = (status: string): FlashEvent => ({
+  kind: "runtime",
   payload: { status },
   type: "connection",
 });

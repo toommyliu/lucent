@@ -9,13 +9,21 @@ const themeSync = installRendererThemeSync();
 const root = document.getElementById("root");
 let disposeRender: (() => void) | undefined;
 
-void flashRuntime.context().catch((cause) => {
-  console.warn("[flash] runtime initialization failed", cause);
-});
-
 window.onDebug = (message: string): void => {
   console.debug("[flash:debug]", message);
 };
+
+window.onExtensionResponse = (message: string): void => {
+  console.log("[flash:onExtensionResponse]", message);
+};
+
+window.packetFromClient = (message: string): void => {
+  console.log("[flash:packetFromClient]", message);
+};
+
+void flashRuntime.context().catch((cause) => {
+  console.warn("[flash] runtime initialization failed", cause);
+});
 
 if (root !== null) {
   disposeRender = render(

@@ -330,37 +330,39 @@ export const layer = Layer.effect(
         ),
       );
 
-    const disposeZone = yield* events.on({ type: "zone" }, (event) =>
-      Effect.gen(function* () {
-        if (event.type !== "zone") {
-          return;
-        }
+    const disposeZone = yield* events.on(
+      { kind: "projection", type: "zone" },
+      (event) =>
+        Effect.gen(function* () {
+          if (event.type !== "zone") {
+            return;
+          }
 
-        const state = yield* SynchronizedRef.get(ref);
-        if (
-          !state.enabled ||
-          state.map === undefined ||
-          !equalsIgnoreCase(event.payload.map, state.map)
-        ) {
-          return;
-        }
+          const state = yield* SynchronizedRef.get(ref);
+          if (
+            !state.enabled ||
+            state.map === undefined ||
+            !equalsIgnoreCase(event.payload.map, state.map)
+          ) {
+            return;
+          }
 
-        if (state.map === QUEENIONA_MAP) {
-          const sequence = yield* SynchronizedRef.modify(ref, (current) => {
-            current.queenionaSequence += 1;
-            return [current.queenionaSequence, current] as const;
-          });
-          yield* handleQueenionaZone(event.payload.zone, sequence).pipe(
-            Effect.forkDetach,
-          );
-          return;
-        }
+          if (state.map === QUEENIONA_MAP) {
+            const sequence = yield* SynchronizedRef.modify(ref, (current) => {
+              current.queenionaSequence += 1;
+              return [current.queenionaSequence, current] as const;
+            });
+            yield* handleQueenionaZone(event.payload.zone, sequence).pipe(
+              Effect.forkDetach,
+            );
+            return;
+          }
 
-        const zoneRange = AUTO_ZONES[state.map]?.[event.payload.zone];
-        if (zoneRange !== undefined) {
-          yield* walkToRandomPosition(zoneRange);
-        }
-      }),
+          const zoneRange = AUTO_ZONES[state.map]?.[event.payload.zone];
+          if (zoneRange !== undefined) {
+            yield* walkToRandomPosition(zoneRange);
+          }
+        }),
     );
     yield* Effect.addFinalizer(() => Effect.sync(disposeZone));
 

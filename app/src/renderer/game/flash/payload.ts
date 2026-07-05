@@ -106,8 +106,11 @@ export const normalizeItemRecord = (
     asBoolean(record["bHouse"]) === true ||
     defaults?.house === true ||
     houseItemTypes.has(category);
+  const tempFlag = asBoolean(record["bTemp"]);
   const temp =
-    (asNumber(record["bTemp"]) ?? 0) !== 0 || defaults?.temp === true;
+    tempFlag === true ||
+    (tempFlag === undefined && (asNumber(record["bTemp"]) ?? 0) !== 0) ||
+    defaults?.temp === true;
   const banked =
     asBoolean(record["bBank"]) === true || defaults?.banked === true;
 

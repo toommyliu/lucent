@@ -596,7 +596,7 @@ export const layer = Layer.effect(
     });
 
     const disposeConnection = yield* events.on(
-      { type: "connection" },
+      { kind: "runtime", type: "connection" },
       (event) =>
         Effect.gen(function* () {
           if (event.type !== "connection") {

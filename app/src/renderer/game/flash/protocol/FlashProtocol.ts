@@ -93,13 +93,25 @@ const rawFromCallback = (callback: FlashCallback): string | null => {
 const callbackEvent = (callback: FlashCallback): FlashEvent | null => {
   switch (callback.type) {
     case "connection":
-      return { payload: { status: callback.status }, type: "connection" };
+      return {
+        kind: "runtime",
+        payload: { status: callback.status },
+        type: "connection",
+      };
     case "debug":
-      return { payload: { message: callback.message }, type: "debug" };
+      return {
+        kind: "runtime",
+        payload: { message: callback.message },
+        type: "debug",
+      };
     case "loaded":
-      return { type: "loaded" };
+      return { kind: "runtime", type: "loaded" };
     case "progress":
-      return { payload: { percent: callback.percent }, type: "progress" };
+      return {
+        kind: "runtime",
+        payload: { percent: callback.percent },
+        type: "progress",
+      };
     default:
       return null;
   }
@@ -140,9 +152,19 @@ export const layer = Layer.effect(
 
         const parsed = parseFlashPacket(direction, raw);
         if (Option.isNone(parsed)) {
+          yield* emitEvent({
+            kind: "packet",
+            payload: { direction, raw },
+            type: "packetParseFailed",
+          });
           return;
         }
 
+        yield* emitEvent({
+          kind: "packet",
+          payload: parsed.value,
+          type: "packetReceived",
+        });
         yield* packetBus.dispatch(parsed.value);
       });
 

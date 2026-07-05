@@ -281,7 +281,7 @@ export const layer = Layer.effect(
       });
 
     const disposeConnection = yield* protocol.onEvent(
-      { type: "connection" },
+      { kind: "runtime", type: "connection" },
       (event) => {
         const status = event.type === "connection" ? event.payload.status : "";
         if (status === "OnConnection") {
@@ -397,7 +397,7 @@ export const layer = Layer.effect(
         }
 
         const connection = yield* protocol.onceEvent(
-          { type: "connection" },
+          { kind: "runtime", type: "connection" },
           { timeout: "10 seconds" },
         );
         const status =

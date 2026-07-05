@@ -1,11 +1,18 @@
 import { Effect, Layer } from "effect";
 
-import type { FlashPacket } from "../Types";
+import type {
+  FlashPacket,
+  MonsterRecord,
+  PacketSelector,
+  PlayerRecord,
+  Position,
+} from "../Types";
 import { AuthApi, type AuthApiShape } from "../api/Auth";
 import {
   asArray,
   asBoolean,
   asInt,
+  asNumber,
   asPositiveInt,
   asRecord,
   asString,
@@ -31,6 +38,8 @@ const auraAddCommands = new Set(["aura+", "aura++", "aura+p"]);
 const auraRemoveCommands = new Set(["aura-", "aura--"]);
 
 type AuraTargetType = "monster" | "player";
+type Disposer = () => void;
+type PacketHandler = (packet: FlashPacket) => Effect.Effect<void>;
 
 interface AuraTargetRef {
   readonly targetId: number;
@@ -44,9 +53,6 @@ const packetData = (packet: FlashPacket): unknown => {
 
   return packet.data;
 };
-
-const shouldProjectPacket = (packet: FlashPacket): boolean =>
-  packet.direction !== "server" || packet.command === "ct";
 
 const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] => {
   const info = asString(targetInfo);
@@ -80,7 +86,213 @@ const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] => {
 const syncDropState = (items: ItemsStateShape, drops: DropsStateShape) =>
   items.getDrops().pipe(Effect.flatMap(drops.replace));
 
-const reduceInventoryPacket = (
+const asDisposerGroup = (
+  effect: Effect.Effect<Disposer>,
+): Effect.Effect<readonly Disposer[]> =>
+  effect.pipe(Effect.map((dispose) => [dispose]));
+
+const onPacketCommands = (
+  protocol: FlashProtocolShape,
+  selector: Omit<PacketSelector, "command">,
+  commands: readonly string[],
+  handler: PacketHandler,
+): Effect.Effect<readonly Disposer[]> =>
+  Effect.forEach(commands, (command) =>
+    protocol.onPacket({ ...selector, command }, handler),
+  );
+
+const playerLocationFromUpdate = (
+  update: Record<string, unknown>,
+  current: PlayerRecord | null,
+): {
+  readonly cell?: string;
+  readonly pad?: string;
+  readonly position?: Position;
+} | null => {
+  const x = asNumber(update["tx"] ?? update["px"]);
+  const y = asNumber(update["ty"] ?? update["py"]);
+  const cell = asString(update["strFrame"]);
+  const pad = asString(update["strPad"]);
+
+  if (
+    cell === undefined &&
+    pad === undefined &&
+    x === undefined &&
+    y === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    ...(cell === undefined ? {} : { cell }),
+    ...(pad === undefined ? {} : { pad }),
+    ...(x === undefined && y === undefined
+      ? {}
+      : {
+          position: {
+            x: x ?? current?.position[0] ?? 0,
+            y: y ?? current?.position[1] ?? 0,
+          },
+        }),
+  };
+};
+
+const patchFromPlayerUpdate = (
+  update: Record<string, unknown>,
+  current: PlayerRecord | null,
+): Partial<PlayerRecord> => {
+  const location = playerLocationFromUpdate(update, current);
+
+  return {
+    ...(asBoolean(update["afk"]) === undefined
+      ? {}
+      : { afk: asBoolean(update["afk"])! }),
+    ...(location?.cell === undefined ? {} : { cell: location.cell }),
+    ...(asInt(update["intHP"]) === undefined
+      ? {}
+      : { hp: asInt(update["intHP"])! }),
+    ...(asInt(update["intHPMax"]) === undefined
+      ? {}
+      : { maxHp: asInt(update["intHPMax"])! }),
+    ...(asInt(update["intMP"]) === undefined
+      ? {}
+      : { mp: asInt(update["intMP"])! }),
+    ...(asInt(update["intMPMax"]) === undefined
+      ? {}
+      : { maxMp: asInt(update["intMPMax"])! }),
+    ...(location?.pad === undefined ? {} : { pad: location.pad }),
+    ...(location?.position === undefined
+      ? {}
+      : {
+          position: [location.position.x, location.position.y] as const,
+        }),
+    ...(asInt(update["intState"]) === undefined
+      ? {}
+      : { state: asInt(update["intState"])! }),
+  };
+};
+
+const patchPlayerFromUpdate = (
+  world: WorldStateShape,
+  username: string,
+  update: Record<string, unknown>,
+) =>
+  Effect.gen(function* () {
+    const current = yield* world.getPlayer(username);
+    yield* world.patchPlayer(username, patchFromPlayerUpdate(update, current));
+  });
+
+const playerEventBasePayload = (world: WorldStateShape, username: string) =>
+  Effect.gen(function* () {
+    const current = yield* world.getPlayer(username);
+    const self = yield* world.getMe();
+    const isSelf = self !== null && equalsIgnoreCase(self.username, username);
+    return {
+      ...(current?.entityId === undefined
+        ? {}
+        : { entityId: current.entityId }),
+      isSelf,
+      username,
+    };
+  });
+
+const emitPlayerAfkFromUpdate = (
+  packet: FlashPacket,
+  protocol: FlashProtocolShape,
+  world: WorldStateShape,
+  username: string,
+  update: Record<string, unknown>,
+) =>
+  Effect.gen(function* () {
+    const afk = asBoolean(update["afk"]);
+    if (afk === undefined) {
+      return;
+    }
+
+    const basePayload = yield* playerEventBasePayload(world, username);
+    yield* protocol.emitEvent({
+      kind: "projection",
+      packet,
+      payload: { ...basePayload, afk },
+      type: "playerAfk",
+    });
+  });
+
+const emitPlayerLocationFromUpdate = (
+  packet: FlashPacket,
+  protocol: FlashProtocolShape,
+  world: WorldStateShape,
+  username: string,
+  update: Record<string, unknown>,
+) =>
+  Effect.gen(function* () {
+    const current = yield* world.getPlayer(username);
+    const location = playerLocationFromUpdate(update, current);
+    if (location === null) {
+      return;
+    }
+
+    const basePayload = yield* playerEventBasePayload(world, username);
+    yield* protocol.emitEvent({
+      kind: "projection",
+      packet,
+      payload: { ...basePayload, ...location },
+      type: "playerLocation",
+    });
+  });
+
+const parseCsvPayload = (data: string): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const token of data.split(",")) {
+    const separator = token.indexOf(":");
+    if (separator <= 0) {
+      continue;
+    }
+
+    result[token.slice(0, separator)] = token.slice(separator + 1);
+  }
+  return result;
+};
+
+const playerFromInitPayload = (
+  payload: Record<string, unknown>,
+): PlayerRecord | null => {
+  const userData = asRecord(payload["data"]);
+  const entityId =
+    asPositiveInt(payload["uid"]) ?? asPositiveInt(userData?.["entID"]);
+  return userData !== null && entityId !== undefined
+    ? normalizePlayerRecord({ ...userData, entID: entityId })
+    : null;
+};
+
+const isMonsterDead = (monster: MonsterRecord | null): boolean =>
+  monster !== null && (monster.hp <= 0 || monster.state === 0);
+
+const projectMonsterStatePatch = (
+  packet: FlashPacket,
+  world: WorldStateShape,
+  protocol: FlashProtocolShape,
+  monsterMapId: number,
+  patch: Partial<MonsterRecord>,
+) =>
+  Effect.gen(function* () {
+    const previous = yield* world.getMonster({ monMapId: monsterMapId });
+    yield* world.patchMonster(monsterMapId, patch);
+    if (
+      previous !== null &&
+      (patch.hp === 0 || patch.state === 0) &&
+      !isMonsterDead(previous)
+    ) {
+      yield* protocol.emitEvent({
+        kind: "projection",
+        packet,
+        payload: { monsterMapId },
+        type: "monsterDeath",
+      });
+    }
+  });
+
+const projectInventoryPacket = (
   packet: FlashPacket,
   items: ItemsStateShape,
   shops: ShopsStateShape,
@@ -167,7 +379,10 @@ const reduceInventoryPacket = (
       case "getDrop": {
         const itemId = asPositiveInt(payload?.["ItemID"]);
         yield* items.reduceGetDrop(payload);
-        if (itemId !== undefined) {
+        if (
+          itemId !== undefined &&
+          asBoolean(payload?.["bSuccess"]) !== false
+        ) {
           yield* drops.remove(itemId);
         }
         return;
@@ -192,7 +407,7 @@ const reduceInventoryPacket = (
     }
   });
 
-const reduceQuestPacket = (
+const projectQuestPacket = (
   packet: FlashPacket,
   quests: QuestsStateShape,
   protocol: FlashProtocolShape,
@@ -208,6 +423,7 @@ const reduceQuestPacket = (
         const record = asRecord(payload);
         if (record !== null && asBoolean(record["bSuccess"]) === true) {
           yield* protocol.emitEvent({
+            kind: "projection",
             packet,
             payload: record,
             type: "questComplete",
@@ -218,7 +434,7 @@ const reduceQuestPacket = (
     }
   });
 
-const reduceShopPacket = (packet: FlashPacket, shops: ShopsStateShape) =>
+const projectShopPacket = (packet: FlashPacket, shops: ShopsStateShape) =>
   packet.command === "loadShop"
     ? shops.setInfo(packetData(packet))
     : Effect.void;
@@ -241,14 +457,8 @@ const addMoveToAreaState = (
         ? {}
         : { id: asPositiveInt(payload["areaId"])! }),
     };
-    yield* world.patchMap(mapPatch);
-
-    const map = yield* world.getMap();
-    yield* protocol.emitEvent({
-      packet,
-      payload: map,
-      type: "joinMap",
-    });
+    const currentMap = yield* world.getMap();
+    yield* world.setMap({ ...currentMap, ...mapPatch });
 
     const monsterDefinitions = new Map<number, Record<string, unknown>>();
     for (const rawDefinition of asArray(payload["mondef"])) {
@@ -268,6 +478,7 @@ const addMoveToAreaState = (
       }
     }
 
+    const monsters: MonsterRecord[] = [];
     for (const rawMonster of asArray(payload["monBranch"])) {
       const monster = asRecord(rawMonster);
       const monsterId = asPositiveInt(monster?.["MonID"]);
@@ -290,13 +501,17 @@ const addMoveToAreaState = (
         { monsterId, monsterMapId },
       );
       if (normalized !== null) {
-        yield* world.addMonster(normalized);
+        monsters.push(normalized);
       }
     }
+    yield* world.setMonsters(monsters);
 
     const currentUsername = yield* auth
       .getUsername()
       .pipe(Effect.orElseSucceed(() => ""));
+    const previousSelf = yield* world.getMe();
+    const players: PlayerRecord[] = [];
+    let nextSelfUsername: string | null = null;
 
     for (const rawPlayer of asArray(payload["uoBranch"])) {
       const normalized = normalizePlayerRecord(rawPlayer);
@@ -304,20 +519,31 @@ const addMoveToAreaState = (
         continue;
       }
 
-      yield* world.addPlayer(normalized);
-      const self = yield* world.getMe();
+      players.push(normalized);
       if (
-        (self !== null &&
-          equalsIgnoreCase(self.username, normalized.username)) ||
+        (previousSelf !== null &&
+          equalsIgnoreCase(previousSelf.username, normalized.username)) ||
         (currentUsername !== "" &&
           equalsIgnoreCase(currentUsername, normalized.username))
       ) {
-        yield* world.setSelf(normalized.username);
+        nextSelfUsername = normalized.username;
       }
     }
+    yield* world.setPlayers(players);
+    if (nextSelfUsername !== null) {
+      yield* world.setSelf(nextSelfUsername);
+    }
+
+    const map = yield* world.getMap();
+    yield* protocol.emitEvent({
+      kind: "projection",
+      packet,
+      payload: map,
+      type: "joinMap",
+    });
   });
 
-const reduceWorldPacket = (
+const projectWorldPacket = (
   packet: FlashPacket,
   auth: AuthApiShape,
   world: WorldStateShape,
@@ -335,6 +561,7 @@ const reduceWorldPacket = (
         const args = asRecord(payload?.["args"]);
         const map = yield* world.getMap();
         yield* protocol.emitEvent({
+          kind: "projection",
           packet,
           payload: {
             map: map.name,
@@ -348,11 +575,7 @@ const reduceWorldPacket = (
         const root = payload;
         const userData = asRecord(root?.["data"]);
         const username = asString(userData?.["strUsername"]);
-        const entityId = asPositiveInt(userData?.["entID"]);
-        const player =
-          userData !== null && username !== undefined && entityId !== undefined
-            ? normalizePlayerRecord({ ...userData, entID: entityId })
-            : null;
+        const player = root === null ? null : playerFromInitPayload(root);
         if (username !== undefined) {
           yield* world.setSelf(username);
         }
@@ -363,19 +586,14 @@ const reduceWorldPacket = (
         return;
       }
       case "initUserDatas": {
+        const currentUsername = yield* auth
+          .getUsername()
+          .pipe(Effect.orElseSucceed(() => ""));
         for (const rawUser of asArray(payload?.["a"])) {
           const user = asRecord(rawUser);
-          const dataRecord = asRecord(user?.["data"]);
-          const entityId = asPositiveInt(dataRecord?.["entID"]);
-          const player =
-            dataRecord !== null && entityId !== undefined
-              ? normalizePlayerRecord({ ...dataRecord, entID: entityId })
-              : null;
+          const player = user === null ? null : playerFromInitPayload(user);
           if (player !== null) {
             yield* world.addPlayer(player);
-            const currentUsername = yield* auth
-              .getUsername()
-              .pipe(Effect.orElseSucceed(() => ""));
             if (
               currentUsername !== "" &&
               equalsIgnoreCase(currentUsername, player.username)
@@ -412,13 +630,19 @@ const reduceWorldPacket = (
             ? {}
             : { state: asInt(update["intState"])! }),
         };
-        yield* world.patchMonster(monsterMapId, patch);
-        if (patch.hp === 0 || patch.state === 0) {
-          yield* protocol.emitEvent({
-            packet,
-            payload: { monsterMapId },
-            type: "monsterDeath",
-          });
+        yield* projectMonsterStatePatch(
+          packet,
+          world,
+          protocol,
+          monsterMapId,
+          patch,
+        );
+        return;
+      }
+      case "clearAuras": {
+        const self = yield* world.getMe();
+        if (self !== null) {
+          yield* world.clearAuras("player", self.entityId);
         }
         return;
       }
@@ -427,27 +651,21 @@ const reduceWorldPacket = (
           const username = asString(payload["unm"]);
           const update = asRecord(payload["o"]);
           if (username !== undefined && update !== null) {
-            const patch = {
-              ...(asBoolean(update["afk"]) === undefined
-                ? {}
-                : { afk: asBoolean(update["afk"])! }),
-              ...(asString(update["strFrame"]) === undefined
-                ? {}
-                : { cell: asString(update["strFrame"])! }),
-              ...(asInt(update["intHP"]) === undefined
-                ? {}
-                : { hp: asInt(update["intHP"])! }),
-              ...(asInt(update["intMP"]) === undefined
-                ? {}
-                : { mp: asInt(update["intMP"])! }),
-              ...(asString(update["strPad"]) === undefined
-                ? {}
-                : { pad: asString(update["strPad"])! }),
-              ...(asInt(update["intState"]) === undefined
-                ? {}
-                : { state: asInt(update["intState"])! }),
-            };
-            yield* world.patchPlayer(username, patch);
+            yield* patchPlayerFromUpdate(world, username, update);
+            yield* emitPlayerAfkFromUpdate(
+              packet,
+              protocol,
+              world,
+              username,
+              update,
+            );
+            yield* emitPlayerLocationFromUpdate(
+              packet,
+              protocol,
+              world,
+              username,
+              update,
+            );
           }
         }
         return;
@@ -502,20 +720,19 @@ const reduceWorldPacket = (
             }
             const hp = asInt(update["intHP"]);
             const state = asInt(update["intState"]);
-            yield* world.patchMonster(monsterMapId, {
-              ...(hp === undefined ? {} : { hp }),
-              ...(asInt(update["intMP"]) === undefined
-                ? {}
-                : { mp: asInt(update["intMP"])! }),
-              ...(state === undefined ? {} : { state }),
-            });
-            if (hp === 0 || state === 0) {
-              yield* protocol.emitEvent({
-                packet,
-                payload: { monsterMapId },
-                type: "monsterDeath",
-              });
-            }
+            yield* projectMonsterStatePatch(
+              packet,
+              world,
+              protocol,
+              monsterMapId,
+              {
+                ...(hp === undefined ? {} : { hp }),
+                ...(asInt(update["intMP"]) === undefined
+                  ? {}
+                  : { mp: asInt(update["intMP"])! }),
+                ...(state === undefined ? {} : { state }),
+              },
+            );
           }
         }
 
@@ -534,6 +751,7 @@ const reduceWorldPacket = (
                 for (const { targetId, targetType } of targets) {
                   yield* world.setAura(targetType, targetId, aura);
                   yield* protocol.emitEvent({
+                    kind: "projection",
                     packet,
                     payload: { aura, targetId, targetType },
                     type: "auraAdded",
@@ -554,6 +772,7 @@ const reduceWorldPacket = (
                 for (const { targetId, targetType } of targets) {
                   yield* world.unsetAura(targetType, targetId, auraName);
                   yield* protocol.emitEvent({
+                    kind: "projection",
                     packet,
                     payload: { auraName, targetId, targetType },
                     type: "auraRemoved",
@@ -576,10 +795,14 @@ const reduceWorldPacket = (
             ...(pad === undefined ? {} : { pad }),
           });
           yield* protocol.emitEvent({
+            kind: "projection",
             packet,
             payload: {
               cell,
+              entityId: self.entityId,
+              isSelf: true,
               ...(pad === undefined ? {} : { pad }),
+              username: self.username,
             },
             type: "playerLocation",
           });
@@ -594,26 +817,63 @@ const reduceWorldPacket = (
         if (self !== null && x !== undefined && y !== undefined) {
           yield* world.patchPlayer(self.username, { position: [x, y] });
           yield* protocol.emitEvent({
+            kind: "projection",
             packet,
-            payload: { position: { x, y } },
+            payload: {
+              entityId: self.entityId,
+              isSelf: true,
+              position: { x, y },
+              username: self.username,
+            },
             type: "playerLocation",
           });
         }
         return;
       }
-      case "addGoldExp": {
-        const monsterMapId = asPositiveInt(payload?.["id"]);
-        if (asString(payload?.["typ"]) === "m" && monsterMapId !== undefined) {
-          yield* world.patchMonster(monsterMapId, { hp: 0, mp: 0, state: 0 });
-          yield* protocol.emitEvent({
-            packet,
-            payload: { monsterMapId },
-            type: "monsterDeath",
-          });
-        }
-        return;
-      }
     }
+  });
+
+const projectStringUotls = (
+  packet: FlashPacket,
+  world: WorldStateShape,
+  protocol: FlashProtocolShape,
+) =>
+  Effect.gen(function* () {
+    const data = packetData(packet);
+    const parts = Array.isArray(data) ? data : [];
+    const username = asString(parts[2]);
+    const rawUpdate = asString(parts[3]);
+    if (username === undefined || rawUpdate === undefined) {
+      return;
+    }
+
+    const parsed = parseCsvPayload(rawUpdate);
+    const update: Record<string, unknown> = {};
+    if (parsed["afk"] !== undefined) {
+      update["afk"] = parsed["afk"];
+    }
+    if (parsed["strFrame"] !== undefined) {
+      update["strFrame"] = parsed["strFrame"];
+    }
+    if (parsed["strPad"] !== undefined) {
+      update["strPad"] = parsed["strPad"];
+    }
+    if (parsed["tx"] !== undefined || parsed["px"] !== undefined) {
+      update["tx"] = parsed["tx"] ?? parsed["px"];
+    }
+    if (parsed["ty"] !== undefined || parsed["py"] !== undefined) {
+      update["ty"] = parsed["ty"] ?? parsed["py"];
+    }
+
+    yield* patchPlayerFromUpdate(world, username, update);
+    yield* emitPlayerAfkFromUpdate(packet, protocol, world, username, update);
+    yield* emitPlayerLocationFromUpdate(
+      packet,
+      protocol,
+      world,
+      username,
+      update,
+    );
   });
 
 export const layer = Layer.effectDiscard(
@@ -626,42 +886,125 @@ export const layer = Layer.effectDiscard(
     const shops = yield* ShopsState;
     const world = yield* WorldState;
 
-    const disposeConnection = yield* protocol.onEvent(
-      { type: "connection" },
-      (event) =>
-        Effect.gen(function* () {
-          const status =
-            event.type === "connection" ? event.payload.status : "";
-          if (
-            status === "OnConnectionLost" ||
-            status === "OnConnectionFailed"
-          ) {
-            yield* items.clear();
-            yield* drops.clear();
-            yield* shops.clear();
-            yield* quests.clear();
-            yield* world.clear();
-          }
-        }),
-    );
+    const extensionJson = (
+      commands: readonly string[],
+      handler: PacketHandler,
+    ) =>
+      onPacketCommands(
+        protocol,
+        { direction: "extension", wireType: "json" },
+        commands,
+        handler,
+      );
+    const extensionStr = (
+      commands: readonly string[],
+      handler: PacketHandler,
+    ) =>
+      onPacketCommands(
+        protocol,
+        { direction: "extension", wireType: "str" },
+        commands,
+        handler,
+      );
+    const serverJson = (commands: readonly string[], handler: PacketHandler) =>
+      onPacketCommands(
+        protocol,
+        { direction: "server", wireType: "json" },
+        commands,
+        handler,
+      );
+    const clientStr = (commands: readonly string[], handler: PacketHandler) =>
+      onPacketCommands(
+        protocol,
+        { direction: "client", wireType: "str" },
+        commands,
+        handler,
+      );
 
-    const disposePackets = yield* protocol.onPacket(undefined, (packet) =>
-      Effect.gen(function* () {
-        if (!shouldProjectPacket(packet)) {
-          return;
-        }
+    const disposerGroups = yield* Effect.all([
+      asDisposerGroup(
+        protocol.onEvent({ kind: "runtime", type: "connection" }, (event) =>
+          Effect.gen(function* () {
+            const status =
+              event.type === "connection" ? event.payload.status : "";
+            if (
+              status === "OnConnectionLost" ||
+              status === "OnConnectionFailed"
+            ) {
+              yield* items.clear();
+              yield* drops.clear();
+              yield* shops.clear();
+              yield* quests.clear();
+              yield* world.clear();
+            }
+          }),
+        ),
+      ),
 
-        yield* reduceShopPacket(packet, shops);
-        yield* reduceInventoryPacket(packet, items, shops, drops);
-        yield* reduceQuestPacket(packet, quests, protocol);
-        yield* reduceWorldPacket(packet, auth, world, protocol);
-      }),
-    );
+      extensionJson(
+        [
+          "loadInventoryBig",
+          "initInventory",
+          "loadHouseInventory",
+          "loadBank",
+          "bankFromInv",
+          "bankToInv",
+          "bankSwapInv",
+          "buyItem",
+          "sellItem",
+          "removeItem",
+          "equipItem",
+          "unequipItem",
+          "enhanceItemShop",
+          "enhanceItemLocal",
+          "dropItem",
+          "getDrop",
+          "addItems",
+          "forceAddItem",
+          "Wheel",
+          "turnIn",
+          "removeTempItem",
+        ],
+        (packet) => projectInventoryPacket(packet, items, shops, drops),
+      ),
+      extensionJson(["getQuests", "getQuests2", "ccqr"], (packet) =>
+        projectQuestPacket(packet, quests, protocol),
+      ),
+      extensionJson(["loadShop"], (packet) => projectShopPacket(packet, shops)),
+      extensionJson(
+        [
+          "moveToArea",
+          "event",
+          "initUserData",
+          "initUserDatas",
+          "mtls",
+          "clearAuras",
+          "uotls",
+          "ct",
+          "cb",
+        ],
+        (packet) => projectWorldPacket(packet, auth, world, protocol),
+      ),
+      extensionStr(["exitArea", "respawnMon"], (packet) =>
+        projectWorldPacket(packet, auth, world, protocol),
+      ),
+      extensionStr(["uotls"], (packet) =>
+        projectStringUotls(packet, world, protocol),
+      ),
+      serverJson(["ct", "cb"], (packet) =>
+        projectWorldPacket(packet, auth, world, protocol),
+      ),
+      clientStr(["moveToCell", "mv"], (packet) =>
+        projectWorldPacket(packet, auth, world, protocol),
+      ),
+    ]);
+    const disposers = disposerGroups.flat();
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        disposeConnection();
-        disposePackets();
+        for (const dispose of disposers) {
+          dispose();
+        }
       }),
     );
   }),

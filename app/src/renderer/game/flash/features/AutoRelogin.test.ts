@@ -11,6 +11,7 @@ import { matchesEventSelector } from "../protocol/PacketSelectors";
 import { AutoRelogin, layer as AutoReloginLayer } from "./AutoRelogin";
 
 const connectionEvent = (status: string): FlashEvent => ({
+  kind: "runtime",
   payload: { status },
   type: "connection",
 });

@@ -2075,15 +2075,17 @@ export function App(props: {
       Effect.scoped(
         Effect.gen(function* () {
           const events = yield* Api.EventsApi.EventsApi;
-          yield* events.on({ type: "progress" }, (event) =>
+          yield* events.on({ kind: "runtime", type: "progress" }, (event) =>
             Effect.sync(() => {
               if (event.type === "progress") {
                 setLoadProgress(event.payload.percent);
               }
             }),
           );
-          yield* events.on({ type: "loaded" }, () => Effect.sync(markLoaded));
-          yield* events.on({ type: "joinMap" }, () =>
+          yield* events.on({ kind: "runtime", type: "loaded" }, () =>
+            Effect.sync(markLoaded),
+          );
+          yield* events.on({ kind: "projection", type: "joinMap" }, () =>
             Effect.sync(() =>
               schedulePlayerReadyRefresh({
                 onReady: syncTravelOptionsFromState,
@@ -2091,7 +2093,7 @@ export function App(props: {
               }),
             ),
           );
-          yield* events.on({ type: "playerLocation" }, () =>
+          yield* events.on({ kind: "projection", type: "playerLocation" }, () =>
             Effect.sync(() =>
               schedulePlayerReadyRefresh({
                 onReady: syncTravelOptionsFromState,
@@ -2099,7 +2101,7 @@ export function App(props: {
               }),
             ),
           );
-          yield* events.on({ type: "connection" }, (event) =>
+          yield* events.on({ kind: "runtime", type: "connection" }, (event) =>
             Effect.sync(() => {
               const status =
                 event.type === "connection" ? event.payload.status : "";

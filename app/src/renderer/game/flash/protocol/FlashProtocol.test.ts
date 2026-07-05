@@ -75,6 +75,12 @@ describe("FlashProtocol", () => {
           const onceFiber = yield* protocol
             .oncePacket({ command: "equipItem" }, { timeout: "1 second" })
             .pipe(Effect.forkScoped);
+          const packetEventFiber = yield* protocol
+            .onceEvent(
+              { kind: "packet", type: "packetReceived" },
+              { timeout: "1 second" },
+            )
+            .pipe(Effect.forkScoped);
           yield* Effect.yieldNow;
 
           yield* harness.publish({
@@ -83,9 +89,17 @@ describe("FlashProtocol", () => {
           });
           yield* Effect.yieldNow;
           const oncePacket = yield* Fiber.join(onceFiber);
+          const packetEvent = yield* Fiber.join(packetEventFiber);
           yield* Effect.yieldNow;
 
           expect(oncePacket?.command).toBe("equipItem");
+          expect(packetEvent?.kind).toBe("packet");
+          expect(packetEvent?.type).toBe("packetReceived");
+          expect(
+            packetEvent?.type === "packetReceived"
+              ? packetEvent.payload.command
+              : "",
+          ).toBe("equipItem");
           expect(seen).toBe(1);
 
           dispose();
@@ -160,10 +174,16 @@ describe("FlashProtocol", () => {
         Effect.gen(function* () {
           const protocol = yield* FlashProtocol;
           const progressFiber = yield* protocol
-            .onceEvent({ type: "progress" }, { timeout: "1 second" })
+            .onceEvent(
+              { kind: "runtime", type: "progress" },
+              { timeout: "1 second" },
+            )
             .pipe(Effect.forkScoped);
           const loadedFiber = yield* protocol
-            .onceEvent({ type: "loaded" }, { timeout: "1 second" })
+            .onceEvent(
+              { kind: "runtime", type: "loaded" },
+              { timeout: "1 second" },
+            )
             .pipe(Effect.forkScoped);
           yield* Effect.yieldNow;
 
@@ -173,10 +193,12 @@ describe("FlashProtocol", () => {
 
           const progress = yield* Fiber.join(progressFiber);
           const loaded = yield* Fiber.join(loadedFiber);
+          expect(progress?.kind).toBe("runtime");
           expect(progress?.type).toBe("progress");
           expect(
             progress?.type === "progress" ? progress.payload.percent : 0,
           ).toBe(42);
+          expect(loaded?.kind).toBe("runtime");
           expect(loaded?.type).toBe("loaded");
         }).pipe(Effect.provide(harness.layer)),
       );

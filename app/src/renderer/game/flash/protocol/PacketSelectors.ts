@@ -15,6 +15,10 @@ export const matchesEventSelector = (
   event: FlashEvent,
   selector?: EventSelector,
 ): boolean => {
+  if (selector?.kind !== undefined && event.kind !== selector.kind) {
+    return false;
+  }
+
   if (selector?.type !== undefined && event.type !== selector.type) {
     return false;
   }
