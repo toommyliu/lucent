@@ -18,7 +18,6 @@ import type { PacketApiShape } from "../flash/api/Packet";
 import type { PlayerApiShape } from "../flash/api/Player";
 import type { PlayersApiShape } from "../flash/api/Players";
 import type { QuestsApiShape } from "../flash/api/Quests";
-import type { SettingsApiShape } from "../flash/api/Settings";
 import type { ShopsApiShape } from "../flash/api/Shops";
 import type { TempInventoryApiShape } from "../flash/api/TempInventory";
 import type { WaitApiShape } from "../flash/api/Wait";
@@ -56,6 +55,24 @@ export interface ScriptFeaturesApi {
   readonly autoZone: AutoZoneShape;
 }
 
+export interface ScriptSettingsApi {
+  readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
+  readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setCollisionsEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setCustomGuild: (name: string) => Effect.Effect<void>;
+  readonly setCustomName: (name: string) => Effect.Effect<void>;
+  readonly setDeathAdsVisible: (visible: boolean) => Effect.Effect<void>;
+  readonly setEnemyMagnetEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setFrameRate: (fps: number) => Effect.Effect<void>;
+  readonly setInfiniteRangeEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setLagKillerEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setOtherPlayersVisible: (visible: boolean) => Effect.Effect<void>;
+  readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
+  readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
+}
+
 export interface ScriptApi {
   readonly auth: AuthApiShape;
   readonly bank: BankApiShape;
@@ -70,7 +87,7 @@ export interface ScriptApi {
   readonly player: PlayerApiShape;
   readonly players: PlayersApiShape;
   readonly quests: QuestsApiShape;
-  readonly settings: SettingsApiShape;
+  readonly settings: ScriptSettingsApi;
   readonly shops: ShopsApiShape;
   readonly tempInventory: TempInventoryApiShape;
   readonly wait: WaitApiShape;

@@ -82,8 +82,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:317",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L317"
+        "path": "app/src/renderer/game/flash/Types.ts:367",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L367"
       }
     },
     "auto-relogin-state": {
@@ -149,8 +149,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:15",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L15"
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L23"
       }
     },
     "auto-zone-state": {
@@ -198,8 +198,8 @@
       "definition": "type ClientPacketSendType = \"str\" | \"json\" | \"xml\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:313",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L313"
+        "path": "app/src/renderer/game/flash/Types.ts:363",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L363"
       }
     },
     "combat-kill-options": {
@@ -259,8 +259,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:334",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L334"
+        "path": "app/src/renderer/game/flash/Types.ts:384",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L384"
       }
     },
     "drop-record": {
@@ -405,14 +405,20 @@
       "keys": [
         {
           "kind": "property",
+          "name": "kind",
+          "signature": "readonly kind?: FlashEventKind",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "type",
-          "signature": "readonly type?: \"connection\" | \"debug\" | \"loaded\" | \"progress\" | \"questComplete\" | \"joinMap\" | \"zone\" | \"playerLocation\" | \"monsterDeath\" | \"auraAdded\" | \"auraRemoved\"",
+          "signature": "readonly type?: \"connection\" | \"debug\" | \"loaded\" | \"progress\" | \"packetReceived\" | \"packetParseFailed\" | \"questComplete\" | \"joinMap\" | \"zone\" | \"playerAfk\" | \"playerLocation\" | \"monsterDeath\" | \"auraAdded\" | \"auraRemoved\"",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:304",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L304"
+        "path": "app/src/renderer/game/flash/Types.ts:353",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L353"
       }
     },
     "faction-record": {
@@ -457,11 +463,11 @@
       "slug": "flash-event",
       "kind": "type alias",
       "summary": "",
-      "definition": "type FlashEvent = { payload: { status: string }; type: \"connection\" } | { payload: { message: string }; type: \"debug\" } | { type: \"loaded\" } | { payload: { percent: number }; type: \"progress\" } | { packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { packet: FlashPacket; payload: MapRecord; type: \"joinMap\" } | { packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { packet: FlashPacket; payload: { cell?: string; pad?: string; position?: Position }; type: \"playerLocation\" } | { packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { packet: FlashPacket; payload: { aura: AuraRecord; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" }",
+      "definition": "type FlashEvent = FlashPacketEvent | FlashProjectionEvent | FlashRuntimeEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:235",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L235"
+        "path": "app/src/renderer/game/flash/Types.ts:346",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L346"
       }
     },
     "flash-event-handler": {
@@ -476,6 +482,18 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Events.ts#L6"
       }
     },
+    "flash-event-kind": {
+      "name": "FlashEventKind",
+      "slug": "flash-event-kind",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type FlashEventKind = \"packet\" | \"projection\" | \"runtime\"",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:235",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L235"
+      }
+    },
     "flash-packet": {
       "name": "FlashPacket",
       "slug": "flash-packet",
@@ -488,113 +506,52 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L227"
       }
     },
-    "flash-settings-patch": {
-      "name": "FlashSettingsPatch",
-      "slug": "flash-settings-patch",
+    "flash-packet-direction": {
+      "name": "FlashPacketDirection",
+      "slug": "flash-packet-direction",
       "kind": "type alias",
       "summary": "",
-      "definition": "type FlashSettingsPatch = { -readonly [Key in keyof FlashSettingsSnapshot]?: FlashSettingsSnapshot[Key] }",
+      "definition": "type FlashPacketDirection = typeof FlashPacketDirectionSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:170",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L170"
+        "path": "app/src/renderer/game/flash/Types.ts:180",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L180"
       }
     },
-    "flash-settings-snapshot": {
-      "name": "FlashSettingsSnapshot",
-      "slug": "flash-settings-snapshot",
-      "kind": "interface",
+    "flash-packet-event": {
+      "name": "FlashPacketEvent",
+      "slug": "flash-packet-event",
+      "kind": "type alias",
       "summary": "",
-      "definition": "interface FlashSettingsSnapshot",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "animationsEnabled",
-          "signature": "readonly animationsEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "antiCounterEnabled",
-          "signature": "readonly antiCounterEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "collisionsEnabled",
-          "signature": "readonly collisionsEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "customGuild",
-          "signature": "readonly customGuild: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "customName",
-          "signature": "readonly customName: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "deathAdsVisible",
-          "signature": "readonly deathAdsVisible: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "enemyMagnetEnabled",
-          "signature": "readonly enemyMagnetEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "frameRate",
-          "signature": "readonly frameRate: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "infiniteRangeEnabled",
-          "signature": "readonly infiniteRangeEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "lagKillerEnabled",
-          "signature": "readonly lagKillerEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "otherPlayersVisible",
-          "signature": "readonly otherPlayersVisible: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "provokeCellEnabled",
-          "signature": "readonly provokeCellEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "skipCutscenesEnabled",
-          "signature": "readonly skipCutscenesEnabled: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "walkSpeed",
-          "signature": "readonly walkSpeed: number",
-          "description": ""
-        }
-      ],
+      "definition": "type FlashPacketEvent = { kind: \"packet\"; payload: FlashPacket; type: \"packetReceived\" } | { kind: \"packet\"; payload: { direction: FlashPacketDirection; raw: string }; type: \"packetParseFailed\" }",
+      "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:153",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L153"
+        "path": "app/src/renderer/game/flash/Types.ts:258",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L258"
+      }
+    },
+    "flash-projection-event": {
+      "name": "FlashProjectionEvent",
+      "slug": "flash-projection-event",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type FlashProjectionEvent = { kind: \"projection\"; packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { kind: \"projection\"; packet: FlashPacket; payload: MapRecord; type: \"joinMap\" } | { kind: \"projection\"; packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { kind: \"projection\"; packet: FlashPacket; payload: { afk: boolean; entityId?: number; isSelf: boolean; username: string }; type: \"playerAfk\" } | { kind: \"projection\"; packet: FlashPacket; payload: { cell?: string; entityId?: number; isSelf: boolean; pad?: string; position?: Position; username: string }; type: \"playerLocation\" } | { kind: \"projection\"; packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { kind: \"projection\"; packet: FlashPacket; payload: { aura: AuraRecord; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:273",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L273"
+      }
+    },
+    "flash-runtime-event": {
+      "name": "FlashRuntimeEvent",
+      "slug": "flash-runtime-event",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type FlashRuntimeEvent = { kind: \"runtime\"; payload: { status: string }; type: \"connection\" } | { kind: \"runtime\"; payload: { message: string }; type: \"debug\" } | { kind: \"runtime\"; type: \"loaded\" } | { kind: \"runtime\"; payload: { percent: number }; type: \"progress\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:237",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L237"
       }
     },
     "hunt-options": {
@@ -612,8 +569,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:345",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L345"
+        "path": "app/src/renderer/game/flash/Types.ts:395",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L395"
       }
     },
     "inventory-item-selector": {
@@ -934,8 +891,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:358",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L358"
+        "path": "app/src/renderer/game/flash/Types.ts:408",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L408"
       }
     },
     "outfit-record": {
@@ -961,18 +918,6 @@
       "source": {
         "path": "app/src/renderer/game/flash/Types.ts:86",
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L86"
-      }
-    },
-    "packet-handler": {
-      "name": "PacketHandler",
-      "slug": "packet-handler",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type PacketHandler = (packet: FlashPacket) => Effect.Effect<void>",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/flash/api/Packet.ts:12",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Packet.ts#L12"
       }
     },
     "packet-selector": {
@@ -1155,8 +1100,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:354",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L354"
+        "path": "app/src/renderer/game/flash/Types.ts:404",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L404"
       }
     },
     "quest-record": {
@@ -1235,8 +1180,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptApi.ts:84",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L84"
+        "path": "app/src/renderer/game/scripting/ScriptApi.ts:101",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L101"
       }
     },
     "server-packet-send-type": {
@@ -1247,8 +1192,8 @@
       "definition": "type ServerPacketSendType = \"String\" | \"Json\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:315",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L315"
+        "path": "app/src/renderer/game/flash/Types.ts:365",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L365"
       }
     },
     "server-record": {
@@ -1521,8 +1466,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:349",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L349"
+        "path": "app/src/renderer/game/flash/Types.ts:399",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L399"
       }
     },
     "state-disposer": {
@@ -1644,8 +1589,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:308",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L308"
+        "path": "app/src/renderer/game/flash/Types.ts:358",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L358"
       }
     }
   }

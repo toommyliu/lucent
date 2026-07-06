@@ -408,13 +408,7 @@ interface ScriptRuntimeOptionsApi {
     setUsePrivateRooms(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
 }
 interface ScriptSettingsApi {
-    apply(patch: FlashSettingsPatch): Effect<void, never>;
-    enemyMagnet(): Effect<void, never>;
-    get(): Effect<FlashSettingsSnapshot, never>;
-    infiniteRange(): Effect<void, never>;
     isAntiCounterEnabled(): Effect<boolean, never>;
-    onState(listener: (state: FlashSettingsSnapshot) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
-    provokeCell(): Effect<void, never>;
     setAnimationsEnabled(enabled: boolean): Effect<void, never>;
     setAntiCounterEnabled(enabled: boolean): Effect<void, never>;
     setCollisionsEnabled(enabled: boolean): Effect<void, never>;
@@ -429,7 +423,6 @@ interface ScriptSettingsApi {
     setProvokeCellEnabled(enabled: boolean): Effect<void, never>;
     setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
     setWalkSpeed(speed: number): Effect<void, never>;
-    skipCutscenes(): Effect<void, never>;
 }
 interface ScriptShopsApi {
     buy(selector: ShopItemSelector, options?: QuantityOptions): Effect<boolean, never>;
@@ -514,6 +507,7 @@ interface DropRecord extends ItemRecord {
   readonly dropQuantity: number;
 }
 interface EventSelector {
+  readonly kind?: FlashEventKind;
   readonly type?: FlashEventType;
 }
 interface FactionRecord {
@@ -523,92 +517,11 @@ interface FactionRecord {
   readonly reputation: number;
 }
 type FlashEvent =
-  | {
-      readonly payload: { readonly status: string };
-      readonly type: "connection";
-    }
-  | {
-      readonly payload: { readonly message: string };
-      readonly type: "debug";
-    }
-  | {
-      readonly type: "loaded";
-    }
-  | {
-      readonly payload: { readonly percent: number };
-      readonly type: "progress";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: UnknownRecord;
-      readonly type: "questComplete";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: MapRecord;
-      readonly type: "joinMap";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly map: string;
-        readonly zone: string;
-      };
-      readonly type: "zone";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly cell?: string;
-        readonly pad?: string;
-        readonly position?: Position;
-      };
-      readonly type: "playerLocation";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: { readonly monsterMapId: number };
-      readonly type: "monsterDeath";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly aura: AuraRecord;
-        readonly targetId: number;
-        readonly targetType: "monster" | "player";
-      };
-      readonly type: "auraAdded";
-    }
-  | {
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly auraName: string;
-        readonly targetId: number;
-        readonly targetType: "monster" | "player";
-      };
-      readonly type: "auraRemoved";
-    };
+  | FlashPacketEvent
+  | FlashProjectionEvent
+  | FlashRuntimeEvent;
 type FlashEventHandler = (event: FlashEvent) => Effect<void>;
 type FlashPacket = { readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; };
-type FlashSettingsPatch = {
-  -readonly [Key in keyof FlashSettingsSnapshot]?: FlashSettingsSnapshot[Key];
-};
-interface FlashSettingsSnapshot {
-  readonly animationsEnabled: boolean;
-  readonly antiCounterEnabled: boolean;
-  readonly collisionsEnabled: boolean;
-  readonly customGuild: string;
-  readonly customName: string;
-  readonly deathAdsVisible: boolean;
-  readonly enemyMagnetEnabled: boolean;
-  readonly frameRate: number;
-  readonly infiniteRangeEnabled: boolean;
-  readonly lagKillerEnabled: boolean;
-  readonly otherPlayersVisible: boolean;
-  readonly provokeCellEnabled: boolean;
-  readonly skipCutscenesEnabled: boolean;
-  readonly walkSpeed: number;
-}
 interface HuntOptions {
   readonly findMost?: boolean;
 }
@@ -739,13 +652,114 @@ interface WaitOptions {
   readonly interval?: DurationInput;
   readonly timeout?: DurationInput;
 }
+type FlashEventKind = "packet" | "projection" | "runtime";
 type FlashEventType = FlashEvent["type"];
-type UnknownRecord = Record<string, unknown>;
-interface MapRecord {
-  readonly id: number;
-  readonly name: string;
-  readonly roomNumber: number;
-}
+type FlashPacketEvent =
+  | {
+      readonly kind: "packet";
+      readonly payload: FlashPacket;
+      readonly type: "packetReceived";
+    }
+  | {
+      readonly kind: "packet";
+      readonly payload: {
+        readonly direction: FlashPacketDirection;
+        readonly raw: string;
+      };
+      readonly type: "packetParseFailed";
+    };
+type FlashProjectionEvent =
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: UnknownRecord;
+      readonly type: "questComplete";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: MapRecord;
+      readonly type: "joinMap";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly map: string;
+        readonly zone: string;
+      };
+      readonly type: "zone";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly afk: boolean;
+        readonly entityId?: number;
+        readonly isSelf: boolean;
+        readonly username: string;
+      };
+      readonly type: "playerAfk";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly cell?: string;
+        readonly entityId?: number;
+        readonly isSelf: boolean;
+        readonly pad?: string;
+        readonly position?: Position;
+        readonly username: string;
+      };
+      readonly type: "playerLocation";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: { readonly monsterMapId: number };
+      readonly type: "monsterDeath";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly aura: AuraRecord;
+        readonly targetId: number;
+        readonly targetType: "monster" | "player";
+      };
+      readonly type: "auraAdded";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly auraName: string;
+        readonly targetId: number;
+        readonly targetType: "monster" | "player";
+      };
+      readonly type: "auraRemoved";
+    };
+type FlashRuntimeEvent =
+  | {
+      readonly kind: "runtime";
+      readonly payload: { readonly status: string };
+      readonly type: "connection";
+    }
+  | {
+      readonly kind: "runtime";
+      readonly payload: { readonly message: string };
+      readonly type: "debug";
+    }
+  | {
+      readonly kind: "runtime";
+      readonly type: "loaded";
+    }
+  | {
+      readonly kind: "runtime";
+      readonly payload: { readonly percent: number };
+      readonly type: "progress";
+    };
 type ObjectSelector<Shape extends Record<string, unknown>> = {
   [Key in keyof Shape]: {
     [SelectedKey in Key]: Shape[SelectedKey];
@@ -758,6 +772,7 @@ type MonsterSelectorShape = {
   name: string;
   monMapId: number;
 };
+type UnknownRecord = Record<string, unknown>;
 type FlashPacketDirection = 'client' | 'server' | 'extension';
 type FlashPacketWireType = 'str' | 'json' | 'xml' | 'unknown';
 interface Json { readonly [key: string]: unknown; }
@@ -785,6 +800,11 @@ type PlayerTargetInfo = TargetBaseInfo & {
   username: string;
   name: string;
 };
+interface MapRecord {
+  readonly id: number;
+  readonly name: string;
+  readonly roomNumber: number;
+}
 interface Shape { readonly [key: string]: unknown; }
 interface SelectedKey { readonly [key: string]: unknown; }
 interface OtherKey { readonly [key: string]: unknown; }

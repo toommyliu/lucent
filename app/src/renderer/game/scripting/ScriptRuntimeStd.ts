@@ -25,6 +25,7 @@ import type {
   ScriptCallbackResult,
   ScriptLucentStd,
   ScriptRuntimeApi,
+  ScriptSettingsApi,
 } from "./ScriptApi";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import { ScriptExecutionError } from "./ScriptRunnerErrors";
@@ -180,6 +181,25 @@ const wrapPlayer = (
     ),
 });
 
+const makeSettingsFacade = (settings: SettingsApiShape): ScriptSettingsApi =>
+  Object.freeze({
+    isAntiCounterEnabled: settings.isAntiCounterEnabled,
+    setAnimationsEnabled: settings.setAnimationsEnabled,
+    setAntiCounterEnabled: settings.setAntiCounterEnabled,
+    setCollisionsEnabled: settings.setCollisionsEnabled,
+    setCustomGuild: settings.setCustomGuild,
+    setCustomName: settings.setCustomName,
+    setDeathAdsVisible: settings.setDeathAdsVisible,
+    setEnemyMagnetEnabled: settings.setEnemyMagnetEnabled,
+    setFrameRate: settings.setFrameRate,
+    setInfiniteRangeEnabled: settings.setInfiniteRangeEnabled,
+    setLagKillerEnabled: settings.setLagKillerEnabled,
+    setOtherPlayersVisible: settings.setOtherPlayersVisible,
+    setProvokeCellEnabled: settings.setProvokeCellEnabled,
+    setSkipCutscenesEnabled: settings.setSkipCutscenesEnabled,
+    setWalkSpeed: settings.setWalkSpeed,
+  });
+
 export const makeScriptLucentStd = (
   options: ScriptRuntimeStdOptions,
 ): ScriptLucentStd => {
@@ -194,6 +214,7 @@ export const makeScriptLucentStd = (
     options.failCause,
   );
   const player = wrapPlayer(options.services.player, options.script);
+  const settings = makeSettingsFacade(options.services.settings);
 
   return Object.freeze({
     api: Object.freeze({
@@ -201,6 +222,7 @@ export const makeScriptLucentStd = (
       events,
       packet,
       player,
+      settings,
     }),
     features: Object.freeze({
       antiCounter: Object.freeze({

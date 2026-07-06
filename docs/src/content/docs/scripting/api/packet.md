@@ -23,7 +23,7 @@ api.packet.on(selector: PacketSelector | undefined, handler: PacketHandler): Eff
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `handler` | <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `handler` | `PacketHandler` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** () =&gt; `void`
 
