@@ -25,10 +25,6 @@ export const asString = (value: unknown): string | undefined => {
     return value;
   }
 
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-
   return undefined;
 };
 
@@ -96,21 +92,17 @@ export const normalizeItemRecord = (
     return null;
   }
 
-  const itemId = asPositiveInt(record["ItemID"] ?? record["itemId"]);
+  const itemId = asPositiveInt(record["ItemID"]) ?? defaults?.itemId;
   if (itemId === undefined) {
     return null;
   }
 
-  const category = asString(record["sType"] ?? record["category"]) ?? "";
+  const category = asString(record["sType"]) ?? defaults?.category ?? "";
   const house =
     asBoolean(record["bHouse"]) === true ||
     defaults?.house === true ||
     houseItemTypes.has(category);
-  const tempFlag = asBoolean(record["bTemp"]);
-  const temp =
-    tempFlag === true ||
-    (tempFlag === undefined && (asNumber(record["bTemp"]) ?? 0) !== 0) ||
-    defaults?.temp === true;
+  const temp = asBoolean(record["bTemp"]) === true || defaults?.temp === true;
   const banked =
     asBoolean(record["bBank"]) === true || defaults?.banked === true;
 
@@ -138,10 +130,7 @@ export const normalizeItemRecord = (
     ...(charItemId === undefined ? {} : { charItemId }),
     coins: asBoolean(record["bCoins"]) === true || defaults?.coins === true,
     cost: asNumber(record["iCost"]) ?? defaults?.cost ?? 0,
-    description:
-      asString(record["sDesc"] ?? record["description"]) ??
-      defaults?.description ??
-      "",
+    description: asString(record["sDesc"]) ?? defaults?.description ?? "",
     ...(hasEnhancement
       ? {
           enhancement: {
@@ -165,7 +154,7 @@ export const normalizeItemRecord = (
     equipped:
       asBoolean(record["bEquip"]) === true || defaults?.equipped === true,
     equipmentSlot:
-      asString(record["sES"] ?? record["strES"] ?? record["equipmentSlot"]) ??
+      asString(record["sES"] ?? record["strES"]) ??
       defaults?.equipmentSlot ??
       "",
     file: asString(record["sFile"]) ?? defaults?.file ?? "",
@@ -173,17 +162,10 @@ export const normalizeItemRecord = (
     itemId,
     link: asString(record["sLink"]) ?? defaults?.link ?? "",
     meta: asString(record["sMeta"]) ?? defaults?.meta ?? "",
-    name:
-      asString(record["sName"] ?? record["name"]) ??
-      defaults?.name ??
-      `Item ${itemId}`,
-    quantity: Math.max(
-      0,
-      asInt(record["iQty"] ?? record["quantity"]) ?? defaults?.quantity ?? 1,
-    ),
+    name: asString(record["sName"]) ?? defaults?.name ?? `Item ${itemId}`,
+    quantity: Math.max(0, asInt(record["iQty"]) ?? defaults?.quantity ?? 1),
     temp,
-    virtual:
-      asBoolean(record["virtual"]) === true || defaults?.virtual === true,
+    virtual: defaults?.virtual === true,
   };
 };
 
@@ -231,7 +213,7 @@ export const normalizeShopInfoRecord = (
     merge:
       asBoolean(shopinfo["bMerge"]) === true ||
       asString(shopinfo["sType"]) === "Merge",
-    name: asString(shopinfo["sName"] ?? shopinfo["Name"]) ?? `Shop ${id}`,
+    name: asString(shopinfo["sName"]) ?? `Shop ${id}`,
   };
 };
 
@@ -247,7 +229,7 @@ export const normalizeQuestRecord = (
 
   return {
     id,
-    name: asString(raw["sName"] ?? raw["name"]) ?? `Quest ${id}`,
+    name: asString(raw["sName"]) ?? `Quest ${id}`,
     raw,
   };
 };
@@ -281,21 +263,21 @@ export const normalizeAuraRecord = (value: unknown): AuraRecord | null => {
     return null;
   }
 
-  const name = asString(raw["nam"] ?? raw["name"]);
+  const name = asString(raw["nam"]);
   if (name === undefined || name.trim() === "") {
     return null;
   }
 
   const category = asString(raw["cat"]);
   const icon = asString(raw["icon"]);
-  const auraValue = asNumber(raw["val"] ?? raw["value"]);
+  const auraValue = asNumber(raw["val"]);
 
   return {
     ...(category === undefined ? {} : { category }),
-    duration: asNumber(raw["dur"] ?? raw["duration"]) ?? 0,
+    duration: asNumber(raw["dur"]) ?? 0,
     ...(icon === undefined ? {} : { icon }),
     name,
-    stack: asPositiveInt(raw["stack"]) ?? 1,
+    stack: 1,
     ...(auraValue === undefined ? {} : { value: auraValue }),
   };
 };
@@ -306,26 +288,26 @@ export const normalizePlayerRecord = (value: unknown): PlayerRecord | null => {
     return null;
   }
 
-  const entityId = asPositiveInt(raw["entID"] ?? raw["entityId"]);
-  const username = asString(raw["strUsername"] ?? raw["username"]);
+  const entityId = asPositiveInt(raw["entID"]);
+  const username = asString(raw["strUsername"]);
   if (entityId === undefined || username === undefined) {
     return null;
   }
 
   return {
     afk: asBoolean(raw["afk"]) === true,
-    cell: asString(raw["strFrame"] ?? raw["cell"]) ?? "",
+    cell: asString(raw["strFrame"]) ?? "",
     entityId,
-    entityType: asString(raw["entType"] ?? raw["entityType"]) ?? "player",
-    hp: asInt(raw["intHP"] ?? raw["hp"]) ?? 0,
-    level: asInt(raw["intLevel"] ?? raw["level"]) ?? 0,
-    maxHp: asInt(raw["intHPMax"] ?? raw["maxHp"]) ?? 0,
-    maxMp: asInt(raw["intMPMax"] ?? raw["maxMp"]) ?? 0,
-    mp: asInt(raw["intMP"] ?? raw["mp"]) ?? 0,
-    name: asString(raw["uoName"] ?? raw["name"]) ?? username,
-    pad: asString(raw["strPad"] ?? raw["pad"]) ?? "",
+    entityType: asString(raw["entType"]) ?? "player",
+    hp: asInt(raw["intHP"]) ?? 0,
+    level: asInt(raw["intLevel"]) ?? 0,
+    maxHp: asInt(raw["intHPMax"]) ?? 0,
+    maxMp: asInt(raw["intMPMax"]) ?? 0,
+    mp: asInt(raw["intMP"]) ?? 0,
+    name: username,
+    pad: asString(raw["strPad"]) ?? "",
     position: [asNumber(raw["tx"]) ?? 0, asNumber(raw["ty"]) ?? 0],
-    state: asInt(raw["intState"] ?? raw["state"]) ?? 0,
+    state: asInt(raw["intState"]) ?? 0,
     username,
   };
 };
@@ -339,30 +321,25 @@ export const normalizeMonsterRecord = (
     return null;
   }
 
-  const monsterMapId = asPositiveInt(
-    raw["MonMapID"] ?? raw["monMapId"] ?? defaults?.monsterMapId,
-  );
+  const monsterMapId = asPositiveInt(raw["MonMapID"]) ?? defaults?.monsterMapId;
   if (monsterMapId === undefined) {
     return null;
   }
 
   return {
-    cell: asString(raw["strFrame"] ?? raw["cell"]) ?? defaults?.cell ?? "",
-    hp: asInt(raw["intHP"] ?? raw["hp"]) ?? defaults?.hp ?? 0,
-    level: asInt(raw["iLvl"] ?? raw["level"]) ?? defaults?.level ?? 0,
-    maxHp: asInt(raw["intHPMax"] ?? raw["maxHp"]) ?? defaults?.maxHp ?? 0,
-    maxMp: asInt(raw["intMPMax"] ?? raw["maxMp"]) ?? defaults?.maxMp ?? 0,
-    monsterId:
-      asPositiveInt(raw["MonID"] ?? raw["monsterId"]) ??
-      defaults?.monsterId ??
-      0,
+    cell: asString(raw["strFrame"]) ?? defaults?.cell ?? "",
+    hp: asInt(raw["intHP"]) ?? defaults?.hp ?? 0,
+    level: asInt(raw["iLvl"]) ?? defaults?.level ?? 0,
+    maxHp: asInt(raw["intHPMax"]) ?? defaults?.maxHp ?? 0,
+    maxMp: asInt(raw["intMPMax"]) ?? defaults?.maxMp ?? 0,
+    monsterId: asPositiveInt(raw["MonID"]) ?? defaults?.monsterId ?? 0,
     monsterMapId,
-    mp: asInt(raw["intMP"] ?? raw["mp"]) ?? defaults?.mp ?? 0,
+    mp: asInt(raw["intMP"]) ?? defaults?.mp ?? 0,
     name:
-      asString(raw["strMonName"] ?? raw["name"]) ??
+      asString(raw["strMonName"]) ??
       defaults?.name ??
       `Monster ${monsterMapId}`,
-    race: asString(raw["sRace"] ?? raw["race"]) ?? defaults?.race ?? "",
-    state: asInt(raw["intState"] ?? raw["state"]) ?? defaults?.state ?? 0,
+    race: asString(raw["sRace"]) ?? defaults?.race ?? "",
+    state: asInt(raw["intState"]) ?? defaults?.state ?? 0,
   };
 };

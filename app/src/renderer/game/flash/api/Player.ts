@@ -117,8 +117,8 @@ const normalizeFaction = (value: unknown): FactionRecord | null => {
     return null;
   }
 
-  const id = asInt(record["FactionID"] ?? record["id"]);
-  const name = asString(record["sName"] ?? record["name"]);
+  const id = asInt(record["FactionID"]);
+  const name = asString(record["sName"]);
   if (id === undefined || name === undefined) {
     return null;
   }
@@ -133,7 +133,7 @@ const normalizeFaction = (value: unknown): FactionRecord | null => {
 
 const normalizeOutfit = (value: unknown): OutfitRecord | null => {
   const record = asRecord(value);
-  const name = asString(record?.["sName"] ?? record?.["name"]);
+  const name = asString(record?.["sName"]);
   return record === null || name === undefined ? null : { name, raw: record };
 };
 
