@@ -2,6 +2,7 @@ import { Cause, Context, Deferred, Effect, Fiber, Layer, Ref } from "effect";
 
 import type { ScriptFile } from "../../../shared/ipc/scripting";
 import type { ScriptInputValues } from "../../../shared/scriptInputs";
+import { ArmyApi } from "../army/Army";
 import { AuthApi } from "../flash/api/Auth";
 import { BankApi } from "../flash/api/Bank";
 import { CombatApi } from "../flash/api/Combat";
@@ -160,6 +161,7 @@ export const layer = Layer.effect(
   ScriptRunner,
   Effect.gen(function* () {
     const auth = yield* AuthApi;
+    const army = yield* ArmyApi;
     const bank = yield* BankApi;
     const combat = yield* CombatApi;
     const drops = yield* DropsApi;
@@ -180,6 +182,7 @@ export const layer = Layer.effect(
     const autoZone = yield* AutoZone;
 
     const services: ScriptRuntimeServices = {
+      army,
       auth,
       bank,
       combat,
@@ -515,6 +518,9 @@ export const layer = Layer.effect(
 
         const id = yield* Ref.updateAndGet(nextIdRef, (value) => value + 1);
         const scope = makeScriptAsyncScope();
+        yield* scope.addCleanup(() =>
+          army.leave().pipe(Effect.catchCause(() => Effect.void)),
+        );
         const script = makeScriptApi(scope, inputs);
         const lucent = makeScriptLucentStd({
           failCause: (cause) => failActiveCause(id, cause),

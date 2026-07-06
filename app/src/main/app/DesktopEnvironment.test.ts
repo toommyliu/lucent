@@ -34,6 +34,7 @@ describe("DesktopEnvironment", () => {
     expect(env.settingsPath).toBe("/internal/Lucent/settings.json");
     expect(env.releaseCachePath).toBe("/internal/Lucent/release-cache.json");
     expect(env.logFilePath).toBe("/internal/Lucent/logs/lucent.log");
+    expect(env.armyDir).toBe("/Users/example/Documents/Lucent/army");
     expect(env.flashPluginPath).toBe("/custom/pepflashplayer.dll");
   });
 

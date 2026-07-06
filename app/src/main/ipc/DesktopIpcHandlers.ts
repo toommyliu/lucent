@@ -5,6 +5,7 @@ import { ScriptInputRepository } from "../scripting/ScriptInputRepository";
 import { ScriptLibrary } from "../scripting/ScriptLibrary";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
+import { installArmyIpcHandlers } from "../army/ArmyIpcHandlers";
 import { DesktopIpc } from "./DesktopIpc";
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
@@ -15,6 +16,8 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   const updates = yield* DesktopUpdates;
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
+
+  yield* installArmyIpcHandlers;
 
   // Settings
   yield* ipc.handle(SettingsIpc.get, () => settings.get);

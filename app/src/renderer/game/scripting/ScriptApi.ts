@@ -1,5 +1,6 @@
 import type { Duration, Effect, Option } from "effect";
 
+import type { ArmyApiShape } from "../army/Army";
 import type {
   ScriptInputsDefinition,
   ScriptInputValue,
@@ -74,6 +75,7 @@ export interface ScriptSettingsApi {
 }
 
 export interface ScriptApi {
+  readonly army: ArmyApiShape;
   readonly auth: AuthApiShape;
   readonly bank: BankApiShape;
   readonly combat: CombatApiShape;

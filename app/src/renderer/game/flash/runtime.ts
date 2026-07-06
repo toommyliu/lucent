@@ -1,5 +1,6 @@
 import { Layer, ManagedRuntime } from "effect";
 
+import * as ArmyApi from "../army/Army";
 import * as AuthApi from "./api/Auth";
 import * as BankApi from "./api/Bank";
 import * as CombatApi from "./api/Combat";
@@ -85,6 +86,10 @@ export const FlashJobsLayer = Jobs.layer;
 
 const FlashRuntimeServicesLayer = Layer.mergeAll(FlashApiLayer, FlashJobsLayer);
 
+const FlashArmyLayer = ArmyApi.layer.pipe(
+  Layer.provideMerge(FlashRuntimeServicesLayer),
+);
+
 const FlashPolicyLayer = SettingsPolicy.layer.pipe(
   Layer.provideMerge(FlashRuntimeServicesLayer),
 );
@@ -98,6 +103,7 @@ export const FlashLiveLayer = Projectors.layer.pipe(
   Layer.provideMerge(
     Layer.mergeAll(
       FlashRuntimeServicesLayer,
+      FlashArmyLayer,
       FlashPolicyLayer,
       FlashFeatureLayer,
     ),
