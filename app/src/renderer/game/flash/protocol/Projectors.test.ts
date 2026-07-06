@@ -7,8 +7,8 @@ import type { FlashCallback } from "../FlashCallbacks";
 import { FlashCallbacks } from "../FlashCallbacks";
 import { SwfBridge, type SwfBridgeShape } from "../SwfBridge";
 import type { FlashEvent } from "../Types";
-import { DropsState, layer as DropsStateLayer } from "../state/Drops";
-import { ItemsState, layer as ItemsStateLayer } from "../state/Items";
+import { layer as DropsStateLayer } from "../state/Drops";
+import { layer as ItemsStateLayer } from "../state/Items";
 import { layer as QuestsStateLayer } from "../state/Quests";
 import { layer as ShopsStateLayer } from "../state/Shops";
 import { WorldState, layer as WorldStateLayer } from "../state/World";
@@ -130,22 +130,6 @@ const monster = (
   intState: 1,
   strFrame: "r1",
   strMonName: name,
-  ...overrides,
-});
-
-const item = (
-  itemId: number,
-  name: string,
-  overrides: Record<string, unknown> = {},
-) => ({
-  CharItemID: itemId + 1000,
-  ItemID: itemId,
-  bCoins: false,
-  bEquip: false,
-  iQty: 1,
-  sES: "",
-  sName: name,
-  sType: "Item",
   ...overrides,
 });
 

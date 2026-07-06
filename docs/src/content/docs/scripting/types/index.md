@@ -26,9 +26,12 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/faction-record/" data-script-type="faction-record"><code>FactionRecord</code></a> | interface |  |
 | <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> | type alias |  |
 | <a href="/scripting/types/flash-event-handler/" data-script-type="flash-event-handler"><code>FlashEventHandler</code></a> | type alias |  |
+| <a href="/scripting/types/flash-event-kind/" data-script-type="flash-event-kind"><code>FlashEventKind</code></a> | type alias |  |
 | <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> | type alias |  |
-| <a href="/scripting/types/flash-settings-patch/" data-script-type="flash-settings-patch"><code>FlashSettingsPatch</code></a> | type alias |  |
-| <a href="/scripting/types/flash-settings-snapshot/" data-script-type="flash-settings-snapshot"><code>FlashSettingsSnapshot</code></a> | interface |  |
+| <a href="/scripting/types/flash-packet-direction/" data-script-type="flash-packet-direction"><code>FlashPacketDirection</code></a> | type alias |  |
+| <a href="/scripting/types/flash-packet-event/" data-script-type="flash-packet-event"><code>FlashPacketEvent</code></a> | type alias |  |
+| <a href="/scripting/types/flash-projection-event/" data-script-type="flash-projection-event"><code>FlashProjectionEvent</code></a> | type alias |  |
+| <a href="/scripting/types/flash-runtime-event/" data-script-type="flash-runtime-event"><code>FlashRuntimeEvent</code></a> | type alias |  |
 | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
 | <a href="/scripting/types/inventory-item-selector/" data-script-type="inventory-item-selector"><code>InventoryItemSelector</code></a> | type alias |  |
 | <a href="/scripting/types/inventory-item-selector-shape/" data-script-type="inventory-item-selector-shape"><code>InventoryItemSelectorShape</code></a> | type alias |  |
@@ -41,7 +44,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/object-selector/" data-script-type="object-selector"><code>ObjectSelector</code></a> | type alias |  |
 | <a href="/scripting/types/outfit-options/" data-script-type="outfit-options"><code>OutfitOptions</code></a> | interface |  |
 | <a href="/scripting/types/outfit-record/" data-script-type="outfit-record"><code>OutfitRecord</code></a> | interface |  |
-| <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | type alias |  |
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
 | <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a> | interface |  |
 | <a href="/scripting/types/player-target-info/" data-script-type="player-target-info"><code>PlayerTargetInfo</code></a> | type alias |  |
