@@ -19,6 +19,7 @@ export interface DesktopEnvironmentShape extends DesktopEnvironmentConfig {
   readonly appDataPath: (...parts: readonly string[]) => string;
   readonly workspacePath: (...parts: readonly string[]) => string;
   readonly appIconPath: string;
+  readonly armyDir: string;
   readonly flashPluginPath: string | null;
   readonly flashTrustRootPath: string;
   readonly logFilePath: string;
@@ -110,6 +111,7 @@ export const makeDesktopEnvironment = (
     appDataPath,
     workspacePath,
     appIconPath: join(config.assetsDir, activeBranding.iconPng),
+    armyDir: workspacePath("army"),
     flashPluginPath:
       config.flashPluginPathOverride ??
       resolvePepperFlashPluginPath(config.workspaceDir, config.platform),

@@ -3,6 +3,8 @@ import { Layer } from "effect";
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
+import * as ArmyConfigRepository from "../army/ArmyConfigRepository";
+import * as ArmyCoordinator from "../army/ArmyCoordinator";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
 import * as ScriptInputRepository from "../scripting/ScriptInputRepository";
@@ -102,7 +104,13 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const armyLayer = Layer.mergeAll(
+    ArmyCoordinator.layer,
+    ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
+  );
+
   return Layer.mergeAll(
+    armyLayer,
     electronLayer,
     environmentLayer,
     observabilityLayer,

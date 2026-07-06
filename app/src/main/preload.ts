@@ -9,7 +9,7 @@ import {
   readSettingsSnapshotArgument,
 } from "../shared/appearance";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
-import { ScriptingIpc, SettingsIpc, UpdatesIpc } from "../shared/ipc";
+import { ArmyIpc, ScriptingIpc, SettingsIpc, UpdatesIpc } from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
 const applyBootstrapAppearance = (): void => {
@@ -80,6 +80,15 @@ const bridge: DesktopBridge = {
   settings: settingsBridge,
   ...(bridgeView === "game"
     ? {
+        army: {
+          fail: (payload) => invoke(ArmyIpc.fail, payload),
+          leave: (payload) => invoke(ArmyIpc.leave, payload),
+          loadConfig: (configName) =>
+            invoke(ArmyIpc.loadConfig, { configName }),
+          progress: (payload) => invoke(ArmyIpc.progress, payload),
+          start: (payload) => invoke(ArmyIpc.start, payload),
+          sync: (payload) => invoke(ArmyIpc.sync, payload),
+        },
         scripting: {
           getInputValues: (definition) =>
             invoke(ScriptingIpc.getInputValues, definition),

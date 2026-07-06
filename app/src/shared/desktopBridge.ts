@@ -4,6 +4,16 @@ import type {
   PreferencesPatch,
 } from "./settings";
 import type { HotkeysPatch } from "./hotkeys";
+import type {
+  ArmyConfigPayload,
+  ArmyFailPayload,
+  ArmyLeavePayload,
+  ArmyProgressPayload,
+  ArmyProgressResult,
+  ArmySessionPayload,
+  ArmyStartPayload,
+  ArmySyncPayload,
+} from "./army";
 import type { ScriptFile, ScriptOpenFileResult } from "./ipc/scripting";
 import type { ScriptInputsDefinition, ScriptInputValues } from "./scriptInputs";
 import type { UpdateCheckState } from "./updates";
@@ -48,7 +58,19 @@ export interface DesktopScriptingBridge {
   ) => Promise<ScriptInputValues>;
 }
 
+export interface DesktopArmyBridge {
+  readonly fail: (payload: ArmyFailPayload) => Promise<void>;
+  readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
+  readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;
+  readonly progress: (
+    payload: ArmyProgressPayload,
+  ) => Promise<ArmyProgressResult>;
+  readonly start: (payload: ArmyStartPayload) => Promise<ArmySessionPayload>;
+  readonly sync: (payload: ArmySyncPayload) => Promise<void>;
+}
+
 export interface DesktopBridge {
+  readonly army?: DesktopArmyBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

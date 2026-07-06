@@ -1,5 +1,6 @@
 import { Cause, Effect } from "effect";
 
+import type { ArmyApiShape } from "../army/Army";
 import type { AuthApiShape } from "../flash/api/Auth";
 import type { BankApiShape } from "../flash/api/Bank";
 import type { CombatApiShape } from "../flash/api/Combat";
@@ -31,6 +32,7 @@ import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import { ScriptExecutionError } from "./ScriptRunnerErrors";
 
 export interface ScriptRuntimeServices {
+  readonly army: ArmyApiShape;
   readonly auth: AuthApiShape;
   readonly bank: BankApiShape;
   readonly combat: CombatApiShape;
@@ -219,6 +221,7 @@ export const makeScriptLucentStd = (
   return Object.freeze({
     api: Object.freeze({
       ...options.services,
+      army: options.services.army,
       events,
       packet,
       player,
