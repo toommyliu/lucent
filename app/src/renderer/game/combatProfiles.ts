@@ -1,0 +1,322 @@
+import { Effect, Ref, Semaphore } from "effect";
+
+import type {
+  CombatProfile,
+  CombatProfileAuraCondition,
+  CombatProfileCondition,
+  CombatProfileMessageTrigger,
+  CombatProfileStatCondition,
+  CombatProfileStep,
+} from "../../shared/combat-profiles";
+import type { CombatApiShape } from "./flash/api/Combat";
+import type { PlayerApiShape } from "./flash/api/Player";
+import type { PlayersApiShape } from "./flash/api/Players";
+import type { AuraRecord } from "./flash/Types";
+
+export interface CombatProfileCursor {
+  readonly state: Ref.Ref<CombatProfileCursorState>;
+}
+
+export interface CombatProfileMessageTriggerState {
+  readonly semaphore: Semaphore.Semaphore;
+  readonly state: Ref.Ref<ReadonlyMap<string, number>>;
+}
+
+export interface CombatProfileMessageTriggerEvent {
+  readonly message: string;
+  readonly monMapId?: number;
+  readonly source: "animation" | "aura";
+}
+
+interface CombatProfileCursorState {
+  readonly index: number;
+  readonly resetVersion: number;
+}
+
+export interface CombatProfileRuntimeDeps {
+  readonly combat: Pick<
+    CombatApiShape,
+    "attackMonster" | "canUseSkill" | "target" | "useSkill"
+  >;
+  readonly player: Pick<
+    PlayerApiShape,
+    "auras" | "getHp" | "getMaxHp" | "getMaxMp" | "getMp"
+  >;
+  readonly players: Pick<PlayersApiShape, "getAll" | "getMe">;
+}
+
+export const makeCombatProfileRuntimeDeps = (
+  combat: CombatProfileRuntimeDeps["combat"],
+  player: CombatProfileRuntimeDeps["player"],
+  players: CombatProfileRuntimeDeps["players"],
+): CombatProfileRuntimeDeps => ({
+  combat,
+  player,
+  players,
+});
+
+export const makeCombatProfileCursor = (): Effect.Effect<CombatProfileCursor> =>
+  Effect.map(Ref.make({ index: 0, resetVersion: 0 }), (state) => ({ state }));
+
+export const resetCombatProfileCursor = (
+  cursor: CombatProfileCursor,
+): Effect.Effect<void> =>
+  Ref.update(cursor.state, (state) => ({
+    index: 0,
+    resetVersion: state.resetVersion + 1,
+  }));
+
+export const makeCombatProfileMessageTriggerState =
+  (): Effect.Effect<CombatProfileMessageTriggerState> =>
+    Effect.gen(function* () {
+      const state = yield* Ref.make<ReadonlyMap<string, number>>(new Map());
+      const semaphore = yield* Semaphore.make(1);
+      return {
+        semaphore,
+        state,
+      };
+    });
+
+const compare = (
+  actual: number,
+  op: CombatProfileStatCondition["op"],
+  expected: number,
+): boolean => (op === ">=" ? actual >= expected : actual <= expected);
+
+const statValue = (
+  current: number,
+  max: number,
+  unit: CombatProfileStatCondition["unit"],
+): number => (unit === "value" ? current : max > 0 ? (current / max) * 100 : 0);
+
+const auraValue = (aura: AuraRecord | null): number =>
+  aura === null ? 0 : (aura.stack ?? aura.value ?? 1);
+
+const matchesStatCondition = (
+  deps: CombatProfileRuntimeDeps,
+  condition: CombatProfileStatCondition,
+) =>
+  Effect.gen(function* () {
+    if (condition.type === "self-hp") {
+      const hp = yield* deps.player.getHp();
+      const maxHp = yield* deps.player.getMaxHp();
+      return compare(
+        statValue(hp, maxHp, condition.unit),
+        condition.op,
+        condition.value,
+      );
+    }
+
+    if (condition.type === "self-mp") {
+      const mp = yield* deps.player.getMp();
+      const maxMp = yield* deps.player.getMaxMp();
+      return compare(
+        statValue(mp, maxMp, condition.unit),
+        condition.op,
+        condition.value,
+      );
+    }
+
+    const matchesPlayerHp = (hp: number, maxHp: number): boolean =>
+      compare(
+        statValue(hp, maxHp, condition.unit),
+        condition.op,
+        condition.value,
+      );
+
+    const self = yield* deps.players.getMe();
+    if (self !== null && matchesPlayerHp(self.hp, self.maxHp)) {
+      return true;
+    }
+
+    const selfEntityId = self?.entityId;
+    const selfUsername = self?.username.trim().toLowerCase();
+    for (const roomPlayer of yield* deps.players.getAll()) {
+      if (
+        (selfEntityId !== undefined && roomPlayer.entityId === selfEntityId) ||
+        (selfUsername !== undefined &&
+          roomPlayer.username.trim().toLowerCase() === selfUsername)
+      ) {
+        continue;
+      }
+
+      if (matchesPlayerHp(roomPlayer.hp, roomPlayer.maxHp)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+const getTargetAura = (
+  deps: CombatProfileRuntimeDeps,
+  condition: CombatProfileAuraCondition,
+) =>
+  Effect.gen(function* () {
+    const target = yield* deps.combat.target.get();
+    if (target === null) {
+      return 0;
+    }
+
+    const aura =
+      target.type === "monster"
+        ? yield* deps.combat.target.auras.get(condition.auraName)
+        : yield* deps.player.auras.get(condition.auraName);
+
+    return auraValue(aura);
+  });
+
+const matchesAuraCondition = (
+  deps: CombatProfileRuntimeDeps,
+  condition: CombatProfileAuraCondition,
+) =>
+  Effect.gen(function* () {
+    const actual =
+      condition.type === "target-aura"
+        ? yield* getTargetAura(deps, condition)
+        : auraValue(yield* deps.player.auras.get(condition.auraName));
+
+    return compare(actual, condition.op, condition.value);
+  });
+
+const matchesCondition = (
+  deps: CombatProfileRuntimeDeps,
+  condition: CombatProfileCondition,
+) => {
+  switch (condition.type) {
+    case "self-aura":
+    case "target-aura":
+      return matchesAuraCondition(deps, condition);
+    case "self-hp":
+    case "self-mp":
+    case "ally-hp":
+      return matchesStatCondition(deps, condition);
+  }
+};
+
+const matchesStep = (deps: CombatProfileRuntimeDeps, step: CombatProfileStep) =>
+  Effect.gen(function* () {
+    for (const condition of step.conditions) {
+      if (!(yield* matchesCondition(deps, condition))) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+export const castNextCombatProfileStep = (
+  deps: CombatProfileRuntimeDeps,
+  profile: CombatProfile,
+  cursor: CombatProfileCursor,
+) =>
+  Effect.gen(function* () {
+    const steps = profile.steps;
+    if (steps.length === 0) {
+      return false;
+    }
+
+    const startState = yield* Ref.get(cursor.state);
+    for (let offset = 0; offset < steps.length; offset += 1) {
+      const stepIndex = (startState.index + offset) % steps.length;
+      const step = steps[stepIndex];
+      if (step === undefined || !(yield* matchesStep(deps, step))) {
+        continue;
+      }
+
+      const cooldownMode = step.cooldownMode ?? profile.cooldownMode;
+      const waitForCooldown = cooldownMode === "wait-for-cooldown";
+      if (!waitForCooldown && !(yield* deps.combat.canUseSkill(step.skill))) {
+        continue;
+      }
+
+      const resetVersionBeforeCast = (yield* Ref.get(cursor.state))
+        .resetVersion;
+      const cast = yield* deps.combat.useSkill(step.skill, {
+        wait: waitForCooldown,
+      });
+      const nextIndex = (stepIndex + 1) % steps.length;
+      if (cast) {
+        yield* Ref.update(cursor.state, (state) =>
+          state.resetVersion === resetVersionBeforeCast
+            ? { ...state, index: nextIndex }
+            : state,
+        );
+      }
+
+      if (cast && step.waitMs !== undefined && step.waitMs > 0) {
+        yield* Effect.sleep(`${step.waitMs} millis`);
+      }
+
+      return cast;
+    }
+
+    return false;
+  });
+
+const normalizeMessageTriggerText = (value: string): string =>
+  value.trim().replace(/\s+/gu, " ").toLowerCase();
+
+export const matchesCombatProfileMessageTriggerMessage = (
+  configuredMessage: string,
+  message: string,
+): boolean => {
+  const normalizedConfigured = normalizeMessageTriggerText(configuredMessage);
+  return (
+    normalizedConfigured !== "" &&
+    normalizeMessageTriggerText(message).includes(normalizedConfigured)
+  );
+};
+
+export const matchesCombatProfileMessageTrigger = (
+  trigger: CombatProfileMessageTrigger,
+  event: CombatProfileMessageTriggerEvent,
+): boolean =>
+  (trigger.source === "any" || trigger.source === event.source) &&
+  matchesCombatProfileMessageTriggerMessage(
+    trigger.messageIncludes,
+    event.message,
+  );
+
+export const castCombatProfileMessageTrigger = (
+  deps: CombatProfileRuntimeDeps,
+  profile: CombatProfile,
+  trigger: CombatProfileMessageTrigger,
+  event: CombatProfileMessageTriggerEvent,
+  state: CombatProfileMessageTriggerState,
+  now = Date.now(),
+) =>
+  state.semaphore.withPermits(1)(
+    Effect.gen(function* () {
+      const cooldownMs = trigger.cooldownMs ?? 0;
+      const castKey = `${profile.id}:${trigger.id}:${trigger.skill}`;
+      const lastCast = (yield* Ref.get(state.state)).get(castKey);
+      if (lastCast !== undefined && now - lastCast < cooldownMs) {
+        return false;
+      }
+
+      if (event.monMapId !== undefined) {
+        const targeted = yield* deps.combat.attackMonster({
+          monMapId: event.monMapId,
+        });
+        if (!targeted) {
+          return false;
+        }
+      }
+
+      const cast = yield* deps.combat.useSkill(trigger.skill, {
+        force: true,
+        wait: true,
+      });
+      if (!cast) {
+        return false;
+      }
+
+      yield* Ref.update(state.state, (previous) => {
+        const next = new Map(previous);
+        next.set(castKey, now);
+        return next;
+      });
+      return true;
+    }),
+  );

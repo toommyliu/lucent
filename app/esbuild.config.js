@@ -39,6 +39,10 @@ const rendererViews = [
     entryPoint: "src/renderer/settings/index.tsx",
     id: "settings",
   },
+  {
+    entryPoint: "src/renderer/combat-profiles/index.tsx",
+    id: "combat-profiles",
+  },
 ];
 
 const mainOptions = {

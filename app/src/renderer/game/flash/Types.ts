@@ -1,6 +1,10 @@
 import { Schema } from "effect";
 import type { Duration } from "effect";
 
+import type {
+  CombatProfile,
+  CombatProfileDefinition,
+} from "../../../shared/combat-profiles";
 import type * as BridgeTypes from "../Types";
 
 export type {
@@ -341,6 +345,23 @@ export type FlashProjectionEvent =
         readonly targetType: "monster" | "player";
       };
       readonly type: "auraRemoved";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly auraName?: string;
+        readonly auraPhase?: "off" | "on";
+        readonly message: string;
+        readonly monMapId?: number;
+        readonly source: "animation" | "aura";
+        readonly sourceMonMapId?: number;
+        readonly targetId?: number;
+        readonly targetMonMapId?: number;
+        readonly targetName?: string;
+        readonly targetType?: "monster" | "player";
+      };
+      readonly type: "updateMessage";
     };
 
 export type FlashEvent =
@@ -379,15 +400,20 @@ export interface AuthConnectOutcome {
     | "timeout";
 }
 
-export type Skill = number;
+export type Skill = number | string;
+
+export type ScriptCombatProfileInput =
+  | CombatProfile
+  | CombatProfileDefinition
+  | string;
 
 export interface CombatKillOptions {
   readonly findMost?: boolean;
   readonly killPriority?: readonly MonsterSelector[] | string;
   readonly maxKills?: number;
-  readonly profile?: unknown;
+  readonly profile?: ScriptCombatProfileInput;
   readonly skillDelay?: number;
-  readonly skillSet?: readonly Skill[];
+  readonly skillSet?: readonly Skill[] | string;
   readonly skillWait?: boolean;
   readonly timeout?: Duration.Input;
 }
