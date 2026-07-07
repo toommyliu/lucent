@@ -10,6 +10,7 @@ const {
   unlinkSync,
   unwatchFile,
   watchFile,
+  writeFileSync,
 } = require("fs");
 const { dirname, join } = require("path");
 
@@ -30,18 +31,54 @@ const baseOptions = {
   sourcemap: !isProduction,
 };
 
+const baseContentSecurityPolicyDirectives = {
+  "default-src": ["'self'"],
+  "script-src": ["'self'"],
+  "style-src": ["'self'", "'unsafe-inline'"],
+};
+
+const formatContentSecurityPolicy = (overrides = {}) =>
+  Object.entries({
+    ...baseContentSecurityPolicyDirectives,
+    ...overrides,
+  })
+    .map(([directive, values]) => `${directive} ${values.join(" ")}`)
+    .join("; ");
+
+const baseContentSecurityPolicy = formatContentSecurityPolicy();
+
 const rendererViews = [
   {
+    contentSecurityPolicy: formatContentSecurityPolicy({
+      "default-src": ["'self'", "https://game.aq.com"],
+      "script-src": ["'self'", "'unsafe-eval'"],
+      "plugin-types": ["application/x-shockwave-flash"],
+    }),
     entryPoint: "src/renderer/game/index.tsx",
     id: "game",
+    title: "Lucent",
+    bodyPrefix: [
+      "    <embed",
+      '      id="swf"',
+      '      src="../../../../assets/loader.swf"',
+      '      type="application/x-shockwave-flash"',
+      '      wmode="opaque"',
+      "    />",
+    ].join("\n"),
   },
   {
+    contentSecurityPolicy: baseContentSecurityPolicy,
     entryPoint: "src/renderer/settings/index.tsx",
     id: "settings",
+    ready: true,
+    title: "Settings",
   },
   {
+    contentSecurityPolicy: baseContentSecurityPolicy,
     entryPoint: "src/renderer/combat-profiles/index.tsx",
     id: "combat-profiles",
+    ready: true,
+    title: "Combat Profiles",
   },
 ];
 
@@ -87,12 +124,46 @@ const preloadOptions = {
   target: "node12",
 };
 
+const rendererHtmlAttributes = (view) =>
+  [
+    'lang="en"',
+    view.ready === true ? 'data-ready="false"' : undefined,
+    'data-theme="dark"',
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+const rendererIndexHtml = (view) => {
+  const bodyPrefix =
+    typeof view.bodyPrefix === "string" ? `${view.bodyPrefix}\n` : "";
+
+  return `<!doctype html>
+<html ${rendererHtmlAttributes(view)}>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="${view.contentSecurityPolicy}"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${view.title}</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+${bodyPrefix}    <div id="root"></div>
+    <script type="module" src="./index.js"></script>
+  </body>
+</html>
+`;
+};
+
 const copyRendererFiles = () => {
   for (const view of rendererViews) {
     const sourceDir = `src/renderer/${view.id}`;
     const targetDir = `dist/renderer/${view.id}`;
     mkdirSync(targetDir, { recursive: true });
-    copyFileSync(`${sourceDir}/index.html`, `${targetDir}/index.html`);
+    writeFileSync(`${targetDir}/index.html`, rendererIndexHtml(view));
 
     const stylePath = `${sourceDir}/style.css`;
     const targetStylePath = `${targetDir}/style.css`;
@@ -154,10 +225,7 @@ const notifyBuild = (label, options = {}) => {
 };
 
 const rendererStaticFilePaths = () =>
-  rendererViews.flatMap((view) => {
-    const sourceDir = `src/renderer/${view.id}`;
-    return [`${sourceDir}/index.html`, `${sourceDir}/style.css`];
-  });
+  rendererViews.map((view) => `src/renderer/${view.id}/style.css`);
 
 const watchRendererStaticFiles = () => {
   const watchedPaths = rendererStaticFilePaths();
