@@ -4,6 +4,7 @@ import type {
   PreferencesPatch,
 } from "./settings";
 import type { HotkeysPatch } from "./hotkeys";
+import type { CombatProfile, CombatProfileLibrary } from "./combat-profiles";
 import type {
   ArmyConfigPayload,
   ArmyFailPayload,
@@ -19,7 +20,8 @@ import type { ScriptInputsDefinition, ScriptInputValues } from "./scriptInputs";
 import type { UpdateCheckState } from "./updates";
 
 export type AppPlatform = "linux" | "mac" | "windows";
-export type DesktopBridgeView = "game" | "settings";
+export type DesktopBridgeView = "combat-profiles" | "game" | "settings";
+export type DesktopBridgeWindowKind = "combat-profiles" | "game" | "settings";
 
 export interface DesktopSettingsBridge {
   readonly initial: AppSettings | null;
@@ -58,6 +60,21 @@ export interface DesktopScriptingBridge {
   ) => Promise<ScriptInputValues>;
 }
 
+export interface DesktopCombatProfilesBridge {
+  readonly deleteProfile: (profileId: string) => Promise<CombatProfileLibrary>;
+  readonly getState: () => Promise<CombatProfileLibrary>;
+  readonly onChanged: (
+    listener: (library: CombatProfileLibrary) => void,
+  ) => () => void;
+  readonly saveProfile: (
+    profile: CombatProfile,
+  ) => Promise<CombatProfileLibrary>;
+}
+
+export interface DesktopWindowsBridge {
+  readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
+}
+
 export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
   readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
@@ -71,10 +88,12 @@ export interface DesktopArmyBridge {
 
 export interface DesktopBridge {
   readonly army?: DesktopArmyBridge;
+  readonly combatProfiles?: DesktopCombatProfilesBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };
   readonly settings: DesktopSettingsBridge;
   readonly scripting?: DesktopScriptingBridge;
   readonly updates?: DesktopUpdatesBridge;
+  readonly windows?: DesktopWindowsBridge;
 }

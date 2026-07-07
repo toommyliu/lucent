@@ -19,6 +19,7 @@ import * as ShopsApi from "./api/Shops";
 import * as TempInventoryApi from "./api/TempInventory";
 import * as WaitApi from "./api/Wait";
 import * as FlashCallbacks from "./FlashCallbacks";
+import * as AutoAttack from "./features/AutoAttack";
 import * as AutoRelogin from "./features/AutoRelogin";
 import * as AutoZone from "./features/AutoZone";
 import * as Jobs from "./jobs/Jobs";
@@ -95,6 +96,7 @@ const FlashPolicyLayer = SettingsPolicy.layer.pipe(
 );
 
 export const FlashFeatureLayer = Layer.mergeAll(
+  AutoAttack.layer,
   AutoRelogin.layer,
   AutoZone.layer,
 ).pipe(Layer.provideMerge(FlashRuntimeServicesLayer));

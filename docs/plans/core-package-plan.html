@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lucent Core Package Plan</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101214;
+        --panel: #171a1d;
+        --panel-strong: #1d2226;
+        --text: #f3f5f7;
+        --muted: #aab3bc;
+        --faint: #74808b;
+        --line: #2d343b;
+        --accent: #62d6a5;
+        --accent-2: #82aaff;
+        --warn: #f0bd66;
+        --danger: #ff7a90;
+        --code: #0b0d0f;
+        --shadow: 0 20px 80px rgb(0 0 0 / 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(180deg, rgb(98 214 165 / 0.08), transparent 380px),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        line-height: 1.55;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 56px 0 80px;
+      }
+
+      header {
+        display: grid;
+        gap: 18px;
+        margin-bottom: 34px;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        letter-spacing: 0;
+        line-height: 1.15;
+      }
+
+      h1 {
+        max-width: 980px;
+        font-size: clamp(2.15rem, 5vw, 4.9rem);
+      }
+
+      h2 {
+        font-size: clamp(1.5rem, 3vw, 2.35rem);
+      }
+
+      h3 {
+        font-size: 1.08rem;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .lede {
+        max-width: 900px;
+        color: var(--muted);
+        font-size: clamp(1.03rem, 1.8vw, 1.25rem);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.04);
+        color: var(--muted);
+        font-size: 0.82rem;
+        padding: 6px 10px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+      }
+
+      section {
+        margin-top: 18px;
+      }
+
+      .card,
+      .band {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .card {
+        padding: 22px;
+      }
+
+      .band {
+        padding: 28px;
+      }
+
+      .span-4 {
+        grid-column: span 4;
+      }
+
+      .span-5 {
+        grid-column: span 5;
+      }
+
+      .span-6 {
+        grid-column: span 6;
+      }
+
+      .span-7 {
+        grid-column: span 7;
+      }
+
+      .span-8 {
+        grid-column: span 8;
+      }
+
+      .span-12 {
+        grid-column: span 12;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .faint {
+        color: var(--faint);
+      }
+
+      ul,
+      ol {
+        margin: 0;
+        padding-left: 1.15rem;
+      }
+
+      li {
+        margin: 0.38rem 0;
+      }
+
+      code,
+      pre {
+        font-family:
+          "JetBrains Mono",
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+
+      code {
+        border: 1px solid rgb(255 255 255 / 0.08);
+        border-radius: 5px;
+        background: rgb(255 255 255 / 0.05);
+        padding: 0.08rem 0.3rem;
+        color: #dbeafe;
+        font-size: 0.9em;
+      }
+
+      pre {
+        overflow: auto;
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--code);
+        padding: 16px;
+        color: #d8dee9;
+        font-size: 0.86rem;
+        line-height: 1.5;
+      }
+
+      .callout {
+        border-left: 3px solid var(--accent);
+        background: rgb(98 214 165 / 0.08);
+        padding: 14px 16px;
+      }
+
+      .callout.warn {
+        border-left-color: var(--warn);
+        background: rgb(240 189 102 / 0.08);
+      }
+
+      .callout.danger {
+        border-left-color: var(--danger);
+        background: rgb(255 122 144 / 0.08);
+      }
+
+      .split-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+
+      .tag {
+        border: 1px solid rgb(130 170 255 / 0.35);
+        border-radius: 5px;
+        background: rgb(130 170 255 / 0.1);
+        color: #bfd0ff;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 4px 7px;
+        white-space: nowrap;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+        background: var(--panel);
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 12px 14px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--panel-strong);
+        color: var(--text);
+        font-size: 0.78rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .diagram {
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .node {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-strong);
+        padding: 14px;
+        min-height: 94px;
+      }
+
+      .node strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--accent);
+      }
+
+      .node span {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .phase {
+        counter-increment: phase;
+      }
+
+      .phase h3::before {
+        content: counter(phase, decimal-leading-zero) " ";
+        color: var(--accent);
+      }
+
+      .phase-list {
+        counter-reset: phase;
+      }
+
+      footer {
+        margin-top: 26px;
+        color: var(--faint);
+        font-size: 0.9rem;
+      }
+
+      @media (max-width: 900px) {
+        main {
+          width: min(100% - 28px, 1180px);
+          padding-top: 34px;
+        }
+
+        .span-4,
+        .span-5,
+        .span-6,
+        .span-7,
+        .span-8 {
+          grid-column: span 12;
+        }
+
+        .flow {
+          grid-template-columns: 1fr;
+        }
+
+        .band,
+        .card {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="eyebrow">Architecture plan</div>
+        <h1>Adopt a small, side-effect-free <code>@lucent/core</code> package</h1>
+        <p class="lede">
+          Move Lucent-owned domain logic out of <code>app/src/shared</code>
+          without turning it into a schemas-only package. Effect Schema codecs
+          should sit beside defaults, pure helpers, selectors, compatibility
+          transforms, and stable AQW-facing records.
+        </p>
+        <div class="meta">
+          <span class="pill">Prepared for Lucent</span>
+          <span class="pill">Date: 2026-07-06</span>
+          <span class="pill">Reference: <code>private local reference</code></span>
+          <span class="pill">First slice: combat profiles</span>
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card span-4 stack">
+          <div class="split-title">
+            <h3>Goal</h3>
+            <span class="tag">Boundary</span>
+          </div>
+          <p class="muted">
+            Create a stable core package shared by main, renderer, preload,
+            scripting, tests, and future tooling. It should own canonical
+            Lucent data, Effect schemas/codecs, defaults, compatibility
+            transforms, and pure domain helpers.
+          </p>
+        </article>
+
+        <article class="card span-4 stack">
+          <div class="split-title">
+            <h3>Non-goal</h3>
+            <span class="tag">Discipline</span>
+          </div>
+          <p class="muted">
+            Do not create a generic dumping ground named "schemas". Do not move
+            Electron, DOM, Solid, storage IO, IPC runtime handlers, or AQW bridge
+            side effects into the package.
+          </p>
+        </article>
+
+        <article class="card span-4 stack">
+          <div class="split-title">
+            <h3>Why now</h3>
+            <span class="tag">Leverage</span>
+          </div>
+          <p class="muted">
+            Combat profiles already cross persistence, IPC, UI, game runtime,
+            and scripts. Keeping that model in app-local shared files forces
+            duplicate parsing and scatters behavior that should be predictable
+            under load and failure.
+          </p>
+        </article>
+      </section>
+
+      <section class="band stack">
+        <h2>What to borrow from t3code</h2>
+        <div class="grid">
+          <div class="span-6 stack">
+            <div class="callout">
+              <strong>Package by ownership, not file type.</strong>
+              <p class="muted">
+                t3code's contracts package is not a folder per concept like
+                "types", "schemas", and "normalizers". It uses cohesive modules
+                such as <code>settings.ts</code>, <code>keybindings.ts</code>,
+                <code>project.ts</code>, and <code>ipc.ts</code>. Lucent should
+                follow that: one domain module until the domain earns a split.
+              </p>
+            </div>
+            <div class="callout">
+              <strong>Schema values anchor the module.</strong>
+              <p class="muted">
+                t3code exports Effect Schema values and derives types from
+                <code>typeof SomeSchema.Type</code>, but the same module can also
+                export defaults, branded constructors, small helpers, and
+                compatibility functions.
+              </p>
+            </div>
+            <div class="callout">
+              <strong>Normalize while decoding.</strong>
+              <p class="muted">
+                Instead of decoding and then hand-normalizing everywhere, use
+                <code>Schema.decodeTo</code>, <code>Schema.withDecodingDefault</code>,
+                bounded checks, branded IDs, and encode transforms so legacy
+                input becomes canonical output.
+              </p>
+            </div>
+          </div>
+          <div class="span-6 stack">
+            <div class="callout">
+              <strong>Keep decoder compilers hoisted.</strong>
+              <p class="muted">
+                t3code even has an oxlint rule against compiling schema decoders
+                inside hot functions. Lucent should compile decoders once per
+                module for IPC, persistence, and AQW adapters.
+              </p>
+            </div>
+            <div class="callout">
+              <strong>Decode old data, encode clean data.</strong>
+              <p class="muted">
+                A codec can accept legacy shapes, tolerate missing fields, trim
+                strings, apply defaults, and then write only the current shape
+                back to disk or across IPC.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band stack">
+        <h2>Name and identity</h2>
+        <div class="grid">
+          <article class="card span-6 stack">
+            <h3>Use <code>@lucent/core</code></h3>
+            <p class="muted">
+              <code>@lucent/contracts</code> is accurate for schemas and IPC
+              payloads, but too narrow for future pure logic. <code>@lucent/core</code>
+              says this package owns Lucent's canonical, side-effect-free domain
+              layer, not just wire validation.
+            </p>
+          </article>
+          <article class="card span-6 stack">
+            <h3>Avoid <code>@lucent/internal</code></h3>
+            <p class="muted">
+              <code>internal</code> describes visibility, not responsibility. It
+              invites a junk drawer. <code>core</code> gives the package a
+              center of gravity while still being private to the monorepo.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card span-5 stack">
+          <h2>Current Lucent pressure points</h2>
+          <ul class="muted">
+            <li>
+              <code>app/src/shared/combat-profile-model.ts</code> defines
+              interfaces and schemas separately, which invites drift.
+            </li>
+            <li>
+              <code>app/src/shared/combat-profile-normalization.ts</code> repeats
+              small unknown-record helpers, decode options, trimming, clamps,
+              defaulting, and legacy handling by hand.
+            </li>
+            <li>
+              <code>settings.ts</code>, <code>hotkeys.ts</code>, and
+              <code>army.ts</code> each own local parsing styles.
+            </li>
+            <li>
+              <code>renderer/game/flash/payload.ts</code> and
+              <code>selectors.ts</code> are correctly tolerant, but should be
+              treated as AQW edge adapters, not general core-domain inputs.
+            </li>
+            <li>
+              IPC descriptors already use Effect Schema, so moving descriptors
+              to core is low-friction once package imports exist.
+            </li>
+          </ul>
+        </article>
+
+        <article class="card span-7 stack">
+          <h2>Proposed package shape</h2>
+          <pre><code>packages/core/
+  package.json
+  tsconfig.json
+  src/
+    index.ts
+    baseSchemas.ts
+    combatProfiles.ts
+    combatProfiles.test.ts
+    ipc.ts
+
+  later, only when pressure is real:
+    settings.ts
+    aqw.ts</code></pre>
+          <p class="muted">
+            Start with one combat profile module. Splitting into
+            <code>model.ts</code>, <code>schema.ts</code>, <code>defaults.ts</code>,
+            <code>selectors.ts</code>, and <code>persistence.ts</code> is the wrong
+            default here; it adds navigation cost before the domain has earned
+            those boundaries.
+          </p>
+        </article>
+      </section>
+
+      <section class="band stack">
+        <h2>What can live in core later</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>Examples</th>
+                <th>Rule</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Contracts</td>
+                <td>Effect schemas, codecs, branded IDs, versioned persisted shapes, IPC payload schemas.</td>
+                <td>Anything crossing a process, package, storage, or scripting boundary needs a runtime contract.</td>
+              </tr>
+              <tr>
+                <td>Defaults</td>
+                <td>Default combat profile, default settings, default hotkeys, bounded numeric limits.</td>
+                <td>Defaults live beside the schema that validates them.</td>
+              </tr>
+              <tr>
+                <td>Pure behavior</td>
+                <td>Lookup helpers, selector matching, hotkey formatting, profile ID creation, stable sorting, compatibility transforms.</td>
+                <td>Allowed only when deterministic and free of Electron, DOM, timers, IO, bridge calls, or service state.</td>
+              </tr>
+              <tr>
+                <td>Stable AQW models</td>
+                <td>Normalized item, monster, player, aura, quest, and selector shapes used by scripts and UI.</td>
+                <td>Core owns the stable output shape. Flash object spelunking stays in renderer adapters.</td>
+              </tr>
+              <tr>
+                <td>Runtime algorithms</td>
+                <td>Potentially pure combat-profile step selection or condition evaluation.</td>
+                <td>Only move it if dependencies are passed as plain data/functions. Anything calling the game bridge stays out.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="band stack">
+        <h2>Boundary rules</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Belongs in <code>@lucent/core</code></th>
+                <th>Stays in app packages</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Domain models</td>
+                <td>Combat profiles, app settings, hotkeys, window IPC payloads, scripting API payload types.</td>
+                <td>Solid component state, Electron service state, renderer-only view models.</td>
+              </tr>
+              <tr>
+                <td>Validation</td>
+                <td>Effect schemas, codecs, branded IDs, bounds, defaults, legacy transforms.</td>
+                <td>File-system side effects, Electron IPC registration, UI form event handling.</td>
+              </tr>
+              <tr>
+                <td>Normalization</td>
+                <td>Pure, deterministic canonicalization of first-party persisted or IPC data.</td>
+                <td>Long-running recovery, user prompts, logging, telemetry, retries.</td>
+              </tr>
+              <tr>
+                <td>AQW raw data</td>
+                <td>Stable output records and shared selector shapes once decoded.</td>
+                <td>Direct Flash object traversal, packet timing, bridge calls, runtime caches.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="band stack">
+        <h2>Normalization model</h2>
+        <div class="diagram">
+          <div class="flow">
+            <div class="node">
+              <strong>Raw input</strong>
+              <span>JSON files, IPC payloads, script args, Flash bridge values.</span>
+            </div>
+            <div class="node">
+              <strong>Edge codec</strong>
+              <span>Decode once with the correct tolerance policy.</span>
+            </div>
+            <div class="node">
+              <strong>Canonical type</strong>
+              <span>Branded IDs, bounded numbers, defaults, trimmed strings.</span>
+            </div>
+            <div class="node">
+              <strong>Pure helpers</strong>
+              <span>Selectors, lookup, compare, serialization, cloning.</span>
+            </div>
+            <div class="node">
+              <strong>Encode</strong>
+              <span>Persist and transmit only the current canonical wire shape.</span>
+            </div>
+          </div>
+        </div>
+        <div class="callout warn">
+          <strong>Important distinction:</strong>
+          <p class="muted">
+            First-party Lucent data should be normalized by core codecs.
+            AQW packet and Flash object data should use thin adapter modules
+            that produce stable core records. Do not pretend unstable external
+            object keys are first-party domain models.
+          </p>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card span-6 stack">
+          <h2>Combat profiles first slice</h2>
+          <ol class="muted">
+            <li>
+              Add <code>@lucent/core</code> with
+              <code>effect</code> as its only runtime dependency.
+            </li>
+            <li>
+              Put the combat profile schema, type exports, defaults, tolerant
+              decode, canonical encode, and tiny lookup helpers in a single
+              <code>packages/core/src/combatProfiles.ts</code> module.
+            </li>
+            <li>
+              Derive exported TypeScript types from schemas where possible.
+              Keep explicit interfaces only when recursive or readability
+              constraints make schema-derived types painful.
+            </li>
+            <li>
+              Replace manual normalizer internals with schema transforms:
+              trim IDs and labels, default cooldown and delay, clamp skill and
+              wait values, decode legacy <code>skipIfUnavailable</code>, and
+              require at least the generic profile after decode.
+            </li>
+            <li>
+              Keep temporary re-export shims in <code>app/src/shared</code>
+              while imports migrate. Remove them in a follow-up once stable.
+            </li>
+            <li>
+              Extract a second combat-profile file only after there is a
+              concrete reason: a hot path that needs isolation, tests that have
+              become hard to aim, or an independent subdomain with multiple
+              callers.
+            </li>
+          </ol>
+        </article>
+
+        <article class="card span-6 stack">
+          <h2>Example codec direction</h2>
+          <pre><code>export const CombatProfileId = TrimmedNonEmptyString.pipe(
+  Schema.check(Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/u)),
+  Schema.brand("CombatProfileId"),
+);
+
+export const CombatProfileStep = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  skill: SkillIndex,
+  conditions: Schema.Array(CombatProfileCondition).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  cooldownMode: Schema.optionalKey(CombatProfileCooldownMode),
+  waitMs: Schema.optionalKey(WaitMs),
+});
+
+export const CombatProfile = LegacyCombatProfileSource.pipe(
+  Schema.decodeTo(
+    CombatProfileWire,
+    SchemaTransformation.transformOrFail({
+      decode: decodeLegacyProfileToWire,
+      encode: encodeProfileWire,
+    }),
+  ),
+);</code></pre>
+          <p class="muted">
+            The exact split may differ, but the principle should hold: call
+            sites receive a canonical profile, not a raw object plus a TODO to
+            normalize it later.
+          </p>
+        </article>
+      </section>
+
+      <section class="band stack">
+        <h2>Migration phases</h2>
+        <div class="grid phase-list">
+          <article class="card span-4 phase stack">
+            <h3>Package scaffold</h3>
+            <p class="muted">
+              Add workspace package, exports, tsconfig, package scripts, and a
+              small <code>baseSchemas.ts</code> with reusable trimmed strings,
+              bounded ints, and branded ID constructors.
+            </p>
+          </article>
+          <article class="card span-4 phase stack">
+            <h3>Combat core module</h3>
+            <p class="muted">
+              Port the current combat profile model and normalizer into one
+              schema-first module. Add decode and encode tests using
+              representative legacy, malformed, and canonical payloads.
+            </p>
+          </article>
+          <article class="card span-4 phase stack">
+            <h3>Import migration</h3>
+            <p class="muted">
+              Point main persistence, renderer UI, preload bridge, script combat
+              API, and tests at <code>@lucent/core/combatProfiles</code>.
+              Keep shared re-exports for one transition.
+            </p>
+          </article>
+          <article class="card span-4 phase stack">
+            <h3>IPC relocation</h3>
+            <p class="muted">
+              Move IPC descriptor types and channel descriptors into core only
+              if they stay pure data and schemas.
+              Leave Electron-specific handler creation in <code>app/src/main</code>.
+            </p>
+          </article>
+          <article class="card span-4 phase stack">
+            <h3>Settings and hotkeys</h3>
+            <p class="muted">
+              Convert app settings and hotkeys to schema-defaulted codecs,
+              reducing local helpers like <code>decodeOrElse</code> and
+              hand-built record traversal.
+            </p>
+          </article>
+          <article class="card span-4 phase stack">
+            <h3>AQW adapter cleanup</h3>
+            <p class="muted">
+              Extract shared raw-value helpers for AQW bridge data, but keep
+              edge tolerance explicit. Stable records can move to core;
+              raw packet quirks stay near the runtime.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card span-6 stack">
+          <h2>Testing policy</h2>
+          <ul class="muted">
+            <li>
+              Add package-local tests for each public schema: canonical decode,
+              legacy decode, malformed input, encode output, and defaulting.
+            </li>
+            <li>
+              Keep IPC handler tests focused on "the descriptor decodes at the
+              boundary", not on re-testing every domain field.
+            </li>
+            <li>
+              Use representative legacy combat profile JSON fixtures before
+              changing persistence behavior.
+            </li>
+            <li>
+              Add a guard against inline schema compiler calls in hot code,
+              either by adapting the t3code oxlint rule or documenting it until
+              a local rule is worth maintaining.
+            </li>
+          </ul>
+        </article>
+
+        <article class="card span-6 stack">
+          <h2>Acceptance criteria</h2>
+          <ul class="muted">
+            <li>
+              New combat profile features import canonical domain APIs from
+              <code>@lucent/core</code>, not <code>app/src/shared</code>.
+            </li>
+            <li>
+              Persisted legacy profile files decode and re-save as canonical
+              versioned profile libraries.
+            </li>
+            <li>
+              Main, renderer, preload, and script API agree on the same schema
+              values for payloads.
+            </li>
+            <li>
+              Manual unknown-record walkers decrease in first-party data paths.
+            </li>
+            <li>
+              <code>pnpm format</code>, <code>pnpm lint</code>, and
+              <code>pnpm typecheck</code> pass after each migration slice.
+            </li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="band stack">
+        <h2>Risks and choices</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Risk</th>
+                <th>Mitigation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Over-centralizing every helper into core.</td>
+                <td>Only move values that cross package or process boundaries. Keep runtime-only helpers local.</td>
+              </tr>
+              <tr>
+                <td>Schema transforms hide too much behavior.</td>
+                <td>Name codecs by intent, write focused tests, and keep complex transforms in small pure functions next to the schema.</td>
+              </tr>
+              <tr>
+                <td>AQW payloads are too messy for strict schemas.</td>
+                <td>Use adapters for raw AQW data and stable core records for normalized outputs. The tolerance stays visible at the edge.</td>
+              </tr>
+              <tr>
+                <td>Import churn during active combat-profile work.</td>
+                <td>Start with re-export shims, then migrate call sites in one small slice at a time.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        Source notes: based on the prior Codex thread conclusion, current files
+        under <code>app/src/shared</code> and <code>app/src/renderer/game/flash</code>,
+        and the vendored t3code contracts package.
+      </footer>
+    </main>
+  </body>
+</html>

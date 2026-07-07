@@ -38,12 +38,34 @@ const auraAddCommands = new Set(["aura+", "aura++", "aura+p"]);
 const auraRemoveCommands = new Set(["aura-", "aura--"]);
 
 type AuraTargetType = "monster" | "player";
+type CombatEntityType = "m" | "p";
+type CombatEntityKey = `${CombatEntityType}:${number}`;
 type Disposer = () => void;
 type PacketHandler = (packet: FlashPacket) => Effect.Effect<void>;
 
 interface AuraTargetRef {
   readonly targetId: number;
   readonly targetType: AuraTargetType;
+}
+
+interface CombatEntityRef {
+  readonly id: number;
+  readonly type: CombatEntityType;
+}
+
+interface TargetRelationTracker {
+  readonly applyClientGarRelations: (
+    packet: FlashPacket,
+    world: WorldStateShape,
+  ) => Effect.Effect<void>;
+  readonly applyServerAggroRelations: (
+    payload: Record<string, unknown>,
+  ) => void;
+  readonly hasTargetRelation: (
+    source: CombatEntityRef,
+    target: CombatEntityRef,
+  ) => boolean;
+  readonly reset: () => void;
 }
 
 const packetData = (packet: FlashPacket): unknown => {
@@ -54,34 +76,352 @@ const packetData = (packet: FlashPacket): unknown => {
   return packet.data;
 };
 
-const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] => {
-  const info = asString(targetInfo);
+const isCombatEntityType = (value: string): value is CombatEntityType =>
+  value === "m" || value === "p";
+
+const parseCombatEntityRefs = (
+  entityInfo: unknown,
+): readonly CombatEntityRef[] => {
+  const info = asString(entityInfo);
   if (info === undefined) {
     return [];
   }
 
-  return info.split(",").flatMap((rawToken): readonly AuraTargetRef[] => {
+  return info.split(",").flatMap((rawToken): readonly CombatEntityRef[] => {
     const trimmed = rawToken.trim();
     const token = trimmed.includes(">")
       ? trimmed.slice(trimmed.lastIndexOf(">") + 1)
       : trimmed;
     const [rawType, rawId] = token.split(":");
     const targetId = asPositiveInt(rawId);
-    if (targetId === undefined) {
+    if (
+      rawType === undefined ||
+      targetId === undefined ||
+      !isCombatEntityType(rawType)
+    ) {
       return [];
     }
 
-    if (rawType === "p") {
-      return [{ targetId, targetType: "player" as const }];
-    }
-
-    if (rawType === "m") {
-      return [{ targetId, targetType: "monster" as const }];
-    }
-
-    return [];
+    return [{ id: targetId, type: rawType }];
   });
 };
+
+const parseAuraTargets = (targetInfo: unknown): readonly AuraTargetRef[] =>
+  parseCombatEntityRefs(targetInfo).map((ref) => ({
+    targetId: ref.id,
+    targetType: ref.type === "m" ? "monster" : "player",
+  }));
+
+const parseMonsterMapIdFromEntityInfo = (
+  entityInfo: unknown,
+): number | undefined =>
+  parseCombatEntityRefs(entityInfo).find((ref) => ref.type === "m")?.id;
+
+const combatEntityKey = (ref: CombatEntityRef): CombatEntityKey =>
+  `${ref.type}:${ref.id}`;
+
+const makeTargetRelationTracker = (): TargetRelationTracker => {
+  const targetRelations = new Map<CombatEntityKey, Set<CombatEntityKey>>();
+
+  const addTargetRelation = (
+    source: CombatEntityRef,
+    target: CombatEntityRef,
+  ): void => {
+    const sourceKey = combatEntityKey(source);
+    const targetKey = combatEntityKey(target);
+    const targets = targetRelations.get(sourceKey) ?? new Set();
+    targets.add(targetKey);
+    targetRelations.set(sourceKey, targets);
+  };
+
+  const addMutualTargetRelation = (
+    source: CombatEntityRef,
+    target: CombatEntityRef,
+  ): void => {
+    addTargetRelation(source, target);
+    addTargetRelation(target, source);
+  };
+
+  const applyAggroRelation = (
+    sourceInfo: unknown,
+    targetInfo: unknown,
+    isDamage: boolean,
+  ): void => {
+    const source = parseCombatEntityRefs(sourceInfo)[0];
+    const target = parseCombatEntityRefs(targetInfo)[0];
+    if (source === undefined || target === undefined) {
+      return;
+    }
+
+    if (target.type === "m") {
+      addMutualTargetRelation(source, target);
+      return;
+    }
+
+    if (source.type !== "p" || target.type !== "p" || !isDamage) {
+      return;
+    }
+
+    const damagedPlayerKey = combatEntityKey(target);
+    for (const [entityKey, targets] of Array.from(targetRelations)) {
+      if (!entityKey.startsWith("m:") || !targets.has(damagedPlayerKey)) {
+        continue;
+      }
+
+      const monsterMapId = asPositiveInt(entityKey.slice("m:".length));
+      if (monsterMapId !== undefined) {
+        addTargetRelation({ id: monsterMapId, type: "m" }, source);
+      }
+    }
+  };
+
+  return {
+    applyClientGarRelations: (packet, world) =>
+      Effect.gen(function* () {
+        const self = yield* world.getMe();
+        if (self === null) {
+          return;
+        }
+
+        const source: CombatEntityRef = { id: self.entityId, type: "p" };
+        const data = packetData(packet);
+        const parts = Array.isArray(data) ? data : [];
+        for (const target of parts.flatMap(parseCombatEntityRefs)) {
+          if (target.type === "m") {
+            addMutualTargetRelation(source, target);
+          }
+        }
+      }),
+    applyServerAggroRelations: (payload) => {
+      for (const rawAction of asArray(payload["sara"])) {
+        const action = asRecord(rawAction);
+        if (action === null || asNumber(action["iRes"]) === 0) {
+          continue;
+        }
+
+        const result = asRecord(action["actionResult"]);
+        if (result === null || result["typ"] === "d") {
+          continue;
+        }
+
+        applyAggroRelation(
+          result["cInf"],
+          result["tInf"],
+          (asNumber(result["hp"]) ?? 0) >= 0,
+        );
+      }
+
+      for (const rawAction of asArray(payload["sarsa"])) {
+        const action = asRecord(rawAction);
+        if (action === null || asNumber(action["iRes"]) === 0) {
+          continue;
+        }
+
+        for (const rawApplied of asArray(action["a"])) {
+          const applied = asRecord(rawApplied);
+          if (applied !== null) {
+            applyAggroRelation(
+              action["cInf"],
+              applied["tInf"],
+              (asNumber(applied["hp"]) ?? 0) >= 0,
+            );
+          }
+        }
+      }
+    },
+    hasTargetRelation: (source, target) =>
+      targetRelations
+        .get(combatEntityKey(source))
+        ?.has(combatEntityKey(target)) === true,
+    reset: () => {
+      targetRelations.clear();
+    },
+  };
+};
+
+const normalizeUpdateMessage = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }
+
+  const parts = asArray(value)
+    .map((part) => asString(part)?.trim())
+    .filter((part): part is string => part !== undefined && part !== "");
+  return parts.length === 0 ? undefined : parts.join("...  ");
+};
+
+const normalizeAuraMessage = (value: unknown): string | undefined => {
+  const message = asString(value)?.trim();
+  return message === "" ? undefined : message;
+};
+
+const getSelfCell = (
+  world: WorldStateShape,
+): Effect.Effect<string | undefined> =>
+  world
+    .getMe()
+    .pipe(Effect.map((self) => (self === null ? undefined : self.cell)));
+
+const isTargetPlayerInSelfCell = (world: WorldStateShape, targetId: number) =>
+  Effect.gen(function* () {
+    const selfCell = yield* getSelfCell(world);
+    if (selfCell === undefined) {
+      return false;
+    }
+
+    const player = yield* world.getPlayer(targetId);
+    return player !== null && equalsIgnoreCase(player.cell, selfCell);
+  });
+
+const isTargetMonsterInSelfCell = (world: WorldStateShape, targetId: number) =>
+  Effect.gen(function* () {
+    const selfCell = yield* getSelfCell(world);
+    if (selfCell === undefined) {
+      return false;
+    }
+
+    const monster = yield* world.getMonster({ monMapId: targetId });
+    return monster !== null && equalsIgnoreCase(monster.cell, selfCell);
+  });
+
+const isAuraUpdateMessageRelevant = (
+  cmd: string,
+  source: CombatEntityRef | undefined,
+  targetType: AuraTargetType,
+  targetId: number,
+  world: WorldStateShape,
+  relations: TargetRelationTracker | undefined,
+) =>
+  Effect.gen(function* () {
+    if (cmd === "aura++" || cmd === "aura--") {
+      return true;
+    }
+
+    if (targetType === "player") {
+      return yield* isTargetPlayerInSelfCell(world, targetId);
+    }
+
+    if (source === undefined) {
+      return true;
+    }
+
+    if (!(yield* isTargetMonsterInSelfCell(world, targetId))) {
+      return false;
+    }
+
+    return (
+      relations?.hasTargetRelation(source, {
+        id: targetId,
+        type: "m",
+      }) ?? false
+    );
+  });
+
+const normalizeAuraMessageForTarget = (
+  messageValue: unknown,
+  targetType: AuraTargetType,
+  targetId: number,
+  world: WorldStateShape,
+) =>
+  Effect.gen(function* () {
+    const message = normalizeAuraMessage(messageValue);
+    if (message === undefined) {
+      return undefined;
+    }
+
+    // Validate that the message is relevant to all targets.
+    if (!message.startsWith("@")) {
+      return message;
+    }
+
+    if (targetType !== "player") {
+      return undefined;
+    }
+
+    const self = yield* world.getMe();
+    if (self?.entityId !== targetId) {
+      return undefined;
+    }
+
+    const selfMessage = message.slice(1).trim();
+    return selfMessage === "" ? undefined : selfMessage;
+  });
+
+const getAuraTargetName = (
+  world: WorldStateShape,
+  targetType: AuraTargetType,
+  targetId: number,
+) =>
+  Effect.gen(function* () {
+    if (targetType === "monster") {
+      return (yield* world.getMonster({ monMapId: targetId }))?.name;
+    }
+
+    return (yield* world.getPlayer(targetId))?.username;
+  });
+
+const emitAuraUpdateMessage = (
+  options: {
+    readonly auraName: string;
+    readonly cmd: string;
+    readonly messageValue: unknown;
+    readonly phase: "off" | "on";
+    readonly source: CombatEntityRef | undefined;
+    readonly targetId: number;
+    readonly targetType: AuraTargetType;
+  },
+  packet: FlashPacket,
+  world: WorldStateShape,
+  protocol: FlashProtocolShape,
+  relations: TargetRelationTracker | undefined,
+) =>
+  Effect.gen(function* () {
+    const message = yield* normalizeAuraMessageForTarget(
+      options.messageValue,
+      options.targetType,
+      options.targetId,
+      world,
+    );
+    if (message === undefined) {
+      return;
+    }
+
+    const relevant = yield* isAuraUpdateMessageRelevant(
+      options.cmd,
+      options.source,
+      options.targetType,
+      options.targetId,
+      world,
+      relations,
+    );
+    if (!relevant) {
+      return;
+    }
+
+    const targetName = yield* getAuraTargetName(
+      world,
+      options.targetType,
+      options.targetId,
+    );
+    yield* protocol.emitEvent({
+      kind: "projection",
+      packet,
+      payload: {
+        auraName: options.auraName,
+        auraPhase: options.phase,
+        message,
+        source: "aura",
+        targetId: options.targetId,
+        ...(targetName === undefined ? {} : { targetName }),
+        targetType: options.targetType,
+        ...(options.targetType === "monster"
+          ? { monMapId: options.targetId }
+          : {}),
+      },
+      type: "updateMessage",
+    });
+  });
 
 const syncDropState = (items: ItemsStateShape, drops: DropsStateShape) =>
   items.getDrops().pipe(Effect.flatMap(drops.replace));
@@ -548,6 +888,7 @@ const projectWorldPacket = (
   auth: AuthApiShape,
   world: WorldStateShape,
   protocol: FlashProtocolShape,
+  relations?: TargetRelationTracker,
 ) =>
   Effect.gen(function* () {
     const data = packetData(packet);
@@ -555,6 +896,7 @@ const projectWorldPacket = (
 
     switch (packet.command) {
       case "moveToArea":
+        relations?.reset();
         yield* addMoveToAreaState(packet, auth, world, protocol);
         return;
       case "event": {
@@ -736,9 +1078,55 @@ const projectWorldPacket = (
           }
         }
 
+        if (payload !== null) {
+          relations?.applyServerAggroRelations(payload);
+
+          for (const rawAnimation of asArray(payload["anims"])) {
+            const animation = asRecord(rawAnimation);
+            const normalizedMessage = normalizeUpdateMessage(
+              animation?.["msg"],
+            );
+            if (animation === null || normalizedMessage === undefined) {
+              continue;
+            }
+
+            const sourceMonMapId = parseMonsterMapIdFromEntityInfo(
+              animation["cInf"],
+            );
+            if (sourceMonMapId === undefined) {
+              continue;
+            }
+
+            const targetMonMapId = parseMonsterMapIdFromEntityInfo(
+              animation["tInf"],
+            );
+            const sourceMonster = yield* world.getMonster({
+              monMapId: sourceMonMapId,
+            });
+            const message =
+              sourceMonster === null
+                ? normalizedMessage
+                : normalizedMessage.replaceAll("<mon>", sourceMonster.name);
+
+            yield* protocol.emitEvent({
+              kind: "projection",
+              packet,
+              payload: {
+                message,
+                source: "animation",
+                monMapId: sourceMonMapId,
+                sourceMonMapId,
+                ...(targetMonMapId === undefined ? {} : { targetMonMapId }),
+              },
+              type: "updateMessage",
+            });
+          }
+        }
+
         for (const rawAuraEvent of asArray(payload?.["a"])) {
           const auraEvent = asRecord(rawAuraEvent);
           const command = asString(auraEvent?.["cmd"]);
+          const source = parseCombatEntityRefs(auraEvent?.["cInf"])[0];
           const targets = parseAuraTargets(auraEvent?.["tInf"]);
           if (command === undefined || targets.length === 0) {
             continue;
@@ -746,6 +1134,7 @@ const projectWorldPacket = (
 
           if (auraAddCommands.has(command)) {
             for (const rawAura of asArray(auraEvent?.["auras"])) {
+              const auraRecord = asRecord(rawAura);
               const aura = normalizeAuraRecord(rawAura);
               if (aura !== null) {
                 for (const { targetId, targetType } of targets) {
@@ -756,6 +1145,21 @@ const projectWorldPacket = (
                     payload: { aura, targetId, targetType },
                     type: "auraAdded",
                   });
+                  yield* emitAuraUpdateMessage(
+                    {
+                      auraName: aura.name,
+                      cmd: command,
+                      messageValue: auraRecord?.["msgOn"],
+                      phase: "on",
+                      source,
+                      targetId,
+                      targetType,
+                    },
+                    packet,
+                    world,
+                    protocol,
+                    relations,
+                  );
                 }
               }
             }
@@ -767,7 +1171,8 @@ const projectWorldPacket = (
                 ? asArray(auraEvent?.["auras"])
                 : [auraEvent?.["aura"]];
             for (const rawAura of rawAuras) {
-              const auraName = asString(asRecord(rawAura)?.["nam"]);
+              const auraRecord = asRecord(rawAura);
+              const auraName = asString(auraRecord?.["nam"]);
               if (auraName !== undefined) {
                 for (const { targetId, targetType } of targets) {
                   yield* world.unsetAura(targetType, targetId, auraName);
@@ -777,6 +1182,21 @@ const projectWorldPacket = (
                     payload: { auraName, targetId, targetType },
                     type: "auraRemoved",
                   });
+                  yield* emitAuraUpdateMessage(
+                    {
+                      auraName,
+                      cmd: command,
+                      messageValue: auraRecord?.["msgOff"],
+                      phase: "off",
+                      source,
+                      targetId,
+                      targetType,
+                    },
+                    packet,
+                    world,
+                    protocol,
+                    relations,
+                  );
                 }
               }
             }
@@ -784,6 +1204,11 @@ const projectWorldPacket = (
         }
         return;
       }
+      case "gar":
+        if (relations !== undefined) {
+          yield* relations.applyClientGarRelations(packet, world);
+        }
+        return;
       case "moveToCell": {
         const self = yield* world.getMe();
         const parts = Array.isArray(data) ? data : [];
@@ -885,6 +1310,7 @@ export const layer = Layer.effectDiscard(
     const quests = yield* QuestsState;
     const shops = yield* ShopsState;
     const world = yield* WorldState;
+    const relations = makeTargetRelationTracker();
 
     const extensionJson = (
       commands: readonly string[],
@@ -936,6 +1362,7 @@ export const layer = Layer.effectDiscard(
               yield* shops.clear();
               yield* quests.clear();
               yield* world.clear();
+              relations.reset();
             }
           }),
         ),
@@ -983,19 +1410,20 @@ export const layer = Layer.effectDiscard(
           "ct",
           "cb",
         ],
-        (packet) => projectWorldPacket(packet, auth, world, protocol),
+        (packet) =>
+          projectWorldPacket(packet, auth, world, protocol, relations),
       ),
       extensionStr(["exitArea", "respawnMon"], (packet) =>
-        projectWorldPacket(packet, auth, world, protocol),
+        projectWorldPacket(packet, auth, world, protocol, relations),
       ),
       extensionStr(["uotls"], (packet) =>
         projectStringUotls(packet, world, protocol),
       ),
       serverJson(["ct", "cb"], (packet) =>
-        projectWorldPacket(packet, auth, world, protocol),
+        projectWorldPacket(packet, auth, world, protocol, relations),
       ),
-      clientStr(["moveToCell", "mv"], (packet) =>
-        projectWorldPacket(packet, auth, world, protocol),
+      clientStr(["gar", "moveToCell", "mv"], (packet) =>
+        projectWorldPacket(packet, auth, world, protocol, relations),
       ),
     ]);
     const disposers = disposerGroups.flat();

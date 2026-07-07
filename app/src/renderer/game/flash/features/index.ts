@@ -1,6 +1,14 @@
+export * as AutoAttackFeature from "./AutoAttack";
 export * as AutoReloginFeature from "./AutoRelogin";
 export * as AutoZoneFeature from "./AutoZone";
 
+export {
+  AutoAttack,
+  type AutoAttackShape,
+  type AutoAttackStartOptions,
+  type AutoAttackState,
+  layer as AutoAttackLayer,
+} from "./AutoAttack";
 export {
   AutoRelogin,
   type AutoReloginShape,

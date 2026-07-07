@@ -9,7 +9,14 @@ import {
   readSettingsSnapshotArgument,
 } from "../shared/appearance";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
-import { ArmyIpc, ScriptingIpc, SettingsIpc, UpdatesIpc } from "../shared/ipc";
+import {
+  ArmyIpc,
+  CombatProfilesIpc,
+  ScriptingIpc,
+  SettingsIpc,
+  UpdatesIpc,
+  WindowsIpc,
+} from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
 const applyBootstrapAppearance = (): void => {
@@ -73,6 +80,18 @@ const settingsBridge: DesktopBridge["settings"] = {
     : {}),
 };
 
+const combatProfilesBridge: NonNullable<DesktopBridge["combatProfiles"]> = {
+  deleteProfile: (profileId) =>
+    invoke(CombatProfilesIpc.deleteProfile, { profileId }),
+  getState: () => invoke(CombatProfilesIpc.getState, undefined),
+  onChanged: (listener) => subscribe(CombatProfilesIpc.changed, listener),
+  saveProfile: (profile) => invoke(CombatProfilesIpc.saveProfile, profile),
+};
+
+const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
+  open: (kind) => invoke(WindowsIpc.open, { kind }),
+};
+
 const bridge: DesktopBridge = {
   platform: {
     os: platform,
@@ -89,6 +108,7 @@ const bridge: DesktopBridge = {
           start: (payload) => invoke(ArmyIpc.start, payload),
           sync: (payload) => invoke(ArmyIpc.sync, payload),
         },
+        combatProfiles: combatProfilesBridge,
         scripting: {
           getInputValues: (definition) =>
             invoke(ScriptingIpc.getInputValues, definition),
@@ -98,6 +118,12 @@ const bridge: DesktopBridge = {
           saveInputValues: (definition, values) =>
             invoke(ScriptingIpc.saveInputValues, { definition, values }),
         },
+        windows: windowsBridge,
+      }
+    : {}),
+  ...(bridgeView === "combat-profiles"
+    ? {
+        combatProfiles: combatProfilesBridge,
       }
     : {}),
   ...(bridgeView === "settings"

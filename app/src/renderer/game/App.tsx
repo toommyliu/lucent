@@ -34,6 +34,12 @@ import {
 } from "solid-js";
 
 import type { AppPlatform } from "../../shared/desktopBridge";
+import {
+  DEFAULT_COMBAT_PROFILE_ID,
+  DEFAULT_COMBAT_PROFILE_LIBRARY,
+  getCombatProfileById,
+  type CombatProfileLibrary,
+} from "../../shared/combat-profiles";
 import type { ScriptFile } from "../../shared/ipc/scripting";
 import {
   normalizeScriptInputValues,
@@ -55,6 +61,11 @@ import * as Api from "./flash";
 import type { FlashSettingsPatch, FlashSettingsSnapshot } from "./flash";
 import { flashRuntime as runtime } from "./flash";
 import {
+  AutoAttack,
+  parseAutoAttackTargetPriority,
+  type AutoAttackState,
+} from "./flash/features/AutoAttack";
+import {
   AutoRelogin,
   type AutoReloginState,
 } from "./flash/features/AutoRelogin";
@@ -69,7 +80,6 @@ import {
 } from "./scripting/ScriptRunner";
 import {
   TopNav,
-  type CombatProfileAutoAttackMode,
   type GameTopNavMenu,
   type TopNavOptionItem,
   type WindowId,
@@ -149,8 +159,6 @@ const windowIdsByCommandId = new Map<SettingsCommandId, WindowId>(
   ),
 );
 
-const noop = (): void => {};
-
 const writeDocumentLoaded = (loaded: boolean): void => {
   document.documentElement.dataset["loaded"] = loaded ? "true" : "false";
 };
@@ -179,6 +187,22 @@ const isFlashTextFieldFocused = (): boolean => {
     return false;
   }
 };
+
+const getAutoAttackConfiguredProfileLabel = (
+  library: CombatProfileLibrary,
+  selectedProfileId: string,
+): string => {
+  const profile = getCombatProfileById(library, selectedProfileId);
+  return profile.label;
+};
+
+const getAvailableAutoAttackProfileId = (
+  library: CombatProfileLibrary,
+  profileId: string,
+): string =>
+  library.profiles.some((profile) => profile.id === profileId)
+    ? profileId
+    : DEFAULT_COMBAT_PROFILE_ID;
 
 const EffectFunction = Function as unknown as new (
   ...args: string[]
@@ -879,10 +903,15 @@ export function App(props: {
   const [scriptBusy, setScriptBusy] = createSignal(false);
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
   const scriptInputEditorRefs = new Map<string, HTMLElement>();
-  const [autoAttackMode, setAutoAttackMode] =
-    createSignal<CombatProfileAutoAttackMode>("equipped-class");
   const [selectedAutoAttackProfileId, setSelectedAutoAttackProfileId] =
-    createSignal<string | undefined>();
+    createSignal(DEFAULT_COMBAT_PROFILE_ID);
+  const [combatProfileLibrary, setCombatProfileLibrary] =
+    createSignal<CombatProfileLibrary>(DEFAULT_COMBAT_PROFILE_LIBRARY);
+  const [autoAttackEnabled, setAutoAttackEnabled] = createSignal(false);
+  const [autoAttackProfileLabel, setAutoAttackProfileLabel] = createSignal("");
+  const [autoAttackLastError, setAutoAttackLastError] = createSignal("");
+  const [autoAttackTargetPriority, setAutoAttackTargetPriority] =
+    createSignal("");
   const [autoZoneMap, setAutoZoneMap] = createSignal<
     AutoZoneSupportedMap | undefined
   >();
@@ -913,6 +942,7 @@ export function App(props: {
   const progress = createMemo(() => loadState().progress);
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
+  let autoAttackToggleInFlight = false;
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
@@ -1188,12 +1218,14 @@ export function App(props: {
     },
   ]);
 
-  const handleSelectAutoAttackProfile = (
-    mode: CombatProfileAutoAttackMode,
-    profileId?: string,
-  ) => {
-    setAutoAttackMode(mode);
-    setSelectedAutoAttackProfileId(profileId);
+  const handleSelectAutoAttackProfile = (profileId: string) => {
+    if (autoAttackEnabled()) {
+      return;
+    }
+
+    setSelectedAutoAttackProfileId(
+      getAvailableAutoAttackProfileId(combatProfileLibrary(), profileId),
+    );
   };
 
   const applyAutoZoneState = (state: AutoZoneState) => {
@@ -1569,6 +1601,93 @@ export function App(props: {
     jumpToCellPad(selectedCell(), pad);
   };
 
+  const autoAttackConfiguredProfileLabel = createMemo(() =>
+    getAutoAttackConfiguredProfileLabel(
+      combatProfileLibrary(),
+      selectedAutoAttackProfileId(),
+    ),
+  );
+
+  const applyAutoAttackState = (state: AutoAttackState): void => {
+    setAutoAttackEnabled(state.enabled);
+    setAutoAttackProfileLabel(
+      state.profileLabel ?? autoAttackConfiguredProfileLabel(),
+    );
+    setAutoAttackLastError(state.lastError ?? "");
+  };
+
+  const refreshAutoAttackState = (): void => {
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const autoAttack = yield* AutoAttack;
+          return yield* autoAttack.getState();
+        }),
+      )
+      .then(applyAutoAttackState)
+      .catch((error: unknown) => {
+        console.error("[game:autoattack]", "state refresh failed", error);
+      });
+  };
+
+  const applyCombatProfileLibrary = (library: CombatProfileLibrary): void => {
+    setCombatProfileLibrary(library);
+    const selectedProfileId = getAvailableAutoAttackProfileId(
+      library,
+      selectedAutoAttackProfileId(),
+    );
+    if (selectedProfileId !== selectedAutoAttackProfileId()) {
+      setSelectedAutoAttackProfileId(selectedProfileId);
+    }
+    if (!autoAttackEnabled()) {
+      setAutoAttackProfileLabel(
+        getAutoAttackConfiguredProfileLabel(library, selectedProfileId),
+      );
+    }
+  };
+
+  const handleToggleAutoAttack = (): void => {
+    if (autoAttackToggleInFlight || (!autoAttackEnabled() && !playerReady())) {
+      return;
+    }
+
+    autoAttackToggleInFlight = true;
+    const nextEnabled = !autoAttackEnabled();
+    setAutoAttackEnabled(nextEnabled);
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const autoAttack = yield* AutoAttack;
+          const library = combatProfileLibrary();
+          const selectedProfileId = getAvailableAutoAttackProfileId(
+            library,
+            selectedAutoAttackProfileId(),
+          );
+          if (selectedProfileId !== selectedAutoAttackProfileId()) {
+            setSelectedAutoAttackProfileId(selectedProfileId);
+          }
+          return nextEnabled
+            ? yield* autoAttack.enable({
+                library,
+                profileId: selectedProfileId,
+                targetPriority: parseAutoAttackTargetPriority(
+                  autoAttackTargetPriority(),
+                ),
+              })
+            : yield* autoAttack.disable();
+        }),
+      )
+      .then(applyAutoAttackState)
+      .catch((error: unknown) => {
+        console.error("[game:autoattack]", "toggle failed", error);
+        refreshAutoAttackState();
+      })
+      .finally(() => {
+        autoAttackToggleInFlight = false;
+      });
+  };
+
   const handleOpenBank = () => {
     if (!playerReady()) {
       return;
@@ -1599,8 +1718,17 @@ export function App(props: {
   };
 
   const handleOpenWindow = (id: WindowId) => {
-    console.debug("[game:window:no-op]", id);
     setOpenMenu(null);
+    if (id !== "combat-profiles") {
+      console.debug("[game:window:no-op]", id);
+      return;
+    }
+
+    void window.desktop.windows
+      ?.open("combat-profiles")
+      .catch((error: unknown) => {
+        console.error("[game:window]", "open combat profiles failed", error);
+      });
   };
 
   const getScriptInputsDefinition = (): ScriptInputsDefinition | null =>
@@ -1964,7 +2092,7 @@ export function App(props: {
       ["loadScript", loadScript],
       ["toggleScript", toggleScript],
       ["toggleOptionsMenu", toggleOptionsMenu],
-      ["toggleAutoattack", noop],
+      ["toggleAutoattack", handleToggleAutoAttack],
       ["toggleFollower", handleToggleFollower],
       ["toggleBank", handleOpenBank],
     ]);
@@ -2012,6 +2140,9 @@ export function App(props: {
   onMount(() => {
     let disposed = false;
     const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
+    const unsubscribeCombatProfiles =
+      window.desktop.combatProfiles?.onChanged(applyCombatProfileLibrary) ??
+      (() => {});
 
     void window.desktop.settings
       .get()
@@ -2024,9 +2155,21 @@ export function App(props: {
         console.error("[game:settings]", "desktop sync failed", error);
       });
 
+    void window.desktop.combatProfiles
+      ?.getState()
+      .then((library) => {
+        if (!disposed) {
+          applyCombatProfileLibrary(library);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("[game:combat-profiles]", "desktop sync failed", error);
+      });
+
     onCleanup(() => {
       disposed = true;
       unsubscribeSettings();
+      unsubscribeCombatProfiles();
     });
   });
 
@@ -2064,6 +2207,7 @@ export function App(props: {
   });
 
   onMount(() => {
+    let autoAttackDisposer: (() => void) | undefined;
     let autoReloginDisposer: (() => void) | undefined;
     let autoZoneDisposer: (() => void) | undefined;
     let flashSettingsDisposer: (() => void) | undefined;
@@ -2148,6 +2292,26 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
+          const autoAttack = yield* AutoAttack;
+          return yield* autoAttack.onState(applyAutoAttackState);
+        }),
+      )
+      .then((dispose) => {
+        if (cleanedUp) {
+          dispose();
+          return;
+        }
+
+        autoAttackDisposer = dispose;
+      })
+      .catch((error: unknown) => {
+        console.error("[game:autoattack]", "state subscription failed", error);
+        refreshAutoAttackState();
+      });
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
           const autoZone = yield* AutoZone;
           return yield* autoZone.onState(applyAutoZoneState);
         }),
@@ -2217,6 +2381,7 @@ export function App(props: {
 
     onCleanup(() => {
       cleanedUp = true;
+      autoAttackDisposer?.();
       autoReloginDisposer?.();
       autoZoneDisposer?.();
       flashSettingsDisposer?.();
@@ -2550,14 +2715,15 @@ export function App(props: {
         customGuild={customGuild}
         setCustomGuild={setCustomGuild}
         handleSetCustomGuild={handleSetCustomGuild}
-        autoAttackEnabled={() => false}
-        autoAttackProfileLabel={() => "Equipped Class"}
-        autoAttackConfiguredProfileLabel={() => "Equipped Class"}
-        autoAttackLastError={() => ""}
-        combatProfiles={() => []}
-        autoAttackMode={autoAttackMode}
+        autoAttackEnabled={autoAttackEnabled}
+        autoAttackProfileLabel={autoAttackProfileLabel}
+        autoAttackConfiguredProfileLabel={autoAttackConfiguredProfileLabel}
+        autoAttackLastError={autoAttackLastError}
+        autoAttackTargetPriority={autoAttackTargetPriority}
+        setAutoAttackTargetPriority={setAutoAttackTargetPriority}
+        combatProfiles={() => combatProfileLibrary().profiles}
         selectedAutoAttackProfileId={selectedAutoAttackProfileId}
-        handleToggleAutoAttack={noop}
+        handleToggleAutoAttack={handleToggleAutoAttack}
         handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
         scriptLoaded={scriptLoaded}
         scriptRunning={scriptRunning}

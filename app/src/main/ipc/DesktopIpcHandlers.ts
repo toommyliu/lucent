@@ -1,23 +1,45 @@
 import { Effect } from "effect";
 
-import { ScriptingIpc, SettingsIpc, UpdatesIpc } from "../../shared/ipc";
+import {
+  CombatProfilesIpc,
+  ScriptingIpc,
+  SettingsIpc,
+  UpdatesIpc,
+  WindowsIpc,
+} from "../../shared/ipc";
 import { ScriptInputRepository } from "../scripting/ScriptInputRepository";
 import { ScriptLibrary } from "../scripting/ScriptLibrary";
+import { DesktopCombatProfiles } from "../combat-profiles/DesktopCombatProfiles";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { installArmyIpcHandlers } from "../army/ArmyIpcHandlers";
+import { DesktopWindows } from "../window/DesktopWindows";
 import { DesktopIpc } from "./DesktopIpc";
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc;
   const scriptInputs = yield* ScriptInputRepository;
   const scripts = yield* ScriptLibrary;
+  const combatProfiles = yield* DesktopCombatProfiles;
   const settings = yield* DesktopSettings;
   const updates = yield* DesktopUpdates;
+  const windows = yield* DesktopWindows;
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
 
   yield* installArmyIpcHandlers;
+
+  // Windows
+  yield* ipc.handle(WindowsIpc.open, (payload) => windows.open(payload.kind));
+
+  // Combat Profiles
+  yield* ipc.handle(CombatProfilesIpc.getState, () => combatProfiles.get);
+  yield* ipc.handle(CombatProfilesIpc.saveProfile, (profile) =>
+    combatProfiles.saveProfile(profile),
+  );
+  yield* ipc.handle(CombatProfilesIpc.deleteProfile, (payload) =>
+    combatProfiles.deleteProfile(payload.profileId),
+  );
 
   // Settings
   yield* ipc.handle(SettingsIpc.get, () => settings.get);
@@ -61,6 +83,11 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   const unsubscribeSettings = yield* settings.onChanged((nextSettings) => {
     void runPromise(ipc.sendToAll(SettingsIpc.changed, nextSettings));
   });
+  const unsubscribeCombatProfiles = yield* combatProfiles.onChanged(
+    (library) => {
+      void runPromise(ipc.sendToAll(CombatProfilesIpc.changed, library));
+    },
+  );
   const unsubscribeUpdates = yield* updates.onStateChanged((state) => {
     void runPromise(ipc.sendToAll(UpdatesIpc.changed, state));
   });
@@ -68,6 +95,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       unsubscribeSettings();
+      unsubscribeCombatProfiles();
       unsubscribeUpdates();
     }),
   );

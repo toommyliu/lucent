@@ -1,5 +1,5 @@
-export type DesktopWindowKind = "game" | "settings";
-export type DesktopViewId = "game" | "settings";
+export type DesktopWindowKind = "combat-profiles" | "game" | "settings";
+export type DesktopViewId = "combat-profiles" | "game" | "settings";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
 
 export interface DesktopWindowDefinition {
@@ -41,6 +41,20 @@ const desktopWindowCatalog: ReadonlyMap<
       height: 654,
       minWidth: 560,
       minHeight: 520,
+      closeBehavior: "hide",
+      requiresFlashPlugin: false,
+      singleInstance: true,
+    },
+  ],
+  [
+    "combat-profiles",
+    {
+      kind: "combat-profiles",
+      view: "combat-profiles",
+      width: 760,
+      height: 560,
+      minWidth: 560,
+      minHeight: 460,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
       singleInstance: true,

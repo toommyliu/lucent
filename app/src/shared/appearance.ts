@@ -195,7 +195,11 @@ export const readSettingsSnapshotArgument = (
   return Option.isSome(decoded) ? normalizeAppSettings(decoded.value) : null;
 };
 
-const DesktopBridgeViewSchema = Schema.Literals(["game", "settings"]);
+const DesktopBridgeViewSchema = Schema.Literals([
+  "combat-profiles",
+  "game",
+  "settings",
+]);
 
 export const serializeDesktopViewArgument = (view: DesktopBridgeView): string =>
   `${DESKTOP_VIEW_ARGUMENT}=${view}`;

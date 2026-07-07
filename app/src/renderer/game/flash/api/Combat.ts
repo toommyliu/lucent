@@ -9,8 +9,16 @@ import type {
   MonsterRecord,
   MonsterSelector,
   SkillUseOptions,
+  Skill,
   TargetInfo,
 } from "../Types";
+import {
+  DEFAULT_COMBAT_PROFILE_LIBRARY,
+  getCombatProfileById,
+  isCombatProfileDefinition,
+  normalizeCombatProfile,
+  normalizeCombatProfileLibrary,
+} from "../../../../shared/combat-profiles";
 import { SwfBridge } from "../SwfBridge";
 import {
   antiCounterExpiresAtMs,
@@ -23,9 +31,16 @@ import { InventoryApi } from "./Inventory";
 import { MapApi } from "./Map";
 import { MonstersApi } from "./Monsters";
 import { PlayerApi } from "./Player";
+import { PlayersApi } from "./Players";
 import { SettingsApi } from "./Settings";
 import { TempInventoryApi } from "./TempInventory";
 import { WaitApi } from "./Wait";
+import {
+  castNextCombatProfileStep,
+  makeCombatProfileRuntimeDeps,
+  makeCombatProfileCursor,
+  resetCombatProfileCursor,
+} from "../../combatProfiles";
 
 export interface CombatTargetApi {
   readonly auras: TargetAurasApi;
@@ -42,7 +57,7 @@ export interface CombatApiShape {
   readonly attackMonster: (selector: MonsterSelector) => Effect.Effect<boolean>;
   readonly cancelAutoAttack: () => Effect.Effect<void>;
   readonly cancelTarget: () => Effect.Effect<void>;
-  readonly canUseSkill: (index: number) => Effect.Effect<boolean>;
+  readonly canUseSkill: (index: Skill) => Effect.Effect<boolean>;
   readonly exit: () => Effect.Effect<boolean>;
   readonly getConsumableSkillItem: () => Effect.Effect<{
     readonly itemId: number;
@@ -69,7 +84,7 @@ export interface CombatApiShape {
   ) => Effect.Effect<boolean>;
   readonly target: CombatTargetApi;
   readonly useSkill: (
-    index: number,
+    index: Skill,
     options?: SkillUseOptions,
   ) => Effect.Effect<boolean>;
 }
@@ -78,8 +93,17 @@ export class CombatApi extends Context.Service<CombatApi, CombatApiShape>()(
   "lucent/game/flash/api/Combat",
 ) {}
 
-const normalizeSkill = (index: number): number | null =>
-  Number.isInteger(index) && index >= 0 && index <= 5 ? index : null;
+const integerTokenPattern = /^[+-]?\d+$/u;
+
+const normalizeSkill = (index: Skill): number | null => {
+  const parsed =
+    typeof index === "number"
+      ? index
+      : integerTokenPattern.test(index.trim())
+        ? Number.parseInt(index.trim(), 10)
+        : Number.NaN;
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
+};
 
 const defaultSkillDelay = 150;
 const combatExitSettleDelay = 500;
@@ -112,13 +136,52 @@ const antiCounterAuraKey = (monsterMapId: number, auraName: string): string =>
 const killTimeout = (options?: CombatKillOptions): Duration.Input =>
   options?.timeout ?? "60 seconds";
 
-const skillSet = (options?: CombatKillOptions): readonly number[] => {
-  if (Array.isArray(options?.skillSet)) {
-    return options.skillSet;
+const skillSet = (options?: CombatKillOptions): readonly Skill[] => {
+  const value = options?.skillSet;
+  if (Array.isArray(value)) {
+    const normalized = value.flatMap((skill): readonly Skill[] => {
+      if (typeof skill === "string") {
+        return skill
+          .split(/[,\s]+/u)
+          .map((token) => token.trim())
+          .filter((token) => token !== "")
+          .filter((token) => normalizeSkill(token) !== null);
+      }
+
+      return normalizeSkill(skill) === null ? [] : [skill];
+    });
+    return normalized.length > 0 ? normalized : [1, 2, 3, 4];
+  }
+
+  if (typeof value === "string") {
+    const normalized = value
+      .split(/[,\s]+/u)
+      .map((token) => token.trim())
+      .filter((token) => token !== "")
+      .filter((token) => normalizeSkill(token) !== null);
+    return normalized.length > 0 ? normalized : [1, 2, 3, 4];
   }
 
   return [1, 2, 3, 4];
 };
+
+const readCombatProfileLibraryFromDesktop = () =>
+  Effect.promise(async () => {
+    try {
+      if (
+        typeof window === "undefined" ||
+        window.desktop.combatProfiles === undefined
+      ) {
+        return DEFAULT_COMBAT_PROFILE_LIBRARY;
+      }
+
+      return normalizeCombatProfileLibrary(
+        await window.desktop.combatProfiles.getState(),
+      );
+    } catch {
+      return DEFAULT_COMBAT_PROFILE_LIBRARY;
+    }
+  });
 
 const chooseHuntTarget = (
   matches: readonly MonsterRecord[],
@@ -176,6 +239,7 @@ export const layer = Layer.effect(
     const map = yield* MapApi;
     const monsters = yield* MonstersApi;
     const player = yield* PlayerApi;
+    const players = yield* PlayersApi;
     const settings = yield* SettingsApi;
     const tempInventory = yield* TempInventoryApi;
     const wait = yield* WaitApi;
@@ -208,6 +272,20 @@ export const layer = Layer.effect(
       has: (auraName) =>
         targetAuras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
+
+    const resolveCombatProfile = (profile: CombatKillOptions["profile"]) =>
+      Effect.gen(function* () {
+        if (profile === undefined) {
+          return undefined;
+        }
+
+        if (isCombatProfileDefinition(profile)) {
+          return normalizeCombatProfile(profile);
+        }
+
+        const library = yield* readCombatProfileLibraryFromDesktop();
+        return getCombatProfileById(library, profile);
+      });
 
     const antiCounterMonsters = new Map<number, TrackedAntiCounter>();
     const expiredAntiCounterAuraKeys = new Set<string>();
@@ -655,6 +733,21 @@ export const layer = Layer.effect(
       return exited;
     });
 
+    const combatProfileRuntimeDeps = () =>
+      makeCombatProfileRuntimeDeps(
+        {
+          attackMonster,
+          canUseSkill,
+          target: {
+            auras: targetAuras,
+            get: () => targetGet,
+          },
+          useSkill,
+        },
+        player,
+        players,
+      );
+
     const kill: CombatApiShape["kill"] = (selector, options) =>
       Effect.gen(function* () {
         if (normalizeMonsterSelector(selector) === null) {
@@ -662,6 +755,11 @@ export const layer = Layer.effect(
         }
 
         const timeout = killTimeout(options);
+        const combatProfile = yield* resolveCombatProfile(options?.profile);
+        const profileCursor =
+          combatProfile === undefined
+            ? undefined
+            : yield* makeCombatProfileCursor();
         let target: MonsterRecord | null = null;
         const killed = yield* wait.until(
           Effect.gen(function* () {
@@ -670,6 +768,12 @@ export const layer = Layer.effect(
                 monMapId: target.monsterMapId,
               });
               if (isMonsterDead(current)) {
+                if (
+                  combatProfile?.resetSkillIndexOnMonsterDeath === true &&
+                  profileCursor !== undefined
+                ) {
+                  yield* resetCombatProfileCursor(profileCursor);
+                }
                 return true;
               }
               target = current;
@@ -684,9 +788,23 @@ export const layer = Layer.effect(
             }
 
             if (yield* attackMonster({ monMapId: target.monsterMapId })) {
-              for (const skill of skillSet(options)) {
-                yield* useSkill(skill, { wait: options?.skillWait === true });
-                yield* Effect.sleep(options?.skillDelay ?? defaultSkillDelay);
+              if (combatProfile !== undefined && profileCursor !== undefined) {
+                yield* castNextCombatProfileStep(
+                  combatProfileRuntimeDeps(),
+                  combatProfile,
+                  profileCursor,
+                );
+              } else {
+                for (const skill of skillSet(options)) {
+                  yield* useSkill(skill, {
+                    wait: options?.skillWait === true,
+                  });
+                  yield* Effect.sleep(options?.skillDelay ?? defaultSkillDelay);
+                }
+              }
+
+              if (combatProfile !== undefined) {
+                yield* Effect.sleep(combatProfile.delayMs);
               }
             }
 

@@ -5,6 +5,7 @@ import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as ArmyConfigRepository from "../army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../army/ArmyCoordinator";
+import * as DesktopCombatProfiles from "../combat-profiles/DesktopCombatProfiles";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
 import * as ScriptInputRepository from "../scripting/ScriptInputRepository";
@@ -48,6 +49,10 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
 
+  const combatProfilesLayer = DesktopCombatProfiles.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
+
   const scriptingLayer = Layer.mergeAll(
     ScriptInputsExtractor.layer,
     ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
@@ -70,6 +75,7 @@ export const makeDesktopLayer = (
         ElectronShell.layer,
         environmentLayer,
         observabilityLayer,
+        combatProfilesLayer,
         settingsLayer,
       ),
     ),
@@ -113,6 +119,7 @@ export const makeDesktopLayer = (
     armyLayer,
     electronLayer,
     environmentLayer,
+    combatProfilesLayer,
     observabilityLayer,
     settingsLayer,
     scriptingLayer,
