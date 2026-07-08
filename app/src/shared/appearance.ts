@@ -71,13 +71,32 @@ const textSizeRatios = {
 type RadiusTokenName = keyof typeof radiusBaseRem;
 type TextSizeTokenName = keyof typeof textSizeRatios;
 
+const HEX_RGB_PATTERN = /^#?([0-9a-f]{6})$/i;
+
 const toHexPair = (value: number): string =>
   Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
+
+export const rgbEquals = (left: ThemeRgb, right: ThemeRgb): boolean =>
+  left[0] === right[0] && left[1] === right[1] && left[2] === right[2];
 
 export const rgbToCssValue = (rgb: ThemeRgb): string => rgb.join(", ");
 
 export const rgbToHex = (rgb: ThemeRgb): string =>
   `#${toHexPair(rgb[0])}${toHexPair(rgb[1])}${toHexPair(rgb[2])}`;
+
+export const hexToRgb = (hex: string): ThemeRgb | null => {
+  const match = HEX_RGB_PATTERN.exec(hex.trim());
+  const value = match?.[1];
+  if (value === undefined) {
+    return null;
+  }
+
+  return [
+    Number.parseInt(value.slice(0, 2), 16),
+    Number.parseInt(value.slice(2, 4), 16),
+    Number.parseInt(value.slice(4, 6), 16),
+  ];
+};
 
 export const getTextSizeTokens = (
   baseSize: number,
