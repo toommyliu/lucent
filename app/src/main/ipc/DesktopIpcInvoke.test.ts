@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
-import { DEFAULT_APP_SETTINGS } from "../../shared/settings";
+import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import { SettingsIpc } from "../../shared/ipc";
 import { createDesktopIpcInvokeHandler } from "./DesktopIpcInvoke";
 

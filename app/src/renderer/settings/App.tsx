@@ -54,28 +54,28 @@ import {
   formatHotkeyDisplay as displayHotkey,
   formatHotkeyDisplayParts as displayHotkeyParts,
   normalizeHotkeyBindingValue,
-  readHotkeyInputFromEvent,
   readHotkeyBinding,
   type HotkeyBinding,
+  type HotkeysPatch,
   type SettingsCommandCategory as CommandCategory,
   type SettingsCommandDefinition as CommandDefinition,
   type SettingsCommandId as GameCommandId,
-} from "../../shared/hotkeys";
-import { hexToRgb, rgbEquals, rgbToHex } from "../../shared/appearance";
+} from "@lucent/core/hotkeys";
+import { readHotkeyInputFromEvent } from "../../shared/hotkeys";
+import { hexToRgb, rgbEquals, rgbToHex } from "@lucent/core/appearance";
 import type { AppPlatform, DesktopBridge } from "../../shared/desktopBridge";
 import {
   DEFAULT_APP_SETTINGS,
   THEME_TOKEN_NAMES,
   type AppSettings,
   type AppearancePatch,
-  type HotkeysPatch,
   type MotionMode,
   type PreferencesPatch,
   type ThemeMode,
   type ThemeRgb,
   type ThemeTokenName,
   type ThemeVariant,
-} from "../../shared/settings";
+} from "@lucent/core/settings";
 import type { UpdateCheckState } from "../../shared/updates";
 
 type HotkeyBindings = readonly HotkeyBinding[];

@@ -9,7 +9,7 @@ import { Effect, Layer } from "effect";
 import {
   findMissingRequiredScriptInputs,
   type ScriptInputsDefinition,
-} from "../../shared/scriptInputs";
+} from "@lucent/core/scriptInputs";
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,

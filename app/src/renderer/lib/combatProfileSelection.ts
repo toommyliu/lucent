@@ -1,7 +1,7 @@
 import {
   DEFAULT_COMBAT_PROFILE_ID,
   type CombatProfile,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 
 export function readStoredId(storageKey: string): string | undefined {
   try {

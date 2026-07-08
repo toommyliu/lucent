@@ -164,6 +164,7 @@ interface ScriptLucentStd {
     readonly script: ScriptRuntimeApi;
 }
 interface ScriptApi {
+    readonly army: ScriptArmyApi;
     readonly auth: ScriptAuthApi;
     readonly bank: ScriptBankApi;
     readonly combat: ScriptCombatApi;
@@ -190,6 +191,25 @@ interface ScriptRuntimeApi {
     log(message: unknown): Effect<void, never>;
     sleep(ms: number): Effect<void, ScriptExecutionError>;
     stop(reason?: string): Effect<never, ScriptStopSignal>;
+}
+interface ScriptArmyApi {
+    equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, ArmyError>;
+    executeWithArmy<A, E>(action: Effect<A, E, never>): Effect<A, E | ArmyError>;
+    getConfigString(key: string, defaultValue?: string): Effect<string, never>;
+    getConfigValue(key: string, defaultValue?: unknown): Effect<unknown, never>;
+    getPlayerNumber(): Effect<number, never>;
+    getSession(): Effect<ArmySession | null, never>;
+    isLeader(): Effect<boolean, never>;
+    isMember(): Effect<boolean, never>;
+    isStarted(): Effect<boolean, never>;
+    joinMap(map: string, cell?: string, pad?: string): Effect<void, ArmyError>;
+    kill(target: MonsterSelector, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForTempItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+    leave(): Effect<void, never>;
+    runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
+    start(configName: string): Effect<ArmySession, ArmyError>;
+    sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
 }
 interface ScriptAuthApi {
     connectTo(server: string): Effect<AuthConnectOutcome, never>;
@@ -221,7 +241,7 @@ interface ScriptCombatApi {
     attackMonster(selector: MonsterSelector): Effect<boolean, never>;
     cancelAutoAttack(): Effect<void, never>;
     cancelTarget(): Effect<void, never>;
-    canUseSkill(index: number): Effect<boolean, never>;
+    canUseSkill(index: Skill): Effect<boolean, never>;
     exit(): Effect<boolean, never>;
     getConsumableSkillItem(): Effect<{ readonly itemId: number; } | null, never>;
     hunt(selector: MonsterSelector, options?: HuntOptions): Effect<MonsterRecord | null, never>;
@@ -229,7 +249,7 @@ interface ScriptCombatApi {
     killForItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
     killForTempItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
-    useSkill(index: number, options?: SkillUseOptions): Effect<boolean, never>;
+    useSkill(index: Skill, options?: SkillUseOptions): Effect<boolean, never>;
 }
 interface ScriptCombatTargetApi {
     readonly auras: ScriptCombatTargetAurasApi;
@@ -269,6 +289,7 @@ interface ScriptFeaturesAutoReloginApi {
     getState(): Effect<AutoReloginState, never>;
     isEnabled(): Effect<boolean, never>;
     onState(listener: (state: AutoReloginState) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
+    runLogin(request: AutoReloginLoginRequest): Effect<AutoReloginLoginResult, AutoReloginLoginError>;
     setDelay(delayMs: number): Effect<AutoReloginState, never>;
     setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
     setServer(serverName: string): Effect<AutoReloginState, never>;
@@ -453,6 +474,16 @@ interface ScriptWaitApi {
     untilSome<A>(condition: Effect<Option<A>, never, never>, options?: WaitOptions): Effect<A | null, never>;
 }
 
+interface ArmyEquipSetOptions {
+  readonly resolveItems?: boolean;
+}
+interface ArmyError extends Error {
+  _tag: unknown;
+}
+interface ArmyRunStepOptions {
+  readonly timeoutMs?: number;
+}
+type ArmySession = ArmySessionPayload;
 interface AuraRecord {
   readonly category?: string;
   readonly duration: number;
@@ -475,6 +506,20 @@ interface AuthConnectOutcome {
     | "not-ready"
     | "timeout";
 }
+interface AutoReloginLoginError {
+  readonly message: string;
+}
+interface AutoReloginLoginRequest {
+  readonly onLifecycle?: (
+    event: AutoReloginLifecycleEvent,
+  ) => Effect<void, unknown>;
+  readonly password: string;
+  readonly server?: string;
+  readonly username: string;
+}
+type AutoReloginLoginResult =
+  | { readonly status: "ready" }
+  | { readonly status: "server-select" };
 interface AutoReloginState {
   readonly attemptsRemaining?: number;
   readonly attempting: boolean;
@@ -496,9 +541,9 @@ interface CombatKillOptions {
   readonly findMost?: boolean;
   readonly killPriority?: readonly MonsterSelector[] | string;
   readonly maxKills?: number;
-  readonly profile?: unknown;
+  readonly profile?: ScriptCombatProfileInput;
   readonly skillDelay?: number;
-  readonly skillSet?: readonly Skill[];
+  readonly skillSet?: readonly Skill[] | string;
   readonly skillWait?: boolean;
   readonly timeout?: DurationInput;
 }
@@ -652,6 +697,22 @@ interface WaitOptions {
   readonly interval?: DurationInput;
   readonly timeout?: DurationInput;
 }
+interface _tag { readonly [key: string]: unknown; }
+interface ArmySessionPayload extends ArmyConfigPayload {
+  readonly playerName: string;
+  readonly playerNumber: number;
+  readonly role: "leader" | "member";
+  readonly sessionId: string;
+}
+interface AutoReloginLifecycleEvent {
+  readonly attemptsRemaining: number;
+  readonly message?: string;
+  readonly step: AutoReloginLifecycleStep;
+}
+type ScriptCombatProfileInput =
+  | CombatProfile
+  | CombatProfileDefinition
+  | string;
 type FlashEventKind = "packet" | "projection" | "runtime";
 type FlashEventType = FlashEvent["type"];
 type FlashPacketEvent =
@@ -739,6 +800,23 @@ type FlashProjectionEvent =
         readonly targetType: "monster" | "player";
       };
       readonly type: "auraRemoved";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly auraName?: string;
+        readonly auraPhase?: "off" | "on";
+        readonly message: string;
+        readonly monMapId?: number;
+        readonly source: "animation" | "aura";
+        readonly sourceMonMapId?: number;
+        readonly targetId?: number;
+        readonly targetMonMapId?: number;
+        readonly targetName?: string;
+        readonly targetType?: "monster" | "player";
+      };
+      readonly type: "updateMessage";
     };
 type FlashRuntimeEvent =
   | {
@@ -800,6 +878,18 @@ type PlayerTargetInfo = TargetBaseInfo & {
   username: string;
   name: string;
 };
+interface ArmyConfigPayload extends ArmyConfigCore {
+  readonly configName: string;
+  readonly raw: ArmyConfigRaw;
+}
+type AutoReloginLifecycleStep = "connect" | "login" | "ready";
+type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+interface CombatProfileDefinition extends Partial<
+  Omit<CombatProfile, "steps" | "messageTriggers">
+> {
+  readonly steps: readonly CombatProfileStepDefinition[];
+  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
+}
 interface MapRecord {
   readonly id: number;
   readonly name: string;
@@ -819,3 +909,36 @@ type TargetBaseInfo = {
   state: number;
   cell: string;
 };
+interface ArmyConfigCore {
+  readonly items: Readonly<Record<string, string>>;
+  readonly players: readonly string[];
+  readonly room: string;
+  readonly sets: Readonly<Record<string, ArmySetConfig>>;
+}
+type ArmyConfigRaw = Record<string, unknown>;
+type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
+  readonly skill: number;
+};
+type CombatProfileMessageTriggerDefinition =
+  Partial<CombatProfileMessageTrigger> & {
+    readonly messageIncludes: string;
+    readonly skill: number;
+  };
+interface ArmySetConfig {
+  readonly default?: ArmyEquipSet;
+  readonly players: Readonly<Record<string, ArmyEquipSet>>;
+}
+type CombatProfileStep = { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
+type CombatProfileMessageTrigger = { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
+interface ArmyEquipSet {
+  readonly armor?: string;
+  readonly cape?: string;
+  readonly class?: string;
+  readonly helm?: string;
+  readonly pet?: string;
+  readonly pots?: readonly string[];
+  readonly safeClass?: string;
+  readonly safePot?: string;
+  readonly scroll?: string;
+  readonly weapon?: string;
+}

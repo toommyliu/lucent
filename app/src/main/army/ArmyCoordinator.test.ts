@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { BrowserWindow } from "electron";
 
-import type { ArmyConfigPayload } from "../../shared/army";
+import type { ArmyConfigPayload } from "@lucent/core/army";
 import { makeArmyCoordinator } from "./ArmyCoordinator";
 
 const makeWindow = (): BrowserWindow =>

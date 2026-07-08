@@ -1,7 +1,7 @@
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Ref } from "effect";
 
 import type { ScriptFile } from "../../../shared/ipc/scripting";
-import type { ScriptInputValues } from "../../../shared/scriptInputs";
+import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import { ArmyApi } from "../army/Army";
 import { AuthApi } from "../flash/api/Auth";
 import { BankApi } from "../flash/api/Bank";

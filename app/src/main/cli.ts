@@ -1,7 +1,7 @@
 import { isAbsolute, resolve } from "path";
 
-import type { AppLaunchMode } from "../shared/settings";
-import { isAppLaunchMode } from "../shared/settings";
+import type { AppLaunchMode } from "@lucent/core/settings";
+import { isAppLaunchMode } from "@lucent/core/settings";
 
 export interface CliOptions {
   readonly flashPluginPath?: string;

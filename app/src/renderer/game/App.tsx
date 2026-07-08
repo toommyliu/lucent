@@ -38,13 +38,13 @@ import type {
   AccountGameLaunchPayload,
   AccountScriptStatusUpdate,
   ScriptExecutePayload,
-} from "../../shared/accounts";
+} from "@lucent/core/accounts";
 import {
   DEFAULT_COMBAT_PROFILE_ID,
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   getCombatProfileById,
   type CombatProfileLibrary,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import type { ScriptFile } from "../../shared/ipc/scripting";
 import {
   normalizeScriptInputValues,
@@ -53,15 +53,15 @@ import {
   type ScriptInputValue,
   type ScriptInputValues,
   type ScriptInputsDefinition,
-} from "../../shared/scriptInputs";
+} from "@lucent/core/scriptInputs";
 import {
   SETTINGS_COMMANDS,
   hotkeyBindingMatchKey,
-  hotkeyInputMatchKey,
   readHotkeyBinding,
   type SettingsCommandId,
-} from "../../shared/hotkeys";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
+} from "@lucent/core/hotkeys";
+import { hotkeyInputMatchKey } from "../../shared/hotkeys";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import * as Api from "./flash";
 import type { FlashSettingsPatch, FlashSettingsSnapshot } from "./flash";
 import { flashRuntime as runtime } from "./flash";

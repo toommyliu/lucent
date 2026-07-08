@@ -18,7 +18,7 @@ import {
   isCombatProfileDefinition,
   normalizeCombatProfile,
   normalizeCombatProfileLibrary,
-} from "../../../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import { SwfBridge } from "../SwfBridge";
 import {
   antiCounterExpiresAtMs,

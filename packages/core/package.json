@@ -1,0 +1,63 @@
+{
+  "name": "@lucent/core",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.spec.*"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    },
+    "./appearance": {
+      "types": "./dist/appearance.d.cts",
+      "default": "./dist/appearance.cjs"
+    },
+    "./accounts": {
+      "types": "./dist/accounts.d.cts",
+      "default": "./dist/accounts.cjs"
+    },
+    "./army": {
+      "types": "./dist/army.d.cts",
+      "default": "./dist/army.cjs"
+    },
+    "./combatProfiles": {
+      "types": "./dist/combatProfiles.d.cts",
+      "default": "./dist/combatProfiles.cjs"
+    },
+    "./hotkeys": {
+      "types": "./dist/hotkeys.d.cts",
+      "default": "./dist/hotkeys.cjs"
+    },
+    "./scriptInputs": {
+      "types": "./dist/scriptInputs.d.cts",
+      "default": "./dist/scriptInputs.cjs"
+    },
+    "./settings": {
+      "types": "./dist/settings.d.cts",
+      "default": "./dist/settings.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown --format cjs --dts --outDir dist src/index.ts src/accounts.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/hotkeys.ts src/scriptInputs.ts src/settings.ts",
+    "postinstall": "pnpm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.83"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-beta.83",
+    "tsdown": "0.20.0-beta.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}

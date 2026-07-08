@@ -6,7 +6,7 @@ import {
   type ArmyConfigPayload,
   type ArmyProgressResult,
   type ArmySessionPayload,
-} from "../../shared/army";
+} from "@lucent/core/army";
 import { isElectronWindowUsable } from "../electron/windowUsability";
 
 const ARMY_START_TIMEOUT_MS = 120_000;

@@ -7,7 +7,7 @@ import type {
   CombatProfileMessageTrigger,
   CombatProfileStatCondition,
   CombatProfileStep,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import type { CombatApiShape } from "./flash/api/Combat";
 import type { PlayerApiShape } from "./flash/api/Player";
 import type { PlayersApiShape } from "./flash/api/Players";

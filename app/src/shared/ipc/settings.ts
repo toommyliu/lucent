@@ -3,9 +3,9 @@ import { Schema } from "effect";
 import {
   AppearancePatchSchema,
   AppSettingsSchema,
-  HotkeysPatchSchema,
   PreferencesPatchSchema,
-} from "../settings";
+} from "@lucent/core/settings";
+import { HotkeysPatchSchema } from "@lucent/core/hotkeys";
 import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:settings";

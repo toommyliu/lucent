@@ -12,7 +12,7 @@ import {
   type ThemeRgb,
   type ThemeTokenName,
   type ThemeVariant,
-} from "../../shared/settings";
+} from "@lucent/core/settings";
 import {
   DEFAULT_HOTKEYS,
   SETTINGS_COMMANDS,
@@ -23,7 +23,7 @@ import {
   type HotkeyBinding,
   type HotkeysPatch,
   type SettingsCommandId,
-} from "../../shared/hotkeys";
+} from "@lucent/core/hotkeys";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { type JsonFileError, readJsonFile, writeJsonFile } from "./JsonFile";
 

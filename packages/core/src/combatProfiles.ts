@@ -1,34 +1,136 @@
 import { Option, Schema } from "effect";
 
-import {
-  COMBAT_PROFILE_LIBRARY_VERSION,
-  CombatProfileComparisonSchema,
-  CombatProfileCooldownModeSchema,
-  CombatProfileMessageTriggerSourceSchema,
-  CombatProfileThresholdUnitSchema,
-  DEFAULT_COMBAT_PROFILE_DELAY_MS,
-  DEFAULT_COMBAT_PROFILE_ID,
-  DEFAULT_COMBAT_PROFILE_ROLE,
-  type CombatProfile,
-  type CombatProfileComparison,
-  type CombatProfileCondition,
-  type CombatProfileCooldownMode,
-  type CombatProfileDefinition,
-  type CombatProfileLibrary,
-  type CombatProfileMessageTrigger,
-  type CombatProfileMessageTriggerSource,
-  type CombatProfileStep,
-  type CombatProfileThresholdUnit,
-} from "./combat-profile-model";
+import { boundedInt, TrimmedNonEmptyString } from "./baseSchemas";
 
-const profileIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
+export const COMBAT_PROFILE_LIBRARY_VERSION = 1 as const;
+
+export const DEFAULT_COMBAT_PROFILE_ID = "generic-base";
+export const DEFAULT_COMBAT_PROFILE_ROLE = "Base";
+export const DEFAULT_COMBAT_PROFILE_DELAY_MS = 150;
+
 const MAX_DELAY_MS = 60_000;
 const MAX_WAIT_MS = 60_000;
+const MAX_ID_LENGTH = 80;
 const MAX_LABEL_LENGTH = 80;
 const MAX_ROLE_LENGTH = 40;
 const MAX_CLASS_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
 const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
+
+export const CombatProfileCooldownModeSchema = Schema.Literals([
+  "use-if-ready",
+  "wait-for-cooldown",
+]);
+export type CombatProfileCooldownMode =
+  typeof CombatProfileCooldownModeSchema.Type;
+
+export const CombatProfileThresholdUnitSchema = Schema.Literals([
+  "percent",
+  "value",
+]);
+export type CombatProfileThresholdUnit =
+  typeof CombatProfileThresholdUnitSchema.Type;
+
+export const CombatProfileComparisonSchema = Schema.Literals(["<=", ">="]);
+export type CombatProfileComparison = typeof CombatProfileComparisonSchema.Type;
+
+export const CombatProfileStatConditionSchema = Schema.Struct({
+  type: Schema.Literals(["self-hp", "self-mp", "ally-hp"]),
+  op: CombatProfileComparisonSchema,
+  value: boundedInt(0, 999_999),
+  unit: CombatProfileThresholdUnitSchema,
+});
+export type CombatProfileStatCondition =
+  typeof CombatProfileStatConditionSchema.Type;
+
+export const CombatProfileAuraConditionSchema = Schema.Struct({
+  type: Schema.Literals(["self-aura", "target-aura"]),
+  auraName: TrimmedNonEmptyString,
+  op: CombatProfileComparisonSchema,
+  value: boundedInt(0, 999),
+});
+export type CombatProfileAuraCondition =
+  typeof CombatProfileAuraConditionSchema.Type;
+
+export const CombatProfileConditionSchema = Schema.Union([
+  CombatProfileStatConditionSchema,
+  CombatProfileAuraConditionSchema,
+]);
+export type CombatProfileCondition = typeof CombatProfileConditionSchema.Type;
+
+export const CombatProfileStepSchema = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  skill: boundedInt(0, 5),
+  conditions: Schema.Array(CombatProfileConditionSchema),
+  cooldownMode: Schema.optionalKey(CombatProfileCooldownModeSchema),
+  waitMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
+});
+export type CombatProfileStep = typeof CombatProfileStepSchema.Type;
+
+export const CombatProfileMessageTriggerSourceSchema = Schema.Literals([
+  "any",
+  "animation",
+  "aura",
+]);
+export type CombatProfileMessageTriggerSource =
+  typeof CombatProfileMessageTriggerSourceSchema.Type;
+
+export const CombatProfileMessageTriggerSchema = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  messageIncludes: TrimmedNonEmptyString,
+  skill: boundedInt(0, 5),
+  source: CombatProfileMessageTriggerSourceSchema,
+  cooldownMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
+});
+export type CombatProfileMessageTrigger =
+  typeof CombatProfileMessageTriggerSchema.Type;
+
+export const CombatProfileSchema = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+  className: Schema.optionalKey(TrimmedNonEmptyString),
+  role: TrimmedNonEmptyString,
+  delayMs: boundedInt(0, MAX_DELAY_MS),
+  cooldownMode: CombatProfileCooldownModeSchema,
+  resetSkillIndexOnMonsterDeath: Schema.optionalKey(Schema.Boolean),
+  steps: Schema.Array(CombatProfileStepSchema),
+  messageTriggers: Schema.optionalKey(
+    Schema.Array(CombatProfileMessageTriggerSchema),
+  ),
+});
+export type CombatProfile = typeof CombatProfileSchema.Type;
+
+export const CombatProfileLibrarySchema = Schema.Struct({
+  version: Schema.Literal(COMBAT_PROFILE_LIBRARY_VERSION),
+  profiles: Schema.Array(CombatProfileSchema),
+});
+export type CombatProfileLibrary = typeof CombatProfileLibrarySchema.Type;
+
+export type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
+  readonly skill: number;
+};
+
+export type CombatProfileMessageTriggerDefinition =
+  Partial<CombatProfileMessageTrigger> & {
+    readonly messageIncludes: string;
+    readonly skill: number;
+  };
+
+export interface CombatProfileDefinition extends Partial<
+  Omit<CombatProfile, "steps" | "messageTriggers">
+> {
+  readonly steps: readonly CombatProfileStepDefinition[];
+  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
+}
+
+export class CombatProfileNormalizationError extends Error {
+  readonly _tag = "CombatProfileNormalizationError";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CombatProfileNormalizationError";
+  }
+}
 
 const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
 const CombatProfileDefinitionInputSchema = Schema.Struct({
@@ -72,12 +174,13 @@ const asRecord = (value: unknown): UnknownRecord | undefined =>
 const asArray = (value: unknown): readonly unknown[] =>
   fromOption(decodeArray, value) ?? [];
 
-const isDefined = <T>(value: T | undefined): value is T => value !== undefined;
-
 const normalizeArray = <T>(
   value: unknown,
   normalize: (value: unknown, index: number) => T | undefined,
-): readonly T[] => asArray(value).map(normalize).filter(isDefined);
+): readonly T[] =>
+  asArray(value)
+    .map(normalize)
+    .filter((value): value is T => value !== undefined);
 
 const clampInt = (
   value: unknown,
@@ -101,17 +204,6 @@ const trimString = (value: unknown, maxLength: number): string | undefined => {
   return trimmed === "" ? undefined : trimmed.slice(0, maxLength);
 };
 
-export const makeCombatProfileId = (label: string): string => {
-  const normalized = label
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/gu, "")
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
-
-  return normalized === "" ? "profile" : normalized;
-};
-
 const genericProfile = (): CombatProfile => ({
   id: DEFAULT_COMBAT_PROFILE_ID,
   label: "Generic",
@@ -123,47 +215,7 @@ const genericProfile = (): CombatProfile => ({
     skill,
     conditions: [],
   })),
-  messageTriggers: [],
 });
-
-const normalizeComparison = (value: unknown): CombatProfileComparison =>
-  fromOption(decodeCombatProfileComparison, value) ?? "<=";
-
-const normalizeThresholdUnit = (value: unknown): CombatProfileThresholdUnit =>
-  fromOption(decodeCombatProfileThresholdUnit, value) ?? "percent";
-
-const normalizeCooldownMode = (value: unknown): CombatProfileCooldownMode =>
-  fromOption(decodeCombatProfileCooldownMode, value) ?? "use-if-ready";
-
-const normalizeMessageTriggerSource = (
-  value: unknown,
-): CombatProfileMessageTriggerSource =>
-  fromOption(decodeCombatProfileMessageTriggerSource, value) ?? "any";
-
-const normalizeProfileId = (
-  value: unknown,
-  fallbackLabel: string,
-  reservedIds: ReadonlySet<string>,
-): string => {
-  const explicit = trimString(value, 80);
-  const base =
-    explicit !== undefined && profileIdPattern.test(explicit)
-      ? explicit
-      : makeCombatProfileId(fallbackLabel);
-
-  if (!reservedIds.has(base)) {
-    return base;
-  }
-
-  for (let suffix = 2; suffix < 10_000; suffix += 1) {
-    const candidate = `${base}-${suffix}`;
-    if (!reservedIds.has(candidate)) {
-      return candidate;
-    }
-  }
-
-  return `${base}-${Date.now()}`;
-};
 
 const normalizeCondition = (
   value: unknown,
@@ -175,10 +227,11 @@ const normalizeCondition = (
 
   const type = record["type"];
   if (type === "self-hp" || type === "self-mp" || type === "ally-hp") {
-    const unit = normalizeThresholdUnit(record["unit"]);
+    const unit =
+      fromOption(decodeCombatProfileThresholdUnit, record["unit"]) ?? "percent";
     return {
       type,
-      op: normalizeComparison(record["op"]),
+      op: fromOption(decodeCombatProfileComparison, record["op"]) ?? "<=",
       value: clampInt(
         record["value"],
         0,
@@ -199,7 +252,7 @@ const normalizeCondition = (
     : {
         type,
         auraName,
-        op: normalizeComparison(record["op"]),
+        op: fromOption(decodeCombatProfileComparison, record["op"]) ?? "<=",
         value: clampInt(record["value"], 0, 0, 999),
       };
 };
@@ -229,7 +282,7 @@ const normalizeStep = (
   const waitMs = clampInt(record["waitMs"], 0, 0, MAX_WAIT_MS);
 
   return {
-    id: trimString(record["id"], 80) ?? `step-${index + 1}`,
+    id: trimString(record["id"], MAX_ID_LENGTH) ?? `step-${index + 1}`,
     skill,
     conditions: normalizeArray(record["conditions"], normalizeCondition),
     ...(cooldownMode === undefined
@@ -261,30 +314,31 @@ const normalizeMessageTrigger = (
 
   const cooldownMs = clampInt(record["cooldownMs"], 0, 0, MAX_WAIT_MS);
   return {
-    id: trimString(record["id"], 80) ?? `trigger-${index + 1}`,
+    id: trimString(record["id"], MAX_ID_LENGTH) ?? `trigger-${index + 1}`,
     messageIncludes,
     skill,
-    source: normalizeMessageTriggerSource(record["source"]),
+    source:
+      fromOption(decodeCombatProfileMessageTriggerSource, record["source"]) ??
+      "any",
     ...(cooldownMs > 0 ? { cooldownMs } : {}),
   };
 };
 
-const cloneGenericSteps = (): readonly CombatProfileStep[] =>
-  genericProfile().steps.map((step) => Object.assign({}, step));
-
 const normalizeProfile = (
   value: unknown,
-  reservedIds: Set<string>,
+  fallbackId?: string,
 ): CombatProfile | undefined => {
   const record = asRecord(value);
   if (record === undefined) {
     return undefined;
   }
 
-  const label = trimString(record["label"], MAX_LABEL_LENGTH) ?? "Profile";
-  const id = normalizeProfileId(record["id"], label, reservedIds);
-  reservedIds.add(id);
+  const id = trimString(record["id"], MAX_ID_LENGTH) ?? fallbackId;
+  if (id === undefined) {
+    return undefined;
+  }
 
+  const label = trimString(record["label"], MAX_LABEL_LENGTH) ?? "Profile";
   const className = trimString(record["className"], MAX_CLASS_NAME_LENGTH);
   const messageTriggers = normalizeArray(
     record["messageTriggers"],
@@ -305,35 +359,50 @@ const normalizeProfile = (
       0,
       MAX_DELAY_MS,
     ),
-    cooldownMode: normalizeCooldownMode(record["cooldownMode"]),
+    cooldownMode:
+      fromOption(decodeCombatProfileCooldownMode, record["cooldownMode"]) ??
+      "use-if-ready",
     ...(fromOption(decodeBoolean, record["resetSkillIndexOnMonsterDeath"])
       ? { resetSkillIndexOnMonsterDeath: true }
       : {}),
-    steps: steps.length === 0 ? cloneGenericSteps() : steps,
+    steps:
+      steps.length === 0
+        ? (structuredClone(
+            genericProfile().steps,
+          ) as readonly CombatProfileStep[])
+        : steps,
     ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };
 
 const normalizeProfiles = (value: unknown): readonly CombatProfile[] => {
-  const reservedIds = new Set<string>();
   const profiles = [
-    ...normalizeArray(value, (profile) =>
-      normalizeProfile(profile, reservedIds),
-    ),
+    ...normalizeArray(value, (profile) => normalizeProfile(profile)),
   ];
-
-  if (!profiles.some((profile) => profile.id === DEFAULT_COMBAT_PROFILE_ID)) {
-    profiles.unshift(genericProfile());
-  }
-
-  profiles.sort((left, right) =>
-    left.id === DEFAULT_COMBAT_PROFILE_ID
-      ? -1
-      : right.id === DEFAULT_COMBAT_PROFILE_ID
-        ? 1
-        : 0,
+  const genericIndex = profiles.findIndex(
+    (profile) => profile.id === DEFAULT_COMBAT_PROFILE_ID,
   );
+
+  if (genericIndex === -1) {
+    profiles.unshift(genericProfile());
+  } else if (genericIndex > 0) {
+    const [generic] = profiles.splice(genericIndex, 1);
+    profiles.unshift(generic!);
+  }
   return profiles;
+};
+
+const assertSupportedLibraryVersion = (version: unknown): void => {
+  const parsed = fromOption(decodeFinite, version);
+  if (
+    parsed !== undefined &&
+    Number.isInteger(parsed) &&
+    parsed > COMBAT_PROFILE_LIBRARY_VERSION
+  ) {
+    throw new CombatProfileNormalizationError(
+      `Unsupported combat profile library version ${parsed}`,
+    );
+  }
 };
 
 export const DEFAULT_COMBAT_PROFILE_LIBRARY: CombatProfileLibrary = {
@@ -346,7 +415,7 @@ export const cloneCombatProfileLibrary = (
 ): CombatProfileLibrary => structuredClone(library) as CombatProfileLibrary;
 
 export const normalizeCombatProfile = (value: unknown): CombatProfile =>
-  normalizeProfile(value, new Set()) ?? genericProfile();
+  normalizeProfile(value, DEFAULT_COMBAT_PROFILE_ID) ?? genericProfile();
 
 export const isCombatProfileDefinition = (
   value: unknown,
@@ -355,10 +424,15 @@ export const isCombatProfileDefinition = (
 
 export const normalizeCombatProfileLibrary = (
   value: unknown,
-): CombatProfileLibrary => ({
-  version: COMBAT_PROFILE_LIBRARY_VERSION,
-  profiles: normalizeProfiles(asRecord(value)?.["profiles"]),
-});
+): CombatProfileLibrary => {
+  const source = asRecord(value);
+  assertSupportedLibraryVersion(source?.["version"]);
+
+  return {
+    version: COMBAT_PROFILE_LIBRARY_VERSION,
+    profiles: normalizeProfiles(source?.["profiles"]),
+  };
+};
 
 export const findCombatProfileById = (
   library: CombatProfileLibrary,

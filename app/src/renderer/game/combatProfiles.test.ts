@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Deferred, Effect, Fiber, Ref } from "effect";
 
-import type { CombatProfile } from "../../shared/combat-profiles";
+import type { CombatProfile } from "@lucent/core/combatProfiles";
 import {
   castCombatProfileMessageTrigger,
   castNextCombatProfileStep,
