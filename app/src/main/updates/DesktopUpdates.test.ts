@@ -8,7 +8,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { afterEach, vi } from "vitest";
 import { Effect, Layer } from "effect";
 
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,

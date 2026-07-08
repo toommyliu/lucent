@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import {
   CombatProfileLibrarySchema,
   CombatProfileSchema,
-} from "../combat-profiles";
+} from "@lucent/core/combatProfiles";
 import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:combat-profiles";

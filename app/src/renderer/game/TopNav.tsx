@@ -41,7 +41,7 @@ import {
   readHotkeyBinding,
   type HotkeyBinding,
   type SettingsCommandId,
-} from "../../shared/hotkeys";
+} from "@lucent/core/hotkeys";
 import {
   AUTO_ZONE_MAP_OPTIONS,
   type AutoZoneSupportedMap,

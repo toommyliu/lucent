@@ -12,7 +12,7 @@ import {
   serializeAppearanceSnapshotArgument,
   serializeSettingsSnapshotArgument,
 } from "../../shared/appearance";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "../../shared/settings";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";

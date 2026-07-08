@@ -4,7 +4,7 @@ import type { Duration } from "effect";
 import type {
   CombatProfile,
   CombatProfileDefinition,
-} from "../../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import type * as BridgeTypes from "../Types";
 
 export type {

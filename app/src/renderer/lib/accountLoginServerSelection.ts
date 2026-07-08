@@ -1,4 +1,4 @@
-import type { AccountGameServer } from "../../shared/accounts";
+import type { AccountGameServer } from "@lucent/core/accounts";
 
 export type StoredAccountLoginServerPreference = string | null | undefined;
 

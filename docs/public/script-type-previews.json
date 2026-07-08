@@ -1,5 +1,128 @@
 {
   "types": {
+    "army-equip-set-options": {
+      "name": "ArmyEquipSetOptions",
+      "slug": "army-equip-set-options",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ArmyEquipSetOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "resolveItems",
+          "signature": "readonly resolveItems?: boolean",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/Army.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L46"
+      }
+    },
+    "army-error": {
+      "name": "ArmyError",
+      "slug": "army-error",
+      "kind": "class",
+      "summary": "",
+      "definition": "class ArmyError extends Error",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "_tag",
+          "signature": "readonly _tag: \"ArmyError\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/attributes",
+          "signature": "readonly ~effect/ErrorReporter/attributes?: ReadonlyRecord<string, unknown>",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/ignore",
+          "signature": "readonly ~effect/ErrorReporter/ignore?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/severity",
+          "signature": "readonly ~effect/ErrorReporter/severity?: Severity",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorExitCode",
+          "signature": "readonly ~effect/Runtime/errorExitCode?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorReported",
+          "signature": "readonly ~effect/Runtime/errorReported?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cause",
+          "signature": "cause?: unknown",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "message",
+          "signature": "message: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "stack",
+          "signature": "stack?: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/Army.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L25"
+      }
+    },
+    "army-run-step-options": {
+      "name": "ArmyRunStepOptions",
+      "slug": "army-run-step-options",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ArmyRunStepOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "timeoutMs",
+          "signature": "readonly timeoutMs?: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/Army.ts:42",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L42"
+      }
+    },
+    "army-session": {
+      "name": "ArmySession",
+      "slug": "army-session",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ArmySession = ArmySessionPayload",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/army/Army.ts:50",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L50"
+      }
+    },
     "aura-record": {
       "name": "AuraRecord",
       "slug": "aura-record",
@@ -45,8 +168,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:102",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L102"
+        "path": "app/src/renderer/game/flash/Types.ts:106",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L106"
       }
     },
     "auth-connect-outcome": {
@@ -82,8 +205,341 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:367",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L367"
+        "path": "app/src/renderer/game/flash/Types.ts:388",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L388"
+      }
+    },
+    "auto-relogin-lifecycle-event": {
+      "name": "AutoReloginLifecycleEvent",
+      "slug": "auto-relogin-lifecycle-event",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface AutoReloginLifecycleEvent",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "attemptsRemaining",
+          "signature": "readonly attemptsRemaining: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "message",
+          "signature": "readonly message?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "step",
+          "signature": "readonly step: AutoReloginLifecycleStep",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:38",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L38"
+      }
+    },
+    "auto-relogin-lifecycle-step": {
+      "name": "AutoReloginLifecycleStep",
+      "slug": "auto-relogin-lifecycle-step",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type AutoReloginLifecycleStep = \"connect\" | \"login\" | \"ready\"",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:36",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L36"
+      }
+    },
+    "auto-relogin-login-error": {
+      "name": "AutoReloginLoginError",
+      "slug": "auto-relogin-login-error",
+      "kind": "class",
+      "summary": "",
+      "definition": "class AutoReloginLoginError extends { _tag: \"AutoReloginLoginError\"; detail: string } & YieldableError<this>",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "_tag",
+          "signature": "readonly _tag: \"AutoReloginLoginError\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Effect",
+          "signature": "readonly ~effect/Effect: Variance<never, AutoReloginLoginError, never>",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/attributes",
+          "signature": "readonly ~effect/ErrorReporter/attributes?: ReadonlyRecord<string, unknown>",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/ignore",
+          "signature": "readonly ~effect/ErrorReporter/ignore?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/severity",
+          "signature": "readonly ~effect/ErrorReporter/severity?: Severity",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorExitCode",
+          "signature": "readonly ~effect/Runtime/errorExitCode?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorReported",
+          "signature": "readonly ~effect/Runtime/errorReported?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cause",
+          "signature": "cause?: unknown",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "detail",
+          "signature": "readonly detail: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "message",
+          "signature": "readonly message: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "stack",
+          "signature": "stack?: string",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "[iterator]()",
+          "signature": "[iterator](): EffectIterator<Effect<never, AutoReloginLoginError, never>>",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "[NodeInspectSymbol]()",
+          "signature": "[NodeInspectSymbol](): unknown",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A>(this: A): A",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B>(this: A, ab: (_: A) => B): B",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C>(this: A, ab: (_: A) => B, bc: (_: B) => C): C",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D): D",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E): E",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F): F",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G): G",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H): H",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I): I",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J): J",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K): K",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L): L",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M): M",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N): N",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O): O",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P): P",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q): Q",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R): R",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S): S",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T): T",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "pipe()",
+          "signature": "pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): unknown",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toString()",
+          "signature": "toString(): string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:57",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L57"
+      }
+    },
+    "auto-relogin-login-request": {
+      "name": "AutoReloginLoginRequest",
+      "slug": "auto-relogin-login-request",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface AutoReloginLoginRequest",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "onLifecycle",
+          "signature": "readonly onLifecycle?: (event: AutoReloginLifecycleEvent) => Effect<void, unknown>",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "password",
+          "signature": "readonly password: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "server",
+          "signature": "readonly server?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "username",
+          "signature": "readonly username: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:44",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L44"
+      }
+    },
+    "auto-relogin-login-result": {
+      "name": "AutoReloginLoginResult",
+      "slug": "auto-relogin-login-result",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type AutoReloginLoginResult = { status: \"ready\" } | { status: \"server-select\" }",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:53",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L53"
       }
     },
     "auto-relogin-state": {
@@ -149,8 +605,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:23",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L23"
+        "path": "app/src/renderer/game/flash/features/AutoRelogin.ts:24",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L24"
       }
     },
     "auto-zone-state": {
@@ -198,8 +654,8 @@
       "definition": "type ClientPacketSendType = \"str\" | \"json\" | \"xml\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:363",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L363"
+        "path": "app/src/renderer/game/flash/Types.ts:384",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L384"
       }
     },
     "combat-kill-options": {
@@ -230,7 +686,7 @@
         {
           "kind": "property",
           "name": "profile",
-          "signature": "readonly profile?: unknown",
+          "signature": "readonly profile?: ScriptCombatProfileInput",
           "description": ""
         },
         {
@@ -242,7 +698,7 @@
         {
           "kind": "property",
           "name": "skillSet",
-          "signature": "readonly skillSet?: readonly number[]",
+          "signature": "readonly skillSet?: string | readonly Skill[]",
           "description": ""
         },
         {
@@ -259,8 +715,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:384",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L384"
+        "path": "app/src/renderer/game/flash/Types.ts:410",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L410"
       }
     },
     "drop-record": {
@@ -392,8 +848,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:55",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L55"
+        "path": "app/src/renderer/game/flash/Types.ts:59",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L59"
       }
     },
     "event-selector": {
@@ -412,13 +868,13 @@
         {
           "kind": "property",
           "name": "type",
-          "signature": "readonly type?: \"connection\" | \"debug\" | \"loaded\" | \"progress\" | \"packetReceived\" | \"packetParseFailed\" | \"questComplete\" | \"joinMap\" | \"zone\" | \"playerAfk\" | \"playerLocation\" | \"monsterDeath\" | \"auraAdded\" | \"auraRemoved\"",
+          "signature": "readonly type?: \"joinMap\" | \"connection\" | \"debug\" | \"loaded\" | \"progress\" | \"packetReceived\" | \"packetParseFailed\" | \"questComplete\" | \"zone\" | \"playerAfk\" | \"playerLocation\" | \"monsterDeath\" | \"auraAdded\" | \"auraRemoved\" | \"updateMessage\"",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:353",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L353"
+        "path": "app/src/renderer/game/flash/Types.ts:374",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L374"
       }
     },
     "faction-record": {
@@ -454,8 +910,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:79",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L79"
+        "path": "app/src/renderer/game/flash/Types.ts:83",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L83"
       }
     },
     "flash-event": {
@@ -466,8 +922,8 @@
       "definition": "type FlashEvent = FlashPacketEvent | FlashProjectionEvent | FlashRuntimeEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:346",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L346"
+        "path": "app/src/renderer/game/flash/Types.ts:367",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L367"
       }
     },
     "flash-event-handler": {
@@ -490,8 +946,8 @@
       "definition": "type FlashEventKind = \"packet\" | \"projection\" | \"runtime\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:235",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L235"
+        "path": "app/src/renderer/game/flash/Types.ts:239",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L239"
       }
     },
     "flash-packet": {
@@ -502,8 +958,8 @@
       "definition": "type FlashPacket = typeof FlashPacketSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:227",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L227"
+        "path": "app/src/renderer/game/flash/Types.ts:231",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L231"
       }
     },
     "flash-packet-direction": {
@@ -514,8 +970,8 @@
       "definition": "type FlashPacketDirection = typeof FlashPacketDirectionSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:180",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L180"
+        "path": "app/src/renderer/game/flash/Types.ts:184",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L184"
       }
     },
     "flash-packet-event": {
@@ -526,8 +982,8 @@
       "definition": "type FlashPacketEvent = { kind: \"packet\"; payload: FlashPacket; type: \"packetReceived\" } | { kind: \"packet\"; payload: { direction: FlashPacketDirection; raw: string }; type: \"packetParseFailed\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:258",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L258"
+        "path": "app/src/renderer/game/flash/Types.ts:262",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L262"
       }
     },
     "flash-projection-event": {
@@ -535,11 +991,11 @@
       "slug": "flash-projection-event",
       "kind": "type alias",
       "summary": "",
-      "definition": "type FlashProjectionEvent = { kind: \"projection\"; packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { kind: \"projection\"; packet: FlashPacket; payload: MapRecord; type: \"joinMap\" } | { kind: \"projection\"; packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { kind: \"projection\"; packet: FlashPacket; payload: { afk: boolean; entityId?: number; isSelf: boolean; username: string }; type: \"playerAfk\" } | { kind: \"projection\"; packet: FlashPacket; payload: { cell?: string; entityId?: number; isSelf: boolean; pad?: string; position?: Position; username: string }; type: \"playerLocation\" } | { kind: \"projection\"; packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { kind: \"projection\"; packet: FlashPacket; payload: { aura: AuraRecord; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" }",
+      "definition": "type FlashProjectionEvent = { kind: \"projection\"; packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { kind: \"projection\"; packet: FlashPacket; payload: MapRecord; type: \"joinMap\" } | { kind: \"projection\"; packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { kind: \"projection\"; packet: FlashPacket; payload: { afk: boolean; entityId?: number; isSelf: boolean; username: string }; type: \"playerAfk\" } | { kind: \"projection\"; packet: FlashPacket; payload: { cell?: string; entityId?: number; isSelf: boolean; pad?: string; position?: Position; username: string }; type: \"playerLocation\" } | { kind: \"projection\"; packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { kind: \"projection\"; packet: FlashPacket; payload: { aura: AuraRecord; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName?: string; auraPhase?: \"off\" | \"on\"; message: string; monMapId?: number; source: \"animation\" | \"aura\"; sourceMonMapId?: number; targetId?: number; targetMonMapId?: number; targetName?: string; targetType?: \"monster\" | \"player\" }; type: \"updateMessage\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:273",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L273"
+        "path": "app/src/renderer/game/flash/Types.ts:277",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L277"
       }
     },
     "flash-runtime-event": {
@@ -550,8 +1006,8 @@
       "definition": "type FlashRuntimeEvent = { kind: \"runtime\"; payload: { status: string }; type: \"connection\" } | { kind: \"runtime\"; payload: { message: string }; type: \"debug\" } | { kind: \"runtime\"; type: \"loaded\" } | { kind: \"runtime\"; payload: { percent: number }; type: \"progress\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:237",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L237"
+        "path": "app/src/renderer/game/flash/Types.ts:241",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L241"
       }
     },
     "hunt-options": {
@@ -569,8 +1025,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:395",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L395"
+        "path": "app/src/renderer/game/flash/Types.ts:421",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L421"
       }
     },
     "inventory-item-selector": {
@@ -714,8 +1170,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:27",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L27"
+        "path": "app/src/renderer/game/flash/Types.ts:31",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L31"
       }
     },
     "item-selector": {
@@ -726,8 +1182,8 @@
       "definition": "type ItemSelector = InventoryItemSelector | number | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:17",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L17"
+        "path": "app/src/renderer/game/flash/Types.ts:21",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L21"
       }
     },
     "map-record": {
@@ -757,8 +1213,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:142",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L142"
+        "path": "app/src/renderer/game/flash/Types.ts:146",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L146"
       }
     },
     "monster-record": {
@@ -836,8 +1292,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:128",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L128"
+        "path": "app/src/renderer/game/flash/Types.ts:132",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L132"
       }
     },
     "monster-selector": {
@@ -848,8 +1304,8 @@
       "definition": "type MonsterSelector = MonsterSelector | number | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:19",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L19"
+        "path": "app/src/renderer/game/flash/Types.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L23"
       }
     },
     "monster-target-info": {
@@ -891,8 +1347,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:408",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L408"
+        "path": "app/src/renderer/game/flash/Types.ts:434",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L434"
       }
     },
     "outfit-record": {
@@ -916,8 +1372,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:86",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L86"
+        "path": "app/src/renderer/game/flash/Types.ts:90",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L90"
       }
     },
     "packet-selector": {
@@ -947,8 +1403,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:229",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L229"
+        "path": "app/src/renderer/game/flash/Types.ts:233",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L233"
       }
     },
     "player-record": {
@@ -1044,8 +1500,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:111",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L111"
+        "path": "app/src/renderer/game/flash/Types.ts:115",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L115"
       }
     },
     "player-target-info": {
@@ -1081,8 +1537,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:148",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L148"
+        "path": "app/src/renderer/game/flash/Types.ts:152",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L152"
       }
     },
     "quantity-options": {
@@ -1100,8 +1556,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:404",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L404"
+        "path": "app/src/renderer/game/flash/Types.ts:430",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L430"
       }
     },
     "quest-record": {
@@ -1131,8 +1587,20 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:73",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L73"
+        "path": "app/src/renderer/game/flash/Types.ts:77",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L77"
+      }
+    },
+    "script-combat-profile-input": {
+      "name": "ScriptCombatProfileInput",
+      "slug": "script-combat-profile-input",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ScriptCombatProfileInput = CombatProfile | CombatProfileDefinition | string",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:405",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L405"
       }
     },
     "script-input-value": {
@@ -1180,8 +1648,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptApi.ts:101",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L101"
+        "path": "app/src/renderer/game/scripting/ScriptApi.ts:103",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L103"
       }
     },
     "server-packet-send-type": {
@@ -1192,8 +1660,8 @@
       "definition": "type ServerPacketSendType = \"String\" | \"Json\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:365",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L365"
+        "path": "app/src/renderer/game/flash/Types.ts:386",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L386"
       }
     },
     "server-record": {
@@ -1253,8 +1721,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:91",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L91"
+        "path": "app/src/renderer/game/flash/Types.ts:95",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L95"
       }
     },
     "shop-info-record": {
@@ -1302,8 +1770,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:60",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L60"
+        "path": "app/src/renderer/game/flash/Types.ts:64",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L64"
       }
     },
     "shop-item-record": {
@@ -1429,8 +1897,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:69",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L69"
+        "path": "app/src/renderer/game/flash/Types.ts:73",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L73"
       }
     },
     "shop-item-selector": {
@@ -1441,8 +1909,20 @@
       "definition": "type ShopItemSelector = ShopItemSelector | InventoryItemSelector | number | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L21"
+        "path": "app/src/renderer/game/flash/Types.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L25"
+      }
+    },
+    "skill": {
+      "name": "Skill",
+      "slug": "skill",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type Skill = number | string",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:403",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L403"
       }
     },
     "skill-use-options": {
@@ -1466,8 +1946,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:399",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L399"
+        "path": "app/src/renderer/game/flash/Types.ts:425",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L425"
       }
     },
     "state-disposer": {
@@ -1564,8 +2044,8 @@
       "definition": "type UnknownRecord = Record<string, unknown>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:15",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L15"
+        "path": "app/src/renderer/game/flash/Types.ts:19",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L19"
       }
     },
     "wait-options": {
@@ -1589,8 +2069,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:358",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L358"
+        "path": "app/src/renderer/game/flash/Types.ts:379",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L379"
       }
     }
   }

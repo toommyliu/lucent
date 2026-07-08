@@ -14,7 +14,7 @@ tableOfContents:
 
 <a id="member-features-autorelogin-disable"></a>
 
-### `features.autoRelogin.disable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L36" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:36" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.disable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L69" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:69" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.disable(): Effect.Effect<AutoReloginState, never, never>
@@ -26,7 +26,7 @@ features.autoRelogin.disable(): Effect.Effect<AutoReloginState, never, never>
 
 <a id="member-features-autorelogin-enable"></a>
 
-### `features.autoRelogin.enable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L37" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:37" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.enable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L70" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:70" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.enable(): Effect.Effect<AutoReloginState, never, never>
@@ -38,7 +38,7 @@ features.autoRelogin.enable(): Effect.Effect<AutoReloginState, never, never>
 
 <a id="member-features-autorelogin-getdelay"></a>
 
-### `features.autoRelogin.getDelay()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L38" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:38" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.getDelay()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L71" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:71" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.getDelay(): Effect.Effect<number, never, never>
@@ -50,7 +50,7 @@ features.autoRelogin.getDelay(): Effect.Effect<number, never, never>
 
 <a id="member-features-autorelogin-getserver"></a>
 
-### `features.autoRelogin.getServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L39" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:39" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.getServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L72" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:72" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.getServer(): Effect.Effect<string | undefined, never, never>
@@ -62,7 +62,7 @@ features.autoRelogin.getServer(): Effect.Effect<string | undefined, never, never
 
 <a id="member-features-autorelogin-getstate"></a>
 
-### `features.autoRelogin.getState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L40" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:40" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.getState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L73" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:73" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.getState(): Effect.Effect<AutoReloginState, never, never>
@@ -74,7 +74,7 @@ features.autoRelogin.getState(): Effect.Effect<AutoReloginState, never, never>
 
 <a id="member-features-autorelogin-isenabled"></a>
 
-### `features.autoRelogin.isEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L41" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:41" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.isEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L74" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:74" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.isEnabled(): Effect.Effect<boolean, never, never>
@@ -86,7 +86,7 @@ features.autoRelogin.isEnabled(): Effect.Effect<boolean, never, never>
 
 <a id="member-features-autorelogin-onstate"></a>
 
-### `features.autoRelogin.onState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L42" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:42" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.onState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L75" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:75" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.onState(listener: (state: AutoReloginState) => void, options?: StateSubscriptionOptions): Effect.Effect<StateDisposer, never, never>
@@ -101,9 +101,25 @@ features.autoRelogin.onState(listener: (state: AutoReloginState) => void, option
 
 **Errors:** `never`
 
+<a id="member-features-autorelogin-runlogin"></a>
+
+### `features.autoRelogin.runLogin()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L79" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:79" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+features.autoRelogin.runLogin(request: AutoReloginLoginRequest): Effect.Effect<AutoReloginLoginResult, AutoReloginLoginError, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `request` | <a href="/scripting/types/auto-relogin-login-request/" data-script-type="auto-relogin-login-request"><code>AutoReloginLoginRequest</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** <a href="/scripting/types/auto-relogin-login-result/" data-script-type="auto-relogin-login-result"><code>AutoReloginLoginResult</code></a>
+
+**Errors:** <a href="/scripting/types/auto-relogin-login-error/" data-script-type="auto-relogin-login-error"><code>AutoReloginLoginError</code></a>
+
 <a id="member-features-autorelogin-setdelay"></a>
 
-### `features.autoRelogin.setDelay()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L46" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:46" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.setDelay()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L82" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:82" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.setDelay(delayMs: number): Effect.Effect<AutoReloginState, never, never>
@@ -119,7 +135,7 @@ features.autoRelogin.setDelay(delayMs: number): Effect.Effect<AutoReloginState, 
 
 <a id="member-features-autorelogin-setenabled"></a>
 
-### `features.autoRelogin.setEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L47" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:47" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.setEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L83" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:83" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.setEnabled(enabled: boolean): Effect.Effect<AutoReloginState, never, never>
@@ -135,7 +151,7 @@ features.autoRelogin.setEnabled(enabled: boolean): Effect.Effect<AutoReloginStat
 
 <a id="member-features-autorelogin-setserver"></a>
 
-### `features.autoRelogin.setServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L48" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:48" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoRelogin.setServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoRelogin.ts#L84" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoRelogin.ts:84" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoRelogin.setServer(serverName: string): Effect.Effect<AutoReloginState, never, never>

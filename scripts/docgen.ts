@@ -1243,9 +1243,7 @@ const isDocSourceReflection = (
   return (
     relativePath.startsWith("app/src/shared/") ||
     relativePath.startsWith("app/src/renderer/game/") ||
-    relativePath.startsWith("app/src/renderer/windows/game/") ||
-    relativePath.startsWith("packages/game/src/") ||
-    relativePath.startsWith("packages/collection/src/")
+    relativePath.startsWith("packages/core/src/")
   );
 };
 
@@ -1475,9 +1473,7 @@ const typedocEntryPoints = (
 
   addSourceFile(options.sourceFile);
   for (const sourceFile of program.getSourceFiles()) {
-    if (
-      sourceFile.fileName.endsWith("app/src/renderer/windows/game/global.d.ts")
-    ) {
+    if (sourceFile.fileName.endsWith("app/src/renderer/game/global.d.ts")) {
       addSourceFile(sourceFile.fileName);
     }
   }
@@ -1529,9 +1525,21 @@ const createTypeDocProject = (
             esModuleInterop: true,
             allowSyntheticDefaultImports: true,
             noEmit: true,
-            baseUrl: "app",
+            baseUrl: ".",
             paths: {
-              "*": ["./*"],
+              "@lucent/core": ["packages/core/src/index.ts"],
+              "@lucent/core/accounts": ["packages/core/src/accounts.ts"],
+              "@lucent/core/appearance": ["packages/core/src/appearance.ts"],
+              "@lucent/core/army": ["packages/core/src/army.ts"],
+              "@lucent/core/combatProfiles": [
+                "packages/core/src/combatProfiles.ts",
+              ],
+              "@lucent/core/hotkeys": ["packages/core/src/hotkeys.ts"],
+              "@lucent/core/scriptInputs": [
+                "packages/core/src/scriptInputs.ts",
+              ],
+              "@lucent/core/settings": ["packages/core/src/settings.ts"],
+              "*": ["app/*"],
             },
           },
         },

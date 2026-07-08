@@ -2,7 +2,7 @@ import { nativeTheme } from "electron";
 
 import { Context, Effect, Layer, Schema } from "effect";
 
-import { ThemeModeSchema, type ThemeMode } from "../../shared/settings";
+import { ThemeModeSchema, type ThemeMode } from "@lucent/core/settings";
 
 export class ElectronThemeError extends Schema.TaggedErrorClass<ElectronThemeError>()(
   "ElectronThemeError",

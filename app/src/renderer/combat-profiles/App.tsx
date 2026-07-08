@@ -46,7 +46,6 @@ import {
   DEFAULT_COMBAT_PROFILE_DELAY_MS,
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   DEFAULT_COMBAT_PROFILE_ROLE,
-  makeCombatProfileId,
   type CombatProfile,
   type CombatProfileMessageTrigger,
   type CombatProfileMessageTriggerDefinition,
@@ -57,13 +56,14 @@ import {
   type CombatProfileLibrary,
   type CombatProfileStep,
   type CombatProfileStepDefinition,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import type { DesktopBridge } from "../../shared/desktopBridge";
 import {
   getPreferredCombatProfileId,
   readStoredId,
   writeStoredId,
 } from "../lib/combatProfileSelection";
+import { createRandomId } from "../../shared/randomId";
 
 type CombatProfilesDesktopBridge = DesktopBridge & {
   readonly combatProfiles: NonNullable<DesktopBridge["combatProfiles"]>;
@@ -522,7 +522,7 @@ export function App(): JSX.Element {
     }
 
     const baseLabel = "New Profile";
-    const id = makeCombatProfileId(`${baseLabel} ${Date.now()}`);
+    const id = createRandomId("profile");
     const profile: CombatProfile = {
       id,
       label: baseLabel,
@@ -530,7 +530,7 @@ export function App(): JSX.Element {
       delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
       cooldownMode: "use-if-ready",
       steps: [1, 2, 3, 4].map((skill) => ({
-        id: `${id}-${skill}`,
+        id: createRandomId("step"),
         skill,
         conditions: [],
       })),
@@ -575,7 +575,7 @@ export function App(): JSX.Element {
   };
 
   const addStep = (): void => {
-    const id = `${selectedId()}-step-${Date.now()}`;
+    const id = createRandomId("step");
     setDraftSteps((steps) => [
       ...steps,
       {
@@ -668,7 +668,7 @@ export function App(): JSX.Element {
     setDraftMessageTriggers((triggers) => [
       ...triggers,
       {
-        id: `${selectedId()}-trigger-${Date.now()}`,
+        id: createRandomId("trigger"),
         messageIncludes: "",
         skill: 5,
         source: "any",

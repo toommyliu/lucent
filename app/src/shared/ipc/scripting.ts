@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import {
   ScriptInputsDefinitionSchema,
   ScriptInputValuesSchema,
-} from "../scriptInputs";
+} from "@lucent/core/scriptInputs";
 import { defineInvoke } from "./core";
 
 const namespace = "desktop:scripting";

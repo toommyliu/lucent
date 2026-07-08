@@ -10,7 +10,7 @@ import {
   rgbToHex,
   serializeAppearanceSnapshotArgument,
 } from "./appearance";
-import { DEFAULT_APP_SETTINGS } from "./settings";
+import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 
 describe("appearance bootstrap", () => {
   it("creates a dark fallback snapshot and applies it to the root element", () => {

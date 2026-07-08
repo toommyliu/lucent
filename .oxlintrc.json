@@ -20,6 +20,7 @@
   "rules": {
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
+    "lucent/no-inline-schema-compile": "warn",
     "lucent/no-manual-effect-runtime-in-tests": "error"
   }
 }

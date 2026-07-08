@@ -4,7 +4,7 @@ import { Menu, app, session, type MenuItemConstructorOptions } from "electron";
 
 import { Context, Effect, Layer, Schema, Scope } from "effect";
 
-import type { ThemeMode } from "../../shared/settings";
+import type { ThemeMode } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";

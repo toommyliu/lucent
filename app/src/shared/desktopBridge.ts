@@ -2,9 +2,12 @@ import type {
   AppSettings,
   AppearancePatch,
   PreferencesPatch,
-} from "./settings";
-import type { HotkeysPatch } from "./hotkeys";
-import type { CombatProfile, CombatProfileLibrary } from "./combat-profiles";
+} from "@lucent/core/settings";
+import type { HotkeysPatch } from "@lucent/core/hotkeys";
+import type {
+  CombatProfile,
+  CombatProfileLibrary,
+} from "@lucent/core/combatProfiles";
 import type {
   ArmyConfigPayload,
   ArmyFailPayload,
@@ -14,9 +17,12 @@ import type {
   ArmySessionPayload,
   ArmyStartPayload,
   ArmySyncPayload,
-} from "./army";
+} from "@lucent/core/army";
 import type { ScriptFile, ScriptOpenFileResult } from "./ipc/scripting";
-import type { ScriptInputsDefinition, ScriptInputValues } from "./scriptInputs";
+import type {
+  ScriptInputsDefinition,
+  ScriptInputValues,
+} from "@lucent/core/scriptInputs";
 import type { UpdateCheckState } from "./updates";
 import type {
   AccountGameLaunchPayload,
@@ -31,7 +37,7 @@ import type {
   ManagedAccountGroupDraft,
   ManagedAccountGroupPatch,
   ManagedAccountPatch,
-} from "./accounts";
+} from "@lucent/core/accounts";
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =

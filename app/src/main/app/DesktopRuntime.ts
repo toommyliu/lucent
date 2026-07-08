@@ -1,6 +1,6 @@
 import { Cause, Effect } from "effect";
 
-import type { AppSettings } from "../../shared/settings";
+import type { AppSettings } from "@lucent/core/settings";
 import type { CliOptions } from "../cli";
 import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import type { FlashStartupResult } from "./Preflight";
