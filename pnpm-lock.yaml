@@ -67,6 +67,9 @@ importers:
 
   app:
     dependencies:
+      '@lucent/core':
+        specifier: workspace:*
+        version: link:../packages/core
       '@lucent/ui':
         specifier: workspace:*
         version: link:../packages/ui
@@ -150,6 +153,22 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.9
         version: 0.9.9(prettier@3.8.3)(typescript@5.9.3)
+
+  packages/core:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.83
+        version: 4.0.0-beta.83
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.0-beta.83
+        version: 4.0.0-beta.83(effect@4.0.0-beta.83)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@24.12.2)(happy-dom@20.9.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@24.12.2)(happy-dom@20.9.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/electron:
     dependencies:

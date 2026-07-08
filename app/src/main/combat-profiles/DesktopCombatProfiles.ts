@@ -9,7 +9,7 @@ import {
   serializeCombatProfileLibrary,
   type CombatProfile,
   type CombatProfileLibrary,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   type JsonFileError,

@@ -4,7 +4,10 @@ import type {
   PreferencesPatch,
 } from "./settings";
 import type { HotkeysPatch } from "./hotkeys";
-import type { CombatProfile, CombatProfileLibrary } from "./combat-profiles";
+import type {
+  CombatProfile,
+  CombatProfileLibrary,
+} from "@lucent/core/combatProfiles";
 import type {
   ArmyConfigPayload,
   ArmyFailPayload,

@@ -14,8 +14,17 @@ Referenced types are generated from the types directly linked by the documented 
 
 | Type | Kind | Summary |
 | --- | --- | --- |
+| <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
+| <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
+| <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
+| <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
 | <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a> | interface |  |
 | <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | interface |  |
+| <a href="/scripting/types/auto-relogin-lifecycle-event/" data-script-type="auto-relogin-lifecycle-event"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
+| <a href="/scripting/types/auto-relogin-lifecycle-step/" data-script-type="auto-relogin-lifecycle-step"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
+| <a href="/scripting/types/auto-relogin-login-error/" data-script-type="auto-relogin-login-error"><code>AutoReloginLoginError</code></a> | class |  |
+| <a href="/scripting/types/auto-relogin-login-request/" data-script-type="auto-relogin-login-request"><code>AutoReloginLoginRequest</code></a> | interface |  |
+| <a href="/scripting/types/auto-relogin-login-result/" data-script-type="auto-relogin-login-result"><code>AutoReloginLoginResult</code></a> | type alias |  |
 | <a href="/scripting/types/auto-relogin-state/" data-script-type="auto-relogin-state"><code>AutoReloginState</code></a> | interface |  |
 | <a href="/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a> | interface |  |
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
@@ -50,6 +59,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
 | <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> | interface |  |
 | <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a> | interface |  |
+| <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
@@ -58,6 +68,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/shop-info-record/" data-script-type="shop-info-record"><code>ShopInfoRecord</code></a> | interface |  |
 | <a href="/scripting/types/shop-item-record/" data-script-type="shop-item-record"><code>ShopItemRecord</code></a> | interface |  |
 | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
+| <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
 | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
 | <a href="/scripting/types/state-disposer/" data-script-type="state-disposer"><code>StateDisposer</code></a> | type alias |  |
 | <a href="/scripting/types/state-subscription-options/" data-script-type="state-subscription-options"><code>StateSubscriptionOptions</code></a> | interface |  |

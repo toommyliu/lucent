@@ -14,6 +14,35 @@ const EFFECT_RUNTIME_METHODS = new Set([
   "unsafeRunSync",
 ]);
 
+const SCHEMA_COMPILER_METHODS = new Set([
+  "is",
+  "asserts",
+  "decodeEffect",
+  "decodeExit",
+  "decodeOption",
+  "decodePromise",
+  "decodeResult",
+  "decodeSync",
+  "decodeUnknownEffect",
+  "decodeUnknownExit",
+  "decodeUnknownOption",
+  "decodeUnknownPromise",
+  "decodeUnknownResult",
+  "decodeUnknownSync",
+  "encodeEffect",
+  "encodeExit",
+  "encodeOption",
+  "encodePromise",
+  "encodeResult",
+  "encodeSync",
+  "encodeUnknownEffect",
+  "encodeUnknownExit",
+  "encodeUnknownOption",
+  "encodeUnknownPromise",
+  "encodeUnknownResult",
+  "encodeUnknownSync",
+]);
+
 const getPropertyName = (property) => {
   if (
     property?.type === "Identifier" ||
@@ -39,6 +68,15 @@ const unwrapExpression = (node) => {
     current = current.expression;
   }
   return current;
+};
+
+const isUppercaseIdentifier = (node) => {
+  if (node?.type !== "Identifier") {
+    return false;
+  }
+
+  const [firstChar] = node.name;
+  return firstChar !== undefined && firstChar.toUpperCase() === firstChar;
 };
 
 const getBannedRunner = (callee) => {
@@ -70,6 +108,74 @@ const getBannedRunner = (callee) => {
   return undefined;
 };
 
+const getSchemaCompilerMethod = (callee) => {
+  const expression = unwrapExpression(callee);
+  if (expression?.type !== "MemberExpression") {
+    return undefined;
+  }
+
+  const object = unwrapExpression(expression.object);
+  const propertyName = getPropertyName(expression.property);
+
+  return object?.type === "Identifier" &&
+    object.name === "Schema" &&
+    propertyName !== undefined &&
+    SCHEMA_COMPILER_METHODS.has(propertyName)
+    ? propertyName
+    : undefined;
+};
+
+const isStaticSchemaReference = (node) => {
+  const expression = unwrapExpression(node);
+  if (expression?.type === "Identifier") {
+    return isUppercaseIdentifier(expression);
+  }
+
+  if (expression?.type !== "MemberExpression") {
+    return false;
+  }
+
+  const object = unwrapExpression(expression.object);
+  return isUppercaseIdentifier(object) || isStaticSchemaReference(object);
+};
+
+const isNestedStaticSchemaCall = (node) => {
+  const expression = unwrapExpression(node);
+  if (expression?.type !== "CallExpression") {
+    return false;
+  }
+
+  const callee = unwrapExpression(expression.callee);
+  if (callee?.type !== "MemberExpression") {
+    return false;
+  }
+
+  const object = unwrapExpression(callee.object);
+  if (object?.type !== "Identifier" || object.name !== "Schema") {
+    return false;
+  }
+
+  const method = getPropertyName(callee.property);
+  if (method === "fromJsonString") {
+    const [firstArg] = expression.arguments;
+    return (
+      isStaticSchemaReference(firstArg) || isNestedStaticSchemaCall(firstArg)
+    );
+  }
+
+  return true;
+};
+
+const isImmediatelyInvoked = (node) => {
+  const expression = unwrapExpression(node);
+  const parent = unwrapExpression(expression?.parent);
+
+  return (
+    parent?.type === "CallExpression" &&
+    unwrapExpression(parent.callee) === expression
+  );
+};
+
 const noManualEffectRuntimeInTests = defineRule({
   meta: {
     type: "problem",
@@ -99,11 +205,71 @@ const noManualEffectRuntimeInTests = defineRule({
   },
 });
 
+const schemaCompilerMessage = (method, hasInlineSchema) =>
+  hasInlineSchema
+    ? `Hoist Schema.${method}(...) to module scope: both the inline schema and compiled function are rebuilt on every call.`
+    : `Hoist Schema.${method}(...) to module scope: the compiled function is rebuilt on every call.`;
+
+const noInlineSchemaCompile = defineRule({
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow inline Effect Schema decoder/encoder compiler calls inside function bodies.",
+    },
+  },
+  create(context) {
+    if (TEST_FILE_PATTERN.test(context.filename)) {
+      return {};
+    }
+
+    let functionDepth = 0;
+
+    const enterFunction = () => {
+      functionDepth += 1;
+    };
+    const exitFunction = () => {
+      functionDepth -= 1;
+    };
+
+    return {
+      FunctionDeclaration: enterFunction,
+      "FunctionDeclaration:exit": exitFunction,
+      FunctionExpression: enterFunction,
+      "FunctionExpression:exit": exitFunction,
+      ArrowFunctionExpression: enterFunction,
+      "ArrowFunctionExpression:exit": exitFunction,
+      CallExpression(node) {
+        if (functionDepth === 0) {
+          return;
+        }
+
+        const method = getSchemaCompilerMethod(node.callee);
+        if (method === undefined || !isImmediatelyInvoked(node)) {
+          return;
+        }
+
+        const [firstArg] = node.arguments;
+        const hasInlineSchema = isNestedStaticSchemaCall(firstArg);
+        if (!hasInlineSchema && !isStaticSchemaReference(firstArg)) {
+          return;
+        }
+
+        context.report({
+          node: node.callee,
+          message: schemaCompilerMessage(method, hasInlineSchema),
+        });
+      },
+    };
+  },
+});
+
 module.exports = definePlugin({
   meta: {
     name: "lucent",
   },
   rules: {
     "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTests,
+    "no-inline-schema-compile": noInlineSchemaCompile,
   },
 });

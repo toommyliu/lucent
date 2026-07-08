@@ -16,6 +16,7 @@ tableOfContents:
 
 | Namespace | Description |
 | --- | --- |
+| [`api.army`](/scripting/api/army/) | Army APIs. |
 | [`api.auth`](/scripting/api/auth/) | Auth APIs. |
 | [`api.bank`](/scripting/api/bank/) | Bank APIs. |
 | [`api.combat`](/scripting/api/combat/) | Combat APIs. |

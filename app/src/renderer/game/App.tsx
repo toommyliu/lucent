@@ -44,7 +44,7 @@ import {
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   getCombatProfileById,
   type CombatProfileLibrary,
-} from "../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import type { ScriptFile } from "../../shared/ipc/scripting";
 import {
   normalizeScriptInputValues,

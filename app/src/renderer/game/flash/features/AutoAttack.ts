@@ -4,7 +4,7 @@ import {
   getCombatProfileById,
   type CombatProfile,
   type CombatProfileLibrary,
-} from "../../../../shared/combat-profiles";
+} from "@lucent/core/combatProfiles";
 import {
   castCombatProfileMessageTrigger,
   castNextCombatProfileStep,

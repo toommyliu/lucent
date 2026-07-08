@@ -710,6 +710,11 @@ const stripDeclarationText = (text: string): string =>
     .replace(/import\([^)]*\)\./g, "")
     .replace(/Schema\.Literals<[^;]+;/g, "unknown;");
 
+const isSimpleHeritageExpression = (expression: ts.Expression): boolean =>
+  ts.isIdentifier(expression) ||
+  (ts.isPropertyAccessExpression(expression) &&
+    isSimpleHeritageExpression(expression.expression));
+
 const renderClassAsInterface = (
   checker: ts.TypeChecker,
   declaration: ts.ClassDeclaration,
@@ -723,7 +728,9 @@ const renderClassAsInterface = (
   const extendsClause = declaration.heritageClauses
     ?.flatMap((clause) =>
       clause.token === ts.SyntaxKind.ExtendsKeyword
-        ? clause.types.map((type) => type.getText(type.getSourceFile()))
+        ? clause.types
+            .filter((type) => isSimpleHeritageExpression(type.expression))
+            .map((type) => type.getText(type.getSourceFile()))
         : [],
     )
     .at(0);
