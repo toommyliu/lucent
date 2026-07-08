@@ -196,6 +196,7 @@ export const readSettingsSnapshotArgument = (
 };
 
 const DesktopBridgeViewSchema = Schema.Literals([
+  "account-manager",
   "combat-profiles",
   "game",
   "settings",

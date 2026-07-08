@@ -1,6 +1,8 @@
-import { Effect } from "effect";
+import { BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import { Effect, Schema } from "effect";
 
 import {
+  AccountsIpc,
   CombatProfilesIpc,
   ScriptingIpc,
   SettingsIpc,
@@ -9,15 +11,29 @@ import {
 } from "../../shared/ipc";
 import { ScriptInputRepository } from "../scripting/ScriptInputRepository";
 import { ScriptLibrary } from "../scripting/ScriptLibrary";
+import { DesktopAccounts } from "../accounts/DesktopAccounts";
 import { DesktopCombatProfiles } from "../combat-profiles/DesktopCombatProfiles";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { installArmyIpcHandlers } from "../army/ArmyIpcHandlers";
+import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { DesktopIpc } from "./DesktopIpc";
 
+class DesktopIpcSenderError extends Schema.TaggedErrorClass<DesktopIpcSenderError>()(
+  "DesktopIpcSenderError",
+  {
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 export const installDesktopIpcHandlers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc;
+  const accounts = yield* DesktopAccounts;
   const scriptInputs = yield* ScriptInputRepository;
   const scripts = yield* ScriptLibrary;
   const combatProfiles = yield* DesktopCombatProfiles;
@@ -29,8 +45,126 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
 
   yield* installArmyIpcHandlers;
 
+  const senderWindowId = (event: IpcMainInvokeEvent) =>
+    Effect.sync(() => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window === null) {
+        throw new Error("IPC sender is not attached to a BrowserWindow.");
+      }
+      return window.id;
+    });
+
+  const requireSenderKind = (
+    event: IpcMainInvokeEvent,
+    allowedKinds: readonly DesktopWindowKind[],
+  ) =>
+    senderWindowId(event).pipe(
+      Effect.flatMap((browserWindowId) =>
+        windows.getBrowserWindowKind(browserWindowId).pipe(
+          Effect.flatMap((kind) => {
+            if (kind !== null && allowedKinds.includes(kind)) {
+              return Effect.succeed({ browserWindowId, kind });
+            }
+
+            return Effect.fail(
+              new DesktopIpcSenderError({
+                detail: `IPC sender must be one of: ${allowedKinds.join(", ")}`,
+              }),
+            );
+          }),
+        ),
+      ),
+    );
+
+  const requireAccountManager = (event: IpcMainInvokeEvent) =>
+    requireSenderKind(event, ["account-manager"]);
+
+  const requireGame = (event: IpcMainInvokeEvent) =>
+    requireSenderKind(event, ["game"]);
+
   // Windows
   yield* ipc.handle(WindowsIpc.open, (payload) => windows.open(payload.kind));
+
+  // Accounts
+  yield* ipc.handle(AccountsIpc.getState, (_payload, event) =>
+    requireAccountManager(event).pipe(Effect.flatMap(() => accounts.getState)),
+  );
+  yield* ipc.handle(AccountsIpc.getServers, (_payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.getServers),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.getServerPings, (_payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.getServerPings),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.refreshServers, (_payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.refreshServers),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.getGameLaunch, (_payload, event) =>
+    requireGame(event).pipe(
+      Effect.flatMap(({ browserWindowId }) =>
+        accounts.getGameLaunch(browserWindowId),
+      ),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.createAccount, (draft, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.createAccount(draft)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.updateAccount, (payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() =>
+        accounts.updateAccount(payload.username, payload.patch),
+      ),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.deleteAccount, (payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.deleteAccount(payload.username)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.createGroup, (draft, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.createGroup(draft)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.updateGroup, (payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.updateGroup(payload.name, payload.patch)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.deleteGroup, (payload, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.deleteGroup(payload.name)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.launch, (request, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.launch(request)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.focusGameWindow, (request, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.focusGameWindow(request.gameWindowId)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.closeGameWindow, (request, event) =>
+    requireAccountManager(event).pipe(
+      Effect.flatMap(() => accounts.closeGameWindow(request.gameWindowId)),
+    ),
+  );
+  yield* ipc.handle(AccountsIpc.updateScriptStatus, (update, event) =>
+    requireGame(event).pipe(
+      Effect.flatMap(({ browserWindowId }) =>
+        accounts.updateScriptStatus(browserWindowId, update),
+      ),
+    ),
+  );
 
   // Combat Profiles
   yield* ipc.handle(CombatProfilesIpc.getState, () => combatProfiles.get);
@@ -83,6 +217,21 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   const unsubscribeSettings = yield* settings.onChanged((nextSettings) => {
     void runPromise(ipc.sendToAll(SettingsIpc.changed, nextSettings));
   });
+  const unsubscribeAccounts = yield* accounts.onChanged((state) => {
+    void runPromise(
+      windows
+        .getBrowserWindowIds("account-manager")
+        .pipe(
+          Effect.flatMap((browserWindowIds) =>
+            ipc.sendToBrowserWindowIds(
+              browserWindowIds,
+              AccountsIpc.changed,
+              state,
+            ),
+          ),
+        ),
+    );
+  });
   const unsubscribeCombatProfiles = yield* combatProfiles.onChanged(
     (library) => {
       void runPromise(ipc.sendToAll(CombatProfilesIpc.changed, library));
@@ -95,6 +244,7 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       unsubscribeSettings();
+      unsubscribeAccounts();
       unsubscribeCombatProfiles();
       unsubscribeUpdates();
     }),

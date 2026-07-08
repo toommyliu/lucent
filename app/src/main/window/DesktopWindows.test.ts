@@ -78,6 +78,9 @@ const makeHandle = (id: number): TestWindowHandle => {
       openDevTools: () => undefined,
       setWindowOpenHandler: () => undefined,
     },
+    close: () => {
+      visible = false;
+    },
     emit: (eventName, ...args) => {
       for (const listener of listeners.get(eventName) ?? []) {
         listener(...args);
@@ -232,6 +235,129 @@ describe("DesktopWindows", () => {
 
       createdHandles[0]?.emit("closed");
     }),
+  );
+
+  it.effect(
+    "places tiled game windows inside the current display work area",
+    () =>
+      Effect.gen(function* () {
+        const appDataDir = yield* Effect.promise(() =>
+          makeTempDir("lucent-window-data-"),
+        );
+        const workspaceDir = yield* Effect.promise(() =>
+          makeTempDir("lucent-window-workspace-"),
+        );
+        const env = makeDesktopEnvironment({
+          appDataDir,
+          assetsDir: join(appDataDir, "assets"),
+          isDev: true,
+          platform: "darwin",
+          rendererDir: join(appDataDir, "renderer"),
+          workspaceDir,
+        });
+        const observability = DesktopObservability.of({
+          debug: () => Effect.void,
+          error: () => Effect.void,
+          info: () => Effect.void,
+          installProcessHooks: Effect.void,
+          warn: () => Effect.void,
+        });
+
+        let createCount = 0;
+        const createdOptions: BrowserWindowConstructorOptions[] = [];
+        const electronWindow = ElectronWindow.of({
+          create: (options) =>
+            Effect.sync(() => {
+              createCount += 1;
+              createdOptions.push(options);
+              return makeHandle(createCount);
+            }),
+          loadFile: () => Effect.void,
+          reveal: () => Effect.void,
+        });
+        const session = ElectronSession.of({
+          prepareGameNetworking: Effect.void,
+        });
+        const app = ElectronApp.of({
+          appendCommandLineSwitch: () => Effect.void,
+          exit: () => Effect.void,
+          getVersion: Effect.succeed("0.0.1"),
+          isPackaged: Effect.succeed(false),
+          on: () => Effect.succeed(() => undefined),
+          relaunch: Effect.void,
+          quit: Effect.void,
+          whenReady: Effect.void,
+        });
+        const settings = DesktopSettings.of({
+          get: Effect.succeed(DEFAULT_APP_SETTINGS),
+          load: Effect.succeed(DEFAULT_APP_SETTINGS),
+          onChanged: () => Effect.succeed(() => undefined),
+          resetAppearance: Effect.succeed(DEFAULT_APP_SETTINGS),
+          resetHotkeys: Effect.succeed(DEFAULT_APP_SETTINGS),
+          updateAppearance: () => Effect.succeed(DEFAULT_APP_SETTINGS),
+          updateHotkeys: () => Effect.succeed(DEFAULT_APP_SETTINGS),
+          updatePreferences: () => Effect.succeed(DEFAULT_APP_SETTINGS),
+        });
+        const theme = ElectronTheme.of({
+          setThemeMode: () => Effect.void,
+          shouldUseDarkColors: Effect.succeed(true),
+        });
+        const layer = desktopWindowsLayer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(DesktopEnvironment, env),
+              Layer.succeed(DesktopObservability, observability),
+              Layer.succeed(ElectronApp, app),
+              Layer.succeed(ElectronSession, session),
+              Layer.succeed(ElectronTheme, theme),
+              Layer.succeed(ElectronWindow, electronWindow),
+              Layer.succeed(DesktopSettings, settings),
+            ),
+          ),
+        );
+        const windows = yield* DesktopWindows.pipe(Effect.provide(layer));
+
+        yield* windows.open("game", {
+          tile: { algorithm: "horizontal", count: 2, index: 1 },
+        });
+        yield* windows.open("game", {
+          tile: { algorithm: "vertical", count: 2, index: 1 },
+        });
+        yield* windows.open("game", {
+          tile: { algorithm: "auto-grid", count: 3, index: 2 },
+        });
+
+        expect(createdOptions[0]).toEqual(
+          expect.objectContaining({
+            height: 1080,
+            minHeight: 600,
+            minWidth: 800,
+            width: 960,
+            x: 960,
+            y: 0,
+          }),
+        );
+        expect(createdOptions[1]).toEqual(
+          expect.objectContaining({
+            height: 540,
+            minHeight: 540,
+            minWidth: 800,
+            width: 1920,
+            x: 0,
+            y: 540,
+          }),
+        );
+        expect(createdOptions[2]).toEqual(
+          expect.objectContaining({
+            height: 540,
+            minHeight: 540,
+            minWidth: 800,
+            width: 960,
+            x: 0,
+            y: 540,
+          }),
+        );
+      }),
   );
 
   it.effect("reuses the hidden settings window after close", () =>

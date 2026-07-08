@@ -1,5 +1,8 @@
-export type DesktopWindowKind = "combat-profiles" | "game" | "settings";
-export type DesktopViewId = "combat-profiles" | "game" | "settings";
+export type DesktopWindowKind =
+  | "account-manager"
+  | "combat-profiles"
+  | "game"
+  | "settings";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
 
 export interface DesktopWindowDefinition {
@@ -10,7 +13,6 @@ export interface DesktopWindowDefinition {
   readonly minWidth?: number;
   readonly requiresFlashPlugin: boolean;
   readonly singleInstance: boolean;
-  readonly view: DesktopViewId;
   readonly width: number;
 }
 
@@ -22,7 +24,6 @@ const desktopWindowCatalog: ReadonlyMap<
     "game",
     {
       kind: "game",
-      view: "game",
       width: 1024,
       height: 768,
       minWidth: 800,
@@ -36,7 +37,6 @@ const desktopWindowCatalog: ReadonlyMap<
     "settings",
     {
       kind: "settings",
-      view: "settings",
       width: 651,
       height: 654,
       minWidth: 560,
@@ -47,10 +47,22 @@ const desktopWindowCatalog: ReadonlyMap<
     },
   ],
   [
+    "account-manager",
+    {
+      kind: "account-manager",
+      width: 980,
+      height: 720,
+      minWidth: 760,
+      minHeight: 560,
+      closeBehavior: "hide",
+      requiresFlashPlugin: false,
+      singleInstance: true,
+    },
+  ],
+  [
     "combat-profiles",
     {
       kind: "combat-profiles",
-      view: "combat-profiles",
       width: 760,
       height: 560,
       minWidth: 560,

@@ -151,6 +151,18 @@ const causeMessage = (cause: Cause.Cause<unknown>): string => {
     : Cause.pretty(cause);
 };
 
+const logScriptFailureCause = (
+  cause: Cause.Cause<unknown>,
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    const squashed = Cause.squash(cause);
+    console.error(
+      "[script]",
+      "error running script:",
+      squashed instanceof Error ? squashed : causeMessage(cause),
+    );
+  });
+
 const isConnectionLoss = (event: FlashEvent): boolean =>
   event.kind === "runtime" &&
   event.type === "connection" &&
@@ -275,6 +287,7 @@ export const layer = Layer.effect(
 
         yield* active.scope.close;
         yield* Ref.set(activeRef, null);
+        yield* logScriptFailureCause(cause);
         yield* setStatus({
           ...activeStatusFields(active),
           failedAt: nowIso(),
@@ -474,16 +487,20 @@ export const layer = Layer.effect(
               );
             }
 
-            return finishIfActive(
-              id,
-              {
-                failedAt: nowIso(),
-                message: causeMessage(cause),
-                name: statusName(file),
-                ...(file.path === undefined ? {} : { path: file.path }),
-                state: "failed",
-              },
-              scope,
+            return logScriptFailureCause(cause).pipe(
+              Effect.andThen(
+                finishIfActive(
+                  id,
+                  {
+                    failedAt: nowIso(),
+                    message: causeMessage(cause),
+                    name: statusName(file),
+                    ...(file.path === undefined ? {} : { path: file.path }),
+                    state: "failed",
+                  },
+                  scope,
+                ),
+              ),
             );
           },
           onSuccess: () =>

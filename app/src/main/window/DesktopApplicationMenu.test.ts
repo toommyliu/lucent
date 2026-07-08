@@ -184,8 +184,14 @@ describe("DesktopApplicationMenu", () => {
           openReleasePage: Effect.succeed(false),
         });
         const windows = DesktopWindows.of({
+          closeBrowserWindow: () => Effect.succeed(true),
+          getBrowserWindowIds: () => Effect.succeed([]),
+          getBrowserWindowId: () => Effect.succeed(1),
+          getBrowserWindowKind: () => Effect.succeed(null),
+          onClosed: () => Effect.succeed(() => undefined),
           open: () => Effect.succeed("settings-1"),
           reveal: () => Effect.succeed(true),
+          revealBrowserWindow: () => Effect.succeed(true),
         });
         const app = ElectronApp.of({
           appendCommandLineSwitch: () => Effect.void,
@@ -292,8 +298,14 @@ describe("DesktopApplicationMenu", () => {
             openReleasePage: Effect.succeed(false),
           });
           const windows = DesktopWindows.of({
+            closeBrowserWindow: () => Effect.succeed(true),
+            getBrowserWindowIds: () => Effect.succeed([]),
+            getBrowserWindowId: () => Effect.succeed(1),
+            getBrowserWindowKind: () => Effect.succeed(null),
+            onClosed: () => Effect.succeed(() => undefined),
             open: () => Effect.succeed("settings-1"),
             reveal: () => Effect.succeed(true),
+            revealBrowserWindow: () => Effect.succeed(true),
           });
           const app = ElectronApp.of({
             appendCommandLineSwitch: () => Effect.void,

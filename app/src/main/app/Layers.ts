@@ -5,6 +5,7 @@ import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as ArmyConfigRepository from "../army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../army/ArmyCoordinator";
+import * as DesktopAccounts from "../accounts/DesktopAccounts";
 import * as DesktopCombatProfiles from "../combat-profiles/DesktopCombatProfiles";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
@@ -95,6 +96,12 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const accountsLayer = DesktopAccounts.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(environmentLayer, observabilityLayer, windowsLayer),
+    ),
+  );
+
   const applicationMenuLayer = DesktopApplicationMenu.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -106,6 +113,7 @@ export const makeDesktopLayer = (
         scriptingLayer,
         updatesLayer,
         windowsLayer,
+        accountsLayer,
       ),
     ),
   );
@@ -119,6 +127,7 @@ export const makeDesktopLayer = (
     armyLayer,
     electronLayer,
     environmentLayer,
+    accountsLayer,
     combatProfilesLayer,
     observabilityLayer,
     settingsLayer,

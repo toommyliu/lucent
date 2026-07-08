@@ -18,10 +18,32 @@ import type {
 import type { ScriptFile, ScriptOpenFileResult } from "./ipc/scripting";
 import type { ScriptInputsDefinition, ScriptInputValues } from "./scriptInputs";
 import type { UpdateCheckState } from "./updates";
+import type {
+  AccountGameLaunchPayload,
+  AccountGameServerPingsResult,
+  AccountGameServersResult,
+  AccountGameWindowTargetRequest,
+  AccountLaunchRequest,
+  AccountLaunchResult,
+  AccountManagerState,
+  AccountScriptStatusUpdate,
+  ManagedAccountDraft,
+  ManagedAccountGroupDraft,
+  ManagedAccountGroupPatch,
+  ManagedAccountPatch,
+} from "./accounts";
 
 export type AppPlatform = "linux" | "mac" | "windows";
-export type DesktopBridgeView = "combat-profiles" | "game" | "settings";
-export type DesktopBridgeWindowKind = "combat-profiles" | "game" | "settings";
+export type DesktopBridgeView =
+  | "account-manager"
+  | "combat-profiles"
+  | "game"
+  | "settings";
+export type DesktopBridgeWindowKind =
+  | "account-manager"
+  | "combat-profiles"
+  | "game"
+  | "settings";
 
 export interface DesktopSettingsBridge {
   readonly initial: AppSettings | null;
@@ -71,6 +93,48 @@ export interface DesktopCombatProfilesBridge {
   ) => Promise<CombatProfileLibrary>;
 }
 
+export interface DesktopAccountsBridge {
+  readonly closeGameWindow: (
+    request: AccountGameWindowTargetRequest,
+  ) => Promise<AccountManagerState>;
+  readonly createAccount: (
+    draft: ManagedAccountDraft,
+  ) => Promise<AccountManagerState>;
+  readonly createGroup: (
+    draft: ManagedAccountGroupDraft,
+  ) => Promise<AccountManagerState>;
+  readonly deleteAccount: (username: string) => Promise<AccountManagerState>;
+  readonly deleteGroup: (name: string) => Promise<AccountManagerState>;
+  readonly focusGameWindow: (
+    request: AccountGameWindowTargetRequest,
+  ) => Promise<AccountManagerState>;
+  readonly getServerPings: () => Promise<AccountGameServerPingsResult>;
+  readonly getServers: () => Promise<AccountGameServersResult>;
+  readonly getState: () => Promise<AccountManagerState>;
+  readonly launch: (
+    request: AccountLaunchRequest,
+  ) => Promise<AccountLaunchResult>;
+  readonly onChanged: (
+    listener: (state: AccountManagerState) => void,
+  ) => () => void;
+  readonly refreshServers: () => Promise<AccountGameServersResult>;
+  readonly updateAccount: (
+    username: string,
+    patch: ManagedAccountPatch,
+  ) => Promise<AccountManagerState>;
+  readonly updateGroup: (
+    name: string,
+    patch: ManagedAccountGroupPatch,
+  ) => Promise<AccountManagerState>;
+}
+
+export interface DesktopGameAccountsBridge {
+  readonly getGameLaunch: () => Promise<AccountGameLaunchPayload | null>;
+  readonly updateScriptStatus: (
+    update: AccountScriptStatusUpdate,
+  ) => Promise<void>;
+}
+
 export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
@@ -87,8 +151,10 @@ export interface DesktopArmyBridge {
 }
 
 export interface DesktopBridge {
+  readonly accounts?: DesktopAccountsBridge;
   readonly army?: DesktopArmyBridge;
   readonly combatProfiles?: DesktopCombatProfilesBridge;
+  readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

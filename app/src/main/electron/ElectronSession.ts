@@ -13,7 +13,9 @@ export class ElectronSession extends Context.Service<
   ElectronSessionShape
 >()("lucent/desktop/electron/ElectronSession") {}
 
-const getArtixLauncherUserAgent = (platform: NodeJS.Platform): string => {
+export const getArtixLauncherUserAgent = (
+  platform: NodeJS.Platform,
+): string => {
   if (platform === "darwin") {
     return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_16_0) AppleWebKit/537.36 (KHTML, like Gecko) ArtixGameLauncher/2.2.0 Chrome/80.0.3987.163 Electron/8.5.5 Safari/537.36";
   }
@@ -25,7 +27,7 @@ const getArtixLauncherUserAgent = (platform: NodeJS.Platform): string => {
   return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ArtixGameLauncher/2.2.0 Chrome/80.0.3987.163 Electron/8.5.5 Safari/537.36";
 };
 
-const getGameRequestHeaders = (
+export const getArtixLauncherRequestHeaders = (
   platform: NodeJS.Platform,
 ): Record<string, string> => ({
   "User-Agent": getArtixLauncherUserAgent(platform),
@@ -37,7 +39,7 @@ export const layer = Layer.effect(
   ElectronSession,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const gameRequestHeaders = getGameRequestHeaders(env.platform);
+    const gameRequestHeaders = getArtixLauncherRequestHeaders(env.platform);
     const gameUserAgent = getArtixLauncherUserAgent(env.platform);
     const configuredSessions = new WeakSet<Session>();
     let sessionCreatedHookInstalled = false;

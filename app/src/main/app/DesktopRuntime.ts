@@ -112,15 +112,9 @@ export const makeDesktopRuntime = (
 
       const requestedLaunchMode =
         cliOptions.launchMode ?? settings.preferences.launchMode;
-      if (requestedLaunchMode !== "game") {
-        yield* observability.warn(
-          "startup",
-          "Requested launch mode is not implemented yet; falling back to game",
-          { requestedLaunchMode },
-        );
-      }
-
-      yield* windows.open("game");
+      yield* windows.open(
+        requestedLaunchMode === "account-manager" ? "account-manager" : "game",
+      );
       yield* installDesktopDevRendererReload;
 
       if (settings.preferences.checkForUpdates) {

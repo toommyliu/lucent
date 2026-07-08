@@ -75,6 +75,13 @@ const rendererViews = [
   },
   {
     contentSecurityPolicy: baseContentSecurityPolicy,
+    entryPoint: "src/renderer/account-manager/index.tsx",
+    id: "account-manager",
+    ready: true,
+    title: "Account Manager",
+  },
+  {
+    contentSecurityPolicy: baseContentSecurityPolicy,
     entryPoint: "src/renderer/combat-profiles/index.tsx",
     id: "combat-profiles",
     ready: true,
