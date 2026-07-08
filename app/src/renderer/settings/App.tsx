@@ -61,6 +61,7 @@ import {
   type SettingsCommandDefinition as CommandDefinition,
   type SettingsCommandId as GameCommandId,
 } from "../../shared/hotkeys";
+import { hexToRgb, rgbEquals, rgbToHex } from "../../shared/appearance";
 import type { AppPlatform, DesktopBridge } from "../../shared/desktopBridge";
 import {
   DEFAULT_APP_SETTINGS,
@@ -154,30 +155,6 @@ const normalizeHotkeyBinding = (
 
 const clampFontSize = (value: number): number =>
   Math.min(24, Math.max(10, Math.round(value)));
-
-const rgbToHex = (rgb: ThemeRgb): string =>
-  `#${rgb.map((part) => part.toString(16).padStart(2, "0")).join("")}`;
-
-const rgbEquals = (left: ThemeRgb, right: ThemeRgb): boolean =>
-  left[0] === right[0] && left[1] === right[1] && left[2] === right[2];
-
-const hexToRgb = (hex: string): ThemeRgb | null => {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!match) {
-    return null;
-  }
-
-  const value = match[1];
-  if (!value) {
-    return null;
-  }
-
-  return [
-    Number.parseInt(value.slice(0, 2), 16),
-    Number.parseInt(value.slice(2, 4), 16),
-    Number.parseInt(value.slice(4, 6), 16),
-  ];
-};
 
 const tokenLabel = (name: ThemeTokenName): string =>
   name

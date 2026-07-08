@@ -3,7 +3,10 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   applyAppearanceSnapshotToDocument,
   createAppearanceSnapshot,
+  hexToRgb,
   readAppearanceSnapshotArgument,
+  rgbEquals,
+  rgbToCssValue,
   rgbToHex,
   serializeAppearanceSnapshotArgument,
 } from "./appearance";
@@ -41,6 +44,19 @@ describe("appearance bootstrap", () => {
     expect(properties.get("--background")).toBe(
       DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background.join(", "),
     );
+  });
+
+  it("formats, parses, and compares theme colors", () => {
+    expect(rgbToCssValue([1, 2, 3])).toBe("1, 2, 3");
+    expect(rgbToHex([1, 2, 3])).toBe("#010203");
+
+    expect(hexToRgb("#0a0B0c")).toEqual([10, 11, 12]);
+    expect(hexToRgb("0a0b0c")).toEqual([10, 11, 12]);
+    expect(hexToRgb("#abc")).toBeNull();
+    expect(hexToRgb("#not-a-color")).toBeNull();
+
+    expect(rgbEquals([1, 2, 3], [1, 2, 3])).toBe(true);
+    expect(rgbEquals([1, 2, 3], [1, 2, 4])).toBe(false);
   });
 
   it("decodes snapshot arguments through the snapshot schema", () => {
