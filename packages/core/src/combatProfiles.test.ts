@@ -6,6 +6,7 @@ import {
   CombatProfileLibrarySchema,
   CombatProfileNormalizationError,
   DEFAULT_COMBAT_PROFILE_ID,
+  duplicateCombatProfile,
   type CombatProfileLibrary,
   getCombatProfileById,
   isCombatProfileDefinition,
@@ -150,6 +151,45 @@ describe("combatProfiles", () => {
 
     expect(getCombatProfileById(library, "missing").id).toBe(
       DEFAULT_COMBAT_PROFILE_ID,
+    );
+  });
+
+  it("duplicates profiles with fresh nested ids and a unique label", () => {
+    const source = normalizeCombatProfile(canonicalLibrary.profiles[1]!);
+    const idCounts = {
+      profile: 0,
+      step: 0,
+      trigger: 0,
+    };
+    const duplicate = duplicateCombatProfile(
+      source,
+      [
+        ...canonicalLibrary.profiles,
+        { ...source, id: "copy-1", label: "Farm Rotation Copy" },
+        { ...source, id: "copy-2", label: "Farm Rotation Copy 2" },
+      ],
+      (prefix) => {
+        idCounts[prefix] += 1;
+        return `copy-${prefix}-${idCounts[prefix]}`;
+      },
+    );
+
+    expect(duplicate).toMatchObject({
+      id: "copy-profile-1",
+      label: "Farm Rotation Copy 3",
+      className: "ArchPaladin",
+      steps: [{ id: "copy-step-1", skill: 1 }],
+      messageTriggers: [{ id: "copy-trigger-1", messageIncludes: "enrage" }],
+    });
+    expect(duplicate.steps[0]).not.toBe(source.steps[0]);
+    expect(duplicate.steps[0]?.conditions[0]).not.toBe(
+      source.steps[0]?.conditions[0],
+    );
+    expect(duplicate.messageTriggers?.[0]?.id).not.toBe(
+      source.messageTriggers?.[0]?.id,
+    );
+    expect(duplicate.messageTriggers?.[0]).not.toBe(
+      source.messageTriggers?.[0],
     );
   });
 });

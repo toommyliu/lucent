@@ -116,6 +116,11 @@ export type CombatProfileMessageTriggerDefinition =
     readonly skill: number;
   };
 
+export type CombatProfileDuplicateIdPrefix = "profile" | "step" | "trigger";
+export type CombatProfileDuplicateIdFactory = (
+  prefix: CombatProfileDuplicateIdPrefix,
+) => string;
+
 export interface CombatProfileDefinition extends Partial<
   Omit<CombatProfile, "steps" | "messageTriggers">
 > {
@@ -439,6 +444,46 @@ export const findCombatProfileById = (
   profileId: string,
 ): CombatProfile | undefined =>
   library.profiles.find((profile) => profile.id === profileId);
+
+const getDuplicateCombatProfileLabel = (
+  label: string,
+  profiles: readonly CombatProfile[],
+): string => {
+  const labels = new Set(profiles.map((profile) => profile.label));
+  const copyLabel = `${label} Copy`;
+  if (!labels.has(copyLabel)) {
+    return copyLabel;
+  }
+
+  let index = 2;
+  while (labels.has(`${copyLabel} ${index}`)) {
+    index += 1;
+  }
+  return `${copyLabel} ${index}`;
+};
+
+export const duplicateCombatProfile = (
+  profile: CombatProfile,
+  profiles: readonly CombatProfile[],
+  createId: CombatProfileDuplicateIdFactory,
+): CombatProfile => ({
+  ...profile,
+  id: createId("profile"),
+  label: getDuplicateCombatProfileLabel(profile.label, profiles),
+  steps: profile.steps.map((step) => ({
+    ...step,
+    id: createId("step"),
+    conditions: step.conditions.map((condition) => ({ ...condition })),
+  })),
+  ...(profile.messageTriggers === undefined
+    ? {}
+    : {
+        messageTriggers: profile.messageTriggers.map((trigger) => ({
+          ...trigger,
+          id: createId("trigger"),
+        })),
+      }),
+});
 
 export const getCombatProfileById = (
   library: CombatProfileLibrary,
