@@ -1,4 +1,5 @@
 export * from "./army";
+export * from "./accounts";
 export * from "./combatProfiles";
 export * from "./core";
 export * from "./settings";

@@ -24,6 +24,13 @@ export interface DesktopIpcShape {
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) => Effect.Effect<void>;
+  readonly sendToBrowserWindowIds: <
+    Descriptor extends IpcEventDescriptor<unknown>,
+  >(
+    browserWindowIds: readonly number[],
+    descriptor: Descriptor,
+    payload: IpcEventPayload<Descriptor>,
+  ) => Effect.Effect<void>;
 }
 
 export class DesktopIpc extends Context.Service<DesktopIpc, DesktopIpcShape>()(
@@ -36,6 +43,25 @@ const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
       Effect.sync(() => {
         for (const window of BrowserWindow.getAllWindows()) {
           if (isElectronWindowUsable(window)) {
+            window.webContents.send(descriptor.channel, encoded);
+          }
+        }
+      }),
+    ),
+    Effect.catch(() => Effect.void),
+  );
+
+const sendToBrowserWindowIds: DesktopIpcShape["sendToBrowserWindowIds"] = (
+  browserWindowIds,
+  descriptor,
+  payload,
+) =>
+  Schema.encodeUnknownEffect(descriptor.payload)(payload).pipe(
+    Effect.flatMap((encoded) =>
+      Effect.sync(() => {
+        for (const browserWindowId of browserWindowIds) {
+          const window = BrowserWindow.fromId(browserWindowId);
+          if (window !== null && isElectronWindowUsable(window)) {
             window.webContents.send(descriptor.channel, encoded);
           }
         }
@@ -62,7 +88,7 @@ const makeDesktopIpc = Effect.gen(function* () {
       );
     });
 
-  return DesktopIpc.of({ handle, sendToAll });
+  return DesktopIpc.of({ handle, sendToAll, sendToBrowserWindowIds });
 });
 
 export const layer = Layer.effect(DesktopIpc, makeDesktopIpc);

@@ -4,6 +4,7 @@ import {
   Context,
   Effect,
   Layer,
+  Schema,
   SynchronizedRef,
   Number as EffectNumber,
 } from "effect";
@@ -32,6 +33,38 @@ export interface AutoReloginState {
   readonly waitingDelay: boolean;
 }
 
+export type AutoReloginLifecycleStep = "connect" | "login" | "ready";
+
+export interface AutoReloginLifecycleEvent {
+  readonly attemptsRemaining: number;
+  readonly message?: string;
+  readonly step: AutoReloginLifecycleStep;
+}
+
+export interface AutoReloginLoginRequest {
+  readonly onLifecycle?: (
+    event: AutoReloginLifecycleEvent,
+  ) => Effect.Effect<void, unknown>;
+  readonly password: string;
+  readonly server?: string;
+  readonly username: string;
+}
+
+export type AutoReloginLoginResult =
+  | { readonly status: "ready" }
+  | { readonly status: "server-select" };
+
+export class AutoReloginLoginError extends Schema.TaggedErrorClass<AutoReloginLoginError>()(
+  "AutoReloginLoginError",
+  {
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 export interface AutoReloginShape {
   readonly disable: () => Effect.Effect<AutoReloginState>;
   readonly enable: () => Effect.Effect<AutoReloginState>;
@@ -43,6 +76,9 @@ export interface AutoReloginShape {
     listener: (state: AutoReloginState) => void,
     options?: StateSubscriptionOptions,
   ) => Effect.Effect<StateDisposer>;
+  readonly runLogin: (
+    request: AutoReloginLoginRequest,
+  ) => Effect.Effect<AutoReloginLoginResult, AutoReloginLoginError>;
   readonly setDelay: (delayMs: number) => Effect.Effect<AutoReloginState>;
   readonly setEnabled: (enabled: boolean) => Effect.Effect<AutoReloginState>;
   readonly setServer: (serverName: string) => Effect.Effect<AutoReloginState>;
@@ -89,12 +125,23 @@ type AttemptFailure = {
 type AttemptResult =
   | { readonly status: "failure"; readonly failure: AttemptFailure }
   | { readonly status: "stale" }
-  | { readonly status: "success" };
+  | {
+      readonly result: AutoReloginLoginResult;
+      readonly status: "success";
+    };
+
+type AttemptRunResult =
+  | { readonly failure: AttemptFailure; readonly status: "failure" }
+  | { readonly status: "stale" }
+  | {
+      readonly result: AutoReloginLoginResult;
+      readonly status: "success";
+    };
 
 interface ReservedAttempt {
   readonly attemptId: number;
   readonly credentials: CapturedCredentials;
-  readonly server: string;
+  readonly server?: string;
 }
 
 interface ReserveAttemptResult {
@@ -176,6 +223,33 @@ const fail = (message: string, retryable: boolean): AttemptResult => ({
   failure: { message, retryable },
   status: "failure",
 });
+
+const succeed = (result: AutoReloginLoginResult): AttemptResult => ({
+  result,
+  status: "success",
+});
+
+const runFailure = (failure: AttemptFailure): AttemptRunResult => ({
+  failure,
+  status: "failure",
+});
+
+const runStale = (): AttemptRunResult => ({ status: "stale" });
+
+const emitLoginLifecycle = (
+  request: AutoReloginLoginRequest,
+  event: AutoReloginLifecycleEvent,
+): Effect.Effect<void> =>
+  request.onLifecycle === undefined
+    ? Effect.void
+    : request.onLifecycle(event).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning({
+            cause,
+            message: "autorelogin lifecycle callback failed",
+          }),
+        ),
+      );
 
 const setIdleOrWaiting = (state: RuntimeState) => {
   if (canRelogin(state) && state.loggedOutSince !== undefined) {
@@ -347,20 +421,52 @@ export const layer = Layer.effect(
         };
       }).pipe(Effect.asVoid);
 
+    interface AttemptHooks {
+      readonly isCurrent: (attemptId: number) => Effect.Effect<boolean>;
+      readonly onRetryFailure: (
+        attemptId: number,
+        message: string,
+        secret: string,
+        retriesRemaining: number,
+      ) => Effect.Effect<void>;
+      readonly onStep: (
+        attemptId: number,
+        step: AutoReloginLifecycleStep,
+        retriesRemaining: number,
+      ) => Effect.Effect<void>;
+      readonly onStopped: (
+        attemptId: number,
+        message: string,
+        secret: string,
+        attemptsRemaining: number | undefined,
+      ) => Effect.Effect<void>;
+      readonly onSuccess: (attemptId: number) => Effect.Effect<void>;
+    }
+
+    const statefulAttemptHooks: AttemptHooks = {
+      isCurrent: isCurrentAttempt,
+      onRetryFailure: markRetryFailure,
+      onStep: setAttemptStep,
+      onStopped: markAttemptStopped,
+      onSuccess: (attemptId) =>
+        markAttemptSuccess(attemptId).pipe(Effect.asVoid),
+    };
+
     const waitForReadyPlayer = (
       attemptId: number,
       retriesRemaining: number,
+      hooks: AttemptHooks,
     ): Effect.Effect<AttemptResult> =>
       Effect.gen(function* () {
-        yield* setAttemptStep(attemptId, "ready", retriesRemaining);
+        yield* hooks.onStep(attemptId, "ready", retriesRemaining);
         const ready = yield* wait.until(readyNow, {
           timeout: PLAYER_READY_TIMEOUT,
         });
-        if (!(yield* isCurrentAttempt(attemptId))) {
+        if (!(yield* hooks.isCurrent(attemptId))) {
           return { status: "stale" };
         }
         if (ready) {
-          return { status: "success" };
+          return succeed({ status: "ready" });
         }
 
         const loggedOut = yield* auth.logout().pipe(
@@ -380,86 +486,101 @@ export const layer = Layer.effect(
     const performAttempt = (
       attempt: ReservedAttempt,
       retriesRemaining: number,
+      hooks: AttemptHooks,
     ): Effect.Effect<AttemptResult> =>
       Effect.gen(function* () {
-        if (!(yield* isCurrentAttempt(attempt.attemptId))) {
+        if (!(yield* hooks.isCurrent(attempt.attemptId))) {
           return { status: "stale" };
         }
         if (yield* readyNow) {
-          return { status: "success" };
+          return succeed({ status: "ready" });
         }
 
-        yield* setAttemptStep(attempt.attemptId, "login", retriesRemaining);
+        yield* hooks.onStep(attempt.attemptId, "login", retriesRemaining);
         const loginReady = yield* auth.login(
           attempt.credentials.username,
           attempt.credentials.password,
         );
-        if (!(yield* isCurrentAttempt(attempt.attemptId))) {
+        if (!(yield* hooks.isCurrent(attempt.attemptId))) {
           return { status: "stale" };
         }
         if (yield* readyNow) {
-          return { status: "success" };
+          return succeed({ status: "ready" });
         }
         if (!loginReady) {
           return fail("login did not reach server selection", true);
         }
+        if (attempt.server === undefined) {
+          return succeed({ status: "server-select" });
+        }
 
-        yield* setAttemptStep(attempt.attemptId, "connect", retriesRemaining);
+        yield* hooks.onStep(attempt.attemptId, "connect", retriesRemaining);
         const connect = yield* auth.connectTo(attempt.server);
-        if (!(yield* isCurrentAttempt(attempt.attemptId))) {
+        if (!(yield* hooks.isCurrent(attempt.attemptId))) {
           return { status: "stale" };
         }
         if (yield* readyNow) {
-          return { status: "success" };
+          return succeed({ status: "ready" });
         }
         if (connect.status !== "connected") {
           return fail(connectFailureMessage(connect), connect.retryable);
         }
 
-        return yield* waitForReadyPlayer(attempt.attemptId, retriesRemaining);
+        return yield* waitForReadyPlayer(
+          attempt.attemptId,
+          retriesRemaining,
+          hooks,
+        );
       });
 
-    const runAttemptWithRetries = (attempt: ReservedAttempt) =>
+    const runAttemptWithRetries = (
+      attempt: ReservedAttempt,
+      hooks: AttemptHooks,
+    ): Effect.Effect<AttemptRunResult> =>
       Effect.gen(function* () {
         let retriesRemaining = MAX_RELOGIN_RETRIES;
         let failureCount = 0;
 
         while (true) {
-          const result = yield* performAttempt(attempt, retriesRemaining);
+          const result = yield* performAttempt(
+            attempt,
+            retriesRemaining,
+            hooks,
+          );
 
           if (result.status === "stale") {
-            return;
+            return runStale();
           }
 
           if (result.status === "success") {
-            yield* markAttemptSuccess(attempt.attemptId);
-            return;
+            yield* hooks.onSuccess(attempt.attemptId);
+            return result;
           }
 
           const message = result.failure.message;
           if (!result.failure.retryable) {
-            yield* markAttemptStopped(
+            yield* hooks.onStopped(
               attempt.attemptId,
               message,
               attempt.credentials.password,
               undefined,
             );
-            return;
+            return runFailure(result.failure);
           }
 
           if (retriesRemaining === 0) {
-            yield* markAttemptStopped(
+            yield* hooks.onStopped(
               attempt.attemptId,
               message,
               attempt.credentials.password,
               0,
             );
-            return;
+            return runFailure(result.failure);
           }
 
           retriesRemaining -= 1;
           failureCount += 1;
-          yield* markRetryFailure(
+          yield* hooks.onRetryFailure(
             attempt.attemptId,
             message,
             attempt.credentials.password,
@@ -467,8 +588,8 @@ export const layer = Layer.effect(
           );
           yield* Effect.sleep(`${nextCooldown(failureCount - 1)} millis`);
 
-          if (!(yield* isCurrentAttempt(attempt.attemptId))) {
-            return;
+          if (!(yield* hooks.isCurrent(attempt.attemptId))) {
+            return runStale();
           }
         }
       }).pipe(
@@ -480,11 +601,19 @@ export const layer = Layer.effect(
                 message: "autorelogin attempt failed unexpectedly",
               }).pipe(
                 Effect.andThen(
-                  markAttemptStopped(
+                  hooks.onStopped(
                     attempt.attemptId,
                     "autorelogin failed",
                     attempt.credentials.password,
                     undefined,
+                  ),
+                ),
+                Effect.andThen(
+                  Effect.succeed(
+                    runFailure({
+                      message: "autorelogin failed",
+                      retryable: false,
+                    }),
                   ),
                 ),
               ),
@@ -555,7 +684,7 @@ export const layer = Layer.effect(
     const runReservedAttempt = Effect.gen(function* () {
       const attempt = yield* reserveAttempt;
       if (attempt !== null) {
-        yield* runAttemptWithRetries(attempt);
+        yield* runAttemptWithRetries(attempt, statefulAttemptHooks);
       }
     });
 
@@ -702,6 +831,62 @@ export const layer = Layer.effect(
         });
       });
 
+    const makeLoginAttemptHooks = (
+      request: AutoReloginLoginRequest,
+    ): AttemptHooks => ({
+      isCurrent: () => Effect.succeed(true),
+      onRetryFailure: (_attemptId, message, secret, retriesRemaining) =>
+        emitLoginLifecycle(request, {
+          attemptsRemaining: retriesRemaining,
+          message: redacted(message, secret),
+          step: "login",
+        }),
+      onStep: (_attemptId, step, retriesRemaining) =>
+        emitLoginLifecycle(request, {
+          attemptsRemaining: retriesRemaining,
+          step,
+        }),
+      onStopped: () => Effect.void,
+      onSuccess: () => Effect.void,
+    });
+
+    const runLogin: AutoReloginShape["runLogin"] = (request) =>
+      Effect.gen(function* () {
+        const username = request.username.trim();
+        const server = request.server?.trim();
+        if (username === "" || request.password === "") {
+          return yield* new AutoReloginLoginError({
+            detail: "username and password are required",
+          });
+        }
+
+        const result = yield* runAttemptWithRetries(
+          {
+            attemptId: 0,
+            credentials: {
+              password: request.password,
+              username,
+            },
+            ...(server === undefined || server === "" ? {} : { server }),
+          },
+          makeLoginAttemptHooks(request),
+        );
+
+        if (result.status === "success") {
+          return result.result;
+        }
+
+        if (result.status === "stale") {
+          return yield* new AutoReloginLoginError({
+            detail: "login attempt was cancelled",
+          });
+        }
+
+        return yield* new AutoReloginLoginError({
+          detail: redacted(result.failure.message, request.password),
+        });
+      });
+
     return AutoRelogin.of({
       disable: () => setEnabled(false),
       enable: () => setEnabled(true),
@@ -710,6 +895,7 @@ export const layer = Layer.effect(
       getState: () => snapshot,
       isEnabled: () => snapshot.pipe(Effect.map((state) => state.enabled)),
       onState: (listener, options) => listeners.on(snapshot, listener, options),
+      runLogin,
       setDelay: (delayMs) =>
         updateState((state) => {
           state.delayMs = normalizeDelayMs(delayMs);

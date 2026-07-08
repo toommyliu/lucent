@@ -5,6 +5,7 @@ import { defineInvoke } from "./core";
 const namespace = "desktop:windows";
 
 export const DesktopWindowKindSchema = Schema.Literals([
+  "account-manager",
   "combat-profiles",
   "game",
   "settings",

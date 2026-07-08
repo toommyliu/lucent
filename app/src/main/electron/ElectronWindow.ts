@@ -25,6 +25,7 @@ export interface ElectronWindowWebContents {
 export interface ElectronWindowHandle {
   readonly id: number;
   readonly webContents: ElectronWindowWebContents;
+  readonly close: () => void;
   readonly focus: () => void;
   readonly hide: () => void;
   readonly isDestroyed: () => boolean;
@@ -61,9 +62,14 @@ export class ElectronWindowLoadError extends Schema.TaggedErrorClass<ElectronWin
   }
 }
 
+export type ElectronWindowCreateOptions = BrowserWindowConstructorOptions & {
+  readonly height: number;
+  readonly width: number;
+};
+
 export interface ElectronWindowShape {
   readonly create: (
-    options: BrowserWindowConstructorOptions,
+    options: ElectronWindowCreateOptions,
   ) => Effect.Effect<ElectronWindowHandle, ElectronWindowCreateError>;
   readonly loadFile: (
     window: ElectronWindowHandle,
@@ -78,6 +84,7 @@ export class ElectronWindow extends Context.Service<
 >()("lucent/desktop/electron/ElectronWindow") {}
 
 const denyRendererWindowOpen = (window: ElectronWindowHandle): void => {
+  // TODO: allow wiki links...
   window.webContents.setWindowOpenHandler?.(() => ({ action: "deny" }));
   window.webContents.on(
     "new-window",
@@ -88,9 +95,9 @@ const denyRendererWindowOpen = (window: ElectronWindowHandle): void => {
 };
 
 const makeCenteredOptions = (
-  options: BrowserWindowConstructorOptions,
-): BrowserWindowConstructorOptions => {
-  if (typeof options.width !== "number" || typeof options.height !== "number") {
+  options: ElectronWindowCreateOptions,
+): ElectronWindowCreateOptions => {
+  if (options.x !== undefined && options.y !== undefined) {
     return options;
   }
 

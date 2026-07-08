@@ -10,6 +10,7 @@ import {
 } from "../shared/appearance";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
 import {
+  AccountsIpc,
   ArmyIpc,
   CombatProfilesIpc,
   ScriptingIpc,
@@ -88,6 +89,31 @@ const combatProfilesBridge: NonNullable<DesktopBridge["combatProfiles"]> = {
   saveProfile: (profile) => invoke(CombatProfilesIpc.saveProfile, profile),
 };
 
+const accountsBridge: NonNullable<DesktopBridge["accounts"]> = {
+  closeGameWindow: (request) => invoke(AccountsIpc.closeGameWindow, request),
+  createAccount: (draft) => invoke(AccountsIpc.createAccount, draft),
+  createGroup: (draft) => invoke(AccountsIpc.createGroup, draft),
+  deleteAccount: (username) => invoke(AccountsIpc.deleteAccount, { username }),
+  deleteGroup: (name) => invoke(AccountsIpc.deleteGroup, { name }),
+  focusGameWindow: (request) => invoke(AccountsIpc.focusGameWindow, request),
+  getServerPings: () => invoke(AccountsIpc.getServerPings, undefined),
+  getServers: () => invoke(AccountsIpc.getServers, undefined),
+  getState: () => invoke(AccountsIpc.getState, undefined),
+  launch: (request) => invoke(AccountsIpc.launch, request),
+  onChanged: (listener) => subscribe(AccountsIpc.changed, listener),
+  refreshServers: () => invoke(AccountsIpc.refreshServers, undefined),
+  updateAccount: (username, patch) =>
+    invoke(AccountsIpc.updateAccount, { username, patch }),
+  updateGroup: (name, patch) =>
+    invoke(AccountsIpc.updateGroup, { name, patch }),
+};
+
+const gameAccountsBridge: NonNullable<DesktopBridge["gameAccounts"]> = {
+  getGameLaunch: () => invoke(AccountsIpc.getGameLaunch, undefined),
+  updateScriptStatus: (update) =>
+    invoke(AccountsIpc.updateScriptStatus, update),
+};
+
 const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
@@ -109,6 +135,7 @@ const bridge: DesktopBridge = {
           sync: (payload) => invoke(ArmyIpc.sync, payload),
         },
         combatProfiles: combatProfilesBridge,
+        gameAccounts: gameAccountsBridge,
         scripting: {
           getInputValues: (definition) =>
             invoke(ScriptingIpc.getInputValues, definition),
@@ -119,6 +146,20 @@ const bridge: DesktopBridge = {
             invoke(ScriptingIpc.saveInputValues, { definition, values }),
         },
         windows: windowsBridge,
+      }
+    : {}),
+  ...(bridgeView === "account-manager"
+    ? {
+        accounts: accountsBridge,
+        scripting: {
+          getInputValues: (definition) =>
+            invoke(ScriptingIpc.getInputValues, definition),
+          openFile: () => invoke(ScriptingIpc.openFile, undefined),
+          openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
+          readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
+          saveInputValues: (definition, values) =>
+            invoke(ScriptingIpc.saveInputValues, { definition, values }),
+        },
       }
     : {}),
   ...(bridgeView === "combat-profiles"

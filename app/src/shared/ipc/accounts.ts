@@ -1,0 +1,127 @@
+import { Schema } from "effect";
+
+import {
+  AccountGameLaunchPayloadSchema,
+  AccountGameServerPingsResultSchema,
+  AccountGameServersResultSchema,
+  AccountGameWindowTargetRequestSchema,
+  AccountLaunchRequestSchema,
+  AccountLaunchResultSchema,
+  AccountManagerStateSchema,
+  AccountScriptStatusUpdateSchema,
+  ManagedAccountDraftSchema,
+  ManagedAccountGroupDraftSchema,
+  ManagedAccountGroupPatchSchema,
+  ManagedAccountPatchSchema,
+} from "../accounts";
+import { defineEvent, defineInvoke } from "./core";
+
+const namespace = "desktop:accounts";
+
+export const AccountsIpc = {
+  getState: defineInvoke({
+    channel: `${namespace}:get-state`,
+    name: "accounts.getState",
+    payload: Schema.Void,
+    result: AccountManagerStateSchema,
+  }),
+  getServers: defineInvoke({
+    channel: `${namespace}:get-servers`,
+    name: "accounts.getServers",
+    payload: Schema.Void,
+    result: AccountGameServersResultSchema,
+  }),
+  getServerPings: defineInvoke({
+    channel: `${namespace}:get-server-pings`,
+    name: "accounts.getServerPings",
+    payload: Schema.Void,
+    result: AccountGameServerPingsResultSchema,
+  }),
+  refreshServers: defineInvoke({
+    channel: `${namespace}:refresh-servers`,
+    name: "accounts.refreshServers",
+    payload: Schema.Void,
+    result: AccountGameServersResultSchema,
+  }),
+  getGameLaunch: defineInvoke({
+    channel: `${namespace}:get-game-launch`,
+    name: "accounts.getGameLaunch",
+    payload: Schema.Void,
+    result: Schema.NullOr(AccountGameLaunchPayloadSchema),
+  }),
+  createAccount: defineInvoke({
+    channel: `${namespace}:create-account`,
+    name: "accounts.createAccount",
+    payload: ManagedAccountDraftSchema,
+    result: AccountManagerStateSchema,
+  }),
+  updateAccount: defineInvoke({
+    channel: `${namespace}:update-account`,
+    name: "accounts.updateAccount",
+    payload: Schema.Struct({
+      username: Schema.String,
+      patch: ManagedAccountPatchSchema,
+    }),
+    result: AccountManagerStateSchema,
+  }),
+  deleteAccount: defineInvoke({
+    channel: `${namespace}:delete-account`,
+    name: "accounts.deleteAccount",
+    payload: Schema.Struct({
+      username: Schema.String,
+    }),
+    result: AccountManagerStateSchema,
+  }),
+  createGroup: defineInvoke({
+    channel: `${namespace}:create-group`,
+    name: "accounts.createGroup",
+    payload: ManagedAccountGroupDraftSchema,
+    result: AccountManagerStateSchema,
+  }),
+  updateGroup: defineInvoke({
+    channel: `${namespace}:update-group`,
+    name: "accounts.updateGroup",
+    payload: Schema.Struct({
+      name: Schema.String,
+      patch: ManagedAccountGroupPatchSchema,
+    }),
+    result: AccountManagerStateSchema,
+  }),
+  deleteGroup: defineInvoke({
+    channel: `${namespace}:delete-group`,
+    name: "accounts.deleteGroup",
+    payload: Schema.Struct({
+      name: Schema.String,
+    }),
+    result: AccountManagerStateSchema,
+  }),
+  launch: defineInvoke({
+    channel: `${namespace}:launch`,
+    name: "accounts.launch",
+    payload: AccountLaunchRequestSchema,
+    result: AccountLaunchResultSchema,
+  }),
+  focusGameWindow: defineInvoke({
+    channel: `${namespace}:focus-game-window`,
+    name: "accounts.focusGameWindow",
+    payload: AccountGameWindowTargetRequestSchema,
+    result: AccountManagerStateSchema,
+  }),
+  closeGameWindow: defineInvoke({
+    channel: `${namespace}:close-game-window`,
+    name: "accounts.closeGameWindow",
+    payload: AccountGameWindowTargetRequestSchema,
+    result: AccountManagerStateSchema,
+  }),
+  updateScriptStatus: defineInvoke({
+    channel: `${namespace}:update-script-status`,
+    name: "accounts.updateScriptStatus",
+    payload: AccountScriptStatusUpdateSchema,
+    result: Schema.Void,
+  }),
+  changed: defineEvent({
+    channel: `${namespace}:changed`,
+    name: "accounts.changed",
+    payload: AccountManagerStateSchema,
+  }),
+} as const;

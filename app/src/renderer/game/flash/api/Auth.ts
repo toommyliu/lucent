@@ -247,6 +247,7 @@ export const layer = Layer.effect(
         session.username === "" ||
         session.password === ""
       ) {
+        yield* clear;
         return false;
       }
 
@@ -267,13 +268,6 @@ export const layer = Layer.effect(
 
     const getCachedCredential = (field: "password" | "username") =>
       Effect.gen(function* () {
-        const cached = yield* SynchronizedRef.get(ref).pipe(
-          Effect.map((state) => state[field]),
-        );
-        if (cached !== "") {
-          return cached;
-        }
-
         yield* refreshCachedSession;
         return yield* SynchronizedRef.get(ref).pipe(
           Effect.map((state) => state[field]),

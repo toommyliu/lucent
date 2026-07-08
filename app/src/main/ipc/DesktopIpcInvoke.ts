@@ -24,7 +24,9 @@ const bridgeError = (
 ): IpcBridgeError => ({
   channel,
   code,
-  message: Cause.isCause(cause) ? Cause.pretty(cause) : errorMessage(cause),
+  message: Cause.isCause(cause)
+    ? errorMessage(Cause.squash(cause))
+    : errorMessage(cause),
 });
 
 export const createDesktopIpcInvokeHandler = <
