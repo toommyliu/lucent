@@ -5,7 +5,7 @@ import type {
   ScriptInputsDefinition,
   ScriptInputValue,
   ScriptInputValues,
-} from "../../../shared/scriptInputs";
+} from "@lucent/core/scriptInputs";
 import type { AuthApiShape } from "../flash/api/Auth";
 import type { BankApiShape } from "../flash/api/Bank";
 import type { CombatApiShape } from "../flash/api/Combat";

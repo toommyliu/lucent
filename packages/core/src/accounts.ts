@@ -1,9 +1,6 @@
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 
 import { ScriptInputsDefinitionSchema } from "./scriptInputs";
-
-export const ACCOUNT_MANAGER_STORAGE_FILE = "accounts.json";
-export const ACCOUNT_SERVER_REFRESH_COOLDOWN_MS = 15_000;
 
 export const ManagedAccountSchema = Schema.Struct({
   label: Schema.String,
@@ -206,19 +203,22 @@ const emptyStorage: AccountManagerStorage = {
   groups: {},
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
+const UnknownArraySchema = Schema.Array(Schema.Unknown);
+const decodeUnknownArray = Schema.decodeUnknownOption(UnknownArraySchema);
+const decodeUnknownRecord = Schema.decodeUnknownOption(UnknownRecordSchema);
+const isManagedAccount = Schema.is(ManagedAccountSchema);
 
-const isManagedAccount = (value: unknown): value is ManagedAccount => {
-  if (!isRecord(value)) {
-    return false;
-  }
+const decodeArrayOrEmpty = (value: unknown): readonly unknown[] => {
+  const decoded = decodeUnknownArray(value);
+  return Option.isSome(decoded) ? decoded.value : [];
+};
 
-  return (
-    typeof value["label"] === "string" &&
-    typeof value["username"] === "string" &&
-    typeof value["password"] === "string"
-  );
+const decodeRecordOrEmpty = (
+  value: unknown,
+): Readonly<Record<string, unknown>> => {
+  const decoded = decodeUnknownRecord(value);
+  return Option.isSome(decoded) ? decoded.value : {};
 };
 
 export const normalizeStoredAccount = (
@@ -249,12 +249,10 @@ export const dedupeAccountsByUsername = (
 };
 
 const normalizeAccounts = (value: unknown): readonly ManagedAccount[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
   return dedupeAccountsByUsername(
-    value.filter(isManagedAccount).map(normalizeStoredAccount),
+    decodeArrayOrEmpty(value)
+      .filter(isManagedAccount)
+      .map(normalizeStoredAccount),
   );
 };
 
@@ -262,15 +260,11 @@ const normalizeStoredGroupMembers = (
   value: unknown,
   accounts: readonly ManagedAccount[],
 ): readonly string[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
   const accountUsernames = new Set(accounts.map((account) => account.username));
   const seen = new Set<string>();
   const usernames: string[] = [];
 
-  for (const member of value) {
+  for (const member of decodeArrayOrEmpty(value)) {
     if (typeof member !== "string" || !accountUsernames.has(member)) {
       continue;
     }
@@ -291,14 +285,12 @@ const normalizeGroups = (
   value: unknown,
   accounts: readonly ManagedAccount[],
 ): ManagedAccountGroups => {
-  if (!isRecord(value)) {
-    return {};
-  }
-
   const groups: Record<string, readonly string[]> = {};
   const seen = new Set<string>();
 
-  for (const [rawName, rawMembers] of Object.entries(value)) {
+  for (const [rawName, rawMembers] of Object.entries(
+    decodeRecordOrEmpty(value),
+  )) {
     const name = rawName.trim();
     const key = name.toLowerCase();
     if (name === "" || seen.has(key)) {
@@ -315,15 +307,15 @@ const normalizeGroups = (
 export const normalizeAccountManagerStorage = (
   value: unknown,
 ): AccountManagerStorage => {
-  if (!isRecord(value)) {
+  const storage = decodeUnknownRecord(value);
+  if (Option.isNone(storage)) {
     return emptyStorage;
   }
-
-  const accounts = normalizeAccounts(value["accounts"]);
+  const accounts = normalizeAccounts(storage.value["accounts"]);
 
   return {
     accounts,
-    groups: normalizeGroups(value["groups"], accounts),
+    groups: normalizeGroups(storage.value["groups"], accounts),
   };
 };
 

@@ -29,7 +29,7 @@ import {
   SETTINGS_SNAPSHOT_ARGUMENT,
   rgbToHex,
 } from "../../shared/appearance";
-import { DEFAULT_APP_SETTINGS } from "../../shared/settings";
+import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronSession } from "../electron/ElectronSession";
 import { ElectronTheme } from "../electron/ElectronTheme";

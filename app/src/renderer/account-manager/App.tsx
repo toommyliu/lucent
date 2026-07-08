@@ -2,7 +2,7 @@ import { createHotkey } from "@tanstack/solid-hotkeys";
 import {
   formatHotkeyDisplay,
   formatHotkeyDisplayParts,
-} from "../../shared/hotkeys";
+} from "@lucent/core/hotkeys";
 import {
   Icon,
   Alert,
@@ -70,7 +70,6 @@ import {
   type JSX,
 } from "solid-js";
 import {
-  ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
   type AccountGameServer,
   type AccountGameServerPing,
   type AccountLaunchTilingAlgorithm,
@@ -80,7 +79,8 @@ import {
   type ManagedAccountGroups,
   type ManagedAccountDraft,
   type ScriptExecutePayload,
-} from "../../shared/accounts";
+} from "@lucent/core/accounts";
+import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../shared/accountPolicy";
 import type { DesktopBridge } from "../../shared/desktopBridge";
 import {
   readStoredAccountLoginServerPreference,

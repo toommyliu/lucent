@@ -8,7 +8,7 @@ import {
   normalizeAppSettings,
   type AppSettings,
   type ThemeMode,
-} from "../../shared/settings";
+} from "@lucent/core/settings";
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,

@@ -2,9 +2,8 @@ import { get } from "https";
 
 import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
 
+import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../shared/accountPolicy";
 import {
-  ACCOUNT_MANAGER_STORAGE_FILE,
-  ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
   emptyAccountManagerStorage,
   normalizeAccountManagerStorage,
   removeGroupMemberUsername,
@@ -27,7 +26,7 @@ import {
   type ManagedAccountGroups,
   type ManagedAccountPatch,
   type ScriptExecutePayload,
-} from "../../shared/accounts";
+} from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { getArtixLauncherRequestHeaders } from "../electron/ElectronSession";
@@ -48,6 +47,7 @@ import {
 } from "./AccountServerPing";
 
 const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
+const ACCOUNT_MANAGER_STORAGE_FILE = "accounts.json";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
 const SERVER_REQUEST_TIMEOUT_MS = 10_000;
 

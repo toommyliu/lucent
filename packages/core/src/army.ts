@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 
 export type ArmyConfigRaw = Record<string, unknown>;
 
@@ -128,6 +128,11 @@ const equipSetFieldNames = [
 ] as const;
 
 const equipSetFields = new Set<string>(equipSetFieldNames);
+const UnknownArraySchema = Schema.Array(Schema.Unknown);
+const StringLikeSchema = Schema.Union([Schema.String, Schema.Number]);
+const decodeArmyConfigRaw = Schema.decodeUnknownOption(ArmyConfigRawSchema);
+const decodeStringLike = Schema.decodeUnknownOption(StringLikeSchema);
+const decodeUnknownArray = Schema.decodeUnknownOption(UnknownArraySchema);
 
 export const normalizeArmyConfigName = (fileName: string): string => {
   let normalized = fileName.trim();
@@ -156,24 +161,23 @@ export const assertValidArmyConfigName = (fileName: string): string => {
   return configName;
 };
 
-const isRecord = (value: unknown): value is ArmyConfigRaw =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const readString = (value: unknown): string | undefined => {
-  if (typeof value !== "string" && typeof value !== "number") {
+  const decoded = decodeStringLike(value);
+  if (Option.isNone(decoded)) {
     return undefined;
   }
 
-  const normalized = String(value).trim();
+  const normalized = String(decoded.value).trim();
   return normalized === "" ? undefined : normalized;
 };
 
 const parsePlayers = (value: unknown): readonly string[] => {
-  if (!Array.isArray(value)) {
+  const decoded = decodeUnknownArray(value);
+  if (Option.isNone(decoded)) {
     throw new Error("Army config players must be a non-empty array");
   }
 
-  const players = value.map(readString);
+  const players = decoded.value.map(readString);
   if (players.length === 0 || players.some((player) => player === undefined)) {
     throw new Error("Army config players must only contain non-empty strings");
   }
@@ -198,12 +202,13 @@ const parseItems = (value: unknown): Readonly<Record<string, string>> => {
     return {};
   }
 
-  if (!isRecord(value)) {
+  const record = decodeArmyConfigRaw(value);
+  if (Option.isNone(record)) {
     throw new Error("Army config items must be an object");
   }
 
   const items: Record<string, string> = {};
-  for (const [key, rawItem] of Object.entries(value)) {
+  for (const [key, rawItem] of Object.entries(record.value)) {
     const itemKey = key.trim();
     const item = readString(rawItem);
     if (itemKey === "" || item === undefined) {
@@ -233,11 +238,12 @@ const readOptionalEquipString = (
 };
 
 const parsePots = (value: unknown, path: string): readonly string[] => {
-  if (!Array.isArray(value)) {
+  const decoded = decodeUnknownArray(value);
+  if (Option.isNone(decoded)) {
     throw new Error(`${path} must be an array of non-empty strings`);
   }
 
-  const pots = value.map(readString);
+  const pots = decoded.value.map(readString);
   if (pots.some((pot) => pot === undefined)) {
     throw new Error(`${path} must be an array of non-empty strings`);
   }
@@ -246,12 +252,13 @@ const parsePots = (value: unknown, path: string): readonly string[] => {
 };
 
 const parseEquipSet = (value: unknown, path: string): ArmyEquipSet => {
-  if (!isRecord(value)) {
+  const record = decodeArmyConfigRaw(value);
+  if (Option.isNone(record)) {
     throw new Error(`${path} must be an object`);
   }
 
   const set: Record<string, string | readonly string[]> = {};
-  for (const [key, rawValue] of Object.entries(value)) {
+  for (const [key, rawValue] of Object.entries(record.value)) {
     if (!equipSetFields.has(key)) {
       throw new Error(`Unknown army equip set key: ${path}.${key}`);
     }
@@ -278,25 +285,27 @@ const parseSets = (
     return {};
   }
 
-  if (!isRecord(value)) {
+  const record = decodeArmyConfigRaw(value);
+  if (Option.isNone(record)) {
     throw new Error("Army config sets must be an object");
   }
 
   const sets: Record<string, ArmySetConfig> = {};
-  for (const [setName, rawSet] of Object.entries(value)) {
+  for (const [setName, rawSet] of Object.entries(record.value)) {
     const normalizedSetName = setName.trim();
     if (normalizedSetName === "") {
       throw new Error("Army config set names must be non-empty");
     }
 
-    if (!isRecord(rawSet)) {
+    const setRecord = decodeArmyConfigRaw(rawSet);
+    if (Option.isNone(setRecord)) {
       throw new Error(`Army config set ${normalizedSetName} must be an object`);
     }
 
     const players: Record<string, ArmyEquipSet> = {};
     let defaultSet: ArmyEquipSet | undefined;
 
-    for (const [key, rawValue] of Object.entries(rawSet)) {
+    for (const [key, rawValue] of Object.entries(setRecord.value)) {
       if (key === "default") {
         defaultSet = parseEquipSet(
           rawValue,
@@ -338,11 +347,12 @@ export const normalizeArmyPlayerKey = (playerName: string): string =>
   playerName.trim().toLowerCase();
 
 export const assertArmyConfigRaw = (value: unknown): ArmyConfigRaw => {
-  if (!isRecord(value)) {
+  const record = decodeArmyConfigRaw(value);
+  if (Option.isNone(record)) {
     throw new Error("Army config must be a YAML object");
   }
 
-  return value;
+  return record.value;
 };
 
 export const parseArmyConfigCore = (value: unknown): ArmyConfigCore => {

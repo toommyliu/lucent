@@ -1528,9 +1528,17 @@ const createTypeDocProject = (
             baseUrl: ".",
             paths: {
               "@lucent/core": ["packages/core/src/index.ts"],
+              "@lucent/core/accounts": ["packages/core/src/accounts.ts"],
+              "@lucent/core/appearance": ["packages/core/src/appearance.ts"],
+              "@lucent/core/army": ["packages/core/src/army.ts"],
               "@lucent/core/combatProfiles": [
                 "packages/core/src/combatProfiles.ts",
               ],
+              "@lucent/core/hotkeys": ["packages/core/src/hotkeys.ts"],
+              "@lucent/core/scriptInputs": [
+                "packages/core/src/scriptInputs.ts",
+              ],
+              "@lucent/core/settings": ["packages/core/src/settings.ts"],
               "*": ["app/*"],
             },
           },

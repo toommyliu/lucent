@@ -5,7 +5,7 @@ import {
   ScriptInputsDefinitionSchema,
   type ScriptInputsDefinition,
   type ScriptInputField,
-} from "../../shared/scriptInputs";
+} from "@lucent/core/scriptInputs";
 
 type AstNode = acorn.Node & Record<string, unknown>;
 

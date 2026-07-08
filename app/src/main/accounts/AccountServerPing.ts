@@ -1,6 +1,6 @@
 import { createConnection } from "net";
 
-import type { AccountGameServerPing } from "../../shared/accounts";
+import type { AccountGameServerPing } from "@lucent/core/accounts";
 
 export const ACCOUNT_SERVER_PING_CACHE_TTL_MS = 30_000;
 export const ACCOUNT_SERVER_PING_CONCURRENCY = 6;

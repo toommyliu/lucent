@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
-  applyAppearanceSnapshotToDocument,
   createAppearanceSnapshot,
   hexToRgb,
   readAppearanceSnapshotArgument,
@@ -10,39 +9,18 @@ import {
   rgbToHex,
   serializeAppearanceSnapshotArgument,
 } from "./appearance";
-import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
+import { DEFAULT_APP_SETTINGS } from "./settings";
 
 describe("appearance bootstrap", () => {
-  it("creates a dark fallback snapshot and applies it to the root element", () => {
+  it("creates a dark fallback snapshot", () => {
     const snapshot = createAppearanceSnapshot(DEFAULT_APP_SETTINGS, true);
-    const properties = new Map<string, string>();
-    let darkClass = false;
-    const root = {
-      classList: {
-        toggle: (name: string, active: boolean) => {
-          if (name === "dark") {
-            darkClass = active;
-          }
-        },
-      },
-      dataset: {} as Record<string, string>,
-      style: {
-        setProperty: (name: string, value: string) => {
-          properties.set(name, value);
-        },
-      },
-    } as unknown as HTMLElement;
-
-    applyAppearanceSnapshotToDocument(root, snapshot);
 
     expect(snapshot.backgroundColor).toBe(
       rgbToHex(DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background),
     );
-    expect(root.dataset["theme"]).toBe("dark");
-    expect(darkClass).toBe(true);
-    expect(properties.get("color-scheme")).toBe("dark");
-    expect(properties.get("--background")).toBe(
-      DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background.join(", "),
+    expect(snapshot.variant).toBe("dark");
+    expect(snapshot.tokens.background).toEqual(
+      DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background,
     );
   });
 

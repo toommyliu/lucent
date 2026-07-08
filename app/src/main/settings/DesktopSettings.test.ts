@@ -6,7 +6,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { afterEach } from "vitest";
 import { Effect, Layer } from "effect";
 
-import { DEFAULT_APP_SETTINGS } from "../../shared/settings";
+import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,

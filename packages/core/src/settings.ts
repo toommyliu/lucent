@@ -3,9 +3,7 @@ import { Option, Schema } from "effect";
 import {
   DEFAULT_HOTKEYS,
   HotkeysSettingsSchema,
-  HotkeysPatchSchema,
   normalizeHotkeySettings,
-  type HotkeysPatch,
   type HotkeysSettings,
 } from "./hotkeys";
 
@@ -171,7 +169,6 @@ export interface AppearancePatch {
   readonly themes?: Partial<Record<ThemeVariant, ThemeProfilePatch>>;
   readonly useCursorPointers?: boolean;
 }
-export type { HotkeysPatch, HotkeysSettings };
 
 export interface ThemeProfile {
   readonly tokens: ThemeTokenValues;
@@ -551,5 +548,3 @@ export const serializeAppSettings = (settings: AppSettings): unknown => {
     hotkeys: normalized.hotkeys,
   };
 };
-
-export { HotkeysPatchSchema };

@@ -4,7 +4,7 @@ import {
   ArmyConfigPayloadSchema,
   ArmySessionPayloadSchema,
   type ArmyProgressResult,
-} from "../army";
+} from "@lucent/core/army";
 import { defineInvoke } from "./core";
 
 const namespace = "desktop:army";

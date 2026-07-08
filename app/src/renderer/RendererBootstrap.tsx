@@ -4,7 +4,7 @@ import type { JSX } from "solid-js";
 import { render } from "solid-js/web";
 
 import type { AppPlatform } from "../shared/desktopBridge";
-import type { AppSettings } from "../shared/settings";
+import type { AppSettings } from "@lucent/core/settings";
 import { installRendererThemeSync } from "./theme";
 
 type RendererCleanup = () => void;

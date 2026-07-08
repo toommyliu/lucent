@@ -4,7 +4,7 @@ import {
   normalizeScriptInputValues,
   type ScriptInputsDefinition,
   type ScriptInputValues,
-} from "../../shared/scriptInputs";
+} from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   type JsonFileError,

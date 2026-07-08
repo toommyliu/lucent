@@ -2,7 +2,7 @@ import {
   applyAppearanceSnapshotToDocument,
   createAppearanceSnapshot,
 } from "../shared/appearance";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "../shared/settings";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 
 let activeSettings: AppSettings = DEFAULT_APP_SETTINGS;
 

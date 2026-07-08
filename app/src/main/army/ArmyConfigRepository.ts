@@ -8,7 +8,7 @@ import {
   assertValidArmyConfigName,
   normalizeArmyConfig,
   type ArmyConfigPayload,
-} from "../../shared/army";
+} from "@lucent/core/army";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 
 const armyConfigOperationSchema = Schema.Literals([

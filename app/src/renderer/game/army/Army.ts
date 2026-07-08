@@ -7,7 +7,7 @@ import {
   type ArmyEquipSet,
   type ArmyProgressResult,
   type ArmySessionPayload,
-} from "../../../shared/army";
+} from "@lucent/core/army";
 import type {
   CombatKillOptions,
   ItemSelector,

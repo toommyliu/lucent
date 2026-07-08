@@ -13,7 +13,7 @@ import {
   ManagedAccountGroupDraftSchema,
   ManagedAccountGroupPatchSchema,
   ManagedAccountPatchSchema,
-} from "../accounts";
+} from "@lucent/core/accounts";
 import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:accounts";
