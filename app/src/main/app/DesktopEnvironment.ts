@@ -10,6 +10,7 @@ export interface DesktopEnvironmentConfig {
   readonly assetsDir: string;
   readonly flashPluginPathOverride?: string;
   readonly isDev: boolean;
+  readonly observeGameConsole?: boolean;
   readonly platform: NodeJS.Platform;
   readonly rendererDir: string;
   readonly workspaceDir: string;
