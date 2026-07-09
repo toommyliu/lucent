@@ -48,7 +48,7 @@
   align-items: center;
   display: inline-grid;
   gap: 0.375rem;
-  grid-template-columns: auto minmax(12rem, 18rem);
+  grid-template-columns: auto minmax(12rem, 18rem) auto;
   justify-self: start;
   min-width: 0;
 }
