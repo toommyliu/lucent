@@ -46,6 +46,7 @@ import {
   DEFAULT_COMBAT_PROFILE_DELAY_MS,
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   DEFAULT_COMBAT_PROFILE_ROLE,
+  duplicateCombatProfile,
   type CombatProfile,
   type CombatProfileMessageTrigger,
   type CombatProfileMessageTriggerDefinition,
@@ -307,6 +308,7 @@ export function App(): JSX.Element {
   const [saving, setSaving] = createSignal(false);
   const [profileCopied, setProfileCopied] = createSignal(false);
   const [error, setError] = createSignal("");
+  let nameInput: HTMLInputElement | undefined;
   let hydratedProfileId = "";
   let profileCopiedTimer: number | undefined;
 
@@ -331,6 +333,13 @@ export function App(): JSX.Element {
   const selectProfile = (profileId: string): void => {
     setSelectedId(profileId);
     writeStoredId(selectedProfileStorageKey, profileId);
+  };
+
+  const focusNameInput = (): void => {
+    window.requestAnimationFrame(() => {
+      nameInput?.focus();
+      nameInput?.select();
+    });
   };
 
   const markProfileCopied = (): void => {
@@ -545,6 +554,38 @@ export function App(): JSX.Element {
     }
   };
 
+  const duplicateSelected = async (): Promise<void> => {
+    if (saving()) {
+      return;
+    }
+
+    const profile = buildSelectedProfileDraft();
+    if (!profile) {
+      return;
+    }
+
+    const duplicate = duplicateCombatProfile(
+      profile,
+      library().profiles,
+      createRandomId,
+    );
+    const nextLibrary = await runUpdate(
+      combatProfilesBridge().saveProfile(duplicate),
+    );
+    if (nextLibrary === null) {
+      return;
+    }
+
+    selectProfile(duplicate.id);
+    const savedProfile = nextLibrary.profiles.find(
+      (candidate) => candidate.id === duplicate.id,
+    );
+    if (savedProfile !== undefined) {
+      hydrateProfileDraft(savedProfile);
+      focusNameInput();
+    }
+  };
+
   const deleteSelected = async (): Promise<void> => {
     if (saving()) {
       return;
@@ -741,6 +782,17 @@ export function App(): JSX.Element {
                 </For>
               </SelectContent>
             </Select>
+            <Button
+              aria-label="Duplicate selected profile"
+              class="combat-profiles-duplicate-profile"
+              disabled={saving() || selectedProfile() === undefined}
+              size="sm"
+              variant="outline"
+              onClick={() => void duplicateSelected()}
+            >
+              <Icon icon="files" class="button__icon" />
+              Duplicate
+            </Button>
           </div>
 
           <section class="combat-profiles-editor">
@@ -775,7 +827,7 @@ export function App(): JSX.Element {
                       icon={profileCopied() ? "check" : "copy"}
                       class="button__icon"
                     />
-                    {profileCopied() ? "Copied" : "Copy profile"}
+                    {profileCopied() ? "Copied" : "Copy snippet"}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger
@@ -821,6 +873,9 @@ export function App(): JSX.Element {
                   <Label>
                     <span>Name</span>
                     <Input
+                      ref={(element) => {
+                        nameInput = element;
+                      }}
                       value={label()}
                       onInput={(event) => setLabel(event.currentTarget.value)}
                     />
