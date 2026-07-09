@@ -12,6 +12,7 @@ import {
   serializeAppearanceSnapshotArgument,
   serializeSettingsSnapshotArgument,
 } from "../../shared/appearance";
+import { serializeGameConsoleObservabilityArgument } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
@@ -61,6 +62,11 @@ export interface DesktopWindowsShape {
   ) => Effect.Effect<DesktopWindowKind | null, DesktopWindowError>;
   readonly onClosed: (
     listener: (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
+  readonly onCreated: (
+    listener: (
+      event: DesktopWindowCreatedEvent,
+    ) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
   readonly open: (
     kind: DesktopWindowKind,
@@ -209,6 +215,9 @@ const createWindowOptions = (
         serializeDesktopViewArgument(definition.kind),
         serializeAppearanceSnapshotArgument(snapshot),
         serializeSettingsSnapshotArgument(settings),
+        ...(definition.kind === "game" && env.observeGameConsole === true
+          ? [serializeGameConsoleObservabilityArgument()]
+          : []),
       ],
       contextIsolation: true,
       nodeIntegration: false,
@@ -237,6 +246,7 @@ export interface DesktopWindowCreatedEvent {
   readonly browserWindowId: number;
   readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
+  readonly window: ElectronWindowHandle;
 }
 
 const makeInstanceId = (kind: DesktopWindowKind): DesktopWindowInstanceId =>
@@ -264,6 +274,9 @@ const makeDesktopWindows = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const windows = new Map<DesktopWindowInstanceId, DesktopWindowRecord>();
+  const createdListeners = new Set<
+    (event: DesktopWindowCreatedEvent) => Effect.Effect<void, unknown>
+  >();
   const closedListeners = new Set<
     (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>
   >();
@@ -427,6 +440,14 @@ const makeDesktopWindows = Effect.gen(function* () {
       };
     });
 
+  const onCreated: DesktopWindowsShape["onCreated"] = (listener) =>
+    Effect.sync(() => {
+      createdListeners.add(listener);
+      return () => {
+        createdListeners.delete(listener);
+      };
+    });
+
   const findOpenInstance = (
     kind: DesktopWindowKind,
   ): readonly [DesktopWindowInstanceId, DesktopWindowRecord] | null => {
@@ -493,6 +514,12 @@ const makeDesktopWindows = Effect.gen(function* () {
           kind,
           window,
         });
+        const createdEvent: DesktopWindowCreatedEvent = {
+          browserWindowId,
+          id,
+          kind,
+          window,
+        };
 
         if (definition.closeBehavior === "hide") {
           window.on("close", (event) => {
@@ -524,12 +551,12 @@ const makeDesktopWindows = Effect.gen(function* () {
           }
         });
 
+        for (const listener of createdListeners) {
+          yield* listener(createdEvent).pipe(Effect.catch(() => Effect.void));
+        }
+
         if (options?.onCreated !== undefined) {
-          yield* options.onCreated({
-            browserWindowId,
-            id,
-            kind,
-          });
+          yield* options.onCreated(createdEvent);
         }
 
         yield* electronWindow.loadFile(
@@ -562,6 +589,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     getBrowserWindowId,
     getBrowserWindowKind,
     onClosed,
+    onCreated,
     open,
     reveal,
     revealBrowserWindow,

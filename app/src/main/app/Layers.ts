@@ -3,6 +3,7 @@ import { Layer } from "effect";
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
+import * as GameConsoleObservability from "./GameConsoleObservability";
 import * as ArmyConfigRepository from "../army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../army/ArmyCoordinator";
 import * as DesktopAccounts from "../accounts/DesktopAccounts";
@@ -102,6 +103,12 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const gameConsoleObservabilityLayer = GameConsoleObservability.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(accountsLayer, observabilityLayer, windowsLayer),
+    ),
+  );
+
   const applicationMenuLayer = DesktopApplicationMenu.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -129,6 +136,7 @@ export const makeDesktopLayer = (
     environmentLayer,
     accountsLayer,
     combatProfilesLayer,
+    gameConsoleObservabilityLayer,
     observabilityLayer,
     settingsLayer,
     scriptingLayer,

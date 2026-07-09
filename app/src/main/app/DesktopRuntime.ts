@@ -7,6 +7,7 @@ import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import { DesktopObservability } from "./DesktopObservability";
+import { GameConsoleObservability } from "./GameConsoleObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronTheme } from "../electron/ElectronTheme";
@@ -55,6 +56,7 @@ export const makeDesktopRuntime = (
       const applicationMenu = yield* DesktopApplicationMenu;
       const dialog = yield* ElectronDialog;
       const env = yield* DesktopEnvironment;
+      const gameConsoleObservability = yield* GameConsoleObservability;
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
       const settingsService = yield* DesktopSettings;
@@ -75,6 +77,24 @@ export const makeDesktopRuntime = (
       yield* installDesktopNativeThemeSync(settings);
       yield* installDesktopIpcHandlers;
       yield* applicationMenu.install;
+      if (cliOptions.obs !== undefined) {
+        yield* gameConsoleObservability
+          .install({
+            port: cliOptions.obs.port,
+          })
+          .pipe(
+            Effect.catch((cause) =>
+              observability.error(
+                "game-console",
+                "Failed to start game console observability",
+                cause,
+                {
+                  port: cliOptions.obs?.port,
+                },
+              ),
+            ),
+          );
+      }
 
       if (flash.status === "missing-plugin") {
         yield* observability.warn("startup", "Pepper Flash plugin missing", {

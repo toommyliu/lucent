@@ -1,6 +1,9 @@
 import { mountDesktopRenderer } from "../RendererBootstrap";
 import { App } from "./App";
 import { flashRuntime } from "./flash";
+import { installGameConsoleForwarder } from "./gameConsoleForwarder";
+
+installGameConsoleForwarder(window.desktop.gameConsoleObservability);
 
 window.onDebug = (message: string): void => {
   console.debug("[flash:debug]", message);
