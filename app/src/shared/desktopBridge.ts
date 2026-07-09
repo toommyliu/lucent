@@ -141,6 +141,10 @@ export interface DesktopGameAccountsBridge {
   ) => Promise<void>;
 }
 
+export interface DesktopGameConsoleObservabilityBridge {
+  readonly message: (message: string) => void;
+}
+
 export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
@@ -161,6 +165,7 @@ export interface DesktopBridge {
   readonly army?: DesktopArmyBridge;
   readonly combatProfiles?: DesktopCombatProfilesBridge;
   readonly gameAccounts?: DesktopGameAccountsBridge;
+  readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

@@ -8,6 +8,7 @@ import {
   readAppearanceSnapshotArgument,
   readSettingsSnapshotArgument,
 } from "../shared/appearance";
+import { readGameConsoleObservabilityArgument } from "../shared/rendererBootstrapArguments";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
 import {
   AccountsIpc,
@@ -17,6 +18,7 @@ import {
   SettingsIpc,
   UpdatesIpc,
   WindowsIpc,
+  GameConsoleIpc,
 } from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
@@ -33,6 +35,9 @@ applyBootstrapAppearance();
 
 const initialSettings = readSettingsSnapshotArgument(process.argv);
 const bridgeView = readDesktopViewArgument(process.argv);
+const gameConsoleObservabilityEnabled = readGameConsoleObservabilityArgument(
+  process.argv,
+);
 
 const platform: AppPlatform =
   process.platform === "darwin"
@@ -114,6 +119,14 @@ const gameAccountsBridge: NonNullable<DesktopBridge["gameAccounts"]> = {
     invoke(AccountsIpc.updateScriptStatus, update),
 };
 
+const gameConsoleObservabilityBridge: NonNullable<
+  DesktopBridge["gameConsoleObservability"]
+> = {
+  message: (message) => {
+    ipcRenderer.send(GameConsoleIpc.rendererMessage.channel, { message });
+  },
+};
+
 const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
@@ -136,6 +149,9 @@ const bridge: DesktopBridge = {
         },
         combatProfiles: combatProfilesBridge,
         gameAccounts: gameAccountsBridge,
+        ...(gameConsoleObservabilityEnabled
+          ? { gameConsoleObservability: gameConsoleObservabilityBridge }
+          : {}),
         scripting: {
           getInputValues: (definition) =>
             invoke(ScriptingIpc.getInputValues, definition),
