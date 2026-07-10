@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import * as TestClock from "effect/testing/TestClock";
+import { EntityState, LiveAura } from "@lucent/game";
 
 import { EventsApi, type EventsApiShape } from "../api/Events";
 import { PlayerApi, type PlayerApiShape } from "../api/Player";
@@ -52,11 +53,11 @@ const makeHarness = (
         get: (auraName) =>
           Effect.succeed(
             auras.has(auraName.toLowerCase())
-              ? {
+              ? new LiveAura({
                   duration: 1,
                   name: auraName,
                   stack: 1,
-                }
+                })
               : null,
           ),
         getAll: () => Effect.succeed([]),
@@ -66,6 +67,7 @@ const makeHarness = (
         get: () => Effect.succeed(null),
         getAll: () => Effect.succeed([]),
       },
+      get: () => Effect.succeed(null),
       getCell: () => Effect.succeed("Enter"),
       getClassName: () => Effect.succeed("Class"),
       getGender: () => Effect.succeed("M"),
@@ -77,7 +79,7 @@ const makeHarness = (
       getMp: () => Effect.succeed(100),
       getPad: () => Effect.succeed("Spawn"),
       getPosition: () => Effect.succeed({ x: 0, y: 0 }),
-      getState: () => Effect.succeed(1),
+      getState: () => Effect.succeed(EntityState.Idle),
       goToPlayer: () => Effect.void,
       hasActiveBoost: () => Effect.succeed(false),
       isAfk: () => Effect.succeed(false),
@@ -248,11 +250,15 @@ describe("AutoZone", () => {
             const autoZone = yield* AutoZone;
             const world = yield* WorldState;
             yield* world.patchMap({ name: "queeniona" });
-            yield* world.setAura("player", 45188, {
-              duration: 6,
-              name: "Positive Charge",
-              stack: 1,
-            });
+            yield* world.setAura(
+              "player",
+              45188,
+              new LiveAura({
+                duration: 6,
+                name: "Positive Charge",
+                stack: 1,
+              }),
+            );
             yield* autoZone.setMap("queeniona");
             yield* autoZone.setEnabled(true);
 

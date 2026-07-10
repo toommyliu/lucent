@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { AuraRecord, PlayerRecord } from "../Types";
+import type { Aura, Player } from "../Types";
 import { equalsIgnoreCase } from "../payload";
 import { WorldState } from "../state/World";
 
@@ -8,7 +8,7 @@ export interface PlayerAuraApi {
   readonly get: (
     player: string | number,
     auraName: string,
-  ) => Effect.Effect<AuraRecord | null>;
+  ) => Effect.Effect<Aura | null>;
   readonly has: (
     player: string | number,
     auraName: string,
@@ -17,11 +17,9 @@ export interface PlayerAuraApi {
 
 export interface PlayersApiShape {
   readonly auras: PlayerAuraApi;
-  readonly get: (
-    selector: string | number,
-  ) => Effect.Effect<PlayerRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly PlayerRecord[]>;
-  readonly getMe: () => Effect.Effect<PlayerRecord | null>;
+  readonly get: (selector: string | number) => Effect.Effect<Player | null>;
+  readonly getAll: () => Effect.Effect<readonly Player[]>;
+  readonly getMe: () => Effect.Effect<Player | null>;
 }
 
 export class PlayersApi extends Context.Service<PlayersApi, PlayersApiShape>()(

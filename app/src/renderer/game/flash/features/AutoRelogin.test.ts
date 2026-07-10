@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Option } from "effect";
 import * as TestClock from "effect/testing/TestClock";
+import { EntityState, LiveServer } from "@lucent/game";
 
 import { AuthApi, type AuthApiShape } from "../api/Auth";
 import { EventsApi, type EventsApiShape } from "../api/Events";
@@ -132,7 +133,7 @@ const makeHarness = (
       }),
     getServers: () =>
       Effect.succeed([
-        {
+        new LiveServer({
           chat: 1,
           count: 1,
           language: "en",
@@ -140,8 +141,7 @@ const makeHarness = (
           memberOnly: false,
           name: "Artix",
           online: true,
-          raw: {},
-        },
+        }),
       ]),
     getUsername: () =>
       Effect.sync(() => {
@@ -173,6 +173,7 @@ const makeHarness = (
       get: () => Effect.succeed(null),
       getAll: () => Effect.succeed([]),
     },
+    get: () => Effect.succeed(null),
     getCell: () => Effect.succeed("Enter"),
     getClassName: () => Effect.succeed("Class"),
     getGender: () => Effect.succeed("M"),
@@ -184,7 +185,7 @@ const makeHarness = (
     getMp: () => Effect.succeed(100),
     getPad: () => Effect.succeed("Spawn"),
     getPosition: () => Effect.succeed({ x: 0, y: 0 }),
-    getState: () => Effect.succeed(1),
+    getState: () => Effect.succeed(EntityState.Idle),
     goToPlayer: () => Effect.void,
     hasActiveBoost: () => Effect.succeed(false),
     isAfk: () => Effect.succeed(false),

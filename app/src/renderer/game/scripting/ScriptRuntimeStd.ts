@@ -216,6 +216,10 @@ export const makeScriptLucentStd = (
     options.failCause,
   );
   const player = wrapPlayer(options.services.player, options.script);
+  const players: PlayersApiShape = {
+    ...options.services.players,
+    getMe: player.get,
+  };
   const settings = makeSettingsFacade(options.services.settings);
 
   return Object.freeze({
@@ -225,6 +229,7 @@ export const makeScriptLucentStd = (
       events,
       packet,
       player,
+      players,
       settings,
     }),
     features: Object.freeze({

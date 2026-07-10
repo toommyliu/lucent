@@ -17,15 +17,15 @@ tableOfContents:
 ### `api.monsters.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L10" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:10" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.auras.get(monster: MonsterSelector, auraName: string): Effect.Effect<AuraRecord | null, never, never>
+api.monsters.auras.get(monster: MonsterQuery, auraName: string): Effect.Effect<Aura | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `monster` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -34,28 +34,28 @@ api.monsters.auras.get(monster: MonsterSelector, auraName: string): Effect.Effec
 ### `api.monsters.auras.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L14" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:14" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.auras.getAll(monster: MonsterSelector): Effect.Effect<readonly AuraRecord[], never, never>
+api.monsters.auras.getAll(monster: MonsterQuery): Effect.Effect<readonly Aura[], never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `monster` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** `readonly` <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-monsters-auras-has"></a>
 
-### `api.monsters.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L17" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:17" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.monsters.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.auras.has(monster: MonsterSelector, auraName: string): Effect.Effect<boolean, never, never>
+api.monsters.auras.has(monster: MonsterQuery, auraName: string): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `monster` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `monster` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
@@ -64,55 +64,55 @@ api.monsters.auras.has(monster: MonsterSelector, auraName: string): Effect.Effec
 
 <a id="member-api-monsters-get"></a>
 
-### `api.monsters.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L25" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:25" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.monsters.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.get(selector: MonsterSelector): Effect.Effect<MonsterRecord | null, never, never>
+api.monsters.get(selector: MonsterQuery): Effect.Effect<Monster | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/monster-record/" data-script-type="monster-record"><code>MonsterRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-monsters-getall"></a>
 
-### `api.monsters.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.monsters.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L24" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:24" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.getAll(): Effect.Effect<readonly MonsterRecord[], never, never>
+api.monsters.getAll(): Effect.Effect<readonly Monster[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/monster-record/" data-script-type="monster-record"><code>MonsterRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-monsters-getavailable"></a>
 
-### `api.monsters.getAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L29" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:29" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.monsters.getAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L25" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:25" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.getAvailable(): Effect.Effect<readonly MonsterRecord[], never, never>
+api.monsters.getAvailable(): Effect.Effect<readonly Monster[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/monster-record/" data-script-type="monster-record"><code>MonsterRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-monsters-isavailable"></a>
 
-### `api.monsters.isAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L30" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:30" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.monsters.isAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Monsters.ts#L26" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Monsters.ts:26" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.monsters.isAvailable(selector: MonsterSelector): Effect.Effect<boolean, never, never>
+api.monsters.isAvailable(selector: MonsterQuery): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 

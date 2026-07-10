@@ -3,8 +3,8 @@ import { Context, Effect, Layer } from "effect";
 import type {
   ItemSelector,
   QuantityOptions,
-  ShopInfoRecord,
-  ShopItemRecord,
+  Shop,
+  Item,
   ShopItemSelector,
 } from "../Types";
 import { SwfBridge } from "../SwfBridge";
@@ -25,11 +25,9 @@ export interface ShopsApiShape {
     options?: QuantityOptions,
   ) => Effect.Effect<boolean>;
   readonly close: (shopId?: number) => Effect.Effect<boolean>;
-  readonly get: (
-    selector: ShopItemSelector,
-  ) => Effect.Effect<ShopItemRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly ShopItemRecord[]>;
-  readonly getInfo: () => Effect.Effect<ShopInfoRecord | null>;
+  readonly get: (selector: ShopItemSelector) => Effect.Effect<Item | null>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
+  readonly getInfo: () => Effect.Effect<Shop | null>;
   readonly getMaxBuyQuantity: (
     selector: ShopItemSelector,
   ) => Effect.Effect<number>;
@@ -80,7 +78,7 @@ export const layer = Layer.effect(
         const bridgeSelector =
           item.shopItemId === undefined
             ? { itemId: item.itemId }
-            : { shopItemId: Number(item.shopItemId) };
+            : { shopItemId: item.shopItemId };
         return yield* bridge.call("shops.canBuyItem", [
           bridgeSelector,
           quantityFromOptions(options),
@@ -105,7 +103,7 @@ export const layer = Layer.effect(
         const bridgeSelector =
           item.shopItemId === undefined
             ? { itemId: item.itemId }
-            : { shopItemId: Number(item.shopItemId) };
+            : { shopItemId: item.shopItemId };
         yield* bridge.call("shops.buy", [bridgeSelector, quantity]);
         const packet = yield* protocol.oncePacket(
           { command: "buyItem" },
@@ -119,7 +117,7 @@ export const layer = Layer.effect(
           return false;
         }
 
-        if (item.temp || item.virtual) {
+        if (item.temporaryItem) {
           return true;
         }
 
@@ -202,7 +200,7 @@ export const layer = Layer.effect(
           const bridgeSelector =
             item.shopItemId === undefined
               ? { itemId: item.itemId }
-              : { shopItemId: Number(item.shopItemId) };
+              : { shopItemId: item.shopItemId };
           return yield* bridge.call("shops.getMaxBuyQuantity", [
             bridgeSelector,
           ]);

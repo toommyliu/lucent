@@ -11,7 +11,7 @@ import type {
 import type { CombatApiShape } from "./flash/api/Combat";
 import type { PlayerApiShape } from "./flash/api/Player";
 import type { PlayersApiShape } from "./flash/api/Players";
-import type { AuraRecord } from "./flash/Types";
+import type { Aura } from "./flash/Types";
 
 export interface CombatProfileCursor {
   readonly state: Ref.Ref<CombatProfileCursorState>;
@@ -89,7 +89,7 @@ const statValue = (
   unit: CombatProfileStatCondition["unit"],
 ): number => (unit === "value" ? current : max > 0 ? (current / max) * 100 : 0);
 
-const auraValue = (aura: AuraRecord | null): number =>
+const auraValue = (aura: Aura | null): number =>
   aura === null ? 0 : (aura.stack ?? aura.value ?? 1);
 
 const matchesStatCondition = (

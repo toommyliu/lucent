@@ -9,6 +9,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "paths": {
+      "@lucent/game": ["../packages/game/src/index.ts"],
       "*": ["./*"],
     },
     "jsx": "react-jsx",

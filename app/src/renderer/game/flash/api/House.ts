@@ -1,12 +1,12 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { ItemRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { ItemsState } from "../state/Items";
 
 export interface HouseApiShape {
-  readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
+  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
   readonly getAvailableSlots: () => Effect.Effect<number>;
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;

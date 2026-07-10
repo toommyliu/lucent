@@ -3,15 +3,16 @@ import { Context, Effect, Layer, SynchronizedRef } from "effect";
 import type {
   AuthConnectOutcome,
   ConnectToSelectionResult,
-  ServerRecord,
+  Server,
 } from "../Types";
+import { LiveServer } from "@lucent/game";
 import { SwfBridge } from "../SwfBridge";
 import {
   asArray,
   asBoolean,
   asRecord,
   asString,
-  normalizeServerRecord,
+  decodeServer,
 } from "../payload";
 import { FlashProtocol } from "../protocol/FlashProtocol";
 import { WaitApi } from "./Wait";
@@ -19,7 +20,7 @@ import { WaitApi } from "./Wait";
 export interface AuthApiShape {
   readonly connectTo: (server: string) => Effect.Effect<AuthConnectOutcome>;
   readonly getPassword: () => Effect.Effect<string>;
-  readonly getServers: () => Effect.Effect<readonly ServerRecord[]>;
+  readonly getServers: () => Effect.Effect<readonly Server[]>;
   readonly getUsername: () => Effect.Effect<string>;
   readonly isLoggedIn: () => Effect.Effect<boolean>;
   readonly isServerSelectReady: () => Effect.Effect<boolean>;
@@ -36,7 +37,7 @@ export class AuthApi extends Context.Service<AuthApi, AuthApiShape>()(
 ) {}
 
 interface AuthRuntimeState {
-  readonly servers: Map<string, ServerRecord>;
+  readonly servers: Map<string, LiveServer>;
   loggedIn: boolean;
   password: string;
   username: string;
@@ -46,7 +47,7 @@ interface FlashSessionSnapshot {
   readonly authenticated: boolean;
   readonly connected: boolean;
   readonly password: string;
-  readonly servers: readonly ServerRecord[];
+  readonly servers: readonly LiveServer[];
   readonly username: string;
 }
 
@@ -142,11 +143,11 @@ const parseFlashJsonObject = (
   }
 };
 
-const normalizeServers = (value: unknown): readonly ServerRecord[] =>
+const normalizeServers = (value: unknown): readonly LiveServer[] =>
   Array.isArray(value)
     ? value
-        .map(normalizeServerRecord)
-        .filter((server): server is ServerRecord => server !== null)
+        .map(decodeServer)
+        .filter((server): server is LiveServer => server !== null)
     : [];
 
 export const layer = Layer.effect(
@@ -178,11 +179,18 @@ export const layer = Layer.effect(
         return state;
       });
 
-    const setServers = (servers: readonly ServerRecord[]) =>
+    const setServers = (servers: readonly LiveServer[]) =>
       SynchronizedRef.update(ref, (state) => {
-        state.servers.clear();
+        const incoming = new Set(
+          servers.map((server) => server.name.toLowerCase()),
+        );
+        for (const key of state.servers.keys())
+          if (!incoming.has(key)) state.servers.delete(key);
         for (const server of servers) {
-          state.servers.set(server.name.toLowerCase(), server);
+          const key = server.name.toLowerCase();
+          const current = state.servers.get(key);
+          if (current === undefined) state.servers.set(key, server);
+          else current.replaceFrom(server);
         }
         return state;
       });
@@ -223,8 +231,8 @@ export const layer = Layer.effect(
         ).trim();
         const password = asString(credentials?.["strPassword"]) ?? "";
         const servers = asArray(login?.["servers"])
-          .map(normalizeServerRecord)
-          .filter((server): server is ServerRecord => server !== null);
+          .map(decodeServer)
+          .filter((server): server is LiveServer => server !== null);
         const authenticated =
           connected ||
           asBoolean(login?.["bSuccess"]) === true ||
@@ -255,14 +263,11 @@ export const layer = Layer.effect(
         state.loggedIn = session.connected;
         state.username = session.username;
         state.password = session.password;
-        if (session.servers.length > 0) {
-          state.servers.clear();
-          for (const server of session.servers) {
-            state.servers.set(server.name.toLowerCase(), server);
-          }
-        }
         return state;
       });
+      if (session.servers.length > 0) {
+        yield* setServers(session.servers);
+      }
       return true;
     }).pipe(Effect.catchCause(() => Effect.succeed(false)));
 
@@ -292,7 +297,10 @@ export const layer = Layer.effect(
     const getServers = readBridgeServers.pipe(
       Effect.flatMap((servers) =>
         servers.length > 0
-          ? setServers(servers).pipe(Effect.as(servers))
+          ? setServers(servers).pipe(
+              Effect.andThen(SynchronizedRef.get(ref)),
+              Effect.map((state) => Array.from(state.servers.values())),
+            )
           : SynchronizedRef.get(ref).pipe(
               Effect.map((state) => Array.from(state.servers.values())),
             ),

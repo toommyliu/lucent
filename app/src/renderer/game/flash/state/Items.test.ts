@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
+import { LiveItem } from "@lucent/game";
 
 import { ItemsState, layer as ItemsStateLayer } from "./Items";
 
@@ -39,24 +40,23 @@ describe("ItemsState reducers", () => {
 
       yield* items.reduceBuyItem(
         { ItemID: 3, bitSuccess: true, iQty: 2 },
-        {
-          banked: false,
+        new LiveItem({
           category: "Item",
           coins: false,
+          context: "shop",
           cost: 10,
           description: "",
           equipped: false,
           equipmentSlot: "",
           file: "",
-          house: false,
+          houseItem: false,
           itemId: 3,
           link: "",
           meta: "",
           name: "Bought Tonic",
           quantity: 1,
-          temp: false,
-          virtual: false,
-        },
+          temporaryItem: false,
+        }),
       );
       expect((yield* items.get("inventory", 3))?.quantity).toBe(2);
 
@@ -71,10 +71,10 @@ describe("ItemsState reducers", () => {
 
       yield* items.reduceDropItem({
         items: {
-          99: item(4, "Dropped Token", { iQty: 5, sES: "", sType: "Item" }),
+          4: item(4, "Dropped Token", { iQty: 5, sES: "", sType: "Item" }),
         },
       });
-      expect((yield* items.getDrops())[0]?.dropQuantity).toBe(5);
+      expect((yield* items.getDrops())[0]?.quantity).toBe(5);
 
       yield* items.reduceGetDrop({
         ItemID: 4,
@@ -102,6 +102,26 @@ describe("ItemsState reducers", () => {
       });
       expect((yield* items.get("temp", 5))?.quantity).toBe(3);
       expect((yield* items.get("temp", 6))?.quantity).toBe(1);
+
+      yield* items.replaceInventory([
+        item(88660, "Stacking Drop", {
+          CharItemID: 1_345_865_037,
+          iQty: 1,
+          sES: "",
+          sType: "Item",
+        }),
+      ]);
+      yield* items.reduceAddItems({
+        items: {
+          88660: {
+            CharItemID: 1_345_865_037,
+            bBank: 0,
+            iQty: 1,
+            iQtyNow: 2,
+          },
+        },
+      });
+      expect((yield* items.get("inventory", 88660))?.quantity).toBe(2);
 
       yield* items.reduceTurnIn({ sItems: "5:2" });
       expect((yield* items.get("temp", 5))?.quantity).toBe(1);

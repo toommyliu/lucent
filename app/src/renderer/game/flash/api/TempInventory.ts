@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { ItemRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
 import { ItemsState } from "../state/Items";
 
 export interface TempInventoryApiShape {
@@ -8,8 +8,8 @@ export interface TempInventoryApiShape {
     selector: ItemSelector,
     quantity?: number,
   ) => Effect.Effect<boolean>;
-  readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
+  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
 }
 
 export class TempInventoryApi extends Context.Service<

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Fiber, Layer, PubSub, Ref } from "effect";
+import { EntityState, LiveAura, LiveMonster, LivePlayer } from "@lucent/game";
 
 import { bridgeFallbacks } from "../../BridgeFallbacks";
 import { AuthApi, type AuthApiShape } from "../api/Auth";
@@ -141,32 +142,34 @@ describe("Flash packet projectors", () => {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const world = yield* WorldState;
-          yield* world.addPlayer({
-            afk: false,
-            cell: "Enter",
-            entityId: 1,
-            entityType: "player",
-            hp: 100,
-            level: 1,
-            maxHp: 100,
-            maxMp: 50,
-            mp: 50,
-            name: "Hero",
-            pad: "Spawn",
-            position: [0, 0],
-            state: 1,
-            username: "Hero",
-          });
+          yield* world.addPlayer(
+            new LivePlayer({
+              afk: false,
+              cell: "Enter",
+              entityId: 1,
+              entityType: "player",
+              hp: 100,
+              level: 1,
+              maxHp: 100,
+              maxMp: 50,
+              mp: 50,
+              name: "Hero",
+              pad: "Spawn",
+              position: { x: 0, y: 0 },
+              state: EntityState.Idle,
+              username: "Hero",
+            }),
+          );
           yield* world.setSelf("Hero");
 
           yield* harness.publish(extensionStr("mv", ["zm", "mv", 1, 777, 888]));
-          expect((yield* world.getMe())?.position).toEqual([0, 0]);
+          expect((yield* world.getMe())?.position).toEqual({ x: 0, y: 0 });
 
           yield* harness.publish({
             raw: "[Sending - STR]: %xt%zm%mv%96180%880%249%8%",
             type: "client-packet",
           });
-          expect((yield* world.getMe())?.position).toEqual([880, 249]);
+          expect((yield* world.getMe())?.position).toEqual({ x: 880, y: 249 });
         }).pipe(Effect.provide(harness.layer)),
       );
     }),
@@ -235,9 +238,10 @@ describe("Flash packet projectors", () => {
             position: { x: 150, y: 260 },
             username: "Hero",
           });
-          expect((yield* world.getPlayer("Hero"))?.position).toEqual([
-            150, 260,
-          ]);
+          expect((yield* world.getPlayer("Hero"))?.position).toEqual({
+            x: 150,
+            y: 260,
+          });
           expect((yield* world.getPlayer("Hero"))?.cell).toBe("r2");
 
           const jsonAfkFiber = yield* protocol
@@ -301,10 +305,10 @@ describe("Flash packet projectors", () => {
           expect(hero?.maxHp).toBe(250);
           expect(hero?.mp).toBe(40);
           expect(hero?.maxMp).toBe(90);
-          expect(hero?.state).toBe(2);
+          expect(hero?.state).toBe(EntityState.InCombat);
           expect(hero?.cell).toBe("r3");
           expect(hero?.pad).toBe("Right");
-          expect(hero?.position).toEqual([300, 320]);
+          expect(hero?.position).toEqual({ x: 300, y: 320 });
         }).pipe(Effect.provide(harness.layer)),
       );
     }),
@@ -317,45 +321,57 @@ describe("Flash packet projectors", () => {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const world = yield* WorldState;
-          yield* world.addPlayer({
-            afk: false,
-            cell: "Old",
-            entityId: 99,
-            entityType: "player",
-            hp: 100,
-            level: 1,
-            maxHp: 100,
-            maxMp: 50,
-            mp: 50,
-            name: "Stale",
-            pad: "Spawn",
-            position: [0, 0],
-            state: 1,
-            username: "Stale",
-          });
-          yield* world.addMonster({
-            cell: "Old",
-            hp: 100,
-            level: 1,
-            maxHp: 100,
-            maxMp: 30,
-            monsterId: 99,
-            monsterMapId: 99,
-            mp: 30,
-            name: "Stale Monster",
-            race: "",
-            state: 1,
-          });
-          yield* world.setAura("player", 99, {
-            duration: 10,
-            name: "Old Player Aura",
-            stack: 1,
-          });
-          yield* world.setAura("monster", 99, {
-            duration: 10,
-            name: "Old Monster Aura",
-            stack: 1,
-          });
+          yield* world.addPlayer(
+            new LivePlayer({
+              afk: false,
+              cell: "Old",
+              entityId: 99,
+              entityType: "player",
+              hp: 100,
+              level: 1,
+              maxHp: 100,
+              maxMp: 50,
+              mp: 50,
+              name: "Stale",
+              pad: "Spawn",
+              position: { x: 0, y: 0 },
+              state: EntityState.Idle,
+              username: "Stale",
+            }),
+          );
+          yield* world.addMonster(
+            new LiveMonster({
+              cell: "Old",
+              hp: 100,
+              level: 1,
+              maxHp: 100,
+              maxMp: 30,
+              monsterId: 99,
+              monsterMapId: 99,
+              mp: 30,
+              name: "Stale Monster",
+              race: "",
+              state: EntityState.Idle,
+            }),
+          );
+          yield* world.setAura(
+            "player",
+            99,
+            new LiveAura({
+              duration: 10,
+              name: "Old Player Aura",
+              stack: 1,
+            }),
+          );
+          yield* world.setAura(
+            "monster",
+            99,
+            new LiveAura({
+              duration: 10,
+              name: "Old Monster Aura",
+              stack: 1,
+            }),
+          );
 
           yield* harness.publish(
             extensionJson("moveToArea", {

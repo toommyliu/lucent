@@ -17,12 +17,12 @@ tableOfContents:
 ### `api.bank.contains()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L13" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:13" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.contains(selector: ItemSelector, quantity?: number): Effect.Effect<boolean, never, never>
+api.bank.contains(selector: ItemQuery, quantity?: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
 
 **Yields:** `boolean`
@@ -34,12 +34,12 @@ api.bank.contains(selector: ItemSelector, quantity?: number): Effect.Effect<bool
 ### `api.bank.deposit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L17" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:17" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.deposit(selector: ItemSelector): Effect.Effect<boolean, never, never>
+api.bank.deposit(selector: ItemQuery): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -50,12 +50,12 @@ api.bank.deposit(selector: ItemSelector): Effect.Effect<boolean, never, never>
 ### `api.bank.depositBatch()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L18" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:18" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.depositBatch(selectors: readonly ItemSelector[]): Effect.Effect<readonly boolean[], never, never>
+api.bank.depositBatch(selectors: readonly ItemQuery[]): Effect.Effect<readonly boolean[], never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selectors` | `readonly` <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a>[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selectors` | `readonly` <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a>[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `readonly` `boolean`[]
 
@@ -66,14 +66,14 @@ api.bank.depositBatch(selectors: readonly ItemSelector[]): Effect.Effect<readonl
 ### `api.bank.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L21" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:21" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, never, never>
+api.bank.get(selector: ItemQuery): Effect.Effect<Item | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -82,10 +82,10 @@ api.bank.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, never, ne
 ### `api.bank.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.getAll(): Effect.Effect<readonly ItemRecord[], never, never>
+api.bank.getAll(): Effect.Effect<readonly Item[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a>[]
 
 **Errors:** `never`
 
@@ -158,13 +158,13 @@ api.bank.open(force?: boolean): Effect.Effect<void, never, never>
 ### `api.bank.swap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.swap(inventorySelector: ItemSelector, bankSelector: ItemSelector): Effect.Effect<boolean, never, never>
+api.bank.swap(inventorySelector: ItemQuery, bankSelector: ItemQuery): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `inventorySelector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `bankSelector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `inventorySelector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `bankSelector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -175,12 +175,12 @@ api.bank.swap(inventorySelector: ItemSelector, bankSelector: ItemSelector): Effe
 ### `api.bank.withdraw()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L32" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:32" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.withdraw(selector: ItemSelector): Effect.Effect<boolean, never, never>
+api.bank.withdraw(selector: ItemQuery): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -191,12 +191,12 @@ api.bank.withdraw(selector: ItemSelector): Effect.Effect<boolean, never, never>
 ### `api.bank.withdrawBatch()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Bank.ts#L33" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Bank.ts:33" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.bank.withdrawBatch(selectors: readonly ItemSelector[]): Effect.Effect<readonly boolean[], never, never>
+api.bank.withdrawBatch(selectors: readonly ItemQuery[]): Effect.Effect<readonly boolean[], never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selectors` | `readonly` <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a>[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selectors` | `readonly` <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a>[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `readonly` `boolean`[]
 

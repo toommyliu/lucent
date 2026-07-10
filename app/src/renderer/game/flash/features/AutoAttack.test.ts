@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import type { MonsterRecord } from "../Types";
+import { EntityState, LiveMonster, type MonsterData } from "@lucent/game";
 import {
   parseAutoAttackTargetPriority,
   selectAutoAttackMonsterMapId,
@@ -9,21 +9,22 @@ import {
 const monster = (
   monsterMapId: number,
   name: string,
-  patch: Partial<MonsterRecord> = {},
-): MonsterRecord => ({
-  cell: "Enter",
-  hp: 100,
-  level: 1,
-  maxHp: 100,
-  maxMp: 100,
-  monsterId: monsterMapId,
-  monsterMapId,
-  mp: 100,
-  name,
-  race: "None",
-  state: 1,
-  ...patch,
-});
+  patch: Partial<MonsterData> = {},
+): LiveMonster =>
+  new LiveMonster({
+    cell: "Enter",
+    hp: 100,
+    level: 1,
+    maxHp: 100,
+    maxMp: 100,
+    monsterId: monsterMapId,
+    monsterMapId,
+    mp: 100,
+    name,
+    race: "None",
+    state: EntityState.Idle,
+    ...patch,
+  });
 
 describe("AutoAttack target selection", () => {
   it("parses ordered priority targets from map ids and monster names", () => {
@@ -89,7 +90,7 @@ describe("AutoAttack target selection", () => {
       selectAutoAttackMonsterMapId({
         available: [
           monster(1, "Slime"),
-          monster(2, "Dragon", { hp: 0, state: 0 }),
+          monster(2, "Dragon", { hp: 0, state: EntityState.Dead }),
         ],
         snapshotTarget: { monsterMapId: 2 },
       }),

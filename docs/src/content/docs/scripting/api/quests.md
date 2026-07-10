@@ -84,14 +84,14 @@ api.quests.complete(questId: number, turnIns?: number, itemId?: number, special?
 ### `api.quests.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.get(questId: number): Effect.Effect<QuestRecord | null, never, never>
+api.quests.get(questId: number): Effect.Effect<Quest | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -100,10 +100,10 @@ api.quests.get(questId: number): Effect.Effect<QuestRecord | null, never, never>
 ### `api.quests.getAccepted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.getAccepted(): Effect.Effect<readonly QuestRecord[], never, never>
+api.quests.getAccepted(): Effect.Effect<readonly Quest[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a>[]
 
 **Errors:** `never`
 
@@ -112,10 +112,10 @@ api.quests.getAccepted(): Effect.Effect<readonly QuestRecord[], never, never>
 ### `api.quests.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Quests.ts#L24" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Quests.ts:24" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.quests.getAll(): Effect.Effect<readonly QuestRecord[], never, never>
+api.quests.getAll(): Effect.Effect<readonly Quest[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a>[]
 
 **Errors:** `never`
 

@@ -1,0 +1,31 @@
+{
+  "name": "@lucent/game",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.spec.*"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown --format cjs --dts --outDir dist src/index.ts",
+    "postinstall": "pnpm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "tsdown": "0.20.0-beta.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}

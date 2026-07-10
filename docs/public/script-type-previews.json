@@ -123,17 +123,17 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L50"
       }
     },
-    "aura-record": {
-      "name": "AuraRecord",
-      "slug": "aura-record",
+    "aura": {
+      "name": "Aura",
+      "slug": "aura",
       "kind": "interface",
       "summary": "",
-      "definition": "interface AuraRecord",
+      "definition": "interface Aura",
       "keys": [
         {
           "kind": "property",
           "name": "category",
-          "signature": "readonly category?: string",
+          "signature": "readonly category: string | undefined",
           "description": ""
         },
         {
@@ -145,7 +145,7 @@
         {
           "kind": "property",
           "name": "icon",
-          "signature": "readonly icon?: string",
+          "signature": "readonly icon: string | undefined",
           "description": ""
         },
         {
@@ -163,13 +163,80 @@
         {
           "kind": "property",
           "name": "value",
-          "signature": "readonly value?: number",
+          "signature": "readonly value: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): AuraSnapshot",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:106",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L106"
+        "path": "packages/game/src/aura.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/aura.ts#L3"
+      }
+    },
+    "aura-data": {
+      "name": "AuraData",
+      "slug": "aura-data",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface AuraData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "category",
+          "signature": "category?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "duration",
+          "signature": "duration: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "icon",
+          "signature": "icon?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "stack",
+          "signature": "stack: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "value",
+          "signature": "value?: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/aura.ts:13",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/aura.ts#L13"
+      }
+    },
+    "aura-snapshot": {
+      "name": "AuraSnapshot",
+      "slug": "aura-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type AuraSnapshot = Readonly<AuraData>",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/aura.ts:22",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/aura.ts#L22"
       }
     },
     "auth-connect-outcome": {
@@ -205,8 +272,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:388",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L388"
+        "path": "app/src/renderer/game/flash/Types.ts:286",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L286"
       }
     },
     "auto-relogin-lifecycle-event": {
@@ -654,8 +721,8 @@
       "definition": "type ClientPacketSendType = \"str\" | \"json\" | \"xml\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:384",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L384"
+        "path": "app/src/renderer/game/flash/Types.ts:282",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L282"
       }
     },
     "combat-kill-options": {
@@ -674,7 +741,7 @@
         {
           "kind": "property",
           "name": "killPriority",
-          "signature": "readonly killPriority?: string | readonly MonsterSelector[]",
+          "signature": "readonly killPriority?: string | readonly MonsterQuery[]",
           "description": ""
         },
         {
@@ -715,141 +782,88 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:410",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L410"
+        "path": "app/src/renderer/game/flash/Types.ts:308",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L308"
       }
     },
-    "drop-record": {
-      "name": "DropRecord",
-      "slug": "drop-record",
+    "enhancement": {
+      "name": "Enhancement",
+      "slug": "enhancement",
       "kind": "interface",
       "summary": "",
-      "definition": "interface DropRecord",
+      "definition": "interface Enhancement",
       "keys": [
         {
           "kind": "property",
-          "name": "banked",
-          "signature": "readonly banked: boolean",
+          "name": "dps",
+          "signature": "readonly dps?: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "category",
-          "signature": "readonly category: string",
+          "name": "id",
+          "signature": "readonly id?: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "charItemId",
-          "signature": "readonly charItemId?: number",
+          "name": "level",
+          "signature": "readonly level?: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "coins",
-          "signature": "readonly coins: boolean",
+          "name": "patternId",
+          "signature": "readonly patternId?: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "cost",
-          "signature": "readonly cost: number",
+          "name": "range",
+          "signature": "readonly range?: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "description",
-          "signature": "readonly description: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "dropId",
-          "signature": "readonly dropId: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "dropQuantity",
-          "signature": "readonly dropQuantity: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "enhancement",
-          "signature": "readonly enhancement?: { dps?: number; id?: number; level?: number; patternId?: number; range?: number; rarity?: number }",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "equipmentSlot",
-          "signature": "readonly equipmentSlot: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "equipped",
-          "signature": "readonly equipped: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "file",
-          "signature": "readonly file: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "house",
-          "signature": "readonly house: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "itemId",
-          "signature": "readonly itemId: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "link",
-          "signature": "readonly link: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "meta",
-          "signature": "readonly meta: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "name",
-          "signature": "readonly name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "quantity",
-          "signature": "readonly quantity: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "temp",
-          "signature": "readonly temp: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "virtual",
-          "signature": "readonly virtual: boolean",
+          "name": "rarity",
+          "signature": "readonly rarity?: number",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:59",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L59"
+        "path": "packages/game/src/item.ts:11",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L11"
+      }
+    },
+    "entity-state": {
+      "name": "EntityState",
+      "slug": "entity-state",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type EntityState = unknown",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "Dead",
+          "signature": "readonly Dead: 0",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "Idle",
+          "signature": "readonly Idle: 1",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "InCombat",
+          "signature": "readonly InCombat: 2",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/entity.ts:6",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/entity.ts#L6"
       }
     },
     "event-selector": {
@@ -873,16 +887,16 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:374",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L374"
+        "path": "app/src/renderer/game/flash/Types.ts:272",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L272"
       }
     },
-    "faction-record": {
-      "name": "FactionRecord",
-      "slug": "faction-record",
+    "faction": {
+      "name": "Faction",
+      "slug": "faction",
       "kind": "interface",
       "summary": "",
-      "definition": "interface FactionRecord",
+      "definition": "interface Faction",
       "keys": [
         {
           "kind": "property",
@@ -907,11 +921,66 @@
           "name": "reputation",
           "signature": "readonly reputation: number",
           "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): FactionSnapshot",
+          "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:83",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L83"
+        "path": "packages/game/src/faction.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/faction.ts#L3"
+      }
+    },
+    "faction-data": {
+      "name": "FactionData",
+      "slug": "faction-data",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface FactionData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "id",
+          "signature": "id: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "rank",
+          "signature": "rank: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "reputation",
+          "signature": "reputation: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/faction.ts:11",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/faction.ts#L11"
+      }
+    },
+    "faction-snapshot": {
+      "name": "FactionSnapshot",
+      "slug": "faction-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type FactionSnapshot = Readonly<FactionData>",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/faction.ts:18",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/faction.ts#L18"
       }
     },
     "flash-event": {
@@ -922,8 +991,8 @@
       "definition": "type FlashEvent = FlashPacketEvent | FlashProjectionEvent | FlashRuntimeEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:367",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L367"
+        "path": "app/src/renderer/game/flash/Types.ts:265",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L265"
       }
     },
     "flash-event-handler": {
@@ -946,8 +1015,8 @@
       "definition": "type FlashEventKind = \"packet\" | \"projection\" | \"runtime\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:239",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L239"
+        "path": "app/src/renderer/game/flash/Types.ts:137",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L137"
       }
     },
     "flash-packet": {
@@ -958,8 +1027,8 @@
       "definition": "type FlashPacket = typeof FlashPacketSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:231",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L231"
+        "path": "app/src/renderer/game/flash/Types.ts:129",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L129"
       }
     },
     "flash-packet-direction": {
@@ -970,8 +1039,8 @@
       "definition": "type FlashPacketDirection = typeof FlashPacketDirectionSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:184",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L184"
+        "path": "app/src/renderer/game/flash/Types.ts:82",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L82"
       }
     },
     "flash-packet-event": {
@@ -982,8 +1051,8 @@
       "definition": "type FlashPacketEvent = { kind: \"packet\"; payload: FlashPacket; type: \"packetReceived\" } | { kind: \"packet\"; payload: { direction: FlashPacketDirection; raw: string }; type: \"packetParseFailed\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:262",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L262"
+        "path": "app/src/renderer/game/flash/Types.ts:160",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L160"
       }
     },
     "flash-projection-event": {
@@ -991,11 +1060,11 @@
       "slug": "flash-projection-event",
       "kind": "type alias",
       "summary": "",
-      "definition": "type FlashProjectionEvent = { kind: \"projection\"; packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { kind: \"projection\"; packet: FlashPacket; payload: MapRecord; type: \"joinMap\" } | { kind: \"projection\"; packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { kind: \"projection\"; packet: FlashPacket; payload: { afk: boolean; entityId?: number; isSelf: boolean; username: string }; type: \"playerAfk\" } | { kind: \"projection\"; packet: FlashPacket; payload: { cell?: string; entityId?: number; isSelf: boolean; pad?: string; position?: Position; username: string }; type: \"playerLocation\" } | { kind: \"projection\"; packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { kind: \"projection\"; packet: FlashPacket; payload: { aura: AuraRecord; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName?: string; auraPhase?: \"off\" | \"on\"; message: string; monMapId?: number; source: \"animation\" | \"aura\"; sourceMonMapId?: number; targetId?: number; targetMonMapId?: number; targetName?: string; targetType?: \"monster\" | \"player\" }; type: \"updateMessage\" }",
+      "definition": "type FlashProjectionEvent = { kind: \"projection\"; packet: FlashPacket; payload: UnknownRecord; type: \"questComplete\" } | { kind: \"projection\"; packet: FlashPacket; payload: MapInfo; type: \"joinMap\" } | { kind: \"projection\"; packet: FlashPacket; payload: { map: string; zone: string }; type: \"zone\" } | { kind: \"projection\"; packet: FlashPacket; payload: { afk: boolean; entityId?: number; isSelf: boolean; username: string }; type: \"playerAfk\" } | { kind: \"projection\"; packet: FlashPacket; payload: { cell?: string; entityId?: number; isSelf: boolean; pad?: string; position?: Position; username: string }; type: \"playerLocation\" } | { kind: \"projection\"; packet: FlashPacket; payload: { monsterMapId: number }; type: \"monsterDeath\" } | { kind: \"projection\"; packet: FlashPacket; payload: { aura: Aura; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraAdded\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName: string; targetId: number; targetType: \"monster\" | \"player\" }; type: \"auraRemoved\" } | { kind: \"projection\"; packet: FlashPacket; payload: { auraName?: string; auraPhase?: \"off\" | \"on\"; message: string; monMapId?: number; source: \"animation\" | \"aura\"; sourceMonMapId?: number; targetId?: number; targetMonMapId?: number; targetName?: string; targetType?: \"monster\" | \"player\" }; type: \"updateMessage\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:277",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L277"
+        "path": "app/src/renderer/game/flash/Types.ts:175",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L175"
       }
     },
     "flash-runtime-event": {
@@ -1006,8 +1075,8 @@
       "definition": "type FlashRuntimeEvent = { kind: \"runtime\"; payload: { status: string }; type: \"connection\" } | { kind: \"runtime\"; payload: { message: string }; type: \"debug\" } | { kind: \"runtime\"; type: \"loaded\" } | { kind: \"runtime\"; payload: { percent: number }; type: \"progress\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:241",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L241"
+        "path": "app/src/renderer/game/flash/Types.ts:139",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L139"
       }
     },
     "hunt-options": {
@@ -1025,45 +1094,33 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:421",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L421"
+        "path": "app/src/renderer/game/flash/Types.ts:319",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L319"
       }
     },
-    "inventory-item-selector": {
-      "name": "InventoryItemSelector",
-      "slug": "inventory-item-selector",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type InventoryItemSelector = ObjectSelector<InventoryItemSelectorShape>",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/Types.ts:67",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L67"
-      }
-    },
-    "inventory-item-selector-shape": {
-      "name": "InventoryItemSelectorShape",
-      "slug": "inventory-item-selector-shape",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type InventoryItemSelectorShape = ItemSelectorShape",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/Types.ts:59",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L59"
-      }
-    },
-    "item-record": {
-      "name": "ItemRecord",
-      "slug": "item-record",
+    "item": {
+      "name": "Item",
+      "slug": "item",
       "kind": "interface",
       "summary": "",
-      "definition": "interface ItemRecord",
+      "definition": "interface Item",
       "keys": [
+        {
+          "kind": "property",
+          "name": "armor",
+          "signature": "readonly armor: boolean",
+          "description": ""
+        },
         {
           "kind": "property",
           "name": "banked",
           "signature": "readonly banked: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cape",
+          "signature": "readonly cape: boolean",
           "description": ""
         },
         {
@@ -1075,13 +1132,25 @@
         {
           "kind": "property",
           "name": "charItemId",
-          "signature": "readonly charItemId?: number",
+          "signature": "readonly charItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "classItem",
+          "signature": "readonly classItem: boolean",
           "description": ""
         },
         {
           "kind": "property",
           "name": "coins",
           "signature": "readonly coins: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "context",
+          "signature": "readonly context: ItemContext",
           "description": ""
         },
         {
@@ -1099,7 +1168,7 @@
         {
           "kind": "property",
           "name": "enhancement",
-          "signature": "readonly enhancement?: { dps?: number; id?: number; level?: number; patternId?: number; range?: number; rarity?: number }",
+          "signature": "readonly enhancement: Enhancement | undefined",
           "description": ""
         },
         {
@@ -1122,8 +1191,14 @@
         },
         {
           "kind": "property",
-          "name": "house",
-          "signature": "readonly house: boolean",
+          "name": "helm",
+          "signature": "readonly helm: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "houseItem",
+          "signature": "readonly houseItem: boolean",
           "description": ""
         },
         {
@@ -1152,26 +1227,195 @@
         },
         {
           "kind": "property",
+          "name": "pet",
+          "signature": "readonly pet: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "quantity",
           "signature": "readonly quantity: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "temp",
-          "signature": "readonly temp: boolean",
+          "name": "shopItemId",
+          "signature": "readonly shopItemId: number | undefined",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "virtual",
-          "signature": "readonly virtual: boolean",
+          "name": "temporaryItem",
+          "signature": "readonly temporaryItem: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "weapon",
+          "signature": "readonly weapon: boolean",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "matches()",
+          "signature": "matches(selector: string | number | ItemSelectorById | ItemSelectorByName | ShopItemSelectorById): boolean",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): ItemSnapshot",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:31",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L31"
+        "path": "packages/game/src/item.ts:42",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L42"
+      }
+    },
+    "item-context": {
+      "name": "ItemContext",
+      "slug": "item-context",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ItemContext = \"bank\" | \"drop\" | \"house\" | \"inventory\" | \"shop\" | \"temporary\"",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/item.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L3"
+      }
+    },
+    "item-data": {
+      "name": "ItemData",
+      "slug": "item-data",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ItemData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "category",
+          "signature": "category: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "charItemId",
+          "signature": "charItemId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "coins",
+          "signature": "coins: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "context",
+          "signature": "context: ItemContext",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cost",
+          "signature": "cost: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "description",
+          "signature": "description: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "enhancement",
+          "signature": "enhancement?: Enhancement",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "equipmentSlot",
+          "signature": "equipmentSlot: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "equipped",
+          "signature": "equipped: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "file",
+          "signature": "file: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "houseItem",
+          "signature": "houseItem: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "itemId: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "link",
+          "signature": "link: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "meta",
+          "signature": "meta: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "quantity",
+          "signature": "quantity: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "shopItemId",
+          "signature": "shopItemId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "temporaryItem",
+          "signature": "temporaryItem: boolean",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/item.ts:72",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L72"
+      }
+    },
+    "item-query": {
+      "name": "ItemQuery",
+      "slug": "item-query",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ItemQuery = ItemSelector | number | string",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/item.ts:39",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L39"
       }
     },
     "item-selector": {
@@ -1179,19 +1423,81 @@
       "slug": "item-selector",
       "kind": "type alias",
       "summary": "",
-      "definition": "type ItemSelector = InventoryItemSelector | number | string",
+      "definition": "type ItemSelector = ItemQuery",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L21"
+        "path": "app/src/renderer/game/flash/Types.ts:49",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L49"
       }
     },
-    "map-record": {
-      "name": "MapRecord",
-      "slug": "map-record",
+    "item-selector-by-id": {
+      "name": "ItemSelectorById",
+      "slug": "item-selector-by-id",
       "kind": "interface",
       "summary": "",
-      "definition": "interface MapRecord",
+      "definition": "interface ItemSelectorById",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name?: undefined",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/item.ts:20",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L20"
+      }
+    },
+    "item-selector-by-name": {
+      "name": "ItemSelectorByName",
+      "slug": "item-selector-by-name",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ItemSelectorByName",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId?: undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/item.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L25"
+      }
+    },
+    "item-snapshot": {
+      "name": "ItemSnapshot",
+      "slug": "item-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ItemSnapshot = Readonly<ItemData> & { armor: boolean; banked: boolean; cape: boolean; classItem: boolean; helm: boolean; pet: boolean; weapon: boolean }",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/item.ts:93",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L93"
+      }
+    },
+    "map-info": {
+      "name": "MapInfo",
+      "slug": "map-info",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface MapInfo",
       "keys": [
         {
           "kind": "property",
@@ -1213,17 +1519,23 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:146",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L146"
+        "path": "app/src/renderer/game/flash/Types.ts:43",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L43"
       }
     },
-    "monster-record": {
-      "name": "MonsterRecord",
-      "slug": "monster-record",
+    "monster": {
+      "name": "Monster",
+      "slug": "monster",
       "kind": "interface",
       "summary": "",
-      "definition": "interface MonsterRecord",
+      "definition": "interface Monster",
       "keys": [
+        {
+          "kind": "property",
+          "name": "alive",
+          "signature": "readonly alive: boolean",
+          "description": ""
+        },
         {
           "kind": "property",
           "name": "cell",
@@ -1232,8 +1544,32 @@
         },
         {
           "kind": "property",
+          "name": "dead",
+          "signature": "readonly dead: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "hp",
           "signature": "readonly hp: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "hpPercent",
+          "signature": "readonly hpPercent: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "idle",
+          "signature": "readonly idle: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "inCombat",
+          "signature": "readonly inCombat: boolean",
           "description": ""
         },
         {
@@ -1274,6 +1610,12 @@
         },
         {
           "kind": "property",
+          "name": "mpPercent",
+          "signature": "readonly mpPercent: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "name",
           "signature": "readonly name: string",
           "description": ""
@@ -1287,13 +1629,43 @@
         {
           "kind": "property",
           "name": "state",
-          "signature": "readonly state: number",
+          "signature": "readonly state: EntityState",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "isInCell()",
+          "signature": "isInCell(cell: string): boolean",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "matches()",
+          "signature": "matches(selector: MonsterQuery): boolean",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): EntitySnapshot",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:132",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L132"
+        "path": "packages/game/src/monster.ts:22",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/monster.ts#L22"
+      }
+    },
+    "monster-query": {
+      "name": "MonsterQuery",
+      "slug": "monster-query",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type MonsterQuery = MonsterSelector | number | string",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/monster.ts:20",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/monster.ts#L20"
       }
     },
     "monster-selector": {
@@ -1301,11 +1673,11 @@
       "slug": "monster-selector",
       "kind": "type alias",
       "summary": "",
-      "definition": "type MonsterSelector = MonsterSelector | number | string",
+      "definition": "type MonsterSelector = MonsterQuery",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:23",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L23"
+        "path": "app/src/renderer/game/flash/Types.ts:51",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L51"
       }
     },
     "monster-target-info": {
@@ -1316,20 +1688,186 @@
       "definition": "type MonsterTargetInfo = TargetBaseInfo & { level: number; monsterId: number; monsterMapId: number; name: string; race: string; type: \"monster\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:79",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L79"
+        "path": "app/src/renderer/game/Types.ts:81",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L81"
       }
     },
-    "object-selector": {
-      "name": "ObjectSelector",
-      "slug": "object-selector",
-      "kind": "type alias",
+    "outfit": {
+      "name": "Outfit",
+      "slug": "outfit",
+      "kind": "interface",
       "summary": "",
-      "definition": "type ObjectSelector<Shape> = { [Key in keyof Shape]: { [SelectedKey in Key]: Shape[SelectedKey] } & { [OtherKey in Exclude<keyof Shape, Key>]?: never } }[keyof Shape]",
-      "keys": [],
+      "definition": "interface Outfit",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "colors",
+          "signature": "readonly colors: OutfitColors",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "equipment",
+          "signature": "readonly equipment: OutfitEquipment",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name: string",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): OutfitSnapshot",
+          "description": ""
+        }
+      ],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:41",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L41"
+        "path": "packages/game/src/outfit.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/outfit.ts#L23"
+      }
+    },
+    "outfit-colors": {
+      "name": "OutfitColors",
+      "slug": "outfit-colors",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface OutfitColors",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "accessory",
+          "signature": "readonly accessory: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "base",
+          "signature": "readonly base: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "eye",
+          "signature": "readonly eye: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "hair",
+          "signature": "readonly hair: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "skin",
+          "signature": "readonly skin: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "trim",
+          "signature": "readonly trim: number | undefined",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/outfit.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/outfit.ts#L3"
+      }
+    },
+    "outfit-data": {
+      "name": "OutfitData",
+      "slug": "outfit-data",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface OutfitData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "colors",
+          "signature": "colors: OutfitColors",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "equipment",
+          "signature": "equipment: OutfitEquipment",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/outfit.ts:30",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/outfit.ts#L30"
+      }
+    },
+    "outfit-equipment": {
+      "name": "OutfitEquipment",
+      "slug": "outfit-equipment",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface OutfitEquipment",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "armorItemId",
+          "signature": "readonly armorItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "capeItemId",
+          "signature": "readonly capeItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "classItemId",
+          "signature": "readonly classItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "helmItemId",
+          "signature": "readonly helmItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "miscItemId",
+          "signature": "readonly miscItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "petItemId",
+          "signature": "readonly petItemId: number | undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "weaponItemId",
+          "signature": "readonly weaponItemId: number | undefined",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/outfit.ts:12",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/outfit.ts#L12"
       }
     },
     "outfit-options": {
@@ -1347,33 +1885,20 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:434",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L434"
+        "path": "app/src/renderer/game/flash/Types.ts:332",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L332"
       }
     },
-    "outfit-record": {
-      "name": "OutfitRecord",
-      "slug": "outfit-record",
-      "kind": "interface",
+    "outfit-snapshot": {
+      "name": "OutfitSnapshot",
+      "slug": "outfit-snapshot",
+      "kind": "type alias",
       "summary": "",
-      "definition": "interface OutfitRecord",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "name",
-          "signature": "readonly name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "raw",
-          "signature": "readonly raw: UnknownRecord",
-          "description": ""
-        }
-      ],
+      "definition": "type OutfitSnapshot = Readonly<OutfitData>",
+      "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:90",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L90"
+        "path": "packages/game/src/outfit.ts:36",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/outfit.ts#L36"
       }
     },
     "packet-selector": {
@@ -1403,16 +1928,16 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:233",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L233"
+        "path": "app/src/renderer/game/flash/Types.ts:131",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L131"
       }
     },
-    "player-record": {
-      "name": "PlayerRecord",
-      "slug": "player-record",
+    "player": {
+      "name": "Player",
+      "slug": "player",
       "kind": "interface",
       "summary": "",
-      "definition": "interface PlayerRecord",
+      "definition": "interface Player",
       "keys": [
         {
           "kind": "property",
@@ -1422,8 +1947,20 @@
         },
         {
           "kind": "property",
+          "name": "alive",
+          "signature": "readonly alive: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "cell",
           "signature": "readonly cell: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "dead",
+          "signature": "readonly dead: boolean",
           "description": ""
         },
         {
@@ -1442,6 +1979,24 @@
           "kind": "property",
           "name": "hp",
           "signature": "readonly hp: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "hpPercent",
+          "signature": "readonly hpPercent: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "idle",
+          "signature": "readonly idle: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "inCombat",
+          "signature": "readonly inCombat: boolean",
           "description": ""
         },
         {
@@ -1470,6 +2025,12 @@
         },
         {
           "kind": "property",
+          "name": "mpPercent",
+          "signature": "readonly mpPercent: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "name",
           "signature": "readonly name: string",
           "description": ""
@@ -1483,13 +2044,13 @@
         {
           "kind": "property",
           "name": "position",
-          "signature": "readonly position: readonly [number, number]",
+          "signature": "readonly position: Position",
           "description": ""
         },
         {
           "kind": "property",
           "name": "state",
-          "signature": "readonly state: number",
+          "signature": "readonly state: EntityState",
           "description": ""
         },
         {
@@ -1497,11 +2058,23 @@
           "name": "username",
           "signature": "readonly username: string",
           "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "isInCell()",
+          "signature": "isInCell(cell: string): boolean",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): EntitySnapshot",
+          "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:115",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L115"
+        "path": "packages/game/src/player.ts:13",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/player.ts#L13"
       }
     },
     "player-target-info": {
@@ -1512,8 +2085,8 @@
       "definition": "type PlayerTargetInfo = TargetBaseInfo & { afk: boolean; entityId: number; entityType: string; level: number; maxMp: number; mp: number; name: string; pad: string; sp: number; type: \"player\"; username: string }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:88",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L88"
+        "path": "app/src/renderer/game/Types.ts:90",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L90"
       }
     },
     "position": {
@@ -1537,8 +2110,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:152",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L152"
+        "path": "packages/game/src/player.ts:8",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/player.ts#L8"
       }
     },
     "quantity-options": {
@@ -1556,17 +2129,23 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:430",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L430"
+        "path": "app/src/renderer/game/flash/Types.ts:328",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L328"
       }
     },
-    "quest-record": {
-      "name": "QuestRecord",
-      "slug": "quest-record",
+    "quest": {
+      "name": "Quest",
+      "slug": "quest",
       "kind": "interface",
       "summary": "",
-      "definition": "interface QuestRecord",
+      "definition": "interface Quest",
       "keys": [
+        {
+          "kind": "property",
+          "name": "cadence",
+          "signature": "readonly cadence: QuestCadence",
+          "description": ""
+        },
         {
           "kind": "property",
           "name": "id",
@@ -1581,14 +2160,173 @@
         },
         {
           "kind": "property",
-          "name": "raw",
-          "signature": "readonly raw: UnknownRecord",
+          "name": "once",
+          "signature": "readonly once: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "requirements",
+          "signature": "readonly requirements: readonly QuestItem[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "rewards",
+          "signature": "readonly rewards: readonly QuestReward[]",
+          "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): QuestSnapshot",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:77",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L77"
+        "path": "packages/game/src/quest.ts:15",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L15"
+      }
+    },
+    "quest-cadence": {
+      "name": "QuestCadence",
+      "slug": "quest-cadence",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type QuestCadence = \"daily\" | \"monthly\" | \"none\" | \"weekly\"",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/quest.ts:13",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L13"
+      }
+    },
+    "quest-data": {
+      "name": "QuestData",
+      "slug": "quest-data",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface QuestData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "cadence",
+          "signature": "cadence: QuestCadence",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "id",
+          "signature": "id: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "once",
+          "signature": "once: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "requirements",
+          "signature": "requirements: readonly QuestItem[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "rewards",
+          "signature": "rewards: readonly QuestReward[]",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/quest.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L25"
+      }
+    },
+    "quest-item": {
+      "name": "QuestItem",
+      "slug": "quest-item",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface QuestItem",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "quantity",
+          "signature": "readonly quantity: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/quest.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L3"
+      }
+    },
+    "quest-reward": {
+      "name": "QuestReward",
+      "slug": "quest-reward",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface QuestReward",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "dropChance",
+          "signature": "readonly dropChance?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "quantity",
+          "signature": "readonly quantity: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/quest.ts:9",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L9"
+      }
+    },
+    "quest-snapshot": {
+      "name": "QuestSnapshot",
+      "slug": "quest-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type QuestSnapshot = Readonly<QuestData>",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/quest.ts:34",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/quest.ts#L34"
       }
     },
     "script-combat-profile-input": {
@@ -1599,8 +2337,8 @@
       "definition": "type ScriptCombatProfileInput = CombatProfile | CombatProfileDefinition | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:405",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L405"
+        "path": "app/src/renderer/game/flash/Types.ts:303",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L303"
       }
     },
     "script-input-value": {
@@ -1611,8 +2349,8 @@
       "definition": "type ScriptInputValue = typeof ScriptInputValueSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/shared/scriptInputs.ts:9",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/scriptInputs.ts#L9"
+        "path": "packages/core/src/scriptInputs.ts:9",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/core/src/scriptInputs.ts#L9"
       }
     },
     "script-input-values": {
@@ -1623,8 +2361,8 @@
       "definition": "type ScriptInputValues = typeof ScriptInputValuesSchema.Type",
       "keys": [],
       "source": {
-        "path": "app/src/shared/scriptInputs.ts:73",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/shared/scriptInputs.ts#L73"
+        "path": "packages/core/src/scriptInputs.ts:73",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/core/src/scriptInputs.ts#L73"
       }
     },
     "script-runtime-options": {
@@ -1652,24 +2390,12 @@
         "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L103"
       }
     },
-    "server-packet-send-type": {
-      "name": "ServerPacketSendType",
-      "slug": "server-packet-send-type",
-      "kind": "type alias",
-      "summary": "",
-      "definition": "type ServerPacketSendType = \"String\" | \"Json\"",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:386",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L386"
-      }
-    },
-    "server-record": {
-      "name": "ServerRecord",
-      "slug": "server-record",
+    "server": {
+      "name": "Server",
+      "slug": "server",
       "kind": "interface",
       "summary": "",
-      "definition": "interface ServerRecord",
+      "definition": "interface Server",
       "keys": [
         {
           "kind": "property",
@@ -1681,6 +2407,12 @@
           "kind": "property",
           "name": "count",
           "signature": "readonly count: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "full",
+          "signature": "readonly full: boolean",
           "description": ""
         },
         {
@@ -1714,23 +2446,102 @@
           "description": ""
         },
         {
-          "kind": "property",
-          "name": "raw",
-          "signature": "readonly raw: UnknownRecord",
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): ServerSnapshot",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:95",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L95"
+        "path": "packages/game/src/server.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/server.ts#L3"
       }
     },
-    "shop-info-record": {
-      "name": "ShopInfoRecord",
-      "slug": "shop-info-record",
+    "server-data": {
+      "name": "ServerData",
+      "slug": "server-data",
       "kind": "interface",
       "summary": "",
-      "definition": "interface ShopInfoRecord",
+      "definition": "interface ServerData",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "chat",
+          "signature": "chat: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "count",
+          "signature": "count: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "language",
+          "signature": "language: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "max",
+          "signature": "max: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "memberOnly",
+          "signature": "memberOnly: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "online",
+          "signature": "online: boolean",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/server.ts:15",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/server.ts#L15"
+      }
+    },
+    "server-packet-send-type": {
+      "name": "ServerPacketSendType",
+      "slug": "server-packet-send-type",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ServerPacketSendType = \"String\" | \"Json\"",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/Types.ts:284",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L284"
+      }
+    },
+    "server-snapshot": {
+      "name": "ServerSnapshot",
+      "slug": "server-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ServerSnapshot = Readonly<ServerData> & { full: boolean }",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/server.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/server.ts#L25"
+      }
+    },
+    "shop": {
+      "name": "Shop",
+      "slug": "shop",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface Shop",
       "keys": [
         {
           "kind": "property",
@@ -1747,7 +2558,7 @@
         {
           "kind": "property",
           "name": "items",
-          "signature": "readonly items: readonly ShopItemRecord[]",
+          "signature": "readonly items: readonly Item[]",
           "description": ""
         },
         {
@@ -1767,138 +2578,78 @@
           "name": "name",
           "signature": "readonly name: string",
           "description": ""
+        },
+        {
+          "kind": "method",
+          "name": "toJSON()",
+          "signature": "toJSON(): ShopSnapshot",
+          "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:64",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L64"
+        "path": "packages/game/src/shop.ts:4",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/shop.ts#L4"
       }
     },
-    "shop-item-record": {
-      "name": "ShopItemRecord",
-      "slug": "shop-item-record",
+    "shop-data": {
+      "name": "ShopData",
+      "slug": "shop-data",
       "kind": "interface",
       "summary": "",
-      "definition": "interface ShopItemRecord",
+      "definition": "interface ShopData",
       "keys": [
         {
           "kind": "property",
-          "name": "banked",
-          "signature": "readonly banked: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "category",
-          "signature": "readonly category: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "charItemId",
-          "signature": "readonly charItemId?: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "coins",
-          "signature": "readonly coins: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "cost",
-          "signature": "readonly cost: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "description",
-          "signature": "readonly description: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "enhancement",
-          "signature": "readonly enhancement?: { dps?: number; id?: number; level?: number; patternId?: number; range?: number; rarity?: number }",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "equipmentSlot",
-          "signature": "readonly equipmentSlot: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "equipped",
-          "signature": "readonly equipped: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "file",
-          "signature": "readonly file: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
           "name": "house",
-          "signature": "readonly house: boolean",
+          "signature": "house: boolean",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "itemId",
-          "signature": "readonly itemId: number",
+          "name": "id",
+          "signature": "id: number",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "link",
-          "signature": "readonly link: string",
+          "name": "items",
+          "signature": "items: readonly Item[]",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "meta",
-          "signature": "readonly meta: string",
+          "name": "limited",
+          "signature": "limited: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "merge",
+          "signature": "merge: boolean",
           "description": ""
         },
         {
           "kind": "property",
           "name": "name",
-          "signature": "readonly name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "quantity",
-          "signature": "readonly quantity: number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "shopItemId",
-          "signature": "readonly shopItemId?: string | number",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "temp",
-          "signature": "readonly temp: boolean",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "virtual",
-          "signature": "readonly virtual: boolean",
+          "signature": "name: string",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:73",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L73"
+        "path": "packages/game/src/shop.ts:14",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/shop.ts#L14"
+      }
+    },
+    "shop-item-query": {
+      "name": "ShopItemQuery",
+      "slug": "shop-item-query",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ShopItemQuery = ShopItemSelector | number | string",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/item.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L40"
       }
     },
     "shop-item-selector": {
@@ -1906,11 +2657,54 @@
       "slug": "shop-item-selector",
       "kind": "type alias",
       "summary": "",
-      "definition": "type ShopItemSelector = ShopItemSelector | InventoryItemSelector | number | string",
+      "definition": "type ShopItemSelector = ShopItemQuery",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:25",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L25"
+        "path": "app/src/renderer/game/flash/Types.ts:53",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L53"
+      }
+    },
+    "shop-item-selector-by-id": {
+      "name": "ShopItemSelectorById",
+      "slug": "shop-item-selector-by-id",
+      "kind": "interface",
+      "summary": "",
+      "definition": "interface ShopItemSelectorById",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "itemId",
+          "signature": "readonly itemId?: undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "readonly name?: undefined",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "shopItemId",
+          "signature": "readonly shopItemId: number",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/item.ts:32",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/item.ts#L32"
+      }
+    },
+    "shop-snapshot": {
+      "name": "ShopSnapshot",
+      "slug": "shop-snapshot",
+      "kind": "type alias",
+      "summary": "",
+      "definition": "type ShopSnapshot = Readonly<Omit<ShopData, \"items\">> & { items: readonly ItemSnapshot[] }",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/shop.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/packages/game/src/shop.ts#L23"
       }
     },
     "skill": {
@@ -1921,8 +2715,8 @@
       "definition": "type Skill = number | string",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:403",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L403"
+        "path": "app/src/renderer/game/flash/Types.ts:301",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L301"
       }
     },
     "skill-use-options": {
@@ -1946,8 +2740,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:425",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L425"
+        "path": "app/src/renderer/game/flash/Types.ts:323",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L323"
       }
     },
     "state-disposer": {
@@ -2009,7 +2803,7 @@
         {
           "kind": "property",
           "name": "state",
-          "signature": "state: number",
+          "signature": "state: EntityState",
           "description": ""
         },
         {
@@ -2020,8 +2814,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:71",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L71"
+        "path": "app/src/renderer/game/Types.ts:73",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L73"
       }
     },
     "target-info": {
@@ -2032,8 +2826,8 @@
       "definition": "type TargetInfo = MonsterTargetInfo | PlayerTargetInfo",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:102",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L102"
+        "path": "app/src/renderer/game/Types.ts:104",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/Types.ts#L104"
       }
     },
     "unknown-record": {
@@ -2044,8 +2838,8 @@
       "definition": "type UnknownRecord = Record<string, unknown>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:19",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L19"
+        "path": "app/src/renderer/game/flash/Types.ts:41",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L41"
       }
     },
     "wait-options": {
@@ -2069,8 +2863,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/Types.ts:379",
-        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L379"
+        "path": "app/src/renderer/game/flash/Types.ts:277",
+        "url": "https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/Types.ts#L277"
       }
     }
   }

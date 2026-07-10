@@ -1,3 +1,5 @@
+import type { EntityState } from "@lucent/game";
+
 export type ConnectToSelectionFailureReason =
   | "chat-restricted"
   | "email-unconfirmed"
@@ -72,7 +74,7 @@ export type TargetBaseInfo = {
   type: "monster" | "player";
   hp: number;
   maxHp: number;
-  state: number;
+  state: EntityState;
   cell: string;
 };
 

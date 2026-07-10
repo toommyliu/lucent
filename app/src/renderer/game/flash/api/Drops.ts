@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { DropRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { normalizeItemSelector } from "../selectors";
 import { DropsState } from "../state/Drops";
@@ -9,7 +9,7 @@ import { AuthApi } from "./Auth";
 export interface DropsApiShape {
   readonly accept: (selector: ItemSelector) => Effect.Effect<boolean>;
   readonly contains: (selector: ItemSelector) => Effect.Effect<boolean>;
-  readonly getAll: () => Effect.Effect<readonly DropRecord[]>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
   readonly isCustomUiEnabled: () => Effect.Effect<boolean>;
   readonly reject: (selector: ItemSelector) => Effect.Effect<boolean>;
   readonly toggleUi: () => Effect.Effect<void>;

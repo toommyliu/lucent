@@ -2,16 +2,17 @@ import { Context, Effect, Layer } from "effect";
 import type { Duration } from "effect";
 
 import type {
-  AuraRecord,
+  Aura,
   CombatKillOptions,
   HuntOptions,
   ItemSelector,
-  MonsterRecord,
+  Monster,
   MonsterSelector,
   SkillUseOptions,
   Skill,
   TargetInfo,
 } from "../Types";
+import { EntityState } from "@lucent/game";
 import {
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   getCombatProfileById,
@@ -48,8 +49,8 @@ export interface CombatTargetApi {
 }
 
 export interface TargetAurasApi {
-  readonly get: (auraName: string) => Effect.Effect<AuraRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly AuraRecord[]>;
+  readonly get: (auraName: string) => Effect.Effect<Aura | null>;
+  readonly getAll: () => Effect.Effect<readonly Aura[]>;
   readonly has: (auraName: string) => Effect.Effect<boolean>;
 }
 
@@ -65,7 +66,7 @@ export interface CombatApiShape {
   readonly hunt: (
     selector: MonsterSelector,
     options?: HuntOptions,
-  ) => Effect.Effect<MonsterRecord | null>;
+  ) => Effect.Effect<Monster | null>;
   readonly kill: (
     selector: MonsterSelector,
     options?: CombatKillOptions,
@@ -108,11 +109,6 @@ const normalizeSkill = (index: Skill): number | null => {
 const defaultSkillDelay = 150;
 const combatExitSettleDelay = 500;
 const skillReadyConfirmationDelay = 150;
-const entityState = {
-  dead: 0,
-  inCombat: 2,
-} as const;
-
 interface TrackedAntiCounter {
   readonly auraName: string;
   readonly expiresAtMs: number;
@@ -184,9 +180,9 @@ const readCombatProfileLibraryFromDesktop = () =>
   });
 
 const chooseHuntTarget = (
-  matches: readonly MonsterRecord[],
+  matches: readonly Monster[],
   options?: HuntOptions,
-): MonsterRecord | null => {
+): Monster | null => {
   if (matches.length === 0) {
     return null;
   }
@@ -212,9 +208,6 @@ const chooseHuntTarget = (
 
   return best;
 };
-
-const isMonsterDead = (monster: MonsterRecord | null): boolean =>
-  monster === null || monster.hp <= 0 || monster.state === entityState.dead;
 
 const isCombatExitCandidateCell = (
   cell: string,
@@ -291,10 +284,7 @@ export const layer = Layer.effect(
     const expiredAntiCounterAuraKeys = new Set<string>();
     const stoppedAntiCounterTargets = new Set<number>();
 
-    const trackAntiCounterAura = (
-      monsterMapId: number,
-      aura: AuraRecord,
-    ): void => {
+    const trackAntiCounterAura = (monsterMapId: number, aura: Aura): void => {
       antiCounterMonsters.set(monsterMapId, {
         auraName: aura.name,
         expiresAtMs: antiCounterExpiresAtMs(aura),
@@ -421,7 +411,7 @@ export const layer = Layer.effect(
         const currentCell = (yield* player.getCell()).trim().toLowerCase();
         const candidates = (yield* monsters.getAll()).filter(
           (monster) =>
-            !isMonsterDead(monster) &&
+            monster.dead === false &&
             monsterMatchesSelector(monster, normalized) &&
             (currentCell === "" ||
               monster.cell.trim().toLowerCase() === currentCell),
@@ -638,7 +628,7 @@ export const layer = Layer.effect(
 
         const matches = (yield* monsters.getAll()).filter(
           (monster) =>
-            (options.includeDead || !isMonsterDead(monster)) &&
+            (options.includeDead || monster.dead === false) &&
             monsterMatchesSelector(monster, normalized),
         );
         const monster = chooseHuntTarget(matches, options);
@@ -660,7 +650,7 @@ export const layer = Layer.effect(
 
     const isPlayerInCombat = Effect.gen(function* () {
       const projectedState = yield* player.getState();
-      return projectedState === entityState.inCombat;
+      return projectedState === EntityState.InCombat;
     });
 
     const waitUntilOutOfCombat = (timeout: Duration.Input) =>
@@ -760,14 +750,14 @@ export const layer = Layer.effect(
           combatProfile === undefined
             ? undefined
             : yield* makeCombatProfileCursor();
-        let target: MonsterRecord | null = null;
+        let target: Monster | null = null;
         const killed = yield* wait.until(
           Effect.gen(function* () {
             if (target !== null) {
               const current = yield* monsters.get({
                 monMapId: target.monsterMapId,
               });
-              if (isMonsterDead(current)) {
+              if (current?.dead === true) {
                 if (
                   combatProfile?.resetSkillIndexOnMonsterDeath === true &&
                   profileCursor !== undefined

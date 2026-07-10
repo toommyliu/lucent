@@ -203,9 +203,9 @@ interface ScriptArmyApi {
     isMember(): Effect<boolean, never>;
     isStarted(): Effect<boolean, never>;
     joinMap(map: string, cell?: string, pad?: string): Effect<void, ArmyError>;
-    kill(target: MonsterSelector, options?: CombatKillOptions): Effect<void, ArmyError>;
-    killForItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
-    killForTempItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+    kill(target: MonsterQuery, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
     leave(): Effect<void, never>;
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
@@ -214,7 +214,7 @@ interface ScriptArmyApi {
 interface ScriptAuthApi {
     connectTo(server: string): Effect<AuthConnectOutcome, never>;
     getPassword(): Effect<string, never>;
-    getServers(): Effect<readonly ServerRecord[], never>;
+    getServers(): Effect<readonly Server[], never>;
     getUsername(): Effect<string, never>;
     isLoggedIn(): Effect<boolean, never>;
     isServerSelectReady(): Effect<boolean, never>;
@@ -223,31 +223,31 @@ interface ScriptAuthApi {
     logout(): Effect<void, never>;
 }
 interface ScriptBankApi {
-    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
-    deposit(selector: ItemSelector): Effect<boolean, never>;
-    depositBatch(selectors: readonly ItemSelector[]): Effect<readonly boolean[], never>;
-    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
-    getAll(): Effect<readonly ItemRecord[], never>;
+    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
+    deposit(selector: ItemQuery): Effect<boolean, never>;
+    depositBatch(selectors: readonly ItemQuery[]): Effect<readonly boolean[], never>;
+    get(selector: ItemQuery): Effect<Item | null, never>;
+    getAll(): Effect<readonly Item[], never>;
     getAvailableSlots(): Effect<number, never>;
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
     isOpen(): Effect<boolean, never>;
     open(force?: boolean): Effect<void, never>;
-    swap(inventorySelector: ItemSelector, bankSelector: ItemSelector): Effect<boolean, never>;
-    withdraw(selector: ItemSelector): Effect<boolean, never>;
-    withdrawBatch(selectors: readonly ItemSelector[]): Effect<readonly boolean[], never>;
+    swap(inventorySelector: ItemQuery, bankSelector: ItemQuery): Effect<boolean, never>;
+    withdraw(selector: ItemQuery): Effect<boolean, never>;
+    withdrawBatch(selectors: readonly ItemQuery[]): Effect<readonly boolean[], never>;
 }
 interface ScriptCombatApi {
-    attackMonster(selector: MonsterSelector): Effect<boolean, never>;
+    attackMonster(selector: MonsterQuery): Effect<boolean, never>;
     cancelAutoAttack(): Effect<void, never>;
     cancelTarget(): Effect<void, never>;
     canUseSkill(index: Skill): Effect<boolean, never>;
     exit(): Effect<boolean, never>;
     getConsumableSkillItem(): Effect<{ readonly itemId: number; } | null, never>;
-    hunt(selector: MonsterSelector, options?: HuntOptions): Effect<MonsterRecord | null, never>;
-    kill(selector: MonsterSelector, options?: CombatKillOptions): Effect<boolean, never>;
-    killForItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
-    killForTempItem(monster: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+    hunt(selector: MonsterQuery, options?: HuntOptions): Effect<Monster | null, never>;
+    kill(selector: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
+    killForItem(monster: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+    killForTempItem(monster: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
     useSkill(index: Skill, options?: SkillUseOptions): Effect<boolean, never>;
 }
@@ -256,16 +256,16 @@ interface ScriptCombatTargetApi {
     get(): Effect<TargetInfo | null, never>;
 }
 interface ScriptCombatTargetAurasApi {
-    get(auraName: string): Effect<AuraRecord | null, never>;
-    getAll(): Effect<readonly AuraRecord[], never>;
+    get(auraName: string): Effect<Aura | null, never>;
+    getAll(): Effect<readonly Aura[], never>;
     has(auraName: string): Effect<boolean, never>;
 }
 interface ScriptDropsApi {
-    accept(selector: ItemSelector): Effect<boolean, never>;
-    contains(selector: ItemSelector): Effect<boolean, never>;
-    getAll(): Effect<readonly DropRecord[], never>;
+    accept(selector: ItemQuery): Effect<boolean, never>;
+    contains(selector: ItemQuery): Effect<boolean, never>;
+    getAll(): Effect<readonly Item[], never>;
     isCustomUiEnabled(): Effect<boolean, never>;
-    reject(selector: ItemSelector): Effect<boolean, never>;
+    reject(selector: ItemQuery): Effect<boolean, never>;
     toggleUi(): Effect<void, never>;
 }
 interface ScriptEventsApi {
@@ -303,21 +303,21 @@ interface ScriptFeaturesAutoZoneApi {
     setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
 }
 interface ScriptHouseApi {
-    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
-    getAll(): Effect<readonly ItemRecord[], never>;
+    get(selector: ItemQuery): Effect<Item | null, never>;
+    getAll(): Effect<readonly Item[], never>;
     getAvailableSlots(): Effect<number, never>;
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
 }
 interface ScriptInventoryApi {
-    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
-    equip(selector: ItemSelector): Effect<boolean, never>;
-    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
-    getAll(): Effect<readonly ItemRecord[], never>;
+    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
+    equip(selector: ItemQuery): Effect<boolean, never>;
+    get(selector: ItemQuery): Effect<Item | null, never>;
+    getAll(): Effect<readonly Item[], never>;
     getAvailableSlots(): Effect<number, never>;
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
-    unequipConsumable(selector: ItemSelector): Effect<boolean, never>;
+    unequipConsumable(selector: ItemQuery): Effect<boolean, never>;
 }
 interface ScriptMapApi {
     getCellPads(): Effect<readonly string[], never>;
@@ -333,15 +333,15 @@ interface ScriptMapApi {
 }
 interface ScriptMonstersApi {
     readonly auras: ScriptMonstersAurasApi;
-    get(selector: MonsterSelector): Effect<MonsterRecord | null, never>;
-    getAll(): Effect<readonly MonsterRecord[], never>;
-    getAvailable(): Effect<readonly MonsterRecord[], never>;
-    isAvailable(selector: MonsterSelector): Effect<boolean, never>;
+    get(selector: MonsterQuery): Effect<Monster | null, never>;
+    getAll(): Effect<readonly Monster[], never>;
+    getAvailable(): Effect<readonly Monster[], never>;
+    isAvailable(selector: MonsterQuery): Effect<boolean, never>;
 }
 interface ScriptMonstersAurasApi {
-    get(monster: MonsterSelector, auraName: string): Effect<AuraRecord | null, never>;
-    getAll(monster: MonsterSelector): Effect<readonly AuraRecord[], never>;
-    has(monster: MonsterSelector, auraName: string): Effect<boolean, never>;
+    get(monster: MonsterQuery, auraName: string): Effect<Aura | null, never>;
+    getAll(monster: MonsterQuery): Effect<readonly Aura[], never>;
+    has(monster: MonsterQuery, auraName: string): Effect<boolean, never>;
 }
 interface ScriptPacketApi {
     on(selector: PacketSelector | undefined, handler: PacketHandler): Effect<() => void, never>;
@@ -352,6 +352,7 @@ interface ScriptPacketApi {
 interface ScriptPlayerApi {
     readonly auras: ScriptPlayerAurasApi;
     readonly factions: ScriptPlayerFactionsApi;
+    get(): Effect<Player | null, never>;
     getCell(): Effect<string, never>;
     getClassName(): Effect<string, never>;
     getGender(): Effect<string, never>;
@@ -363,7 +364,7 @@ interface ScriptPlayerApi {
     getMp(): Effect<number, never>;
     getPad(): Effect<string, never>;
     getPosition(): Effect<Position, never>;
-    getState(): Effect<number, never>;
+    getState(): Effect<EntityStateValue, never>;
     goToPlayer(name: string): Effect<void, never>;
     hasActiveBoost(boostType: string): Effect<boolean, never>;
     isAfk(): Effect<boolean, never>;
@@ -374,32 +375,32 @@ interface ScriptPlayerApi {
     jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<void, never>;
     readonly outfits: ScriptPlayerOutfitsApi;
     rest(full?: boolean): Effect<void, never>;
-    useBoost(selector: ItemSelector): Effect<boolean, never>;
+    useBoost(selector: ItemQuery): Effect<boolean, never>;
     walkTo(x: number, y: number, walkSpeed?: number): Effect<boolean, never>;
 }
 interface ScriptPlayerAurasApi {
-    get(auraName: string): Effect<AuraRecord | null, never>;
-    getAll(): Effect<readonly AuraRecord[], never>;
+    get(auraName: string): Effect<Aura | null, never>;
+    getAll(): Effect<readonly Aura[], never>;
     has(auraName: string): Effect<boolean, never>;
 }
 interface ScriptPlayerFactionsApi {
-    get(selector: string | number): Effect<FactionRecord | null, never>;
-    getAll(): Effect<readonly FactionRecord[], never>;
+    get(selector: string | number): Effect<Faction | null, never>;
+    getAll(): Effect<readonly Faction[], never>;
 }
 interface ScriptPlayerOutfitsApi {
     equip(name: string, options?: OutfitOptions): Effect<boolean, never>;
-    get(name: string): Effect<OutfitRecord | null, never>;
-    getAll(): Effect<readonly OutfitRecord[], never>;
+    get(name: string): Effect<Outfit | null, never>;
+    getAll(): Effect<readonly Outfit[], never>;
     wear(name: string, options?: OutfitOptions): Effect<boolean, never>;
 }
 interface ScriptPlayersApi {
     readonly auras: ScriptPlayersAurasApi;
-    get(selector: string | number): Effect<PlayerRecord | null, never>;
-    getAll(): Effect<readonly PlayerRecord[], never>;
-    getMe(): Effect<PlayerRecord | null, never>;
+    get(selector: string | number): Effect<Player | null, never>;
+    getAll(): Effect<readonly Player[], never>;
+    getMe(): Effect<Player | null, never>;
 }
 interface ScriptPlayersAurasApi {
-    get(player: string | number, auraName: string): Effect<AuraRecord | null, never>;
+    get(player: string | number, auraName: string): Effect<Aura | null, never>;
     has(player: string | number, auraName: string): Effect<boolean, never>;
 }
 interface ScriptQuestsApi {
@@ -407,9 +408,9 @@ interface ScriptQuestsApi {
     accept(questId: number): Effect<boolean, never>;
     acceptBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
     complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect<boolean, never>;
-    get(questId: number): Effect<QuestRecord | null, never>;
-    getAccepted(): Effect<readonly QuestRecord[], never>;
-    getAll(): Effect<readonly QuestRecord[], never>;
+    get(questId: number): Effect<Quest | null, never>;
+    getAccepted(): Effect<readonly Quest[], never>;
+    getAll(): Effect<readonly Quest[], never>;
     getMaxTurnIns(questId: number): Effect<number, never>;
     isAvailable(questId: number): Effect<boolean, never>;
     isInProgress(questId: number): Effect<boolean, never>;
@@ -446,24 +447,24 @@ interface ScriptSettingsApi {
     setWalkSpeed(speed: number): Effect<void, never>;
 }
 interface ScriptShopsApi {
-    buy(selector: ShopItemSelector, options?: QuantityOptions): Effect<boolean, never>;
-    canBuy(selector: ShopItemSelector, options?: QuantityOptions): Effect<boolean, never>;
+    buy(selector: ShopItemQuery, options?: QuantityOptions): Effect<boolean, never>;
+    canBuy(selector: ShopItemQuery, options?: QuantityOptions): Effect<boolean, never>;
     close(shopId?: number): Effect<boolean, never>;
-    get(selector: ShopItemSelector): Effect<ShopItemRecord | null, never>;
-    getAll(): Effect<readonly ShopItemRecord[], never>;
-    getInfo(): Effect<ShopInfoRecord | null, never>;
-    getMaxBuyQuantity(selector: ShopItemSelector): Effect<number, never>;
+    get(selector: ShopItemQuery): Effect<Item | null, never>;
+    getAll(): Effect<readonly Item[], never>;
+    getInfo(): Effect<Shop | null, never>;
+    getMaxBuyQuantity(selector: ShopItemQuery): Effect<number, never>;
     isMergeShop(): Effect<boolean, never>;
     isOpen(shopId?: number): Effect<boolean, never>;
     load(shopId: number): Effect<boolean, never>;
     loadArmorCustomize(): Effect<void, never>;
     loadHairShop(shopId: number): Effect<void, never>;
-    sell(selector: ItemSelector, options?: QuantityOptions): Effect<boolean, never>;
+    sell(selector: ItemQuery, options?: QuantityOptions): Effect<boolean, never>;
 }
 interface ScriptTempInventoryApi {
-    contains(selector: ItemSelector, quantity?: number): Effect<boolean, never>;
-    get(selector: ItemSelector): Effect<ItemRecord | null, never>;
-    getAll(): Effect<readonly ItemRecord[], never>;
+    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
+    get(selector: ItemQuery): Effect<Item | null, never>;
+    getAll(): Effect<readonly Item[], never>;
 }
 interface ScriptWaitApi {
     forEvent(selector?: EventSelector, options?: WaitOptions): Effect<FlashEvent | null, never>;
@@ -484,13 +485,14 @@ interface ArmyRunStepOptions {
   readonly timeoutMs?: number;
 }
 type ArmySession = ArmySessionPayload;
-interface AuraRecord {
-  readonly category?: string;
+interface Aura {
+  readonly category: string | undefined;
   readonly duration: number;
-  readonly icon?: string;
+  readonly icon: string | undefined;
   readonly name: string;
   readonly stack: number;
-  readonly value?: number;
+  readonly value: number | undefined;
+  toJSON(): AuraSnapshot;
 }
 interface AuthConnectOutcome {
   readonly message: string;
@@ -547,19 +549,17 @@ interface CombatKillOptions {
   readonly skillWait?: boolean;
   readonly timeout?: DurationInput;
 }
-interface DropRecord extends ItemRecord {
-  readonly dropId: number;
-  readonly dropQuantity: number;
-}
+interface EntityStateValue { readonly [key: string]: unknown; }
 interface EventSelector {
   readonly kind?: FlashEventKind;
   readonly type?: FlashEventType;
 }
-interface FactionRecord {
+interface Faction {
   readonly id: number;
   readonly name: string;
   readonly rank: number;
   readonly reputation: number;
+  toJSON(): FactionSnapshot;
 }
 type FlashEvent =
   | FlashPacketEvent
@@ -570,54 +570,53 @@ type FlashPacket = { readonly command: string; readonly direction: 'client'; rea
 interface HuntOptions {
   readonly findMost?: boolean;
 }
-interface ItemRecord {
+interface Item {
+  readonly armor: boolean;
   readonly banked: boolean;
+  readonly cape: boolean;
   readonly category: string;
-  readonly charItemId?: number;
+  readonly charItemId: number | undefined;
+  readonly classItem: boolean;
   readonly coins: boolean;
+  readonly context: ItemContext;
   readonly cost: number;
   readonly description: string;
-  readonly enhancement?: {
-    readonly dps?: number;
-    readonly id?: number;
-    readonly level?: number;
-    readonly patternId?: number;
-    readonly range?: number;
-    readonly rarity?: number;
-  };
+  readonly enhancement: Enhancement | undefined;
   readonly equipped: boolean;
   readonly equipmentSlot: string;
   readonly file: string;
-  readonly house: boolean;
+  readonly helm: boolean;
+  readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
   readonly meta: string;
   readonly name: string;
+  readonly pet: boolean;
   readonly quantity: number;
-  readonly temp: boolean;
-  readonly virtual: boolean;
+  readonly shopItemId: number | undefined;
+  readonly temporaryItem: boolean;
+  readonly weapon: boolean;
+  matches(selector: ItemQuery | ShopItemQuery): boolean;
+  toJSON(): ItemSnapshot;
 }
-type ItemSelector = ObjectSelector<InventoryItemSelectorShape> | number | string;
-interface MonsterRecord {
-  readonly cell: string;
-  readonly hp: number;
+type ItemQuery = ItemSelector | number | string;
+interface Monster extends Entity {
   readonly level: number;
-  readonly maxHp: number;
-  readonly maxMp: number;
   readonly monsterId: number;
   readonly monsterMapId: number;
-  readonly mp: number;
   readonly name: string;
   readonly race: string;
-  readonly state: number;
+  matches(selector: MonsterQuery): boolean;
 }
-type MonsterSelector = ObjectSelector<MonsterSelectorShape> | number | string;
+type MonsterQuery = MonsterSelector | number | string;
+interface Outfit {
+  readonly colors: OutfitColors;
+  readonly equipment: OutfitEquipment;
+  readonly name: string;
+  toJSON(): OutfitSnapshot;
+}
 interface OutfitOptions {
   readonly keepColors?: boolean;
-}
-interface OutfitRecord {
-  readonly name: string;
-  readonly raw: UnknownRecord;
 }
 type PacketHandler = (packet: FlashPacket) => Effect<void>;
 interface PacketSelector {
@@ -625,20 +624,14 @@ interface PacketSelector {
   readonly direction?: FlashPacketDirection;
   readonly wireType?: FlashPacketWireType;
 }
-interface PlayerRecord {
+interface Player extends Entity {
   readonly afk: boolean;
-  readonly cell: string;
   readonly entityId: number;
   readonly entityType: string;
-  readonly hp: number;
   readonly level: number;
-  readonly maxHp: number;
-  readonly maxMp: number;
-  readonly mp: number;
   readonly name: string;
   readonly pad: string;
-  readonly position: readonly [number, number];
-  readonly state: number;
+  readonly position: Position;
   readonly username: string;
 }
 interface Position {
@@ -648,42 +641,41 @@ interface Position {
 interface QuantityOptions {
   readonly quantity?: number;
 }
-interface QuestRecord {
+interface Quest {
+  readonly cadence: QuestCadence;
   readonly id: number;
   readonly name: string;
-  readonly raw: UnknownRecord;
+  readonly once: boolean;
+  readonly requirements: readonly QuestItem[];
+  readonly rewards: readonly QuestReward[];
+  toJSON(): QuestSnapshot;
 }
 interface ScriptRuntimeOptions {
   readonly safeStartStop: boolean;
   readonly usePrivateRooms: boolean;
 }
-type ServerPacketSendType = "String" | "Json";
-interface ServerRecord {
+interface Server {
   readonly chat: number;
   readonly count: number;
+  readonly full: boolean;
   readonly language: string;
   readonly max: number;
   readonly memberOnly: boolean;
   readonly name: string;
   readonly online: boolean;
-  readonly raw: UnknownRecord;
+  toJSON(): ServerSnapshot;
 }
-interface ShopInfoRecord {
+type ServerPacketSendType = "String" | "Json";
+interface Shop {
   readonly house: boolean;
   readonly id: number;
-  readonly items: readonly ShopItemRecord[];
+  readonly items: readonly Item[];
   readonly limited: boolean;
   readonly merge: boolean;
   readonly name: string;
+  toJSON(): ShopSnapshot;
 }
-interface ShopItemRecord extends ItemRecord {
-  readonly shopItemId?: number | string;
-}
-type ShopItemSelector =
-  | ObjectSelector<ShopItemSelectorShape>
-  | ObjectSelector<InventoryItemSelectorShape>
-  | number
-  | string;
+type ShopItemQuery = ShopItemSelector | number | string;
 interface SkillUseOptions {
   readonly force?: boolean;
   readonly wait?: boolean;
@@ -704,17 +696,20 @@ interface ArmySessionPayload extends ArmyConfigPayload {
   readonly role: "leader" | "member";
   readonly sessionId: string;
 }
+type AuraSnapshot = Readonly<AuraData>;
 interface AutoReloginLifecycleEvent {
   readonly attemptsRemaining: number;
   readonly message?: string;
   readonly step: AutoReloginLifecycleStep;
 }
+type MonsterSelector = MonsterQuery;
 type ScriptCombatProfileInput =
   | CombatProfile
   | CombatProfileDefinition
   | string;
 type FlashEventKind = "packet" | "projection" | "runtime";
 type FlashEventType = FlashEvent["type"];
+type FactionSnapshot = Readonly<FactionData>;
 type FlashPacketEvent =
   | {
       readonly kind: "packet";
@@ -739,7 +734,7 @@ type FlashProjectionEvent =
   | {
       readonly kind: "projection";
       readonly packet: FlashPacket;
-      readonly payload: MapRecord;
+      readonly payload: MapInfo;
       readonly type: "joinMap";
     }
   | {
@@ -785,7 +780,7 @@ type FlashProjectionEvent =
       readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
-        readonly aura: AuraRecord;
+        readonly aura: Aura;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };
@@ -838,25 +833,86 @@ type FlashRuntimeEvent =
       readonly payload: { readonly percent: number };
       readonly type: "progress";
     };
-type ObjectSelector<Shape extends Record<string, unknown>> = {
-  [Key in keyof Shape]: {
-    [SelectedKey in Key]: Shape[SelectedKey];
-  } & {
-    [OtherKey in Exclude<keyof Shape, Key>]?: never;
-  };
-}[keyof Shape];
-type InventoryItemSelectorShape = ItemSelectorShape;
-type MonsterSelectorShape = {
-  name: string;
-  monMapId: number;
+type ItemContext =
+  | "bank"
+  | "drop"
+  | "house"
+  | "inventory"
+  | "shop"
+  | "temporary";
+interface Enhancement {
+  readonly dps?: number;
+  readonly id?: number;
+  readonly level?: number;
+  readonly patternId?: number;
+  readonly range?: number;
+  readonly rarity?: number;
+}
+type ItemSnapshot = Readonly<ItemData> & {
+  readonly armor: boolean;
+  readonly banked: boolean;
+  readonly cape: boolean;
+  readonly classItem: boolean;
+  readonly helm: boolean;
+  readonly pet: boolean;
+  readonly weapon: boolean;
 };
-type UnknownRecord = Record<string, unknown>;
+type ItemSelector = ItemQuery;
+interface Entity {
+  readonly alive: boolean;
+  readonly cell: string;
+  readonly dead: boolean;
+  readonly hp: number;
+  readonly hpPercent: number;
+  readonly idle: boolean;
+  readonly inCombat: boolean;
+  readonly maxHp: number;
+  readonly maxMp: number;
+  readonly mp: number;
+  readonly mpPercent: number;
+  readonly state: EntityState;
+  isInCell(cell: string): boolean;
+  toJSON(): EntitySnapshot;
+}
+interface OutfitColors {
+  readonly accessory: number | undefined;
+  readonly base: number | undefined;
+  readonly eye: number | undefined;
+  readonly hair: number | undefined;
+  readonly skin: number | undefined;
+  readonly trim: number | undefined;
+}
+interface OutfitEquipment {
+  readonly armorItemId: number | undefined;
+  readonly capeItemId: number | undefined;
+  readonly classItemId: number | undefined;
+  readonly helmItemId: number | undefined;
+  readonly itemId: number | undefined;
+  readonly miscItemId: number | undefined;
+  readonly petItemId: number | undefined;
+  readonly weaponItemId: number | undefined;
+}
+type OutfitSnapshot = Readonly<OutfitData>;
 type FlashPacketDirection = 'client' | 'server' | 'extension';
 type FlashPacketWireType = 'str' | 'json' | 'xml' | 'unknown';
-interface Json { readonly [key: string]: unknown; }
-type ShopItemSelectorShape = ItemSelectorShape & {
-  shopItemId: number;
+type QuestCadence = "daily" | "monthly" | "none" | "weekly";
+interface QuestItem {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
+}
+interface QuestReward extends QuestItem {
+  readonly dropChance?: number;
+}
+type QuestSnapshot = Readonly<QuestData>;
+type ServerSnapshot = Readonly<ServerData> & {
+  readonly full: boolean;
 };
+interface Json { readonly [key: string]: unknown; }
+type ShopSnapshot = Readonly<Omit<ShopData, "items">> & {
+  readonly items: readonly ItemSnapshot[];
+};
+type ShopItemSelector = ShopItemQuery;
 type MonsterTargetInfo = TargetBaseInfo & {
   type: "monster";
   monsterId: number;
@@ -882,31 +938,96 @@ interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
 }
+interface AuraData {
+  category?: string;
+  duration: number;
+  icon?: string;
+  name: string;
+  stack: number;
+  value?: number;
+}
 type AutoReloginLifecycleStep = "connect" | "login" | "ready";
-type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
-interface CombatProfileDefinition extends Partial<
-  Omit<CombatProfile, "steps" | "messageTriggers">
-> {
+type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | "messageTriggers">> {
   readonly steps: readonly CombatProfileStepDefinition[];
   readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
 }
-interface MapRecord {
+interface FactionData {
+  id: number;
+  name: string;
+  rank: number;
+  reputation: number;
+}
+type UnknownRecord = Record<string, unknown>;
+interface MapInfo {
   readonly id: number;
   readonly name: string;
   readonly roomNumber: number;
 }
-interface Shape { readonly [key: string]: unknown; }
-interface SelectedKey { readonly [key: string]: unknown; }
-interface OtherKey { readonly [key: string]: unknown; }
-type ItemSelectorShape = {
-  name: string;
+interface ItemData {
+  category: string;
+  charItemId?: number;
+  coins: boolean;
+  context: ItemContext;
+  cost: number;
+  description: string;
+  enhancement?: Enhancement;
+  equipped: boolean;
+  equipmentSlot: string;
+  file: string;
+  houseItem: boolean;
   itemId: number;
+  link: string;
+  meta: string;
+  name: string;
+  quantity: number;
+  shopItemId?: number;
+  temporaryItem: boolean;
+}
+type EntityState = EntityState;
+type EntitySnapshot = Readonly<EntityData> & {
+  readonly alive: boolean;
+  readonly dead: boolean;
+  readonly hpPercent: number;
+  readonly idle: boolean;
+  readonly inCombat: boolean;
+  readonly mpPercent: number;
 };
+interface OutfitData {
+  colors: OutfitColors;
+  equipment: OutfitEquipment;
+  name: string;
+}
+interface QuestData {
+  cadence: QuestCadence;
+  id: number;
+  name: string;
+  once: boolean;
+  requirements: readonly QuestItem[];
+  rewards: readonly QuestReward[];
+}
+interface ServerData {
+  chat: number;
+  count: number;
+  language: string;
+  max: number;
+  memberOnly: boolean;
+  name: string;
+  online: boolean;
+}
+interface ShopData {
+  house: boolean;
+  id: number;
+  items: readonly Item[];
+  limited: boolean;
+  merge: boolean;
+  name: string;
+}
 type TargetBaseInfo = {
   type: "monster" | "player";
   hp: number;
   maxHp: number;
-  state: number;
+  state: EntityState;
   cell: string;
 };
 interface ArmyConfigCore {
@@ -919,16 +1040,23 @@ type ArmyConfigRaw = Record<string, unknown>;
 type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
   readonly skill: number;
 };
-type CombatProfileMessageTriggerDefinition =
-  Partial<CombatProfileMessageTrigger> & {
-    readonly messageIncludes: string;
-    readonly skill: number;
-  };
+type CombatProfileMessageTriggerDefinition = Partial<CombatProfileMessageTrigger> & {
+  readonly messageIncludes: string;
+  readonly skill: number;
+};
+interface EntityData {
+  cell: string;
+  hp: number;
+  maxHp: number;
+  maxMp: number;
+  mp: number;
+  state: EntityState;
+}
 interface ArmySetConfig {
   readonly default?: ArmyEquipSet;
   readonly players: Readonly<Record<string, ArmyEquipSet>>;
 }
-type CombatProfileStep = { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
+type CombatProfileStep = { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
 type CombatProfileMessageTrigger = { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
 interface ArmyEquipSet {
   readonly armor?: string;
