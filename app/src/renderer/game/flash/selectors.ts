@@ -1,14 +1,13 @@
 import type * as BridgeTypes from "../Types";
 import type {
-  ItemRecord,
+  Item,
   ItemSelector,
-  MonsterRecord,
+  Monster,
   MonsterSelector,
   PacketSelector,
-  ShopItemRecord,
   ShopItemSelector,
 } from "./Types";
-import { asPositiveInt, equalsIgnoreCase, includesIgnoreCase } from "./payload";
+import { asPositiveInt } from "./payload";
 
 const integerToken = /^[1-9]\d*$/;
 
@@ -36,11 +35,6 @@ export const normalizeItemSelector = (
     if (trimmed === "") {
       return null;
     }
-
-    if (integerToken.test(trimmed)) {
-      return { itemId: Number.parseInt(trimmed, 10) };
-    }
-
     return { name: trimmed };
   }
 
@@ -118,47 +112,19 @@ export const normalizeMonsterSelector = (
 };
 
 export const itemMatchesSelector = (
-  item: ItemRecord,
+  item: Item,
   selector: BridgeTypes.InventoryItemSelector,
-): boolean => {
-  if ("itemId" in selector) {
-    return item.itemId === selector.itemId;
-  }
-
-  if ("name" in selector) {
-    return equalsIgnoreCase(item.name, selector.name);
-  }
-
-  return false;
-};
+): boolean => item.matches(selector);
 
 export const shopItemMatchesSelector = (
-  item: ShopItemRecord,
+  item: Item,
   selector: BridgeTypes.ShopItemSelector,
-): boolean => {
-  if ("shopItemId" in selector) {
-    return String(item.shopItemId ?? "") === String(selector.shopItemId);
-  }
-
-  return itemMatchesSelector(item, selector);
-};
+): boolean => item.matches(selector);
 
 export const monsterMatchesSelector = (
-  monster: MonsterRecord,
+  monster: Monster,
   selector: BridgeTypes.MonsterSelector,
-): boolean => {
-  if ("monMapId" in selector) {
-    return monster.monsterMapId === selector.monMapId;
-  }
-
-  if ("name" in selector) {
-    return (
-      selector.name === "*" || includesIgnoreCase(monster.name, selector.name)
-    );
-  }
-
-  return false;
-};
+): boolean => monster.matches(selector);
 
 export const packetMatchesSelector = (
   packet: {

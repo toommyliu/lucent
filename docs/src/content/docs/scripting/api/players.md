@@ -17,7 +17,7 @@ tableOfContents:
 ### `api.players.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L8" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:8" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.players.auras.get(player: string | number, auraName: string): Effect.Effect<AuraRecord | null, never, never>
+api.players.auras.get(player: string | number, auraName: string): Effect.Effect<Aura | null, never, never>
 ```
 
 | Name | Type | Required | Description |
@@ -25,7 +25,7 @@ api.players.auras.get(player: string | number, auraName: string): Effect.Effect<
 | `player` | `string` \| `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `auraName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -51,37 +51,37 @@ api.players.auras.has(player: string | number, auraName: string): Effect.Effect<
 ### `api.players.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L20" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:20" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.players.get(selector: string | number): Effect.Effect<PlayerRecord | null, never, never>
+api.players.get(selector: string | number): Effect.Effect<Player | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `selector` | `string` \| `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-players-getall"></a>
 
-### `api.players.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.players.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L21" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:21" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.players.getAll(): Effect.Effect<readonly PlayerRecord[], never, never>
+api.players.getAll(): Effect.Effect<readonly Player[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-players-getme"></a>
 
-### `api.players.getMe()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L24" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:24" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.players.getMe()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Players.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Players.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.players.getMe(): Effect.Effect<PlayerRecord | null, never, never>
+api.players.getMe(): Effect.Effect<Player | null, never, never>
 ```
 
-**Yields:** <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a> \| `null`
 
 **Errors:** `never`

@@ -1,20 +1,20 @@
 import { Context, Effect, Layer, SynchronizedRef } from "effect";
 
-import type { DropRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
 import { itemMatchesSelector, normalizeItemSelector } from "../selectors";
 
 interface DropsRuntimeState {
-  readonly drops: Map<number, DropRecord>;
+  readonly drops: Map<number, Item>;
 }
 
 export interface DropsStateShape {
   readonly clear: () => Effect.Effect<void>;
   readonly contains: (selector: ItemSelector) => Effect.Effect<boolean>;
-  readonly get: (selector: ItemSelector) => Effect.Effect<DropRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly DropRecord[]>;
+  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
   readonly remove: (itemId: number) => Effect.Effect<void>;
-  readonly replace: (drops: readonly DropRecord[]) => Effect.Effect<void>;
-  readonly upsert: (drop: DropRecord) => Effect.Effect<void>;
+  readonly replace: (drops: readonly Item[]) => Effect.Effect<void>;
+  readonly upsert: (drop: Item) => Effect.Effect<void>;
 }
 
 export class DropsState extends Context.Service<DropsState, DropsStateShape>()(
@@ -64,7 +64,9 @@ export const layer = Layer.effect(
         }),
       replace: (drops) =>
         SynchronizedRef.update(ref, (state) => {
-          state.drops.clear();
+          const incoming = new Set(drops.map((drop) => drop.itemId));
+          for (const itemId of state.drops.keys())
+            if (!incoming.has(itemId)) state.drops.delete(itemId);
           for (const drop of drops) {
             state.drops.set(drop.itemId, drop);
           }

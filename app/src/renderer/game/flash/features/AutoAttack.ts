@@ -14,7 +14,8 @@ import {
   matchesCombatProfileMessageTrigger,
   resetCombatProfileCursor,
 } from "../../combatProfiles";
-import type { FlashEvent, MonsterRecord, TargetInfo } from "../Types";
+import type { FlashEvent, Monster, TargetInfo } from "../Types";
+import { EntityState } from "@lucent/game";
 import { CombatApi } from "../api/Combat";
 import { EventsApi } from "../api/Events";
 import { MonstersApi } from "../api/Monsters";
@@ -82,7 +83,6 @@ interface AutoAttackRuntimeState {
 const AUTO_ATTACK_JOB_KEY = "feature:auto-attack";
 const IDLE_DELAY_MS = 250;
 const MIN_LOOP_DELAY_MS = 50;
-const MONSTER_DEAD_STATE = 0;
 const targetPrioritySeparatorPattern = /[,;\n]+/u;
 const monsterMapIdPattern = /^id[.:'-]?([1-9]\d*)$/iu;
 
@@ -92,8 +92,8 @@ const initialState = (): AutoAttackRuntimeState => ({
   profile: undefined,
 });
 
-const isAttackableMonsterRecord = (monster: MonsterRecord): boolean =>
-  monster.hp > 0 && monster.state !== MONSTER_DEAD_STATE;
+const isAttackableMonster = (monster: Monster): boolean =>
+  monster.hp > 0 && monster.state !== EntityState.Dead;
 
 const isAttackableTarget = (
   target: TargetInfo | null,
@@ -101,7 +101,7 @@ const isAttackableTarget = (
   target !== null &&
   target.type === "monster" &&
   target.hp > 0 &&
-  target.state !== MONSTER_DEAD_STATE;
+  target.state !== EntityState.Dead;
 
 const autoAttackFailureMessage = (cause: Cause.Cause<unknown>): string => {
   const detail = Cause.pretty(cause).split("\n")[0]?.trim();
@@ -148,7 +148,7 @@ export const parseAutoAttackTargetPriority = (
     });
 
 export const selectAutoAttackMonsterMapId = (options: {
-  readonly available: readonly MonsterRecord[];
+  readonly available: readonly Monster[];
   readonly snapshotTarget?: AutoAttackTargetSnapshot | undefined;
   readonly targetPriority?: readonly AutoAttackTargetPriority[] | undefined;
 }): number | undefined => {
@@ -158,12 +158,12 @@ export const selectAutoAttackMonsterMapId = (options: {
         ? options.available.find(
             (monster) =>
               monster.monsterMapId === target.monsterMapId &&
-              isAttackableMonsterRecord(monster),
+              isAttackableMonster(monster),
           )
         : options.available.find(
             (monster) =>
               normalizeName(monster.name) === normalizeName(target.name) &&
-              isAttackableMonsterRecord(monster),
+              isAttackableMonster(monster),
           );
     if (match !== undefined) {
       return match.monsterMapId;
@@ -174,14 +174,14 @@ export const selectAutoAttackMonsterMapId = (options: {
     const snapshotMatch = options.available.find(
       (monster) =>
         monster.monsterMapId === options.snapshotTarget?.monsterMapId &&
-        isAttackableMonsterRecord(monster),
+        isAttackableMonster(monster),
     );
     if (snapshotMatch !== undefined) {
       return snapshotMatch.monsterMapId;
     }
   }
 
-  return options.available.find(isAttackableMonsterRecord)?.monsterMapId;
+  return options.available.find(isAttackableMonster)?.monsterMapId;
 };
 
 export const layer = Layer.effect(

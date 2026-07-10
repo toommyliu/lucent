@@ -18,7 +18,9 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
-| <a href="/scripting/types/aura-record/" data-script-type="aura-record"><code>AuraRecord</code></a> | interface |  |
+| <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | interface |  |
+| <a href="/scripting/types/aura-data/" data-script-type="aura-data"><code>AuraData</code></a> | interface |  |
+| <a href="/scripting/types/aura-snapshot/" data-script-type="aura-snapshot"><code>AuraSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | interface |  |
 | <a href="/scripting/types/auto-relogin-lifecycle-event/" data-script-type="auto-relogin-lifecycle-event"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
 | <a href="/scripting/types/auto-relogin-lifecycle-step/" data-script-type="auto-relogin-lifecycle-step"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
@@ -30,9 +32,12 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
 | <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
 | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
-| <a href="/scripting/types/drop-record/" data-script-type="drop-record"><code>DropRecord</code></a> | interface |  |
+| <a href="/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
+| <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | type alias |  |
 | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | interface |  |
-| <a href="/scripting/types/faction-record/" data-script-type="faction-record"><code>FactionRecord</code></a> | interface |  |
+| <a href="/scripting/types/faction/" data-script-type="faction"><code>Faction</code></a> | interface |  |
+| <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | interface |  |
+| <a href="/scripting/types/faction-snapshot/" data-script-type="faction-snapshot"><code>FactionSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> | type alias |  |
 | <a href="/scripting/types/flash-event-handler/" data-script-type="flash-event-handler"><code>FlashEventHandler</code></a> | type alias |  |
 | <a href="/scripting/types/flash-event-kind/" data-script-type="flash-event-kind"><code>FlashEventKind</code></a> | type alias |  |
@@ -42,32 +47,50 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/flash-projection-event/" data-script-type="flash-projection-event"><code>FlashProjectionEvent</code></a> | type alias |  |
 | <a href="/scripting/types/flash-runtime-event/" data-script-type="flash-runtime-event"><code>FlashRuntimeEvent</code></a> | type alias |  |
 | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
-| <a href="/scripting/types/inventory-item-selector/" data-script-type="inventory-item-selector"><code>InventoryItemSelector</code></a> | type alias |  |
-| <a href="/scripting/types/inventory-item-selector-shape/" data-script-type="inventory-item-selector-shape"><code>InventoryItemSelectorShape</code></a> | type alias |  |
-| <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a> | interface |  |
+| <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> | interface |  |
+| <a href="/scripting/types/item-context/" data-script-type="item-context"><code>ItemContext</code></a> | type alias |  |
+| <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | interface |  |
+| <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | type alias |  |
 | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | type alias |  |
-| <a href="/scripting/types/map-record/" data-script-type="map-record"><code>MapRecord</code></a> | interface |  |
-| <a href="/scripting/types/monster-record/" data-script-type="monster-record"><code>MonsterRecord</code></a> | interface |  |
+| <a href="/scripting/types/item-selector-by-id/" data-script-type="item-selector-by-id"><code>ItemSelectorById</code></a> | interface |  |
+| <a href="/scripting/types/item-selector-by-name/" data-script-type="item-selector-by-name"><code>ItemSelectorByName</code></a> | interface |  |
+| <a href="/scripting/types/item-snapshot/" data-script-type="item-snapshot"><code>ItemSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/map-info/" data-script-type="map-info"><code>MapInfo</code></a> | interface |  |
+| <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a> | interface |  |
+| <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | type alias |  |
 | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
 | <a href="/scripting/types/monster-target-info/" data-script-type="monster-target-info"><code>MonsterTargetInfo</code></a> | type alias |  |
-| <a href="/scripting/types/object-selector/" data-script-type="object-selector"><code>ObjectSelector</code></a> | type alias |  |
+| <a href="/scripting/types/outfit/" data-script-type="outfit"><code>Outfit</code></a> | interface |  |
+| <a href="/scripting/types/outfit-colors/" data-script-type="outfit-colors"><code>OutfitColors</code></a> | interface |  |
+| <a href="/scripting/types/outfit-data/" data-script-type="outfit-data"><code>OutfitData</code></a> | interface |  |
+| <a href="/scripting/types/outfit-equipment/" data-script-type="outfit-equipment"><code>OutfitEquipment</code></a> | interface |  |
 | <a href="/scripting/types/outfit-options/" data-script-type="outfit-options"><code>OutfitOptions</code></a> | interface |  |
-| <a href="/scripting/types/outfit-record/" data-script-type="outfit-record"><code>OutfitRecord</code></a> | interface |  |
+| <a href="/scripting/types/outfit-snapshot/" data-script-type="outfit-snapshot"><code>OutfitSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
-| <a href="/scripting/types/player-record/" data-script-type="player-record"><code>PlayerRecord</code></a> | interface |  |
+| <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a> | interface |  |
 | <a href="/scripting/types/player-target-info/" data-script-type="player-target-info"><code>PlayerTargetInfo</code></a> | type alias |  |
 | <a href="/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
 | <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> | interface |  |
-| <a href="/scripting/types/quest-record/" data-script-type="quest-record"><code>QuestRecord</code></a> | interface |  |
+| <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> | interface |  |
+| <a href="/scripting/types/quest-cadence/" data-script-type="quest-cadence"><code>QuestCadence</code></a> | type alias |  |
+| <a href="/scripting/types/quest-data/" data-script-type="quest-data"><code>QuestData</code></a> | interface |  |
+| <a href="/scripting/types/quest-item/" data-script-type="quest-item"><code>QuestItem</code></a> | interface |  |
+| <a href="/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | interface |  |
+| <a href="/scripting/types/quest-snapshot/" data-script-type="quest-snapshot"><code>QuestSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
+| <a href="/scripting/types/server/" data-script-type="server"><code>Server</code></a> | interface |  |
+| <a href="/scripting/types/server-data/" data-script-type="server-data"><code>ServerData</code></a> | interface |  |
 | <a href="/scripting/types/server-packet-send-type/" data-script-type="server-packet-send-type"><code>ServerPacketSendType</code></a> | type alias |  |
-| <a href="/scripting/types/server-record/" data-script-type="server-record"><code>ServerRecord</code></a> | interface |  |
-| <a href="/scripting/types/shop-info-record/" data-script-type="shop-info-record"><code>ShopInfoRecord</code></a> | interface |  |
-| <a href="/scripting/types/shop-item-record/" data-script-type="shop-item-record"><code>ShopItemRecord</code></a> | interface |  |
+| <a href="/scripting/types/server-snapshot/" data-script-type="server-snapshot"><code>ServerSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/shop/" data-script-type="shop"><code>Shop</code></a> | interface |  |
+| <a href="/scripting/types/shop-data/" data-script-type="shop-data"><code>ShopData</code></a> | interface |  |
+| <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | type alias |  |
 | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
+| <a href="/scripting/types/shop-item-selector-by-id/" data-script-type="shop-item-selector-by-id"><code>ShopItemSelectorById</code></a> | interface |  |
+| <a href="/scripting/types/shop-snapshot/" data-script-type="shop-snapshot"><code>ShopSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
 | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
 | <a href="/scripting/types/state-disposer/" data-script-type="state-disposer"><code>StateDisposer</code></a> | type alias |  |

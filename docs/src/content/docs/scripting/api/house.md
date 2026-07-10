@@ -17,14 +17,14 @@ tableOfContents:
 ### `api.house.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/House.ts#L8" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/House.ts:8" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.house.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, never, never>
+api.house.get(selector: ItemQuery): Effect.Effect<Item | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -33,10 +33,10 @@ api.house.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, never, n
 ### `api.house.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/House.ts#L9" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/House.ts:9" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.house.getAll(): Effect.Effect<readonly ItemRecord[], never, never>
+api.house.getAll(): Effect.Effect<readonly Item[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a>[]
 
 **Errors:** `never`
 

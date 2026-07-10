@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Fiber, Layer, PubSub } from "effect";
+import { EntityState, LivePlayer } from "@lucent/game";
 
 import { bridgeFallbacks } from "../../BridgeFallbacks";
 import type { FlashCallback } from "../FlashCallbacks";
@@ -123,22 +124,24 @@ describe("FlashProtocol", () => {
           const protocol = yield* FlashProtocol;
           const world = yield* WorldState;
 
-          yield* world.addPlayer({
-            afk: false,
-            cell: "Enter",
-            entityId: 1,
-            entityType: "player",
-            hp: 100,
-            level: 1,
-            maxHp: 100,
-            maxMp: 100,
-            mp: 100,
-            name: "TestHero",
-            pad: "Spawn",
-            position: [0, 0],
-            state: 1,
-            username: "TestHero",
-          });
+          yield* world.addPlayer(
+            new LivePlayer({
+              afk: false,
+              cell: "Enter",
+              entityId: 1,
+              entityType: "player",
+              hp: 100,
+              level: 1,
+              maxHp: 100,
+              maxMp: 100,
+              mp: 100,
+              name: "TestHero",
+              pad: "Spawn",
+              position: { x: 0, y: 0 },
+              state: EntityState.Idle,
+              username: "TestHero",
+            }),
+          );
           yield* world.setSelf("TestHero");
           yield* world.patchMap({
             id: 42,

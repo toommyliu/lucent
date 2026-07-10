@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { MapRecord } from "../Types";
+import type { MapInfo } from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { WorldState } from "../state/World";
 import { WaitApi } from "./Wait";
@@ -35,7 +35,7 @@ export const layer = Layer.effect(
     const world = yield* WorldState;
 
     const getMap = world.getMap();
-    const project = <A>(f: (map: MapRecord) => A) => getMap.pipe(Effect.map(f));
+    const project = <A>(f: (map: MapInfo) => A) => getMap.pipe(Effect.map(f));
 
     return MapApi.of({
       getCellPads: () =>

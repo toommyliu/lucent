@@ -1,18 +1,31 @@
 import { Context, Effect, Layer } from "effect";
 
 import type {
-  AuraRecord,
-  FactionRecord,
+  Aura,
+  EntityState as EntityStateValue,
+  Faction,
   ItemSelector,
   OutfitOptions,
-  OutfitRecord,
-  PlayerRecord,
+  Outfit,
+  Player,
   Position,
 } from "../Types";
+import {
+  EntityState,
+  LiveFaction,
+  LivePlayer,
+  type LiveOutfit,
+} from "@lucent/game";
 import { SwfBridge } from "../SwfBridge";
 import { parseMapTarget } from "../MapTarget";
 import type { MapTarget } from "../MapTarget";
-import { asInt, asRecord, asString, equalsIgnoreCase } from "../payload";
+import {
+  asInt,
+  asRecord,
+  asString,
+  decodeOutfitModel,
+  equalsIgnoreCase,
+} from "../payload";
 import { AuthApi } from "./Auth";
 import { InventoryApi } from "./Inventory";
 import { MapApi } from "./Map";
@@ -21,10 +34,8 @@ import { WaitApi } from "./Wait";
 import { WorldState } from "../state/World";
 
 export interface FactionsApi {
-  readonly get: (
-    selector: string | number,
-  ) => Effect.Effect<FactionRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly FactionRecord[]>;
+  readonly get: (selector: string | number) => Effect.Effect<Faction | null>;
+  readonly getAll: () => Effect.Effect<readonly Faction[]>;
 }
 
 export interface OutfitsApi {
@@ -32,8 +43,8 @@ export interface OutfitsApi {
     name: string,
     options?: OutfitOptions,
   ) => Effect.Effect<boolean>;
-  readonly get: (name: string) => Effect.Effect<OutfitRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly OutfitRecord[]>;
+  readonly get: (name: string) => Effect.Effect<Outfit | null>;
+  readonly getAll: () => Effect.Effect<readonly Outfit[]>;
   readonly wear: (
     name: string,
     options?: OutfitOptions,
@@ -41,14 +52,15 @@ export interface OutfitsApi {
 }
 
 export interface SelfAurasApi {
-  readonly get: (auraName: string) => Effect.Effect<AuraRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly AuraRecord[]>;
+  readonly get: (auraName: string) => Effect.Effect<Aura | null>;
+  readonly getAll: () => Effect.Effect<readonly Aura[]>;
   readonly has: (auraName: string) => Effect.Effect<boolean>;
 }
 
 export interface PlayerApiShape {
   readonly auras: SelfAurasApi;
   readonly factions: FactionsApi;
+  readonly get: () => Effect.Effect<Player | null>;
   readonly getCell: () => Effect.Effect<string>;
   readonly getClassName: () => Effect.Effect<string>;
   readonly getGender: () => Effect.Effect<string>;
@@ -60,7 +72,7 @@ export interface PlayerApiShape {
   readonly getMp: () => Effect.Effect<number>;
   readonly getPad: () => Effect.Effect<string>;
   readonly getPosition: () => Effect.Effect<Position>;
-  readonly getState: () => Effect.Effect<number>;
+  readonly getState: () => Effect.Effect<EntityStateValue>;
   readonly goToPlayer: (name: string) => Effect.Effect<void>;
   readonly hasActiveBoost: (boostType: string) => Effect.Effect<boolean>;
   readonly isAfk: () => Effect.Effect<boolean>;
@@ -91,7 +103,7 @@ export class PlayerApi extends Context.Service<PlayerApi, PlayerApiShape>()(
   "lucent/game/flash/api/Player",
 ) {}
 
-const defaultPlayer: PlayerRecord = {
+const defaultPlayer = new LivePlayer({
   afk: false,
   cell: "",
   entityId: 0,
@@ -103,15 +115,12 @@ const defaultPlayer: PlayerRecord = {
   mp: 0,
   name: "",
   pad: "",
-  position: [0, 0],
-  state: 0,
+  position: { x: 0, y: 0 },
+  state: EntityState.Dead,
   username: "",
-};
+});
 
-const playerIsAlive = (player: PlayerRecord): boolean =>
-  player.hp > 0 && player.state !== 0;
-
-const normalizeFaction = (value: unknown): FactionRecord | null => {
+const normalizeFaction = (value: unknown): LiveFaction | null => {
   const record = asRecord(value);
   if (record === null) {
     return null;
@@ -123,18 +132,12 @@ const normalizeFaction = (value: unknown): FactionRecord | null => {
     return null;
   }
 
-  return {
+  return new LiveFaction({
     id,
     name,
     rank: asInt(record["iRank"]) ?? 0,
     reputation: asInt(record["iRep"]) ?? 0,
-  };
-};
-
-const normalizeOutfit = (value: unknown): OutfitRecord | null => {
-  const record = asRecord(value);
-  const name = asString(record?.["sName"]);
-  return record === null || name === undefined ? null : { name, raw: record };
+  });
 };
 
 export const layer = Layer.effect(
@@ -147,12 +150,13 @@ export const layer = Layer.effect(
     const players = yield* PlayersApi;
     const wait = yield* WaitApi;
     const world = yield* WorldState;
+    const factionCache = new Map<number, LiveFaction>();
+    const outfitCache = new Map<string, LiveOutfit>();
 
     const self = world
       .getMe()
       .pipe(Effect.map((player) => player ?? defaultPlayer));
-    const project = <A>(f: (player: PlayerRecord) => A) =>
-      self.pipe(Effect.map(f));
+    const project = <A>(f: (player: Player) => A) => self.pipe(Effect.map(f));
     const getCell = () => project((player) => player.cell);
     const getPad = () => project((player) => player.pad);
 
@@ -179,17 +183,24 @@ export const layer = Layer.effect(
         auras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
     };
 
-    const getFactions = bridge
-      .call("player.getFactions")
-      .pipe(
-        Effect.map((raw) =>
-          Array.isArray(raw)
-            ? raw
-                .map(normalizeFaction)
-                .filter((faction): faction is FactionRecord => faction !== null)
-            : [],
-        ),
-      );
+    const getFactions = bridge.call("player.getFactions").pipe(
+      Effect.map((raw) => {
+        const decoded = Array.isArray(raw)
+          ? raw
+              .map(normalizeFaction)
+              .filter((faction): faction is LiveFaction => faction !== null)
+          : [];
+        const ids = new Set(decoded.map((faction) => faction.id));
+        for (const id of factionCache.keys())
+          if (!ids.has(id)) factionCache.delete(id);
+        for (const faction of decoded) {
+          const current = factionCache.get(faction.id);
+          if (current === undefined) factionCache.set(faction.id, faction);
+          else current.replaceFrom(faction);
+        }
+        return Array.from(factionCache.values());
+      }),
+    );
 
     const factions: FactionsApi = {
       get: (selector) =>
@@ -206,17 +217,27 @@ export const layer = Layer.effect(
       getAll: () => getFactions,
     };
 
-    const getOutfits = bridge
-      .call("outfits.getAll")
-      .pipe(
-        Effect.map((raw) =>
-          Array.isArray(raw)
-            ? raw
-                .map(normalizeOutfit)
-                .filter((outfit): outfit is OutfitRecord => outfit !== null)
-            : [],
-        ),
-      );
+    const getOutfits = bridge.call("outfits.getAll").pipe(
+      Effect.map((raw) => {
+        const decoded = Array.isArray(raw)
+          ? raw
+              .map(decodeOutfitModel)
+              .filter((outfit): outfit is LiveOutfit => outfit !== null)
+          : [];
+        const keys = new Set(
+          decoded.map((outfit) => outfit.name.toLowerCase()),
+        );
+        for (const key of outfitCache.keys())
+          if (!keys.has(key)) outfitCache.delete(key);
+        for (const outfit of decoded) {
+          const key = outfit.name.toLowerCase();
+          const current = outfitCache.get(key);
+          if (current === undefined) outfitCache.set(key, outfit);
+          else current.replaceFrom(outfit);
+        }
+        return Array.from(outfitCache.values());
+      }),
+    );
 
     const outfits: OutfitsApi = {
       equip: (name, options) =>
@@ -252,7 +273,7 @@ export const layer = Layer.effect(
 
     const isAlive = Effect.gen(function* () {
       const player = yield* world.getMe();
-      if (player !== null && playerIsAlive(player)) {
+      if (player?.alive === true) {
         return true;
       }
 
@@ -260,7 +281,7 @@ export const layer = Layer.effect(
         bridge.call("player.getHp"),
         bridge.call("player.getState"),
       ]);
-      return hp > 0 && state !== 0;
+      return hp > 0 && state !== EntityState.Dead;
     });
 
     const isReady = Effect.gen(function* () {
@@ -424,6 +445,7 @@ export const layer = Layer.effect(
     return PlayerApi.of({
       auras,
       factions,
+      get: world.getMe,
       getCell,
       getClassName: () => bridge.call("player.getClassName"),
       getGender: () => bridge.call("player.getGender"),
@@ -434,11 +456,7 @@ export const layer = Layer.effect(
       getMaxMp: () => project((player) => player.maxMp),
       getMp: () => project((player) => player.mp),
       getPad,
-      getPosition: () =>
-        project((player) => ({
-          x: player.position[0],
-          y: player.position[1],
-        })),
+      getPosition: () => project((player) => player.position),
       getState: () => project((player) => player.state),
       goToPlayer: (name) =>
         name.trim() === ""
@@ -516,8 +534,8 @@ export const layer = Layer.effect(
               const projected = yield* world.getMe();
               if (projected !== null) {
                 return (
-                  projected.position[0] === targetX &&
-                  projected.position[1] === targetY
+                  projected.position.x === targetX &&
+                  projected.position.y === targetY
                 );
               }
 

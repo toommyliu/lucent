@@ -308,6 +308,19 @@ const appendValue = (
     return;
   }
 
+  const toJSON = Reflect.get(value, "toJSON");
+  if (typeof toJSON === "function") {
+    try {
+      const serialized = Reflect.apply(toJSON, value, []) as unknown;
+      if (serialized !== value) {
+        appendValue(state, serialized, depth);
+        return;
+      }
+    } catch {
+      // Fall through to safe property inspection.
+    }
+  }
+
   appendObject(state, value, depth);
 };
 

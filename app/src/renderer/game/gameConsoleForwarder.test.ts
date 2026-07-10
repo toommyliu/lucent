@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import { LiveServer } from "@lucent/game";
 
 import { formatGameConsoleArguments } from "./gameConsoleForwarder";
 
@@ -26,6 +27,23 @@ describe("game console forwarder", () => {
 
     expect(message).toContain('"self": "[Circular]"');
     expect(message).toContain("Error: boom");
+  });
+
+  it("serializes domain models through their normalized snapshot", () => {
+    const server = new LiveServer({
+      chat: 2,
+      count: 100,
+      language: "en",
+      max: 100,
+      memberOnly: false,
+      name: "Artix",
+      online: true,
+    });
+
+    const message = formatGameConsoleArguments([server]);
+
+    expect(message).toContain('"name": "Artix"');
+    expect(message).toContain('"full": true');
   });
 
   it("caps output length while formatting large object properties", () => {

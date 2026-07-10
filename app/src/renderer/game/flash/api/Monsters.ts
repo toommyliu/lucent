@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { AuraRecord, MonsterRecord, MonsterSelector } from "../Types";
+import type { Aura, Monster, MonsterSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { asPositiveInt, equalsIgnoreCase } from "../payload";
 import { normalizeMonsterSelector } from "../selectors";
@@ -10,10 +10,8 @@ export interface MonsterAuraApi {
   readonly get: (
     monster: MonsterSelector,
     auraName: string,
-  ) => Effect.Effect<AuraRecord | null>;
-  readonly getAll: (
-    monster: MonsterSelector,
-  ) => Effect.Effect<readonly AuraRecord[]>;
+  ) => Effect.Effect<Aura | null>;
+  readonly getAll: (monster: MonsterSelector) => Effect.Effect<readonly Aura[]>;
   readonly has: (
     monster: MonsterSelector,
     auraName: string,
@@ -22,11 +20,9 @@ export interface MonsterAuraApi {
 
 export interface MonstersApiShape {
   readonly auras: MonsterAuraApi;
-  readonly get: (
-    selector: MonsterSelector,
-  ) => Effect.Effect<MonsterRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly MonsterRecord[]>;
-  readonly getAvailable: () => Effect.Effect<readonly MonsterRecord[]>;
+  readonly get: (selector: MonsterSelector) => Effect.Effect<Monster | null>;
+  readonly getAll: () => Effect.Effect<readonly Monster[]>;
+  readonly getAvailable: () => Effect.Effect<readonly Monster[]>;
   readonly isAvailable: (selector: MonsterSelector) => Effect.Effect<boolean>;
 }
 
@@ -96,9 +92,7 @@ export const layer = Layer.effect(
             ),
           ),
           Effect.map((monsters) =>
-            monsters.filter(
-              (monster): monster is MonsterRecord => monster !== null,
-            ),
+            monsters.filter((monster): monster is Monster => monster !== null),
           ),
         ),
       isAvailable,

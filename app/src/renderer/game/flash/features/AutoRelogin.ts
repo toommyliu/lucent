@@ -9,7 +9,7 @@ import {
   Number as EffectNumber,
 } from "effect";
 
-import type { AuthConnectOutcome, ServerRecord } from "../Types";
+import type { AuthConnectOutcome, Server } from "../Types";
 import { AuthApi } from "../api/Auth";
 import { EventsApi } from "../api/Events";
 import { PlayerApi } from "../api/Player";
@@ -208,9 +208,9 @@ const connectFailureMessage = (
 ): string => capitalizeFirstLetter(`${outcome.message} (${outcome.status})`);
 
 const findServer = (
-  servers: readonly ServerRecord[],
+  servers: readonly Server[],
   serverName: string,
-): ServerRecord | undefined =>
+): Server | undefined =>
   servers.find((server) => equalsIgnoreCase(server.name, serverName));
 
 const nextCooldown = (retryIndex: number): number =>

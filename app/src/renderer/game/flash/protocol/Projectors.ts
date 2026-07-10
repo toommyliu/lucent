@@ -1,25 +1,22 @@
 import { Effect, Layer } from "effect";
 
-import type {
-  FlashPacket,
-  MonsterRecord,
-  PacketSelector,
-  PlayerRecord,
-  Position,
-} from "../Types";
+import type { FlashPacket, PacketSelector, Player, Position } from "../Types";
+import type { MonsterData, PlayerData } from "@lucent/game";
+import { EntityState, LiveMonster, LivePlayer } from "@lucent/game";
 import { AuthApi, type AuthApiShape } from "../api/Auth";
 import {
   asArray,
   asBoolean,
+  asEntityState,
   asInt,
   asNumber,
   asPositiveInt,
   asRecord,
   asString,
   equalsIgnoreCase,
-  normalizeAuraRecord,
-  normalizeMonsterRecord,
-  normalizePlayerRecord,
+  decodeAuraModel,
+  decodeMonsterModel,
+  decodePlayerModel,
 } from "../payload";
 import { DropsState } from "../state/Drops";
 import type { DropsStateShape } from "../state/Drops";
@@ -443,7 +440,7 @@ const onPacketCommands = (
 
 const playerLocationFromUpdate = (
   update: Record<string, unknown>,
-  current: PlayerRecord | null,
+  current: Player | null,
 ): {
   readonly cell?: string;
   readonly pad?: string;
@@ -470,8 +467,8 @@ const playerLocationFromUpdate = (
       ? {}
       : {
           position: {
-            x: x ?? current?.position[0] ?? 0,
-            y: y ?? current?.position[1] ?? 0,
+            x: x ?? current?.position.x ?? 0,
+            y: y ?? current?.position.y ?? 0,
           },
         }),
   };
@@ -479,8 +476,8 @@ const playerLocationFromUpdate = (
 
 const patchFromPlayerUpdate = (
   update: Record<string, unknown>,
-  current: PlayerRecord | null,
-): Partial<PlayerRecord> => {
+  current: Player | null,
+): Partial<PlayerData> => {
   const location = playerLocationFromUpdate(update, current);
 
   return {
@@ -504,11 +501,11 @@ const patchFromPlayerUpdate = (
     ...(location?.position === undefined
       ? {}
       : {
-          position: [location.position.x, location.position.y] as const,
+          position: location.position,
         }),
-    ...(asInt(update["intState"]) === undefined
+    ...(asEntityState(update["intState"]) === undefined
       ? {}
-      : { state: asInt(update["intState"])! }),
+      : { state: asEntityState(update["intState"])! }),
   };
 };
 
@@ -596,32 +593,33 @@ const parseCsvPayload = (data: string): Record<string, string> => {
 
 const playerFromInitPayload = (
   payload: Record<string, unknown>,
-): PlayerRecord | null => {
+): LivePlayer | null => {
   const userData = asRecord(payload["data"]);
   const entityId =
     asPositiveInt(payload["uid"]) ?? asPositiveInt(userData?.["entID"]);
   return userData !== null && entityId !== undefined
-    ? normalizePlayerRecord({ ...userData, entID: entityId })
+    ? decodePlayerModel({ ...userData, entID: entityId })
     : null;
 };
 
-const isMonsterDead = (monster: MonsterRecord | null): boolean =>
-  monster !== null && (monster.hp <= 0 || monster.state === 0);
+const isMonsterDead = (monster: import("../Types").Monster | null): boolean =>
+  monster !== null && (monster.hp <= 0 || monster.state === EntityState.Dead);
 
 const projectMonsterStatePatch = (
   packet: FlashPacket,
   world: WorldStateShape,
   protocol: FlashProtocolShape,
   monsterMapId: number,
-  patch: Partial<MonsterRecord>,
+  patch: Partial<MonsterData>,
 ) =>
   Effect.gen(function* () {
     const previous = yield* world.getMonster({ monMapId: monsterMapId });
+    const wasDead = isMonsterDead(previous);
     yield* world.patchMonster(monsterMapId, patch);
     if (
       previous !== null &&
-      (patch.hp === 0 || patch.state === 0) &&
-      !isMonsterDead(previous)
+      (patch.hp === 0 || patch.state === EntityState.Dead) &&
+      !wasDead
     ) {
       yield* protocol.emitEvent({
         kind: "projection",
@@ -818,7 +816,7 @@ const addMoveToAreaState = (
       }
     }
 
-    const monsters: MonsterRecord[] = [];
+    const monsters: LiveMonster[] = [];
     for (const rawMonster of asArray(payload["monBranch"])) {
       const monster = asRecord(rawMonster);
       const monsterId = asPositiveInt(monster?.["MonID"]);
@@ -832,7 +830,7 @@ const addMoveToAreaState = (
       }
 
       const definition = monsterDefinitions.get(monsterId);
-      const normalized = normalizeMonsterRecord(
+      const normalized = decodeMonsterModel(
         {
           ...definition,
           ...monster,
@@ -850,11 +848,11 @@ const addMoveToAreaState = (
       .getUsername()
       .pipe(Effect.orElseSucceed(() => ""));
     const previousSelf = yield* world.getMe();
-    const players: PlayerRecord[] = [];
+    const players: LivePlayer[] = [];
     let nextSelfUsername: string | null = null;
 
     for (const rawPlayer of asArray(payload["uoBranch"])) {
-      const normalized = normalizePlayerRecord(rawPlayer);
+      const normalized = decodePlayerModel(rawPlayer);
       if (normalized === null) {
         continue;
       }
@@ -968,9 +966,9 @@ const projectWorldPacket = (
           ...(asInt(update["intMP"]) === undefined
             ? {}
             : { mp: asInt(update["intMP"])! }),
-          ...(asInt(update["intState"]) === undefined
+          ...(asEntityState(update["intState"]) === undefined
             ? {}
-            : { state: asInt(update["intState"])! }),
+            : { state: asEntityState(update["intState"])! }),
         };
         yield* projectMonsterStatePatch(
           packet,
@@ -1021,7 +1019,7 @@ const projectWorldPacket = (
             yield* world.patchMonster(monsterMapId, {
               hp: monster.maxHp,
               mp: monster.maxMp,
-              state: 1,
+              state: EntityState.Idle,
             });
           }
         }
@@ -1043,9 +1041,9 @@ const projectWorldPacket = (
               ...(asInt(update["intMP"]) === undefined
                 ? {}
                 : { mp: asInt(update["intMP"])! }),
-              ...(asInt(update["intState"]) === undefined
+              ...(asEntityState(update["intState"]) === undefined
                 ? {}
-                : { state: asInt(update["intState"])! }),
+                : { state: asEntityState(update["intState"])! }),
             });
           }
         }
@@ -1061,7 +1059,7 @@ const projectWorldPacket = (
               continue;
             }
             const hp = asInt(update["intHP"]);
-            const state = asInt(update["intState"]);
+            const state = asEntityState(update["intState"]);
             yield* projectMonsterStatePatch(
               packet,
               world,
@@ -1135,7 +1133,7 @@ const projectWorldPacket = (
           if (auraAddCommands.has(command)) {
             for (const rawAura of asArray(auraEvent?.["auras"])) {
               const auraRecord = asRecord(rawAura);
-              const aura = normalizeAuraRecord(rawAura);
+              const aura = decodeAuraModel(rawAura);
               if (aura !== null) {
                 for (const { targetId, targetType } of targets) {
                   yield* world.setAura(targetType, targetId, aura);
@@ -1240,7 +1238,7 @@ const projectWorldPacket = (
         const x = asInt(parts[4]);
         const y = asInt(parts[5]);
         if (self !== null && x !== undefined && y !== undefined) {
-          yield* world.patchPlayer(self.username, { position: [x, y] });
+          yield* world.patchPlayer(self.username, { position: { x, y } });
           yield* protocol.emitEvent({
             kind: "projection",
             packet,

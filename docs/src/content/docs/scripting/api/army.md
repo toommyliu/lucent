@@ -162,12 +162,12 @@ api.army.joinMap(map: string, cell?: string, pad?: string): Effect.Effect<void, 
 ### `api.army.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L78" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:78" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.kill(target: MonsterSelector, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
+api.army.kill(target: MonsterQuery, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `target` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
@@ -179,13 +179,13 @@ api.army.kill(target: MonsterSelector, options?: CombatKillOptions): Effect.Effe
 ### `api.army.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L82" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:82" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
+api.army.killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `target` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `item` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
 | `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
@@ -198,13 +198,13 @@ api.army.killForItem(target: MonsterSelector, item: ItemSelector, quantity?: num
 ### `api.army.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/army/Army.ts#L88" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:88" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForTempItem(target: MonsterSelector, item: ItemSelector, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
+api.army.killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `target` | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `item` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
 | `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 

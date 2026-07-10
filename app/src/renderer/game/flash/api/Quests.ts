@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { QuestRecord } from "../Types";
+import type { Quest } from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { asBoolean, asPositiveInt, asRecord } from "../payload";
 import { FlashProtocol } from "../protocol/FlashProtocol";
@@ -19,9 +19,9 @@ export interface QuestsApiShape {
     itemId?: number,
     special?: boolean,
   ) => Effect.Effect<boolean>;
-  readonly get: (questId: number) => Effect.Effect<QuestRecord | null>;
-  readonly getAccepted: () => Effect.Effect<readonly QuestRecord[]>;
-  readonly getAll: () => Effect.Effect<readonly QuestRecord[]>;
+  readonly get: (questId: number) => Effect.Effect<Quest | null>;
+  readonly getAccepted: () => Effect.Effect<readonly Quest[]>;
+  readonly getAll: () => Effect.Effect<readonly Quest[]>;
   readonly getMaxTurnIns: (questId: number) => Effect.Effect<number>;
   readonly isAvailable: (questId: number) => Effect.Effect<boolean>;
   readonly isInProgress: (questId: number) => Effect.Effect<boolean>;
@@ -179,7 +179,7 @@ export const layer = Layer.effect(
             ),
           ),
           Effect.map((accepted) =>
-            accepted.filter((quest): quest is QuestRecord => quest !== null),
+            accepted.filter((quest): quest is Quest => quest !== null),
           ),
         ),
       getAll: quests.getAll,

@@ -1,4 +1,4 @@
-import type { AuraRecord } from "./Types";
+import type { Aura } from "./Types";
 
 const normalizeText = (value: string): string =>
   value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -17,11 +17,11 @@ export const isAntiCounterAuraName = (name: string): boolean => {
   );
 };
 
-export const isAntiCounterAura = (aura: AuraRecord): boolean =>
+export const isAntiCounterAura = (aura: Aura): boolean =>
   isAntiCounterAuraName(aura.name);
 
 export const antiCounterExpiresAtMs = (
-  aura: Pick<AuraRecord, "duration">,
+  aura: Pick<Aura, "duration">,
   nowMs = Date.now(),
 ): number => {
   const durationMs =

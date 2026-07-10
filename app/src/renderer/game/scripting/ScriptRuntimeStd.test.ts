@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Cause, Effect } from "effect";
+import { EntityState, LivePlayer } from "@lucent/game";
 
 import type { EventsApiShape } from "../flash/api/Events";
 import type { PacketApiShape } from "../flash/api/Packet";
@@ -27,8 +28,25 @@ describe("ScriptRuntimeStd", () => {
         readonly map: string;
         readonly pad?: string;
       }> = [];
+      const self = new LivePlayer({
+        afk: false,
+        cell: "Enter",
+        entityId: 1,
+        entityType: "player",
+        hp: 100,
+        level: 1,
+        maxHp: 100,
+        maxMp: 100,
+        mp: 100,
+        name: "Hero",
+        pad: "Spawn",
+        position: { x: 0, y: 0 },
+        state: EntityState.Idle,
+        username: "Hero",
+      });
       const player = {
-        joinMap: (map, cell, pad) =>
+        get: () => Effect.succeed(self),
+        joinMap: (map: string, cell?: string, pad?: string) =>
           Effect.sync(() => {
             calls.push({
               ...(cell === undefined ? {} : { cell }),
@@ -37,7 +55,7 @@ describe("ScriptRuntimeStd", () => {
             });
             return true;
           }),
-      } as PlayerApiShape;
+      } as unknown as PlayerApiShape;
       const events = {
         on: () => Effect.succeed(() => {}),
       } as unknown as EventsApiShape;
@@ -58,13 +76,18 @@ describe("ScriptRuntimeStd", () => {
           events,
           packet,
           player,
+          players: {
+            getMe: () => Effect.succeed(null),
+          },
           settings,
         } as ScriptRuntimeServices,
       });
 
       const joined = yield* lucent.api.player.joinMap("doomvaultb-1e99", "r26");
+      const projectedSelf = yield* lucent.api.players.getMe();
 
       expect(joined).toBe(true);
+      expect(projectedSelf).toBe(self);
       expect(calls).toHaveLength(1);
       expect(calls[0]?.cell).toBe("r26");
       expect(calls[0]?.map).toMatch(/^doomvaultb-\d+$/);

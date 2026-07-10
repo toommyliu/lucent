@@ -637,12 +637,14 @@ const formatType = (
   }
 
   const type = checker.getTypeAtLocation(node);
-  return checker.typeToString(
+  return checker
+    .typeToString(
     type,
     node,
     ts.TypeFormatFlags.NoTruncation |
       ts.TypeFormatFlags.UseSingleQuotesForStringLiteralType,
-  );
+    )
+    .replace(/import\(["'][^"']+["']\)\./g, "");
 };
 
 const parseEffectReturn = (
@@ -1243,7 +1245,8 @@ const isDocSourceReflection = (
   return (
     relativePath.startsWith("app/src/shared/") ||
     relativePath.startsWith("app/src/renderer/game/") ||
-    relativePath.startsWith("packages/core/src/")
+    relativePath.startsWith("packages/core/src/") ||
+    relativePath.startsWith("packages/game/src/")
   );
 };
 
@@ -1527,6 +1530,7 @@ const createTypeDocProject = (
             noEmit: true,
             baseUrl: ".",
             paths: {
+              "@lucent/game": ["packages/game/src/index.ts"],
               "@lucent/core": ["packages/core/src/index.ts"],
               "@lucent/core/accounts": ["packages/core/src/accounts.ts"],
               "@lucent/core/appearance": ["packages/core/src/appearance.ts"],

@@ -17,12 +17,12 @@ tableOfContents:
 ### `api.shops.buy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.buy(selector: ShopItemSelector, options?: QuantityOptions): Effect.Effect<boolean, never, never>
+api.shops.buy(selector: ShopItemQuery, options?: QuantityOptions): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `options` | <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`
@@ -34,12 +34,12 @@ api.shops.buy(selector: ShopItemSelector, options?: QuantityOptions): Effect.Eff
 ### `api.shops.canBuy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.canBuy(selector: ShopItemSelector, options?: QuantityOptions): Effect.Effect<boolean, never, never>
+api.shops.canBuy(selector: ShopItemQuery, options?: QuantityOptions): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `options` | <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`
@@ -67,52 +67,52 @@ api.shops.close(shopId?: number): Effect.Effect<boolean, never, never>
 ### `api.shops.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.get(selector: ShopItemSelector): Effect.Effect<ShopItemRecord | null, never, never>
+api.shops.get(selector: ShopItemQuery): Effect.Effect<Item | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/shop-item-record/" data-script-type="shop-item-record"><code>ShopItemRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-shops-getall"></a>
 
-### `api.shops.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L31" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:31" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L29" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:29" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getAll(): Effect.Effect<readonly ShopItemRecord[], never, never>
+api.shops.getAll(): Effect.Effect<readonly Item[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/shop-item-record/" data-script-type="shop-item-record"><code>ShopItemRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a>[]
 
 **Errors:** `never`
 
 <a id="member-api-shops-getinfo"></a>
 
-### `api.shops.getInfo()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L32" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:32" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getInfo()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L30" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:30" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getInfo(): Effect.Effect<ShopInfoRecord | null, never, never>
+api.shops.getInfo(): Effect.Effect<Shop | null, never, never>
 ```
 
-**Yields:** <a href="/scripting/types/shop-info-record/" data-script-type="shop-info-record"><code>ShopInfoRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/shop/" data-script-type="shop"><code>Shop</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-shops-getmaxbuyquantity"></a>
 
-### `api.shops.getMaxBuyQuantity()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L33" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:33" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getMaxBuyQuantity()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L31" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:31" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getMaxBuyQuantity(selector: ShopItemSelector): Effect.Effect<number, never, never>
+api.shops.getMaxBuyQuantity(selector: ShopItemQuery): Effect.Effect<number, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `number`
 
@@ -120,7 +120,7 @@ api.shops.getMaxBuyQuantity(selector: ShopItemSelector): Effect.Effect<number, n
 
 <a id="member-api-shops-ismergeshop"></a>
 
-### `api.shops.isMergeShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L36" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:36" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.isMergeShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L34" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:34" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.shops.isMergeShop(): Effect.Effect<boolean, never, never>
@@ -132,7 +132,7 @@ api.shops.isMergeShop(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-shops-isopen"></a>
 
-### `api.shops.isOpen()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L37" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:37" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.isOpen()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L35" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:35" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.shops.isOpen(shopId?: number): Effect.Effect<boolean, never, never>
@@ -148,7 +148,7 @@ api.shops.isOpen(shopId?: number): Effect.Effect<boolean, never, never>
 
 <a id="member-api-shops-load"></a>
 
-### `api.shops.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L38" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:38" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L36" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:36" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.shops.load(shopId: number): Effect.Effect<boolean, never, never>
@@ -164,7 +164,7 @@ api.shops.load(shopId: number): Effect.Effect<boolean, never, never>
 
 <a id="member-api-shops-loadarmorcustomize"></a>
 
-### `api.shops.loadArmorCustomize()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L39" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:39" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.loadArmorCustomize()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L37" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:37" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.shops.loadArmorCustomize(): Effect.Effect<void, never, never>
@@ -176,7 +176,7 @@ api.shops.loadArmorCustomize(): Effect.Effect<void, never, never>
 
 <a id="member-api-shops-loadhairshop"></a>
 
-### `api.shops.loadHairShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L40" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:40" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.loadHairShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L38" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:38" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 api.shops.loadHairShop(shopId: number): Effect.Effect<void, never, never>
@@ -192,15 +192,15 @@ api.shops.loadHairShop(shopId: number): Effect.Effect<void, never, never>
 
 <a id="member-api-shops-sell"></a>
 
-### `api.shops.sell()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L41" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:41" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.sell()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Shops.ts#L39" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Shops.ts:39" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.sell(selector: ItemSelector, options?: QuantityOptions): Effect.Effect<boolean, never, never>
+api.shops.sell(selector: ItemQuery, options?: QuantityOptions): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `options` | <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`

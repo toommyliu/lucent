@@ -1,8 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { ItemRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { normalizeItemRecord } from "../payload";
+import { decodeItem } from "../payload";
 import { FlashProtocol } from "../protocol/FlashProtocol";
 import { normalizeItemSelector, normalizeQuantity } from "../selectors";
 import { ItemsState } from "../state/Items";
@@ -18,8 +18,8 @@ export interface BankApiShape {
   readonly depositBatch: (
     selectors: readonly ItemSelector[],
   ) => Effect.Effect<readonly boolean[]>;
-  readonly get: (selector: ItemSelector) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly ItemRecord[]>;
+  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
+  readonly getAll: () => Effect.Effect<readonly Item[]>;
   readonly getAvailableSlots: () => Effect.Effect<number>;
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;
@@ -94,7 +94,7 @@ export const layer = Layer.effect(
         }
 
         const raw = yield* bridge.call("bank.getItem", [normalized]);
-        const item = normalizeItemRecord(raw, { banked: true });
+        const item = decodeItem(raw, { context: "bank" });
         if (item !== null) {
           yield* items.upsert("bank", item);
         }

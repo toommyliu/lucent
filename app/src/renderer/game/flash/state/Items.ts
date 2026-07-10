@@ -1,13 +1,14 @@
 import { Context, Effect, Layer, SynchronizedRef } from "effect";
 
-import type { DropRecord, ItemRecord, ItemSelector } from "../Types";
+import type { Item, ItemSelector } from "../Types";
+import { LiveItem } from "@lucent/game";
 import {
   asArray,
   asBoolean,
   asInt,
   asPositiveInt,
   asRecord,
-  normalizeItemRecord,
+  decodeItem,
 } from "../payload";
 import {
   itemMatchesSelector,
@@ -19,16 +20,16 @@ type ItemContainer = "bank" | "house" | "inventory" | "temp";
 
 interface ItemsRuntimeState {
   bankCount: number;
-  readonly bankItems: Map<number, ItemRecord>;
-  readonly catalog: Map<number, ItemRecord>;
-  readonly drops: Map<number, DropRecord>;
-  readonly houseItems: Map<number, ItemRecord>;
-  readonly inventoryItems: Map<number, ItemRecord>;
-  readonly tempItems: Map<number, ItemRecord>;
+  readonly bankItems: Map<number, LiveItem>;
+  readonly catalog: Map<number, LiveItem>;
+  readonly drops: Map<number, LiveItem>;
+  readonly houseItems: Map<number, LiveItem>;
+  readonly inventoryItems: Map<number, LiveItem>;
+  readonly tempItems: Map<number, LiveItem>;
 }
 
 export interface ItemsStateShape {
-  readonly addDrop: (item: DropRecord) => Effect.Effect<void>;
+  readonly addDrop: (item: LiveItem) => Effect.Effect<void>;
   readonly clear: () => Effect.Effect<void>;
   readonly contains: (
     container: ItemContainer | "inventory-or-house",
@@ -38,12 +39,10 @@ export interface ItemsStateShape {
   readonly get: (
     container: ItemContainer | "inventory-or-house",
     selector: ItemSelector,
-  ) => Effect.Effect<ItemRecord | null>;
-  readonly getAll: (
-    container: ItemContainer,
-  ) => Effect.Effect<readonly ItemRecord[]>;
+  ) => Effect.Effect<Item | null>;
+  readonly getAll: (container: ItemContainer) => Effect.Effect<readonly Item[]>;
   readonly getBankCount: () => Effect.Effect<number>;
-  readonly getDrops: () => Effect.Effect<readonly DropRecord[]>;
+  readonly getDrops: () => Effect.Effect<readonly Item[]>;
   readonly getUsedSlots: (
     container: Exclude<ItemContainer, "bank">,
   ) => Effect.Effect<number>;
@@ -56,7 +55,7 @@ export interface ItemsStateShape {
   ) => Effect.Effect<void>;
   readonly reduceBuyItem: (
     payload: unknown,
-    shopItem?: ItemRecord | null,
+    shopItem?: Item | null,
   ) => Effect.Effect<void>;
   readonly reduceDropItem: (payload: unknown) => Effect.Effect<void>;
   readonly reduceEnhancement: (payload: unknown) => Effect.Effect<void>;
@@ -74,7 +73,7 @@ export interface ItemsStateShape {
   readonly setBankCount: (count: number) => Effect.Effect<void>;
   readonly upsert: (
     container: ItemContainer,
-    item: ItemRecord,
+    item: LiveItem,
   ) => Effect.Effect<void>;
 }
 
@@ -95,7 +94,7 @@ const initialState = (): ItemsRuntimeState => ({
 const mapForContainer = (
   state: ItemsRuntimeState,
   container: ItemContainer,
-): Map<number, ItemRecord> => {
+): Map<number, LiveItem> => {
   switch (container) {
     case "bank":
       return state.bankItems;
@@ -108,34 +107,65 @@ const mapForContainer = (
   }
 };
 
-const routeContainer = (item: ItemRecord): ItemContainer => {
-  if (item.banked) {
+const routeContainer = (item: Item): ItemContainer => {
+  if (item.context === "bank") {
     return "bank";
   }
 
-  if (item.temp) {
+  if (item.temporaryItem) {
     return "temp";
   }
 
-  return item.house ? "house" : "inventory";
+  return item.houseItem ? "house" : "inventory";
 };
 
 const normalizeForContainer = (
-  item: ItemRecord,
+  item: LiveItem,
   container: ItemContainer,
-): ItemRecord => ({
-  ...item,
-  banked: container === "bank",
-  house: container === "house" || item.house,
-  temp: container === "temp" || item.temp,
-});
+): LiveItem => {
+  item.update({
+    context: container === "temp" ? "temporary" : container,
+  });
+  return item;
+};
+
+const findOwnedInstance = (
+  state: ItemsRuntimeState,
+  item: LiveItem,
+): {
+  readonly container: ItemContainer;
+  readonly item: LiveItem;
+  readonly itemId: number;
+} | null => {
+  for (const container of ["inventory", "bank", "house", "temp"] as const) {
+    for (const [itemId, candidate] of mapForContainer(state, container)) {
+      if (
+        candidate === item ||
+        (item.charItemId !== undefined &&
+          candidate.charItemId === item.charItemId)
+      ) {
+        return { container, item: candidate, itemId };
+      }
+    }
+  }
+  return null;
+};
 
 const upsertItem = (
   state: ItemsRuntimeState,
   container: ItemContainer,
-  item: ItemRecord,
+  item: LiveItem,
 ): void => {
-  const normalized = normalizeForContainer(item, container);
+  const found = findOwnedInstance(state, item);
+  const canonical = found?.item ?? item;
+  if (canonical !== item) canonical.replaceFrom(item);
+  if (
+    found !== null &&
+    (found.container !== container || found.itemId !== canonical.itemId)
+  ) {
+    mapForContainer(state, found.container).delete(found.itemId);
+  }
+  const normalized = normalizeForContainer(canonical, container);
   mapForContainer(state, container).set(normalized.itemId, normalized);
   state.catalog.set(normalized.itemId, normalized);
 };
@@ -146,23 +176,26 @@ const replaceItems = (
   items: readonly unknown[],
 ): void => {
   const target = mapForContainer(state, container);
-  target.clear();
+  const retained = new Set<number>();
   for (const raw of items) {
-    const item = normalizeItemRecord(raw, {
-      banked: container === "bank",
-      house: container === "house",
-      temp: container === "temp",
+    const item = decodeItem(raw, {
+      context: container === "temp" ? "temporary" : container,
+      houseItem: container === "house",
+      temporaryItem: container === "temp",
     });
     if (item !== null) {
       upsertItem(state, container, item);
+      retained.add(item.itemId);
     }
   }
+  for (const itemId of target.keys())
+    if (!retained.has(itemId)) target.delete(itemId);
 };
 
 const findInMap = (
-  items: Iterable<ItemRecord>,
+  items: Iterable<Item>,
   selector: ItemSelector,
-): ItemRecord | null => {
+): Item | null => {
   const normalized = normalizeItemSelector(selector);
   if (normalized === null) {
     return null;
@@ -195,13 +228,12 @@ const setEquipped = (
       const sameConsumableCategory =
         current.category === "Item" && other.category === current.category;
       if (otherId !== itemId && (sameEquipmentSlot || sameConsumableCategory)) {
-        map.set(otherId, { ...other, equipped: false });
+        other.update({ equipped: false });
       }
     }
   }
 
-  map.set(itemId, {
-    ...current,
+  current.update({
     equipped,
     ...(slot === undefined ? {} : { equipmentSlot: slot }),
   });
@@ -224,7 +256,7 @@ const removeQuantityByCharItemId = (
       if (nextQuantity === 0 || item.category === "ar") {
         map.delete(itemId);
       } else {
-        map.set(itemId, { ...item, quantity: nextQuantity });
+        item.update({ quantity: nextQuantity });
       }
       return;
     }
@@ -251,18 +283,23 @@ const removeQuantityByItemId = (
     if (nextQuantity === 0 || item.category === "ar") {
       map.delete(itemId);
     } else {
-      map.set(itemId, { ...item, quantity: nextQuantity });
+      item.update({ quantity: nextQuantity });
     }
     return;
   }
 };
 
-const itemRecordFromCatalog = (
+const itemFromCatalog = (
   state: ItemsRuntimeState,
   itemId: number,
   payload: unknown,
-): ItemRecord | null =>
-  normalizeItemRecord(payload, state.catalog.get(itemId) ?? undefined);
+  fallback?: Item | null,
+): LiveItem | null =>
+  decodeItem(
+    payload,
+    state.catalog.get(itemId)?.snapshot() ??
+      (fallback instanceof LiveItem ? fallback.snapshot() : undefined),
+  );
 
 export const layer = Layer.effect(
   ItemsState,
@@ -335,10 +372,7 @@ export const layer = Layer.effect(
           }
 
           state.bankItems.delete(itemId);
-          upsertItem(state, item.house ? "house" : "inventory", {
-            ...item,
-            banked: false,
-          });
+          upsertItem(state, item.houseItem ? "house" : "inventory", item);
           state.bankCount = Math.max(0, state.bankCount - 1);
           return state;
         }),
@@ -352,7 +386,8 @@ export const layer = Layer.effect(
 
           state.inventoryItems.delete(itemId);
           state.houseItems.delete(itemId);
-          upsertItem(state, "bank", { ...item, banked: true, equipped: false });
+          item.update({ context: "bank", equipped: false });
+          upsertItem(state, "bank", item);
           state.bankCount += item.coins ? 0 : 1;
           return state;
         }),
@@ -366,7 +401,20 @@ export const layer = Layer.effect(
 
           for (const [rawItemId, rawItem] of Object.entries(source)) {
             const itemId = asPositiveInt(rawItemId);
-            const item = itemRecordFromCatalog(state, itemId ?? 0, rawItem);
+            const itemRecord = asRecord(rawItem);
+            const existingItem =
+              itemId === undefined ? undefined : state.catalog.get(itemId);
+            const quantityNow =
+              existingItem === undefined
+                ? undefined
+                : asInt(itemRecord?.["iQtyNow"]);
+            const item = itemFromCatalog(
+              state,
+              itemId ?? 0,
+              quantityNow === undefined || itemRecord === null
+                ? rawItem
+                : { ...itemRecord, iQty: quantityNow },
+            );
             if (item !== null) {
               upsertItem(state, routeContainer(item), item);
             }
@@ -386,15 +434,13 @@ export const layer = Layer.effect(
           state.inventoryItems.delete(inventoryItemId);
           state.houseItems.delete(inventoryItemId);
           state.bankItems.delete(bankItemId);
-          upsertItem(state, "bank", {
-            ...inventoryItem,
-            banked: true,
-            equipped: false,
-          });
-          upsertItem(state, bankItem.house ? "house" : "inventory", {
-            ...bankItem,
-            banked: false,
-          });
+          inventoryItem.update({ context: "bank", equipped: false });
+          upsertItem(state, "bank", inventoryItem);
+          upsertItem(
+            state,
+            bankItem.houseItem ? "house" : "inventory",
+            bankItem,
+          );
           return state;
         }),
       reduceBuyItem: (payload, shopItem) =>
@@ -405,15 +451,16 @@ export const layer = Layer.effect(
           }
 
           const itemId = asPositiveInt(record["ItemID"] ?? shopItem?.itemId);
-          const source =
-            shopItem === null || shopItem === undefined
-              ? record
-              : { ...shopItem, ...record };
           const item =
             itemId === undefined
-              ? normalizeItemRecord(source)
-              : itemRecordFromCatalog(state, itemId, source);
-          if (item !== null && !item.virtual) {
+              ? decodeItem(
+                  record,
+                  shopItem instanceof LiveItem
+                    ? shopItem.snapshot()
+                    : undefined,
+                )
+              : itemFromCatalog(state, itemId, record, shopItem);
+          if (item !== null) {
             upsertItem(state, routeContainer(item), item);
           }
           return state;
@@ -425,16 +472,13 @@ export const layer = Layer.effect(
             return state;
           }
 
-          for (const [rawDropId, rawItem] of Object.entries(items)) {
-            const item = normalizeItemRecord(rawItem);
+          for (const rawItem of Object.values(items)) {
+            const item = decodeItem(rawItem);
             if (item === null) {
               continue;
             }
-            const dropId = asPositiveInt(rawDropId) ?? item.itemId;
-            const dropQuantity =
-              asInt(asRecord(rawItem)?.["iQty"]) ?? item.quantity;
-            const drop = { ...item, dropId, dropQuantity };
-            state.drops.set(item.itemId, drop);
+            item.update({ context: "drop" });
+            state.drops.set(item.itemId, item);
             state.catalog.set(item.itemId, item);
           }
           return state;
@@ -464,9 +508,9 @@ export const layer = Layer.effect(
               if (!ids.has(itemId)) {
                 continue;
               }
-              const next = normalizeItemRecord(record, item);
+              const next = decodeItem(record, item.snapshot());
               if (next !== null) {
-                map.set(itemId, next);
+                item.replaceFrom(next);
               }
             }
           }
@@ -491,7 +535,7 @@ export const layer = Layer.effect(
           }
 
           const base = state.catalog.get(itemId) ?? state.drops.get(itemId);
-          const item = normalizeItemRecord({ ...base, ...record }, base);
+          const item = decodeItem(record, base?.snapshot());
           if (item !== null) {
             upsertItem(state, routeContainer(item), item);
           }
@@ -538,7 +582,8 @@ export const layer = Layer.effect(
             }
 
             const quantity = normalizeQuantity(asInt(rawQuantity));
-            const preferTemp = state.catalog.get(itemId)?.temp === true;
+            const preferTemp =
+              state.catalog.get(itemId)?.temporaryItem === true;
             removeQuantityByItemId(state, itemId, quantity, preferTemp);
           }
           return state;

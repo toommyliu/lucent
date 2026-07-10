@@ -17,12 +17,12 @@ tableOfContents:
 ### `api.tempInventory.contains()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/TempInventory.ts#L7" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/TempInventory.ts:7" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.tempInventory.contains(selector: ItemSelector, quantity?: number): Effect.Effect<boolean, never, never>
+api.tempInventory.contains(selector: ItemQuery, quantity?: number): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `quantity` | `number` |  |  |
 
 **Yields:** `boolean`
@@ -34,14 +34,14 @@ api.tempInventory.contains(selector: ItemSelector, quantity?: number): Effect.Ef
 ### `api.tempInventory.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/TempInventory.ts#L11" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/TempInventory.ts:11" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.tempInventory.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, never, never>
+api.tempInventory.get(selector: ItemQuery): Effect.Effect<Item | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a> \| `null`
+**Yields:** <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -50,9 +50,9 @@ api.tempInventory.get(selector: ItemSelector): Effect.Effect<ItemRecord | null, 
 ### `api.tempInventory.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/TempInventory.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/TempInventory.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.tempInventory.getAll(): Effect.Effect<readonly ItemRecord[], never, never>
+api.tempInventory.getAll(): Effect.Effect<readonly Item[], never, never>
 ```
 
-**Yields:** `readonly` <a href="/scripting/types/item-record/" data-script-type="item-record"><code>ItemRecord</code></a>[]
+**Yields:** `readonly` <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a>[]
 
 **Errors:** `never`

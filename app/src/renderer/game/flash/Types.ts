@@ -5,7 +5,29 @@ import type {
   CombatProfile,
   CombatProfileDefinition,
 } from "@lucent/core/combatProfiles";
-import type * as BridgeTypes from "../Types";
+import type {
+  Aura,
+  ItemQuery,
+  MonsterQuery,
+  Position,
+  ShopItemQuery,
+} from "@lucent/game";
+
+export type {
+  Aura,
+  Entity,
+  EntityState,
+  Faction,
+  Item,
+  ItemContext,
+  Monster,
+  Outfit,
+  Player,
+  Position,
+  Quest,
+  Server,
+  Shop,
+} from "@lucent/game";
 
 export type {
   ConnectToSelectionFailureReason,
@@ -18,141 +40,17 @@ export type {
 
 export type UnknownRecord = Record<string, unknown>;
 
-export type ItemSelector = BridgeTypes.InventoryItemSelector | number | string;
-
-export type MonsterSelector = BridgeTypes.MonsterSelector | number | string;
-
-export type ShopItemSelector =
-  | BridgeTypes.ShopItemSelector
-  | BridgeTypes.InventoryItemSelector
-  | number
-  | string;
-
-export interface ItemRecord {
-  readonly banked: boolean;
-  readonly category: string;
-  readonly charItemId?: number;
-  readonly coins: boolean;
-  readonly cost: number;
-  readonly description: string;
-  readonly enhancement?: {
-    readonly dps?: number;
-    readonly id?: number;
-    readonly level?: number;
-    readonly patternId?: number;
-    readonly range?: number;
-    readonly rarity?: number;
-  };
-  readonly equipped: boolean;
-  readonly equipmentSlot: string;
-  readonly file: string;
-  readonly house: boolean;
-  readonly itemId: number;
-  readonly link: string;
-  readonly meta: string;
-  readonly name: string;
-  readonly quantity: number;
-  readonly temp: boolean;
-  readonly virtual: boolean;
-}
-
-export interface DropRecord extends ItemRecord {
-  readonly dropId: number;
-  readonly dropQuantity: number;
-}
-
-export interface ShopInfoRecord {
-  readonly house: boolean;
-  readonly id: number;
-  readonly items: readonly ShopItemRecord[];
-  readonly limited: boolean;
-  readonly merge: boolean;
-  readonly name: string;
-}
-
-export interface ShopItemRecord extends ItemRecord {
-  readonly shopItemId?: number | string;
-}
-
-export interface QuestRecord {
-  readonly id: number;
-  readonly name: string;
-  readonly raw: UnknownRecord;
-}
-
-export interface FactionRecord {
-  readonly id: number;
-  readonly name: string;
-  readonly rank: number;
-  readonly reputation: number;
-}
-
-export interface OutfitRecord {
-  readonly name: string;
-  readonly raw: UnknownRecord;
-}
-
-export interface ServerRecord {
-  readonly chat: number;
-  readonly count: number;
-  readonly language: string;
-  readonly max: number;
-  readonly memberOnly: boolean;
-  readonly name: string;
-  readonly online: boolean;
-  readonly raw: UnknownRecord;
-}
-
-export interface AuraRecord {
-  readonly category?: string;
-  readonly duration: number;
-  readonly icon?: string;
-  readonly name: string;
-  readonly stack: number;
-  readonly value?: number;
-}
-
-export interface PlayerRecord {
-  readonly afk: boolean;
-  readonly cell: string;
-  readonly entityId: number;
-  readonly entityType: string;
-  readonly hp: number;
-  readonly level: number;
-  readonly maxHp: number;
-  readonly maxMp: number;
-  readonly mp: number;
-  readonly name: string;
-  readonly pad: string;
-  readonly position: readonly [number, number];
-  readonly state: number;
-  readonly username: string;
-}
-
-export interface MonsterRecord {
-  readonly cell: string;
-  readonly hp: number;
-  readonly level: number;
-  readonly maxHp: number;
-  readonly maxMp: number;
-  readonly monsterId: number;
-  readonly monsterMapId: number;
-  readonly mp: number;
-  readonly name: string;
-  readonly race: string;
-  readonly state: number;
-}
-
-export interface MapRecord {
+export interface MapInfo {
   readonly id: number;
   readonly name: string;
   readonly roomNumber: number;
 }
 
-export interface Position {
-  readonly x: number;
-  readonly y: number;
-}
+export type ItemSelector = ItemQuery;
+
+export type MonsterSelector = MonsterQuery;
+
+export type ShopItemSelector = ShopItemQuery;
 
 export interface FlashSettingsSnapshot {
   readonly animationsEnabled: boolean;
@@ -284,7 +182,7 @@ export type FlashProjectionEvent =
   | {
       readonly kind: "projection";
       readonly packet: FlashPacket;
-      readonly payload: MapRecord;
+      readonly payload: MapInfo;
       readonly type: "joinMap";
     }
   | {
@@ -330,7 +228,7 @@ export type FlashProjectionEvent =
       readonly kind: "projection";
       readonly packet: FlashPacket;
       readonly payload: {
-        readonly aura: AuraRecord;
+        readonly aura: Aura;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };

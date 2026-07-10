@@ -1,16 +1,17 @@
 import { Context, Effect, Layer, SynchronizedRef } from "effect";
 
-import type { QuestRecord } from "../Types";
-import { asRecord, normalizeQuestRecord } from "../payload";
+import type { Quest } from "../Types";
+import { LiveQuest } from "@lucent/game";
+import { asRecord, decodeQuest } from "../payload";
 
 interface QuestsRuntimeState {
-  readonly quests: Map<number, QuestRecord>;
+  readonly quests: Map<number, LiveQuest>;
 }
 
 export interface QuestsStateShape {
   readonly clear: () => Effect.Effect<void>;
-  readonly get: (questId: number) => Effect.Effect<QuestRecord | null>;
-  readonly getAll: () => Effect.Effect<readonly QuestRecord[]>;
+  readonly get: (questId: number) => Effect.Effect<Quest | null>;
+  readonly getAll: () => Effect.Effect<readonly Quest[]>;
   readonly has: (questId: number) => Effect.Effect<boolean>;
   readonly reduceGetQuests: (payload: unknown) => Effect.Effect<void>;
 }
@@ -53,9 +54,11 @@ export const layer = Layer.effect(
           }
 
           for (const [rawQuestId, rawQuest] of Object.entries(quests)) {
-            const quest = normalizeQuestRecord(rawQuestId, rawQuest);
+            const quest = decodeQuest(rawQuestId, rawQuest);
             if (quest !== null) {
-              state.quests.set(quest.id, quest);
+              const current = state.quests.get(quest.id);
+              if (current === undefined) state.quests.set(quest.id, quest);
+              else current.replaceFrom(quest);
             }
           }
           return state;
