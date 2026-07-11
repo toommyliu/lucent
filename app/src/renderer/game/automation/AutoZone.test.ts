@@ -3,7 +3,7 @@ import { Effect, FiberMap, Ref } from "effect";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { ApiService } from "../flash/api/Api";
-import type { Event } from "../flash/contract/Event";
+import type { Event, EventSelector } from "../flash/contract/Event";
 import { makeAutoZone } from "./AutoZone";
 
 describe("AutoZone", () => {
@@ -14,14 +14,12 @@ describe("AutoZone", () => {
           [],
         );
         const fibers = yield* FiberMap.make<string>();
-        let handleEvent:
-          | ((event: Event) => Effect.Effect<void, unknown, never>)
-          | undefined;
+        let handleEvent: ((event: Event) => Effect.Effect<void>) | undefined;
         const api = {
           events: {
             on: (
-              _selector: unknown,
-              handler: (event: Event) => Effect.Effect<void, unknown, never>,
+              _selector: EventSelector | undefined,
+              handler: (event: Event) => Effect.Effect<void>,
             ) => {
               handleEvent = handler;
               return Effect.succeed(() => undefined);

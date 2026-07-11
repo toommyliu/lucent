@@ -8,6 +8,8 @@ import type { Packet as FlashPacket } from "../flash/contract/Packet";
 import { privateRoom, randomPrivateRoom } from "../flash/domain/MapTarget";
 import type {
   ScriptCallbackResult,
+  ScriptEventsApi,
+  ScriptPacketApi,
   ScriptLucentStd,
   ScriptRuntimeApi,
   ScriptSettingsApi,
@@ -128,20 +130,11 @@ const wrapEvents = (
   events: ApiService["events"],
   scope: ScriptAsyncScope,
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
-) => ({
+): ScriptEventsApi => ({
   ...events,
-  on: (
-    selector: Parameters<ApiService["events"]["on"]>[0],
-    handler: Parameters<ApiService["events"]["on"]>[1],
-  ) =>
+  on: (selector, handler) =>
     events
-      .on(
-        selector,
-        notifyCallbackFailure(
-          handler as unknown as (event: FlashEvent) => ScriptCallbackResult,
-          failCause,
-        ),
-      )
+      .on(selector, notifyCallbackFailure<FlashEvent>(handler, failCause))
       .pipe(Effect.tap((dispose) => scope.addCleanup(dispose))),
 });
 
@@ -149,20 +142,11 @@ const wrapPacket = (
   packet: ApiService["packet"],
   scope: ScriptAsyncScope,
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
-) => ({
+): ScriptPacketApi => ({
   ...packet,
-  on: (
-    selector: Parameters<ApiService["packet"]["on"]>[0],
-    handler: Parameters<ApiService["packet"]["on"]>[1],
-  ) =>
+  on: (selector, handler) =>
     packet
-      .on(
-        selector,
-        notifyCallbackFailure(
-          handler as unknown as (packet: FlashPacket) => ScriptCallbackResult,
-          failCause,
-        ),
-      )
+      .on(selector, notifyCallbackFailure<FlashPacket>(handler, failCause))
       .pipe(Effect.tap((dispose) => scope.addCleanup(dispose))),
 });
 

@@ -13,6 +13,7 @@ import type { Diagnostic } from "../contract/Diagnostic";
 import { makeDiagnostic } from "../contract/Diagnostic";
 
 type Method = keyof Window["swf"];
+type MethodArguments<M extends Method> = Readonly<Parameters<Window["swf"][M]>>;
 
 class InvokeFailure extends Data.TaggedError("InvokeFailure")<{
   readonly cause: unknown;
@@ -34,9 +35,9 @@ export const makeBridge = (target?: Pick<Window, "swf">) =>
         makeDiagnostic("invoke", String(method), cause, args),
       ).pipe(Effect.as(Option.none()));
 
-    const invoke = <A>(
-      method: Method,
-      args: readonly unknown[] | undefined,
+    const invoke = <M extends Method, A>(
+      method: M,
+      args: MethodArguments<M> | undefined,
       schema: Schema.Decoder<A>,
     ): Effect.Effect<Option.Option<A>> =>
       Effect.try({
@@ -45,7 +46,9 @@ export const makeBridge = (target?: Pick<Window, "swf">) =>
           if (typeof candidate !== "function") {
             throw new Error(`Missing Flash method: ${String(method)}`);
           }
-          return candidate(...(args ?? []));
+          return Reflect.apply(candidate, resolvedTarget.swf, [
+            ...(args ?? []),
+          ]);
         },
         catch: (cause) => new InvokeFailure({ cause }),
       }).pipe(
@@ -54,9 +57,9 @@ export const makeBridge = (target?: Pick<Window, "swf">) =>
         Effect.catch((cause) => fail(method, cause, args)),
       );
 
-    const invokeJson = <A>(
-      method: Method,
-      args: readonly unknown[] | undefined,
+    const invokeJson = <M extends Method, A>(
+      method: M,
+      args: MethodArguments<M> | undefined,
       schema: Schema.Decoder<A>,
     ): Effect.Effect<Option.Option<A>> =>
       invoke(method, args, Schema.Union([Schema.String, Schema.Unknown])).pipe(

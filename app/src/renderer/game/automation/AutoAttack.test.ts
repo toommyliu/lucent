@@ -4,7 +4,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, FiberMap, Ref } from "effect";
 
 import type { ApiService } from "../flash/api/Api";
-import type { Event } from "../flash/contract/Event";
+import type { Event, EventSelector } from "../flash/contract/Event";
 import { makeAutoAttack } from "./AutoAttack";
 
 const monster = new LiveMonster({
@@ -44,8 +44,8 @@ describe("AutoAttack", () => {
           },
           events: {
             on: (
-              _selector: unknown,
-              _handler: (event: Event) => Effect.Effect<void, unknown, never>,
+              _selector: EventSelector | undefined,
+              _handler: (event: Event) => Effect.Effect<void>,
             ) => Effect.succeed(() => undefined),
           },
           monsters: { getAvailable: () => Effect.succeed([monster]) },

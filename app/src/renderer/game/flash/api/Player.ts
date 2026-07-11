@@ -304,7 +304,8 @@ export const makePlayer = (
   const jumpToCell = (cell: string, pad?: string) => {
     const targetCell = cell.trim();
     if (targetCell === "") return Effect.succeed(false);
-    const args = pad === undefined ? [targetCell] : [targetCell, pad];
+    const args: Parameters<Window["swf"]["player.jump"]> =
+      pad === undefined ? [targetCell] : [targetCell, pad];
     return bridge.invoke("player.jump", args, Schema.Void).pipe(
       Effect.flatMap(
         Option.match({
@@ -346,7 +347,7 @@ export const makePlayer = (
         return false;
       if (!(yield* wait.forGameAction("tfer", { timeout: "10 seconds" })))
         return false;
-      const args =
+      const args: Parameters<Window["swf"]["player.joinMap"]> =
         cell === undefined && pad === undefined
           ? [destination.map]
           : pad === undefined
@@ -447,7 +448,7 @@ export const makePlayer = (
       if (!(yield* isAlive())) return false;
       const targetX = Math.trunc(x);
       const targetY = Math.trunc(y);
-      const args =
+      const args: Parameters<Window["swf"]["player.walkTo"]> =
         speed === undefined ? [targetX, targetY] : [targetX, targetY, speed];
       const started = yield* bridge
         .invoke("player.walkTo", args, Schema.Boolean)

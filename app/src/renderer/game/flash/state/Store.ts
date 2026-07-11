@@ -485,3 +485,4 @@ export const makeStore = Effect.gen(function* () {
 });
 
 export type Store = Effect.Success<typeof makeStore>;
+export type StoreSnapshot = Effect.Success<Store["snapshot"]>;

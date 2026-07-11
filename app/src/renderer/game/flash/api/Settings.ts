@@ -1,14 +1,9 @@
-import { Effect, Fiber, Option, Schema, Stream } from "effect";
+import { Effect, Fiber, Schema, Stream } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import {
-  SettingsPatch,
-  type SettingsPatch as SettingsPatchValue,
-} from "../contract/Settings";
+import type { SettingsPatch as SettingsPatchValue } from "../contract/Settings";
 import type { Store } from "../state/Store";
 import type { SettingsState } from "../state/Settings";
-
-const decodePatch = Schema.decodeUnknownOption(SettingsPatch);
 
 export const makeSettings = Effect.fnUntraced(function* (
   bridge: BridgeService,
@@ -18,23 +13,21 @@ export const makeSettings = Effect.fnUntraced(function* (
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const command = (
     method: keyof Window["swf"],
-    value?: unknown,
+    value?: boolean | number | string,
   ): Effect.Effect<void> =>
     bridge
       .invoke(method, value === undefined ? undefined : [value], Schema.Void)
       .pipe(Effect.asVoid);
 
-  const apply = (input: unknown) => {
-    const decoded = decodePatch(input);
-    if (Option.isNone(decoded)) return Effect.void;
+  const apply = (input: SettingsPatchValue) => {
     const patch: SettingsPatchValue = {
-      ...decoded.value,
-      ...(decoded.value.frameRate === undefined
+      ...input,
+      ...(input.frameRate === undefined
         ? {}
-        : { frameRate: Math.max(1, Math.min(60, decoded.value.frameRate)) }),
-      ...(decoded.value.walkSpeed === undefined
+        : { frameRate: Math.max(1, Math.min(60, input.frameRate)) }),
+      ...(input.walkSpeed === undefined
         ? {}
-        : { walkSpeed: Math.max(1, decoded.value.walkSpeed) }),
+        : { walkSpeed: Math.max(1, input.walkSpeed) }),
     };
     const effects: Effect.Effect<void>[] = [];
     const set = <K extends keyof SettingsPatchValue>(

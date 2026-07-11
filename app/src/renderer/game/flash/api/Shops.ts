@@ -3,20 +3,22 @@ import type { ItemQuery, LiveItem, ShopItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
+import { WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import { ItemPayloads, toItem } from "../contract/payload/Items";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
 import type { Wait } from "./Wait";
 
-const decodeShopId = Schema.decodeUnknownOption(PositiveWireInt);
 const BuyResponse = Schema.Struct({
   bBank: Schema.optionalKey(WireBoolean),
   bitSuccess: WireBoolean,
   iQty: Schema.optionalKey(WireInt),
 });
 const decodeBuyResponse = Schema.decodeUnknownOption(BuyResponse);
+
+const isShopId = (shopId: number): boolean =>
+  Number.isSafeInteger(shopId) && shopId > 0;
 
 const selectorFor = (item: LiveItem) =>
   item.shopItemId === undefined
@@ -57,15 +59,14 @@ export const makeShops = (
     return store.items.get("shop", selector);
   };
 
-  const isOpen = (input?: unknown) => {
-    const shopId = input === undefined ? Option.none() : decodeShopId(input);
-    if (input !== undefined && Option.isNone(shopId)) {
+  const isOpen = (shopId?: number) => {
+    if (shopId !== undefined && !isShopId(shopId)) {
       return Effect.succeed(false);
     }
     return bridge
       .invoke(
         "shops.isOpen",
-        Option.isSome(shopId) ? [shopId.value] : undefined,
+        shopId === undefined ? undefined : [shopId],
         Schema.Boolean,
       )
       .pipe(
@@ -74,9 +75,7 @@ export const makeShops = (
             onNone: () =>
               store.shops.get.pipe(
                 Effect.map((shop) =>
-                  Option.isSome(shopId)
-                    ? shop?.id === shopId.value
-                    : shop !== null,
+                  shopId !== undefined ? shop?.id === shopId : shop !== null,
                 ),
               ),
             onSome: (open) => Effect.succeed(open),
@@ -85,23 +84,22 @@ export const makeShops = (
       );
   };
 
-  function close(input?: unknown) {
-    const shopId = input === undefined ? Option.none() : decodeShopId(input);
-    if (input !== undefined && Option.isNone(shopId)) {
+  function close(shopId?: number) {
+    if (shopId !== undefined && !isShopId(shopId)) {
       return Effect.succeed(false);
     }
     return Effect.gen(function* () {
-      if (!(yield* isOpen(input))) return false;
+      if (!(yield* isOpen(shopId))) return false;
       const closed = yield* bridge
         .invoke(
           "shops.close",
-          Option.isSome(shopId) ? [shopId.value] : undefined,
+          shopId === undefined ? undefined : [shopId],
           Schema.Boolean,
         )
         .pipe(Effect.map(Option.getOrElse(() => false)));
       if (!closed) return false;
       const settled = yield* wait.until(
-        isOpen(input).pipe(Effect.map((open) => !open)),
+        isOpen(shopId).pipe(Effect.map((open) => !open)),
         { timeout: "3 seconds" },
       );
       if (settled) {
@@ -112,29 +110,26 @@ export const makeShops = (
     });
   }
 
-  const load = (input: unknown) => {
-    const shopId = decodeShopId(input);
-    if (Option.isNone(shopId)) return Effect.succeed(false);
+  const load = (shopId: number) => {
+    if (!isShopId(shopId)) return Effect.succeed(false);
     return Effect.gen(function* () {
-      if (yield* isOpen(shopId.value)) return true;
+      if (yield* isOpen(shopId)) return true;
       const current = yield* store.shops.get;
       if (
         current !== null &&
-        current.id !== shopId.value &&
+        current.id !== shopId &&
         (yield* isOpen(current.id))
       ) {
         yield* close(current.id);
       }
       if (
-        Option.isNone(
-          yield* bridge.invoke("shops.load", [shopId.value], Schema.Void),
-        )
+        Option.isNone(yield* bridge.invoke("shops.load", [shopId], Schema.Void))
       ) {
         return false;
       }
       return yield* wait.until(
-        Effect.all([store.shops.get, isOpen(shopId.value)]).pipe(
-          Effect.map(([shop, open]) => shop?.id === shopId.value && open),
+        Effect.all([store.shops.get, isOpen(shopId)]).pipe(
+          Effect.map(([shop, open]) => shop?.id === shopId && open),
         ),
         { timeout: "5 seconds" },
       );
@@ -271,13 +266,11 @@ export const makeShops = (
       .invoke("shops.loadArmorCustomize", undefined, Schema.Void)
       .pipe(Effect.asVoid);
 
-  const loadHairShop = (input: unknown) => {
-    const shopId = decodeShopId(input);
-    return Option.isNone(shopId)
-      ? Effect.void
-      : bridge
-          .invoke("shops.loadHairShop", [shopId.value], Schema.Void)
-          .pipe(Effect.asVoid);
+  const loadHairShop = (shopId: number) => {
+    if (!isShopId(shopId)) return Effect.void;
+    return bridge
+      .invoke("shops.loadHairShop", [shopId], Schema.Void)
+      .pipe(Effect.asVoid);
   };
 
   return {

@@ -1,7 +1,6 @@
 import {
   Effect,
   FiberMap,
-  Option,
   Random,
   Schema,
   SubscriptionRef,
@@ -141,8 +140,6 @@ const right: Range = [
   [746, 869],
   [369, 379],
 ];
-const decodeMap = Schema.decodeUnknownOption(AutoZoneSupportedMap);
-
 const target = (
   map: AutoZoneSupportedMap,
   zone: string,
@@ -257,13 +254,12 @@ export const makeAutoZone = Effect.fnUntraced(function* (
       enabled,
     }));
 
-  const setMap = (input: unknown) => {
-    const decoded = input === undefined ? Option.none() : decodeMap(input);
+  const setMap = (map: AutoZoneSupportedMap | undefined) => {
     return FiberMap.remove(fibers, "auto-zone-transition").pipe(
       Effect.andThen(
         SubscriptionRef.updateAndGet(state, (current) => ({
           ...current,
-          map: Option.getOrUndefined(decoded),
+          map,
         })),
       ),
     );

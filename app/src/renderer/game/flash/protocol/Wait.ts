@@ -27,7 +27,7 @@ interface WaitSource {
 }
 
 export interface TriggeredWaitOptions<
-  A = unknown,
+  A = void,
   E = never,
   R = never,
 > extends Pick<WaitOptions, "timeout"> {
@@ -55,7 +55,7 @@ const withTimeout = <A, E, R>(
     : effect.pipe(Effect.timeoutOption(timeout), Effect.map(Option.getOrNull));
 
 export const makeWait = (source: WaitSource) => ({
-  forEvent: <A = unknown, E = never, R = never>(
+  forEvent: <A = void, E = never, R = never>(
     selector?: EventSelector,
     options?: TriggeredWaitOptions<A, E, R>,
   ): Effect.Effect<Event | null, E, R> =>
@@ -72,7 +72,7 @@ export const makeWait = (source: WaitSource) => ({
         );
       }),
     ),
-  forPacket: <A = unknown, E = never, R = never>(
+  forPacket: <A = void, E = never, R = never>(
     selector?: PacketSelector,
     options?: TriggeredWaitOptions<A, E, R>,
   ): Effect.Effect<Packet | null, E, R> =>

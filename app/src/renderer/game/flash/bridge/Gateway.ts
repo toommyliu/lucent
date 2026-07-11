@@ -18,6 +18,7 @@ import {
   isUnsupportedPacketEnvelope,
   parsePacket,
 } from "../protocol/PacketCodec";
+import type { ProjectionTrace } from "../protocol/Pipeline";
 import { Bridge } from "./Bridge";
 
 type CallbackKey =
@@ -165,7 +166,7 @@ export const makeGateway = (target?: Window) =>
         makeDiagnostic("projection", operation, cause, args),
       ).pipe(Effect.asVoid);
 
-    const reportProjectionTrace = (operation: string, trace: unknown) =>
+    const reportProjectionTrace = (operation: string, trace: ProjectionTrace) =>
       PubSub.publish(
         diagnostics,
         makeDiagnostic("projection-trace", operation, undefined, [trace]),

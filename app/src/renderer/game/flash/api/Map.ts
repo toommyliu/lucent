@@ -2,12 +2,9 @@ import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import type { Store } from "../state/Store";
-import { PositiveWireInt } from "../contract/Coercion";
 import type { Wait } from "./Wait";
 
 const Strings = Schema.Array(Schema.String);
-
-const decodeItemId = Schema.decodeUnknownOption(PositiveWireInt);
 
 export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
   const getCellPads = () =>
@@ -31,13 +28,12 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
     );
   const getId = () => store.world.getMap.pipe(Effect.map((map) => map.id));
 
-  const getMapItem = (input: unknown) => {
-    const itemId = decodeItemId(input);
-    if (Option.isNone(itemId)) return Effect.void;
+  const getMapItem = (itemId: number) => {
+    if (!Number.isSafeInteger(itemId) || itemId <= 0) return Effect.void;
     return wait.forGameAction("getMapItem").pipe(
       Effect.flatMap((ready) =>
         ready
-          ? bridge.invoke("world.getMapItem", [itemId.value], Schema.Void)
+          ? bridge.invoke("world.getMapItem", [itemId], Schema.Void)
           : Effect.succeed(Option.none()),
       ),
       Effect.asVoid,

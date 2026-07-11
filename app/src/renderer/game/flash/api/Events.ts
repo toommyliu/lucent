@@ -16,9 +16,9 @@ export const makeEvents = Effect.fnUntraced(function* (
       Stream.filter((event) => matchesEvent(event, selector)),
     );
 
-  const on = (
+  const on = <E>(
     selector: EventSelector | undefined,
-    handler: (event: Event) => Effect.Effect<void, unknown, never>,
+    handler: (event: Event) => Effect.Effect<void, E>,
   ) =>
     stream(selector).pipe(
       Stream.runForEach(handler),

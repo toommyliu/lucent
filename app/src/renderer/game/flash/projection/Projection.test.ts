@@ -5,7 +5,7 @@ import type { Event } from "../contract/Event";
 import type { Packet } from "../contract/Packet";
 import { toItem } from "../contract/payload/Items";
 import { makeBridge } from "../bridge/Bridge";
-import { makePipeline } from "../protocol/Pipeline";
+import { makePipeline, type ProjectionTrace } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
 
 const extension = (command: string, data: unknown): Packet => ({
@@ -43,7 +43,7 @@ describe("Projection", () => {
         const store = yield* makeStore;
         const diagnostics: string[] = [];
         const events: Event[] = [];
-        const traces: unknown[] = [];
+        const traces: ProjectionTrace[] = [];
         const pipeline = makePipeline(store, {
           publishEvent: (event) =>
             Effect.sync(() => {

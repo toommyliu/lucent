@@ -10,20 +10,28 @@ import { projectItems } from "../projection/Items";
 import { projectQuests } from "../projection/Quests";
 import { projectShops } from "../projection/Shops";
 import { projectWorld } from "../projection/World";
-import type { Store } from "../state/Store";
+import type { Store, StoreSnapshot } from "../state/Store";
+
+export interface ProjectionDifference {
+  readonly after?: unknown;
+  readonly before?: unknown;
+}
+
+export interface ProjectionTrace {
+  readonly after: StoreSnapshot;
+  readonly before: StoreSnapshot;
+  readonly changed: boolean;
+  readonly diff: Readonly<Record<string, ProjectionDifference>>;
+  readonly packet: Packet;
+}
 
 interface EventSink {
   readonly publishEvent: (event: Event) => Effect.Effect<void>;
   readonly reportDiagnostic?: DiagnosticReporter;
   readonly reportProjectionTrace?: (
     operation: string,
-    trace: unknown,
+    trace: ProjectionTrace,
   ) => Effect.Effect<void>;
-}
-
-interface Difference {
-  readonly after?: unknown;
-  readonly before?: unknown;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -33,8 +41,8 @@ const stateDiff = (
   before: unknown,
   after: unknown,
   path = "state",
-  differences: Record<string, Difference> = {},
-): Record<string, Difference> => {
+  differences: Record<string, ProjectionDifference> = {},
+): Record<string, ProjectionDifference> => {
   if (Object.is(before, after)) return differences;
 
   if (isObject(before) && isObject(after)) {

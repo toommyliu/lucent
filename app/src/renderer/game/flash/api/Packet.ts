@@ -38,9 +38,9 @@ export const makePacket = Effect.fnUntraced(function* (
         .replaceAll("{PLAYER_NAME}", player?.username ?? "");
     });
 
-  const on = (
+  const on = <E>(
     selector: PacketSelector | undefined,
-    handler: (packet: PacketContract) => Effect.Effect<void, unknown, never>,
+    handler: (packet: PacketContract) => Effect.Effect<void, E>,
   ) =>
     stream(selector).pipe(
       Stream.runForEach(handler),
