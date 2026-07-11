@@ -20,6 +20,8 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
 | <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | interface |  |
 | <a href="/scripting/types/aura-data/" data-script-type="aura-data"><code>AuraData</code></a> | interface |  |
+| <a href="/scripting/types/aura-kind/" data-script-type="aura-kind"><code>AuraKind</code></a> | type alias |  |
+| <a href="/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> | interface |  |
 | <a href="/scripting/types/aura-snapshot/" data-script-type="aura-snapshot"><code>AuraSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | interface |  |
 | <a href="/scripting/types/auto-relogin-lifecycle-event/" data-script-type="auto-relogin-lifecycle-event"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
@@ -66,6 +68,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/outfit-equipment/" data-script-type="outfit-equipment"><code>OutfitEquipment</code></a> | interface |  |
 | <a href="/scripting/types/outfit-options/" data-script-type="outfit-options"><code>OutfitOptions</code></a> | interface |  |
 | <a href="/scripting/types/outfit-snapshot/" data-script-type="outfit-snapshot"><code>OutfitSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | type alias |  |
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
 | <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a> | interface |  |
 | <a href="/scripting/types/player-target-info/" data-script-type="player-target-info"><code>PlayerTargetInfo</code></a> | type alias |  |

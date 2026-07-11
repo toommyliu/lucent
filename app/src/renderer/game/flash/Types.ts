@@ -7,6 +7,8 @@ import type {
 } from "@lucent/core/combatProfiles";
 import type {
   Aura,
+  AuraKind,
+  EntityState,
   ItemQuery,
   MonsterQuery,
   Position,
@@ -15,6 +17,8 @@ import type {
 
 export type {
   Aura,
+  AuraKind,
+  AuraQueryOptions,
   Entity,
   EntityState,
   Faction,
@@ -229,6 +233,7 @@ export type FlashProjectionEvent =
       readonly packet: FlashPacket;
       readonly payload: {
         readonly aura: Aura;
+        readonly auraKind: AuraKind;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };
@@ -239,10 +244,26 @@ export type FlashProjectionEvent =
       readonly packet: FlashPacket;
       readonly payload: {
         readonly auraName: string;
+        readonly auraKind: AuraKind;
+        readonly remainingStack: number;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };
       readonly type: "auraRemoved";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly cell: string;
+        readonly entityId: number;
+        readonly hp: number;
+        readonly isSelf: boolean;
+        readonly pad: string;
+        readonly state: EntityState;
+        readonly username: string;
+      };
+      readonly type: "playerDeath";
     }
   | {
       readonly kind: "projection";

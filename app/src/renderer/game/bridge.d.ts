@@ -32,16 +32,16 @@ declare global {
         bankSelector: FlashTypes.InventoryItemSelector,
       ) => boolean;
       "bank.withdraw": (selector: FlashTypes.InventoryItemSelector) => boolean;
-      "combat.attackMonster": (selector: FlashTypes.MonsterSelector) => void;
+      "combat.attackMonster": (selector: FlashTypes.MonsterSelector) => boolean;
       "combat.cancelAutoAttack": () => void;
       "combat.cancelTarget": () => void;
-      "combat.forceUseSkill": (index: string) => void;
+      "combat.forceUseSkill": (index: string) => boolean;
       "combat.getConsumableSkillItem": () => FlashTypes.ConsumableSkillItem | null;
       "combat.getSkillCooldownRemaining": (index: number) => number;
       "combat.getTarget": () => FlashTypes.TargetInfo | null;
       "combat.hasTarget": () => boolean;
-      "combat.useSkill": (index: string) => void;
-      "drops.acceptDrop": (itemId: number) => void;
+      "combat.useSkill": (index: string) => boolean;
+      "drops.acceptDrop": (itemId: number) => boolean;
       "drops.isUsingCustomDrops": () => boolean;
       "drops.rejectDrop": (itemId: number) => void;
       "drops.toggleUi": () => void;

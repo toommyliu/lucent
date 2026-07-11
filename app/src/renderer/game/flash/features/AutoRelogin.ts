@@ -168,7 +168,7 @@ const initialState = (): RuntimeState => ({
   server: undefined,
 });
 
-const normalizeDelayMs = (delayMs: number): number =>
+export const normalizeAutoReloginDelay = (delayMs: number): number =>
   Number.isFinite(delayMs)
     ? EffectNumber.clamp({ minimum: 0, maximum: MAX_DELAY_MS })(delayMs)
     : DEFAULT_DELAY_MS;
@@ -898,7 +898,7 @@ export const layer = Layer.effect(
       runLogin,
       setDelay: (delayMs) =>
         updateState((state) => {
-          state.delayMs = normalizeDelayMs(delayMs);
+          state.delayMs = normalizeAutoReloginDelay(delayMs);
           state.lastError = undefined;
           state.attemptsRemaining = undefined;
           if (state.phase.tag === "stopped") {

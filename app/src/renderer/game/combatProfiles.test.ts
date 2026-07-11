@@ -1,13 +1,18 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Deferred, Effect, Fiber, Ref } from "effect";
 
-import type { CombatProfile } from "@lucent/core/combatProfiles";
+import type {
+  CombatProfile,
+  CombatProfileStep,
+} from "@lucent/core/combatProfiles";
 import {
   castCombatProfileMessageTrigger,
   castNextCombatProfileStep,
   makeCombatProfileCursor,
   makeCombatProfileMessageTriggerState,
+  matchesCombatProfileStep,
   matchesCombatProfileMessageTrigger,
+  resetCombatProfileCursor,
   type CombatProfileRuntimeDeps,
 } from "./combatProfiles";
 
@@ -81,6 +86,111 @@ describe("combat profile runtime", () => {
         true,
       );
       expect(casts).toEqual([1, 1]);
+    }),
+  );
+
+  it.effect("keeps a concurrent cursor reset after a successful cast", () =>
+    Effect.gen(function* () {
+      const casts: number[] = [];
+      const castStarted = yield* Deferred.make<void>();
+      const releaseCast = yield* Deferred.make<void>();
+      const cursor = yield* makeCombatProfileCursor();
+      const deps = makeDeps({
+        useSkill: (skill) =>
+          Effect.gen(function* () {
+            casts.push(Number(skill));
+            if (casts.length === 1) {
+              yield* Deferred.succeed(castStarted, undefined);
+              yield* Deferred.await(releaseCast);
+            }
+            return true;
+          }),
+      });
+
+      const castFiber = yield* castNextCombatProfileStep(
+        deps,
+        profile,
+        cursor,
+      ).pipe(Effect.forkScoped);
+      yield* Deferred.await(castStarted);
+      yield* resetCombatProfileCursor(cursor);
+      yield* Deferred.succeed(releaseCast, undefined);
+
+      expect(yield* Fiber.join(castFiber)).toBe(true);
+      expect(yield* castNextCombatProfileStep(deps, profile, cursor)).toBe(
+        true,
+      );
+      expect(casts).toEqual([1, 1]);
+    }),
+  );
+
+  it.effect("evaluates stat and aura conditions at their boundaries", () =>
+    Effect.gen(function* () {
+      const base = makeDeps();
+      const deps: CombatProfileRuntimeDeps = {
+        ...base,
+        combat: {
+          ...base.combat,
+          target: {
+            ...base.combat.target,
+            auras: {
+              ...base.combat.target.auras,
+              get: (name) =>
+                Effect.succeed(
+                  name === "Guard" ? ({ stack: 1 } as never) : null,
+                ),
+            },
+            get: () => Effect.succeed({ type: "monster" } as never),
+          },
+        },
+        player: {
+          ...base.player,
+          auras: {
+            ...base.player.auras,
+            get: (name) =>
+              Effect.succeed(name === "Focus" ? ({ stack: 3 } as never) : null),
+          },
+          getHp: () => Effect.succeed(40),
+          getMp: () => Effect.succeed(20),
+        },
+        players: {
+          getAll: () =>
+            Effect.succeed([
+              {
+                entityId: 2,
+                hp: 20,
+                maxHp: 100,
+                username: "Ally",
+              } as never,
+            ]),
+          getMe: () => Effect.succeed(null),
+        },
+      };
+      const step: CombatProfileStep = {
+        id: "conditions",
+        skill: 1,
+        conditions: [
+          { type: "self-hp", op: "<=", value: 40, unit: "percent" },
+          { type: "self-mp", op: ">=", value: 20, unit: "value" },
+          { type: "ally-hp", op: "<=", value: 20, unit: "percent" },
+          { type: "self-aura", auraName: "Focus", op: ">=", value: 3 },
+          { type: "target-aura", auraName: "Guard", op: ">=", value: 1 },
+        ],
+      };
+
+      expect(yield* matchesCombatProfileStep(deps, step)).toBe(true);
+      expect(
+        yield* matchesCombatProfileStep(
+          {
+            ...deps,
+            player: {
+              ...deps.player,
+              getHp: () => Effect.succeed(41),
+            },
+          },
+          step,
+        ),
+      ).toBe(false);
     }),
   );
 

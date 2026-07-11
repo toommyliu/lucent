@@ -194,7 +194,10 @@ const matchesCondition = (
   }
 };
 
-const matchesStep = (deps: CombatProfileRuntimeDeps, step: CombatProfileStep) =>
+export const matchesCombatProfileStep = (
+  deps: CombatProfileRuntimeDeps,
+  step: CombatProfileStep,
+) =>
   Effect.gen(function* () {
     for (const condition of step.conditions) {
       if (!(yield* matchesCondition(deps, condition))) {
@@ -220,7 +223,10 @@ export const castNextCombatProfileStep = (
     for (let offset = 0; offset < steps.length; offset += 1) {
       const stepIndex = (startState.index + offset) % steps.length;
       const step = steps[stepIndex];
-      if (step === undefined || !(yield* matchesStep(deps, step))) {
+      if (
+        step === undefined ||
+        !(yield* matchesCombatProfileStep(deps, step))
+      ) {
         continue;
       }
 

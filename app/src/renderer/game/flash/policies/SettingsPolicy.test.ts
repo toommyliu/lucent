@@ -1,18 +1,33 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
-import * as TestClock from "effect/testing/TestClock";
+import { Effect } from "effect";
 
-import type { FlashEvent } from "../Types";
-import { SwfBridge, type SwfBridgeShape } from "../SwfBridge";
-import { EventsApi, type EventsApiShape } from "../api/Events";
-import { PlayerApi, type PlayerApiShape } from "../api/Player";
-import { SettingsApi, layer as SettingsLayer } from "../api/Settings";
-import { Jobs, layer as JobsLayer } from "../jobs/Jobs";
+import type { FlashEvent, FlashSettingsSnapshot } from "../Types";
+import type { EventsApiShape } from "../api/Events";
+import type { PeriodicJobDefinition } from "../jobs/Jobs";
 import { matchesEventSelector } from "../protocol/PacketSelectors";
-import { layer as SettingsStateLayer } from "../state/Settings";
-import { layer as SettingsPolicyLayer } from "./SettingsPolicy";
+import {
+  getRecurringSettingsPatch,
+  hasRecurringSettingActions,
+  installSettingsPolicy,
+  type SettingsPolicyPorts,
+} from "./SettingsPolicy";
 
-const SETTINGS_ACTION_JOB_KEY = "settings/actions";
+const defaultSettings = (): FlashSettingsSnapshot => ({
+  animationsEnabled: true,
+  antiCounterEnabled: true,
+  collisionsEnabled: true,
+  customGuild: "",
+  customName: "",
+  deathAdsVisible: true,
+  enemyMagnetEnabled: false,
+  frameRate: 24,
+  infiniteRangeEnabled: false,
+  lagKillerEnabled: false,
+  otherPlayersVisible: true,
+  provokeCellEnabled: false,
+  skipCutscenesEnabled: false,
+  walkSpeed: 8,
+});
 
 const connectionEvent = (status: string): FlashEvent => ({
   kind: "runtime",
@@ -20,175 +35,168 @@ const connectionEvent = (status: string): FlashEvent => ({
   type: "connection",
 });
 
-const actionCallCount = (
-  calls: readonly { readonly method: string }[],
-): number =>
-  calls.filter(
-    (call) =>
-      call.method === "settings.enemyMagnet" ||
-      call.method === "settings.infiniteRange" ||
-      call.method === "settings.provokeCell" ||
-      call.method === "settings.skipCutscenes",
-  ).length;
-
-const makeHarness = () => {
+const makeHarness = (initial: Partial<FlashSettingsSnapshot> = {}) => {
   let ready = false;
-  const calls: Array<{
-    readonly args: readonly unknown[];
-    readonly method: string;
-  }> = [];
-  const handlers: Array<{
+  let state = { ...defaultSettings(), ...initial };
+  const applied: Array<Partial<FlashSettingsSnapshot>> = [];
+  const periodicJobs: PeriodicJobDefinition[] = [];
+  const stoppedJobs: string[] = [];
+  const eventHandlers: Array<{
     readonly handler: (event: FlashEvent) => Effect.Effect<void>;
     readonly selector: Parameters<EventsApiShape["on"]>[0];
   }> = [];
+  const stateHandlers: Array<(next: FlashSettingsSnapshot) => void> = [];
 
-  const bridge = SwfBridge.of({
-    call: ((method, args) =>
-      Effect.sync(() => {
-        calls.push({ args: args ?? [], method });
-        return undefined;
-      })) as SwfBridgeShape["call"],
-    callGameFunction: () => Effect.succeed(null),
-    readJson: () => Effect.succeed(null),
-  });
-  const events = EventsApi.of({
+  const events: SettingsPolicyPorts["events"] = {
     on: (selector, handler) =>
       Effect.sync(() => {
-        handlers.push({ handler, selector });
+        const entry = { handler, selector };
+        eventHandlers.push(entry);
         return () => {
-          const index = handlers.findIndex(
-            (entry) => entry.handler === handler,
-          );
-          if (index >= 0) {
-            handlers.splice(index, 1);
-          }
+          const index = eventHandlers.indexOf(entry);
+          if (index >= 0) eventHandlers.splice(index, 1);
         };
       }),
-    once: () => Effect.succeed(null),
-  } satisfies EventsApiShape);
-  const player = PlayerApi.of({
+  };
+  const jobs: SettingsPolicyPorts["jobs"] = {
+    startPeriodicJob: (definition) =>
+      Effect.sync(() => {
+        periodicJobs.push(definition);
+        return true;
+      }),
+    stop: (key) =>
+      Effect.sync(() => {
+        stoppedJobs.push(key);
+        return true;
+      }),
+  };
+  const player: SettingsPolicyPorts["player"] = {
     isReady: () => Effect.sync(() => ready),
-  } as PlayerApiShape);
-
-  const base = Layer.mergeAll(
-    SettingsStateLayer,
-    TestClock.layer(),
-    Layer.succeed(EventsApi, events),
-    Layer.succeed(PlayerApi, player),
-    Layer.succeed(SwfBridge, bridge),
-  );
-  const settings = SettingsLayer.pipe(Layer.provideMerge(base));
-  const services = Layer.mergeAll(settings, JobsLayer);
-  const layer = SettingsPolicyLayer.pipe(Layer.provideMerge(services));
+  };
+  const settings: SettingsPolicyPorts["settings"] = {
+    apply: (patch) =>
+      Effect.sync(() => {
+        applied.push(patch);
+      }),
+    get: () => Effect.sync(() => state),
+    onState: (listener) =>
+      Effect.sync(() => {
+        stateHandlers.push(listener);
+        listener(state);
+        return () => {
+          const index = stateHandlers.indexOf(listener);
+          if (index >= 0) stateHandlers.splice(index, 1);
+        };
+      }),
+  };
 
   return {
-    calls,
+    applied,
     emit: (event: FlashEvent) =>
       Effect.forEach(
-        handlers,
-        (entry) =>
-          matchesEventSelector(event, entry.selector)
-            ? entry.handler(event)
-            : Effect.void,
+        eventHandlers,
+        ({ handler, selector }) =>
+          matchesEventSelector(event, selector) ? handler(event) : Effect.void,
         { discard: true },
       ),
-    layer,
+    emitSettings: (patch: Partial<FlashSettingsSnapshot>) => {
+      state = { ...state, ...patch };
+      for (const handler of stateHandlers) handler(state);
+    },
+    periodicJobs,
+    policy: installSettingsPolicy({ events, jobs, player, settings }),
     setReady: (value: boolean) => {
       ready = value;
     },
+    stoppedJobs,
   };
 };
 
 describe("SettingsPolicy", () => {
-  it.effect("reapplies settings every second only when player is ready", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
+  it.effect(
+    "registers the readiness-gated reapply job and handles connection",
+    () =>
+      Effect.gen(function* () {
+        const harness = makeHarness();
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            yield* harness.policy;
+            expect(harness.periodicJobs).toHaveLength(1);
+            const reapply = harness.periodicJobs[0]!;
+            expect(reapply).toMatchObject({
+              interval: "1 second",
+              key: "settings/apply",
+              runOnStart: true,
+            });
+            expect(yield* reapply.shouldRun!).toBe(false);
+            harness.setReady(true);
+            expect(yield* reapply.shouldRun!).toBe(true);
 
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          yield* Effect.yieldNow;
-          expect(harness.calls).toHaveLength(0);
-
-          yield* TestClock.adjust("1 second");
-          yield* Effect.yieldNow;
-          expect(harness.calls).toHaveLength(0);
-
-          harness.setReady(true);
-          yield* TestClock.adjust("1 second");
-          yield* Effect.yieldNow;
-          expect(harness.calls.length).toBeGreaterThan(0);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
+            yield* reapply.task;
+            expect(harness.applied).toHaveLength(1);
+            yield* harness.emit(connectionEvent("OnConnection"));
+            expect(harness.applied).toHaveLength(2);
+            yield* harness.emit(connectionEvent("OnConnectionLost"));
+            expect(harness.applied).toHaveLength(2);
+          }),
+        );
+      }),
   );
 
-  it.effect("connection event triggers an immediate full settings apply", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
+  it.effect(
+    "starts and stops one recurring-action job with a narrow patch",
+    () =>
+      Effect.gen(function* () {
+        const harness = makeHarness({
+          enemyMagnetEnabled: true,
+          infiniteRangeEnabled: true,
+          provokeCellEnabled: true,
+          skipCutscenesEnabled: true,
+        });
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            yield* harness.policy;
+            const recurring = {
+              ...defaultSettings(),
+              enemyMagnetEnabled: true,
+              infiniteRangeEnabled: true,
+              provokeCellEnabled: true,
+              skipCutscenesEnabled: true,
+            };
+            expect(hasRecurringSettingActions(recurring)).toBe(true);
+            expect(getRecurringSettingsPatch(recurring)).toEqual({
+              enemyMagnetEnabled: true,
+              infiniteRangeEnabled: true,
+              provokeCellEnabled: true,
+              skipCutscenesEnabled: true,
+            });
+            yield* Effect.yieldNow;
+            expect(harness.periodicJobs).toHaveLength(2);
+            const actions = harness.periodicJobs[1]!;
+            expect(actions).toMatchObject({
+              interval: "500 millis",
+              key: "settings/actions",
+              replace: false,
+              runOnStart: true,
+            });
+            yield* actions.task;
+            expect(harness.applied.at(-1)).toEqual({
+              enemyMagnetEnabled: true,
+              infiniteRangeEnabled: true,
+              provokeCellEnabled: true,
+              skipCutscenesEnabled: true,
+            });
 
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          yield* harness.emit(connectionEvent("OnConnection"));
-
-          expect(harness.calls.length).toBeGreaterThan(0);
-          expect(
-            harness.calls.some(
-              (call) => call.method === "settings.setWalkSpeed",
-            ),
-          ).toBe(true);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("recurring setting state starts and stops the action job", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const jobs = yield* Jobs;
-          const settings = yield* SettingsApi;
-
-          expect(yield* jobs.isRunning(SETTINGS_ACTION_JOB_KEY)).toBe(false);
-
-          yield* settings.setEnemyMagnetEnabled(true);
-          yield* Effect.yieldNow;
-          expect(yield* jobs.isRunning(SETTINGS_ACTION_JOB_KEY)).toBe(true);
-
-          yield* settings.setEnemyMagnetEnabled(false);
-          yield* Effect.yieldNow;
-          expect(yield* jobs.isRunning(SETTINGS_ACTION_JOB_KEY)).toBe(false);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("recurring action job runs every 500 millis only when ready", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const settings = yield* SettingsApi;
-
-          harness.setReady(true);
-          yield* settings.setEnemyMagnetEnabled(true);
-          yield* Effect.yieldNow;
-          const afterStart = actionCallCount(harness.calls);
-          expect(afterStart).toBe(1);
-
-          yield* TestClock.adjust("500 millis");
-          yield* Effect.yieldNow;
-          const afterTick = actionCallCount(harness.calls);
-          expect(afterTick).toBeGreaterThan(afterStart);
-
-          harness.setReady(false);
-          yield* TestClock.adjust("500 millis");
-          yield* Effect.yieldNow;
-          expect(actionCallCount(harness.calls)).toBe(afterTick);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
+            harness.emitSettings({
+              enemyMagnetEnabled: false,
+              infiniteRangeEnabled: false,
+              provokeCellEnabled: false,
+              skipCutscenesEnabled: false,
+            });
+            yield* Effect.yieldNow;
+            expect(harness.stoppedJobs).toContain("settings/actions");
+          }),
+        );
+      }),
   );
 });

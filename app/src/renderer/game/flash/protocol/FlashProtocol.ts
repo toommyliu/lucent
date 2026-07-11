@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option, PubSub } from "effect";
+import { Cause, Context, Effect, Layer, Option } from "effect";
 
 import type { FlashCallback } from "../FlashCallbacks";
 import { FlashCallbacks } from "../FlashCallbacks";
@@ -8,6 +8,8 @@ import type {
   EventSelector,
   FlashEvent,
   FlashPacket,
+  FlashProjectionEvent,
+  FlashRuntimeEvent,
   PacketSelector,
   ServerPacketSendType,
   WaitOptions,
@@ -21,8 +23,21 @@ export type FlashPacketHandler = (packet: FlashPacket) => Effect.Effect<void>;
 
 export type FlashEventHandler = (event: FlashEvent) => Effect.Effect<void>;
 
+export type FlashPacketProjector = (
+  packet: FlashPacket,
+) => Effect.Effect<readonly FlashProjectionEvent[]>;
+
+export type FlashRuntimeProjector = (
+  event: FlashRuntimeEvent,
+) => Effect.Effect<void>;
+
 export interface FlashProtocolShape {
-  readonly emitEvent: (event: FlashEvent) => Effect.Effect<void>;
+  readonly installPacketProjector: (
+    projector: FlashPacketProjector,
+  ) => Effect.Effect<() => void>;
+  readonly installRuntimeProjector: (
+    projector: FlashRuntimeProjector,
+  ) => Effect.Effect<() => void>;
   readonly onEvent: (
     selector: EventSelector | undefined,
     handler: FlashEventHandler,
@@ -47,6 +62,7 @@ export interface FlashProtocolShape {
     packet: string,
     type?: ServerPacketSendType,
   ) => Effect.Effect<void>;
+  readonly start: () => Effect.Effect<void>;
 }
 
 export class FlashProtocol extends Context.Service<
@@ -90,7 +106,7 @@ const rawFromCallback = (callback: FlashCallback): string | null => {
   }
 };
 
-const callbackEvent = (callback: FlashCallback): FlashEvent | null => {
+const callbackEvent = (callback: FlashCallback): FlashRuntimeEvent | null => {
   switch (callback.type) {
     case "connection":
       return {
@@ -123,7 +139,11 @@ export const layer = Layer.effect(
     const callbacks = yield* FlashCallbacks;
     const bridge = yield* SwfBridge;
     const maybeWorld = yield* Effect.serviceOption(WorldState);
+    const scope = yield* Effect.scope;
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
+    let packetProjector: FlashPacketProjector | undefined;
+    let runtimeProjector: FlashRuntimeProjector | undefined;
+    let started = false;
 
     const packetBus = makeHandlerBus<FlashPacket, PacketSelector>(
       matchesPacketSelector,
@@ -134,14 +154,74 @@ export const layer = Layer.effect(
       runFork,
     );
 
-    const emitEvent: FlashProtocolShape["emitEvent"] = (event) =>
-      eventBus.dispatch(event);
+    const dispatchEvent = (event: FlashEvent) => eventBus.dispatch(event);
+
+    const installPacketProjector: FlashProtocolShape["installPacketProjector"] =
+      (projector) =>
+        Effect.sync(() => {
+          if (started || packetProjector !== undefined) {
+            throw new Error("Flash packet projector is already installed");
+          }
+
+          packetProjector = projector;
+          return () => {
+            if (!started && packetProjector === projector) {
+              packetProjector = undefined;
+            }
+          };
+        });
+
+    const installRuntimeProjector: FlashProtocolShape["installRuntimeProjector"] =
+      (projector) =>
+        Effect.sync(() => {
+          if (started || runtimeProjector !== undefined) {
+            throw new Error("Flash runtime projector is already installed");
+          }
+
+          runtimeProjector = projector;
+          return () => {
+            if (!started && runtimeProjector === projector) {
+              runtimeProjector = undefined;
+            }
+          };
+        });
+
+    const runPacketProjector = (packet: FlashPacket) =>
+      packetProjector === undefined
+        ? Effect.succeed<readonly FlashProjectionEvent[]>([])
+        : packetProjector(packet).pipe(
+            Effect.catchCauseIf(
+              (cause) => !Cause.hasInterruptsOnly(cause),
+              (cause) =>
+                Effect.logWarning({
+                  cause,
+                  command: packet.command,
+                  message: "flash packet projection failed",
+                }).pipe(Effect.as<readonly FlashProjectionEvent[]>([])),
+            ),
+          );
+
+    const runRuntimeProjector = (event: FlashRuntimeEvent) =>
+      runtimeProjector === undefined
+        ? Effect.void
+        : runtimeProjector(event).pipe(
+            Effect.catchCauseIf(
+              (cause) => !Cause.hasInterruptsOnly(cause),
+              (cause) =>
+                Effect.logWarning({
+                  cause,
+                  message: "flash runtime projection failed",
+                  type: event.type,
+                }),
+            ),
+          );
 
     const dispatchCallback = (callback: FlashCallback) =>
       Effect.gen(function* () {
         const event = callbackEvent(callback);
         if (event !== null) {
-          yield* emitEvent(event);
+          yield* runRuntimeProjector(event);
+          yield* dispatchEvent(event);
         }
 
         const direction = directionFromCallback(callback);
@@ -152,7 +232,7 @@ export const layer = Layer.effect(
 
         const parsed = parseFlashPacket(direction, raw);
         if (Option.isNone(parsed)) {
-          yield* emitEvent({
+          yield* dispatchEvent({
             kind: "packet",
             payload: { direction, raw },
             type: "packetParseFailed",
@@ -160,28 +240,49 @@ export const layer = Layer.effect(
           return;
         }
 
-        yield* emitEvent({
+        const projectionEvents = yield* runPacketProjector(parsed.value);
+        yield* dispatchEvent({
           kind: "packet",
           payload: parsed.value,
           type: "packetReceived",
         });
         yield* packetBus.dispatch(parsed.value);
+        for (const projectionEvent of projectionEvents) {
+          yield* dispatchEvent(projectionEvent);
+        }
       });
 
-    const subscription = yield* callbacks.subscribe();
-    yield* Effect.forkScoped(
-      Effect.forever(
-        PubSub.take(subscription).pipe(
-          Effect.flatMap(dispatchCallback),
-          Effect.catchCause((cause) =>
-            Effect.logWarning({
-              cause,
-              message: "flash callback dispatch failed",
-            }),
+    const drainCallbacks = Effect.forever(
+      callbacks.take().pipe(
+        Effect.flatMap((callback) =>
+          dispatchCallback(callback).pipe(
+            Effect.catchCauseIf(
+              (cause) => !Cause.hasInterruptsOnly(cause),
+              (cause) =>
+                Effect.logWarning({
+                  cause,
+                  message: "flash callback dispatch failed",
+                }),
+            ),
           ),
         ),
       ),
     );
+
+    const start: FlashProtocolShape["start"] = () =>
+      Effect.suspend(() => {
+        if (started) {
+          return Effect.void;
+        }
+        if (packetProjector === undefined || runtimeProjector === undefined) {
+          return Effect.die(
+            new Error("Flash projectors must be installed before starting"),
+          );
+        }
+
+        started = true;
+        return Effect.forkIn(drainCallbacks, scope).pipe(Effect.asVoid);
+      });
 
     const resolvePlaceholders = (packet: string) =>
       Effect.gen(function* () {
@@ -230,13 +331,15 @@ export const layer = Layer.effect(
       );
 
     return FlashProtocol.of({
-      emitEvent,
+      installPacketProjector,
+      installRuntimeProjector,
       onEvent: eventBus.on,
       onPacket: packetBus.on,
       onceEvent: eventBus.once,
       oncePacket: packetBus.once,
       sendClient,
       sendServer,
+      start,
     });
   }),
 );

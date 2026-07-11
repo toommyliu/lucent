@@ -199,6 +199,12 @@ const clampInt = (
     : Math.min(max, Math.max(min, Math.trunc(parsed)));
 };
 
+const truncateUtf16 = (value: string, maxLength: number): string => {
+  const truncated = value.slice(0, maxLength);
+  const last = truncated.charCodeAt(truncated.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? truncated.slice(0, -1) : truncated;
+};
+
 const trimString = (value: unknown, maxLength: number): string | undefined => {
   const decoded = fromOption(decodeString, value);
   if (decoded === undefined) {
@@ -206,7 +212,39 @@ const trimString = (value: unknown, maxLength: number): string | undefined => {
   }
 
   const trimmed = decoded.trim();
-  return trimmed === "" ? undefined : trimmed.slice(0, maxLength);
+  const truncated = truncateUtf16(trimmed, maxLength);
+  return truncated === "" ? undefined : truncated;
+};
+
+const appendIdSuffix = (id: string, suffix: number): string => {
+  const suffixText = `-${suffix}`;
+  return `${truncateUtf16(id, MAX_ID_LENGTH - suffixText.length)}${suffixText}`;
+};
+
+const ensureUniqueIds = <T extends { readonly id: string }>(
+  values: readonly T[],
+): readonly T[] => {
+  const reservedIds = new Set(values.map((value) => value.id));
+  const usedIds = new Set<string>();
+  const nextSuffixes = new Map<string, number>();
+
+  return values.map((value) => {
+    if (!usedIds.has(value.id)) {
+      usedIds.add(value.id);
+      return value;
+    }
+
+    let suffix = nextSuffixes.get(value.id) ?? 2;
+    let id = appendIdSuffix(value.id, suffix);
+    while (reservedIds.has(id) || usedIds.has(id)) {
+      suffix += 1;
+      id = appendIdSuffix(value.id, suffix);
+    }
+
+    nextSuffixes.set(value.id, suffix + 1);
+    usedIds.add(id);
+    return { ...value, id };
+  });
 };
 
 const genericProfile = (): CombatProfile => ({
@@ -350,6 +388,14 @@ const normalizeProfile = (
     normalizeMessageTrigger,
   );
   const steps = normalizeArray(record["steps"], normalizeStep);
+  const normalizedSteps = ensureUniqueIds(
+    steps.length === 0
+      ? (structuredClone(
+          genericProfile().steps,
+        ) as readonly CombatProfileStep[])
+      : steps,
+  );
+  const normalizedMessageTriggers = ensureUniqueIds(messageTriggers);
 
   return {
     id,
@@ -370,13 +416,10 @@ const normalizeProfile = (
     ...(fromOption(decodeBoolean, record["resetSkillIndexOnMonsterDeath"])
       ? { resetSkillIndexOnMonsterDeath: true }
       : {}),
-    steps:
-      steps.length === 0
-        ? (structuredClone(
-            genericProfile().steps,
-          ) as readonly CombatProfileStep[])
-        : steps,
-    ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
+    steps: normalizedSteps,
+    ...(normalizedMessageTriggers.length === 0
+      ? {}
+      : { messageTriggers: normalizedMessageTriggers }),
   };
 };
 
@@ -394,7 +437,7 @@ const normalizeProfiles = (value: unknown): readonly CombatProfile[] => {
     const [generic] = profiles.splice(genericIndex, 1);
     profiles.unshift(generic!);
   }
-  return profiles;
+  return ensureUniqueIds(profiles);
 };
 
 const assertSupportedLibraryVersion = (version: unknown): void => {

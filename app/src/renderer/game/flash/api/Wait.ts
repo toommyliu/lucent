@@ -60,7 +60,7 @@ const normalizeOptions = (
   return { timeout: options };
 };
 
-const until: WaitApiShape["until"] = (condition, options) => {
+export const waitUntil: WaitApiShape["until"] = (condition, options) => {
   const awaited = Effect.repeat(condition, {
     schedule: Schedule.spaced(options?.interval ?? "100 millis"),
     until: (done) => done,
@@ -76,7 +76,7 @@ const until: WaitApiShape["until"] = (condition, options) => {
   );
 };
 
-const untilSome: WaitApiShape["untilSome"] = (condition, options) =>
+export const waitUntilSome: WaitApiShape["untilSome"] = (condition, options) =>
   Effect.gen(function* () {
     const awaited = Effect.repeat(condition, {
       schedule: Schedule.spaced(options?.interval ?? "100 millis"),
@@ -114,7 +114,7 @@ export const layer = Layer.effect(
         ),
       forGameAction: (action, options) => {
         const normalized = normalizeOptions(options);
-        return until(
+        return waitUntil(
           isGameActionAvailable(action),
           normalized.interval === undefined
             ? { timeout: normalized.timeout ?? "2 seconds" }
@@ -132,8 +132,8 @@ export const layer = Layer.effect(
             : { timeout: options.timeout },
         ),
       isGameActionAvailable,
-      until,
-      untilSome,
+      until: waitUntil,
+      untilSome: waitUntilSome,
     });
   }),
 );

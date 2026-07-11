@@ -232,7 +232,7 @@ interface ScriptBankApi {
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
     isOpen(): Effect<boolean, never>;
-    open(force?: boolean): Effect<void, never>;
+    open(force?: boolean): Effect<boolean, never>;
     swap(inventorySelector: ItemQuery, bankSelector: ItemQuery): Effect<boolean, never>;
     withdraw(selector: ItemQuery): Effect<boolean, never>;
     withdrawBatch(selectors: readonly ItemQuery[]): Effect<readonly boolean[], never>;
@@ -256,9 +256,9 @@ interface ScriptCombatTargetApi {
     get(): Effect<TargetInfo | null, never>;
 }
 interface ScriptCombatTargetAurasApi {
-    get(auraName: string): Effect<Aura | null, never>;
-    getAll(): Effect<readonly Aura[], never>;
-    has(auraName: string): Effect<boolean, never>;
+    get(auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
+    getAll(options?: AuraQueryOptions): Effect<readonly Aura[], never>;
+    has(auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
 }
 interface ScriptDropsApi {
     accept(selector: ItemQuery): Effect<boolean, never>;
@@ -339,9 +339,9 @@ interface ScriptMonstersApi {
     isAvailable(selector: MonsterQuery): Effect<boolean, never>;
 }
 interface ScriptMonstersAurasApi {
-    get(monster: MonsterQuery, auraName: string): Effect<Aura | null, never>;
-    getAll(monster: MonsterQuery): Effect<readonly Aura[], never>;
-    has(monster: MonsterQuery, auraName: string): Effect<boolean, never>;
+    get(monster: MonsterQuery, auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
+    getAll(monster: MonsterQuery, options?: AuraQueryOptions): Effect<readonly Aura[], never>;
+    has(monster: MonsterQuery, auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
 }
 interface ScriptPacketApi {
     on(selector: PacketSelector | undefined, handler: PacketHandler): Effect<() => void, never>;
@@ -372,16 +372,16 @@ interface ScriptPlayerApi {
     isMember(): Effect<boolean, never>;
     isReady(): Effect<boolean, never>;
     joinMap(map: string, cell?: string, pad?: string): Effect<boolean, never>;
-    jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<void, never>;
+    jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<boolean, never>;
     readonly outfits: ScriptPlayerOutfitsApi;
     rest(full?: boolean): Effect<void, never>;
     useBoost(selector: ItemQuery): Effect<boolean, never>;
     walkTo(x: number, y: number, walkSpeed?: number): Effect<boolean, never>;
 }
 interface ScriptPlayerAurasApi {
-    get(auraName: string): Effect<Aura | null, never>;
-    getAll(): Effect<readonly Aura[], never>;
-    has(auraName: string): Effect<boolean, never>;
+    get(auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
+    getAll(options?: AuraQueryOptions): Effect<readonly Aura[], never>;
+    has(auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
 }
 interface ScriptPlayerFactionsApi {
     get(selector: string | number): Effect<Faction | null, never>;
@@ -400,11 +400,12 @@ interface ScriptPlayersApi {
     getMe(): Effect<Player | null, never>;
 }
 interface ScriptPlayersAurasApi {
-    get(player: string | number, auraName: string): Effect<Aura | null, never>;
-    has(player: string | number, auraName: string): Effect<boolean, never>;
+    get(player: string | number, auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
+    getAll(player: string | number, options?: AuraQueryOptions): Effect<readonly Aura[], never>;
+    has(player: string | number, auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
 }
 interface ScriptQuestsApi {
-    abandon(questId: number): Effect<void, never>;
+    abandon(questId: number): Effect<boolean, never>;
     accept(questId: number): Effect<boolean, never>;
     acceptBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
     complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect<boolean, never>;
@@ -489,10 +490,14 @@ interface Aura {
   readonly category: string | undefined;
   readonly duration: number;
   readonly icon: string | undefined;
+  readonly kind: AuraKind;
   readonly name: string;
   readonly stack: number;
   readonly value: number | undefined;
   toJSON(): AuraSnapshot;
+}
+interface AuraQueryOptions {
+  readonly kind?: AuraKind;
 }
 interface AuthConnectOutcome {
   readonly message: string;
@@ -696,6 +701,7 @@ interface ArmySessionPayload extends ArmyConfigPayload {
   readonly role: "leader" | "member";
   readonly sessionId: string;
 }
+type AuraKind = "active" | "passive";
 type AuraSnapshot = Readonly<AuraData>;
 interface AutoReloginLifecycleEvent {
   readonly attemptsRemaining: number;
@@ -781,6 +787,7 @@ type FlashProjectionEvent =
       readonly packet: FlashPacket;
       readonly payload: {
         readonly aura: Aura;
+        readonly auraKind: AuraKind;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };
@@ -791,10 +798,26 @@ type FlashProjectionEvent =
       readonly packet: FlashPacket;
       readonly payload: {
         readonly auraName: string;
+        readonly auraKind: AuraKind;
+        readonly remainingStack: number;
         readonly targetId: number;
         readonly targetType: "monster" | "player";
       };
       readonly type: "auraRemoved";
+    }
+  | {
+      readonly kind: "projection";
+      readonly packet: FlashPacket;
+      readonly payload: {
+        readonly cell: string;
+        readonly entityId: number;
+        readonly hp: number;
+        readonly isSelf: boolean;
+        readonly pad: string;
+        readonly state: EntityState;
+        readonly username: string;
+      };
+      readonly type: "playerDeath";
     }
   | {
       readonly kind: "projection";
@@ -942,6 +965,7 @@ interface AuraData {
   category?: string;
   duration: number;
   icon?: string;
+  kind: AuraKind;
   name: string;
   stack: number;
   value?: number;
@@ -964,6 +988,7 @@ interface MapInfo {
   readonly name: string;
   readonly roomNumber: number;
 }
+type EntityState = EntityState;
 interface ItemData {
   category: string;
   charItemId?: number;
@@ -984,7 +1009,6 @@ interface ItemData {
   shopItemId?: number;
   temporaryItem: boolean;
 }
-type EntityState = EntityState;
 type EntitySnapshot = Readonly<EntityData> & {
   readonly alive: boolean;
   readonly dead: boolean;

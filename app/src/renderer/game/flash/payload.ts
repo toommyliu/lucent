@@ -12,7 +12,7 @@ import {
   LiveServer,
   LiveShop,
 } from "@lucent/game";
-import type { ItemData, MonsterData } from "@lucent/game";
+import type { AuraKind, ItemData, MonsterData } from "@lucent/game";
 import type { UnknownRecord } from "./Types";
 
 export const asRecord = (value: unknown): UnknownRecord | null =>
@@ -133,15 +133,10 @@ export const decodeItem = (
     enhancementRange !== undefined ||
     enhancementRarity !== undefined;
 
-  const context =
-    defaults?.context ??
-    (banked
-      ? "bank"
-      : temporaryItem
-        ? "temporary"
-        : houseItem
-          ? "house"
-          : "inventory");
+  const context = banked
+    ? "bank"
+    : (defaults?.context ??
+      (temporaryItem ? "temporary" : houseItem ? "house" : "inventory"));
 
   return new LiveItem({
     category,
@@ -344,7 +339,10 @@ export const decodeServer = (value: unknown): LiveServer | null => {
   });
 };
 
-export const decodeAuraModel = (value: unknown): LiveAura | null => {
+export const decodeAuraModel = (
+  value: unknown,
+  kind: AuraKind = "active",
+): LiveAura | null => {
   const raw = asRecord(value);
   if (raw === null) {
     return null;
@@ -363,6 +361,7 @@ export const decodeAuraModel = (value: unknown): LiveAura | null => {
     ...(category === undefined ? {} : { category }),
     duration: asNumber(raw["dur"]) ?? 0,
     ...(icon === undefined ? {} : { icon }),
+    kind,
     name,
     stack: 1,
     ...(auraValue === undefined ? {} : { value: auraValue }),
@@ -394,7 +393,7 @@ export const decodePlayerModel = (value: unknown): LivePlayer | null => {
     name: username,
     pad: asString(raw["strPad"]) ?? "",
     position: { x: asNumber(raw["tx"]) ?? 0, y: asNumber(raw["ty"]) ?? 0 },
-    state: asEntityState(raw["intState"]) ?? EntityState.Dead,
+    state: asEntityState(raw["intState"]) ?? EntityState.Idle,
     username,
   });
 };
@@ -428,6 +427,6 @@ export const decodeMonsterModel = (
       `Monster ${monsterMapId}`,
     race: asString(raw["sRace"]) ?? defaults?.race ?? "",
     state:
-      asEntityState(raw["intState"]) ?? defaults?.state ?? EntityState.Dead,
+      asEntityState(raw["intState"]) ?? defaults?.state ?? EntityState.Idle,
   });
 };

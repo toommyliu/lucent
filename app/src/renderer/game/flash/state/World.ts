@@ -1,34 +1,149 @@
 import { Context, Effect, Layer, Option, SynchronizedRef } from "effect";
 
-import type { Aura, MapInfo, Monster, MonsterSelector, Player } from "../Types";
-import type { MonsterData, PlayerData } from "@lucent/game";
-import { LiveAura, LiveMonster, LivePlayer } from "@lucent/game";
+import type {
+  Aura,
+  AuraKind,
+  AuraQueryOptions,
+  MonsterData,
+  PlayerData,
+} from "@lucent/game";
+import { EntityState, LiveAura, LiveMonster, LivePlayer } from "@lucent/game";
+import type { MapInfo, Monster, MonsterSelector, Player } from "../Types";
 import {
   decodeAuraModel,
   decodeMonsterModel,
   decodePlayerModel,
   optionFromNullable,
 } from "../payload";
+import {
+  addAuraToState,
+  applyMonsterPatch,
+  applyPlayerPatch,
+  cloneMonster,
+  getAuraSource as targetAuraSource,
+  getPlayerBySelector,
+  initialWorldState as initialState,
+  makeAuraKey as auraKey,
+  normalizePlayerKey as playerKey,
+  putMonsterInState as putMonster,
+  putPlayerInState as putPlayer,
+  reduceCombatStateInState as reduceCombatState,
+  refreshAuraInState,
+  registerPlayerIdentityInState as registerPlayerIdentity,
+  removeAurasFromState,
+  removeMonsterFromState,
+  removePlayerFromState,
+  resolveAuraKind as auraKind,
+} from "./WorldReconciliation";
 
-type AuraTarget = "monster" | "player";
+export type AuraTarget = "monster" | "player";
 
-interface WorldRuntimeState {
+export interface AreaStateReplacement {
   readonly map: MapInfo;
-  readonly monsterAuras: Map<number, Map<string, LiveAura>>;
-  readonly monsters: Map<number, LiveMonster>;
-  readonly playerAuras: Map<number, Map<string, LiveAura>>;
-  readonly playerEntityIds: Map<number, string>;
-  readonly players: Map<string, LivePlayer>;
-  selfUsername: string;
+  readonly monsters: readonly LiveMonster[];
+  readonly players: readonly LivePlayer[];
+  readonly selfUsername: string | null | undefined;
+}
+
+export interface EntityPatchResult<Entity> {
+  readonly becameDead: boolean;
+  readonly entity: Entity;
+}
+
+export interface AuraUpsertResult {
+  readonly aura: Aura;
+  readonly remainingStack: number;
+}
+
+export interface AuraRemovalResult {
+  readonly auraName: string;
+  readonly kind: AuraKind;
+  readonly remainingStack: number;
+}
+
+export interface PlayerStatePatch {
+  readonly patch: Partial<PlayerData>;
+  readonly username: string;
+}
+
+export interface MonsterStatePatch {
+  readonly monsterMapId: number;
+  readonly patch: Partial<MonsterData>;
+}
+
+export type CombatAuraMutation =
+  | {
+      readonly aura: LiveAura;
+      readonly operation: "add" | "refresh";
+      readonly targetId: number;
+      readonly targetType: AuraTarget;
+    }
+  | {
+      readonly auraName: string;
+      readonly kind: AuraKind;
+      readonly operation: "remove";
+      readonly targetId: number;
+      readonly targetType: AuraTarget;
+    };
+
+export interface CombatStateUpdate {
+  readonly auraMutations: readonly CombatAuraMutation[];
+  readonly monsterPatches: readonly MonsterStatePatch[];
+  readonly playerPatches: readonly PlayerStatePatch[];
+}
+
+export interface PlayerDeathState {
+  readonly cell: string;
+  readonly entityId: number;
+  readonly hp: number;
+  readonly isSelf: boolean;
+  readonly pad: string;
+  readonly state: EntityState;
+  readonly username: string;
+}
+
+export interface MonsterDeathState {
+  readonly monsterMapId: number;
+}
+
+export type CombatAuraChange =
+  | {
+      readonly aura: Aura;
+      readonly kind: AuraKind;
+      readonly operation: "added" | "refreshed";
+      readonly targetId: number;
+      readonly targetType: AuraTarget;
+    }
+  | {
+      readonly auraName: string;
+      readonly kind: AuraKind;
+      readonly operation: "removed";
+      readonly remainingStack: number;
+      readonly targetId: number;
+      readonly targetType: AuraTarget;
+    };
+
+export type CombatAuraStateChange = CombatAuraChange;
+
+export interface CombatStateResult {
+  readonly auraChanges: readonly CombatAuraChange[];
+  readonly monsterDeaths: readonly MonsterDeathState[];
+  readonly playerDeaths: readonly PlayerDeathState[];
 }
 
 export interface WorldStateShape {
+  readonly addAura: (
+    target: AuraTarget,
+    targetId: number,
+    aura: LiveAura,
+  ) => Effect.Effect<AuraUpsertResult | null>;
   readonly addMonster: (monster: LiveMonster) => Effect.Effect<void>;
   readonly addPlayer: (player: LivePlayer) => Effect.Effect<void>;
   readonly clear: () => Effect.Effect<void>;
   readonly clearAuras: (
     target: AuraTarget,
     targetId: number,
+    options?: AuraQueryOptions,
   ) => Effect.Effect<void>;
   readonly clearMonsters: () => Effect.Effect<void>;
   readonly clearPlayers: () => Effect.Effect<void>;
@@ -39,32 +154,64 @@ export interface WorldStateShape {
   ) => Effect.Effect<Monster | null>;
   readonly getMonsterAuras: (
     monsterMapId: number,
+    options?: AuraQueryOptions,
   ) => Effect.Effect<readonly Aura[]>;
   readonly getMonsters: () => Effect.Effect<readonly Monster[]>;
   readonly getPlayer: (
     selector: string | number,
   ) => Effect.Effect<Player | null>;
-  readonly getPlayerAuras: (entityId: number) => Effect.Effect<readonly Aura[]>;
+  readonly getPlayerAuras: (
+    entityId: number,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<readonly Aura[]>;
   readonly getPlayerAuraTargetsByName: (
     auraName: string,
+    options?: AuraQueryOptions,
   ) => Effect.Effect<readonly number[]>;
+  readonly getPlayerEntityId: (
+    username: string,
+  ) => Effect.Effect<number | null>;
   readonly getPlayers: () => Effect.Effect<readonly Player[]>;
   readonly patchMap: (patch: Partial<MapInfo>) => Effect.Effect<void>;
   readonly patchMonster: (
     monsterMapId: number,
     patch: Partial<MonsterData>,
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<EntityPatchResult<Monster> | null>;
   readonly patchPlayer: (
     username: string,
     patch: Partial<PlayerData>,
+  ) => Effect.Effect<EntityPatchResult<Player> | null>;
+  readonly reduceCombatState: (
+    update: CombatStateUpdate,
+  ) => Effect.Effect<CombatStateResult>;
+  readonly refreshAura: (
+    target: AuraTarget,
+    targetId: number,
+    aura: LiveAura,
+  ) => Effect.Effect<AuraUpsertResult | null>;
+  readonly registerPlayerIdentity: (
+    username: string,
+    entityId: number,
   ) => Effect.Effect<void>;
-  readonly removeMonster: (monsterMapId: number) => Effect.Effect<void>;
-  readonly removePlayer: (username: string) => Effect.Effect<void>;
+  readonly removeAura: (
+    target: AuraTarget,
+    targetId: number,
+    auraName: string,
+    kind?: AuraKind,
+  ) => Effect.Effect<readonly AuraRemovalResult[]>;
+  readonly removeMonster: (
+    monsterMapId: number,
+  ) => Effect.Effect<Monster | null>;
+  readonly removePlayer: (username: string) => Effect.Effect<Player | null>;
+  readonly replaceArea: (area: AreaStateReplacement) => Effect.Effect<void>;
+  readonly respawnMonster: (
+    monsterMapId: number,
+  ) => Effect.Effect<Monster | null>;
   readonly setAura: (
     target: AuraTarget,
     targetId: number,
     aura: LiveAura,
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<AuraUpsertResult | null>;
   readonly setMap: (map: MapInfo) => Effect.Effect<void>;
   readonly setMonsters: (
     monsters: readonly LiveMonster[],
@@ -75,86 +222,71 @@ export interface WorldStateShape {
     target: AuraTarget,
     targetId: number,
     auraName: string,
-  ) => Effect.Effect<void>;
+    kind?: AuraKind,
+  ) => Effect.Effect<readonly AuraRemovalResult[]>;
 }
 
 export class WorldState extends Context.Service<WorldState, WorldStateShape>()(
   "lucent/game/flash/state/World",
 ) {}
 
-const emptyMap = (): MapInfo => ({ id: 0, name: "", roomNumber: 0 });
-
-const initialState = (): WorldRuntimeState => ({
-  map: emptyMap(),
-  monsterAuras: new Map(),
-  monsters: new Map(),
-  playerAuras: new Map(),
-  playerEntityIds: new Map(),
-  players: new Map(),
-  selfUsername: "",
-});
-
-const playerKey = (username: string): string => username.trim().toLowerCase();
-
-const getAuraMap = (
-  state: WorldRuntimeState,
-  target: AuraTarget,
-  targetId: number,
-): Map<string, LiveAura> => {
-  const source = target === "monster" ? state.monsterAuras : state.playerAuras;
-  const current = source.get(targetId);
-  if (current !== undefined) {
-    return current;
-  }
-
-  const created = new Map<string, LiveAura>();
-  source.set(targetId, created);
-  return created;
-};
-
-const getPlayerBySelector = (
-  state: WorldRuntimeState,
-  selector: string | number,
-): Player | null => {
-  if (typeof selector === "number") {
-    const username = state.playerEntityIds.get(selector);
-    return username === undefined
-      ? null
-      : (state.players.get(username) ?? null);
-  }
-
-  return state.players.get(playerKey(selector)) ?? null;
-};
-
 export const layer = Layer.effect(
   WorldState,
   Effect.gen(function* () {
     const ref = yield* SynchronizedRef.make(initialState());
 
+    const addAura: WorldStateShape["addAura"] = (target, targetId, aura) =>
+      SynchronizedRef.modify(ref, (state) => [
+        addAuraToState(state, target, targetId, aura),
+        state,
+      ]);
+    const refreshAura: WorldStateShape["refreshAura"] = (
+      target,
+      targetId,
+      aura,
+    ) =>
+      SynchronizedRef.modify(ref, (state) => [
+        refreshAuraInState(state, target, targetId, aura),
+        state,
+      ]);
+    const removeAura: WorldStateShape["removeAura"] = (
+      target,
+      targetId,
+      auraName,
+      kind,
+    ) =>
+      SynchronizedRef.modify(ref, (state) => [
+        removeAurasFromState(state, target, targetId, auraName, kind),
+        state,
+      ]);
+
     return WorldState.of({
+      addAura,
       addMonster: (monster) =>
         SynchronizedRef.update(ref, (state) => {
-          const current = state.monsters.get(monster.monsterMapId);
-          if (current === undefined)
-            state.monsters.set(monster.monsterMapId, monster);
-          else current.replaceFrom(monster);
+          putMonster(state, monster);
           return state;
         }),
       addPlayer: (player) =>
         SynchronizedRef.update(ref, (state) => {
-          const key = playerKey(player.username);
-          const current = state.players.get(key);
-          if (current === undefined) state.players.set(key, player);
-          else current.replaceFrom(player);
-          state.playerEntityIds.set((current ?? player).entityId, key);
+          putPlayer(state, player);
           return state;
         }),
       clear: () => SynchronizedRef.update(ref, () => initialState()),
-      clearAuras: (target, targetId) =>
+      clearAuras: (target, targetId, options) =>
         SynchronizedRef.update(ref, (state) => {
-          const source =
-            target === "monster" ? state.monsterAuras : state.playerAuras;
-          source.delete(targetId);
+          const source = targetAuraSource(state, target);
+          if (options?.kind === undefined) {
+            source.delete(targetId);
+            return state;
+          }
+
+          const auras = source.get(targetId);
+          if (auras === undefined) return state;
+          for (const [key, aura] of auras) {
+            if (aura.kind === options.kind) auras.delete(key);
+          }
+          if (auras.size === 0) source.delete(targetId);
           return state;
         }),
       clearMonsters: () =>
@@ -167,33 +299,38 @@ export const layer = Layer.effect(
         SynchronizedRef.update(ref, (state) => {
           state.players.clear();
           state.playerEntityIds.clear();
+          state.playerIdsByUsername.clear();
           state.playerAuras.clear();
+          state.selfUsername = "";
           return state;
         }),
       getMap: () =>
-        SynchronizedRef.get(ref).pipe(Effect.map((state) => state.map)),
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) => ({ ...state.map })),
+        ),
       getMe: () =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) =>
             state.selfUsername === ""
               ? null
-              : (state.players.get(playerKey(state.selfUsername)) ?? null),
+              : (state.players.get(state.selfUsername) ?? null),
           ),
         ),
       getMonster: (selector) =>
         SynchronizedRef.get(ref).pipe(
-          Effect.map((state) => {
-            return (
+          Effect.map(
+            (state) =>
               Array.from(state.monsters.values()).find((monster) =>
                 monster.matches(selector),
-              ) ?? null
-            );
-          }),
+              ) ?? null,
+          ),
         ),
-      getMonsterAuras: (monsterMapId) =>
+      getMonsterAuras: (monsterMapId, options) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) =>
-            Array.from(state.monsterAuras.get(monsterMapId)?.values() ?? []),
+            Array.from(
+              state.monsterAuras.get(monsterMapId)?.values() ?? [],
+            ).filter((aura) => aura.kind === auraKind(options)),
           ),
         ),
       getMonsters: () =>
@@ -204,20 +341,29 @@ export const layer = Layer.effect(
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => getPlayerBySelector(state, selector)),
         ),
-      getPlayerAuras: (entityId) =>
+      getPlayerAuras: (entityId, options) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) =>
-            Array.from(state.playerAuras.get(entityId)?.values() ?? []),
+            Array.from(state.playerAuras.get(entityId)?.values() ?? []).filter(
+              (aura) => aura.kind === auraKind(options),
+            ),
           ),
         ),
-      getPlayerAuraTargetsByName: (auraName) =>
+      getPlayerAuraTargetsByName: (auraName, options) =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => {
-            const key = auraName.toLowerCase();
+            const key = auraKey(auraKind(options), auraName);
             return Array.from(state.playerAuras.entries()).flatMap(
               ([entityId, auras]) => (auras.has(key) ? [entityId] : []),
             );
           }),
+        ),
+      getPlayerEntityId: (username) =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map(
+            (state) =>
+              state.playerIdsByUsername.get(playerKey(username)) ?? null,
+          ),
         ),
       getPlayers: () =>
         SynchronizedRef.get(ref).pipe(
@@ -229,65 +375,82 @@ export const layer = Layer.effect(
           return state;
         }),
       patchMonster: (monsterMapId, patch) =>
-        SynchronizedRef.update(ref, (state) => {
-          const current = state.monsters.get(monsterMapId);
-          if (current !== undefined) {
-            current.update(patch);
-          }
-          return state;
-        }),
+        SynchronizedRef.modify(ref, (state) => [
+          applyMonsterPatch(state, monsterMapId, patch),
+          state,
+        ]),
       patchPlayer: (username, patch) =>
+        SynchronizedRef.modify(ref, (state) => [
+          applyPlayerPatch(state, username, patch),
+          state,
+        ]),
+      reduceCombatState: (update) =>
+        SynchronizedRef.modify(ref, (state) => [
+          reduceCombatState(state, update),
+          state,
+        ]),
+      refreshAura,
+      registerPlayerIdentity: (username, entityId) =>
         SynchronizedRef.update(ref, (state) => {
-          const key = playerKey(username);
-          const current = state.players.get(key);
-          if (current !== undefined) {
-            const previousEntityId = current.entityId;
-            current.update(patch);
-            if (current.entityId !== previousEntityId)
-              state.playerEntityIds.delete(previousEntityId);
-            state.playerEntityIds.set(current.entityId, key);
-          }
+          registerPlayerIdentity(state, username, entityId);
           return state;
         }),
+      removeAura,
       removeMonster: (monsterMapId) =>
-        SynchronizedRef.update(ref, (state) => {
-          state.monsters.delete(monsterMapId);
-          state.monsterAuras.delete(monsterMapId);
-          return state;
-        }),
+        SynchronizedRef.modify(ref, (state) => [
+          removeMonsterFromState(state, monsterMapId),
+          state,
+        ]),
       removePlayer: (username) =>
+        SynchronizedRef.modify(ref, (state) => [
+          removePlayerFromState(state, username),
+          state,
+        ]),
+      replaceArea: (area) =>
         SynchronizedRef.update(ref, (state) => {
-          const key = playerKey(username);
-          const current = state.players.get(key);
-          if (current !== undefined) {
-            state.playerEntityIds.delete(current.entityId);
-            state.playerAuras.delete(current.entityId);
+          Object.assign(state.map, area.map);
+          state.monsterAuras.clear();
+          state.playerAuras.clear();
+          const incomingMonsterIds = new Set(
+            area.monsters.map((monster) => monster.monsterMapId),
+          );
+          for (const monsterMapId of state.monsters.keys()) {
+            if (!incomingMonsterIds.has(monsterMapId)) {
+              state.monsters.delete(monsterMapId);
+            }
           }
-          state.players.delete(key);
+          const incomingPlayerKeys = new Set(
+            area.players.map((player) => playerKey(player.username)),
+          );
+          for (const username of state.players.keys()) {
+            if (!incomingPlayerKeys.has(username))
+              state.players.delete(username);
+          }
+          state.playerEntityIds.clear();
+          state.playerIdsByUsername.clear();
+          state.selfUsername = "";
+          for (const monster of area.monsters) putMonster(state, monster);
+          for (const player of area.players) putPlayer(state, player);
+          const selfKey =
+            area.selfUsername == null ? "" : playerKey(area.selfUsername);
+          state.selfUsername = state.players.has(selfKey) ? selfKey : "";
           return state;
         }),
-      setAura: (target, targetId, aura) =>
-        SynchronizedRef.update(ref, (state) => {
-          const auras = getAuraMap(state, target, targetId);
-          const key = aura.name.toLowerCase();
-          const current = auras.get(key);
-          if (current === undefined) auras.set(key, aura);
-          else current.replaceFrom(aura);
-          return state;
+      respawnMonster: (monsterMapId) =>
+        SynchronizedRef.modify(ref, (state) => {
+          const monster = state.monsters.get(monsterMapId);
+          if (monster === undefined) return [null, state];
+          monster.update({
+            hp: monster.maxHp,
+            mp: monster.maxMp,
+            state: EntityState.Idle,
+          });
+          state.monsterAuras.delete(monsterMapId);
+          return [cloneMonster(monster), state];
         }),
+      setAura: refreshAura,
       setMap: (map) =>
         SynchronizedRef.update(ref, (state) => {
-          const changed =
-            state.map.id !== map.id ||
-            state.map.name !== map.name ||
-            state.map.roomNumber !== map.roomNumber;
-          if (changed) {
-            state.monsters.clear();
-            state.monsterAuras.clear();
-            state.players.clear();
-            state.playerEntityIds.clear();
-            state.playerAuras.clear();
-          }
           Object.assign(state.map, map);
           return state;
         }),
@@ -297,17 +460,9 @@ export const layer = Layer.effect(
             monsters.map((monster) => monster.monsterMapId),
           );
           for (const id of state.monsters.keys()) {
-            if (!incoming.has(id)) {
-              state.monsters.delete(id);
-              state.monsterAuras.delete(id);
-            }
+            if (!incoming.has(id)) removeMonsterFromState(state, id);
           }
-          for (const monster of monsters) {
-            const current = state.monsters.get(monster.monsterMapId);
-            if (current === undefined)
-              state.monsters.set(monster.monsterMapId, monster);
-            else current.replaceFrom(monster);
-          }
+          for (const monster of monsters) putMonster(state, monster);
           return state;
         }),
       setPlayers: (players) =>
@@ -315,35 +470,18 @@ export const layer = Layer.effect(
           const incoming = new Set(
             players.map((player) => playerKey(player.username)),
           );
-          for (const [key, player] of state.players) {
-            if (!incoming.has(key)) {
-              state.players.delete(key);
-              state.playerEntityIds.delete(player.entityId);
-              state.playerAuras.delete(player.entityId);
-            }
+          for (const key of state.players.keys()) {
+            if (!incoming.has(key)) removePlayerFromState(state, key);
           }
-          state.playerEntityIds.clear();
-          for (const player of players) {
-            const key = playerKey(player.username);
-            const current = state.players.get(key);
-            if (current === undefined) state.players.set(key, player);
-            else current.replaceFrom(player);
-            state.playerEntityIds.set((current ?? player).entityId, key);
-          }
+          for (const player of players) putPlayer(state, player);
           return state;
         }),
       setSelf: (username) =>
         SynchronizedRef.update(ref, (state) => {
-          state.selfUsername = username;
+          state.selfUsername = playerKey(username);
           return state;
         }),
-      unsetAura: (target, targetId, auraName) =>
-        SynchronizedRef.update(ref, (state) => {
-          const source =
-            target === "monster" ? state.monsterAuras : state.playerAuras;
-          source.get(targetId)?.delete(auraName.toLowerCase());
-          return state;
-        }),
+      unsetAura: removeAura,
     });
   }),
 );

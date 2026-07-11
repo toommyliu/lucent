@@ -8,9 +8,9 @@ import type {
   ShopItemSelector,
 } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { asBoolean, asPositiveInt, asRecord } from "../payload";
-import { FlashProtocol } from "../protocol/FlashProtocol";
+import { asPositiveInt } from "../payload";
 import { normalizeItemSelector, normalizeQuantity } from "../selectors";
+import { ItemsState } from "../state/Items";
 import { ShopsState } from "../state/Shops";
 import { InventoryApi } from "./Inventory";
 import { WaitApi } from "./Wait";
@@ -54,7 +54,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const bridge = yield* SwfBridge;
     const inventory = yield* InventoryApi;
-    const protocol = yield* FlashProtocol;
+    const items = yield* ItemsState;
     const shops = yield* ShopsState;
     const wait = yield* WaitApi;
 
@@ -64,9 +64,21 @@ export const layer = Layer.effect(
         : bridge.call("shops.isOpen", [shopId]);
 
     const close: ShopsApiShape["close"] = (shopId) =>
-      shopId === undefined
-        ? bridge.call("shops.close")
-        : bridge.call("shops.close", [shopId]);
+      Effect.gen(function* () {
+        if (!(yield* isOpen(shopId))) {
+          return false;
+        }
+
+        const closed = yield* shopId === undefined
+          ? bridge.call("shops.close")
+          : bridge.call("shops.close", [shopId]);
+        return (
+          closed &&
+          (yield* wait.until(isOpen(shopId).pipe(Effect.map((open) => !open)), {
+            timeout: "3 seconds",
+          }))
+        );
+      });
 
     const canBuy: ShopsApiShape["canBuy"] = (selector, options) =>
       Effect.gen(function* () {
@@ -98,34 +110,18 @@ export const layer = Layer.effect(
           return false;
         }
 
-        const current = yield* inventory.get({ itemId: item.itemId });
-        const startingQuantity = current?.quantity ?? 0;
+        const startingQuantity = yield* items.getOwnedQuantity({
+          itemId: item.itemId,
+        });
         const bridgeSelector =
           item.shopItemId === undefined
             ? { itemId: item.itemId }
             : { shopItemId: item.shopItemId };
         yield* bridge.call("shops.buy", [bridgeSelector, quantity]);
-        const packet = yield* protocol.oncePacket(
-          { command: "buyItem" },
-          { timeout: "5 seconds" },
-        );
-        const payload =
-          packet !== null && packet.direction !== "client"
-            ? asRecord(packet.data)
-            : null;
-        if (packet === null || asBoolean(payload?.["bitSuccess"]) === false) {
-          return false;
-        }
-
-        if (item.temporaryItem) {
-          return true;
-        }
-
         return yield* wait.until(
-          inventory.contains(
-            { itemId: item.itemId },
-            startingQuantity + quantity,
-          ),
+          items
+            .getOwnedQuantity({ itemId: item.itemId })
+            .pipe(Effect.map((owned) => owned >= startingQuantity + quantity)),
           { timeout: "5 seconds" },
         );
       });
@@ -148,18 +144,27 @@ export const layer = Layer.effect(
         }
 
         const quantity = quantityFromOptions(options);
+        const startingQuantity = item.quantity;
+        const expectedMaximumQuantity = Math.max(
+          0,
+          startingQuantity - quantity,
+        );
         const sold = yield* bridge.call("shops.sell", [normalized, quantity]);
         if (!sold) {
           return false;
         }
 
-        const packet = yield* protocol.oncePacket(
-          { command: "sellItem" },
+        return yield* wait.until(
+          Effect.gen(function* () {
+            if (!(yield* bridge.call("auth.isLoggedIn"))) {
+              return false;
+            }
+            const current = yield* inventory.get({ itemId: item.itemId });
+            return (
+              current === null || current.quantity <= expectedMaximumQuantity
+            );
+          }),
           { timeout: "5 seconds" },
-        );
-        return (
-          packet !== null ||
-          !(yield* inventory.contains(selector, item.quantity))
         );
       });
 
@@ -176,11 +181,13 @@ export const layer = Layer.effect(
         }
 
         yield* bridge.call("shops.load", [id]);
-        const packet = yield* protocol.oncePacket(
-          { command: "loadShop" },
+        return yield* wait.until(
+          Effect.gen(function* () {
+            const loaded = yield* shops.getInfo();
+            return loaded?.id === id && (yield* isOpen(id));
+          }),
           { timeout: "5 seconds" },
         );
-        return packet !== null;
       });
 
     return ShopsApi.of({

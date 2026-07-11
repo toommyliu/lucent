@@ -4,10 +4,11 @@ import { Effect } from "effect";
 import type { ScriptLucentStd } from "./ScriptApi";
 import { loadScriptModule, ScriptLoadError } from "./scriptLoader";
 
+const script = Object.freeze({ marker: "script-api" });
 const lucent = Object.freeze({
   api: Object.freeze({}),
   features: Object.freeze({}),
-  script: Object.freeze({}),
+  script,
 }) as unknown as ScriptLucentStd;
 
 const loadResult = (source: string) =>
@@ -20,39 +21,48 @@ const loadResult = (source: string) =>
   );
 
 describe("scriptLoader", () => {
-  it("accepts generator function exports", async () => {
+  it("loads generator exports with the supported module facades", async () => {
     const result = await loadResult(`
-      module.exports = function* run() {};
+      const lucent = require("lucent");
+      const { Effect } = require("effect");
+      module.exports = function* run() {
+        return [lucent.script.marker, typeof Effect.succeed];
+      };
     `);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.main.constructor.name).toBe("GeneratorFunction");
+      expect(result.value.main().next()).toEqual({
+        done: true,
+        value: ["script-api", "function"],
+      });
     }
   });
 
-  it("rejects non-generator exports", async () => {
-    const result = await loadResult(`
-      module.exports = function run() {};
-    `);
+  it("rejects plain exports, blocked imports, and malformed source", async () => {
+    const cases = [
+      {
+        expected: "generator function",
+        source: "module.exports = function run() {};",
+      },
+      {
+        expected: "Unsupported script import",
+        source: 'require("fs"); module.exports = function* run() {};',
+      },
+      {
+        expected: "Script failed to load",
+        source: "module.exports = function* (",
+      },
+    ];
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBeInstanceOf(ScriptLoadError);
-      expect(result.error.message).toContain("generator function");
-    }
-  });
+    for (const testCase of cases) {
+      const result = await loadResult(testCase.source);
 
-  it("only allows lucent and effect imports", async () => {
-    const result = await loadResult(`
-      require("fs");
-      module.exports = function* run() {};
-    `);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBeInstanceOf(ScriptLoadError);
-      expect(result.error.message).toContain("Unsupported script import");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeInstanceOf(ScriptLoadError);
+        expect(result.error.message).toContain(testCase.expected);
+      }
     }
   });
 });

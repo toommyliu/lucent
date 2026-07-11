@@ -5,10 +5,11 @@ import { SwfBridge } from "../SwfBridge";
 import { asBoolean, asPositiveInt, asRecord } from "../payload";
 import { FlashProtocol } from "../protocol/FlashProtocol";
 import { QuestsState } from "../state/Quests";
+import { observePacketDuring } from "./ActionVerification";
 import { WaitApi } from "./Wait";
 
 export interface QuestsApiShape {
-  readonly abandon: (questId: number) => Effect.Effect<void>;
+  readonly abandon: (questId: number) => Effect.Effect<boolean>;
   readonly accept: (questId: number) => Effect.Effect<boolean>;
   readonly acceptBatch: (
     questIds: readonly number[],
@@ -113,6 +114,10 @@ export const layer = Layer.effect(
           return false;
         }
 
+        if (!(yield* bridge.call("quests.isInProgress", [id]))) {
+          return false;
+        }
+
         const normalizedTurnIns =
           turnIns === undefined || !Number.isFinite(turnIns)
             ? yield* getMaxTurnIns(id)
@@ -124,14 +129,22 @@ export const layer = Layer.effect(
           return false;
         }
 
-        yield* bridge.call("quests.complete", [
-          id,
-          normalizedTurnIns,
-          itemId,
-          special,
-        ]);
-        const packet = yield* protocol.oncePacket(
-          { command: "ccqr" },
+        const { packet } = yield* observePacketDuring(
+          protocol,
+          { command: "ccqr", direction: "extension", wireType: "json" },
+          (candidate) => {
+            if (candidate.direction === "client") {
+              return false;
+            }
+            const candidatePayload = asRecord(candidate.data);
+            return asPositiveInt(candidatePayload?.["QuestID"]) === id;
+          },
+          bridge.call("quests.complete", [
+            id,
+            normalizedTurnIns,
+            itemId,
+            special,
+          ]),
           { timeout: "5 seconds" },
         );
         const payload =
@@ -141,8 +154,28 @@ export const layer = Layer.effect(
         const responseQuestId = asPositiveInt(payload?.["QuestID"]);
         return (
           packet !== null &&
-          (responseQuestId === undefined || responseQuestId === id) &&
+          responseQuestId === id &&
           asBoolean(payload?.["bSuccess"]) === true
+        );
+      });
+
+    const abandon: QuestsApiShape["abandon"] = (questId) =>
+      Effect.gen(function* () {
+        const id = normalizeQuestId(questId);
+        if (id === null) {
+          return false;
+        }
+
+        if (!(yield* bridge.call("quests.isInProgress", [id]))) {
+          return false;
+        }
+
+        yield* bridge.call("quests.abandon", [id]);
+        return yield* wait.until(
+          bridge
+            .call("quests.isInProgress", [id])
+            .pipe(Effect.map((inProgress) => !inProgress)),
+          { timeout: "5 seconds" },
         );
       });
 
@@ -154,10 +187,7 @@ export const layer = Layer.effect(
         );
 
     return QuestsApi.of({
-      abandon: (questId) =>
-        normalizeQuestId(questId) === null
-          ? Effect.void
-          : bridge.call("quests.abandon", [Math.trunc(questId)]),
+      abandon,
       accept,
       acceptBatch: (questIds) =>
         Effect.forEach(uniqueQuestIds(questIds), accept, { concurrency: 1 }),

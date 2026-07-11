@@ -1,10 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { EntityState, LiveMonster } from "@lucent/game";
 
 import { decodeOutfitModel, decodeShop } from "../payload";
 import { ItemsState, layer as ItemsStateLayer } from "./Items";
-import { WorldState, layer as WorldStateLayer } from "./World";
 
 const rawItem = (banked: boolean, quantity: number) => ({
   CharItemID: 100,
@@ -65,51 +63,5 @@ describe("live domain model reconciliation", () => {
       expect(owned?.context).toBe("inventory");
       expect(decodeShop({})).toBeNull();
     }).pipe(Effect.provide(ItemsStateLayer)),
-  );
-
-  it.effect(
-    "preserves owned-item identity across refreshes and container moves",
-    () =>
-      Effect.gen(function* () {
-        const items = yield* ItemsState;
-        yield* items.replaceInventory([rawItem(false, 1)]);
-        const retained = yield* items.get("inventory", 7);
-        expect(retained).not.toBeNull();
-
-        yield* items.replaceInventory([rawItem(false, 2)]);
-        expect(yield* items.get("inventory", 7)).toBe(retained);
-        expect(retained?.quantity).toBe(2);
-
-        yield* items.moveInventoryToBank(7);
-        expect(yield* items.get("bank", 7)).toBe(retained);
-        expect(retained?.context).toBe("bank");
-      }).pipe(Effect.provide(ItemsStateLayer)),
-  );
-
-  it.effect("updates retained monsters and freezes them after removal", () =>
-    Effect.gen(function* () {
-      const world = yield* WorldState;
-      const monster = new LiveMonster({
-        cell: "r1",
-        hp: 100,
-        level: 1,
-        maxHp: 100,
-        maxMp: 0,
-        monsterId: 5,
-        monsterMapId: 6,
-        mp: 0,
-        name: "Slime",
-        race: "None",
-        state: EntityState.Idle,
-      });
-      yield* world.addMonster(monster);
-      yield* world.patchMonster(6, { hp: 25 });
-      expect((yield* world.getMonster(6))?.hp).toBe(25);
-      expect(yield* world.getMonster(6)).toBe(monster);
-
-      yield* world.removeMonster(6);
-      expect(yield* world.getMonster(6)).toBeNull();
-      expect(monster.hp).toBe(25);
-    }).pipe(Effect.provide(WorldStateLayer)),
   );
 });

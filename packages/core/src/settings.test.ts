@@ -1,23 +1,19 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import {
-  DEFAULT_APP_SETTINGS,
-  normalizeAppSettings,
-  serializeAppSettings,
-} from "./settings";
+import { normalizeAppSettings, serializeAppSettings } from "./settings";
 
 describe("settings", () => {
   it("normalizes and serializes the full appearance settings document", () => {
     const normalized = normalizeAppSettings({
       version: 0,
       preferences: {
-        checkForUpdates: true,
         launchMode: "account-manager",
+      },
+      hotkeys: {
+        bindings: [{ id: "loadScript", value: "ctrl shift l" }],
       },
       appearance: {
         themeMode: "light",
-        reduceMotion: "off",
-        useCursorPointers: true,
         themes: {
           light: {
             tokens: {
@@ -25,8 +21,6 @@ describe("settings", () => {
               ignoredToken: "#ffffff",
               primary: [10, 20, 30],
             },
-            sansFont: "Lucent Sans",
-            monoFont: "Lucent Mono",
             sansFontSize: 42,
             monoFontSize: 8,
             rounding: 4,
@@ -48,8 +42,12 @@ describe("settings", () => {
       };
     };
 
-    expect(DEFAULT_APP_SETTINGS.appearance.themeMode).toBe("dark");
+    expect(normalized.version).toBe(1);
     expect(normalized.preferences.launchMode).toBe("account-manager");
+    expect(
+      normalized.hotkeys.bindings.find(({ id }) => id === "loadScript")?.value,
+    ).toBe("Control+Shift+L");
+    expect(normalized.hotkeys.bindings).toHaveLength(21);
     expect(normalized.appearance.themeMode).toBe("light");
     expect(normalized.appearance.themes.light.tokens.background).toEqual([
       1, 2, 3,
@@ -62,6 +60,9 @@ describe("settings", () => {
     expect(normalized.appearance.themes.light.rounding).toBe(2);
     expect(serialized.appearance.themes.light.tokens["background"]).toBe(
       "#010203",
+    );
+    expect(serialized.appearance.themes.light.tokens).not.toHaveProperty(
+      "ignoredToken",
     );
     expect(serialized.appearance.themes.dark.tokens["background"]).toBe(
       "#0a0b0c",

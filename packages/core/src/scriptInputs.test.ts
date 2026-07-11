@@ -56,7 +56,7 @@ describe("scriptInputs", () => {
     });
   });
 
-  it("finds required fields that are absent after normalization", () => {
+  it("reports required fields that remain absent after normalization", () => {
     const values = normalizeScriptInputValues(definition, {
       count: 7,
       mode: "unknown",
@@ -72,27 +72,29 @@ describe("scriptInputs", () => {
     ]);
   });
 
-  it("returns ok validation results when required values are present", () => {
-    expect(validateScriptInputValues(definition, { name: "Hero" })).toEqual({
-      status: "ok",
-      values: {
-        name: "Hero",
-        count: 3,
-        enabled: true,
-        mode: "safe",
+  it("returns discriminated validation results", () => {
+    expect([
+      validateScriptInputValues(definition, { name: "Hero" }),
+      validateScriptInputValues(definition, {}),
+    ]).toEqual([
+      {
+        status: "ok",
+        values: {
+          name: "Hero",
+          count: 3,
+          enabled: true,
+          mode: "safe",
+        },
       },
-    });
-  });
-
-  it("returns missing-required validation results", () => {
-    expect(validateScriptInputValues(definition, {})).toEqual({
-      status: "missing-required",
-      fieldKeys: ["name"],
-      values: {
-        count: 3,
-        enabled: true,
-        mode: "safe",
+      {
+        status: "missing-required",
+        fieldKeys: ["name"],
+        values: {
+          count: 3,
+          enabled: true,
+          mode: "safe",
+        },
       },
-    });
+    ]);
   });
 });

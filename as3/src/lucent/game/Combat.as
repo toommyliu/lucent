@@ -103,20 +103,20 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function forceUseSkill(index:String):void {
+    public static function forceUseSkill(index:String):Boolean {
       var game:Object = Main.Game;
       var skill:Object = game.world.actions.active[parseInt(index)];
       if (!skill) {
-        return;
+        return false;
       }
 
-      if (getSkillCooldownRemainingValue(skill) == 0) {
-        if (game.world.myAvatar.dataLeaf.intMP >= skill.mp) {
-          if (skill.isOK && !skill.skillLock) {
-            game.world.testAction(skill);
-          }
-        }
-      }
+      if (!skill.isOK || skill.skillLock)
+        return false;
+
+      var previousActionId:* = skill.actID;
+      var previousTimestamp:* = skill.ts;
+      game.world.testAction(skill);
+      return skill.actID !== previousActionId || skill.ts !== previousTimestamp;
     }
 
     [BridgeExport]
@@ -141,27 +141,28 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function useSkill(index:String):void {
+    public static function useSkill(index:String):Boolean {
       var game:Object = Main.Game;
       var skill:Object = game.world.actions.active[parseInt(index)];
       if (!skill) {
-        return;
+        return false;
       }
 
       if (skill.tgt == "s" || skill.tgt == "f") {
-        forceUseSkill(index);
-        return;
+        return forceUseSkill(index);
       }
 
       if (game.world.myAvatar.target == game.world.myAvatar) {
         game.world.myAvatar.target = null;
-        return;
+        return false;
       }
 
       if (game.world.myAvatar.target != null && game.world.myAvatar.target.dataLeaf.intHP > 0) {
         game.world.approachTarget();
-        forceUseSkill(index);
+        return forceUseSkill(index);
       }
+
+      return false;
     }
 
     [BridgeExport]
@@ -190,16 +191,22 @@ package lucent.game {
 
     [BridgeTsParamType("selector: FlashTypes.MonsterSelector")]
     [BridgeExport]
-    public static function attackMonster(selector:Object):void {
+    public static function attackMonster(selector:Object):Boolean {
       if (!selector)
-        return;
+        return false;
 
       var game:Object = Main.Game;
       var monster:Object = World.getMonster(selector);
       if (isMonsterAttackable(monster)) {
         game.world.setTarget(monster);
+        if (game.world.myAvatar.target !== monster)
+          return false;
+
         game.world.approachTarget();
+        return true;
       }
+
+      return false;
     }
   }
 }

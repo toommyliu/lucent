@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect";
 
 import type {
   Aura,
+  AuraQueryOptions,
   EntityState as EntityStateValue,
   Faction,
   ItemSelector,
@@ -52,9 +53,17 @@ export interface OutfitsApi {
 }
 
 export interface SelfAurasApi {
-  readonly get: (auraName: string) => Effect.Effect<Aura | null>;
-  readonly getAll: () => Effect.Effect<readonly Aura[]>;
-  readonly has: (auraName: string) => Effect.Effect<boolean>;
+  readonly get: (
+    auraName: string,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<Aura | null>;
+  readonly getAll: (
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<readonly Aura[]>;
+  readonly has: (
+    auraName: string,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<boolean>;
 }
 
 export interface PlayerApiShape {
@@ -88,7 +97,7 @@ export interface PlayerApiShape {
     cell: string,
     pad?: string,
     correction?: boolean,
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<boolean>;
   readonly outfits: OutfitsApi;
   readonly rest: (full?: boolean) => Effect.Effect<void>;
   readonly useBoost: (selector: ItemSelector) => Effect.Effect<boolean>;
@@ -161,26 +170,26 @@ export const layer = Layer.effect(
     const getPad = () => project((player) => player.pad);
 
     const auras: SelfAurasApi = {
-      get: (auraName) =>
+      get: (auraName, options) =>
         Effect.gen(function* () {
           const player = yield* self;
           if (player.entityId === 0) {
             return null;
           }
 
-          return yield* players.auras.get(player.entityId, auraName);
+          return yield* players.auras.get(player.entityId, auraName, options);
         }),
-      getAll: () =>
+      getAll: (options) =>
         Effect.gen(function* () {
           const player = yield* self;
           if (player.entityId === 0) {
             return [];
           }
 
-          return yield* world.getPlayerAuras(player.entityId);
+          return yield* world.getPlayerAuras(player.entityId, options);
         }),
-      has: (auraName) =>
-        auras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
+      has: (auraName, options) =>
+        auras.get(auraName, options).pipe(Effect.map((aura) => aura !== null)),
     };
 
     const getFactions = bridge.call("player.getFactions").pipe(
@@ -300,7 +309,7 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         const targetCell = cell.trim();
         if (targetCell === "") {
-          return;
+          return false;
         }
 
         if (pad === undefined) {
@@ -309,12 +318,18 @@ export const layer = Layer.effect(
           yield* bridge.call("player.jump", [targetCell, pad]);
         }
 
-        if (correction) {
-          yield* wait.until(
-            project((player) => equalsIgnoreCase(player.cell, targetCell)),
-            { timeout: "3 seconds" },
-          );
+        if (!correction) {
+          return true;
         }
+
+        return yield* wait.until(
+          project(
+            (player) =>
+              equalsIgnoreCase(player.cell, targetCell) &&
+              (pad === undefined || equalsIgnoreCase(player.pad, pad)),
+          ),
+          { timeout: "3 seconds" },
+        );
       });
 
     const isTargetMapLoaded = (targetMap: MapTarget) =>
@@ -377,21 +392,21 @@ export const layer = Layer.effect(
     ) =>
       Effect.gen(function* () {
         if (targetCell === undefined) {
-          return;
+          return true;
         }
 
         if (
           options?.force !== true &&
           (yield* isAtLocation(targetCell, targetPad))
         ) {
-          return;
+          return true;
         }
 
         if (!(yield* targetCellExists(targetCell))) {
-          return;
+          return false;
         }
 
-        yield* jumpToCell(targetCell, targetPad, true);
+        return yield* jumpToCell(targetCell, targetPad, true);
       });
 
     const joinMap: PlayerApiShape["joinMap"] = (target, cell, pad) =>
@@ -403,8 +418,7 @@ export const layer = Layer.effect(
 
         const targetCell = cell ?? (pad !== undefined ? "Enter" : undefined);
         if (yield* isTargetMapLoaded(parsed)) {
-          yield* correctJoinLocation(targetCell, pad, { force: true });
-          return true;
+          return yield* correctJoinLocation(targetCell, pad, { force: true });
         }
 
         const ready = yield* wait.until(isReady, { timeout: "10 seconds" });
@@ -438,8 +452,7 @@ export const layer = Layer.effect(
           return false;
         }
 
-        yield* correctJoinLocation(targetCell, pad);
-        return true;
+        return yield* correctJoinLocation(targetCell, pad);
       });
 
     return PlayerApi.of({
@@ -499,9 +512,26 @@ export const layer = Layer.effect(
       useBoost: (selector) =>
         Effect.gen(function* () {
           const item = yield* inventory.get(selector);
-          return item === null
-            ? false
-            : yield* bridge.call("player.useBoost", [item.itemId]);
+          if (item === null) {
+            return false;
+          }
+
+          const startingQuantity = item.quantity;
+          const sent = yield* bridge.call("player.useBoost", [item.itemId]);
+          if (!sent) {
+            return false;
+          }
+
+          return yield* wait.until(
+            Effect.gen(function* () {
+              if (!(yield* bridge.call("auth.isLoggedIn"))) {
+                return false;
+              }
+              const current = yield* inventory.get({ itemId: item.itemId });
+              return current === null || current.quantity < startingQuantity;
+            }),
+            { timeout: "5 seconds" },
+          );
         }),
       walkTo: (x, y, walkSpeed) =>
         Effect.gen(function* () {
@@ -523,22 +553,9 @@ export const layer = Layer.effect(
             return false;
           }
 
-          yield* wait.forPacket({
-            command: "mv",
-            direction: "client",
-            wireType: "str",
-          });
-
           const settled = yield* wait.until(
             Effect.gen(function* () {
-              const projected = yield* world.getMe();
-              if (projected !== null) {
-                return (
-                  projected.position.x === targetX &&
-                  projected.position.y === targetY
-                );
-              }
-
+              // The outgoing movement packet reports intent; rendered position confirms arrival.
               const position = yield* bridge.call("player.getPosition");
               const parts = Array.isArray(position) ? position : [];
               const currentX = asInt(parts[0]);

@@ -43,6 +43,7 @@ export interface ItemsStateShape {
   readonly getAll: (container: ItemContainer) => Effect.Effect<readonly Item[]>;
   readonly getBankCount: () => Effect.Effect<number>;
   readonly getDrops: () => Effect.Effect<readonly Item[]>;
+  readonly getOwnedQuantity: (selector: ItemSelector) => Effect.Effect<number>;
   readonly getUsedSlots: (
     container: Exclude<ItemContainer, "bank">,
   ) => Effect.Effect<number>;
@@ -67,6 +68,7 @@ export interface ItemsStateShape {
   readonly reduceGetDrop: (payload: unknown) => Effect.Effect<void>;
   readonly reduceRemoveItem: (payload: unknown) => Effect.Effect<void>;
   readonly reduceTurnIn: (payload: unknown) => Effect.Effect<void>;
+  readonly removeDrop: (itemId: number) => Effect.Effect<void>;
   readonly replaceBank: (items: readonly unknown[]) => Effect.Effect<void>;
   readonly replaceHouse: (items: readonly unknown[]) => Effect.Effect<void>;
   readonly replaceInventory: (items: readonly unknown[]) => Effect.Effect<void>;
@@ -301,6 +303,33 @@ const itemFromCatalog = (
       (fallback instanceof LiveItem ? fallback.snapshot() : undefined),
   );
 
+const findOwnedItemById = (
+  state: ItemsRuntimeState,
+  itemId: number,
+): LiveItem | undefined =>
+  state.inventoryItems.get(itemId) ??
+  state.houseItems.get(itemId) ??
+  state.tempItems.get(itemId) ??
+  state.bankItems.get(itemId);
+
+const decodeQuantityAddition = (
+  state: ItemsRuntimeState,
+  record: Record<string, unknown>,
+  itemId: number,
+  fallback?: LiveItem | null,
+): LiveItem | null => {
+  const existing = findOwnedItemById(state, itemId);
+  const quantityNow = asPositiveInt(record["iQtyNow"]);
+  const quantityAdded = asPositiveInt(record["iQty"]);
+  const value =
+    quantityNow !== undefined
+      ? { ...record, iQty: quantityNow }
+      : quantityAdded !== undefined && existing !== undefined
+        ? { ...record, iQty: existing.quantity + quantityAdded }
+        : record;
+  return decodeItem(value, existing?.snapshot() ?? fallback?.snapshot());
+};
+
 export const layer = Layer.effect(
   ItemsState,
   Effect.gen(function* () {
@@ -359,6 +388,18 @@ export const layer = Layer.effect(
       getDrops: () =>
         SynchronizedRef.get(ref).pipe(
           Effect.map((state) => Array.from(state.drops.values())),
+        ),
+      getOwnedQuantity: (selector) =>
+        SynchronizedRef.get(ref).pipe(
+          Effect.map((state) =>
+            (["bank", "house", "inventory", "temp"] as const).reduce(
+              (quantity, container) =>
+                quantity +
+                (findInMap(mapForContainer(state, container).values(), selector)
+                  ?.quantity ?? 0),
+              0,
+            ),
+          ),
         ),
       getUsedSlots: (container) =>
         SynchronizedRef.get(ref).pipe(
@@ -453,13 +494,13 @@ export const layer = Layer.effect(
           const itemId = asPositiveInt(record["ItemID"] ?? shopItem?.itemId);
           const item =
             itemId === undefined
-              ? decodeItem(
+              ? decodeItem(record)
+              : decodeQuantityAddition(
+                  state,
                   record,
-                  shopItem instanceof LiveItem
-                    ? shopItem.snapshot()
-                    : undefined,
-                )
-              : itemFromCatalog(state, itemId, record, shopItem);
+                  itemId,
+                  shopItem instanceof LiveItem ? shopItem : null,
+                );
           if (item !== null) {
             upsertItem(state, routeContainer(item), item);
           }
@@ -475,6 +516,10 @@ export const layer = Layer.effect(
           for (const rawItem of Object.values(items)) {
             const item = decodeItem(rawItem);
             if (item === null) {
+              continue;
+            }
+            if (item.temporaryItem) {
+              state.catalog.set(item.itemId, item);
               continue;
             }
             item.update({ context: "drop" });
@@ -534,12 +579,12 @@ export const layer = Layer.effect(
             return state;
           }
 
-          const base = state.catalog.get(itemId) ?? state.drops.get(itemId);
-          const item = decodeItem(record, base?.snapshot());
+          const drop = state.drops.get(itemId) ?? state.catalog.get(itemId);
+          const item = decodeQuantityAddition(state, record, itemId, drop);
           if (item !== null) {
             upsertItem(state, routeContainer(item), item);
+            state.drops.delete(itemId);
           }
-          state.drops.delete(itemId);
           return state;
         }),
       reduceRemoveItem: (payload) =>
@@ -586,6 +631,11 @@ export const layer = Layer.effect(
               state.catalog.get(itemId)?.temporaryItem === true;
             removeQuantityByItemId(state, itemId, quantity, preferTemp);
           }
+          return state;
+        }),
+      removeDrop: (itemId) =>
+        SynchronizedRef.update(ref, (state) => {
+          state.drops.delete(itemId);
           return state;
         }),
       replaceBank: (items) =>

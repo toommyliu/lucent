@@ -3,6 +3,7 @@ import type { Duration } from "effect";
 
 import type {
   Aura,
+  AuraQueryOptions,
   CombatKillOptions,
   HuntOptions,
   ItemSelector,
@@ -49,9 +50,17 @@ export interface CombatTargetApi {
 }
 
 export interface TargetAurasApi {
-  readonly get: (auraName: string) => Effect.Effect<Aura | null>;
-  readonly getAll: () => Effect.Effect<readonly Aura[]>;
-  readonly has: (auraName: string) => Effect.Effect<boolean>;
+  readonly get: (
+    auraName: string,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<Aura | null>;
+  readonly getAll: (
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<readonly Aura[]>;
+  readonly has: (
+    auraName: string,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<boolean>;
 }
 
 export interface CombatApiShape {
@@ -240,30 +249,32 @@ export const layer = Layer.effect(
     const targetGet = bridge.call("combat.getTarget");
 
     const targetAuras: TargetAurasApi = {
-      get: (auraName) =>
+      get: (auraName, options) =>
         targetGet.pipe(
           Effect.flatMap((target) => {
             if (target === null) {
               return Effect.succeed(null);
             }
             return target.type === "monster"
-              ? monsters.auras.get(target.monsterMapId, auraName)
-              : player.auras.get(auraName);
+              ? monsters.auras.get(target.monsterMapId, auraName, options)
+              : player.auras.get(auraName, options);
           }),
         ),
-      getAll: () =>
+      getAll: (options) =>
         targetGet.pipe(
           Effect.flatMap((target) => {
             if (target === null) {
               return Effect.succeed([]);
             }
             return target.type === "monster"
-              ? monsters.auras.getAll(target.monsterMapId)
-              : player.auras.getAll();
+              ? monsters.auras.getAll(target.monsterMapId, options)
+              : player.auras.getAll(options);
           }),
         ),
-      has: (auraName) =>
-        targetAuras.get(auraName).pipe(Effect.map((aura) => aura !== null)),
+      has: (auraName, options) =>
+        targetAuras
+          .get(auraName, options)
+          .pipe(Effect.map((aura) => aura !== null)),
     };
 
     const resolveCombatProfile = (profile: CombatKillOptions["profile"]) =>
@@ -434,8 +445,12 @@ export const layer = Layer.effect(
             return;
           }
 
-          const { aura, targetId, targetType } = event.payload;
-          if (targetType !== "monster" || !isAntiCounterAura(aura)) {
+          const { aura, auraKind, targetId, targetType } = event.payload;
+          if (
+            auraKind !== "active" ||
+            targetType !== "monster" ||
+            !isAntiCounterAura(aura)
+          ) {
             return;
           }
 
@@ -459,8 +474,14 @@ export const layer = Layer.effect(
             return;
           }
 
-          const { auraName, targetId, targetType } = event.payload;
-          if (targetType !== "monster" || !isAntiCounterAuraName(auraName)) {
+          const { auraName, auraKind, remainingStack, targetId, targetType } =
+            event.payload;
+          if (
+            auraKind !== "active" ||
+            remainingStack !== 0 ||
+            targetType !== "monster" ||
+            !isAntiCounterAuraName(auraName)
+          ) {
             return;
           }
 
@@ -526,8 +547,7 @@ export const layer = Layer.effect(
           return false;
         }
 
-        yield* bridge.call("combat.attackMonster", [normalized]);
-        return true;
+        return yield* bridge.call("combat.attackMonster", [normalized]);
       });
 
     const getSkillCooldownRemaining = (index: number) =>
@@ -598,11 +618,9 @@ export const layer = Layer.effect(
         }
 
         if (options?.force) {
-          yield* bridge.call("combat.forceUseSkill", [String(skill)]);
-        } else {
-          yield* bridge.call("combat.useSkill", [String(skill)]);
+          return yield* bridge.call("combat.forceUseSkill", [String(skill)]);
         }
-        return true;
+        return yield* bridge.call("combat.useSkill", [String(skill)]);
       });
 
     const canUseSkill: CombatApiShape["canUseSkill"] = (index) =>
@@ -822,7 +840,8 @@ export const layer = Layer.effect(
           if (yield* contains(item, quantity)) {
             return true;
           }
-          return yield* kill(monster, options);
+          yield* kill(monster, options);
+          return yield* contains(item, quantity);
         }),
         { interval: "250 millis", timeout: killTimeout(options) },
       );

@@ -65,12 +65,25 @@ export class AutoZone extends Context.Service<AutoZone, AutoZoneShape>()(
   "lucent/game/flash/features/AutoZone",
 ) {}
 
-type CoordinateRange = readonly [
+export type AutoZoneCoordinateRange = readonly [
   readonly [min: number, max: number],
   readonly [min: number, max: number],
 ];
 
-type ZoneMap = Partial<Record<string, CoordinateRange>>;
+type ZoneMap = Partial<Record<string, AutoZoneCoordinateRange>>;
+
+export type AutoZoneCharge = "negative" | "none" | "positive";
+
+export type AutoZoneTarget =
+  | {
+      readonly kind: "point";
+      readonly x: number;
+      readonly y: number;
+    }
+  | {
+      readonly kind: "range";
+      readonly range: AutoZoneCoordinateRange;
+    };
 
 interface AutoZoneRuntimeState {
   enabled: boolean;
@@ -168,11 +181,11 @@ const AUTO_ZONES: Partial<Record<AutoZoneSupportedMap, ZoneMap>> = {
 const QUEENIONA_MAP = "queeniona" satisfies AutoZoneSupportedMap;
 const QUEENIONA_AURA_SETTLE_DELAY = "500 millis";
 const QUEENIONA_CENTER = [490, 320] as const;
-const QUEENIONA_LEFT: CoordinateRange = [
+const QUEENIONA_LEFT: AutoZoneCoordinateRange = [
   [111, 272],
   [369, 379],
 ];
-const QUEENIONA_RIGHT: CoordinateRange = [
+const QUEENIONA_RIGHT: AutoZoneCoordinateRange = [
   [746, 869],
   [369, 379],
 ];
@@ -196,7 +209,40 @@ const publicState = (state: AutoZoneRuntimeState): AutoZoneState => ({
   map: state.map,
 });
 
-const randomPosition = ([[x0, x1], [y0, y1]]: CoordinateRange) =>
+export const selectAutoZoneTarget = (
+  map: AutoZoneSupportedMap,
+  zone: string,
+  charge: AutoZoneCharge = "none",
+): AutoZoneTarget | undefined => {
+  if (map !== QUEENIONA_MAP) {
+    const range = AUTO_ZONES[map]?.[zone];
+    return range === undefined ? undefined : { kind: "range", range };
+  }
+
+  if (zone !== "A" && zone !== "B") {
+    return {
+      kind: "point",
+      x: QUEENIONA_CENTER[0],
+      y: QUEENIONA_CENTER[1],
+    };
+  }
+
+  const range =
+    zone === "A"
+      ? charge === "positive"
+        ? QUEENIONA_RIGHT
+        : charge === "negative"
+          ? QUEENIONA_LEFT
+          : undefined
+      : charge === "positive"
+        ? QUEENIONA_LEFT
+        : charge === "negative"
+          ? QUEENIONA_RIGHT
+          : undefined;
+  return range === undefined ? undefined : { kind: "range", range };
+};
+
+const randomPosition = ([[x0, x1], [y0, y1]]: AutoZoneCoordinateRange) =>
   Effect.all({
     x: Random.nextIntBetween(x0, x1),
     y: Random.nextIntBetween(y0, y1),
@@ -235,11 +281,16 @@ export const layer = Layer.effect(
         ),
       );
 
-    const walkToRandomPosition = (range: CoordinateRange) =>
+    const walkToRandomPosition = (range: AutoZoneCoordinateRange) =>
       Effect.gen(function* () {
         const position = yield* randomPosition(range);
         yield* walkTo(position.x, position.y);
       });
+
+    const walkToTarget = (target: AutoZoneTarget) =>
+      target.kind === "point"
+        ? walkTo(target.x, target.y)
+        : walkToRandomPosition(target.range);
 
     const fallbackHasProjectedPlayerAura = (auraNames: readonly string[]) =>
       Effect.gen(function* () {
@@ -296,7 +347,10 @@ export const layer = Layer.effect(
         }
 
         if (zone !== "A" && zone !== "B") {
-          yield* walkTo(QUEENIONA_CENTER[0], QUEENIONA_CENTER[1]);
+          const target = selectAutoZoneTarget(QUEENIONA_MAP, zone);
+          if (target !== undefined) {
+            yield* walkToTarget(target);
+          }
           return;
         }
 
@@ -305,21 +359,13 @@ export const layer = Layer.effect(
           ? false
           : yield* hasSelfAura(QUEENIONA_NEGATIVE_CHARGES);
 
-        const targetRange =
-          zone === "A"
-            ? positiveCharge
-              ? QUEENIONA_RIGHT
-              : negativeCharge
-                ? QUEENIONA_LEFT
-                : undefined
-            : positiveCharge
-              ? QUEENIONA_LEFT
-              : negativeCharge
-                ? QUEENIONA_RIGHT
-                : undefined;
-
-        if (targetRange !== undefined) {
-          yield* walkToRandomPosition(targetRange);
+        const target = selectAutoZoneTarget(
+          QUEENIONA_MAP,
+          zone,
+          positiveCharge ? "positive" : negativeCharge ? "negative" : "none",
+        );
+        if (target !== undefined) {
+          yield* walkToTarget(target);
         }
       }).pipe(
         Effect.catchCause((cause) =>
@@ -358,9 +404,9 @@ export const layer = Layer.effect(
             return;
           }
 
-          const zoneRange = AUTO_ZONES[state.map]?.[event.payload.zone];
-          if (zoneRange !== undefined) {
-            yield* walkToRandomPosition(zoneRange);
+          const target = selectAutoZoneTarget(state.map, event.payload.zone);
+          if (target !== undefined) {
+            yield* walkToTarget(target);
           }
         }),
     );

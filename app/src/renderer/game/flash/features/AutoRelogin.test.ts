@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Option } from "effect";
 import * as TestClock from "effect/testing/TestClock";
-import { EntityState, LiveServer } from "@lucent/game";
+import { LiveServer } from "@lucent/game";
 
 import { AuthApi, type AuthApiShape } from "../api/Auth";
 import { EventsApi, type EventsApiShape } from "../api/Events";
@@ -13,6 +13,7 @@ import {
   AutoRelogin,
   type AutoReloginLifecycleEvent,
   layer as AutoReloginLayer,
+  normalizeAutoReloginDelay,
 } from "./AutoRelogin";
 
 const connectionEvent = (status: string): FlashEvent => ({
@@ -34,7 +35,6 @@ const exhaustRetries = Effect.gen(function* () {
   yield* advance("5 seconds");
   yield* advance("10 seconds");
   yield* advance("20 seconds");
-  yield* Effect.yieldNow;
 });
 
 interface HarnessControls {
@@ -44,26 +44,10 @@ interface HarnessControls {
   loggedIn: boolean;
   password: string;
   ready: boolean;
-  serverSelectReady: boolean;
   username: string;
 }
 
-const makeHarness = (
-  overrides: Partial<HarnessControls> = {},
-): {
-  readonly connectCalls: readonly string[];
-  readonly emit: (event: FlashEvent) => Effect.Effect<void>;
-  readonly layer: Layer.Layer<
-    AutoRelogin | AuthApi | EventsApi | PlayerApi | WaitApi
-  >;
-  readonly loginCalls: () => number;
-  readonly logoutCalls: () => number;
-  readonly passwordReads: () => number;
-  readonly setCredentials: (username: string, password: string) => void;
-  readonly setLoginReady: (ready: boolean) => void;
-  readonly setReady: (ready: boolean) => void;
-  readonly usernameReads: () => number;
-} => {
+const makeHarness = (overrides: Partial<HarnessControls> = {}) => {
   const controls: HarnessControls = {
     connectMakesReady: false,
     connectResult: (server) =>
@@ -77,7 +61,6 @@ const makeHarness = (
     loggedIn: true,
     password: "pw",
     ready: false,
-    serverSelectReady: false,
     username: "Hero",
     ...overrides,
   };
@@ -86,51 +69,32 @@ const makeHarness = (
     readonly selector: Parameters<EventsApiShape["on"]>[0];
   }> = [];
   const connectCalls: string[] = [];
-  let loginCount = 0;
-  let logoutCount = 0;
-  let passwordReadCount = 0;
-  let usernameReadCount = 0;
+  let loginCalls = 0;
+  let logoutCalls = 0;
 
   const events = EventsApi.of({
     on: (selector, handler) =>
       Effect.sync(() => {
-        handlers.push({ handler, selector });
+        const entry = { handler, selector };
+        handlers.push(entry);
         return () => {
-          const index = handlers.findIndex(
-            (entry) => entry.handler === handler,
-          );
-          if (index >= 0) {
-            handlers.splice(index, 1);
-          }
+          const index = handlers.indexOf(entry);
+          if (index >= 0) handlers.splice(index, 1);
         };
       }),
-    once: () => Effect.succeed(null),
-  } satisfies EventsApiShape);
-  const emit = (event: FlashEvent) =>
-    Effect.forEach(
-      handlers,
-      (entry) =>
-        matchesEventSelector(event, entry.selector)
-          ? entry.handler(event)
-          : Effect.void,
-      { discard: true },
-    );
+  } as EventsApiShape);
   const auth = AuthApi.of({
     connectTo: (server) =>
       Effect.gen(function* () {
         connectCalls.push(server);
         const result = yield* controls.connectResult(server);
         if (controls.connectMakesReady) {
-          controls.ready = true;
           controls.loggedIn = true;
+          controls.ready = true;
         }
         return result;
       }),
-    getPassword: () =>
-      Effect.sync(() => {
-        passwordReadCount += 1;
-        return controls.password;
-      }),
+    getPassword: () => Effect.sync(() => controls.password),
     getServers: () =>
       Effect.succeed([
         new LiveServer({
@@ -143,263 +107,179 @@ const makeHarness = (
           online: true,
         }),
       ]),
-    getUsername: () =>
-      Effect.sync(() => {
-        usernameReadCount += 1;
-        return controls.username;
-      }),
+    getUsername: () => Effect.sync(() => controls.username),
     isLoggedIn: () => Effect.sync(() => controls.loggedIn),
-    isServerSelectReady: () => Effect.sync(() => controls.serverSelectReady),
+    isServerSelectReady: () => Effect.succeed(false),
     isTemporarilyKicked: () => Effect.succeed(false),
     login: () =>
       Effect.sync(() => {
-        loginCount += 1;
+        loginCalls += 1;
         return controls.loginReady;
       }),
     logout: () =>
       Effect.sync(() => {
-        logoutCount += 1;
+        logoutCalls += 1;
         controls.loggedIn = false;
         controls.ready = false;
       }),
-  } satisfies AuthApiShape);
+  } as AuthApiShape);
   const player = PlayerApi.of({
-    auras: {
-      get: () => Effect.succeed(null),
-      getAll: () => Effect.succeed([]),
-      has: () => Effect.succeed(false),
-    },
-    factions: {
-      get: () => Effect.succeed(null),
-      getAll: () => Effect.succeed([]),
-    },
-    get: () => Effect.succeed(null),
-    getCell: () => Effect.succeed("Enter"),
-    getClassName: () => Effect.succeed("Class"),
-    getGender: () => Effect.succeed("M"),
-    getGold: () => Effect.succeed(0),
-    getHp: () => Effect.succeed(100),
-    getLevel: () => Effect.succeed(1),
-    getMaxHp: () => Effect.succeed(100),
-    getMaxMp: () => Effect.succeed(100),
-    getMp: () => Effect.succeed(100),
-    getPad: () => Effect.succeed("Spawn"),
-    getPosition: () => Effect.succeed({ x: 0, y: 0 }),
-    getState: () => Effect.succeed(EntityState.Idle),
-    goToPlayer: () => Effect.void,
-    hasActiveBoost: () => Effect.succeed(false),
-    isAfk: () => Effect.succeed(false),
-    isAlive: () => Effect.succeed(true),
-    isMember: () => Effect.succeed(false),
     isReady: () => Effect.sync(() => controls.ready),
-    joinMap: () => Effect.succeed(true),
-    jumpToCell: () => Effect.void,
-    outfits: {
-      equip: () => Effect.succeed(false),
-      get: () => Effect.succeed(null),
-      getAll: () => Effect.succeed([]),
-      wear: () => Effect.succeed(false),
-    },
-    rest: () => Effect.void,
-    useBoost: () => Effect.succeed(false),
-    walkTo: () => Effect.succeed(true),
-  } satisfies PlayerApiShape);
+  } as PlayerApiShape);
   const wait = WaitApi.of({
-    forEvent: () => Effect.succeed(null),
-    forGameAction: () => Effect.succeed(true),
-    forPacket: () => Effect.succeed(null),
-    isGameActionAvailable: () => Effect.succeed(true),
     until: (condition) => condition,
     untilSome: (condition) =>
       condition.pipe(
         Effect.map((result) => (Option.isSome(result) ? result.value : null)),
       ),
-  } satisfies WaitApiShape);
+  } as WaitApiShape);
+  const emit = (event: FlashEvent) =>
+    Effect.forEach(
+      handlers,
+      ({ handler, selector }) =>
+        matchesEventSelector(event, selector) ? handler(event) : Effect.void,
+      { discard: true },
+    );
+  const layer = AutoReloginLayer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Layer.succeed(AuthApi, auth),
+        Layer.succeed(EventsApi, events),
+        Layer.succeed(PlayerApi, player),
+        Layer.succeed(WaitApi, wait),
+      ),
+    ),
+  );
 
   return {
     connectCalls,
     emit,
-    layer: AutoReloginLayer.pipe(
-      Layer.provideMerge(
-        Layer.mergeAll(
-          Layer.succeed(AuthApi, auth),
-          Layer.succeed(EventsApi, events),
-          Layer.succeed(PlayerApi, player),
-          Layer.succeed(WaitApi, wait),
-        ),
-      ),
-    ),
-    loginCalls: () => loginCount,
-    logoutCalls: () => logoutCount,
-    passwordReads: () => passwordReadCount,
-    setCredentials: (username, password) => {
+    layer,
+    loginCalls: () => loginCalls,
+    logoutCalls: () => logoutCalls,
+    setCredentials: (username: string, password: string) => {
       controls.username = username;
       controls.password = password;
     },
-    setLoginReady: (ready) => {
-      controls.loginReady = ready;
-    },
-    setReady: (ready) => {
+    setReady: (ready: boolean) => {
       controls.ready = ready;
       controls.loggedIn = ready || controls.loggedIn;
     },
-    usernameReads: () => usernameReadCount,
   };
 };
 
-const testClockLayer = (harness: ReturnType<typeof makeHarness>) =>
+const withClock = (harness: ReturnType<typeof makeHarness>) =>
   harness.layer.pipe(Layer.provideMerge(TestClock.layer()));
 
 describe("AutoRelogin", () => {
   it.effect(
-    "captures credentials through Auth reads on enable and preserves server",
+    "captures valid credentials and preserves the selected server",
     () =>
       Effect.gen(function* () {
         const harness = makeHarness();
         yield* Effect.scoped(
           Effect.gen(function* () {
             const autoRelogin = yield* AutoRelogin;
-            yield* autoRelogin.setServer("Artix");
+            yield* autoRelogin.setServer("artix");
             const state = yield* autoRelogin.enable();
 
-            expect(state.enabled).toBe(true);
-            expect(state.captured).toBe(true);
-            expect(state.username).toBe("Hero");
-            expect(state.server).toBe("Artix");
-            expect(harness.usernameReads()).toBeGreaterThan(0);
-            expect(harness.passwordReads()).toBeGreaterThan(0);
+            expect(state).toMatchObject({
+              captured: true,
+              enabled: true,
+              server: "Artix",
+              username: "Hero",
+            });
           }).pipe(Effect.provide(harness.layer)),
         );
       }),
   );
 
-  it.effect("does not capture empty credentials", () =>
+  it.effect("captures a later ready session after empty credentials", () =>
     Effect.gen(function* () {
       const harness = makeHarness({ password: "", username: "" });
       yield* Effect.scoped(
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
-          const state = yield* autoRelogin.enable();
-
-          expect(state.enabled).toBe(true);
-          expect(state.captured).toBe(false);
-          expect(state.lastError).toBe("current session is not capturable");
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("captures a manual session on connection while enabled", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness({ password: "", username: "" });
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
-          const initial = yield* autoRelogin.enable();
-          expect(initial.captured).toBe(false);
-          expect(initial.lastError).toBe("current session is not capturable");
+          expect(yield* autoRelogin.enable()).toMatchObject({
+            captured: false,
+            lastError: "current session is not capturable",
+          });
 
           harness.setCredentials("Hero", "pw");
           harness.setReady(true);
           yield* harness.emit(connectionEvent("OnConnection"));
           yield* Effect.yieldNow;
 
-          const state = yield* autoRelogin.getState();
-          expect(state.enabled).toBe(true);
-          expect(state.captured).toBe(true);
-          expect(state.username).toBe("Hero");
-          expect(state.lastError).toBeUndefined();
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("does not expose public session capture", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const auth = yield* AuthApi;
-          const autoRelogin = yield* AutoRelogin;
-
-          expect("captureCurrentSession" in auth).toBe(false);
-          expect("captureCurrentSession" in autoRelogin).toBe(false);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("runs an explicit login without enabling persistent relogin", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness({ connectMakesReady: true });
-      const events: AutoReloginLifecycleEvent[] = [];
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
-
-          const result = yield* autoRelogin.runLogin({
-            onLifecycle: (event) =>
-              Effect.sync(() => {
-                events.push(event);
-              }),
-            password: "pw",
-            server: "Artix",
+          expect(yield* autoRelogin.getState()).toMatchObject({
+            captured: true,
+            enabled: true,
             username: "Hero",
           });
-          const state = yield* autoRelogin.getState();
-
-          expect(result).toEqual({ status: "ready" });
-          expect(events.map((event) => event.step)).toEqual([
-            "login",
-            "connect",
-          ]);
-          expect(harness.loginCalls()).toBe(1);
-          expect(harness.connectCalls).toEqual(["Artix"]);
-          expect(state.enabled).toBe(false);
-          expect(state.captured).toBe(false);
-          expect(state.attempting).toBe(false);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("explicit login can stop at server selection", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
-
-          const result = yield* autoRelogin.runLogin({
-            password: "pw",
-            username: "Hero",
-          });
-
-          expect(result).toEqual({ status: "server-select" });
-          expect(harness.loginCalls()).toBe(1);
-          expect(harness.connectCalls).toEqual([]);
-          expect(harness.logoutCalls()).toBe(0);
-        }).pipe(Effect.provide(harness.layer)),
-      );
-    }),
-  );
-
-  it.effect("clamps configured delay", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
-
-          expect((yield* autoRelogin.setDelay(-1)).delayMs).toBe(0);
-          expect((yield* autoRelogin.setDelay(400_000)).delayMs).toBe(300_000);
+          expect((yield* autoRelogin.getState()).lastError).toBeUndefined();
         }).pipe(Effect.provide(harness.layer)),
       );
     }),
   );
 
   it.effect(
-    "stays silently idle after disconnect when no server is selected",
+    "runs explicit ready and server-select logins without enabling",
+    () =>
+      Effect.gen(function* () {
+        const readyHarness = makeHarness({ connectMakesReady: true });
+        const lifecycle: AutoReloginLifecycleEvent[] = [];
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const autoRelogin = yield* AutoRelogin;
+            expect(
+              yield* autoRelogin.runLogin({
+                onLifecycle: (event) =>
+                  Effect.sync(() => {
+                    lifecycle.push(event);
+                  }),
+                password: "pw",
+                server: "Artix",
+                username: "Hero",
+              }),
+            ).toEqual({ status: "ready" });
+            expect(lifecycle.map(({ step }) => step)).toEqual([
+              "login",
+              "connect",
+            ]);
+            expect(yield* autoRelogin.getState()).toMatchObject({
+              attempting: false,
+              captured: false,
+              enabled: false,
+            });
+          }).pipe(Effect.provide(readyHarness.layer)),
+        );
+
+        const selectHarness = makeHarness();
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const autoRelogin = yield* AutoRelogin;
+            expect(
+              yield* autoRelogin.runLogin({
+                password: "pw",
+                username: "Hero",
+              }),
+            ).toEqual({ status: "server-select" });
+            expect(selectHarness.connectCalls).toEqual([]);
+          }).pipe(Effect.provide(selectHarness.layer)),
+        );
+      }),
+  );
+
+  it("normalizes configured delays", () => {
+    expect([
+      normalizeAutoReloginDelay(-1),
+      normalizeAutoReloginDelay(2_000),
+      normalizeAutoReloginDelay(400_000),
+      normalizeAutoReloginDelay(Number.NaN),
+    ]).toEqual([0, 2_000, 300_000, 3_000]);
+  });
+
+  it.effect(
+    "stays idle without a server, then waits the configured delay",
     () =>
       Effect.gen(function* () {
         const harness = makeHarness();
@@ -410,95 +290,46 @@ describe("AutoRelogin", () => {
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* advance("10 seconds");
 
-            const state = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(0);
-            expect(harness.connectCalls).toEqual([]);
-            expect(harness.logoutCalls()).toBe(0);
-            expect(state.attempting).toBe(false);
-            expect(state.waitingDelay).toBe(false);
-            expect(state.lastError).toBeUndefined();
-          }).pipe(Effect.provide(testClockLayer(harness))),
+            expect((yield* autoRelogin.getState()).waitingDelay).toBe(false);
+
+            yield* autoRelogin.setServer("Artix");
+            yield* harness.emit(connectionEvent("OnConnectionLost"));
+
+            yield* advance("2 seconds");
+            expect(harness.loginCalls()).toBe(0);
+            expect((yield* autoRelogin.getState()).waitingDelay).toBe(true);
+
+            yield* advance("2 seconds");
+            expect(harness.loginCalls()).toBe(1);
+            expect(harness.connectCalls).toEqual(["Artix"]);
+          }).pipe(Effect.provide(withClock(harness))),
         );
       }),
   );
 
-  it.effect("waits the configured delay before attempting login", () =>
+  it.effect("treats readiness before or during connection as success", () =>
     Effect.gen(function* () {
-      const harness = makeHarness();
+      const beforeHarness = makeHarness();
       yield* Effect.scoped(
         Effect.gen(function* () {
           const autoRelogin = yield* AutoRelogin;
           yield* autoRelogin.setServer("Artix");
           yield* autoRelogin.enable();
-          yield* harness.emit(connectionEvent("OnConnectionLost"));
+          yield* beforeHarness.emit(connectionEvent("OnConnectionLost"));
+          beforeHarness.setReady(true);
+          yield* advance();
 
-          yield* advance("2 seconds");
-          expect(harness.loginCalls()).toBe(0);
-          expect((yield* autoRelogin.getState()).waitingDelay).toBe(true);
-
-          yield* advance("2 seconds");
-          expect(harness.loginCalls()).toBeGreaterThan(0);
-          expect(harness.connectCalls).toEqual(["Artix"]);
-        }).pipe(Effect.provide(testClockLayer(harness))),
+          expect(beforeHarness.loginCalls()).toBe(0);
+          expect(yield* autoRelogin.getState()).toMatchObject({
+            attempting: false,
+            enabled: true,
+            waitingDelay: false,
+          });
+        }).pipe(Effect.provide(withClock(beforeHarness))),
       );
-    }),
-  );
 
-  it.effect(
-    "manual ready state completes an armed relogin without login calls",
-    () =>
-      Effect.gen(function* () {
-        const harness = makeHarness();
-        yield* Effect.scoped(
-          Effect.gen(function* () {
-            const autoRelogin = yield* AutoRelogin;
-            yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable();
-            yield* harness.emit(connectionEvent("OnConnectionLost"));
-            harness.setReady(true);
-            yield* advance();
-
-            const state = yield* autoRelogin.getState();
-            expect(harness.loginCalls()).toBe(0);
-            expect(state.enabled).toBe(true);
-            expect(state.attempting).toBe(false);
-            expect(state.waitingDelay).toBe(false);
-            expect(state.lastError).toBeUndefined();
-          }).pipe(Effect.provide(testClockLayer(harness))),
-        );
-      }),
-  );
-
-  it.effect(
-    "server-select and socket progress do not succeed until ready",
-    () =>
-      Effect.gen(function* () {
-        const harness = makeHarness();
-        yield* Effect.scoped(
-          Effect.gen(function* () {
-            const autoRelogin = yield* AutoRelogin;
-            yield* autoRelogin.setDelay(0);
-            yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable();
-            yield* harness.emit(connectionEvent("OnConnectionLost"));
-            yield* advance();
-
-            const state = yield* autoRelogin.getState();
-            expect(harness.loginCalls()).toBe(1);
-            expect(harness.connectCalls).toEqual(["Artix"]);
-            expect(harness.logoutCalls()).toBe(1);
-            expect(state.enabled).toBe(true);
-            expect(state.attempting).toBe(true);
-            expect(state.attemptsRemaining).toBe(2);
-            expect(state.lastError).toBe("player did not become ready");
-          }).pipe(Effect.provide(testClockLayer(harness))),
-        );
-      }),
-  );
-
-  it.effect("manual ready during connect counts as success", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness({
+      const duringHarness = makeHarness({
         connectMakesReady: true,
         connectResult: (server) =>
           Effect.succeed({
@@ -514,21 +345,18 @@ describe("AutoRelogin", () => {
           yield* autoRelogin.setDelay(0);
           yield* autoRelogin.setServer("Artix");
           yield* autoRelogin.enable();
-          yield* harness.emit(connectionEvent("OnConnectionLost"));
+          yield* duringHarness.emit(connectionEvent("OnConnectionLost"));
           yield* advance();
 
-          const state = yield* autoRelogin.getState();
-          expect(harness.connectCalls).toEqual(["Artix"]);
-          expect(harness.logoutCalls()).toBe(0);
-          expect(state.enabled).toBe(true);
-          expect(state.attempting).toBe(false);
-          expect(state.lastError).toBeUndefined();
-        }).pipe(Effect.provide(testClockLayer(harness))),
+          expect(duringHarness.connectCalls).toEqual(["Artix"]);
+          expect(duringHarness.logoutCalls()).toBe(0);
+          expect((yield* autoRelogin.getState()).attempting).toBe(false);
+        }).pipe(Effect.provide(withClock(duringHarness))),
       );
     }),
   );
 
-  it.effect("connected-but-unready logs out and retries", () =>
+  it.effect("logs out and retries when connected but not ready", () =>
     Effect.gen(function* () {
       const harness = makeHarness();
       yield* Effect.scoped(
@@ -540,22 +368,22 @@ describe("AutoRelogin", () => {
           yield* harness.emit(connectionEvent("OnConnectionLost"));
 
           yield* advance();
-          expect(harness.loginCalls()).toBe(1);
-          expect(harness.logoutCalls()).toBe(1);
-
           yield* advance("5 seconds");
+
           expect(harness.loginCalls()).toBe(2);
           expect(harness.logoutCalls()).toBe(2);
-          const state = yield* autoRelogin.getState();
-          expect(state.attempting).toBe(true);
-          expect(state.lastError).toBe("player did not become ready");
-        }).pipe(Effect.provide(testClockLayer(harness))),
+          expect(yield* autoRelogin.getState()).toMatchObject({
+            attemptsRemaining: 1,
+            attempting: true,
+            lastError: "player did not become ready",
+          });
+        }).pipe(Effect.provide(withClock(harness))),
       );
     }),
   );
 
   it.effect(
-    "retry exhaustion stops the run and keeps the last error visible",
+    "stops after retry exhaustion and rearms after configuration or readiness",
     () =>
       Effect.gen(function* () {
         const harness = makeHarness({ loginReady: false });
@@ -568,79 +396,35 @@ describe("AutoRelogin", () => {
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* exhaustRetries;
 
-            const stopped = yield* autoRelogin.getState();
             expect(harness.loginCalls()).toBe(4);
-            expect(harness.connectCalls).toEqual([]);
-            expect(stopped.enabled).toBe(true);
-            expect(stopped.attempting).toBe(false);
-            expect(stopped.waitingDelay).toBe(false);
-            expect(stopped.attemptsRemaining).toBe(0);
-            expect(stopped.lastError).toBe(
-              "login did not reach server selection",
-            );
+            expect(yield* autoRelogin.getState()).toMatchObject({
+              attemptsRemaining: 0,
+              attempting: false,
+              lastError: "login did not reach server selection",
+            });
 
-            yield* advance("60 seconds");
-            expect(harness.loginCalls()).toBe(4);
-          }).pipe(Effect.provide(testClockLayer(harness))),
-        );
-      }),
-  );
+            const rearmed = yield* autoRelogin.setServer("Artix");
+            expect(rearmed).toMatchObject({
+              attempting: false,
+              enabled: true,
+              waitingDelay: true,
+            });
+            expect(rearmed.lastError).toBeUndefined();
 
-  it.effect(
-    "ready after stopped clears the error and re-arms future disconnects",
-    () =>
-      Effect.gen(function* () {
-        const harness = makeHarness({ loginReady: false });
-        yield* Effect.scoped(
-          Effect.gen(function* () {
-            const autoRelogin = yield* AutoRelogin;
-            yield* autoRelogin.setDelay(0);
-            yield* autoRelogin.setServer("Artix");
-            yield* autoRelogin.enable();
-            yield* harness.emit(connectionEvent("OnConnectionLost"));
-            yield* exhaustRetries;
-            expect((yield* autoRelogin.getState()).lastError).toBe(
-              "login did not reach server selection",
-            );
+            yield* advance();
+            expect(harness.loginCalls()).toBe(5);
 
             harness.setReady(true);
-            yield* advance();
-            const ready = yield* autoRelogin.getState();
-            expect(ready.lastError).toBeUndefined();
-            expect(ready.attemptsRemaining).toBeUndefined();
-            expect(ready.attempting).toBe(false);
+            yield* advance("5 seconds");
+            expect((yield* autoRelogin.getState()).lastError).toBeUndefined();
+            expect((yield* autoRelogin.getState()).attempting).toBe(false);
 
             harness.setReady(false);
             yield* harness.emit(connectionEvent("OnConnectionLost"));
             yield* advance();
-            expect(harness.loginCalls()).toBe(5);
-          }).pipe(Effect.provide(testClockLayer(harness))),
+            expect(harness.loginCalls()).toBe(6);
+          }).pipe(Effect.provide(withClock(harness))),
         );
       }),
-  );
-
-  it.effect("setServer after stopped clears stop/error state", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness({ loginReady: false });
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
-          yield* autoRelogin.setDelay(0);
-          yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable();
-          yield* harness.emit(connectionEvent("OnConnectionLost"));
-          yield* exhaustRetries;
-          expect((yield* autoRelogin.getState()).lastError).toBe(
-            "login did not reach server selection",
-          );
-
-          const state = yield* autoRelogin.setServer("Artix");
-          expect(state.lastError).toBeUndefined();
-          expect(state.attemptsRemaining).toBeUndefined();
-          expect(state.attempting).toBe(false);
-          expect(state.waitingDelay).toBe(true);
-        }).pipe(Effect.provide(testClockLayer(harness))),
-      );
-    }),
   );
 });

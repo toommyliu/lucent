@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 
 import {
+  boundedInt,
   NonNegativeInt,
   PositiveInt,
   TrimmedNonEmptyString,
@@ -9,35 +10,26 @@ import {
 } from "./baseSchemas";
 
 describe("baseSchemas", () => {
-  it("trims strings during decode", () => {
-    expect(Schema.decodeUnknownSync(TrimmedString)("  Hero ")).toBe("Hero");
-  });
+  const SmallInt = boundedInt(2, 4);
 
-  it("trims non-empty strings during decode", () => {
+  it("decodes valid normalized primitives", () => {
+    expect(Schema.decodeUnknownSync(TrimmedString)("  Hero ")).toBe("Hero");
     expect(Schema.decodeUnknownSync(TrimmedNonEmptyString)("  Hero ")).toBe(
       "Hero",
     );
+    expect(Schema.decodeUnknownSync(NonNegativeInt)(0)).toBe(0);
+    expect(Schema.decodeUnknownSync(PositiveInt)(1)).toBe(1);
+    expect(Schema.decodeUnknownSync(SmallInt)(2)).toBe(2);
+    expect(Schema.decodeUnknownSync(SmallInt)(4)).toBe(4);
   });
 
-  it("rejects empty strings after trimming", () => {
+  it("rejects values outside primitive contracts", () => {
     expect(() =>
       Schema.decodeUnknownSync(TrimmedNonEmptyString)("   "),
     ).toThrow();
-  });
-
-  it("accepts zero as a non-negative integer", () => {
-    expect(Schema.decodeUnknownSync(NonNegativeInt)(0)).toBe(0);
-  });
-
-  it("rejects negative non-negative integers", () => {
     expect(() => Schema.decodeUnknownSync(NonNegativeInt)(-1)).toThrow();
-  });
-
-  it("accepts one as a positive integer", () => {
-    expect(Schema.decodeUnknownSync(PositiveInt)(1)).toBe(1);
-  });
-
-  it("rejects zero as a positive integer", () => {
     expect(() => Schema.decodeUnknownSync(PositiveInt)(0)).toThrow();
+    expect(() => Schema.decodeUnknownSync(SmallInt)(1)).toThrow();
+    expect(() => Schema.decodeUnknownSync(SmallInt)(5)).toThrow();
   });
 });

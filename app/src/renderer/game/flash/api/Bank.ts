@@ -2,8 +2,7 @@ import { Context, Effect, Layer } from "effect";
 
 import type { Item, ItemSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { decodeItem } from "../payload";
-import { FlashProtocol } from "../protocol/FlashProtocol";
+import { decodeItem, optionFromNullable } from "../payload";
 import { normalizeItemSelector, normalizeQuantity } from "../selectors";
 import { ItemsState } from "../state/Items";
 import { AuthApi } from "./Auth";
@@ -24,7 +23,7 @@ export interface BankApiShape {
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;
   readonly isOpen: () => Effect.Effect<boolean>;
-  readonly open: (force?: boolean) => Effect.Effect<void>;
+  readonly open: (force?: boolean) => Effect.Effect<boolean>;
   readonly swap: (
     inventorySelector: ItemSelector,
     bankSelector: ItemSelector,
@@ -45,7 +44,6 @@ export const layer = Layer.effect(
     const auth = yield* AuthApi;
     const bridge = yield* SwfBridge;
     const items = yield* ItemsState;
-    const protocol = yield* FlashProtocol;
     const wait = yield* WaitApi;
 
     const isOpen = () => bridge.call("bank.isOpen");
@@ -53,22 +51,27 @@ export const layer = Layer.effect(
     const open: BankApiShape["open"] = (force = false) =>
       Effect.gen(function* () {
         if (!(yield* auth.isLoggedIn())) {
-          return;
+          return false;
         }
 
         const currentlyOpen = yield* isOpen();
         if (currentlyOpen && !force) {
-          return;
+          return true;
         }
 
         if (currentlyOpen && force) {
           yield* bridge.call("bank.open");
-          yield* wait.until(isOpen().pipe(Effect.map((openNow) => !openNow)), {
-            timeout: "3 seconds",
-          });
+          const closed = yield* wait.until(
+            isOpen().pipe(Effect.map((openNow) => !openNow)),
+            { timeout: "3 seconds" },
+          );
+          if (!closed) {
+            return false;
+          }
         }
 
         yield* bridge.call("bank.open");
+        return yield* wait.until(isOpen(), { timeout: "3 seconds" });
       });
 
     const getAll = () =>
@@ -119,58 +122,113 @@ export const layer = Layer.effect(
           : yield* bridge.call("bank.contains", [normalized, needed]);
       });
 
-    const settleBankPacket = (command: string) =>
-      protocol
-        .oncePacket({ command }, { timeout: "5 seconds" })
-        .pipe(Effect.map((packet) => packet !== null));
-
     const deposit: BankApiShape["deposit"] = (selector) =>
       Effect.gen(function* () {
         const normalized = normalizeItemSelector(selector);
-        if (
-          normalized === null ||
-          (yield* items.get("inventory-or-house", selector)) === null
-        ) {
+        const inventoryItem = yield* items.get("inventory", selector);
+        if (normalized === null || inventoryItem === null) {
           return false;
         }
 
-        yield* open();
+        if (!(yield* open())) {
+          return false;
+        }
         const sent = yield* bridge.call("bank.deposit", [normalized]);
-        return sent && (yield* settleBankPacket("bankFromInv"));
+        if (!sent) {
+          return false;
+        }
+
+        return yield* wait.until(
+          Effect.gen(function* () {
+            const inventory = yield* items.get("inventory", {
+              itemId: inventoryItem.itemId,
+            });
+            const bank = yield* items.get("bank", {
+              itemId: inventoryItem.itemId,
+            });
+            return inventory === null && bank !== null;
+          }),
+          { timeout: "5 seconds" },
+        );
       });
 
     const withdraw: BankApiShape["withdraw"] = (selector) =>
       Effect.gen(function* () {
         const normalized = normalizeItemSelector(selector);
-        if (normalized === null || (yield* get(selector)) === null) {
+        if (normalized === null) {
           return false;
         }
 
-        yield* open();
+        if (!(yield* open())) {
+          return false;
+        }
+        const bankItem = yield* wait.untilSome(
+          get(selector).pipe(Effect.map(optionFromNullable)),
+          { timeout: "5 seconds" },
+        );
+        if (bankItem === null) {
+          return false;
+        }
         const sent = yield* bridge.call("bank.withdraw", [normalized]);
-        return sent && (yield* settleBankPacket("bankToInv"));
+        if (!sent) {
+          return false;
+        }
+
+        return yield* wait.until(
+          Effect.gen(function* () {
+            const bank = yield* items.get("bank", {
+              itemId: bankItem.itemId,
+            });
+            const inventory = yield* items.get("inventory-or-house", {
+              itemId: bankItem.itemId,
+            });
+            return bank === null && inventory !== null;
+          }),
+          { timeout: "5 seconds" },
+        );
       });
 
     const swap: BankApiShape["swap"] = (inventorySelector, bankSelector) =>
       Effect.gen(function* () {
         const normalizedInventory = normalizeItemSelector(inventorySelector);
         const normalizedBank = normalizeItemSelector(bankSelector);
+        const inventoryItem = yield* items.get("inventory", inventorySelector);
         if (
           normalizedInventory === null ||
           normalizedBank === null ||
-          (yield* items.get("inventory-or-house", inventorySelector)) ===
-            null ||
-          (yield* get(bankSelector)) === null
+          inventoryItem === null
         ) {
           return false;
         }
 
-        yield* open();
+        if (!(yield* open())) {
+          return false;
+        }
+        const bankItem = yield* wait.untilSome(
+          get(bankSelector).pipe(Effect.map(optionFromNullable)),
+          { timeout: "5 seconds" },
+        );
+        if (bankItem === null) {
+          return false;
+        }
         const sent = yield* bridge.call("bank.swap", [
           normalizedInventory,
           normalizedBank,
         ]);
-        return sent && (yield* settleBankPacket("bankSwapInv"));
+        if (!sent) {
+          return false;
+        }
+
+        return yield* wait.until(
+          Effect.gen(function* () {
+            const [newBankItem, newInventoryItem] = yield* Effect.all([
+              items.get("bank", { itemId: inventoryItem.itemId }),
+              items.get("inventory-or-house", { itemId: bankItem.itemId }),
+            ]);
+            return newBankItem !== null && newInventoryItem !== null;
+          }),
+          { timeout: "5 seconds" },
+        );
       });
 
     const getSlots = () => bridge.call("bank.getSlots");

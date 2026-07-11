@@ -1,5 +1,4 @@
-import { Context, Effect, Layer, PubSub } from "effect";
-import type { Scope } from "effect";
+import { Context, Effect, Layer, Queue } from "effect";
 
 export type FlashCallback =
   | {
@@ -43,11 +42,7 @@ type WindowCallback = (...args: readonly unknown[]) => void;
 
 export interface FlashCallbacksShape {
   readonly publish: (event: FlashCallback) => Effect.Effect<void>;
-  readonly subscribe: () => Effect.Effect<
-    PubSub.Subscription<FlashCallback>,
-    never,
-    Scope.Scope
-  >;
+  readonly take: () => Effect.Effect<FlashCallback>;
 }
 
 export class FlashCallbacks extends Context.Service<
@@ -67,39 +62,54 @@ const asWindowCallback = (value: unknown): WindowCallback | undefined =>
 export const layer = Layer.effect(
   FlashCallbacks,
   Effect.gen(function* () {
-    const pubsub = yield* PubSub.sliding<FlashCallback>(1024);
-    const runFork = Effect.runForkWith(yield* Effect.context<never>());
+    const queue = yield* Queue.unbounded<FlashCallback>();
+    yield* Effect.addFinalizer(() => Queue.shutdown(queue));
 
     const publish = (event: FlashCallback) =>
-      PubSub.publish(pubsub, event).pipe(Effect.asVoid);
+      Queue.offer(queue, event).pipe(
+        Effect.flatMap((enqueued) =>
+          enqueued
+            ? Effect.void
+            : Effect.logWarning({
+                message: "failed to enqueue Flash callback",
+                type: event.type,
+              }),
+        ),
+      );
+
+    const publishUnsafe = (event: FlashCallback): void => {
+      if (Queue.offerUnsafe(queue, event)) {
+        return;
+      }
+
+      console.error("[flash callbacks] failed to enqueue callback", {
+        type: event.type,
+      });
+    };
 
     const install = (
       key: CallbackKey,
       toEvent: (...args: readonly unknown[]) => FlashCallback | null,
     ): Effect.Effect<() => void> =>
       Effect.sync(() => {
-        // Keep our publisher installed while letting later window callback assignments chain through it.
         const originalDescriptor = Object.getOwnPropertyDescriptor(window, key);
         let external = asWindowCallback(window[key]);
 
         const next = (...args: readonly unknown[]): void => {
-          external?.(...args);
           const event = toEvent(...args);
-          if (event === null) {
-            return;
+          if (event !== null) {
+            // Enqueue first so a re-entrant or failing chained callback cannot reorder or drop it.
+            publishUnsafe(event);
           }
 
-          runFork(
-            publish(event).pipe(
-              Effect.catchCause((cause) =>
-                Effect.logWarning({
-                  cause,
-                  message: "failed to publish Flash callback",
-                  type: event.type,
-                }),
-              ),
-            ),
-          );
+          try {
+            external?.(...args);
+          } catch (cause) {
+            console.error("[flash callbacks] chained callback failed", {
+              cause,
+              key,
+            });
+          }
         };
 
         if (originalDescriptor?.configurable === false) {
@@ -178,7 +188,7 @@ export const layer = Layer.effect(
 
     return FlashCallbacks.of({
       publish,
-      subscribe: () => PubSub.subscribe(pubsub),
+      take: () => Queue.take(queue),
     });
   }),
 );

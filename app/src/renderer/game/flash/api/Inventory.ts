@@ -2,7 +2,6 @@ import { Context, Effect, Layer } from "effect";
 
 import type { Item, ItemSelector } from "../Types";
 import { SwfBridge } from "../SwfBridge";
-import { FlashProtocol } from "../protocol/FlashProtocol";
 import { ItemsState } from "../state/Items";
 import { WaitApi } from "./Wait";
 
@@ -32,14 +31,13 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const bridge = yield* SwfBridge;
     const items = yield* ItemsState;
-    const protocol = yield* FlashProtocol;
     const wait = yield* WaitApi;
 
     const get: InventoryApiShape["get"] = (selector) =>
-      items.get("inventory-or-house", selector);
+      items.get("inventory", selector);
 
     const contains: InventoryApiShape["contains"] = (selector, quantity) =>
-      items.contains("inventory-or-house", selector, quantity);
+      items.contains("inventory", selector, quantity);
 
     const getSlots = () => bridge.call("inventory.getSlots");
     const getUsedSlots = items.getUsedSlots("inventory");
@@ -71,15 +69,11 @@ export const layer = Layer.effect(
           return false;
         }
 
-        const packet = yield* protocol.oncePacket(
-          { command: "equipItem" },
+        return yield* wait.until(
+          get({ itemId: item.itemId }).pipe(
+            Effect.map((current) => current?.equipped === true),
+          ),
           { timeout: "5 seconds" },
-        );
-        const current = yield* get({ itemId: item.itemId });
-        return (
-          (packet !== null &&
-            JSON.stringify(packet).includes(String(item.itemId))) ||
-          current?.equipped === true
         );
       });
 
@@ -108,11 +102,14 @@ export const layer = Layer.effect(
           return false;
         }
 
-        yield* protocol.oncePacket(
-          { command: "unequipItem" },
+        return yield* wait.until(
+          get({ itemId: item.itemId }).pipe(
+            Effect.map(
+              (current) => current !== null && current.equipped !== true,
+            ),
+          ),
           { timeout: "5 seconds" },
         );
-        return (yield* get({ itemId: item.itemId }))?.equipped !== true;
       });
 
     return InventoryApi.of({

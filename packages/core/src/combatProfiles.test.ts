@@ -84,8 +84,6 @@ describe("combatProfiles", () => {
       profiles: [
         { id: "custom", label: "Custom", steps: [{ skill: 1 }] },
         { label: "No Id", steps: [{ skill: 2 }] },
-        { id: "dupe", label: "First", steps: [{ skill: 1 }] },
-        { id: "dupe", label: "Second", steps: [{ skill: 2 }] },
         {
           id: DEFAULT_COMBAT_PROFILE_ID,
           label: "Generic Custom",
@@ -98,10 +96,92 @@ describe("combatProfiles", () => {
     expect(normalized.profiles.map((profile) => profile.id)).toEqual([
       DEFAULT_COMBAT_PROFILE_ID,
       "custom",
-      "dupe",
-      "dupe",
     ]);
     expect(normalized.profiles[0]?.label).toBe("Generic Custom");
+  });
+
+  it("recovers colliding ids deterministically without dropping definitions", () => {
+    const normalized = normalizeCombatProfileLibrary({
+      profiles: [
+        {
+          id: "dupe",
+          label: "First",
+          steps: [
+            { id: "step", skill: 1 },
+            { id: "step", skill: 2 },
+            { id: "step-2", skill: 3 },
+          ],
+          messageTriggers: [
+            { id: "trigger", messageIncludes: "first", skill: 1 },
+            { id: "trigger", messageIncludes: "second", skill: 2 },
+            { id: "trigger-2", messageIncludes: "third", skill: 3 },
+          ],
+        },
+        { id: "dupe", label: "Second", steps: [{ skill: 4 }] },
+        { id: "dupe-2", label: "Reserved", steps: [{ skill: 5 }] },
+      ],
+    });
+
+    expect(normalized.profiles.map((profile) => profile.id)).toEqual([
+      DEFAULT_COMBAT_PROFILE_ID,
+      "dupe",
+      "dupe-3",
+      "dupe-2",
+    ]);
+    expect(normalized.profiles.map((profile) => profile.label)).toEqual([
+      "Generic",
+      "First",
+      "Second",
+      "Reserved",
+    ]);
+    expect(normalized.profiles[1]?.steps.map((step) => step.id)).toEqual([
+      "step",
+      "step-3",
+      "step-2",
+    ]);
+    expect(normalized.profiles[1]?.steps.map((step) => step.skill)).toEqual([
+      1, 2, 3,
+    ]);
+    expect(
+      normalized.profiles[1]?.messageTriggers?.map((trigger) => trigger.id),
+    ).toEqual(["trigger", "trigger-3", "trigger-2"]);
+    expect(
+      normalized.profiles[1]?.messageTriggers?.map((trigger) => trigger.skill),
+    ).toEqual([1, 2, 3]);
+    expect(normalizeCombatProfileLibrary(normalized)).toEqual(normalized);
+
+    const unicodeId = `${"a".repeat(77)}😀`;
+    const suffixedUnicodeId = `${"a".repeat(77)}-2`;
+    const unicodeNormalized = normalizeCombatProfileLibrary({
+      profiles: [
+        {
+          id: unicodeId,
+          label: "Unicode First",
+          steps: [
+            { id: unicodeId, skill: 1 },
+            { id: unicodeId, skill: 2 },
+          ],
+          messageTriggers: [
+            { id: unicodeId, messageIncludes: "first", skill: 1 },
+            { id: unicodeId, messageIncludes: "second", skill: 2 },
+          ],
+        },
+        { id: unicodeId, label: "Unicode Second", steps: [{ skill: 3 }] },
+      ],
+    });
+    expect(unicodeNormalized.profiles.map((profile) => profile.id)).toEqual([
+      DEFAULT_COMBAT_PROFILE_ID,
+      unicodeId,
+      suffixedUnicodeId,
+    ]);
+    expect(unicodeNormalized.profiles[1]?.steps.map((step) => step.id)).toEqual(
+      [unicodeId, suffixedUnicodeId],
+    );
+    expect(
+      unicodeNormalized.profiles[1]?.messageTriggers?.map(
+        (trigger) => trigger.id,
+      ),
+    ).toEqual([unicodeId, suffixedUnicodeId]);
   });
 
   it("rejects future library versions", () => {

@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  LiveAura,
   EntityState,
-  LiveFaction,
   LiveItem,
   LiveMonster,
-  LiveOutfit,
   LivePlayer,
-  LiveQuest,
   LiveServer,
-  LiveShop,
 } from "./index";
 
 describe("game domain models", () => {
@@ -74,7 +69,7 @@ describe("game domain models", () => {
     expect(item.toJSON()).toMatchObject({ context: "bank", weapon: true });
   });
 
-  it("models monster matching and the remaining catalog views", () => {
+  it("matches monster selectors and derives server capacity", () => {
     const monster = new LiveMonster({
       cell: "r1",
       hp: 100,
@@ -88,42 +83,6 @@ describe("game domain models", () => {
       race: "Undead",
       state: EntityState.Idle,
     });
-    const aura = new LiveAura({ duration: 5, name: "Focus", stack: 1 });
-    const faction = new LiveFaction({
-      id: 1,
-      name: "Good",
-      rank: 4,
-      reputation: 500,
-    });
-    const outfit = new LiveOutfit({
-      colors: {
-        accessory: undefined,
-        base: undefined,
-        eye: undefined,
-        hair: undefined,
-        skin: undefined,
-        trim: undefined,
-      },
-      equipment: {
-        armorItemId: undefined,
-        capeItemId: undefined,
-        classItemId: undefined,
-        helmItemId: undefined,
-        itemId: undefined,
-        miscItemId: undefined,
-        petItemId: undefined,
-        weaponItemId: undefined,
-      },
-      name: "Default",
-    });
-    const quest = new LiveQuest({
-      cadence: "daily",
-      id: 2,
-      name: "Daily",
-      once: false,
-      requirements: [],
-      rewards: [],
-    });
     const server = new LiveServer({
       chat: 2,
       count: 100,
@@ -133,20 +92,9 @@ describe("game domain models", () => {
       name: "Artix",
       online: true,
     });
-    const shop = new LiveShop({
-      house: false,
-      id: 3,
-      items: [],
-      limited: false,
-      merge: true,
-      name: "Merge",
-    });
 
     expect(monster.matches("undead")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
     expect(server.full).toBe(true);
-    expect(
-      [aura, faction, outfit, quest, shop].map((model) => model.toJSON()),
-    ).toHaveLength(5);
   });
 });

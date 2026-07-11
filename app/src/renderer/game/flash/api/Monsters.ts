@@ -1,6 +1,11 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { Aura, Monster, MonsterSelector } from "../Types";
+import type {
+  Aura,
+  AuraQueryOptions,
+  Monster,
+  MonsterSelector,
+} from "../Types";
 import { SwfBridge } from "../SwfBridge";
 import { asPositiveInt, equalsIgnoreCase } from "../payload";
 import { normalizeMonsterSelector } from "../selectors";
@@ -10,11 +15,16 @@ export interface MonsterAuraApi {
   readonly get: (
     monster: MonsterSelector,
     auraName: string,
+    options?: AuraQueryOptions,
   ) => Effect.Effect<Aura | null>;
-  readonly getAll: (monster: MonsterSelector) => Effect.Effect<readonly Aura[]>;
+  readonly getAll: (
+    monster: MonsterSelector,
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<readonly Aura[]>;
   readonly has: (
     monster: MonsterSelector,
     auraName: string,
+    options?: AuraQueryOptions,
   ) => Effect.Effect<boolean>;
 }
 
@@ -37,17 +47,17 @@ export const layer = Layer.effect(
     const bridge = yield* SwfBridge;
     const world = yield* WorldState;
 
-    const getAuras = (monster: MonsterSelector) =>
+    const getAuras = (monster: MonsterSelector, options?: AuraQueryOptions) =>
       Effect.gen(function* () {
         const target = yield* world.getMonster(monster);
         return target === null
           ? []
-          : yield* world.getMonsterAuras(target.monsterMapId);
+          : yield* world.getMonsterAuras(target.monsterMapId, options);
       });
 
     const auras: MonsterAuraApi = {
-      get: (monster, auraName) =>
-        getAuras(monster).pipe(
+      get: (monster, auraName, options) =>
+        getAuras(monster, options).pipe(
           Effect.map(
             (auras) =>
               auras.find((aura) => equalsIgnoreCase(aura.name, auraName)) ??
@@ -55,8 +65,10 @@ export const layer = Layer.effect(
           ),
         ),
       getAll: getAuras,
-      has: (monster, auraName) =>
-        auras.get(monster, auraName).pipe(Effect.map((aura) => aura !== null)),
+      has: (monster, auraName, options) =>
+        auras
+          .get(monster, auraName, options)
+          .pipe(Effect.map((aura) => aura !== null)),
     };
 
     const isAvailable: MonstersApiShape["isAvailable"] = (selector) =>

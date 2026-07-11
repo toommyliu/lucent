@@ -65,9 +65,13 @@ export interface ScriptRuntimeStdOptions {
   readonly services: ScriptRuntimeServices;
 }
 
+type ScriptPrivateRoomContext = {
+  readonly options: Pick<ScriptRuntimeApi["options"], "getUsePrivateRooms">;
+};
+
 const applyPrivateRoom = (
   map: string,
-  script: ScriptRuntimeApi,
+  script: ScriptPrivateRoomContext,
 ): Effect.Effect<string> =>
   Effect.gen(function* () {
     const trimmed = map.trim();
@@ -172,16 +176,40 @@ const wrapPacket = (
       .pipe(Effect.tap((dispose) => scope.addCleanup(dispose))),
 });
 
-const wrapPlayer = (
-  player: PlayerApiShape,
-  script: ScriptRuntimeApi,
-): PlayerApiShape => ({
-  ...player,
-  joinMap: (map, cell, pad) =>
+const makeScriptPlayerJoinMap =
+  (
+    joinMap: PlayerApiShape["joinMap"],
+    script: ScriptPrivateRoomContext,
+  ): PlayerApiShape["joinMap"] =>
+  (map, cell, pad) =>
     applyPrivateRoom(map, script).pipe(
-      Effect.flatMap((targetMap) => player.joinMap(targetMap, cell, pad)),
+      Effect.flatMap((targetMap) => joinMap(targetMap, cell, pad)),
+    );
+
+export const makeScriptPlayerFacades = <
+  PlayerSource extends Pick<PlayerApiShape, "get" | "joinMap">,
+  PlayersSource extends Pick<PlayersApiShape, "getMe">,
+>(
+  player: PlayerSource,
+  players: PlayersSource,
+  script: ScriptPrivateRoomContext,
+) => {
+  const playerFacade = {
+    ...player,
+    joinMap: makeScriptPlayerJoinMap(
+      (map, cell, pad) => player.joinMap(map, cell, pad),
+      script,
     ),
-});
+  };
+
+  return {
+    player: playerFacade,
+    players: {
+      ...players,
+      getMe: playerFacade.get,
+    },
+  };
+};
 
 const makeSettingsFacade = (settings: SettingsApiShape): ScriptSettingsApi =>
   Object.freeze({
@@ -215,11 +243,11 @@ export const makeScriptLucentStd = (
     options.scope,
     options.failCause,
   );
-  const player = wrapPlayer(options.services.player, options.script);
-  const players: PlayersApiShape = {
-    ...options.services.players,
-    getMe: player.get,
-  };
+  const { player, players } = makeScriptPlayerFacades(
+    options.services.player,
+    options.services.players,
+    options.script,
+  );
   const settings = makeSettingsFacade(options.services.settings);
 
   return Object.freeze({
