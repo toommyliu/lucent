@@ -19,6 +19,25 @@ export interface MonsterSelectorByName {
 export type MonsterSelector = MonsterSelectorByMapId | MonsterSelectorByName;
 export type MonsterQuery = MonsterSelector | number | string;
 
+const monsterMapIdToken = /^(?:id[.:'-]?)?([1-9]\d*)$/iu;
+
+export const parseMonsterMapId = (value: string): number | undefined => {
+  const match = value.trim().match(monsterMapIdToken);
+  return match?.[1] === undefined ? undefined : Number(match[1]);
+};
+
+export const toMonsterSelector = (query: MonsterQuery): MonsterSelector => {
+  if (typeof query === "number") return { monMapId: query };
+  if (typeof query === "object") {
+    return "monMapId" in query ? query : { name: query.name.trim() };
+  }
+
+  const monsterMapId = parseMonsterMapId(query);
+  return monsterMapId === undefined
+    ? { name: query.trim() }
+    : { monMapId: monsterMapId };
+};
+
 export interface Monster extends Entity {
   readonly level: number;
   readonly monsterId: number;
@@ -59,10 +78,10 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
     if (typeof selector === "number") return this.monsterMapId === selector;
     if (typeof selector === "string") {
       const value = selector.trim();
-      const match = value.match(/^id[.:'-]?([1-9]\d*)$/i);
-      if (match?.[1] !== undefined)
-        return this.monsterMapId === Number(match[1]);
-      if (/^[1-9]\d*$/.test(value)) return this.monsterMapId === Number(value);
+      const monsterMapId = parseMonsterMapId(value);
+      if (monsterMapId !== undefined) {
+        return this.monsterMapId === monsterMapId;
+      }
       return (
         value === "*" ||
         normalizeGameText(this.name).includes(normalizeGameText(value))

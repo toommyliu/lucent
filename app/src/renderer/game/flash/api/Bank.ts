@@ -1,9 +1,10 @@
+import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
+import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { WireInt } from "../contract/Coercion";
 import { ItemPayload, ItemPayloads, toItem } from "../contract/payload/Items";
-import { decodeItemSelector, quantity } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
 import type { Wait } from "./Wait";
@@ -34,25 +35,25 @@ export const makeBank = (
         }),
       ),
     );
-  const get = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(null);
-    return store.items.get("bank", decoded.value).pipe(
+  const get = (selector: ItemQuery) => {
+    return store.items.get("bank", selector).pipe(
       Effect.flatMap((cached) =>
         cached !== null
           ? Effect.succeed(cached)
-          : bridge.invoke("bank.getItem", [decoded.value], NullableItem).pipe(
-              Effect.flatMap(
-                Option.match({
-                  onNone: () => Effect.succeed(null),
-                  onSome: (payload) => {
-                    if (payload === null) return Effect.succeed(null);
-                    const item = toItem(payload, { context: "bank" });
-                    return store.items.upsert("bank", item);
-                  },
-                }),
+          : bridge
+              .invoke("bank.getItem", [toItemSelector(selector)], NullableItem)
+              .pipe(
+                Effect.flatMap(
+                  Option.match({
+                    onNone: () => Effect.succeed(null),
+                    onSome: (payload) => {
+                      if (payload === null) return Effect.succeed(null);
+                      const item = toItem(payload, { context: "bank" });
+                      return store.items.upsert("bank", item);
+                    },
+                  }),
+                ),
               ),
-            ),
       ),
     );
   };
@@ -91,21 +92,20 @@ export const makeBank = (
       return yield* wait.until(isOpen(), { timeout: "3 seconds" });
     });
 
-  const contains = (selector: unknown, requested?: number) =>
+  const contains = (selector: ItemQuery, requested?: number) =>
     get(selector).pipe(
       Effect.map(
-        (item) => item !== null && item.quantity >= quantity(requested),
+        (item) =>
+          item !== null && item.quantity >= normalizeItemQuantity(requested),
       ),
     );
 
-  const deposit = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const deposit = (selector: ItemQuery) => {
     return Effect.gen(function* () {
-      const inventoryItem = yield* store.items.get("inventory", decoded.value);
+      const inventoryItem = yield* store.items.get("inventory", selector);
       if (inventoryItem === null || !(yield* open())) return false;
       const sent = yield* bridge
-        .invoke("bank.deposit", [decoded.value], Schema.Boolean)
+        .invoke("bank.deposit", [toItemSelector(selector)], Schema.Boolean)
         .pipe(Effect.map(Option.getOrElse(() => false)));
       if (!sent) return false;
       return yield* wait.until(
@@ -122,13 +122,11 @@ export const makeBank = (
     });
   };
 
-  const withdraw = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const withdraw = (selector: ItemQuery) => {
     return Effect.gen(function* () {
       if (!(yield* open())) return false;
       const bankItem = yield* wait.untilSome(
-        get(decoded.value).pipe(
+        get(selector).pipe(
           Effect.map((item) =>
             item === null ? Option.none() : Option.some(item),
           ),
@@ -137,7 +135,7 @@ export const makeBank = (
       );
       if (bankItem === null) return false;
       const sent = yield* bridge
-        .invoke("bank.withdraw", [decoded.value], Schema.Boolean)
+        .invoke("bank.withdraw", [toItemSelector(selector)], Schema.Boolean)
         .pipe(Effect.map(Option.getOrElse(() => false)));
       if (!sent) return false;
       return yield* wait.until(
@@ -156,23 +154,22 @@ export const makeBank = (
     });
   };
 
-  const swap = (inventorySelector: unknown, bankSelector: unknown) => {
-    const inventory = decodeItemSelector(inventorySelector);
-    const bank = decodeItemSelector(bankSelector);
-    if (Option.isNone(inventory) || Option.isNone(bank)) {
-      return Effect.succeed(false);
-    }
+  const swap = (inventorySelector: ItemQuery, bankSelector: ItemQuery) => {
     return Effect.gen(function* () {
       const inventoryItem = yield* store.items.get(
         "inventory",
-        inventory.value,
+        inventorySelector,
       );
-      const bankItem = yield* get(bank.value);
+      const bankItem = yield* get(bankSelector);
       if (inventoryItem === null || bankItem === null || !(yield* open())) {
         return false;
       }
       const sent = yield* bridge
-        .invoke("bank.swap", [inventory.value, bank.value], Schema.Boolean)
+        .invoke(
+          "bank.swap",
+          [toItemSelector(inventorySelector), toItemSelector(bankSelector)],
+          Schema.Boolean,
+        )
         .pipe(Effect.map(Option.getOrElse(() => false)));
       if (!sent) return false;
       return yield* wait.until(
@@ -192,10 +189,10 @@ export const makeBank = (
     });
   };
 
-  const depositBatch = (selectors: readonly unknown[]) =>
+  const depositBatch = (selectors: readonly ItemQuery[]) =>
     Effect.forEach(selectors, deposit, { concurrency: 1 });
 
-  const withdrawBatch = (selectors: readonly unknown[]) =>
+  const withdrawBatch = (selectors: readonly ItemQuery[]) =>
     Effect.forEach(selectors, withdraw, { concurrency: 1 });
 
   const getAvailableSlots = () =>

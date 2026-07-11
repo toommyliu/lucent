@@ -1,9 +1,10 @@
+import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
+import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { ItemPayload, ItemPayloads, toItem } from "../contract/payload/Items";
 import { WireInt } from "../contract/Coercion";
-import { decodeItemSelector, quantity } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 import type { Wait } from "./Wait";
 
@@ -30,15 +31,17 @@ export const makeInventory = (
         }),
       ),
     );
-  const get = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(null);
-    return store.items.get("inventory", decoded.value).pipe(
+  const get = (selector: ItemQuery) => {
+    return store.items.get("inventory", selector).pipe(
       Effect.flatMap((cached) =>
         cached !== null
           ? Effect.succeed(cached)
           : bridge
-              .invoke("inventory.getItem", [decoded.value], NullableItem)
+              .invoke(
+                "inventory.getItem",
+                [toItemSelector(selector)],
+                NullableItem,
+              )
               .pipe(
                 Effect.flatMap(
                   Option.match({
@@ -63,17 +66,16 @@ export const makeInventory = (
   const getUsedSlots = () =>
     store.items.getAll("inventory").pipe(Effect.map((items) => items.length));
 
-  const contains = (selector: unknown, requested?: number) =>
+  const contains = (selector: ItemQuery, requested?: number) =>
     get(selector).pipe(
       Effect.map(
-        (item) => item !== null && item.quantity >= quantity(requested),
+        (item) =>
+          item !== null && item.quantity >= normalizeItemQuantity(requested),
       ),
     );
 
-  const equip = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
-    return get(decoded.value).pipe(
+  const equip = (selector: ItemQuery) => {
+    return get(selector).pipe(
       Effect.flatMap((item) => {
         if (item === null) return Effect.succeed(false);
         if (item.equipped) return Effect.succeed(true);
@@ -111,10 +113,8 @@ export const makeInventory = (
       Math.max(0, slots - used),
     );
 
-  const unequipConsumable = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
-    return get(decoded.value).pipe(
+  const unequipConsumable = (selector: ItemQuery) => {
+    return get(selector).pipe(
       Effect.flatMap((item) => {
         if (item === null || item.category !== "Item") {
           return Effect.succeed(false);

@@ -1,9 +1,10 @@
+import { toMonsterSelector } from "@lucent/game";
+import type { MonsterQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { UnknownRecord } from "../contract/Coercion";
 import { MonsterPayload, toMonster } from "../contract/payload/World";
-import { decodeMonsterSelector } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 
 const NestedMonster = Schema.Struct({
@@ -16,15 +17,17 @@ const NullableMonster = Schema.NullOr(
 const decodeMonster = Schema.decodeUnknownOption(MonsterPayload);
 
 export const makeMonsters = (bridge: BridgeService, store: Store) => {
-  const get = (selector: unknown) => {
-    const decoded = decodeMonsterSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(null);
-    return store.world.getMonster(decoded.value).pipe(
+  const get = (selector: MonsterQuery) => {
+    return store.world.getMonster(selector).pipe(
       Effect.flatMap((current) =>
         current !== null
           ? Effect.succeed(current)
           : bridge
-              .invoke("world.getMonster", [decoded.value], NullableMonster)
+              .invoke(
+                "world.getMonster",
+                [toMonsterSelector(selector)],
+                NullableMonster,
+              )
               .pipe(
                 Effect.flatMap(
                   Option.match({
@@ -50,7 +53,7 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
   };
 
   const getAuras = (
-    selector: unknown,
+    selector: MonsterQuery,
     options?: { kind?: "active" | "passive" },
   ) =>
     get(selector).pipe(
@@ -62,7 +65,7 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
     );
 
   const getAura = (
-    selector: unknown,
+    selector: MonsterQuery,
     name: string,
     options?: { kind?: "active" | "passive" },
   ) =>
@@ -79,7 +82,7 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
     );
 
   const hasAura = (
-    selector: unknown,
+    selector: MonsterQuery,
     name: string,
     options?: { kind?: "active" | "passive" },
   ) =>
@@ -91,7 +94,7 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
     store.world.getMonsters.pipe(
       Effect.map((monsters) => monsters.filter((monster) => monster.alive)),
     );
-  const isAvailable = (selector: unknown) =>
+  const isAvailable = (selector: MonsterQuery) =>
     get(selector).pipe(Effect.map((monster) => monster?.alive === true));
 
   return {

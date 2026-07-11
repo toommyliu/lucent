@@ -6,6 +6,8 @@ import {
   LiveMonster,
   LivePlayer,
   LiveServer,
+  toItemSelector,
+  toMonsterSelector,
 } from "./index";
 
 describe("game domain models", () => {
@@ -64,6 +66,8 @@ describe("game domain models", () => {
     expect(item.matches(7)).toBe(true);
     expect(item.matches({ name: "Test Sword" })).toBe(true);
     expect(item.matches({ itemId: 7 })).toBe(true);
+    expect(toItemSelector(7)).toEqual({ itemId: 7 });
+    expect(toItemSelector(" Test Sword ")).toEqual({ name: "Test Sword" });
     item.update({ context: "bank", equipped: false, shopItemId: 12 });
     expect(item.matches({ shopItemId: 12 })).toBe(true);
     expect(item.toJSON()).toMatchObject({ context: "bank", weapon: true });
@@ -95,6 +99,7 @@ describe("game domain models", () => {
 
     expect(monster.matches("undead")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
+    expect(toMonsterSelector("id:9")).toEqual({ monMapId: 9 });
     expect(server.full).toBe(true);
   });
 });

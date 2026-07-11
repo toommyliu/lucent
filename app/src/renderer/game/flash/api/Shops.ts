@@ -1,15 +1,11 @@
-import type { LiveItem } from "@lucent/game";
+import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
+import type { ItemQuery, LiveItem, ShopItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import { ItemPayloads, toItem } from "../contract/payload/Items";
-import {
-  decodeItemSelector,
-  decodeShopSelector,
-  quantity,
-} from "../domain/Selectors";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
 import type { Wait } from "./Wait";
@@ -57,11 +53,8 @@ export const makeShops = (
     );
   };
 
-  const get = (selector: unknown) => {
-    const decoded = decodeShopSelector(selector);
-    return Option.isNone(decoded)
-      ? Effect.succeed(null)
-      : store.items.get("shop", decoded.value);
+  const get = (selector: ShopItemQuery) => {
+    return store.items.get("shop", selector);
   };
 
   const isOpen = (input?: unknown) => {
@@ -148,7 +141,7 @@ export const makeShops = (
     });
   };
 
-  const canBuy = (selector: unknown, options?: { quantity?: number }) =>
+  const canBuy = (selector: ShopItemQuery, options?: { quantity?: number }) =>
     get(selector).pipe(
       Effect.flatMap((item) =>
         item === null
@@ -156,18 +149,18 @@ export const makeShops = (
           : bridge
               .invoke(
                 "shops.canBuyItem",
-                [selectorFor(item), quantity(options?.quantity)],
+                [selectorFor(item), normalizeItemQuantity(options?.quantity)],
                 Schema.Boolean,
               )
               .pipe(Effect.map(Option.getOrElse(() => false))),
       ),
     );
 
-  const buy = (selector: unknown, options?: { quantity?: number }) =>
+  const buy = (selector: ShopItemQuery, options?: { quantity?: number }) =>
     get(selector).pipe(
       Effect.flatMap((item) => {
         if (item === null) return Effect.succeed(false);
-        const requested = quantity(options?.quantity);
+        const requested = normalizeItemQuantity(options?.quantity);
         return Effect.gen(function* () {
           if (!(yield* wait.forGameAction("buyItem"))) return false;
           if (!(yield* canBuy(selectorFor(item), { quantity: requested }))) {
@@ -215,18 +208,20 @@ export const makeShops = (
       }),
     );
 
-  const sell = (selector: unknown, options?: { quantity?: number }) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
-    return inventory.get(decoded.value).pipe(
+  const sell = (selector: ItemQuery, options?: { quantity?: number }) => {
+    return inventory.get(selector).pipe(
       Effect.flatMap((item) => {
         if (item === null) return Effect.succeed(false);
-        const requested = quantity(options?.quantity);
+        const requested = normalizeItemQuantity(options?.quantity);
         if (item.quantity < requested) return Effect.succeed(false);
         return Effect.gen(function* () {
           if (!(yield* wait.forGameAction("sellItem"))) return false;
           const sold = yield* bridge
-            .invoke("shops.sell", [decoded.value, requested], Schema.Boolean)
+            .invoke(
+              "shops.sell",
+              [toItemSelector(selector), requested],
+              Schema.Boolean,
+            )
             .pipe(Effect.map(Option.getOrElse(() => false)));
           if (!sold) return false;
           return yield* wait.until(
@@ -249,7 +244,7 @@ export const makeShops = (
   const getAll = () => store.items.getAll("shop");
   const getInfo = () => store.shops.get;
 
-  const getMaxBuyQuantity = (selector: unknown) =>
+  const getMaxBuyQuantity = (selector: ShopItemQuery) =>
     get(selector).pipe(
       Effect.flatMap((item) =>
         item === null

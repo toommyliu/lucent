@@ -1,9 +1,9 @@
+import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema, Semaphore } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
-import { decodeItemSelector } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
 import type { Wait } from "./Wait";
@@ -26,13 +26,11 @@ export const makeDrops = Effect.fnUntraced(function* (
 ) {
   const accepts = yield* Semaphore.make(1);
 
-  const accept = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const accept = (selector: ItemQuery) => {
     return accepts.withPermits(1)(
       Effect.gen(function* () {
         if (!(yield* auth.isLoggedIn())) return false;
-        const drop = yield* store.items.get("drop", decoded.value);
+        const drop = yield* store.items.get("drop", selector);
         if (drop === null) return false;
 
         const before = yield* Effect.all({
@@ -84,13 +82,10 @@ export const makeDrops = Effect.fnUntraced(function* (
     );
   };
 
-  const contains = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    return Option.isNone(decoded)
-      ? Effect.succeed(false)
-      : store.items
-          .get("drop", decoded.value)
-          .pipe(Effect.map((drop) => drop !== null));
+  const contains = (selector: ItemQuery) => {
+    return store.items
+      .get("drop", selector)
+      .pipe(Effect.map((drop) => drop !== null));
   };
 
   const getAll = () => store.items.getAll("drop");
@@ -99,12 +94,10 @@ export const makeDrops = Effect.fnUntraced(function* (
     bridge
       .invoke("drops.isUsingCustomDrops", undefined, Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
-  const reject = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const reject = (selector: ItemQuery) => {
     return Effect.gen(function* () {
       if (!(yield* auth.isLoggedIn())) return false;
-      const drop = yield* store.items.get("drop", decoded.value);
+      const drop = yield* store.items.get("drop", selector);
       if (drop === null) return false;
       if (
         Option.isNone(

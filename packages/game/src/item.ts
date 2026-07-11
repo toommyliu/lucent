@@ -39,6 +39,17 @@ export type ShopItemSelector = ItemSelector | ShopItemSelectorById;
 export type ItemQuery = ItemSelector | number | string;
 export type ShopItemQuery = ShopItemSelector | number | string;
 
+export const toItemSelector = (query: ItemQuery): ItemSelector => {
+  if (typeof query === "number") return { itemId: query };
+  if (typeof query === "string") return { name: query.trim() };
+  return "name" in query ? { name: query.name.trim() } : query;
+};
+
+export const normalizeItemQuantity = (value: number | undefined): number =>
+  value === undefined || !Number.isFinite(value)
+    ? 1
+    : Math.max(1, Math.trunc(value));
+
 export interface Item {
   readonly armor: boolean;
   readonly banked: boolean;

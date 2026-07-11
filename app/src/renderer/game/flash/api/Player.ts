@@ -1,4 +1,5 @@
 import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
+import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
@@ -7,7 +8,6 @@ import {
   PositiveWireInt,
   WireInt,
 } from "../contract/Coercion";
-import { decodeItemSelector } from "../domain/Selectors";
 import { parseMapTarget } from "../domain/MapTarget";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
@@ -409,10 +409,8 @@ export const makePlayer = (
       }
     });
 
-  const useBoost = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
-    return inventory.get(decoded.value).pipe(
+  const useBoost = (selector: ItemQuery) => {
+    return inventory.get(selector).pipe(
       Effect.flatMap((item) => {
         if (item === null) return Effect.succeed(false);
         const startingQuantity = item.quantity;

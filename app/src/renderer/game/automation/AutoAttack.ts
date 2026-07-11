@@ -4,6 +4,7 @@ import type {
 } from "@lucent/core/combatProfiles";
 import { getCombatProfileById } from "@lucent/core/combatProfiles";
 import { EntityState } from "@lucent/game";
+import { parseMonsterMapId } from "@lucent/game";
 import type { Monster } from "@lucent/game";
 import {
   Cause,
@@ -16,7 +17,6 @@ import {
 } from "effect";
 
 import type { ApiService } from "../flash/api/Api";
-import { parseMonsterMapIdToken } from "../flash/domain/Selectors";
 import {
   castCombatProfileMessageTrigger,
   castNextCombatProfileStep,
@@ -61,7 +61,7 @@ export const parseAutoAttackTargetPriority = (
     .map((token) => token.trim())
     .filter(Boolean)
     .map((token) => {
-      const monsterMapId = parseMonsterMapIdToken(token);
+      const monsterMapId = parseMonsterMapId(token);
       return monsterMapId === undefined
         ? { kind: "monster-name", name: token }
         : { kind: "monster-map-id", monsterMapId };

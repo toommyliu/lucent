@@ -1,12 +1,12 @@
 import { EntityState } from "@lucent/game";
-import type { Monster } from "@lucent/game";
+import { toMonsterSelector } from "@lucent/game";
+import type { ItemQuery, Monster, MonsterQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 import type { Duration } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { WireBoolean, WireInt } from "../contract/Coercion";
 import { isAntiCounterAura } from "../domain/AntiCounter";
-import { decodeMonsterSelector } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
 import type { Map } from "./Map";
@@ -203,12 +203,10 @@ export const makeCombat = (
     });
   };
 
-  const attackMonster = (selector: unknown) => {
-    const decoded = decodeMonsterSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const attackMonster = (selector: MonsterQuery) => {
     return Effect.gen(function* () {
       if (!(yield* player.isAlive())) return false;
-      const monster = yield* monsters.get(decoded.value);
+      const monster = yield* monsters.get(selector);
       if (
         monster !== null &&
         (yield* antiCounterActive(monster.monsterMapId))
@@ -217,18 +215,20 @@ export const makeCombat = (
         return false;
       }
       return yield* bridge
-        .invoke("combat.attackMonster", [decoded.value], Schema.Boolean)
+        .invoke(
+          "combat.attackMonster",
+          [toMonsterSelector(selector)],
+          Schema.Boolean,
+        )
         .pipe(Effect.map(Option.getOrElse(() => false)));
     });
   };
 
-  const hunt = (selector: unknown, options?: HuntOptions) => {
-    const decoded = decodeMonsterSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(null);
+  const hunt = (selector: MonsterQuery, options?: HuntOptions) => {
     return monsters.getAvailable().pipe(
       Effect.flatMap((available) => {
         const matches = available.filter((monster) =>
-          monster.matches(decoded.value),
+          monster.matches(selector),
         );
         if (options?.findMost !== true || matches.length < 2) {
           const target = matches[0] ?? null;
@@ -252,9 +252,7 @@ export const makeCombat = (
     );
   };
 
-  const kill = (selector: unknown, options?: CombatKillOptions) => {
-    const decoded = decodeMonsterSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(false);
+  const kill = (selector: MonsterQuery, options?: CombatKillOptions) => {
     const skills = skillSet(options?.skillSet);
     let target: Monster | null = null;
     const killed = wait.until(
@@ -264,7 +262,7 @@ export const makeCombat = (
           if (current?.dead === true) return true;
           target = current;
         }
-        target ??= yield* hunt(decoded.value);
+        target ??= yield* hunt(selector);
         if (target === null) return false;
         if (!(yield* attackMonster(target.monsterMapId))) return false;
         for (const skill of skills) {
@@ -279,8 +277,8 @@ export const makeCombat = (
   };
 
   const killFor = (
-    selector: unknown,
-    item: unknown,
+    selector: MonsterQuery,
+    item: ItemQuery,
     requested: number | undefined,
     source: Inventory | TempInventory,
     options?: CombatKillOptions,
@@ -389,15 +387,15 @@ export const makeCombat = (
     );
 
   const killForItem = (
-    selector: unknown,
-    item: unknown,
+    selector: MonsterQuery,
+    item: ItemQuery,
     quantity?: number,
     options?: CombatKillOptions,
   ) => killFor(selector, item, quantity, inventory, options);
 
   const killForTempItem = (
-    selector: unknown,
-    item: unknown,
+    selector: MonsterQuery,
+    item: ItemQuery,
     quantity?: number,
     options?: CombatKillOptions,
   ) => killFor(selector, item, quantity, temporary, options);

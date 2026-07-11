@@ -1,9 +1,10 @@
+import { toItemSelector } from "@lucent/game";
+import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { WireInt } from "../contract/Coercion";
 import { ItemPayload, ItemPayloads, toItem } from "../contract/payload/Items";
-import { decodeItemSelector } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 
 const NullableItem = Schema.NullOr(ItemPayload);
@@ -30,27 +31,27 @@ export const makeHouse = (bridge: BridgeService, store: Store) => {
   const getUsedSlots = () =>
     store.items.getAll("house").pipe(Effect.map((items) => items.length));
 
-  const get = (selector: unknown) => {
-    const decoded = decodeItemSelector(selector);
-    if (Option.isNone(decoded)) return Effect.succeed(null);
-    return store.items.get("house", decoded.value).pipe(
+  const get = (selector: ItemQuery) => {
+    return store.items.get("house", selector).pipe(
       Effect.flatMap((cached) =>
         cached !== null
           ? Effect.succeed(cached)
-          : bridge.invoke("house.getItem", [decoded.value], NullableItem).pipe(
-              Effect.flatMap(
-                Option.match({
-                  onNone: () => Effect.succeed(null),
-                  onSome: (payload) =>
-                    payload === null
-                      ? Effect.succeed(null)
-                      : store.items.upsert(
-                          "house",
-                          toItem(payload, { context: "house" }),
-                        ),
-                }),
+          : bridge
+              .invoke("house.getItem", [toItemSelector(selector)], NullableItem)
+              .pipe(
+                Effect.flatMap(
+                  Option.match({
+                    onNone: () => Effect.succeed(null),
+                    onSome: (payload) =>
+                      payload === null
+                        ? Effect.succeed(null)
+                        : store.items.upsert(
+                            "house",
+                            toItem(payload, { context: "house" }),
+                          ),
+                  }),
+                ),
               ),
-            ),
       ),
     );
   };
