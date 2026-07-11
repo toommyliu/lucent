@@ -2,7 +2,11 @@ import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import { PositiveWireInt, WireInt } from "../contract/Coercion";
+import {
+  NonNegativeWireInt,
+  PositiveWireInt,
+  WireInt,
+} from "../contract/Coercion";
 import { decodeItemSelector } from "../domain/Selectors";
 import { parseMapTarget } from "../domain/MapTarget";
 import type { Store } from "../state/Store";
@@ -20,11 +24,11 @@ const FactionPayload = Schema.Struct({
 });
 const FactionPayloads = Schema.Array(FactionPayload);
 const OutfitPayload = Schema.Struct({
-  None: Schema.optionalKey(PositiveWireInt),
-  Weapon: Schema.optionalKey(PositiveWireInt),
-  ar: Schema.optionalKey(PositiveWireInt),
-  ba: Schema.optionalKey(PositiveWireInt),
-  co: Schema.optionalKey(PositiveWireInt),
+  None: Schema.optionalKey(NonNegativeWireInt),
+  Weapon: Schema.optionalKey(NonNegativeWireInt),
+  ar: Schema.optionalKey(NonNegativeWireInt),
+  ba: Schema.optionalKey(NonNegativeWireInt),
+  co: Schema.optionalKey(NonNegativeWireInt),
   colors: Schema.optionalKey(
     Schema.Struct({
       accessory: Schema.optionalKey(WireInt),
@@ -35,10 +39,10 @@ const OutfitPayload = Schema.Struct({
       trim: Schema.optionalKey(WireInt),
     }),
   ),
-  he: Schema.optionalKey(PositiveWireInt),
-  mi: Schema.optionalKey(PositiveWireInt),
+  he: Schema.optionalKey(NonNegativeWireInt),
+  mi: Schema.optionalKey(NonNegativeWireInt),
   name: Schema.String,
-  pe: Schema.optionalKey(PositiveWireInt),
+  pe: Schema.optionalKey(NonNegativeWireInt),
 });
 const OutfitPayloads = Schema.Array(OutfitPayload);
 
@@ -53,6 +57,9 @@ const toFaction = (payload: typeof FactionPayload.Type): LiveFaction =>
     reputation: payload.iRep ?? 0,
   });
 
+const equippedItemId = (value: number | undefined): number | undefined =>
+  value === undefined || value === 0 ? undefined : value;
+
 const toOutfit = (payload: typeof OutfitPayload.Type): LiveOutfit =>
   new LiveOutfit({
     colors: {
@@ -64,14 +71,14 @@ const toOutfit = (payload: typeof OutfitPayload.Type): LiveOutfit =>
       trim: payload.colors?.trim,
     },
     equipment: {
-      armorItemId: payload.co,
-      capeItemId: payload.ba,
-      classItemId: payload.ar,
-      helmItemId: payload.he,
-      itemId: payload.None,
-      miscItemId: payload.mi,
-      petItemId: payload.pe,
-      weaponItemId: payload.Weapon,
+      armorItemId: equippedItemId(payload.co),
+      capeItemId: equippedItemId(payload.ba),
+      classItemId: equippedItemId(payload.ar),
+      helmItemId: equippedItemId(payload.he),
+      itemId: equippedItemId(payload.None),
+      miscItemId: equippedItemId(payload.mi),
+      petItemId: equippedItemId(payload.pe),
+      weaponItemId: equippedItemId(payload.Weapon),
     },
     name: payload.name,
   });

@@ -22,10 +22,10 @@ import type { Store } from "../state/Store";
 const MoveArea = Schema.Struct({
   areaId: Schema.optionalKey(PositiveWireInt),
   areaName: Schema.optionalKey(Schema.String),
-  monBranch: Schema.optionalKey(Schema.Array(UnknownRecord)),
-  mondef: Schema.optionalKey(Schema.Array(UnknownRecord)),
-  monmap: Schema.optionalKey(Schema.Array(UnknownRecord)),
-  uoBranch: Schema.optionalKey(Schema.Array(PlayerPayload)),
+  monBranch: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  mondef: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  monmap: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  uoBranch: Schema.optionalKey(Schema.Array(Schema.Unknown)),
 });
 const PlayerUpdate = Schema.Struct({
   o: EntityPatchPayload,
@@ -38,19 +38,23 @@ const MonsterUpdate = Schema.Struct({
 const Zone = Schema.Struct({
   args: Schema.Struct({ zoneSet: Schema.optionalKey(Schema.String) }),
 });
-const PlayerBaselines = Schema.Struct({
-  a: Schema.Array(PlayerPayload),
+const InitUser = Schema.Struct({
+  data: UnknownRecord,
+  uid: Schema.optionalKey(PositiveWireInt),
 });
+const PlayerBaselines = Schema.Struct({ a: Schema.Array(Schema.Unknown) });
 const GoldExperience = Schema.Struct({
   id: PositiveWireInt,
   typ: Schema.String,
 });
 const decodeMoveArea = Schema.decodeUnknownOption(MoveArea);
+const decodeRecord = Schema.decodeUnknownOption(UnknownRecord);
 const decodePlayer = Schema.decodeUnknownOption(PlayerPayload);
 const decodeMonster = Schema.decodeUnknownOption(MonsterPayload);
 const decodePlayerUpdate = Schema.decodeUnknownOption(PlayerUpdate);
 const decodeMonsterUpdate = Schema.decodeUnknownOption(MonsterUpdate);
 const decodeZone = Schema.decodeUnknownOption(Zone);
+const decodeInitUser = Schema.decodeUnknownOption(InitUser);
 const decodePlayerBaselines = Schema.decodeUnknownOption(PlayerBaselines);
 const decodeGoldExperience = Schema.decodeUnknownOption(GoldExperience);
 const decodeInt = Schema.decodeUnknownOption(WireInt);
@@ -67,6 +71,14 @@ const parseCsv = (value: string): Record<string, string> => {
   }
   return result;
 };
+
+const decodeInitializedPlayer = (value: unknown) =>
+  Option.flatMap(decodeInitUser(value), (initialized) =>
+    decodePlayer({
+      ...initialized.data,
+      entID: initialized.uid ?? initialized.data["entID"],
+    }),
+  );
 
 const decodeStringMonsterUpdate = (packet: Packet) => {
   const data = packetData(packet);
@@ -153,7 +165,7 @@ const projectMoveArea = (
       yield* diagnose(
         "world:moveToArea",
         new Error("Malformed area baseline"),
-        ["[payload omitted]"],
+        [packetData(packet)],
       );
       return [];
     }
@@ -165,22 +177,46 @@ const projectMoveArea = (
       ...mapName,
     };
 
+    const invalidMonsterEntries: unknown[] = [];
     const definitions = new Map<number, Record<string, unknown>>();
-    for (const definition of decoded.value.mondef ?? []) {
+    for (const value of decoded.value.mondef ?? []) {
+      const record = decodeRecord(value);
+      if (Option.isNone(record)) {
+        invalidMonsterEntries.push(value);
+        continue;
+      }
+      const definition = record.value;
       const id = decodePositiveInt(definition["MonID"]);
       if (Option.isSome(id)) definitions.set(id.value, definition);
     }
     const cells = new Map<number, string>();
-    for (const placement of decoded.value.monmap ?? []) {
+    for (const value of decoded.value.monmap ?? []) {
+      const record = decodeRecord(value);
+      if (Option.isNone(record)) {
+        invalidMonsterEntries.push(value);
+        continue;
+      }
+      const placement = record.value;
       const id = decodePositiveInt(placement["MonMapID"]);
       const cell = decodeString(placement["strFrame"]);
-      if (Option.isSome(id) && Option.isSome(cell))
+      if (Option.isSome(id) && Option.isSome(cell)) {
         cells.set(id.value, cell.value);
+      }
     }
-    const monsters = (decoded.value.monBranch ?? []).flatMap((branch) => {
+    const monsters: ReturnType<typeof toMonster>[] = [];
+    for (const value of decoded.value.monBranch ?? []) {
+      const record = decodeRecord(value);
+      if (Option.isNone(record)) {
+        invalidMonsterEntries.push(value);
+        continue;
+      }
+      const branch = record.value;
       const monsterId = decodePositiveInt(branch["MonID"]);
       const monsterMapId = decodePositiveInt(branch["MonMapID"]);
-      if (Option.isNone(monsterId) || Option.isNone(monsterMapId)) return [];
+      if (Option.isNone(monsterId) || Option.isNone(monsterMapId)) {
+        invalidMonsterEntries.push(value);
+        continue;
+      }
       const decodedMonster = decodeMonster({
         ...definitions.get(monsterId.value),
         ...branch,
@@ -188,13 +224,43 @@ const projectMoveArea = (
           ? {}
           : { strFrame: cells.get(monsterMapId.value) }),
       });
-      return Option.isNone(decodedMonster)
-        ? []
-        : [toMonster(decodedMonster.value)];
-    });
-    const players = (decoded.value.uoBranch ?? []).map((player) =>
-      toPlayer(player),
-    );
+      if (Option.isNone(decodedMonster)) {
+        invalidMonsterEntries.push(value);
+      } else {
+        monsters.push(toMonster(decodedMonster.value));
+      }
+    }
+
+    if (invalidMonsterEntries.length > 0) {
+      yield* diagnose(
+        "world:moveToArea:monster-entries",
+        new Error(
+          `Ignored ${invalidMonsterEntries.length} malformed monster entries`,
+        ),
+        invalidMonsterEntries,
+      );
+    }
+
+    const invalidPlayerEntries: unknown[] = [];
+    const players: ReturnType<typeof toPlayer>[] = [];
+    for (const value of decoded.value.uoBranch ?? []) {
+      const player = decodePlayer(value);
+      if (Option.isNone(player)) {
+        invalidPlayerEntries.push(value);
+      } else {
+        players.push(toPlayer(player.value));
+      }
+    }
+
+    if (invalidPlayerEntries.length > 0) {
+      yield* diagnose(
+        "world:moveToArea:player-entries",
+        new Error(
+          `Ignored ${invalidPlayerEntries.length} malformed player entries`,
+        ),
+        invalidPlayerEntries,
+      );
+    }
 
     if (
       previousSelf !== null &&
@@ -236,23 +302,39 @@ export const projectWorld = (
         return yield* projectMoveArea(store, packet, diagnose);
       case "initUserData":
       case "initUserDatas": {
-        const players =
+        const data = packetData(packet);
+        const baselines =
           packet.command === "initUserData"
-            ? Option.map(decodePlayer(packetData(packet)), (player) => [player])
-            : Option.map(
-                decodePlayerBaselines(packetData(packet)),
-                (payload) => payload.a,
-              );
-        if (Option.isSome(players)) {
-          for (const player of players.value) {
-            yield* store.world.putPlayer(toPlayer(player));
-          }
-        } else {
+            ? Option.some([data] as readonly unknown[])
+            : Option.map(decodePlayerBaselines(data), (payload) => payload.a);
+        if (Option.isNone(baselines)) {
           yield* diagnose(
             `world:${packet.command}`,
             new Error("Malformed player baseline"),
-            ["[payload omitted]"],
+            [data],
           );
+          return [];
+        }
+
+        const auth = yield* store.auth.get;
+        for (const baseline of baselines.value) {
+          const decoded = decodeInitializedPlayer(baseline);
+          if (Option.isNone(decoded)) {
+            yield* diagnose(
+              `world:${packet.command}`,
+              new Error("Malformed player baseline entry"),
+              [baseline],
+            );
+            continue;
+          }
+          const player = yield* store.world.putPlayer(toPlayer(decoded.value));
+          if (
+            player.username.localeCompare(auth.username, undefined, {
+              sensitivity: "accent",
+            }) === 0
+          ) {
+            yield* store.world.setSelf(player.username);
+          }
         }
         return [];
       }
@@ -273,7 +355,7 @@ export const projectWorld = (
             : decodePlayerUpdate(packetData(packet));
         if (Option.isNone(decoded)) {
           yield* diagnose("world:uotls", new Error("Malformed player update"), [
-            "[payload omitted]",
+            packetData(packet),
           ]);
           return [];
         }
@@ -282,7 +364,7 @@ export const projectWorld = (
           yield* diagnose(
             "world:unknown-player-update",
             new Error("Ignored update for unknown player"),
-            [decoded.value.unm],
+            [decoded.value.unm, packetData(packet)],
           );
           return [];
         }
@@ -320,7 +402,7 @@ export const projectWorld = (
             : decodeMonsterUpdate(packetData(packet));
         if (Option.isNone(decoded)) {
           yield* diagnose("world:mtls", new Error("Malformed monster update"), [
-            "[payload omitted]",
+            packetData(packet),
           ]);
           return [];
         }
@@ -332,7 +414,7 @@ export const projectWorld = (
           yield* diagnose(
             "world:unknown-monster-update",
             new Error("Ignored update for unknown monster"),
-            [decoded.value.id],
+            [decoded.value.id, packetData(packet)],
           );
           return [];
         }

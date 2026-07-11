@@ -8,7 +8,7 @@ declare global {
       "auth.connectTo": (
         server: string,
       ) => FlashTypes.ConnectToSelectionResult | null;
-      "auth.getServers": () => unknown[];
+      "auth.getServers": () => unknown[] | null;
       "auth.isLoggedIn": () => boolean;
       "auth.isTemporarilyKicked": () => boolean;
       "auth.login": (username: string, password: string) => void;

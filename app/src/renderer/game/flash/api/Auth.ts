@@ -25,6 +25,7 @@ const ConnectResult = Schema.Union([
   }),
 ]);
 const decodeCredentials = Schema.decodeUnknownOption(Credentials);
+const NullableServers = Schema.NullOr(ServerPayloads);
 
 export interface ConnectOutcome {
   readonly message: string;
@@ -100,7 +101,7 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
     store.auth.get.pipe(Effect.map((state) => state.password));
 
   const getServers = () =>
-    bridge.invoke("auth.getServers", undefined, ServerPayloads).pipe(
+    bridge.invoke("auth.getServers", undefined, NullableServers).pipe(
       Effect.flatMap(
         Option.match({
           onNone: () =>
@@ -108,6 +109,11 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
               Effect.map((state) => Array.from(state.servers.values())),
             ),
           onSome: (payloads) => {
+            if (payloads === null) {
+              return store.auth.get.pipe(
+                Effect.map((state) => Array.from(state.servers.values())),
+              );
+            }
             const servers = payloads.map(toServer);
             return store.auth.setServers(servers).pipe(Effect.as(servers));
           },

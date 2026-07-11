@@ -49,6 +49,7 @@ package lucent.game
     }
 
     [BridgeExport]
+    [BridgeTsReturnType("unknown[] | null")]
     public static function getServers():Array
     {
       var game:Object = Main.Game;

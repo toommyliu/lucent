@@ -16,9 +16,9 @@ import type {
 } from "@lucent/game";
 
 import { makeAuthState } from "./Auth";
-import { makeCombatState } from "./Combat";
 import {
   getItem,
+  getItemByCharItemId,
   getItems,
   makeItemsState,
   removeItem,
@@ -41,7 +41,6 @@ import {
 
 export const makeStore = Effect.gen(function* () {
   const authRef = yield* SynchronizedRef.make(makeAuthState());
-  const combatRef = yield* SynchronizedRef.make(makeCombatState());
   const itemsRef = yield* SynchronizedRef.make(makeItemsState());
   const questsRef = yield* SynchronizedRef.make(makeQuestsState());
   const settingsRef = yield* SubscriptionRef.make(makeSettingsState());
@@ -100,15 +99,6 @@ export const makeStore = Effect.gen(function* () {
       }),
   };
 
-  const combat = {
-    get: SynchronizedRef.get(combatRef),
-    setTarget: (target: { id: number; type: "monster" | "player" } | null) =>
-      SynchronizedRef.update(combatRef, (state) => {
-        state.target = target;
-        return state;
-      }),
-  };
-
   const items = {
     get: (container: ItemContainer, selector: ItemQuery | ShopItemQuery) =>
       SynchronizedRef.get(itemsRef).pipe(
@@ -117,6 +107,12 @@ export const makeStore = Effect.gen(function* () {
     getAll: (container: ItemContainer) =>
       SynchronizedRef.get(itemsRef).pipe(
         Effect.map((state) => getItems(state, container)),
+      ),
+    getByCharItemId: (container: ItemContainer, charItemId: number) =>
+      SynchronizedRef.get(itemsRef).pipe(
+        Effect.map((state) =>
+          getItemByCharItemId(state, container, charItemId),
+        ),
       ),
     quantity: (container: ItemContainer, selector: ItemQuery) =>
       SynchronizedRef.get(itemsRef).pipe(
@@ -395,13 +391,85 @@ export const makeStore = Effect.gen(function* () {
       }),
   };
 
+  const snapshot = Effect.all({
+    auth: SynchronizedRef.get(authRef).pipe(
+      Effect.map((state) => ({
+        loggedIn: state.loggedIn,
+        password: state.password,
+        servers: Object.fromEntries(
+          Array.from(state.servers, ([key, server]) => [key, server.toJSON()]),
+        ),
+        username: state.username,
+      })),
+    ),
+    items: SynchronizedRef.get(itemsRef).pipe(
+      Effect.map((state) =>
+        Object.fromEntries(
+          Array.from(state.containers, ([container, items]) => [
+            container,
+            Object.fromEntries(
+              Array.from(items, ([key, item]) => [key, item.toJSON()]),
+            ),
+          ]),
+        ),
+      ),
+    ),
+    quests: SynchronizedRef.get(questsRef).pipe(
+      Effect.map((state) => ({
+        accepted: Array.from(state.accepted),
+        quests: Object.fromEntries(
+          Array.from(state.quests, ([key, quest]) => [key, quest.toJSON()]),
+        ),
+      })),
+    ),
+    settings: SubscriptionRef.get(settingsRef).pipe(
+      Effect.map((state) => ({ ...state })),
+    ),
+    shops: SynchronizedRef.get(shopsRef).pipe(
+      Effect.map((state) => state.current?.toJSON() ?? null),
+    ),
+    world: SynchronizedRef.get(worldRef).pipe(
+      Effect.map((state) => ({
+        cellPads: [...state.cellPads],
+        cells: [...state.cells],
+        map: { ...state.map },
+        monsterAuras: Object.fromEntries(
+          Array.from(state.monsterAuras, ([id, auras]) => [
+            id,
+            Object.fromEntries(
+              Array.from(auras, ([key, aura]) => [key, aura.toJSON()]),
+            ),
+          ]),
+        ),
+        monsters: Object.fromEntries(
+          Array.from(state.monsters, ([id, monster]) => [id, monster.toJSON()]),
+        ),
+        playerAuras: Object.fromEntries(
+          Array.from(state.playerAuras, ([id, auras]) => [
+            id,
+            Object.fromEntries(
+              Array.from(auras, ([key, aura]) => [key, aura.toJSON()]),
+            ),
+          ]),
+        ),
+        players: Object.fromEntries(
+          Array.from(state.players, ([username, player]) => [
+            username,
+            player.toJSON(),
+          ]),
+        ),
+        self: state.self,
+      })),
+    ),
+  });
+
   return {
     auth,
-    combat,
     items,
     quests,
     settings,
     shops,
+    snapshot,
     world,
   };
 });

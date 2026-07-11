@@ -1,7 +1,25 @@
 import { Effect, FiberMap, Layer } from "effect";
 
 import { Api } from "../flash/api/Api";
+import type { SettingsPatch } from "../flash/contract/Settings";
+import type { SettingsState } from "../flash/state/Settings";
 import { Automation } from "./Automation";
+
+export const reapplySettingsPatch = (state: SettingsState): SettingsPatch => {
+  const {
+    customGuild,
+    customGuildConfigured,
+    customName,
+    customNameConfigured,
+    ...settings
+  } = state;
+
+  return {
+    ...settings,
+    ...(customGuildConfigured ? { customGuild } : {}),
+    ...(customNameConfigured ? { customName } : {}),
+  };
+};
 
 export const hasRecurringSettingActions = (state: {
   readonly enemyMagnetEnabled: boolean;
@@ -23,7 +41,12 @@ export const layer = Layer.effectDiscard(
       api.player.isReady().pipe(
         Effect.flatMap((ready) =>
           ready
-            ? api.settings.get().pipe(Effect.flatMap(api.settings.apply))
+            ? api.settings
+                .get()
+                .pipe(
+                  Effect.map(reapplySettingsPatch),
+                  Effect.flatMap(api.settings.apply),
+                )
             : Effect.void,
         ),
         Effect.andThen(Effect.sleep("1 second")),

@@ -2,16 +2,22 @@ import { LiveItem } from "@lucent/game";
 import type { ItemData } from "@lucent/game";
 import { Schema } from "effect";
 
-import { PositiveWireInt, WireBoolean, WireInt, WireNumber } from "../Coercion";
+import {
+  NonNegativeWireInt,
+  PositiveWireInt,
+  WireBoolean,
+  WireInt,
+  WireNumber,
+} from "../Coercion";
 
 export const ItemPayload = Schema.Struct({
   ItemID: PositiveWireInt,
   CharItemID: Schema.optionalKey(PositiveWireInt),
   EnhDPS: Schema.optionalKey(WireNumber),
-  EnhID: Schema.optionalKey(PositiveWireInt),
-  EnhLvl: Schema.optionalKey(PositiveWireInt),
-  EnhPatternID: Schema.optionalKey(PositiveWireInt),
-  EnhPID: Schema.optionalKey(PositiveWireInt),
+  EnhID: Schema.optionalKey(NonNegativeWireInt),
+  EnhLvl: Schema.optionalKey(NonNegativeWireInt),
+  EnhPatternID: Schema.optionalKey(NonNegativeWireInt),
+  EnhPID: Schema.optionalKey(NonNegativeWireInt),
   EnhRng: Schema.optionalKey(WireNumber),
   EnhRty: Schema.optionalKey(WireNumber),
   ShopItemID: Schema.optionalKey(PositiveWireInt),
@@ -21,7 +27,7 @@ export const ItemPayload = Schema.Struct({
   bHouse: Schema.optionalKey(WireBoolean),
   bTemp: Schema.optionalKey(WireBoolean),
   iCost: Schema.optionalKey(WireNumber),
-  iEnh: Schema.optionalKey(PositiveWireInt),
+  iEnh: Schema.optionalKey(NonNegativeWireInt),
   iQty: Schema.optionalKey(WireInt),
   sDesc: Schema.optionalKey(Schema.String),
   sES: Schema.optionalKey(Schema.String),
@@ -53,12 +59,25 @@ export const toItem = (
       ? "bank"
       : (defaults.context ??
         (temporaryItem ? "temporary" : houseItem ? "house" : "inventory"));
-  const enhancementId = payload.EnhID ?? payload.iEnh;
-  const enhancementPatternId = payload.EnhPatternID ?? payload.EnhPID;
+  const rawEnhancementId = payload.EnhID ?? payload.iEnh;
+  const rawEnhancementLevel = payload.EnhLvl;
+  const rawEnhancementPatternId = payload.EnhPatternID ?? payload.EnhPID;
+  const enhancementId =
+    rawEnhancementId === undefined || rawEnhancementId === 0
+      ? undefined
+      : rawEnhancementId;
+  const enhancementLevel =
+    rawEnhancementLevel === undefined || rawEnhancementLevel === 0
+      ? undefined
+      : rawEnhancementLevel;
+  const enhancementPatternId =
+    rawEnhancementPatternId === undefined || rawEnhancementPatternId === 0
+      ? undefined
+      : rawEnhancementPatternId;
   const enhancement = {
     ...(payload.EnhDPS === undefined ? {} : { dps: payload.EnhDPS }),
     ...(enhancementId === undefined ? {} : { id: enhancementId }),
-    ...(payload.EnhLvl === undefined ? {} : { level: payload.EnhLvl }),
+    ...(enhancementLevel === undefined ? {} : { level: enhancementLevel }),
     ...(enhancementPatternId === undefined
       ? {}
       : { patternId: enhancementPatternId }),

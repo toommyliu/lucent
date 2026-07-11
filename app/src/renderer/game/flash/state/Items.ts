@@ -10,6 +10,7 @@ export type ItemContainer =
   | "temporary";
 
 export interface ItemsState {
+  readonly charItemIds: Map<ItemContainer, Map<number, number>>;
   readonly containers: Map<ItemContainer, Map<number, LiveItem>>;
   readonly itemIds: Map<ItemContainer, Map<number, Set<number>>>;
   readonly names: Map<ItemContainer, Map<string, Set<number>>>;
@@ -31,6 +32,7 @@ export const itemKey = (container: ItemContainer, item: LiveItem): number =>
   container === "shop" ? (item.shopItemId ?? item.itemId) : item.itemId;
 
 export const makeItemsState = (): ItemsState => ({
+  charItemIds: new Map(containers.map((container) => [container, new Map()])),
   containers: new Map(containers.map((container) => [container, new Map()])),
   itemIds: new Map(containers.map((container) => [container, new Map()])),
   names: new Map(containers.map((container) => [container, new Map()])),
@@ -44,6 +46,9 @@ const names = (state: ItemsState, container: ItemContainer) =>
 
 const itemIds = (state: ItemsState, container: ItemContainer) =>
   state.itemIds.get(container)!;
+
+const charItemIds = (state: ItemsState, container: ItemContainer) =>
+  state.charItemIds.get(container)!;
 
 const removeIndexKey = (
   index: Map<number, Set<number>>,
@@ -101,6 +106,9 @@ const removeItemIndexes = (
 ): void => {
   removeNameIndex(state, container, key, item.name);
   removeIndexKey(itemIds(state, container), item.itemId, key);
+  if (item.charItemId !== undefined) {
+    charItemIds(state, container).delete(item.charItemId);
+  }
 };
 
 const addItemIndexes = (
@@ -111,6 +119,9 @@ const addItemIndexes = (
 ): void => {
   addNameIndex(state, container, key, item.name);
   addIndexKey(itemIds(state, container), item.itemId, key);
+  if (item.charItemId !== undefined) {
+    charItemIds(state, container).set(item.charItemId, key);
+  }
 };
 
 export const upsertItem = (
@@ -194,3 +205,12 @@ export const getItems = (
   state: ItemsState,
   container: ItemContainer,
 ): readonly LiveItem[] => Array.from(values(state, container).values());
+
+export const getItemByCharItemId = (
+  state: ItemsState,
+  container: ItemContainer,
+  charItemId: number,
+): LiveItem | null => {
+  const key = charItemIds(state, container).get(charItemId);
+  return key === undefined ? null : (values(state, container).get(key) ?? null);
+};

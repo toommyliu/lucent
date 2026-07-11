@@ -14,7 +14,10 @@ import type { Diagnostic } from "../contract/Diagnostic";
 import { makeDiagnostic } from "../contract/Diagnostic";
 import type { Event, RuntimeEvent } from "../contract/Event";
 import type { Packet, PacketDirection } from "../contract/Packet";
-import { parsePacket } from "../protocol/PacketCodec";
+import {
+  isUnsupportedPacketEnvelope,
+  parsePacket,
+} from "../protocol/PacketCodec";
 import { Bridge } from "./Bridge";
 
 type CallbackKey =
@@ -66,7 +69,7 @@ export const makeGateway = (target?: Window) =>
     const bridge = yield* Bridge;
     const scope = yield* Effect.scope;
     const callbacks = yield* Queue.unbounded<Callback>();
-    const diagnostics = yield* PubSub.unbounded<Diagnostic>();
+    const diagnostics = yield* PubSub.unbounded<Diagnostic>({ replay: 64 });
     const events = yield* PubSub.unbounded<Event>();
     const packets = yield* PubSub.unbounded<Packet>();
     let started = false;
@@ -81,6 +84,13 @@ export const makeGateway = (target?: Window) =>
         ],
         { discard: true },
       ),
+    );
+
+    yield* bridge.diagnostics.pipe(
+      Stream.runForEach((diagnostic) =>
+        PubSub.publish(diagnostics, diagnostic),
+      ),
+      Effect.forkIn(scope),
     );
 
     const publishDiagnosticUnsafe = (
@@ -155,6 +165,12 @@ export const makeGateway = (target?: Window) =>
         makeDiagnostic("projection", operation, cause, args),
       ).pipe(Effect.asVoid);
 
+    const reportProjectionTrace = (operation: string, trace: unknown) =>
+      PubSub.publish(
+        diagnostics,
+        makeDiagnostic("projection-trace", operation, undefined, [trace]),
+      ).pipe(Effect.asVoid);
+
     const dispatch = (
       callback: Callback,
       project: (packet: Packet) => Effect.Effect<void>,
@@ -173,6 +189,7 @@ export const makeGateway = (target?: Window) =>
 
         const packet = parsePacket(input.direction, input.raw);
         if (Option.isNone(packet)) {
+          if (isUnsupportedPacketEnvelope(input.raw)) return;
           const failure: Event = {
             type: "packet-decode-failed",
             direction: input.direction,
@@ -184,7 +201,7 @@ export const makeGateway = (target?: Window) =>
               "packet-decode",
               `${input.direction}:packet`,
               new Error("Malformed packet envelope"),
-              ["[packet omitted]"],
+              [input.raw],
             ),
           );
           yield* publishEvent(failure);
@@ -235,14 +252,12 @@ export const makeGateway = (target?: Window) =>
         .pipe(Effect.map(Option.isSome));
 
     return {
-      diagnostics: Stream.merge(
-        bridge.diagnostics,
-        Stream.fromPubSub(diagnostics),
-      ),
+      diagnostics: Stream.fromPubSub(diagnostics),
       events: Stream.fromPubSub(events),
       packets: Stream.fromPubSub(packets),
       publishEvent,
       reportDiagnostic,
+      reportProjectionTrace,
       sendClient,
       sendServer,
       start,

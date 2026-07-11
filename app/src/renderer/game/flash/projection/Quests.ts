@@ -35,16 +35,26 @@ export const projectQuests = (
         yield* diagnose(
           `quests:${packet.command}`,
           new Error("Malformed quest payload"),
-          ["[payload omitted]"],
+          [packetData(packet)],
         );
         return [];
       }
+      const invalidEntries: unknown[] = [];
       for (const [rawId, rawQuest] of Object.entries(list.value.quests)) {
         const id = Number(rawId);
         const quest = decodeQuest(rawQuest);
         if (Number.isInteger(id) && id > 0 && Option.isSome(quest)) {
           yield* store.quests.upsert(toQuest(id, quest.value));
+        } else {
+          invalidEntries.push({ id: rawId, quest: rawQuest });
         }
+      }
+      if (invalidEntries.length > 0) {
+        yield* diagnose(
+          `quests:${packet.command}:entries`,
+          new Error(`Ignored ${invalidEntries.length} malformed quest entries`),
+          invalidEntries,
+        );
       }
       return [];
     }
@@ -55,7 +65,7 @@ export const projectQuests = (
       yield* diagnose(
         "quests:ccqr",
         new Error("Malformed quest completion payload"),
-        ["[payload omitted]"],
+        [packetData(packet)],
       );
     }
     return Option.isSome(complete) && complete.value.bSuccess

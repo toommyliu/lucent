@@ -18,24 +18,35 @@ const AuraChange = Schema.Struct({
   auras: Schema.optionalKey(Schema.Array(AuraPayload)),
   aura: Schema.optionalKey(AuraPayload),
   cInf: Schema.optionalKey(Schema.String),
-  cmd: Schema.Literals(["aura+", "aura++", "aura+p", "aura-", "aura--"]),
+  cmd: Schema.Literals([
+    "aura+",
+    "aura++",
+    "aura+p",
+    "aura-",
+    "aura--",
+    "aura-p",
+  ]),
   tInf: Schema.String,
 });
+const Animation = Schema.Struct({
+  cInf: Schema.optionalKey(Schema.String),
+  msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
+  tInf: Schema.optionalKey(Schema.String),
+});
 const CombatPayload = Schema.Struct({
-  a: Schema.optionalKey(Schema.Array(AuraChange)),
-  anims: Schema.optionalKey(
-    Schema.Array(
-      Schema.Struct({
-        cInf: Schema.optionalKey(Schema.String),
-        msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
-        tInf: Schema.optionalKey(Schema.String),
-      }),
-    ),
+  a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  anims: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  m: Schema.optionalKey(
+    Schema.NullOr(Schema.Record(Schema.String, Schema.Unknown)),
   ),
-  m: Schema.optionalKey(Schema.Record(Schema.String, EntityPatchPayload)),
-  p: Schema.optionalKey(Schema.Record(Schema.String, EntityPatchPayload)),
+  p: Schema.optionalKey(
+    Schema.NullOr(Schema.Record(Schema.String, Schema.Unknown)),
+  ),
 });
 const decodeCombat = Schema.decodeUnknownOption(CombatPayload);
+const decodeAnimation = Schema.decodeUnknownOption(Animation);
+const decodeAuraChange = Schema.decodeUnknownOption(AuraChange);
+const decodeEntityPatch = Schema.decodeUnknownOption(EntityPatchPayload);
 
 const targets = (value: string) =>
   value.split(",").flatMap((token) => {
@@ -85,33 +96,46 @@ export const projectCombat = (
       yield* diagnose(
         `combat:${packet.command}`,
         new Error("Malformed combat payload"),
-        ["[payload omitted]"],
+        [packetData(packet)],
       );
       return [];
     }
     const events: Event[] = [];
 
-    for (const [username, patch] of Object.entries(decoded.value.p ?? {})) {
+    for (const [username, value] of Object.entries(decoded.value.p ?? {})) {
+      const patch = decodeEntityPatch(value);
+      if (Option.isNone(patch)) {
+        yield* diagnose(
+          "combat:malformed-player-update",
+          new Error("Ignored malformed player combat update"),
+          [username, value],
+        );
+        continue;
+      }
       const current = yield* store.world.getPlayer(username);
       if (current === null) {
         yield* diagnose(
           "combat:unknown-player-update",
           new Error("Ignored update for unknown player"),
-          [username],
+          [username, packetData(packet)],
         );
         continue;
       }
       const result = yield* store.world.patchPlayer(username, {
-        ...entityPatch(patch),
-        ...(patch.afk === undefined ? {} : { afk: patch.afk }),
-        ...(patch.intLevel === undefined ? {} : { level: patch.intLevel }),
-        ...(patch.strPad === undefined ? {} : { pad: patch.strPad }),
-        ...(patch.tx === undefined && patch.ty === undefined
+        ...entityPatch(patch.value),
+        ...(patch.value.afk === undefined ? {} : { afk: patch.value.afk }),
+        ...(patch.value.intLevel === undefined
+          ? {}
+          : { level: patch.value.intLevel }),
+        ...(patch.value.strPad === undefined
+          ? {}
+          : { pad: patch.value.strPad }),
+        ...(patch.value.tx === undefined && patch.value.ty === undefined
           ? {}
           : {
               position: {
-                x: patch.tx ?? current.position.x,
-                y: patch.ty ?? current.position.y,
+                x: patch.value.tx ?? current.position.x,
+                y: patch.value.ty ?? current.position.y,
               },
             }),
       });
@@ -124,15 +148,27 @@ export const projectCombat = (
       }
     }
 
-    for (const [rawId, patch] of Object.entries(decoded.value.m ?? {})) {
+    for (const [rawId, value] of Object.entries(decoded.value.m ?? {})) {
       const id = Number(rawId);
       if (!Number.isInteger(id) || id <= 0) continue;
-      const result = yield* store.world.patchMonster(id, entityPatch(patch));
+      const patch = decodeEntityPatch(value);
+      if (Option.isNone(patch)) {
+        yield* diagnose(
+          "combat:malformed-monster-update",
+          new Error("Ignored malformed monster combat update"),
+          [rawId, value],
+        );
+        continue;
+      }
+      const result = yield* store.world.patchMonster(
+        id,
+        entityPatch(patch.value),
+      );
       if (result === null) {
         yield* diagnose(
           "combat:unknown-monster-update",
           new Error("Ignored update for unknown monster"),
-          [id],
+          [id, packetData(packet)],
         );
         continue;
       }
@@ -141,17 +177,27 @@ export const projectCombat = (
       }
     }
 
-    for (const change of decoded.value.a ?? []) {
-      const operation = change.cmd.startsWith("aura+") ? "add" : "remove";
-      const kind = change.cmd === "aura+p" ? "passive" : "active";
+    for (const value of decoded.value.a ?? []) {
+      const change = decodeAuraChange(value);
+      if (Option.isNone(change)) {
+        yield* diagnose(
+          "combat:malformed-aura-change",
+          new Error("Ignored malformed aura change"),
+          [value],
+        );
+        continue;
+      }
+      const operation = change.value.cmd.startsWith("aura+") ? "add" : "remove";
+      const kind = change.value.cmd.endsWith("p") ? "passive" : "active";
       const payloads =
-        change.auras ?? (change.aura === undefined ? [] : [change.aura]);
-      for (const target of targets(change.tInf)) {
+        change.value.auras ??
+        (change.value.aura === undefined ? [] : [change.value.aura]);
+      for (const target of targets(change.value.tInf)) {
         for (const payload of payloads) {
           if (operation === "add") {
             const auraOperation =
-              change.cmd === "aura++" ||
-              change.cmd === "aura+p" ||
+              change.value.cmd === "aura++" ||
+              change.value.cmd === "aura+p" ||
               payload.isNew === true
                 ? "add"
                 : "refresh";
@@ -204,16 +250,18 @@ export const projectCombat = (
       }
     }
 
-    for (const animation of decoded.value.anims ?? []) {
+    for (const value of decoded.value.anims ?? []) {
+      const animation = decodeAnimation(value);
+      if (Option.isNone(animation)) continue;
       const message =
-        typeof animation.msg === "string"
-          ? animation.msg.trim()
-          : animation.msg.join(" ").trim();
+        typeof animation.value.msg === "string"
+          ? animation.value.msg.trim()
+          : animation.value.msg.join(" ").trim();
       if (message === "") continue;
       const source =
-        animation.cInf === undefined ? [] : targets(animation.cInf);
+        animation.value.cInf === undefined ? [] : targets(animation.value.cInf);
       const target =
-        animation.tInf === undefined ? [] : targets(animation.tInf);
+        animation.value.tInf === undefined ? [] : targets(animation.value.tInf);
       const monsterMapId = [...source, ...target].find(
         (entity) => entity.type === "monster",
       )?.id;

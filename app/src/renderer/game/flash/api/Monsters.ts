@@ -1,11 +1,19 @@
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
+import { UnknownRecord } from "../contract/Coercion";
 import { MonsterPayload, toMonster } from "../contract/payload/World";
 import { decodeMonsterSelector } from "../domain/Selectors";
 import type { Store } from "../state/Store";
 
-const NullableMonster = Schema.NullOr(MonsterPayload);
+const NestedMonster = Schema.Struct({
+  dataLeaf: UnknownRecord,
+  objData: Schema.optionalKey(UnknownRecord),
+});
+const NullableMonster = Schema.NullOr(
+  Schema.Union([MonsterPayload, NestedMonster]),
+);
+const decodeMonster = Schema.decodeUnknownOption(MonsterPayload);
 
 export const makeMonsters = (bridge: BridgeService, store: Store) => {
   const get = (selector: unknown) => {
@@ -21,10 +29,19 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
                 Effect.flatMap(
                   Option.match({
                     onNone: () => Effect.succeed(null),
-                    onSome: (payload) =>
-                      payload === null
+                    onSome: (payload) => {
+                      if (payload === null) return Effect.succeed(null);
+                      const decoded =
+                        "dataLeaf" in payload
+                          ? decodeMonster({
+                              ...payload.objData,
+                              ...payload.dataLeaf,
+                            })
+                          : Option.some(payload);
+                      return Option.isNone(decoded)
                         ? Effect.succeed(null)
-                        : store.world.putMonster(toMonster(payload)),
+                        : store.world.putMonster(toMonster(decoded.value));
+                    },
                   }),
                 ),
               ),

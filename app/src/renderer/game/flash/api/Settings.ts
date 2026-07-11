@@ -66,7 +66,17 @@ export const makeSettings = Effect.fnUntraced(function* (
       effects.push(command("settings.skipCutscenes"));
     }
     return Effect.all(effects, { discard: true }).pipe(
-      Effect.andThen(store.settings.patch(patch)),
+      Effect.andThen(
+        store.settings.patch({
+          ...patch,
+          ...(patch.customGuild === undefined
+            ? {}
+            : { customGuildConfigured: true }),
+          ...(patch.customName === undefined
+            ? {}
+            : { customNameConfigured: true }),
+        }),
+      ),
       Effect.asVoid,
     );
   };

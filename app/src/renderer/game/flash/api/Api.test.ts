@@ -3,6 +3,7 @@ import { Effect } from "effect";
 
 import { Bridge, makeBridge } from "../bridge/Bridge";
 import { Gateway, makeGateway } from "../bridge/Gateway";
+import { reapplySettingsPatch } from "../../automation/SettingsPolicy";
 import { makeApi } from "./Api";
 
 describe("Api", () => {
@@ -56,5 +57,46 @@ describe("Api", () => {
           expect(retained[0]?.itemId).toBe(42);
         }),
       ),
+  );
+
+  it.effect("distinguishes unset cosmetic settings from explicit blanks", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const customNames: string[] = [];
+        const customGuilds: string[] = [];
+        const target = {
+          swf: {
+            "settings.setCustomGuild": (value: string) => {
+              customGuilds.push(value);
+            },
+            "settings.setCustomName": (value: string) => {
+              customNames.push(value);
+            },
+          },
+        } as unknown as Window;
+        const bridge = yield* makeBridge(target);
+        const gateway = yield* makeGateway(target).pipe(
+          Effect.provideService(Bridge, bridge),
+        );
+        const api = yield* makeApi.pipe(
+          Effect.provideService(Bridge, bridge),
+          Effect.provideService(Gateway, gateway),
+        );
+
+        yield* api.settings.apply(
+          reapplySettingsPatch(yield* api.settings.get()),
+        );
+        expect(customNames).toEqual([]);
+        expect(customGuilds).toEqual([]);
+
+        yield* api.settings.setCustomName("");
+        yield* api.settings.setCustomGuild("");
+        const configured = reapplySettingsPatch(yield* api.settings.get());
+        expect(configured.customName).toBe("");
+        expect(configured.customGuild).toBe("");
+        expect(customNames).toEqual([""]);
+        expect(customGuilds).toEqual([""]);
+      }),
+    ),
   );
 });

@@ -52,6 +52,9 @@ export const WireInt = WireNumber.pipe(
 );
 
 export const PositiveWireInt = WireInt.check(Schema.isGreaterThanOrEqualTo(1));
+export const NonNegativeWireInt = WireInt.check(
+  Schema.isGreaterThanOrEqualTo(0),
+);
 
 const BooleanInput = Schema.Union([
   Schema.Boolean,

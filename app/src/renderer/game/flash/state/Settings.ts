@@ -3,7 +3,9 @@ export interface SettingsState {
   antiCounterEnabled: boolean;
   collisionsEnabled: boolean;
   customGuild: string;
+  customGuildConfigured: boolean;
   customName: string;
+  customNameConfigured: boolean;
   deathAdsVisible: boolean;
   enemyMagnetEnabled: boolean;
   frameRate: number;
@@ -20,7 +22,9 @@ export const makeSettingsState = (): SettingsState => ({
   antiCounterEnabled: true,
   collisionsEnabled: true,
   customGuild: "",
+  customGuildConfigured: false,
   customName: "",
+  customNameConfigured: false,
   deathAdsVisible: true,
   enemyMagnetEnabled: false,
   frameRate: 24,

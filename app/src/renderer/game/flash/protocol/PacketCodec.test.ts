@@ -18,6 +18,16 @@ describe("PacketCodec", () => {
       )?.command,
     ).toBe("ct");
     expect(
+      Option.getOrNull(parseServerPacket("%xt%uotls%Hero%intHP:100%"))?.command,
+    ).toBe("uotls");
+    expect(
+      Option.getOrNull(
+        parseServerPacket(
+          '[Sending - JSON]: {"t":"sys","b":{"o":{"cmd":"joinOK"}}}',
+        ),
+      )?.command,
+    ).toBe("joinOK");
+    expect(
       Option.getOrNull(
         parseExtensionPacket(
           JSON.stringify({ type: "json", dataObj: { cmd: "loadShop" } }),

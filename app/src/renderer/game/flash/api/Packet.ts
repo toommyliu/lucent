@@ -52,7 +52,7 @@ export const makePacket = Effect.fnUntraced(function* (
 
   const once = wait.forPacket;
 
-  const sendClient = (packet: string, type?: "str" | "json" | "xml") =>
+  const sendClient = (packet: string, type?: "str" | "json") =>
     resolve(packet).pipe(
       Effect.flatMap((resolved) => gateway.sendClient(resolved, type)),
       Effect.asVoid,

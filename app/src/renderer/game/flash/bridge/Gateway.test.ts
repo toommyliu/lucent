@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option, Stream } from "effect";
 
 import { makeWait } from "../protocol/Wait";
 import { Bridge, makeBridge } from "./Bridge";
@@ -43,6 +43,12 @@ describe("Gateway", () => {
             expect(packet?.command).toBe("moveToCell");
             expect(projected).toEqual(["moveToCell"]);
             expect(target.packetFromClient).toBeTypeOf("function");
+
+            target.packetFromServer?.("unrecognized packet");
+            const diagnostic = Option.getOrNull(
+              yield* gateway.diagnostics.pipe(Stream.runHead),
+            );
+            expect(diagnostic?.arguments).toEqual(["unrecognized packet"]);
           }),
         );
 

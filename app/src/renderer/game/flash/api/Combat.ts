@@ -2,7 +2,6 @@ import { EntityState } from "@lucent/game";
 import type { Monster } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 import type { Duration } from "effect";
-import type { TargetInfo } from "../../Types";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { WireBoolean, WireInt } from "../contract/Coercion";
@@ -86,13 +85,15 @@ const skillIndex = (skill: Skill): number | null => {
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
 };
 
+const DEFAULT_SKILL_SET: readonly Skill[] = [1, 2, 3, 4];
 const skillSet = (input: CombatKillOptions["skillSet"]): readonly Skill[] => {
-  if (Array.isArray(input)) return input.length === 0 ? [1, 2, 3, 4] : input;
+  if (Array.isArray(input))
+    return input.length === 0 ? DEFAULT_SKILL_SET : input;
   if (typeof input === "string") {
     const skills = input.split(/[^0-9]+/).filter(Boolean);
-    return skills.length === 0 ? [1, 2, 3, 4] : skills;
+    return skills.length === 0 ? DEFAULT_SKILL_SET : skills;
   }
-  return [1, 2, 3, 4];
+  return DEFAULT_SKILL_SET;
 };
 
 export const makeCombat = (
@@ -106,76 +107,16 @@ export const makeCombat = (
   temporary: TempInventory,
   wait: Wait,
 ) => {
-  const getProjectedTarget: Effect.Effect<TargetInfo | null> = Effect.gen(
-    function* () {
-      const combat = yield* store.combat.get;
-      if (combat.target === null) return null;
-      if (combat.target.type === "monster") {
-        const monster = yield* store.world.getMonster(combat.target.id);
-        return monster === null
-          ? null
-          : {
-              cell: monster.cell,
-              hp: monster.hp,
-              level: monster.level,
-              maxHp: monster.maxHp,
-              monsterId: monster.monsterId,
-              monsterMapId: monster.monsterMapId,
-              name: monster.name,
-              race: monster.race,
-              state: monster.state,
-              type: "monster" as const,
-            };
-      }
-      const target = yield* store.world.getPlayer(combat.target.id);
-      return target === null
-        ? null
-        : {
-            afk: target.afk,
-            cell: target.cell,
-            entityId: target.entityId,
-            entityType: target.entityType,
-            hp: target.hp,
-            level: target.level,
-            maxHp: target.maxHp,
-            maxMp: target.maxMp,
-            mp: target.mp,
-            name: target.name,
-            pad: target.pad,
-            sp: 0,
-            state: target.state,
-            type: "player" as const,
-            username: target.username,
-          };
-    },
-  );
-
   const targetValue = bridge
     .invoke("combat.getTarget", undefined, TargetPayload)
-    .pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () => getProjectedTarget,
-          onSome: (target) =>
-            store.combat
-              .setTarget(
-                target === null
-                  ? null
-                  : target.type === "monster"
-                    ? { id: target.monsterMapId, type: "monster" }
-                    : { id: target.entityId, type: "player" },
-              )
-              .pipe(Effect.as(target as TargetInfo | null)),
-        }),
-      ),
-    );
+    .pipe(Effect.map(Option.getOrNull));
   const targetAuras = (options?: { kind?: "active" | "passive" }) =>
-    store.combat.get.pipe(
-      Effect.flatMap((combat) => {
-        if (combat.target === null) return Effect.succeed([]);
-        return combat.target.type === "monster"
-          ? store.world.getMonsterAuras(combat.target.id, options)
-          : store.world.getPlayerAuras(combat.target.id, options);
+    targetValue.pipe(
+      Effect.flatMap((target) => {
+        if (target === null) return Effect.succeed([]);
+        return target.type === "monster"
+          ? store.world.getMonsterAuras(target.monsterMapId, options)
+          : store.world.getPlayerAuras(target.entityId, options);
       }),
     );
 
@@ -232,7 +173,7 @@ export const makeCombat = (
       bridge.invoke("combat.cancelTarget", undefined, Schema.Void),
     ],
     { discard: true },
-  ).pipe(Effect.andThen(store.combat.setTarget(null)), Effect.asVoid);
+  ).pipe(Effect.asVoid);
 
   const useSkill = (skill: Skill, options?: SkillUseOptions) => {
     const index = skillIndex(skill);
@@ -376,7 +317,7 @@ export const makeCombat = (
   const cancelTarget = () =>
     bridge
       .invoke("combat.cancelTarget", undefined, Schema.Void)
-      .pipe(Effect.andThen(store.combat.setTarget(null)), Effect.asVoid);
+      .pipe(Effect.asVoid);
 
   const waitUntilIdle = (timeout: Duration.Input) =>
     wait.until(

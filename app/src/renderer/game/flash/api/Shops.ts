@@ -2,7 +2,9 @@ import type { LiveItem } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import { PositiveWireInt, WireInt } from "../contract/Coercion";
+import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
+import { packetData } from "../contract/Packet";
+import { ItemPayloads, toItem } from "../contract/payload/Items";
 import {
   decodeItemSelector,
   decodeShopSelector,
@@ -13,6 +15,12 @@ import type { Inventory } from "./Inventory";
 import type { Wait } from "./Wait";
 
 const decodeShopId = Schema.decodeUnknownOption(PositiveWireInt);
+const BuyResponse = Schema.Struct({
+  bBank: Schema.optionalKey(WireBoolean),
+  bitSuccess: WireBoolean,
+  iQty: Schema.optionalKey(WireInt),
+});
+const decodeBuyResponse = Schema.decodeUnknownOption(BuyResponse);
 
 const selectorFor = (item: LiveItem) =>
   item.shopItemId === undefined
@@ -25,6 +33,30 @@ export const makeShops = (
   inventory: Inventory,
   wait: Wait,
 ) => {
+  const refreshPurchasedContainer = (
+    container: "bank" | "house" | "inventory",
+  ) => {
+    const method =
+      container === "bank"
+        ? "bank.getItems"
+        : container === "house"
+          ? "house.getItems"
+          : "inventory.getItems";
+    return bridge.invoke(method, undefined, ItemPayloads).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => Effect.void,
+          onSome: (payloads) => {
+            const items = payloads.map((payload) =>
+              toItem(payload, { context: container }),
+            );
+            return store.items.replace(container, items);
+          },
+        }),
+      ),
+    );
+  };
+
   const get = (selector: unknown) => {
     const decoded = decodeShopSelector(selector);
     return Option.isNone(decoded)
@@ -141,29 +173,44 @@ export const makeShops = (
           if (!(yield* canBuy(selectorFor(item), { quantity: requested }))) {
             return false;
           }
-          const startingQuantity = yield* store.items.quantity(
-            "inventory",
-            item.itemId,
-          );
-          if (
-            Option.isNone(
-              yield* bridge.invoke(
+          const startingQuantities = yield* Effect.all({
+            bank: store.items.quantity("bank", item.itemId),
+            house: store.items.quantity("house", item.itemId),
+            inventory: store.items.quantity("inventory", item.itemId),
+          });
+          let response: typeof BuyResponse.Type | undefined;
+          const packet = yield* wait.forPacket(
+            {
+              command: "buyItem",
+              direction: "extension",
+              predicate: (candidate) => {
+                const decoded = decodeBuyResponse(packetData(candidate));
+                if (Option.isNone(decoded)) return false;
+                response = decoded.value;
+                return true;
+              },
+              wireType: "json",
+            },
+            {
+              shouldAwait: Option.isSome,
+              timeout: "5 seconds",
+              trigger: bridge.invoke(
                 "shops.buy",
                 [selectorFor(item), requested],
                 Schema.Void,
               ),
-            )
-          ) {
-            return false;
-          }
-          return yield* wait.until(
-            store.items
-              .quantity("inventory", item.itemId)
-              .pipe(
-                Effect.map((owned) => owned >= startingQuantity + requested),
-              ),
-            { timeout: "5 seconds" },
+            },
           );
+          if (packet === null || response?.bitSuccess !== true) return false;
+
+          const container = response.bBank
+            ? "bank"
+            : item.houseItem
+              ? "house"
+              : "inventory";
+          yield* refreshPurchasedContainer(container);
+          const owned = yield* store.items.quantity(container, item.itemId);
+          return owned >= startingQuantities[container] + requested;
         });
       }),
     );

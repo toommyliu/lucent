@@ -20,7 +20,7 @@ const toEntityState = (value: number | undefined): EntityState => {
   }
 };
 
-export const PlayerPayload = Schema.Struct({
+const PlayerFields = {
   afk: Schema.optionalKey(WireBoolean),
   entID: PositiveWireInt,
   entType: Schema.optionalKey(Schema.String),
@@ -32,10 +32,20 @@ export const PlayerPayload = Schema.Struct({
   intState: Schema.optionalKey(EntityStatePayload),
   strFrame: Schema.optionalKey(Schema.String),
   strPad: Schema.optionalKey(Schema.String),
-  strUsername: Schema.String,
   tx: Schema.optionalKey(WireNumber),
   ty: Schema.optionalKey(WireNumber),
-});
+};
+
+export const PlayerPayload = Schema.Union([
+  Schema.Struct({
+    ...PlayerFields,
+    strUsername: Schema.String,
+  }),
+  Schema.Struct({
+    ...PlayerFields,
+    uoName: Schema.String,
+  }),
+]);
 export type PlayerPayload = typeof PlayerPayload.Type;
 
 export const MonsterPayload = Schema.Struct({
@@ -72,8 +82,11 @@ export type EntityPatchPayload = typeof EntityPatchPayload.Type;
 export const PlayerPayloads = Schema.Array(PlayerPayload);
 export const MonsterPayloads = Schema.Array(MonsterPayload);
 
-export const toPlayer = (payload: PlayerPayload): LivePlayer =>
-  new LivePlayer({
+export const toPlayer = (payload: PlayerPayload): LivePlayer => {
+  const username =
+    "strUsername" in payload ? payload.strUsername : payload.uoName;
+
+  return new LivePlayer({
     afk: payload.afk ?? false,
     cell: payload.strFrame ?? "",
     entityId: payload.entID,
@@ -83,15 +96,16 @@ export const toPlayer = (payload: PlayerPayload): LivePlayer =>
     maxHp: payload.intHPMax ?? 0,
     maxMp: payload.intMPMax ?? 0,
     mp: payload.intMP ?? 0,
-    name: payload.strUsername,
+    name: username,
     pad: payload.strPad ?? "",
     position: {
       x: payload.tx ?? 0,
       y: payload.ty ?? 0,
     },
     state: toEntityState(payload.intState),
-    username: payload.strUsername,
+    username,
   });
+};
 
 export const toMonster = (payload: MonsterPayload): LiveMonster =>
   new LiveMonster({

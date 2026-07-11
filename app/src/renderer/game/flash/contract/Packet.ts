@@ -8,12 +8,7 @@ export const PacketDirection = Schema.Literals([
 ]);
 export type PacketDirection = typeof PacketDirection.Type;
 
-export const PacketWireType = Schema.Literals([
-  "str",
-  "json",
-  "xml",
-  "unknown",
-]);
+export const PacketWireType = Schema.Literals(["str", "json"]);
 export type PacketWireType = typeof PacketWireType.Type;
 
 export const ClientPacket = Schema.Struct({
