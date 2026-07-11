@@ -33,6 +33,12 @@ describe("Wait", () => {
         );
         expect(observed).toEqual(packet);
 
+        const skipped = yield* wait.forPacket(undefined, {
+          timeout: "1 hour",
+          trigger: Effect.succeed(false),
+        });
+        expect(skipped).toBeNull();
+
         const timeoutFiber = yield* wait
           .forEvent(undefined, { timeout: "1 second" })
           .pipe(Effect.forkScoped);

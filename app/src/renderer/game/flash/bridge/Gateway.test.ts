@@ -36,7 +36,7 @@ describe("Gateway", () => {
                   target.packetFromClient?.(
                     "%xt%zm%moveToCell%1%battleon-1%Enter%Spawn%",
                   );
-                }),
+                }).pipe(Effect.as(true)),
               },
             );
 

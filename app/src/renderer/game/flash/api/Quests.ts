@@ -121,11 +121,13 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
         { questId, type: "quest-complete" },
         {
           timeout: "5 seconds",
-          trigger: bridge.invoke(
-            "quests.complete",
-            [questId, turnIns, itemId, special],
-            Schema.Void,
-          ),
+          trigger: bridge
+            .invoke(
+              "quests.complete",
+              [questId, turnIns, itemId, special],
+              Schema.Void,
+            )
+            .pipe(Effect.map(Option.isSome)),
         },
       );
       return event !== null;

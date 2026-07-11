@@ -26,13 +26,11 @@ interface WaitSource {
   >;
 }
 
-export interface TriggeredWaitOptions<
-  A = void,
-  E = never,
-  R = never,
-> extends Pick<WaitOptions, "timeout"> {
-  readonly shouldAwait?: (result: A) => boolean;
-  readonly trigger?: Effect.Effect<A, E, R>;
+export interface TriggeredWaitOptions<E = never, R = never> extends Pick<
+  WaitOptions,
+  "timeout"
+> {
+  readonly trigger?: Effect.Effect<boolean, E, R>;
 }
 
 const takeMatching = <A>(
@@ -55,16 +53,16 @@ const withTimeout = <A, E, R>(
     : effect.pipe(Effect.timeoutOption(timeout), Effect.map(Option.getOrNull));
 
 export const makeWait = (source: WaitSource) => ({
-  forEvent: <A = void, E = never, R = never>(
+  forEvent: <E = never, R = never>(
     selector?: EventSelector,
-    options?: TriggeredWaitOptions<A, E, R>,
+    options?: TriggeredWaitOptions<E, R>,
   ): Effect.Effect<Event | null, E, R> =>
     Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* source.subscribeEvents;
         if (options?.trigger !== undefined) {
-          const result = yield* options.trigger;
-          if (options.shouldAwait?.(result) === false) return null;
+          const responseExpected = yield* options.trigger;
+          if (!responseExpected) return null;
         }
         return yield* withTimeout(
           takeMatching(subscription, (event) => matchesEvent(event, selector)),
@@ -72,16 +70,16 @@ export const makeWait = (source: WaitSource) => ({
         );
       }),
     ),
-  forPacket: <A = void, E = never, R = never>(
+  forPacket: <E = never, R = never>(
     selector?: PacketSelector,
-    options?: TriggeredWaitOptions<A, E, R>,
+    options?: TriggeredWaitOptions<E, R>,
   ): Effect.Effect<Packet | null, E, R> =>
     Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* source.subscribePackets;
         if (options?.trigger !== undefined) {
-          const result = yield* options.trigger;
-          if (options.shouldAwait?.(result) === false) return null;
+          const responseExpected = yield* options.trigger;
+          if (!responseExpected) return null;
         }
         return yield* withTimeout(
           takeMatching(subscription, (packet) =>

@@ -180,13 +180,14 @@ export const makeShops = (
               wireType: "json",
             },
             {
-              shouldAwait: Option.isSome,
               timeout: "5 seconds",
-              trigger: bridge.invoke(
-                "shops.buy",
-                [selectorFor(item), requested],
-                Schema.Void,
-              ),
+              trigger: bridge
+                .invoke(
+                  "shops.buy",
+                  [selectorFor(item), requested],
+                  Schema.Void,
+                )
+                .pipe(Effect.map(Option.isSome)),
             },
           );
           if (packet === null || response?.bitSuccess !== true) return false;

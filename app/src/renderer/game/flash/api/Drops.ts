@@ -57,13 +57,10 @@ export const makeDrops = Effect.fnUntraced(function* (
             wireType: "json",
           },
           {
-            shouldAwait: (sent) => Option.getOrElse(sent, () => false),
             timeout: "10 seconds",
-            trigger: bridge.invoke(
-              "drops.acceptDrop",
-              [drop.itemId],
-              Schema.Boolean,
-            ),
+            trigger: bridge
+              .invoke("drops.acceptDrop", [drop.itemId], Schema.Boolean)
+              .pipe(Effect.map(Option.getOrElse(() => false))),
           },
         );
         if (packet === null || response?.bSuccess !== true) return false;
