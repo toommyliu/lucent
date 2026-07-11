@@ -42,6 +42,9 @@ const OutfitPayload = Schema.Struct({
 });
 const OutfitPayloads = Schema.Array(OutfitPayload);
 
+const sameText = (left: string, right: string): boolean =>
+  left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+
 const toFaction = (payload: typeof FactionPayload.Type): LiveFaction =>
   new LiveFaction({
     id: payload.FactionID,
@@ -99,8 +102,6 @@ export const makePlayer = (
       ),
     );
 
-  const sameText = (left: string, right: string) =>
-    left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
   const factionCache = new Map<number, LiveFaction>();
   const outfitCache = new Map<string, LiveOutfit>();
 

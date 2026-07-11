@@ -14,6 +14,11 @@ import type { Wait } from "./Wait";
 
 const decodeShopId = Schema.decodeUnknownOption(PositiveWireInt);
 
+const selectorFor = (item: LiveItem) =>
+  item.shopItemId === undefined
+    ? { itemId: item.itemId }
+    : { shopItemId: item.shopItemId };
+
 export const makeShops = (
   bridge: BridgeService,
   store: Store,
@@ -26,11 +31,6 @@ export const makeShops = (
       ? Effect.succeed(null)
       : store.items.get("shop", decoded.value);
   };
-
-  const selectorFor = (item: LiveItem) =>
-    item.shopItemId === undefined
-      ? { itemId: item.itemId }
-      : { shopItemId: item.shopItemId };
 
   const isOpen = (input?: unknown) => {
     const shopId = input === undefined ? Option.none() : decodeShopId(input);

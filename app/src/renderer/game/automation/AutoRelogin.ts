@@ -3,6 +3,7 @@ import {
   Effect,
   FiberMap,
   Number as EffectNumber,
+  Result,
   Stream,
   SubscriptionRef,
   type FiberMap as FiberMapType,
@@ -83,6 +84,20 @@ const publicState = (state: State): AutoReloginState => ({
   ...(state.username === undefined ? {} : { username: state.username }),
 });
 
+const lifecycle = (
+  request: AutoReloginLoginRequest,
+  step: AutoReloginLifecycleStep,
+  attemptsRemaining: number,
+  message?: string,
+) =>
+  request
+    .onLifecycle?.({
+      attemptsRemaining,
+      step,
+      ...(message === undefined ? {} : { message }),
+    })
+    .pipe(Effect.catchCause(() => Effect.void)) ?? Effect.void;
+
 export const makeAutoRelogin = Effect.fnUntraced(function* (
   api: ApiService,
   fibers: FiberMapType.FiberMap<string>,
@@ -102,20 +117,6 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
     SubscriptionRef.get(state).pipe(Effect.map(publicState));
 
   const changes = SubscriptionRef.changes(state).pipe(Stream.map(publicState));
-  const lifecycle = (
-    request: AutoReloginLoginRequest,
-    step: AutoReloginLifecycleStep,
-    attemptsRemaining: number,
-    message?: string,
-  ) =>
-    request
-      .onLifecycle?.({
-        attemptsRemaining,
-        step,
-        ...(message === undefined ? {} : { message }),
-      })
-      .pipe(Effect.catchCause(() => Effect.void)) ?? Effect.void;
-
   const runLogin = (
     request: AutoReloginLoginRequest,
   ): Effect.Effect<AutoReloginLoginResult, AutoReloginLoginError> => {
@@ -212,23 +213,25 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
           username: current.username,
         }),
       );
-      yield* SubscriptionRef.update(state, (value) =>
-        result._tag === "Success"
-          ? {
-              ...value,
-              attemptsRemaining: undefined,
-              attempting: false,
-              lastError: undefined,
-            }
-          : {
-              ...value,
-              attemptsRemaining: 0,
-              attempting: false,
-              lastError: result.failure.detail.replaceAll(
-                current.password ?? "",
-                "[redacted]",
-              ),
-            },
+      yield* SubscriptionRef.update(
+        state,
+        Result.match(result, {
+          onSuccess: () => (value) => ({
+            ...value,
+            attemptsRemaining: undefined,
+            attempting: false,
+            lastError: undefined,
+          }),
+          onFailure: (failure) => (value) => ({
+            ...value,
+            attemptsRemaining: 0,
+            attempting: false,
+            lastError: failure.detail.replaceAll(
+              current.password ?? "",
+              "[redacted]",
+            ),
+          }),
+        }),
       );
       yield* Effect.sleep("5 seconds");
     }),
