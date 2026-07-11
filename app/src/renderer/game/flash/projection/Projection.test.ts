@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { Event } from "../contract/Event";
 import type { Packet } from "../contract/Packet";
 import { toItem } from "../contract/payload/Items";
+import { makeBridge } from "../bridge/Bridge";
 import { makePipeline } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
 
@@ -14,6 +15,17 @@ const extension = (command: string, data: unknown): Packet => ({
   raw: "",
   wireType: "json",
 });
+
+const client = (command: string, params: readonly string[]): Packet => ({
+  command,
+  direction: "client",
+  params,
+  raw: params.join("%"),
+  wireType: "str",
+});
+
+const bridgeTarget = (methods: Record<string, () => unknown>) =>
+  ({ swf: methods }) as unknown as Pick<Window, "swf">;
 
 describe("Projection", () => {
   it.effect(
@@ -121,118 +133,168 @@ describe("Projection", () => {
   );
 
   it.effect("resets area state and applies combat auras and deaths", () =>
-    Effect.gen(function* () {
-      const store = yield* makeStore;
-      const events: Event[] = [];
-      const pipeline = makePipeline(store, {
-        publishEvent: (event) =>
-          Effect.sync(() => {
-            events.push(event);
+    Effect.scoped(
+      Effect.gen(function* () {
+        const store = yield* makeStore;
+        let userIdReads = 0;
+        const bridge = yield* makeBridge(
+          bridgeTarget({
+            "player.getCell": () => "Boss",
+            "player.getPad": () => "Right",
+            "player.getUserId": () => {
+              userIdReads += 1;
+              return 10;
+            },
           }),
-      });
-      yield* store.auth.setCredentials("Hero", "secret");
+        );
+        const events: Event[] = [];
+        const pipeline = makePipeline(
+          store,
+          {
+            publishEvent: (event) =>
+              Effect.sync(() => {
+                events.push(event);
+              }),
+          },
+          bridge,
+        );
 
-      yield* pipeline.packet(
-        extension("initUserDatas", {
-          a: [
-            {
-              data: {
-                intHP: "90",
-                intHPMax: "100",
+        yield* pipeline.packet(
+          extension("initUserDatas", {
+            a: [
+              {
+                data: {
+                  intHP: "90",
+                  intHPMax: "100",
+                  strUsername: "Hero",
+                },
+                uid: "10",
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMe)?.hp).toBe(90);
+
+        yield* pipeline.packet(
+          extension("uotls", { o: { intHP: "80" }, unm: "Hero" }),
+        );
+        expect((yield* store.world.getMe)?.hp).toBe(80);
+
+        yield* pipeline.packet(
+          extension("moveToArea", {
+            areaId: 12,
+            areaName: "battleon-42",
+            monBranch: [
+              {
+                MonID: 5,
+                MonMapID: 1,
+                intHP: 100,
+                intHPMax: 100,
+                strMonName: "Slime",
+              },
+            ],
+            uoBranch: [
+              {
+                entID: 10,
+                intHP: 100,
+                intHPMax: 100,
                 strUsername: "Hero",
               },
-              uid: "10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getMe)?.hp).toBe(90);
+            ],
+          }),
+        );
+        expect((yield* store.world.getMap).roomNumber).toBe(42);
+        expect((yield* store.world.getMe)?.username).toBe("Hero");
 
-      yield* pipeline.packet(
-        extension("uotls", { o: { intHP: "80" }, unm: "Hero" }),
-      );
-      expect((yield* store.world.getMe)?.hp).toBe(80);
+        yield* pipeline.packet(
+          client("moveToCell", [
+            "xt",
+            "zm",
+            "moveToCell",
+            "12",
+            "Battle",
+            "Left",
+          ]),
+        );
+        expect((yield* store.world.getMe)?.cell).toBe("Battle");
+        expect((yield* store.world.getMe)?.pad).toBe("Left");
 
-      yield* pipeline.packet(
-        extension("moveToArea", {
-          areaId: 12,
-          areaName: "battleon-42",
-          monBranch: [
-            {
-              MonID: 5,
-              MonMapID: 1,
-              intHP: 100,
-              intHPMax: 100,
-              strMonName: "Slime",
-            },
-          ],
-          uoBranch: [
-            {
-              entID: 10,
-              intHP: 100,
-              intHPMax: 100,
-              strUsername: "Hero",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getMap).roomNumber).toBe(42);
-      expect((yield* store.world.getMe)?.username).toBe("Hero");
+        yield* pipeline.packet(
+          client("mv", ["xt", "zm", "mv", "12", "320", "240", "8"]),
+        );
+        expect((yield* store.world.getMe)?.position).toEqual({
+          x: 320,
+          y: 240,
+        });
 
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            { cmd: "unsupported-aura", tInf: "p:10" },
-            {
-              auras: [{ nam: "Empowered", dur: "10" }],
-              cmd: "aura+",
-              tInf: "p:10",
-            },
-          ],
-          m: { "1": { intHP: 0, intState: 0 } },
-        }),
-      );
-      expect((yield* store.world.getPlayerAuras(10))[0]?.name).toBe(
-        "Empowered",
-      );
-      expect(events.some((event) => event.type === "monster-death")).toBe(true);
+        yield* pipeline.packet({
+          command: "mtcid",
+          data: ["mtcid", "4"],
+          direction: "extension",
+          raw: "",
+          wireType: "str",
+        });
+        expect((yield* store.world.getMe)?.cell).toBe("Boss");
+        expect((yield* store.world.getMe)?.pad).toBe("Right");
 
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              auras: [{ nam: "Empowered", dur: 10 }],
-              cmd: "aura++",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(2);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              { cmd: "unsupported-aura", tInf: "p:10" },
+              {
+                auras: [{ nam: "Empowered", dur: "10" }],
+                cmd: "aura+",
+                tInf: "p:10",
+              },
+            ],
+            m: { "1": { intHP: 0, intState: 0 } },
+          }),
+        );
+        expect((yield* store.world.getPlayerAuras(10))[0]?.name).toBe(
+          "Empowered",
+        );
+        expect(events.some((event) => event.type === "monster-death")).toBe(
+          true,
+        );
 
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              aura: { nam: "Empowered" },
-              cmd: "aura--",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(1);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                auras: [{ nam: "Empowered", dur: 10 }],
+                cmd: "aura++",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(2);
 
-      yield* pipeline.packet(
-        extension("moveToArea", {
-          areaId: 13,
-          areaName: "yulgar-1",
-          monBranch: [],
-          uoBranch: [],
-        }),
-      );
-      expect(yield* store.world.getMonsters).toEqual([]);
-      expect(yield* store.world.getPlayerAuras(10)).toEqual([]);
-    }),
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: { nam: "Empowered" },
+                cmd: "aura--",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(1);
+
+        yield* pipeline.packet(
+          extension("moveToArea", {
+            areaId: 13,
+            areaName: "yulgar-1",
+            monBranch: [],
+            uoBranch: [],
+          }),
+        );
+        expect(yield* store.world.getMonsters).toEqual([]);
+        expect(yield* store.world.getPlayerAuras(10)).toEqual([]);
+        expect(userIdReads).toBe(1);
+      }),
+    ),
   );
 });

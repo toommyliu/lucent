@@ -109,6 +109,18 @@ type DebugPanelFrame = {
 
 type FlashRuntimeServices = Awaited<ReturnType<typeof collectFlashServices>>;
 
+type DebugEvalLogLevel = "debug" | "error" | "info" | "log" | "warn";
+
+interface DebugEvalLogEntry {
+  readonly arguments: readonly unknown[];
+  readonly level: DebugEvalLogLevel;
+}
+
+interface DebugEvalExecution {
+  readonly logs: readonly DebugEvalLogEntry[];
+  readonly result: unknown;
+}
+
 const DEBUG_EVAL_OUTPUT_LIMIT = 2000;
 const DEBUG_PANEL_MARGIN_PX = 12;
 const DEBUG_PANEL_MIN_WIDTH_PX = 320;
@@ -238,6 +250,7 @@ const EffectFunction = Function as unknown as new (
 ) => (
   services: FlashRuntimeServices,
   effect: typeof Effect,
+  console: Console,
 ) => Effect.Effect<unknown, unknown, never>;
 
 const collectFlashServices = () =>
@@ -272,6 +285,19 @@ const formatEvalError = (error: unknown): string =>
   error instanceof Error && error.message !== ""
     ? error.message
     : String(error);
+
+const formatEvalConsole = (entries: readonly DebugEvalLogEntry[]): string =>
+  entries
+    .map((entry) => {
+      const values = entry.arguments.map((value) => {
+        if (value instanceof Error) return formatEvalError(value);
+        return typeof value === "string"
+          ? JSON.stringify(value)
+          : formatEvalValue(value);
+      });
+      return `[${entry.level}] ${values.join(" ")}`;
+    })
+    .join("\n");
 
 const truncateOutput = (value: string): string =>
   value.length <= DEBUG_EVAL_OUTPUT_LIMIT
@@ -503,18 +529,36 @@ const createInitialPanelFrame = (): DebugPanelFrame => {
   });
 };
 
-const runInternalEval = (source: string): Promise<unknown> =>
-  collectFlashServices().then((services) => {
+const runInternalEval = (source: string): Promise<DebugEvalExecution> =>
+  collectFlashServices().then(async (services) => {
+    const logs: DebugEvalLogEntry[] = [];
+    const capture =
+      (level: DebugEvalLogLevel) =>
+      (...args: unknown[]) => {
+        logs.push({ arguments: args, level });
+        console[level](...args);
+      };
+    const debugConsole = Object.assign(Object.create(console) as Console, {
+      debug: capture("debug"),
+      error: capture("error"),
+      info: capture("info"),
+      log: capture("log"),
+      warn: capture("warn"),
+    });
     const compileInternalEval = new EffectFunction(
       "services",
       "Effect",
+      "console",
       `"use strict";
 return Effect.gen(function* debugInternalEval() {
 ${source}
 });`,
     );
 
-    return runtime.runPromise(compileInternalEval(services, Effect));
+    const result = await runtime.runPromise(
+      compileInternalEval(services, Effect, debugConsole),
+    );
+    return { logs, result };
   });
 
 const readCachedTravelOptions = (): Promise<TravelOptions> =>
@@ -572,6 +616,8 @@ function DevDebugEvaluator(): JSX.Element {
   );
   const [status, setStatus] = createSignal("Idle");
   const [output, setOutput] = createSignal("");
+  const [consoleOutput, setConsoleOutput] = createSignal("");
+  const [resultOutput, setResultOutput] = createSignal("");
   const [copyableOutput, setCopyableOutput] = createSignal("");
   const [outputCopied, setOutputCopied] = createSignal(false);
   const [running, setRunning] = createSignal(false);
@@ -673,6 +719,8 @@ function DevDebugEvaluator(): JSX.Element {
     if (source === "") {
       setStatus("No code to evaluate");
       setOutput("");
+      setConsoleOutput("");
+      setResultOutput("");
       setCopyableOutput("");
       return;
     }
@@ -680,20 +728,31 @@ function DevDebugEvaluator(): JSX.Element {
     setRunning(true);
     setStatus("Running internal eval");
     setOutput("");
+    setConsoleOutput("");
+    setResultOutput("");
     setCopyableOutput("");
     setOutputCopied(false);
 
     void runInternalEval(source)
-      .then((value) => {
-        const formattedValue = formatEvalValue(value);
+      .then((execution) => {
+        const formattedConsole = formatEvalConsole(execution.logs);
+        const formattedResult = formatEvalValue(execution.result);
+        const formattedValue = [
+          ...(formattedConsole === "" ? [] : [`Console\n${formattedConsole}`]),
+          `Result\n${formattedResult}`,
+        ].join("\n\n");
         setStatus("Eval complete");
         setOutput(truncateOutput(formattedValue));
+        setConsoleOutput(truncateOutput(formattedConsole));
+        setResultOutput(truncateOutput(formattedResult));
         setCopyableOutput(formattedValue);
       })
       .catch((error: unknown) => {
         const formattedError = formatEvalError(error);
         setStatus("Eval failed");
         setOutput(truncateOutput(formattedError));
+        setConsoleOutput("");
+        setResultOutput(truncateOutput(formattedError));
         setCopyableOutput(formattedError);
       })
       .finally(() => {
@@ -846,7 +905,18 @@ function DevDebugEvaluator(): JSX.Element {
               </Show>
             </div>
             <Show when={output() !== ""}>
-              <pre class="game-debug-eval__pre">{output()}</pre>
+              <Show when={consoleOutput() !== ""}>
+                <section class="game-debug-eval__result">
+                  <strong>Console</strong>
+                  <pre class="game-debug-eval__pre">{consoleOutput()}</pre>
+                </section>
+              </Show>
+              <section class="game-debug-eval__result">
+                <strong>
+                  {status() === "Eval failed" ? "Error" : "Result"}
+                </strong>
+                <pre class="game-debug-eval__pre">{resultOutput()}</pre>
+              </section>
             </Show>
           </div>
         </div>

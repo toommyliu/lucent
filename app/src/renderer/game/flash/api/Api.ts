@@ -53,7 +53,7 @@ export const makeApi = Effect.gen(function* () {
     tempInventory,
     wait,
   );
-  const pipeline = makePipeline(store, gateway);
+  const pipeline = makePipeline(store, gateway, bridge);
 
   yield* gateway.start(pipeline.packet, pipeline.runtime);
 

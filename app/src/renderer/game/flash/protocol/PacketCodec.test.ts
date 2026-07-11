@@ -10,7 +10,8 @@ import {
 describe("PacketCodec", () => {
   it("parses supported envelopes and rejects malformed input", () => {
     expect(
-      Option.getOrNull(parseClientPacket("%xt%zm%mv%1%2%3%"))?.command,
+      Option.getOrNull(parseClientPacket("[Sending - STR]: %xt%zm%mv%1%2%3%"))
+        ?.command,
     ).toBe("mv");
     expect(
       Option.getOrNull(

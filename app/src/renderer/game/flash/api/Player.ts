@@ -219,7 +219,13 @@ export const makePlayer = (
   };
 
   const getCell = () =>
-    get().pipe(Effect.map((current) => current?.cell ?? ""));
+    get().pipe(
+      Effect.flatMap((current) =>
+        current !== null && current.cell !== ""
+          ? Effect.succeed(current.cell)
+          : read("player.getCell", Schema.String, ""),
+      ),
+    );
   const getClassName = () => read("player.getClassName", Schema.String, "");
   const getGender = () => read("player.getGender", Schema.String, "");
   const getGold = () => read("player.getGold", WireInt, 0);
@@ -231,7 +237,14 @@ export const makePlayer = (
   const getMaxMp = () =>
     get().pipe(Effect.map((current) => current?.maxMp ?? 0));
   const getMp = () => get().pipe(Effect.map((current) => current?.mp ?? 0));
-  const getPad = () => get().pipe(Effect.map((current) => current?.pad ?? ""));
+  const getPad = () =>
+    get().pipe(
+      Effect.flatMap((current) =>
+        current !== null && current.pad !== ""
+          ? Effect.succeed(current.pad)
+          : read("player.getPad", Schema.String, ""),
+      ),
+    );
   const getState = () =>
     get().pipe(Effect.map((current) => current?.state ?? EntityState.Idle));
   const getPosition = () =>

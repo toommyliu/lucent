@@ -1100,6 +1100,17 @@ html[data-topnav-hidden] #swf {
   flex: 0 0 auto;
 }
 
+.game-debug-eval__result {
+  display: grid;
+  gap: 4px;
+}
+
+.game-debug-eval__result > strong {
+  color: rgb(var(--foreground));
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
 .game-debug-eval__pre {
   max-height: 144px;
   margin: 0;

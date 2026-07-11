@@ -24,6 +24,9 @@ export type DiagnosticReporter = (
 
 export const ignoreDiagnostic: DiagnosticReporter = () => Effect.void;
 
+export const diagnosticTimestamp = (): number =>
+  performance.timeOrigin + performance.now();
+
 export const makeDiagnostic = (
   phase: DiagnosticPhase,
   operation: string,
@@ -34,5 +37,5 @@ export const makeDiagnostic = (
   cause,
   operation,
   phase,
-  timestamp: Date.now(),
+  timestamp: diagnosticTimestamp(),
 });

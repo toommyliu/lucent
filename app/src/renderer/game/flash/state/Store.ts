@@ -237,6 +237,11 @@ export const makeStore = Effect.gen(function* () {
       clearArea(state);
       return state;
     }),
+    clearSelf: SynchronizedRef.update(worldRef, (state) => {
+      state.self = "";
+      state.selfEntityId = null;
+      return state;
+    }),
     getMap: SynchronizedRef.get(worldRef).pipe(
       Effect.map((state) => ({ ...state.map })),
     ),
@@ -275,6 +280,9 @@ export const makeStore = Effect.gen(function* () {
       ),
     getPlayerAuras: (id: number, options?: AuraQueryOptions) =>
       auras("player", id, options),
+    getSelfEntityId: SynchronizedRef.get(worldRef).pipe(
+      Effect.map((state) => state.selfEntityId),
+    ),
     getPlayers: SynchronizedRef.get(worldRef).pipe(
       Effect.map((state) => Array.from(state.players.values())),
     ),
@@ -387,6 +395,7 @@ export const makeStore = Effect.gen(function* () {
     setSelf: (username: string) =>
       SynchronizedRef.update(worldRef, (state) => {
         state.self = normalizeUsername(username);
+        state.selfEntityId = state.players.get(state.self)?.entityId ?? null;
         return state;
       }),
   };
@@ -459,6 +468,7 @@ export const makeStore = Effect.gen(function* () {
           ]),
         ),
         self: state.self,
+        selfEntityId: state.selfEntityId,
       })),
     ),
   });

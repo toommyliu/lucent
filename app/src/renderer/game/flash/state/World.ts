@@ -16,6 +16,7 @@ export interface WorldState {
   readonly playerIds: Map<number, string>;
   readonly players: Map<string, LivePlayer>;
   self: string;
+  selfEntityId: number | null;
 }
 
 export const normalizeUsername = (username: string): string =>
@@ -34,6 +35,7 @@ export const makeWorldState = (): WorldState => ({
   playerIds: new Map(),
   players: new Map(),
   self: "",
+  selfEntityId: null,
 });
 
 export const clearArea = (state: WorldState): void => {

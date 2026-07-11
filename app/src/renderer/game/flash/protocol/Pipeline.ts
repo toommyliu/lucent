@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 
+import type { BridgeService } from "../bridge/Bridge";
 import type { Event, RuntimeEvent } from "../contract/Event";
 import type { DiagnosticReporter } from "../contract/Diagnostic";
 import type { Packet } from "../contract/Packet";
@@ -82,9 +83,14 @@ const worldCommands = new Set([
   "respawnMon",
   "addGoldExp",
   "mv",
+  "mtcid",
 ]);
 
-export const makePipeline = (store: Store, sink: EventSink) => {
+export const makePipeline = (
+  store: Store,
+  sink: EventSink,
+  bridge?: BridgeService,
+) => {
   const diagnose: DiagnosticReporter =
     sink.reportDiagnostic ?? (() => Effect.void);
   const publish = (events: readonly Event[]) =>
@@ -94,7 +100,8 @@ export const makePipeline = (store: Store, sink: EventSink) => {
     packet: Packet,
     projected: Effect.Effect<readonly Event[]>,
   ) => {
-    if (sink.reportProjectionTrace === undefined) {
+    const reportProjectionTrace = sink.reportProjectionTrace;
+    if (reportProjectionTrace === undefined) {
       return projected.pipe(Effect.flatMap(publish));
     }
 
@@ -103,34 +110,45 @@ export const makePipeline = (store: Store, sink: EventSink) => {
       const events = yield* projected;
       const after = yield* store.snapshot;
       const diff = stateDiff(before, after);
+      const changed = Object.keys(diff).length > 0;
 
-      if (Object.keys(diff).length > 0) {
-        yield* sink.reportProjectionTrace!(`projection:${packet.command}`, {
-          after,
-          before,
-          diff,
-          packet,
-        });
-      }
+      yield* reportProjectionTrace(`projection:${packet.command}`, {
+        after,
+        before,
+        changed,
+        diff,
+        packet,
+      });
 
       yield* publish(events);
     });
   };
 
+  const projectionFor = (
+    packet: Packet,
+  ): Effect.Effect<readonly Event[]> | undefined => {
+    if (packet.command === "ct" || packet.command === "cb") {
+      return projectCombat(store, packet, diagnose);
+    }
+    if (itemCommands.has(packet.command)) {
+      return projectItems(store, packet, diagnose);
+    }
+    if (questCommands.has(packet.command)) {
+      return projectQuests(store, packet, diagnose);
+    }
+    if (packet.command === "loadShop") {
+      return projectShops(store, packet, diagnose);
+    }
+    if (worldCommands.has(packet.command)) {
+      return projectWorld(store, packet, diagnose, bridge);
+    }
+    return undefined;
+  };
+
   return {
     packet: (packet: Packet) => {
-      const projected =
-        packet.command === "ct" || packet.command === "cb"
-          ? projectCombat(store, packet, diagnose)
-          : itemCommands.has(packet.command)
-            ? projectItems(store, packet, diagnose)
-            : questCommands.has(packet.command)
-              ? projectQuests(store, packet, diagnose)
-              : packet.command === "loadShop"
-                ? projectShops(store, packet, diagnose)
-                : worldCommands.has(packet.command)
-                  ? projectWorld(store, packet, diagnose)
-                  : Effect.succeed<readonly Event[]>([]);
+      const projected = projectionFor(packet);
+      if (projected === undefined) return Effect.void;
       return runProjection(packet, projected);
     },
     runtime: (event: RuntimeEvent) => projectAuth(store, event),

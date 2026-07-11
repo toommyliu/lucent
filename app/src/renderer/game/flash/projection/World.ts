@@ -1,6 +1,7 @@
 import { Effect, Option, Schema } from "effect";
 import { EntityState } from "@lucent/game";
 
+import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, UnknownRecord, WireInt } from "../contract/Coercion";
 import type { Event } from "../contract/Event";
 import {
@@ -47,6 +48,7 @@ const GoldExperience = Schema.Struct({
   id: PositiveWireInt,
   typ: Schema.String,
 });
+const NullablePlayerData = Schema.NullOr(UnknownRecord);
 const decodeMoveArea = Schema.decodeUnknownOption(MoveArea);
 const decodeRecord = Schema.decodeUnknownOption(UnknownRecord);
 const decodePlayer = Schema.decodeUnknownOption(PlayerPayload);
@@ -60,6 +62,57 @@ const decodeGoldExperience = Schema.decodeUnknownOption(GoldExperience);
 const decodeInt = Schema.decodeUnknownOption(WireInt);
 const decodePositiveInt = Schema.decodeUnknownOption(PositiveWireInt);
 const decodeString = Schema.decodeUnknownOption(Schema.String);
+
+const localUserId = (store: Store, bridge: BridgeService | undefined) =>
+  store.world.getSelfEntityId.pipe(
+    Effect.flatMap((cached) => {
+      if (cached !== null) return Effect.succeed(Option.some(cached));
+      return bridge === undefined
+        ? Effect.succeed(Option.none<number>())
+        : bridge.invoke("player.getUserId", undefined, PositiveWireInt);
+    }),
+  );
+
+const getOrHydrateSelf = (
+  store: Store,
+  bridge: BridgeService | undefined,
+  diagnose: DiagnosticReporter,
+) =>
+  Effect.gen(function* () {
+    const projected = yield* store.world.getMe;
+    if (projected !== null) return projected;
+    if (bridge === undefined) return null;
+
+    const userId = yield* localUserId(store, bridge);
+    if (Option.isNone(userId)) return null;
+
+    const existing = yield* store.world.getPlayer(userId.value);
+    if (existing !== null) {
+      yield* store.world.setSelf(existing.username);
+      return existing;
+    }
+
+    const data = yield* bridge.invoke(
+      "player.getData",
+      undefined,
+      NullablePlayerData,
+    );
+    if (Option.isNone(data) || data.value === null) return null;
+
+    const decoded = decodePlayer({ ...data.value, entID: userId.value });
+    if (Option.isNone(decoded)) {
+      yield* diagnose(
+        "world:self-hydration",
+        new Error("Malformed local player bridge data"),
+        [data.value, userId.value],
+      );
+      return null;
+    }
+
+    const player = yield* store.world.putPlayer(toPlayer(decoded.value));
+    yield* store.world.setSelf(player.username);
+    return player;
+  });
 
 const parseCsv = (value: string): Record<string, string> => {
   const result: Record<string, string> = {};
@@ -158,6 +211,7 @@ const projectMoveArea = (
   store: Store,
   packet: Packet,
   diagnose: DiagnosticReporter,
+  bridge: BridgeService | undefined,
 ) =>
   Effect.gen(function* () {
     const decoded = decodeMoveArea(packetData(packet));
@@ -281,8 +335,10 @@ const projectMoveArea = (
     yield* store.world.setMap(map);
     yield* store.world.setMonsters(monsters);
     yield* store.world.setPlayers(players);
+    const userId = yield* localUserId(store, bridge);
     const self = players.find(
       (player) =>
+        (Option.isSome(userId) && player.entityId === userId.value) ||
         player.username.localeCompare(previousAuth.username, undefined, {
           sensitivity: "accent",
         }) === 0,
@@ -295,11 +351,12 @@ export const projectWorld = (
   store: Store,
   packet: Packet,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
+  bridge?: BridgeService,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
     switch (packet.command) {
       case "moveToArea":
-        return yield* projectMoveArea(store, packet, diagnose);
+        return yield* projectMoveArea(store, packet, diagnose, bridge);
       case "initUserData":
       case "initUserDatas": {
         const data = packetData(packet);
@@ -317,6 +374,7 @@ export const projectWorld = (
         }
 
         const auth = yield* store.auth.get;
+        const userId = yield* localUserId(store, bridge);
         for (const baseline of baselines.value) {
           const decoded = decodeInitializedPlayer(baseline);
           if (Option.isNone(decoded)) {
@@ -329,6 +387,7 @@ export const projectWorld = (
           }
           const player = yield* store.world.putPlayer(toPlayer(decoded.value));
           if (
+            (Option.isSome(userId) && player.entityId === userId.value) ||
             player.username.localeCompare(auth.username, undefined, {
               sensitivity: "accent",
             }) === 0
@@ -424,8 +483,15 @@ export const projectWorld = (
       }
       case "moveToCell": {
         if (packet.direction !== "client") return [];
-        const current = yield* store.world.getMe;
-        if (current === null) return [];
+        const current = yield* getOrHydrateSelf(store, bridge, diagnose);
+        if (current === null) {
+          yield* diagnose(
+            "world:client-movement-without-self",
+            new Error("Cannot project cell movement without a local player"),
+            [packetData(packet)],
+          );
+          return [];
+        }
         const cell = packet.params[4];
         const pad = packet.params[5];
         if (cell === undefined) return [];
@@ -441,12 +507,52 @@ export const projectWorld = (
           },
         ];
       }
+      case "mtcid": {
+        if (packet.direction !== "extension" || bridge === undefined) return [];
+        const current = yield* getOrHydrateSelf(store, bridge, diagnose);
+        if (current === null) {
+          yield* diagnose(
+            "world:client-movement-without-self",
+            new Error("Cannot project cell transition without a local player"),
+            [packetData(packet)],
+          );
+          return [];
+        }
+
+        const [cell, pad] = yield* Effect.all([
+          bridge.invoke("player.getCell", undefined, Schema.String),
+          bridge.invoke("player.getPad", undefined, Schema.String),
+        ]);
+        if (Option.isNone(cell) || Option.isNone(pad)) return [];
+
+        yield* store.world.patchPlayer(current.username, {
+          cell: cell.value,
+          pad: pad.value,
+        });
+        return [
+          {
+            type: "player-location",
+            entityId: current.entityId,
+            username: current.username,
+          },
+        ];
+      }
       case "mv": {
         if (packet.direction !== "client") return [];
-        const current = yield* store.world.getMe;
+        const current = yield* getOrHydrateSelf(store, bridge, diagnose);
         const x = decodeInt(packet.params[4]);
         const y = decodeInt(packet.params[5]);
-        if (current === null || Option.isNone(x) || Option.isNone(y)) return [];
+        if (current === null) {
+          yield* diagnose(
+            "world:client-movement-without-self",
+            new Error(
+              "Cannot project position movement without a local player",
+            ),
+            [packetData(packet)],
+          );
+          return [];
+        }
+        if (Option.isNone(x) || Option.isNone(y)) return [];
         yield* store.world.patchPlayer(current.username, {
           position: { x: x.value, y: y.value },
         });
