@@ -3,7 +3,7 @@ import { Effect, Random } from "effect";
 export const minimumPrivateRoom = 10_000;
 export const maximumRoom = 99_999;
 
-const minimumExactRoom = 1_000;
+const minimumExactRoom = 1_001;
 
 export interface MapTarget {
   readonly map: string;
@@ -35,9 +35,7 @@ const splitRoom = (map: string): MapParts => {
 const parseRoom = (value: string): number | undefined => {
   if (!/^\d+$/u.test(value)) return undefined;
   const room = Number(value);
-  return Number.isSafeInteger(room) && room >= 1 && room <= maximumRoom
-    ? room
-    : undefined;
+  return Number.isSafeInteger(room) && room >= 1 ? room : undefined;
 };
 
 export const randomPrivateRoom = Random.nextIntBetween(
@@ -75,7 +73,8 @@ export const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
     const fixedRoom = parseRoom(target.roomToken);
     const roomNumber = fixedRoom ?? (yield* randomPrivateRoom);
     const requireExactRoom =
-      fixedRoom === undefined || fixedRoom >= minimumExactRoom;
+      fixedRoom === undefined ||
+      (fixedRoom >= minimumExactRoom && fixedRoom <= maximumRoom);
     return {
       map:
         fixedRoom === undefined ? `${target.name}-${roomNumber}` : target.map,
