@@ -142,10 +142,12 @@ export const makeGateway = (target?: Window) =>
     const dispatch = (
       callback: Callback,
       project: (packet: Packet) => Effect.Effect<void>,
+      projectRuntime: (event: Event) => Effect.Effect<void>,
     ) =>
       Effect.gen(function* () {
         const event = runtimeEvent(callback);
         if (event !== undefined) {
+          yield* projectRuntime(event);
           yield* publishEvent(event);
           return;
         }
@@ -177,13 +179,18 @@ export const makeGateway = (target?: Window) =>
         yield* publishEvent({ type: "packet", packet: packet.value });
       });
 
-    const start = (project: (packet: Packet) => Effect.Effect<void>) =>
+    const start = (
+      project: (packet: Packet) => Effect.Effect<void>,
+      projectRuntime: (event: Event) => Effect.Effect<void> = () => Effect.void,
+    ) =>
       Effect.suspend(() => {
         if (started) return Effect.void;
         started = true;
         const drain = Effect.forever(
           Queue.take(callbacks).pipe(
-            Effect.flatMap((callback) => dispatch(callback, project)),
+            Effect.flatMap((callback) =>
+              dispatch(callback, project, projectRuntime),
+            ),
             Effect.catchCause((cause) =>
               PubSub.publish(
                 diagnostics,

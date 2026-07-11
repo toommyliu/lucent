@@ -14,7 +14,36 @@ export type ProtocolEvent =
       readonly raw: string;
     };
 
-export type Event = RuntimeEvent | ProtocolEvent;
+export type ProjectionEvent =
+  | {
+      readonly type: "join-map";
+      readonly map: {
+        readonly id: number;
+        readonly name: string;
+        readonly roomNumber: number;
+      };
+    }
+  | { readonly type: "quest-complete"; readonly questId: number }
+  | { readonly type: "monster-death"; readonly monsterMapId: number }
+  | {
+      readonly type: "player-death";
+      readonly entityId: number;
+      readonly username: string;
+    }
+  | {
+      readonly type: "aura-added";
+      readonly name: string;
+      readonly targetId: number;
+      readonly targetType: "monster" | "player";
+    }
+  | {
+      readonly type: "aura-removed";
+      readonly name: string;
+      readonly targetId: number;
+      readonly targetType: "monster" | "player";
+    };
+
+export type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
 
 export interface EventSelector {
   readonly type?: Event["type"];

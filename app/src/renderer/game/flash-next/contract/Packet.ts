@@ -61,6 +61,9 @@ export interface WaitOptions {
   readonly timeout?: Duration.Input;
 }
 
+export const packetData = (packet: Packet): unknown =>
+  packet.direction === "client" ? packet.params : packet.data;
+
 export const matchesPacket = (
   packet: Packet,
   selector: PacketSelector | undefined,
