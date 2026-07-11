@@ -3,6 +3,8 @@ import { Effect, Random } from "effect";
 export const minimumPrivateRoom = 10_000;
 export const maximumRoom = 99_999;
 
+const minimumExactRoom = 1_000;
+
 export interface MapTarget {
   readonly map: string;
   readonly name: string;
@@ -72,11 +74,13 @@ export const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
 
     const fixedRoom = parseRoom(target.roomToken);
     const roomNumber = fixedRoom ?? (yield* randomPrivateRoom);
+    const requireExactRoom =
+      fixedRoom === undefined || fixedRoom >= minimumExactRoom;
     return {
       map:
         fixedRoom === undefined ? `${target.name}-${roomNumber}` : target.map,
       name: target.name,
-      requireExactRoom: true,
+      requireExactRoom,
       roomNumber,
     };
   });
