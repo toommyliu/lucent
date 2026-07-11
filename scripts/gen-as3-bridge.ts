@@ -9,7 +9,6 @@ const BRIDGE_TS_RETURN_TYPE_METADATA = "BridgeTsReturnType";
 const BRIDGE_TS_PARAM_TYPE_METADATA = "BridgeTsParamType";
 const BRIDGE_TS_TYPES_ALIAS = "FlashTypes";
 const BRIDGE_TS_TYPES_MODULE = "./Types";
-const BRIDGE_FALLBACK_METADATA = "BridgeFallback";
 
 type Metadata = {
   name: string;
@@ -55,7 +54,6 @@ type BridgeExportEntry = {
   parameters: BridgeParameter[];
   returnType: string;
   tsReturnType: string | null;
-  fallback: string | null;
   filePath: string;
   line: number;
 };
@@ -85,10 +83,8 @@ type GenerateOptions = {
 type GenerateResult = {
   model: BridgeModel;
   as3Registry: string;
-  bridgeFallbacks: string;
   swfDts: string;
   as3OutputPath: string;
-  bridgeFallbacksOutputPath: string;
   swfDtsOutputPath: string;
 };
 
@@ -376,58 +372,6 @@ function applyTsParameterTypes(method: ParsedMethod): BridgeParameter[] {
   }));
 }
 
-function resolveBridgeFallback(method: ParsedMethod): string | null {
-  const metadata = findMetadata(method.metadata, BRIDGE_FALLBACK_METADATA);
-  if (!metadata) {
-    return null;
-  }
-
-  const value = metadata.arg?.trim();
-  if (value === undefined) {
-    throw new Error(
-      `${BRIDGE_FALLBACK_METADATA} metadata requires a value in ${relative(DEFAULT_REPO_ROOT, method.filePath)}:${metadata.line}`,
-    );
-  }
-
-  return value;
-}
-
-const hasNullableTsReturn = (tsReturnType: string | null): boolean =>
-  tsReturnType !== null && /(^|[\s|])null($|[\s|])/.test(tsReturnType);
-
-export function resolveBridgeFallbackExpression(
-  as3ReturnType: string,
-  tsReturnType: string | null,
-  fallback: string | null,
-): string {
-  if (fallback !== null) {
-    return JSON.stringify(fallback);
-  }
-
-  if (hasNullableTsReturn(tsReturnType)) {
-    return "null";
-  }
-
-  switch (as3ReturnType.trim()) {
-    case "Boolean":
-      return "false";
-    case "int":
-    case "uint":
-    case "Number":
-      return "0";
-    case "String":
-      return '""';
-    case "Array":
-      return "[]";
-    case "Object":
-      return "null";
-    case "void":
-    case "*":
-    default:
-      return "undefined";
-  }
-}
-
 function formatFunctionParameter(parameter: BridgeParameter): string {
   if (parameter.rest) {
     const baseType = parameter.tsType ?? mapAs3Type(parameter.type);
@@ -641,7 +585,6 @@ function buildBridgeModel(parsedFiles: ParsedFile[]): BridgeModel {
       const eventMetadata = findMetadata(method.metadata, "BridgeEvent");
 
       const tsReturnType = resolveTsReturnType(method);
-      const fallback = resolveBridgeFallback(method);
       const parameters = applyTsParameterTypes(method);
 
       if (eventMetadata) {
@@ -717,7 +660,6 @@ function buildBridgeModel(parsedFiles: ParsedFile[]): BridgeModel {
         parameters,
         returnType: method.returnType,
         tsReturnType,
-        fallback,
         filePath: method.filePath,
         line: method.line,
       });
@@ -846,27 +788,6 @@ export function renderWindowSwfDts(model: BridgeModel): string {
   return lines.join("\n");
 }
 
-export function renderBridgeFallbacks(model: BridgeModel): string {
-  const lines: string[] = [
-    "// AUTO-GENERATED FILE. DO NOT EDIT.",
-    "",
-    "export const bridgeFallbacks = {",
-  ];
-
-  for (const entry of model.exports) {
-    lines.push(
-      `  ${JSON.stringify(entry.externalName)}: () => ${resolveBridgeFallbackExpression(entry.returnType, entry.tsReturnType, entry.fallback)},`,
-    );
-  }
-
-  lines.push(
-    "} satisfies Record<keyof Window[\"swf\"], () => unknown>;",
-    "",
-  );
-
-  return lines.join("\n");
-}
-
 async function writeOrCheckFile(
   filePath: string,
   content: string,
@@ -906,14 +827,6 @@ export async function generateBridgeArtifacts(
     "generated",
     "BridgeRegistryGenerated.as",
   );
-  const bridgeFallbacksOutputPath = join(
-    repoRoot,
-    "app",
-    "src",
-    "renderer",
-    "game",
-    "BridgeFallbacks.ts",
-  );
   const swfDtsOutputPath = join(
     repoRoot,
     "app",
@@ -933,26 +846,17 @@ export async function generateBridgeArtifacts(
 
   const model = buildBridgeModel(parsedFiles);
   const as3Registry = renderAs3Registry(model);
-  const bridgeFallbacks = renderBridgeFallbacks(model);
   const swfDts = renderWindowSwfDts(model);
 
   const check = options.check ?? false;
   await writeOrCheckFile(as3OutputPath, as3Registry, check, repoRoot);
-  await writeOrCheckFile(
-    bridgeFallbacksOutputPath,
-    bridgeFallbacks,
-    check,
-    repoRoot,
-  );
   await writeOrCheckFile(swfDtsOutputPath, swfDts, check, repoRoot);
 
   return {
     model,
     as3Registry,
-    bridgeFallbacks,
     swfDts,
     as3OutputPath,
-    bridgeFallbacksOutputPath,
     swfDtsOutputPath,
   };
 }
@@ -969,7 +873,6 @@ async function main(): Promise<void> {
   process.stdout.write(
     [
       `Generated ${relative(DEFAULT_REPO_ROOT, result.as3OutputPath)}`,
-      `Generated ${relative(DEFAULT_REPO_ROOT, result.bridgeFallbacksOutputPath)}`,
       `Generated ${relative(DEFAULT_REPO_ROOT, result.swfDtsOutputPath)}`,
       `Exports: ${result.model.exports.length}`,
       `Events: ${result.model.events.length}`,
