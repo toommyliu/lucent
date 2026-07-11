@@ -1,870 +1,512 @@
-import { Context, Effect, Layer } from "effect";
-import type { Duration } from "effect";
-
-import type {
-  Aura,
-  AuraQueryOptions,
-  CombatKillOptions,
-  HuntOptions,
-  ItemSelector,
-  Monster,
-  MonsterSelector,
-  SkillUseOptions,
-  Skill,
-  TargetInfo,
-} from "../Types";
 import { EntityState } from "@lucent/game";
-import {
-  DEFAULT_COMBAT_PROFILE_LIBRARY,
-  getCombatProfileById,
-  isCombatProfileDefinition,
-  normalizeCombatProfile,
-  normalizeCombatProfileLibrary,
-} from "@lucent/core/combatProfiles";
-import { SwfBridge } from "../SwfBridge";
-import {
-  antiCounterExpiresAtMs,
-  isAntiCounterAura,
-  isAntiCounterAuraName,
-} from "../antiCounter";
-import { monsterMatchesSelector, normalizeMonsterSelector } from "../selectors";
-import { EventsApi } from "./Events";
-import { InventoryApi } from "./Inventory";
-import { MapApi } from "./Map";
-import { MonstersApi } from "./Monsters";
-import { PlayerApi } from "./Player";
-import { PlayersApi } from "./Players";
-import { SettingsApi } from "./Settings";
-import { TempInventoryApi } from "./TempInventory";
-import { WaitApi } from "./Wait";
-import {
-  castNextCombatProfileStep,
-  makeCombatProfileRuntimeDeps,
-  makeCombatProfileCursor,
-  resetCombatProfileCursor,
-} from "../../combatProfiles";
+import type { Monster } from "@lucent/game";
+import { Effect, Option, Schema } from "effect";
+import type { Duration } from "effect";
+import type { TargetInfo } from "../../Types";
 
-export interface CombatTargetApi {
-  readonly auras: TargetAurasApi;
-  readonly get: () => Effect.Effect<TargetInfo | null>;
+import type { BridgeService } from "../bridge/Bridge";
+import { WireBoolean, WireInt } from "../contract/Coercion";
+import { isAntiCounterAura } from "../domain/AntiCounter";
+import { decodeMonsterSelector } from "../domain/Selectors";
+import type { Store } from "../state/Store";
+import type { Inventory } from "./Inventory";
+import type { Map } from "./Map";
+import type { Monsters } from "./Monsters";
+import type { Player } from "./Player";
+import type { Settings } from "./Settings";
+import type { TempInventory } from "./TempInventory";
+import type { Wait } from "./Wait";
+
+export type Skill = number | string;
+
+export interface HuntOptions {
+  readonly findMost?: boolean;
 }
 
-export interface TargetAurasApi {
-  readonly get: (
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<Aura | null>;
-  readonly getAll: (
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<readonly Aura[]>;
-  readonly has: (
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<boolean>;
+export interface SkillUseOptions {
+  readonly force?: boolean;
+  readonly wait?: boolean;
 }
 
-export interface CombatApiShape {
-  readonly attackMonster: (selector: MonsterSelector) => Effect.Effect<boolean>;
-  readonly cancelAutoAttack: () => Effect.Effect<void>;
-  readonly cancelTarget: () => Effect.Effect<void>;
-  readonly canUseSkill: (index: Skill) => Effect.Effect<boolean>;
-  readonly exit: () => Effect.Effect<boolean>;
-  readonly getConsumableSkillItem: () => Effect.Effect<{
-    readonly itemId: number;
-  } | null>;
-  readonly hunt: (
-    selector: MonsterSelector,
-    options?: HuntOptions,
-  ) => Effect.Effect<Monster | null>;
-  readonly kill: (
-    selector: MonsterSelector,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<boolean>;
-  readonly killForItem: (
-    monster: MonsterSelector,
-    item: ItemSelector,
-    quantity?: number,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<boolean>;
-  readonly killForTempItem: (
-    monster: MonsterSelector,
-    item: ItemSelector,
-    quantity?: number,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<boolean>;
-  readonly target: CombatTargetApi;
-  readonly useSkill: (
-    index: Skill,
-    options?: SkillUseOptions,
-  ) => Effect.Effect<boolean>;
+export interface CombatKillOptions {
+  readonly maxKills?: number;
+  readonly skillDelay?: number;
+  readonly skillSet?: readonly Skill[] | string;
+  readonly timeout?: Duration.Input;
 }
 
-export class CombatApi extends Context.Service<CombatApi, CombatApiShape>()(
-  "lucent/game/flash/api/Combat",
-) {}
+const Consumable = Schema.NullOr(
+  Schema.Struct({
+    itemId: Schema.optionalKey(WireInt),
+    ItemID: Schema.optionalKey(WireInt),
+  }),
+);
+const EntityStatePayload = WireInt.check(
+  Schema.isBetween({
+    minimum: EntityState.Dead,
+    maximum: EntityState.InCombat,
+  }),
+);
+const TargetPayload = Schema.NullOr(
+  Schema.Union([
+    Schema.Struct({
+      cell: Schema.String,
+      hp: WireInt,
+      level: WireInt,
+      maxHp: WireInt,
+      monsterId: WireInt,
+      monsterMapId: WireInt,
+      name: Schema.String,
+      race: Schema.String,
+      state: EntityStatePayload,
+      type: Schema.Literal("monster"),
+    }),
+    Schema.Struct({
+      afk: WireBoolean,
+      cell: Schema.String,
+      entityId: WireInt,
+      entityType: Schema.String,
+      hp: WireInt,
+      level: WireInt,
+      maxHp: WireInt,
+      maxMp: WireInt,
+      mp: WireInt,
+      name: Schema.String,
+      pad: Schema.String,
+      sp: WireInt,
+      state: EntityStatePayload,
+      type: Schema.Literal("player"),
+      username: Schema.String,
+    }),
+  ]),
+);
 
-const integerTokenPattern = /^[+-]?\d+$/u;
-
-const normalizeSkill = (index: Skill): number | null => {
-  const parsed =
-    typeof index === "number"
-      ? index
-      : integerTokenPattern.test(index.trim())
-        ? Number.parseInt(index.trim(), 10)
-        : Number.NaN;
+const skillIndex = (skill: Skill): number | null => {
+  const parsed = typeof skill === "number" ? skill : Number(skill.trim());
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
 };
 
-const defaultSkillDelay = 150;
-const combatExitSettleDelay = 500;
-const skillReadyConfirmationDelay = 150;
-interface TrackedAntiCounter {
-  readonly auraName: string;
-  readonly expiresAtMs: number;
-}
-
-interface MonsterTargetResolutionOptions extends HuntOptions {
-  readonly includeDead: boolean;
-}
-
-const monsterTargetResolutionOptions = (
-  options: HuntOptions | undefined,
-  includeDead: boolean,
-): MonsterTargetResolutionOptions =>
-  options?.findMost === undefined
-    ? { includeDead }
-    : { findMost: options.findMost, includeDead };
-
-const antiCounterAuraKey = (monsterMapId: number, auraName: string): string =>
-  `${monsterMapId}:${auraName.trim().toLowerCase()}`;
-
-const killTimeout = (options?: CombatKillOptions): Duration.Input =>
-  options?.timeout ?? "60 seconds";
-
-const skillSet = (options?: CombatKillOptions): readonly Skill[] => {
-  const value = options?.skillSet;
-  if (Array.isArray(value)) {
-    const normalized = value.flatMap((skill): readonly Skill[] => {
-      if (typeof skill === "string") {
-        return skill
-          .split(/[,\s]+/u)
-          .map((token) => token.trim())
-          .filter((token) => token !== "")
-          .filter((token) => normalizeSkill(token) !== null);
-      }
-
-      return normalizeSkill(skill) === null ? [] : [skill];
-    });
-    return normalized.length > 0 ? normalized : [1, 2, 3, 4];
+const skillSet = (input: CombatKillOptions["skillSet"]): readonly Skill[] => {
+  if (Array.isArray(input)) return input.length === 0 ? [1, 2, 3, 4] : input;
+  if (typeof input === "string") {
+    const skills = input.split(/[^0-9]+/).filter(Boolean);
+    return skills.length === 0 ? [1, 2, 3, 4] : skills;
   }
-
-  if (typeof value === "string") {
-    const normalized = value
-      .split(/[,\s]+/u)
-      .map((token) => token.trim())
-      .filter((token) => token !== "")
-      .filter((token) => normalizeSkill(token) !== null);
-    return normalized.length > 0 ? normalized : [1, 2, 3, 4];
-  }
-
   return [1, 2, 3, 4];
 };
 
-const readCombatProfileLibraryFromDesktop = () =>
-  Effect.promise(async () => {
-    try {
-      if (
-        typeof window === "undefined" ||
-        window.desktop.combatProfiles === undefined
-      ) {
-        return DEFAULT_COMBAT_PROFILE_LIBRARY;
+export const makeCombat = (
+  bridge: BridgeService,
+  store: Store,
+  inventory: Inventory,
+  map: Map,
+  monsters: Monsters,
+  player: Player,
+  settings: Settings,
+  temporary: TempInventory,
+  wait: Wait,
+) => {
+  const getProjectedTarget: Effect.Effect<TargetInfo | null> = Effect.gen(
+    function* () {
+      const combat = yield* store.combat.get;
+      if (combat.target === null) return null;
+      if (combat.target.type === "monster") {
+        const monster = yield* store.world.getMonster(combat.target.id);
+        return monster === null
+          ? null
+          : {
+              cell: monster.cell,
+              hp: monster.hp,
+              level: monster.level,
+              maxHp: monster.maxHp,
+              monsterId: monster.monsterId,
+              monsterMapId: monster.monsterMapId,
+              name: monster.name,
+              race: monster.race,
+              state: monster.state,
+              type: "monster" as const,
+            };
       }
-
-      return normalizeCombatProfileLibrary(
-        await window.desktop.combatProfiles.getState(),
-      );
-    } catch {
-      return DEFAULT_COMBAT_PROFILE_LIBRARY;
-    }
-  });
-
-const chooseHuntTarget = (
-  matches: readonly Monster[],
-  options?: HuntOptions,
-): Monster | null => {
-  if (matches.length === 0) {
-    return null;
-  }
-
-  if (options?.findMost !== true) {
-    return matches[0] ?? null;
-  }
-
-  const cellCounts = new Map<string, number>();
-  for (const monster of matches) {
-    cellCounts.set(monster.cell, (cellCounts.get(monster.cell) ?? 0) + 1);
-  }
-
-  let best = matches[0] ?? null;
-  let bestCount = best === null ? 0 : (cellCounts.get(best.cell) ?? 0);
-  for (const monster of matches.slice(1)) {
-    const count = cellCounts.get(monster.cell) ?? 0;
-    if (count > bestCount) {
-      best = monster;
-      bestCount = count;
-    }
-  }
-
-  return best;
-};
-
-const isCombatExitCandidateCell = (
-  cell: string,
-  currentCell: string,
-): boolean => {
-  const normalized = cell.trim().toLowerCase();
-  return (
-    normalized !== "" &&
-    normalized !== currentCell.trim().toLowerCase() &&
-    normalized !== "blank" &&
-    normalized !== "wait" &&
-    !/^cut\d+$/i.test(normalized)
+      const target = yield* store.world.getPlayer(combat.target.id);
+      return target === null
+        ? null
+        : {
+            afk: target.afk,
+            cell: target.cell,
+            entityId: target.entityId,
+            entityType: target.entityType,
+            hp: target.hp,
+            level: target.level,
+            maxHp: target.maxHp,
+            maxMp: target.maxMp,
+            mp: target.mp,
+            name: target.name,
+            pad: target.pad,
+            sp: 0,
+            state: target.state,
+            type: "player" as const,
+            username: target.username,
+          };
+    },
   );
-};
 
-export const layer = Layer.effect(
-  CombatApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const events = yield* EventsApi;
-    const inventory = yield* InventoryApi;
-    const map = yield* MapApi;
-    const monsters = yield* MonstersApi;
-    const player = yield* PlayerApi;
-    const players = yield* PlayersApi;
-    const settings = yield* SettingsApi;
-    const tempInventory = yield* TempInventoryApi;
-    const wait = yield* WaitApi;
-
-    const targetGet = bridge.call("combat.getTarget");
-
-    const targetAuras: TargetAurasApi = {
-      get: (auraName, options) =>
-        targetGet.pipe(
-          Effect.flatMap((target) => {
-            if (target === null) {
-              return Effect.succeed(null);
-            }
-            return target.type === "monster"
-              ? monsters.auras.get(target.monsterMapId, auraName, options)
-              : player.auras.get(auraName, options);
-          }),
-        ),
-      getAll: (options) =>
-        targetGet.pipe(
-          Effect.flatMap((target) => {
-            if (target === null) {
-              return Effect.succeed([]);
-            }
-            return target.type === "monster"
-              ? monsters.auras.getAll(target.monsterMapId, options)
-              : player.auras.getAll(options);
-          }),
-        ),
-      has: (auraName, options) =>
-        targetAuras
-          .get(auraName, options)
-          .pipe(Effect.map((aura) => aura !== null)),
-    };
-
-    const resolveCombatProfile = (profile: CombatKillOptions["profile"]) =>
-      Effect.gen(function* () {
-        if (profile === undefined) {
-          return undefined;
-        }
-
-        if (isCombatProfileDefinition(profile)) {
-          return normalizeCombatProfile(profile);
-        }
-
-        const library = yield* readCombatProfileLibraryFromDesktop();
-        return getCombatProfileById(library, profile);
-      });
-
-    const antiCounterMonsters = new Map<number, TrackedAntiCounter>();
-    const expiredAntiCounterAuraKeys = new Set<string>();
-    const stoppedAntiCounterTargets = new Set<number>();
-
-    const trackAntiCounterAura = (monsterMapId: number, aura: Aura): void => {
-      antiCounterMonsters.set(monsterMapId, {
-        auraName: aura.name,
-        expiresAtMs: antiCounterExpiresAtMs(aura),
-      });
-      expiredAntiCounterAuraKeys.delete(
-        antiCounterAuraKey(monsterMapId, aura.name),
-      );
-    };
-
-    const clearAntiCounterTracking = (monsterMapId: number): void => {
-      antiCounterMonsters.delete(monsterMapId);
-      stoppedAntiCounterTargets.delete(monsterMapId);
-
-      const prefix = `${monsterMapId}:`;
-      for (const key of expiredAntiCounterAuraKeys) {
-        if (key.startsWith(prefix)) {
-          expiredAntiCounterAuraKeys.delete(key);
-        }
-      }
-    };
-
-    const pruneExpiredAntiCounters = Effect.sync(() => {
-      const now = Date.now();
-      for (const [monsterMapId, tracked] of antiCounterMonsters) {
-        if (tracked.expiresAtMs > now) {
-          continue;
-        }
-
-        antiCounterMonsters.delete(monsterMapId);
-        expiredAntiCounterAuraKeys.add(
-          antiCounterAuraKey(monsterMapId, tracked.auraName),
-        );
-      }
-    });
-
-    const getProjectedAntiCounterAura = (monsterMapId: number) =>
-      monsters.auras
-        .getAll(monsterMapId)
-        .pipe(
-          Effect.map(
-            (auras) => auras.find((aura) => isAntiCounterAura(aura)) ?? null,
-          ),
-        );
-
-    const isAntiCounterActive = (monsterMapId: number) =>
-      Effect.gen(function* () {
-        yield* pruneExpiredAntiCounters;
-
-        const projectedAura = yield* getProjectedAntiCounterAura(monsterMapId);
-        if (projectedAura === null) {
-          antiCounterMonsters.delete(monsterMapId);
-          return false;
-        }
-
-        if (
-          expiredAntiCounterAuraKeys.has(
-            antiCounterAuraKey(monsterMapId, projectedAura.name),
-          )
-        ) {
-          return false;
-        }
-
-        trackAntiCounterAura(monsterMapId, projectedAura);
-        return true;
-      });
-
-    const isAntiCounterAvoidanceActive = (monsterMapId: number) =>
-      Effect.gen(function* () {
-        if (!(yield* settings.isAntiCounterEnabled())) {
-          return false;
-        }
-
-        return yield* isAntiCounterActive(monsterMapId);
-      });
-
-    const getCurrentTargetMonsterMapId = () =>
-      targetGet.pipe(
-        Effect.map((target) =>
-          target !== null && target.type === "monster"
-            ? target.monsterMapId
-            : undefined,
-        ),
-      );
-
-    const stopCombat = Effect.gen(function* () {
-      yield* bridge.call("combat.cancelAutoAttack");
-      yield* bridge.call("combat.cancelTarget");
-    });
-
-    const stopAntiCounterCombat = (monsterMapId: number) =>
-      Effect.gen(function* () {
-        yield* stopCombat;
-        stoppedAntiCounterTargets.add(monsterMapId);
-      });
-
-    const resolveAntiCounterMonsterMapIdForAttack = (
-      normalized: NonNullable<ReturnType<typeof normalizeMonsterSelector>>,
-    ) =>
-      Effect.gen(function* () {
-        const currentTarget = yield* targetGet;
-        if (currentTarget !== null && currentTarget.type === "monster") {
-          const matchesCurrentTarget =
-            "monMapId" in normalized
-              ? currentTarget.monsterMapId === normalized.monMapId
-              : normalized.name === "*" ||
-                currentTarget.name
-                  .toLowerCase()
-                  .includes(normalized.name.toLowerCase());
-
-          if (
-            matchesCurrentTarget &&
-            (yield* isAntiCounterAvoidanceActive(currentTarget.monsterMapId))
-          ) {
-            return currentTarget.monsterMapId;
-          }
-        }
-
-        if ("monMapId" in normalized) {
-          return (yield* isAntiCounterAvoidanceActive(normalized.monMapId))
-            ? normalized.monMapId
-            : undefined;
-        }
-
-        const currentCell = (yield* player.getCell()).trim().toLowerCase();
-        const candidates = (yield* monsters.getAll()).filter(
-          (monster) =>
-            monster.dead === false &&
-            monsterMatchesSelector(monster, normalized) &&
-            (currentCell === "" ||
-              monster.cell.trim().toLowerCase() === currentCell),
-        );
-
-        for (const monster of candidates) {
-          if (yield* isAntiCounterAvoidanceActive(monster.monsterMapId)) {
-            return monster.monsterMapId;
-          }
-        }
-
-        return undefined;
-      });
-
-    const disposeAuraAdded = yield* events.on(
-      { kind: "projection", type: "auraAdded" },
-      (event) =>
-        Effect.gen(function* () {
-          if (event.type !== "auraAdded") {
-            return;
-          }
-
-          const { aura, auraKind, targetId, targetType } = event.payload;
-          if (
-            auraKind !== "active" ||
-            targetType !== "monster" ||
-            !isAntiCounterAura(aura)
-          ) {
-            return;
-          }
-
-          trackAntiCounterAura(targetId, aura);
-          if (!(yield* settings.isAntiCounterEnabled())) {
-            return;
-          }
-
-          const currentTarget = yield* getCurrentTargetMonsterMapId();
-          if (currentTarget === targetId) {
-            yield* stopAntiCounterCombat(targetId);
-          }
+  const targetValue = bridge
+    .invoke("combat.getTarget", undefined, TargetPayload)
+    .pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => getProjectedTarget,
+          onSome: (target) =>
+            store.combat
+              .setTarget(
+                target === null
+                  ? null
+                  : target.type === "monster"
+                    ? { id: target.monsterMapId, type: "monster" }
+                    : { id: target.entityId, type: "player" },
+              )
+              .pipe(Effect.as(target as TargetInfo | null)),
         }),
+      ),
     );
-
-    const disposeAuraRemoved = yield* events.on(
-      { kind: "projection", type: "auraRemoved" },
-      (event) =>
-        Effect.gen(function* () {
-          if (event.type !== "auraRemoved") {
-            return;
-          }
-
-          const { auraName, auraKind, remainingStack, targetId, targetType } =
-            event.payload;
-          if (
-            auraKind !== "active" ||
-            remainingStack !== 0 ||
-            targetType !== "monster" ||
-            !isAntiCounterAuraName(auraName)
-          ) {
-            return;
-          }
-
-          antiCounterMonsters.delete(targetId);
-          expiredAntiCounterAuraKeys.delete(
-            antiCounterAuraKey(targetId, auraName),
-          );
-          const wasStopped = stoppedAntiCounterTargets.delete(targetId);
-          if (!wasStopped || !(yield* settings.isAntiCounterEnabled())) {
-            return;
-          }
-
-          if (!(yield* isAntiCounterActive(targetId))) {
-            yield* bridge.call("combat.attackMonster", [
-              { monMapId: targetId },
-            ]);
-          }
-        }),
-    );
-
-    const disposeMonsterDeath = yield* events.on(
-      { kind: "projection", type: "monsterDeath" },
-      (event) =>
-        Effect.sync(() => {
-          if (event.type !== "monsterDeath") {
-            return;
-          }
-
-          clearAntiCounterTracking(event.payload.monsterMapId);
-        }),
-    );
-
-    const disposeJoinMap = yield* events.on(
-      { kind: "projection", type: "joinMap" },
-      () =>
-        Effect.sync(() => {
-          antiCounterMonsters.clear();
-          expiredAntiCounterAuraKeys.clear();
-          stoppedAntiCounterTargets.clear();
-        }),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        disposeAuraAdded();
-        disposeAuraRemoved();
-        disposeMonsterDeath();
-        disposeJoinMap();
+  const targetAuras = (options?: { kind?: "active" | "passive" }) =>
+    store.combat.get.pipe(
+      Effect.flatMap((combat) => {
+        if (combat.target === null) return Effect.succeed([]);
+        return combat.target.type === "monster"
+          ? store.world.getMonsterAuras(combat.target.id, options)
+          : store.world.getPlayerAuras(combat.target.id, options);
       }),
     );
 
-    const attackMonster: CombatApiShape["attackMonster"] = (selector) =>
-      Effect.gen(function* () {
-        const normalized = normalizeMonsterSelector(selector);
-        if (normalized === null || !(yield* player.isAlive())) {
-          return false;
-        }
-
-        const blockedMonsterMapId =
-          yield* resolveAntiCounterMonsterMapIdForAttack(normalized);
-        if (blockedMonsterMapId !== undefined) {
-          yield* stopAntiCounterCombat(blockedMonsterMapId);
-          return false;
-        }
-
-        return yield* bridge.call("combat.attackMonster", [normalized]);
-      });
-
-    const getSkillCooldownRemaining = (index: number) =>
-      bridge
-        .call("combat.getSkillCooldownRemaining", [index])
-        .pipe(
-          Effect.map((remaining) =>
-            Number.isFinite(remaining) ? Math.max(0, Math.trunc(remaining)) : 0,
-          ),
-        );
-
-    const waitForSkillReady = (index: number) =>
-      Effect.gen(function* () {
-        while (true) {
-          const remaining = yield* getSkillCooldownRemaining(index);
-          if (remaining > 0) {
-            yield* Effect.sleep(remaining);
-            continue;
-          }
-
-          yield* Effect.sleep(skillReadyConfirmationDelay);
-
-          const confirmed = yield* getSkillCooldownRemaining(index);
-          if (confirmed === 0) {
-            return true;
-          }
-        }
-      });
-
-    const useSkill: CombatApiShape["useSkill"] = (index, options) =>
-      Effect.gen(function* () {
-        const skill = normalizeSkill(index);
-        if (skill === null || !(yield* player.isAlive())) {
-          return false;
-        }
-
-        const targetBeforeWait = yield* getCurrentTargetMonsterMapId();
-        if (
-          targetBeforeWait !== undefined &&
-          (yield* isAntiCounterAvoidanceActive(targetBeforeWait))
-        ) {
-          yield* stopAntiCounterCombat(targetBeforeWait);
-          return false;
-        }
-
-        if (options?.wait) {
-          const ready = yield* wait.until(waitForSkillReady(skill), {
-            timeout: "5 seconds",
-          });
-          if (!ready) {
-            return false;
-          }
-        } else if (!(yield* canUseSkill(skill))) {
-          return false;
-        }
-
-        if (!(yield* player.isAlive())) {
-          return false;
-        }
-
-        const targetBeforeCast = yield* getCurrentTargetMonsterMapId();
-        if (
-          targetBeforeCast !== undefined &&
-          (yield* isAntiCounterAvoidanceActive(targetBeforeCast))
-        ) {
-          yield* stopAntiCounterCombat(targetBeforeCast);
-          return false;
-        }
-
-        if (options?.force) {
-          return yield* bridge.call("combat.forceUseSkill", [String(skill)]);
-        }
-        return yield* bridge.call("combat.useSkill", [String(skill)]);
-      });
-
-    const canUseSkill: CombatApiShape["canUseSkill"] = (index) =>
-      Effect.gen(function* () {
-        const skill = normalizeSkill(index);
-        if (skill === null) {
-          return false;
-        }
-
-        const remaining = yield* getSkillCooldownRemaining(skill);
-        return remaining === 0;
-      });
-
-    const resolveMonsterTarget = (
-      selector: MonsterSelector,
-      options: MonsterTargetResolutionOptions,
-    ) =>
-      Effect.gen(function* () {
-        const normalized = normalizeMonsterSelector(selector);
-        if (normalized === null) {
-          return null;
-        }
-
-        const matches = (yield* monsters.getAll()).filter(
-          (monster) =>
-            (options.includeDead || monster.dead === false) &&
-            monsterMatchesSelector(monster, normalized),
-        );
-        const monster = chooseHuntTarget(matches, options);
-        if (monster === null) {
-          return null;
-        }
-
-        if (monster.cell !== "") {
-          yield* player.jumpToCell(monster.cell, undefined, true);
-        }
-        return monster;
-      });
-
-    const hunt: CombatApiShape["hunt"] = (selector, options) =>
-      resolveMonsterTarget(
-        selector,
-        monsterTargetResolutionOptions(options, true),
-      );
-
-    const isPlayerInCombat = Effect.gen(function* () {
-      const projectedState = yield* player.getState();
-      return projectedState === EntityState.InCombat;
-    });
-
-    const waitUntilOutOfCombat = (timeout: Duration.Input) =>
-      wait.until(
-        Effect.gen(function* () {
-          if (yield* isPlayerInCombat) {
-            return false;
-          }
-
-          yield* Effect.sleep(combatExitSettleDelay);
-          return !(yield* isPlayerInCombat);
+  const getSkillCooldownRemaining = (index: number) =>
+    bridge.invoke("combat.getSkillCooldownRemaining", [index], WireInt).pipe(
+      Effect.map(
+        Option.match({
+          onNone: () => Number.MAX_SAFE_INTEGER,
+          onSome: (remaining) => Math.max(0, Math.trunc(remaining)),
         }),
-        {
-          interval: "100 millis",
-          timeout,
-        },
-      );
+      ),
+    );
 
-    const exitCombat = Effect.gen(function* () {
-      const currentCell = yield* player.getCell();
-      const currentPad = yield* player.getPad();
-      const cellsWithMonsters = new Set(
-        (yield* monsters.getAll()).map((monster) =>
-          monster.cell.trim().toLowerCase(),
+  const canUseSkill = (skill: Skill) => {
+    const index = skillIndex(skill);
+    return index === null
+      ? Effect.succeed(false)
+      : getSkillCooldownRemaining(index).pipe(
+          Effect.map((remaining) => remaining === 0),
+        );
+  };
+
+  const waitForSkillReady = (index: number) =>
+    wait.until(
+      getSkillCooldownRemaining(index).pipe(
+        Effect.flatMap((remaining) =>
+          remaining > 0
+            ? Effect.sleep(remaining).pipe(Effect.as(false))
+            : Effect.sleep("150 millis").pipe(
+                Effect.andThen(getSkillCooldownRemaining(index)),
+                Effect.map((confirmed) => confirmed === 0),
+              ),
+        ),
+      ),
+      { interval: "50 millis", timeout: "5 seconds" },
+    );
+
+  const antiCounterActive = (monsterMapId: number) =>
+    settings
+      .isAntiCounterEnabled()
+      .pipe(
+        Effect.flatMap((enabled) =>
+          enabled
+            ? store.world
+                .getMonsterAuras(monsterMapId, { kind: "active" })
+                .pipe(Effect.map((auras) => auras.some(isAntiCounterAura)))
+            : Effect.succeed(false),
         ),
       );
 
-      const candidates = (yield* map.getCells())
-        .filter((cell) => isCombatExitCandidateCell(cell, currentCell))
-        .toSorted((left, right) => {
-          const leftHasMonsters = cellsWithMonsters.has(
-            left.trim().toLowerCase(),
-          );
-          const rightHasMonsters = cellsWithMonsters.has(
-            right.trim().toLowerCase(),
-          );
-          return leftHasMonsters === rightHasMonsters
-            ? 0
-            : leftHasMonsters
-              ? 1
-              : -1;
-        });
+  const stopCombat = Effect.all(
+    [
+      bridge.invoke("combat.cancelAutoAttack", undefined, Schema.Void),
+      bridge.invoke("combat.cancelTarget", undefined, Schema.Void),
+    ],
+    { discard: true },
+  ).pipe(Effect.andThen(store.combat.setTarget(null)), Effect.asVoid);
 
-      for (const cell of candidates) {
+  const useSkill = (skill: Skill, options?: SkillUseOptions) => {
+    const index = skillIndex(skill);
+    if (index === null) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (!(yield* player.isAlive())) return false;
+      const target = yield* targetValue;
+      if (
+        target?.type === "monster" &&
+        (yield* antiCounterActive(target.monsterMapId))
+      ) {
         yield* stopCombat;
-        if (yield* waitUntilOutOfCombat("1 second")) {
-          return true;
-        }
+        return false;
+      }
+      const ready =
+        options?.wait === true
+          ? yield* waitForSkillReady(index)
+          : yield* canUseSkill(index);
+      if (!ready || !(yield* player.isAlive())) return false;
+      return yield* bridge
+        .invoke(
+          options?.force === true ? "combat.forceUseSkill" : "combat.useSkill",
+          [String(index)],
+          Schema.Boolean,
+        )
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+    });
+  };
 
-        yield* player.jumpToCell(cell, undefined, true);
-        if (yield* waitUntilOutOfCombat("2 seconds")) {
-          return true;
+  const attackMonster = (selector: unknown) => {
+    const decoded = decodeMonsterSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (!(yield* player.isAlive())) return false;
+      const monster = yield* monsters.get(decoded.value);
+      if (
+        monster !== null &&
+        (yield* antiCounterActive(monster.monsterMapId))
+      ) {
+        yield* stopCombat;
+        return false;
+      }
+      return yield* bridge
+        .invoke("combat.attackMonster", [decoded.value], Schema.Boolean)
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+    });
+  };
+
+  const hunt = (selector: unknown, options?: HuntOptions) => {
+    const decoded = decodeMonsterSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(null);
+    return monsters.getAvailable().pipe(
+      Effect.flatMap((available) => {
+        const matches = available.filter((monster) =>
+          monster.matches(decoded.value),
+        );
+        if (options?.findMost !== true || matches.length < 2) {
+          const target = matches[0] ?? null;
+          return target === null || target.cell === ""
+            ? Effect.succeed(target)
+            : player.jumpToCell(target.cell).pipe(Effect.as(target));
         }
+        const cells = new Map<string, number>();
+        for (const monster of matches) {
+          cells.set(monster.cell, (cells.get(monster.cell) ?? 0) + 1);
+        }
+        const target = matches.reduce((best, candidate) =>
+          (cells.get(candidate.cell) ?? 0) > (cells.get(best.cell) ?? 0)
+            ? candidate
+            : best,
+        );
+        return target.cell === ""
+          ? Effect.succeed(target)
+          : player.jumpToCell(target.cell).pipe(Effect.as(target));
+      }),
+    );
+  };
+
+  const kill = (selector: unknown, options?: CombatKillOptions) => {
+    const decoded = decodeMonsterSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(false);
+    const skills = skillSet(options?.skillSet);
+    let target: Monster | null = null;
+    const killed = wait.until(
+      Effect.gen(function* () {
+        if (target !== null) {
+          const current = yield* monsters.get(target.monsterMapId);
+          if (current?.dead === true) return true;
+          target = current;
+        }
+        target ??= yield* hunt(decoded.value);
+        if (target === null) return false;
+        if (!(yield* attackMonster(target.monsterMapId))) return false;
+        for (const skill of skills) {
+          yield* useSkill(skill);
+          yield* Effect.sleep(options?.skillDelay ?? 150);
+        }
+        return false;
+      }),
+      { interval: "250 millis", timeout: options?.timeout ?? "60 seconds" },
+    );
+    return killed.pipe(Effect.ensuring(stopCombat));
+  };
+
+  const killFor = (
+    selector: unknown,
+    item: unknown,
+    requested: number | undefined,
+    source: Inventory | TempInventory,
+    options?: CombatKillOptions,
+  ) => {
+    const wanted = Math.max(1, Math.trunc(requested ?? 1));
+    const maxKills = Math.max(1, Math.trunc(options?.maxKills ?? 100));
+    const loop = (kills: number): Effect.Effect<boolean> =>
+      source
+        .contains(item, wanted)
+        .pipe(
+          Effect.flatMap((done) =>
+            done
+              ? Effect.succeed(true)
+              : kills >= maxKills
+                ? Effect.succeed(false)
+                : kill(selector, options).pipe(
+                    Effect.flatMap((killed) =>
+                      killed ? loop(kills + 1) : Effect.succeed(false),
+                    ),
+                  ),
+          ),
+        );
+    return loop(0).pipe(
+      Effect.timeoutOption(options?.timeout ?? "60 seconds"),
+      Effect.map(Option.getOrElse(() => false)),
+    );
+  };
+
+  const cancelAutoAttack = () =>
+    bridge
+      .invoke("combat.cancelAutoAttack", undefined, Schema.Void)
+      .pipe(Effect.asVoid);
+
+  const cancelTarget = () =>
+    bridge
+      .invoke("combat.cancelTarget", undefined, Schema.Void)
+      .pipe(Effect.andThen(store.combat.setTarget(null)), Effect.asVoid);
+
+  const waitUntilIdle = (timeout: Duration.Input) =>
+    wait.until(
+      player.getState().pipe(
+        Effect.flatMap((state) =>
+          state !== EntityState.Idle
+            ? Effect.succeed(false)
+            : Effect.sleep("500 millis").pipe(
+                Effect.andThen(player.getState()),
+                Effect.map((confirmed) => confirmed === EntityState.Idle),
+              ),
+        ),
+      ),
+      { interval: "100 millis", timeout },
+    );
+
+  const exit = () =>
+    Effect.gen(function* () {
+      if ((yield* player.getState()) === EntityState.Idle) return true;
+      const currentCell = yield* player.getCell();
+      const currentPad = yield* player.getPad();
+      const monsterCells = new Set(
+        (yield* monsters.getAll()).map((monster) => monster.cell.toLowerCase()),
+      );
+      const candidateCells = (yield* map.getCells())
+        .filter((cell) => {
+          const normalized = cell.trim().toLowerCase();
+          return (
+            normalized !== "" &&
+            normalized !== "blank" &&
+            normalized !== "wait" &&
+            normalized !== currentCell.trim().toLowerCase()
+          );
+        })
+        .toSorted(
+          (left, right) =>
+            Number(monsterCells.has(left.toLowerCase())) -
+            Number(monsterCells.has(right.toLowerCase())),
+        );
+
+      for (const cell of candidateCells) {
+        yield* stopCombat;
+        if (yield* waitUntilIdle("1 second")) return true;
+        yield* player.jumpToCell(cell);
+        if (yield* waitUntilIdle("2 seconds")) return true;
       }
 
-      for (let attempts = 0; attempts < 3; attempts += 1) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
         yield* stopCombat;
-        if (yield* waitUntilOutOfCombat("1 second")) {
-          return true;
-        }
-
-        yield* player.jumpToCell(currentCell, currentPad, true);
-        if (yield* waitUntilOutOfCombat("2 seconds")) {
-          return true;
-        }
+        yield* player.jumpToCell(currentCell, currentPad);
+        if (yield* waitUntilIdle("2 seconds")) return true;
       }
 
       yield* stopCombat;
-      const exited = yield* waitUntilOutOfCombat("1 second");
-      return exited;
+      return yield* waitUntilIdle("1 second");
     });
 
-    const combatProfileRuntimeDeps = () =>
-      makeCombatProfileRuntimeDeps(
-        {
-          attackMonster,
-          canUseSkill,
-          target: {
-            auras: targetAuras,
-            get: () => targetGet,
+  const getConsumableSkillItem = () =>
+    bridge.invoke("combat.getConsumableSkillItem", undefined, Consumable).pipe(
+      Effect.map(
+        Option.match({
+          onNone: () => null,
+          onSome: (item) => {
+            const itemId = item?.itemId ?? item?.ItemID;
+            return itemId === undefined ? null : { itemId };
           },
-          useSkill,
-        },
-        player,
-        players,
-      );
-
-    const kill: CombatApiShape["kill"] = (selector, options) =>
-      Effect.gen(function* () {
-        if (normalizeMonsterSelector(selector) === null) {
-          return false;
-        }
-
-        const timeout = killTimeout(options);
-        const combatProfile = yield* resolveCombatProfile(options?.profile);
-        const profileCursor =
-          combatProfile === undefined
-            ? undefined
-            : yield* makeCombatProfileCursor();
-        let target: Monster | null = null;
-        const killed = yield* wait.until(
-          Effect.gen(function* () {
-            if (target !== null) {
-              const current = yield* monsters.get({
-                monMapId: target.monsterMapId,
-              });
-              if (current?.dead === true) {
-                if (
-                  combatProfile?.resetSkillIndexOnMonsterDeath === true &&
-                  profileCursor !== undefined
-                ) {
-                  yield* resetCombatProfileCursor(profileCursor);
-                }
-                return true;
-              }
-              target = current;
-            }
-
-            target ??= yield* resolveMonsterTarget(
-              selector,
-              monsterTargetResolutionOptions(options, false),
-            );
-            if (target === null) {
-              return false;
-            }
-
-            if (yield* attackMonster({ monMapId: target.monsterMapId })) {
-              if (combatProfile !== undefined && profileCursor !== undefined) {
-                yield* castNextCombatProfileStep(
-                  combatProfileRuntimeDeps(),
-                  combatProfile,
-                  profileCursor,
-                );
-              } else {
-                for (const skill of skillSet(options)) {
-                  yield* useSkill(skill, {
-                    wait: options?.skillWait === true,
-                  });
-                  yield* Effect.sleep(options?.skillDelay ?? defaultSkillDelay);
-                }
-              }
-
-              if (combatProfile !== undefined) {
-                yield* Effect.sleep(combatProfile.delayMs);
-              }
-            }
-
-            return false;
-          }),
-          { interval: "250 millis", timeout },
-        );
-
-        yield* stopCombat;
-        return killed;
-      });
-
-    const killFor = (
-      monster: MonsterSelector,
-      item: ItemSelector,
-      quantity: number | undefined,
-      options: CombatKillOptions | undefined,
-      contains: (
-        item: ItemSelector,
-        quantity?: number,
-      ) => Effect.Effect<boolean>,
-    ) =>
-      wait.until(
-        Effect.gen(function* () {
-          if (yield* contains(item, quantity)) {
-            return true;
-          }
-          yield* kill(monster, options);
-          return yield* contains(item, quantity);
         }),
-        { interval: "250 millis", timeout: killTimeout(options) },
-      );
+      ),
+    );
 
-    return CombatApi.of({
-      attackMonster,
-      cancelAutoAttack: () => bridge.call("combat.cancelAutoAttack"),
-      cancelTarget: () => bridge.call("combat.cancelTarget"),
-      canUseSkill,
-      exit: () => exitCombat,
-      getConsumableSkillItem: () =>
-        bridge.call("combat.getConsumableSkillItem"),
-      hunt,
-      kill,
-      killForItem: (monster, item, quantity, options) =>
-        killFor(monster, item, quantity, options, inventory.contains),
-      killForTempItem: (monster, item, quantity, options) =>
-        killFor(monster, item, quantity, options, tempInventory.contains),
-      target: {
-        auras: targetAuras,
-        get: () => targetGet,
-      },
-      useSkill,
-    });
-  }),
-);
+  const killForItem = (
+    selector: unknown,
+    item: unknown,
+    quantity?: number,
+    options?: CombatKillOptions,
+  ) => killFor(selector, item, quantity, inventory, options);
+
+  const killForTempItem = (
+    selector: unknown,
+    item: unknown,
+    quantity?: number,
+    options?: CombatKillOptions,
+  ) => killFor(selector, item, quantity, temporary, options);
+
+  const getTargetAura = (
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    targetAuras(options).pipe(
+      Effect.map(
+        (auras) =>
+          auras.find(
+            (aura) =>
+              aura.name.localeCompare(name, undefined, {
+                sensitivity: "accent",
+              }) === 0,
+          ) ?? null,
+      ),
+    );
+
+  const hasTargetAura = (
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) => getTargetAura(name, options).pipe(Effect.map((aura) => aura !== null));
+
+  const getTarget = () => targetValue;
+
+  const target = {
+    auras: {
+      get: getTargetAura,
+      getAll: targetAuras,
+      has: hasTargetAura,
+    },
+    get: getTarget,
+  };
+
+  return {
+    attackMonster,
+    cancelAutoAttack,
+    cancelTarget,
+    canUseSkill,
+    exit,
+    getConsumableSkillItem,
+    hunt,
+    kill,
+    killForItem,
+    killForTempItem,
+    target,
+    useSkill,
+  };
+};
+
+export type Combat = ReturnType<typeof makeCombat>;

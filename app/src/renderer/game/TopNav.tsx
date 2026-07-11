@@ -45,7 +45,7 @@ import {
 import {
   AUTO_ZONE_MAP_OPTIONS,
   type AutoZoneSupportedMap,
-} from "./flash/features/AutoZone";
+} from "./automation/AutoZone";
 
 export type GameTopNavMenu =
   | "windows"

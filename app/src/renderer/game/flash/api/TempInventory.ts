@@ -1,32 +1,32 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Option } from "effect";
 
-import type { Item, ItemSelector } from "../Types";
-import { ItemsState } from "../state/Items";
+import { decodeItemSelector, quantity } from "../domain/Selectors";
+import type { Store } from "../state/Store";
 
-export interface TempInventoryApiShape {
-  readonly contains: (
-    selector: ItemSelector,
-    quantity?: number,
-  ) => Effect.Effect<boolean>;
-  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
-  readonly getAll: () => Effect.Effect<readonly Item[]>;
-}
+export const makeTempInventory = (store: Store) => {
+  const contains = (selector: unknown, requested?: number) => {
+    const decoded = decodeItemSelector(selector);
+    return Option.isNone(decoded)
+      ? Effect.succeed(false)
+      : store.items
+          .quantity("temporary", decoded.value)
+          .pipe(Effect.map((owned) => owned >= quantity(requested)));
+  };
 
-export class TempInventoryApi extends Context.Service<
-  TempInventoryApi,
-  TempInventoryApiShape
->()("lucent/game/flash/api/TempInventory") {}
+  const get = (selector: unknown) => {
+    const decoded = decodeItemSelector(selector);
+    return Option.isNone(decoded)
+      ? Effect.succeed(null)
+      : store.items.get("temporary", decoded.value);
+  };
 
-export const layer = Layer.effect(
-  TempInventoryApi,
-  Effect.gen(function* () {
-    const items = yield* ItemsState;
+  const getAll = () => store.items.getAll("temporary");
 
-    return TempInventoryApi.of({
-      contains: (selector, quantity) =>
-        items.contains("temp", selector, quantity),
-      get: (selector) => items.get("temp", selector),
-      getAll: () => items.getAll("temp"),
-    });
-  }),
-);
+  return {
+    contains,
+    get,
+    getAll,
+  };
+};
+
+export type TempInventory = ReturnType<typeof makeTempInventory>;

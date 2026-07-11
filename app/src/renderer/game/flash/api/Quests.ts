@@ -1,246 +1,236 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Option, Schema } from "effect";
 
-import type { Quest } from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { asBoolean, asPositiveInt, asRecord } from "../payload";
-import { FlashProtocol } from "../protocol/FlashProtocol";
-import { QuestsState } from "../state/Quests";
-import { observePacketDuring } from "./ActionVerification";
-import { WaitApi } from "./Wait";
+import type { BridgeService } from "../bridge/Bridge";
+import { PositiveWireInt, WireInt } from "../contract/Coercion";
+import type { Store } from "../state/Store";
+import type { Wait } from "./Wait";
 
-export interface QuestsApiShape {
-  readonly abandon: (questId: number) => Effect.Effect<boolean>;
-  readonly accept: (questId: number) => Effect.Effect<boolean>;
-  readonly acceptBatch: (
-    questIds: readonly number[],
-  ) => Effect.Effect<readonly boolean[]>;
-  readonly complete: (
-    questId: number,
-    turnIns?: number,
-    itemId?: number,
-    special?: boolean,
-  ) => Effect.Effect<boolean>;
-  readonly get: (questId: number) => Effect.Effect<Quest | null>;
-  readonly getAccepted: () => Effect.Effect<readonly Quest[]>;
-  readonly getAll: () => Effect.Effect<readonly Quest[]>;
-  readonly getMaxTurnIns: (questId: number) => Effect.Effect<number>;
-  readonly isAvailable: (questId: number) => Effect.Effect<boolean>;
-  readonly isInProgress: (questId: number) => Effect.Effect<boolean>;
-  readonly load: (questId: number) => Effect.Effect<boolean>;
-  readonly loadBatch: (
-    questIds: readonly number[],
-  ) => Effect.Effect<readonly boolean[]>;
-}
+const QuestIds = Schema.Array(PositiveWireInt);
+const decodeQuestId = Schema.decodeUnknownOption(PositiveWireInt);
 
-export class QuestsApi extends Context.Service<QuestsApi, QuestsApiShape>()(
-  "lucent/game/flash/api/Quests",
-) {}
-
-const normalizeQuestId = (questId: number): number | null =>
-  Number.isFinite(questId) && questId > 0 ? Math.trunc(questId) : null;
-
-const uniqueQuestIds = (questIds: readonly number[]): readonly number[] =>
-  Array.from(
-    new Set(
-      questIds
-        .map(normalizeQuestId)
-        .filter((questId): questId is number => questId !== null),
-    ),
-  );
-
-const allCached = (values: readonly boolean[]): boolean =>
-  values.every(Boolean);
-
-export const layer = Layer.effect(
-  QuestsApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const protocol = yield* FlashProtocol;
-    const quests = yield* QuestsState;
-    const wait = yield* WaitApi;
-
-    const load: QuestsApiShape["load"] = (questId) =>
-      Effect.gen(function* () {
-        const id = normalizeQuestId(questId);
-        if (id === null) {
-          return false;
-        }
-
-        if (yield* quests.has(id)) {
-          return true;
-        }
-
-        yield* bridge.call("quests.load", [id]);
-        return yield* wait.until(quests.has(id), { timeout: "5 seconds" });
-      });
-
-    const accept: QuestsApiShape["accept"] = (questId) =>
-      Effect.gen(function* () {
-        const id = normalizeQuestId(questId);
-        if (id === null) {
-          return false;
-        }
-
-        if (!(yield* quests.has(id)) && !(yield* load(id))) {
-          return false;
-        }
-
-        if (yield* bridge.call("quests.isInProgress", [id])) {
-          return true;
-        }
-
-        const available = yield* wait.forGameAction("acceptQuest");
-        if (!available) {
-          return false;
-        }
-
-        const sent = yield* bridge.call("quests.accept", [id]);
-        return sent
-          ? yield* wait.until(bridge.call("quests.isInProgress", [id]), {
-              timeout: "5 seconds",
-            })
-          : false;
-      });
-
-    const complete: QuestsApiShape["complete"] = (
-      questId,
-      turnIns,
-      itemId = -1,
-      special = false,
-    ) =>
-      Effect.gen(function* () {
-        const id = normalizeQuestId(questId);
-        if (id === null) {
-          return false;
-        }
-
-        if (!(yield* bridge.call("quests.isInProgress", [id]))) {
-          return false;
-        }
-
-        const normalizedTurnIns =
-          turnIns === undefined || !Number.isFinite(turnIns)
-            ? yield* getMaxTurnIns(id)
-            : Math.max(1, Math.trunc(turnIns));
-        const available = yield* wait.forGameAction("tryQuestComplete", {
-          timeout: "5 seconds",
-        });
-        if (!available) {
-          return false;
-        }
-
-        const { packet } = yield* observePacketDuring(
-          protocol,
-          { command: "ccqr", direction: "extension", wireType: "json" },
-          (candidate) => {
-            if (candidate.direction === "client") {
-              return false;
-            }
-            const candidatePayload = asRecord(candidate.data);
-            return asPositiveInt(candidatePayload?.["QuestID"]) === id;
-          },
-          bridge.call("quests.complete", [
-            id,
-            normalizedTurnIns,
-            itemId,
-            special,
-          ]),
-          { timeout: "5 seconds" },
-        );
-        const payload =
-          packet !== null && packet.direction !== "client"
-            ? asRecord(packet.data)
-            : null;
-        const responseQuestId = asPositiveInt(payload?.["QuestID"]);
-        return (
-          packet !== null &&
-          responseQuestId === id &&
-          asBoolean(payload?.["bSuccess"]) === true
-        );
-      });
-
-    const abandon: QuestsApiShape["abandon"] = (questId) =>
-      Effect.gen(function* () {
-        const id = normalizeQuestId(questId);
-        if (id === null) {
-          return false;
-        }
-
-        if (!(yield* bridge.call("quests.isInProgress", [id]))) {
-          return false;
-        }
-
-        yield* bridge.call("quests.abandon", [id]);
-        return yield* wait.until(
-          bridge
-            .call("quests.isInProgress", [id])
-            .pipe(Effect.map((inProgress) => !inProgress)),
-          { timeout: "5 seconds" },
-        );
-      });
-
-    const getMaxTurnIns: QuestsApiShape["getMaxTurnIns"] = (questId) =>
-      bridge
-        .call("quests.getMaxTurnIns", [Math.max(1, Math.trunc(questId))])
-        .pipe(
-          Effect.map((turnIns) => Math.max(1, asPositiveInt(turnIns) ?? 1)),
-        );
-
-    return QuestsApi.of({
-      abandon,
-      accept,
-      acceptBatch: (questIds) =>
-        Effect.forEach(uniqueQuestIds(questIds), accept, { concurrency: 1 }),
-      complete,
-      get: (questId) =>
-        normalizeQuestId(questId) === null
-          ? Effect.succeed(null)
-          : quests.get(Math.trunc(questId)),
-      getAccepted: () =>
-        bridge.call("quests.getAccepted").pipe(
-          Effect.flatMap((rawQuestIds) =>
-            Effect.forEach(
-              Array.isArray(rawQuestIds)
-                ? rawQuestIds
-                    .map(asPositiveInt)
-                    .filter((id): id is number => id !== undefined)
-                : [],
-              quests.get,
+export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
+  const load = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    if (Option.isNone(questId)) return Effect.succeed(false);
+    return store.quests.get(questId.value).pipe(
+      Effect.flatMap((current) =>
+        current !== null
+          ? Effect.succeed(true)
+          : bridge.invoke("quests.load", [questId.value], Schema.Void).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => Effect.succeed(false),
+                  onSome: () =>
+                    wait.until(
+                      store.quests
+                        .get(questId.value)
+                        .pipe(Effect.map((quest) => quest !== null)),
+                      { timeout: "5 seconds" },
+                    ),
+                }),
+              ),
             ),
-          ),
-          Effect.map((accepted) =>
-            accepted.filter((quest): quest is Quest => quest !== null),
-          ),
-        ),
-      getAll: quests.getAll,
-      getMaxTurnIns,
-      isAvailable: (questId) =>
-        normalizeQuestId(questId) === null
-          ? Effect.succeed(false)
-          : bridge.call("quests.isAvailable", [Math.trunc(questId)]),
-      isInProgress: (questId) =>
-        normalizeQuestId(questId) === null
-          ? Effect.succeed(false)
-          : bridge.call("quests.isInProgress", [Math.trunc(questId)]),
-      load,
-      loadBatch: (questIds) =>
-        Effect.gen(function* () {
-          const ids = uniqueQuestIds(questIds);
-          if (ids.length === 0) {
-            return [];
-          }
+      ),
+    );
+  };
 
-          const initial = yield* Effect.forEach(ids, quests.has);
-          if (!allCached(initial)) {
-            yield* bridge.call("quests.loadMultiple", [ids.join(",")]);
-            yield* wait.until(
-              Effect.forEach(ids, quests.has).pipe(Effect.map(allCached)),
-              { timeout: "5 seconds" },
-            );
-          }
+  const isInProgress = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    return Option.isNone(questId)
+      ? Effect.succeed(false)
+      : bridge
+          .invoke("quests.isInProgress", [questId.value], Schema.Boolean)
+          .pipe(Effect.map(Option.getOrElse(() => false)));
+  };
 
-          return yield* Effect.forEach(ids, quests.has);
-        }),
+  const accept = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    if (Option.isNone(questId)) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (
+        (yield* store.quests.get(questId.value)) === null &&
+        !(yield* load(questId.value))
+      ) {
+        return false;
+      }
+      if (yield* isInProgress(questId.value)) return true;
+      if (!(yield* wait.forGameAction("acceptQuest"))) return false;
+      const accepted = yield* bridge
+        .invoke("quests.accept", [questId.value], Schema.Boolean)
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+      return accepted
+        ? yield* wait.until(isInProgress(questId.value), {
+            timeout: "5 seconds",
+          })
+        : false;
     });
-  }),
-);
+  };
+
+  const abandon = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    if (Option.isNone(questId)) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (!(yield* isInProgress(questId.value))) return false;
+      if (
+        Option.isNone(
+          yield* bridge.invoke("quests.abandon", [questId.value], Schema.Void),
+        )
+      ) {
+        return false;
+      }
+      return yield* wait.until(
+        isInProgress(questId.value).pipe(Effect.map((active) => !active)),
+        { timeout: "5 seconds" },
+      );
+    });
+  };
+
+  const acceptBatch = (inputs: readonly unknown[]) =>
+    Effect.forEach(inputs, accept, { concurrency: 1 });
+
+  const getMaxTurnIns = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    return Option.isNone(questId)
+      ? Effect.succeed(1)
+      : bridge.invoke("quests.getMaxTurnIns", [questId.value], WireInt).pipe(
+          Effect.map(
+            Option.match({
+              onNone: () => 1,
+              onSome: (turnIns) => Math.max(1, turnIns),
+            }),
+          ),
+        );
+  };
+
+  const complete = (
+    input: unknown,
+    requestedTurnIns?: number,
+    itemId = -1,
+    special = false,
+  ) => {
+    const questId = decodeQuestId(input);
+    if (Option.isNone(questId)) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (!(yield* isInProgress(questId.value))) return false;
+      if (
+        !(yield* wait.forGameAction("tryQuestComplete", {
+          timeout: "5 seconds",
+        }))
+      ) {
+        return false;
+      }
+      const turnIns =
+        requestedTurnIns === undefined || !Number.isFinite(requestedTurnIns)
+          ? yield* getMaxTurnIns(questId.value)
+          : Math.max(1, Math.trunc(requestedTurnIns));
+      const event = yield* wait.forEvent(
+        { questId: questId.value, type: "quest-complete" },
+        {
+          timeout: "5 seconds",
+          trigger: bridge.invoke(
+            "quests.complete",
+            [questId.value, turnIns, itemId, special],
+            Schema.Void,
+          ),
+        },
+      );
+      return event !== null;
+    });
+  };
+
+  const get = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    return Option.isNone(questId)
+      ? Effect.succeed(null)
+      : store.quests
+          .get(questId.value)
+          .pipe(
+            Effect.flatMap((quest) =>
+              quest !== null
+                ? Effect.succeed(quest)
+                : load(questId.value).pipe(
+                    Effect.andThen(store.quests.get(questId.value)),
+                  ),
+            ),
+          );
+  };
+
+  const getAccepted = () =>
+    bridge.invoke("quests.getAccepted", undefined, QuestIds).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => store.quests.getAccepted,
+          onSome: (ids) =>
+            store.quests
+              .setAccepted(ids)
+              .pipe(Effect.andThen(store.quests.getAccepted)),
+        }),
+      ),
+    );
+
+  const getAll = () => store.quests.getAll;
+
+  const isAvailable = (input: unknown) => {
+    const questId = decodeQuestId(input);
+    return Option.isNone(questId)
+      ? Effect.succeed(false)
+      : bridge
+          .invoke("quests.isAvailable", [questId.value], Schema.Boolean)
+          .pipe(Effect.map(Option.getOrElse(() => false)));
+  };
+
+  const loadBatch = (inputs: readonly unknown[]) => {
+    const ids = Array.from(
+      new Set(
+        inputs.flatMap((input) => {
+          const decoded = decodeQuestId(input);
+          return Option.isSome(decoded) ? [decoded.value] : [];
+        }),
+      ),
+    );
+    if (ids.length === 0) return Effect.succeed([]);
+    return Effect.gen(function* () {
+      const initial = yield* Effect.forEach(ids, (id) =>
+        store.quests.get(id).pipe(Effect.map((quest) => quest !== null)),
+      );
+      if (!initial.every(Boolean)) {
+        if (
+          Option.isSome(
+            yield* bridge.invoke(
+              "quests.loadMultiple",
+              [ids.join(",")],
+              Schema.Void,
+            ),
+          )
+        ) {
+          yield* wait.until(
+            Effect.forEach(ids, store.quests.get).pipe(
+              Effect.map((quests) => quests.every((quest) => quest !== null)),
+            ),
+            { timeout: "5 seconds" },
+          );
+        }
+      }
+      return yield* Effect.forEach(ids, (id) =>
+        store.quests.get(id).pipe(Effect.map((quest) => quest !== null)),
+      );
+    });
+  };
+
+  return {
+    abandon,
+    accept,
+    acceptBatch,
+    complete,
+    get,
+    getAccepted,
+    getAll,
+    getMaxTurnIns,
+    isAvailable,
+    isInProgress,
+    load,
+    loadBatch,
+  };
+};
+
+export type Quests = ReturnType<typeof makeQuests>;

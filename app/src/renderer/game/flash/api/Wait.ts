@@ -1,43 +1,10 @@
-import { Context, Effect, Layer, Option, Schedule } from "effect";
+import { Effect, Option, Schema } from "effect";
 import type { Duration } from "effect";
 
-import type {
-  EventSelector,
-  FlashEvent,
-  FlashPacket,
-  PacketSelector,
-  WaitOptions,
-} from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { FlashProtocol } from "../protocol/FlashProtocol";
-
-export interface WaitApiShape {
-  readonly forEvent: (
-    selector?: EventSelector,
-    options?: WaitOptions,
-  ) => Effect.Effect<FlashEvent | null>;
-  readonly forGameAction: (
-    action: string,
-    options?: WaitOptions | Duration.Input,
-  ) => Effect.Effect<boolean>;
-  readonly forPacket: (
-    selector?: PacketSelector,
-    options?: WaitOptions,
-  ) => Effect.Effect<FlashPacket | null>;
-  readonly isGameActionAvailable: (action: string) => Effect.Effect<boolean>;
-  readonly until: (
-    condition: Effect.Effect<boolean>,
-    options?: WaitOptions,
-  ) => Effect.Effect<boolean>;
-  readonly untilSome: <A>(
-    condition: Effect.Effect<Option.Option<A>>,
-    options?: WaitOptions,
-  ) => Effect.Effect<A | null>;
-}
-
-export class WaitApi extends Context.Service<WaitApi, WaitApiShape>()(
-  "lucent/game/flash/api/Wait",
-) {}
+import type { BridgeService } from "../bridge/Bridge";
+import type { GatewayService } from "../bridge/Gateway";
+import type { WaitOptions } from "../contract/Packet";
+import { makeWait } from "../protocol/Wait";
 
 const isWaitOptions = (
   options: WaitOptions | Duration.Input,
@@ -46,94 +13,34 @@ const isWaitOptions = (
   !Array.isArray(options) &&
   ("timeout" in options || "interval" in options);
 
-const normalizeOptions = (
-  options: WaitOptions | Duration.Input | undefined,
-): WaitOptions => {
-  if (options === undefined) {
-    return {};
-  }
+export const makeWaitApi = (bridge: BridgeService, gateway: GatewayService) => {
+  const wait = makeWait(gateway);
+  const isGameActionAvailable = (action: string) =>
+    bridge
+      .invoke("world.isActionAvailable", [action], Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
 
-  if (isWaitOptions(options)) {
-    return options;
-  }
+  const forGameAction = (
+    action: string,
+    options?: WaitOptions | Duration.Input,
+  ) => {
+    const normalized: WaitOptions =
+      options === undefined
+        ? {}
+        : isWaitOptions(options)
+          ? options
+          : { timeout: options };
+    return wait.until(isGameActionAvailable(action), {
+      ...normalized,
+      timeout: normalized.timeout ?? "2 seconds",
+    });
+  };
 
-  return { timeout: options };
+  return {
+    ...wait,
+    forGameAction,
+    isGameActionAvailable,
+  };
 };
 
-export const waitUntil: WaitApiShape["until"] = (condition, options) => {
-  const awaited = Effect.repeat(condition, {
-    schedule: Schedule.spaced(options?.interval ?? "100 millis"),
-    until: (done) => done,
-  }).pipe(Effect.as(true));
-
-  if (options?.timeout === undefined) {
-    return awaited;
-  }
-
-  return awaited.pipe(
-    Effect.timeoutOption(options.timeout),
-    Effect.map(Option.isSome),
-  );
-};
-
-export const waitUntilSome: WaitApiShape["untilSome"] = (condition, options) =>
-  Effect.gen(function* () {
-    const awaited = Effect.repeat(condition, {
-      schedule: Schedule.spaced(options?.interval ?? "100 millis"),
-      until: Option.isSome,
-    });
-
-    if (options?.timeout === undefined) {
-      const result = yield* awaited;
-      return Option.isSome(result) ? result.value : null;
-    }
-
-    const result = yield* awaited.pipe(Effect.timeoutOption(options.timeout));
-    return Option.isSome(result) && Option.isSome(result.value)
-      ? result.value.value
-      : null;
-  });
-
-export const layer = Layer.effect(
-  WaitApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const protocol = yield* FlashProtocol;
-
-    const isGameActionAvailable: WaitApiShape["isGameActionAvailable"] = (
-      action,
-    ) => bridge.call("world.isActionAvailable", [action]);
-
-    return WaitApi.of({
-      forEvent: (selector, options) =>
-        protocol.onceEvent(
-          selector,
-          options?.timeout === undefined
-            ? undefined
-            : { timeout: options.timeout },
-        ),
-      forGameAction: (action, options) => {
-        const normalized = normalizeOptions(options);
-        return waitUntil(
-          isGameActionAvailable(action),
-          normalized.interval === undefined
-            ? { timeout: normalized.timeout ?? "2 seconds" }
-            : {
-                interval: normalized.interval,
-                timeout: normalized.timeout ?? "2 seconds",
-              },
-        );
-      },
-      forPacket: (selector, options) =>
-        protocol.oncePacket(
-          selector,
-          options?.timeout === undefined
-            ? undefined
-            : { timeout: options.timeout },
-        ),
-      isGameActionAvailable,
-      until: waitUntil,
-      untilSome: waitUntilSome,
-    });
-  }),
-);
+export type Wait = ReturnType<typeof makeWaitApi>;

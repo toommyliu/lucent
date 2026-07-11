@@ -1,4 +1,4 @@
-import type { Duration, Effect, Option } from "effect";
+import type { Duration, Effect, Option, pipe } from "effect";
 
 import type { ArmyApiShape } from "../army/Army";
 import type {
@@ -6,24 +6,8 @@ import type {
   ScriptInputValue,
   ScriptInputValues,
 } from "@lucent/core/scriptInputs";
-import type { AuthApiShape } from "../flash/api/Auth";
-import type { BankApiShape } from "../flash/api/Bank";
-import type { CombatApiShape } from "../flash/api/Combat";
-import type { DropsApiShape } from "../flash/api/Drops";
-import type { EventsApiShape } from "../flash/api/Events";
-import type { HouseApiShape } from "../flash/api/House";
-import type { InventoryApiShape } from "../flash/api/Inventory";
-import type { MapApiShape } from "../flash/api/Map";
-import type { MonstersApiShape } from "../flash/api/Monsters";
-import type { PacketApiShape } from "../flash/api/Packet";
-import type { PlayerApiShape } from "../flash/api/Player";
-import type { PlayersApiShape } from "../flash/api/Players";
-import type { QuestsApiShape } from "../flash/api/Quests";
-import type { ShopsApiShape } from "../flash/api/Shops";
-import type { TempInventoryApiShape } from "../flash/api/TempInventory";
-import type { WaitApiShape } from "../flash/api/Wait";
-import type { AutoReloginShape } from "../flash/features/AutoRelogin";
-import type { AutoZoneShape } from "../flash/features/AutoZone";
+import type { AutomationService } from "../automation/Automation";
+import type { ApiService } from "../flash/api/Api";
 import type {
   ScriptExecutionError,
   ScriptStopSignal,
@@ -52,8 +36,8 @@ export interface ScriptAntiCounterFeature {
 
 export interface ScriptFeaturesApi {
   readonly antiCounter: ScriptAntiCounterFeature;
-  readonly autoRelogin: AutoReloginShape;
-  readonly autoZone: AutoZoneShape;
+  readonly autoRelogin: AutomationService["autoRelogin"];
+  readonly autoZone: AutomationService["autoZone"];
 }
 
 export interface ScriptSettingsApi {
@@ -76,23 +60,23 @@ export interface ScriptSettingsApi {
 
 export interface ScriptApi {
   readonly army: ArmyApiShape;
-  readonly auth: AuthApiShape;
-  readonly bank: BankApiShape;
-  readonly combat: CombatApiShape;
-  readonly drops: DropsApiShape;
-  readonly events: EventsApiShape;
-  readonly house: HouseApiShape;
-  readonly inventory: InventoryApiShape;
-  readonly map: MapApiShape;
-  readonly monsters: MonstersApiShape;
-  readonly packet: PacketApiShape;
-  readonly player: PlayerApiShape;
-  readonly players: PlayersApiShape;
-  readonly quests: QuestsApiShape;
+  readonly auth: ApiService["auth"];
+  readonly bank: ApiService["bank"];
+  readonly combat: ApiService["combat"];
+  readonly drops: ApiService["drops"];
+  readonly events: ApiService["events"];
+  readonly house: ApiService["house"];
+  readonly inventory: ApiService["inventory"];
+  readonly map: ApiService["map"];
+  readonly monsters: ApiService["monsters"];
+  readonly packet: ApiService["packet"];
+  readonly player: ApiService["player"];
+  readonly players: ApiService["players"];
+  readonly quests: ApiService["quests"];
   readonly settings: ScriptSettingsApi;
-  readonly shops: ShopsApiShape;
-  readonly tempInventory: TempInventoryApiShape;
-  readonly wait: WaitApiShape;
+  readonly shops: ApiService["shops"];
+  readonly tempInventory: ApiService["tempInventory"];
+  readonly wait: ApiService["wait"];
 }
 
 export interface ScriptInputsApi {
@@ -147,7 +131,7 @@ export interface ScriptEffectStd {
   readonly Duration: typeof Duration;
   readonly Effect: typeof Effect;
   readonly Option: typeof Option;
-  readonly pipe: typeof import("effect").pipe;
+  readonly pipe: typeof pipe;
 }
 
 export type ScriptMain = () => ScriptGenerator<unknown>;

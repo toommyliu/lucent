@@ -1,126 +1,167 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Option, Schema } from "effect";
 
-import type { Item, ItemSelector } from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { ItemsState } from "../state/Items";
-import { WaitApi } from "./Wait";
+import type { BridgeService } from "../bridge/Bridge";
+import { ItemPayload, ItemPayloads, toItem } from "../contract/payload/Items";
+import { WireInt } from "../contract/Coercion";
+import { decodeItemSelector, quantity } from "../domain/Selectors";
+import type { Store } from "../state/Store";
+import type { Wait } from "./Wait";
 
-export interface InventoryApiShape {
-  readonly contains: (
-    selector: ItemSelector,
-    quantity?: number,
-  ) => Effect.Effect<boolean>;
-  readonly equip: (selector: ItemSelector) => Effect.Effect<boolean>;
-  readonly get: (selector: ItemSelector) => Effect.Effect<Item | null>;
-  readonly getAll: () => Effect.Effect<readonly Item[]>;
-  readonly getAvailableSlots: () => Effect.Effect<number>;
-  readonly getSlots: () => Effect.Effect<number>;
-  readonly getUsedSlots: () => Effect.Effect<number>;
-  readonly unequipConsumable: (
-    selector: ItemSelector,
-  ) => Effect.Effect<boolean>;
-}
+const NullableItem = Schema.NullOr(ItemPayload);
 
-export class InventoryApi extends Context.Service<
-  InventoryApi,
-  InventoryApiShape
->()("lucent/game/flash/api/Inventory") {}
+export const makeInventory = (
+  bridge: BridgeService,
+  store: Store,
+  wait: Wait,
+) => {
+  const getAll = () =>
+    bridge.invoke("inventory.getItems", undefined, ItemPayloads).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => store.items.getAll("inventory"),
+          onSome: (payloads) => {
+            const items = payloads.map((payload) =>
+              toItem(payload, { context: "inventory" }),
+            );
+            return store.items
+              .replace("inventory", items)
+              .pipe(Effect.as(items));
+          },
+        }),
+      ),
+    );
+  const get = (selector: unknown) => {
+    const decoded = decodeItemSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(null);
+    return store.items.get("inventory", decoded.value).pipe(
+      Effect.flatMap((cached) =>
+        cached !== null
+          ? Effect.succeed(cached)
+          : bridge
+              .invoke("inventory.getItem", [decoded.value], NullableItem)
+              .pipe(
+                Effect.flatMap(
+                  Option.match({
+                    onNone: () => Effect.succeed(null),
+                    onSome: (payload) => {
+                      if (payload === null) return Effect.succeed(null);
+                      const item = toItem(payload, { context: "inventory" });
+                      return store.items
+                        .upsert("inventory", item)
+                        .pipe(Effect.map((stored) => stored));
+                    },
+                  }),
+                ),
+              ),
+      ),
+    );
+  };
+  const getSlots = () =>
+    bridge
+      .invoke("inventory.getSlots", undefined, WireInt)
+      .pipe(Effect.map(Option.getOrElse(() => 0)));
+  const getUsedSlots = () =>
+    store.items.getAll("inventory").pipe(Effect.map((items) => items.length));
 
-export const layer = Layer.effect(
-  InventoryApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const items = yield* ItemsState;
-    const wait = yield* WaitApi;
+  const contains = (selector: unknown, requested?: number) =>
+    get(selector).pipe(
+      Effect.map(
+        (item) => item !== null && item.quantity >= quantity(requested),
+      ),
+    );
 
-    const get: InventoryApiShape["get"] = (selector) =>
-      items.get("inventory", selector);
-
-    const contains: InventoryApiShape["contains"] = (selector, quantity) =>
-      items.contains("inventory", selector, quantity);
-
-    const getSlots = () => bridge.call("inventory.getSlots");
-    const getUsedSlots = items.getUsedSlots("inventory");
-    const getAvailableSlots = () =>
-      Effect.zipWith(getSlots(), getUsedSlots, (slots, used) =>
-        Math.max(0, slots - used),
-      );
-
-    const equip: InventoryApiShape["equip"] = (selector) =>
-      Effect.gen(function* () {
-        const item = yield* get(selector);
-        if (item === null) {
-          return false;
-        }
-
-        if (item.equipped) {
-          return true;
-        }
-
-        const canEquip = yield* wait.forGameAction("equipItem");
-        if (!canEquip) {
-          return false;
-        }
-
-        const sent = yield* bridge.call("inventory.equip", [
-          { itemId: item.itemId },
-        ]);
-        if (!sent) {
-          return false;
-        }
-
-        return yield* wait.until(
-          get({ itemId: item.itemId }).pipe(
-            Effect.map((current) => current?.equipped === true),
+  const equip = (selector: unknown) => {
+    const decoded = decodeItemSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(false);
+    return get(decoded.value).pipe(
+      Effect.flatMap((item) => {
+        if (item === null) return Effect.succeed(false);
+        if (item.equipped) return Effect.succeed(true);
+        return wait.forGameAction("equipItem").pipe(
+          Effect.flatMap((ready) =>
+            ready
+              ? bridge.invoke(
+                  "inventory.equip",
+                  [{ itemId: item.itemId }],
+                  Schema.Boolean,
+                )
+              : Effect.succeed(Option.none()),
           ),
-          { timeout: "5 seconds" },
+          Effect.flatMap(
+            Option.match({
+              onNone: () => Effect.succeed(false),
+              onSome: (sent) =>
+                sent
+                  ? wait.until(
+                      get(item.itemId).pipe(
+                        Effect.map((current) => current?.equipped === true),
+                      ),
+                      { timeout: "5 seconds" },
+                    )
+                  : Effect.succeed(false),
+            }),
+          ),
         );
-      });
+      }),
+    );
+  };
 
-    const unequipConsumable: InventoryApiShape["unequipConsumable"] = (
-      selector,
-    ) =>
-      Effect.gen(function* () {
-        const item = yield* get(selector);
+  const getAvailableSlots = () =>
+    Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
+      Math.max(0, slots - used),
+    );
+
+  const unequipConsumable = (selector: unknown) => {
+    const decoded = decodeItemSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(false);
+    return get(decoded.value).pipe(
+      Effect.flatMap((item) => {
         if (item === null || item.category !== "Item") {
-          return false;
+          return Effect.succeed(false);
         }
-
-        if (!item.equipped) {
-          return true;
-        }
-
-        const canUnequip = yield* wait.forGameAction("unequipItem");
-        if (!canUnequip) {
-          return false;
-        }
-
-        const sent = yield* bridge.call("inventory.unequipConsumable", [
-          { itemId: item.itemId },
-        ]);
-        if (!sent) {
-          return false;
-        }
-
-        return yield* wait.until(
-          get({ itemId: item.itemId }).pipe(
-            Effect.map(
-              (current) => current !== null && current.equipped !== true,
-            ),
+        if (!item.equipped) return Effect.succeed(true);
+        return wait.forGameAction("unequipItem").pipe(
+          Effect.flatMap((ready) =>
+            ready
+              ? bridge.invoke(
+                  "inventory.unequipConsumable",
+                  [{ itemId: item.itemId }],
+                  Schema.Boolean,
+                )
+              : Effect.succeed(Option.none()),
           ),
-          { timeout: "5 seconds" },
+          Effect.flatMap(
+            Option.match({
+              onNone: () => Effect.succeed(false),
+              onSome: (sent) =>
+                sent
+                  ? wait.until(
+                      get(item.itemId).pipe(
+                        Effect.map(
+                          (current) =>
+                            current !== null && current.equipped !== true,
+                        ),
+                      ),
+                      { timeout: "5 seconds" },
+                    )
+                  : Effect.succeed(false),
+            }),
+          ),
         );
-      });
+      }),
+    );
+  };
 
-    return InventoryApi.of({
-      contains,
-      equip,
-      get,
-      getAll: () => items.getAll("inventory"),
-      getAvailableSlots,
-      getSlots,
-      getUsedSlots: () => getUsedSlots,
-      unequipConsumable,
-    });
-  }),
-);
+  return {
+    contains,
+    equip,
+    get,
+    getAll,
+    getAvailableSlots,
+    getSlots,
+    getUsedSlots,
+    unequipConsumable,
+  };
+};
+
+export type Inventory = ReturnType<typeof makeInventory>;

@@ -1,226 +1,258 @@
-import { Context, Effect, Layer } from "effect";
+import type { LiveItem } from "@lucent/game";
+import { Effect, Option, Schema } from "effect";
 
-import type {
-  ItemSelector,
-  QuantityOptions,
-  Shop,
-  Item,
-  ShopItemSelector,
-} from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { asPositiveInt } from "../payload";
-import { normalizeItemSelector, normalizeQuantity } from "../selectors";
-import { ItemsState } from "../state/Items";
-import { ShopsState } from "../state/Shops";
-import { InventoryApi } from "./Inventory";
-import { WaitApi } from "./Wait";
+import type { BridgeService } from "../bridge/Bridge";
+import { PositiveWireInt, WireInt } from "../contract/Coercion";
+import {
+  decodeItemSelector,
+  decodeShopSelector,
+  quantity,
+} from "../domain/Selectors";
+import type { Store } from "../state/Store";
+import type { Inventory } from "./Inventory";
+import type { Wait } from "./Wait";
 
-export interface ShopsApiShape {
-  readonly buy: (
-    selector: ShopItemSelector,
-    options?: QuantityOptions,
-  ) => Effect.Effect<boolean>;
-  readonly canBuy: (
-    selector: ShopItemSelector,
-    options?: QuantityOptions,
-  ) => Effect.Effect<boolean>;
-  readonly close: (shopId?: number) => Effect.Effect<boolean>;
-  readonly get: (selector: ShopItemSelector) => Effect.Effect<Item | null>;
-  readonly getAll: () => Effect.Effect<readonly Item[]>;
-  readonly getInfo: () => Effect.Effect<Shop | null>;
-  readonly getMaxBuyQuantity: (
-    selector: ShopItemSelector,
-  ) => Effect.Effect<number>;
-  readonly isMergeShop: () => Effect.Effect<boolean>;
-  readonly isOpen: (shopId?: number) => Effect.Effect<boolean>;
-  readonly load: (shopId: number) => Effect.Effect<boolean>;
-  readonly loadArmorCustomize: () => Effect.Effect<void>;
-  readonly loadHairShop: (shopId: number) => Effect.Effect<void>;
-  readonly sell: (
-    selector: ItemSelector,
-    options?: QuantityOptions,
-  ) => Effect.Effect<boolean>;
-}
+const decodeShopId = Schema.decodeUnknownOption(PositiveWireInt);
 
-export class ShopsApi extends Context.Service<ShopsApi, ShopsApiShape>()(
-  "lucent/game/flash/api/Shops",
-) {}
+export const makeShops = (
+  bridge: BridgeService,
+  store: Store,
+  inventory: Inventory,
+  wait: Wait,
+) => {
+  const get = (selector: unknown) => {
+    const decoded = decodeShopSelector(selector);
+    return Option.isNone(decoded)
+      ? Effect.succeed(null)
+      : store.items.get("shop", decoded.value);
+  };
 
-const quantityFromOptions = (options?: QuantityOptions) =>
-  normalizeQuantity(options?.quantity);
+  const selectorFor = (item: LiveItem) =>
+    item.shopItemId === undefined
+      ? { itemId: item.itemId }
+      : { shopItemId: item.shopItemId };
 
-export const layer = Layer.effect(
-  ShopsApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const inventory = yield* InventoryApi;
-    const items = yield* ItemsState;
-    const shops = yield* ShopsState;
-    const wait = yield* WaitApi;
-
-    const isOpen: ShopsApiShape["isOpen"] = (shopId) =>
-      shopId === undefined
-        ? bridge.call("shops.isOpen")
-        : bridge.call("shops.isOpen", [shopId]);
-
-    const close: ShopsApiShape["close"] = (shopId) =>
-      Effect.gen(function* () {
-        if (!(yield* isOpen(shopId))) {
-          return false;
-        }
-
-        const closed = yield* shopId === undefined
-          ? bridge.call("shops.close")
-          : bridge.call("shops.close", [shopId]);
-        return (
-          closed &&
-          (yield* wait.until(isOpen(shopId).pipe(Effect.map((open) => !open)), {
-            timeout: "3 seconds",
-          }))
-        );
-      });
-
-    const canBuy: ShopsApiShape["canBuy"] = (selector, options) =>
-      Effect.gen(function* () {
-        const item = yield* shops.getOne(selector);
-        if (item === null) {
-          return false;
-        }
-
-        const bridgeSelector =
-          item.shopItemId === undefined
-            ? { itemId: item.itemId }
-            : { shopItemId: item.shopItemId };
-        return yield* bridge.call("shops.canBuyItem", [
-          bridgeSelector,
-          quantityFromOptions(options),
-        ]);
-      });
-
-    const buy: ShopsApiShape["buy"] = (selector, options) =>
-      Effect.gen(function* () {
-        const item = yield* shops.getOne(selector);
-        if (item === null) {
-          return false;
-        }
-
-        const quantity = quantityFromOptions(options);
-        const actionReady = yield* wait.forGameAction("buyItem");
-        if (!actionReady || !(yield* canBuy(selector, { quantity }))) {
-          return false;
-        }
-
-        const startingQuantity = yield* items.getOwnedQuantity({
-          itemId: item.itemId,
-        });
-        const bridgeSelector =
-          item.shopItemId === undefined
-            ? { itemId: item.itemId }
-            : { shopItemId: item.shopItemId };
-        yield* bridge.call("shops.buy", [bridgeSelector, quantity]);
-        return yield* wait.until(
-          items
-            .getOwnedQuantity({ itemId: item.itemId })
-            .pipe(Effect.map((owned) => owned >= startingQuantity + quantity)),
-          { timeout: "5 seconds" },
-        );
-      });
-
-    const sell: ShopsApiShape["sell"] = (selector, options) =>
-      Effect.gen(function* () {
-        const item = yield* inventory.get(selector);
-        if (item === null) {
-          return false;
-        }
-
-        const normalized = normalizeItemSelector(selector);
-        if (normalized === null) {
-          return false;
-        }
-
-        const actionReady = yield* wait.forGameAction("sellItem");
-        if (!actionReady) {
-          return false;
-        }
-
-        const quantity = quantityFromOptions(options);
-        const startingQuantity = item.quantity;
-        const expectedMaximumQuantity = Math.max(
-          0,
-          startingQuantity - quantity,
-        );
-        const sold = yield* bridge.call("shops.sell", [normalized, quantity]);
-        if (!sold) {
-          return false;
-        }
-
-        return yield* wait.until(
-          Effect.gen(function* () {
-            if (!(yield* bridge.call("auth.isLoggedIn"))) {
-              return false;
-            }
-            const current = yield* inventory.get({ itemId: item.itemId });
-            return (
-              current === null || current.quantity <= expectedMaximumQuantity
-            );
+  const isOpen = (input?: unknown) => {
+    const shopId = input === undefined ? Option.none() : decodeShopId(input);
+    if (input !== undefined && Option.isNone(shopId)) {
+      return Effect.succeed(false);
+    }
+    return bridge
+      .invoke(
+        "shops.isOpen",
+        Option.isSome(shopId) ? [shopId.value] : undefined,
+        Schema.Boolean,
+      )
+      .pipe(
+        Effect.flatMap(
+          Option.match({
+            onNone: () =>
+              store.shops.get.pipe(
+                Effect.map((shop) =>
+                  Option.isSome(shopId)
+                    ? shop?.id === shopId.value
+                    : shop !== null,
+                ),
+              ),
+            onSome: (open) => Effect.succeed(open),
           }),
-          { timeout: "5 seconds" },
-        );
-      });
+        ),
+      );
+  };
 
-    const load: ShopsApiShape["load"] = (shopId) =>
-      Effect.gen(function* () {
-        const id = asPositiveInt(shopId);
-        if (id === undefined) {
-          return false;
-        }
-
-        const info = yield* shops.getInfo();
-        if (info !== null && info.id !== id && (yield* isOpen(info.id))) {
-          yield* close(info.id);
-        }
-
-        yield* bridge.call("shops.load", [id]);
-        return yield* wait.until(
-          Effect.gen(function* () {
-            const loaded = yield* shops.getInfo();
-            return loaded?.id === id && (yield* isOpen(id));
-          }),
-          { timeout: "5 seconds" },
-        );
-      });
-
-    return ShopsApi.of({
-      buy,
-      canBuy,
-      close,
-      get: shops.getOne,
-      getAll: shops.getAll,
-      getInfo: shops.getInfo,
-      getMaxBuyQuantity: (selector) =>
-        Effect.gen(function* () {
-          const item = yield* shops.getOne(selector);
-          if (item === null) {
-            return 0;
-          }
-
-          const bridgeSelector =
-            item.shopItemId === undefined
-              ? { itemId: item.itemId }
-              : { shopItemId: item.shopItemId };
-          return yield* bridge.call("shops.getMaxBuyQuantity", [
-            bridgeSelector,
-          ]);
-        }),
-      isMergeShop: () => bridge.call("shops.isMergeShop"),
-      isOpen,
-      load,
-      loadArmorCustomize: () => bridge.call("shops.loadArmorCustomize"),
-      loadHairShop: (shopId) =>
-        asPositiveInt(shopId) === undefined
-          ? Effect.void
-          : bridge.call("shops.loadHairShop", [Math.trunc(shopId)]),
-      sell,
+  function close(input?: unknown) {
+    const shopId = input === undefined ? Option.none() : decodeShopId(input);
+    if (input !== undefined && Option.isNone(shopId)) {
+      return Effect.succeed(false);
+    }
+    return Effect.gen(function* () {
+      if (!(yield* isOpen(input))) return false;
+      const closed = yield* bridge
+        .invoke(
+          "shops.close",
+          Option.isSome(shopId) ? [shopId.value] : undefined,
+          Schema.Boolean,
+        )
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+      if (!closed) return false;
+      const settled = yield* wait.until(
+        isOpen(input).pipe(Effect.map((open) => !open)),
+        { timeout: "3 seconds" },
+      );
+      if (settled) {
+        yield* store.shops.set(null);
+        yield* store.items.replace("shop", []);
+      }
+      return settled;
     });
-  }),
-);
+  }
+
+  const load = (input: unknown) => {
+    const shopId = decodeShopId(input);
+    if (Option.isNone(shopId)) return Effect.succeed(false);
+    return Effect.gen(function* () {
+      if (yield* isOpen(shopId.value)) return true;
+      const current = yield* store.shops.get;
+      if (
+        current !== null &&
+        current.id !== shopId.value &&
+        (yield* isOpen(current.id))
+      ) {
+        yield* close(current.id);
+      }
+      if (
+        Option.isNone(
+          yield* bridge.invoke("shops.load", [shopId.value], Schema.Void),
+        )
+      ) {
+        return false;
+      }
+      return yield* wait.until(
+        Effect.all([store.shops.get, isOpen(shopId.value)]).pipe(
+          Effect.map(([shop, open]) => shop?.id === shopId.value && open),
+        ),
+        { timeout: "5 seconds" },
+      );
+    });
+  };
+
+  const canBuy = (selector: unknown, options?: { quantity?: number }) =>
+    get(selector).pipe(
+      Effect.flatMap((item) =>
+        item === null
+          ? Effect.succeed(false)
+          : bridge
+              .invoke(
+                "shops.canBuyItem",
+                [selectorFor(item), quantity(options?.quantity)],
+                Schema.Boolean,
+              )
+              .pipe(Effect.map(Option.getOrElse(() => false))),
+      ),
+    );
+
+  const buy = (selector: unknown, options?: { quantity?: number }) =>
+    get(selector).pipe(
+      Effect.flatMap((item) => {
+        if (item === null) return Effect.succeed(false);
+        const requested = quantity(options?.quantity);
+        return Effect.gen(function* () {
+          if (!(yield* wait.forGameAction("buyItem"))) return false;
+          if (!(yield* canBuy(selectorFor(item), { quantity: requested }))) {
+            return false;
+          }
+          const startingQuantity = yield* store.items.quantity(
+            "inventory",
+            item.itemId,
+          );
+          if (
+            Option.isNone(
+              yield* bridge.invoke(
+                "shops.buy",
+                [selectorFor(item), requested],
+                Schema.Void,
+              ),
+            )
+          ) {
+            return false;
+          }
+          return yield* wait.until(
+            store.items
+              .quantity("inventory", item.itemId)
+              .pipe(
+                Effect.map((owned) => owned >= startingQuantity + requested),
+              ),
+            { timeout: "5 seconds" },
+          );
+        });
+      }),
+    );
+
+  const sell = (selector: unknown, options?: { quantity?: number }) => {
+    const decoded = decodeItemSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(false);
+    return inventory.get(decoded.value).pipe(
+      Effect.flatMap((item) => {
+        if (item === null) return Effect.succeed(false);
+        const requested = quantity(options?.quantity);
+        if (item.quantity < requested) return Effect.succeed(false);
+        return Effect.gen(function* () {
+          if (!(yield* wait.forGameAction("sellItem"))) return false;
+          const sold = yield* bridge
+            .invoke("shops.sell", [decoded.value, requested], Schema.Boolean)
+            .pipe(Effect.map(Option.getOrElse(() => false)));
+          if (!sold) return false;
+          return yield* wait.until(
+            inventory
+              .get(item.itemId)
+              .pipe(
+                Effect.map(
+                  (current) =>
+                    current === null ||
+                    current.quantity <= item.quantity - requested,
+                ),
+              ),
+            { timeout: "5 seconds" },
+          );
+        });
+      }),
+    );
+  };
+
+  const getAll = () => store.items.getAll("shop");
+  const getInfo = () => store.shops.get;
+
+  const getMaxBuyQuantity = (selector: unknown) =>
+    get(selector).pipe(
+      Effect.flatMap((item) =>
+        item === null
+          ? Effect.succeed(0)
+          : bridge
+              .invoke("shops.getMaxBuyQuantity", [selectorFor(item)], WireInt)
+              .pipe(Effect.map(Option.getOrElse(() => 0))),
+      ),
+    );
+
+  const isMergeShop = () =>
+    bridge.invoke("shops.isMergeShop", undefined, Schema.Boolean).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () =>
+            store.shops.get.pipe(Effect.map((shop) => shop?.merge ?? false)),
+          onSome: (merge) => Effect.succeed(merge),
+        }),
+      ),
+    );
+
+  const loadArmorCustomize = () =>
+    bridge
+      .invoke("shops.loadArmorCustomize", undefined, Schema.Void)
+      .pipe(Effect.asVoid);
+
+  const loadHairShop = (input: unknown) => {
+    const shopId = decodeShopId(input);
+    return Option.isNone(shopId)
+      ? Effect.void
+      : bridge
+          .invoke("shops.loadHairShop", [shopId.value], Schema.Void)
+          .pipe(Effect.asVoid);
+  };
+
+  return {
+    buy,
+    canBuy,
+    close,
+    get,
+    getAll,
+    getInfo,
+    getMaxBuyQuantity,
+    isMergeShop,
+    isOpen,
+    load,
+    loadArmorCustomize,
+    loadHairShop,
+    sell,
+  };
+};
+
+export type Shops = ReturnType<typeof makeShops>;

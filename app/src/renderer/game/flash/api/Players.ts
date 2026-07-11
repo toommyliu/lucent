@@ -1,71 +1,60 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect } from "effect";
 
-import type { Aura, AuraQueryOptions, Player } from "../Types";
-import { equalsIgnoreCase } from "../payload";
-import { WorldState } from "../state/World";
+import type { Store } from "../state/Store";
 
-export interface PlayerAuraApi {
-  readonly get: (
-    player: string | number,
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<Aura | null>;
-  readonly getAll: (
-    player: string | number,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<readonly Aura[]>;
-  readonly has: (
-    player: string | number,
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<boolean>;
-}
+export const makePlayers = (store: Store) => {
+  const get = (selector: string | number) => store.world.getPlayer(selector);
+  const getAll = () => store.world.getPlayers;
+  const getMe = () => store.world.getMe;
 
-export interface PlayersApiShape {
-  readonly auras: PlayerAuraApi;
-  readonly get: (selector: string | number) => Effect.Effect<Player | null>;
-  readonly getAll: () => Effect.Effect<readonly Player[]>;
-  readonly getMe: () => Effect.Effect<Player | null>;
-}
+  const getAuras = (
+    selector: string | number,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    get(selector).pipe(
+      Effect.flatMap((player) =>
+        player === null
+          ? Effect.succeed([])
+          : store.world.getPlayerAuras(player.entityId, options),
+      ),
+    );
 
-export class PlayersApi extends Context.Service<PlayersApi, PlayersApiShape>()(
-  "lucent/game/flash/api/Players",
-) {}
+  const getAura = (
+    selector: string | number,
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    getAuras(selector, options).pipe(
+      Effect.map(
+        (auras) =>
+          auras.find(
+            (aura) =>
+              aura.name.localeCompare(name, undefined, {
+                sensitivity: "accent",
+              }) === 0,
+          ) ?? null,
+      ),
+    );
 
-export const layer = Layer.effect(
-  PlayersApi,
-  Effect.gen(function* () {
-    const world = yield* WorldState;
+  const hasAura = (
+    selector: string | number,
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    getAura(selector, name, options).pipe(Effect.map((aura) => aura !== null));
 
-    const getAuras = (player: string | number, options?: AuraQueryOptions) =>
-      Effect.gen(function* () {
-        const target = yield* world.getPlayer(player);
-        return target === null
-          ? []
-          : yield* world.getPlayerAuras(target.entityId, options);
-      });
+  const auras = {
+    get: getAura,
+    getAll: getAuras,
+    has: hasAura,
+  };
 
-    const auras: PlayerAuraApi = {
-      get: (player, auraName, options) =>
-        getAuras(player, options).pipe(
-          Effect.map(
-            (auras) =>
-              auras.find((aura) => equalsIgnoreCase(aura.name, auraName)) ??
-              null,
-          ),
-        ),
-      getAll: getAuras,
-      has: (player, auraName, options) =>
-        auras
-          .get(player, auraName, options)
-          .pipe(Effect.map((aura) => aura !== null)),
-    };
+  return {
+    auras,
+    get,
+    getAll,
+    getMe,
+  };
+};
 
-    return PlayersApi.of({
-      auras,
-      get: world.getPlayer,
-      getAll: world.getPlayers,
-      getMe: world.getMe,
-    });
-  }),
-);
+export type Players = ReturnType<typeof makePlayers>;

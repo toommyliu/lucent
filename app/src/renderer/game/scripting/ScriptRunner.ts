@@ -1,32 +1,21 @@
-import { Cause, Context, Deferred, Effect, Fiber, Layer, Ref } from "effect";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Fiber,
+  Layer,
+  Ref,
+  Stream,
+  SubscriptionRef,
+} from "effect";
 
 import type { ScriptFile } from "../../../shared/ipc/scripting";
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import { ArmyApi } from "../army/Army";
-import { AuthApi } from "../flash/api/Auth";
-import { BankApi } from "../flash/api/Bank";
-import { CombatApi } from "../flash/api/Combat";
-import { DropsApi } from "../flash/api/Drops";
-import { EventsApi } from "../flash/api/Events";
-import { HouseApi } from "../flash/api/House";
-import { InventoryApi } from "../flash/api/Inventory";
-import { MapApi } from "../flash/api/Map";
-import { MonstersApi } from "../flash/api/Monsters";
-import { PacketApi } from "../flash/api/Packet";
-import { PlayerApi } from "../flash/api/Player";
-import { PlayersApi } from "../flash/api/Players";
-import { QuestsApi } from "../flash/api/Quests";
-import { SettingsApi } from "../flash/api/Settings";
-import { ShopsApi } from "../flash/api/Shops";
-import { TempInventoryApi } from "../flash/api/TempInventory";
-import { WaitApi } from "../flash/api/Wait";
-import { AutoRelogin } from "../flash/features/AutoRelogin";
-import { AutoZone } from "../flash/features/AutoZone";
-import {
-  makeStateListeners,
-  type StateDisposer,
-} from "../flash/StateListeners";
-import type { FlashEvent } from "../flash/Types";
+import { Automation } from "../automation/Automation";
+import { Api } from "../flash/api/Api";
+import type { Event as FlashEvent } from "../flash/contract/Event";
 import type {
   ScriptMain,
   ScriptRuntimeApi,
@@ -78,6 +67,8 @@ export type ScriptRunnerStatus =
       readonly path?: string;
       readonly state: "stopping";
     };
+
+export type StateDisposer = () => void;
 
 export interface ScriptRunnerShape {
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
@@ -164,34 +155,38 @@ const logScriptFailureCause = (
   });
 
 const isConnectionLoss = (event: FlashEvent): boolean =>
-  event.kind === "runtime" &&
   event.type === "connection" &&
-  (event.payload.status === "OnConnectionLost" ||
-    event.payload.status === "OnConnectionFailed");
+  (event.status === "OnConnectionLost" ||
+    event.status === "OnConnectionFailed");
 
 export const layer = Layer.effect(
   ScriptRunner,
   Effect.gen(function* () {
-    const auth = yield* AuthApi;
+    const scope = yield* Effect.scope;
+    const runFork = Effect.runForkWith(yield* Effect.context<never>());
+    const api = yield* Api;
     const army = yield* ArmyApi;
-    const bank = yield* BankApi;
-    const combat = yield* CombatApi;
-    const drops = yield* DropsApi;
-    const events = yield* EventsApi;
-    const house = yield* HouseApi;
-    const inventory = yield* InventoryApi;
-    const map = yield* MapApi;
-    const monsters = yield* MonstersApi;
-    const packet = yield* PacketApi;
-    const player = yield* PlayerApi;
-    const players = yield* PlayersApi;
-    const quests = yield* QuestsApi;
-    const settings = yield* SettingsApi;
-    const shops = yield* ShopsApi;
-    const tempInventory = yield* TempInventoryApi;
-    const wait = yield* WaitApi;
-    const autoRelogin = yield* AutoRelogin;
-    const autoZone = yield* AutoZone;
+    const automation = yield* Automation;
+    const {
+      auth,
+      bank,
+      combat,
+      drops,
+      events,
+      house,
+      inventory,
+      map,
+      monsters,
+      packet,
+      player,
+      players,
+      quests,
+      settings,
+      shops,
+      tempInventory,
+      wait,
+    } = api;
+    const { autoRelogin, autoZone } = automation;
 
     const services: ScriptRuntimeServices = {
       army,
@@ -216,23 +211,31 @@ export const layer = Layer.effect(
 
     const activeRef = yield* Ref.make<ActiveScript | null>(null);
     const nextIdRef = yield* Ref.make(0);
-    const optionsRef = yield* Ref.make<ScriptRuntimeOptions>(defaultOptions);
-    const statusRef = yield* Ref.make<ScriptRunnerStatus>({ state: "idle" });
-    const listeners = makeStateListeners<ScriptRunnerStatus>("script-runner");
-    const optionListeners = makeStateListeners<ScriptRuntimeOptions>(
-      "script-runner-options",
-    );
+    const optionsRef =
+      yield* SubscriptionRef.make<ScriptRuntimeOptions>(defaultOptions);
+    const statusRef = yield* SubscriptionRef.make<ScriptRunnerStatus>({
+      state: "idle",
+    });
 
-    const getStatus = () => Ref.get(statusRef);
+    const getStatus = () => SubscriptionRef.get(statusRef);
 
     const setStatus = (status: ScriptRunnerStatus) =>
-      Ref.set(statusRef, status).pipe(Effect.andThen(listeners.emit(status)));
+      SubscriptionRef.set(statusRef, status);
 
     const setOptions = (
       update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
+    ) => SubscriptionRef.updateAndGet(optionsRef, update);
+
+    const observe = <A>(
+      changes: Stream.Stream<A>,
+      listener: (value: A) => void,
     ) =>
-      Ref.updateAndGet(optionsRef, update).pipe(
-        Effect.tap((options) => optionListeners.emit(options)),
+      changes.pipe(
+        Stream.runForEach((value) => Effect.sync(() => listener(value))),
+        Effect.forkIn(scope),
+        Effect.map((fiber) => () => {
+          runFork(Fiber.interrupt(fiber));
+        }),
       );
 
     const stopActive = (reason?: string): Effect.Effect<ScriptRunnerStatus> =>
@@ -339,7 +342,7 @@ export const layer = Layer.effect(
 
     const runWithSafeStartStop = (main: ScriptMain) =>
       Effect.gen(function* () {
-        const options = yield* Ref.get(optionsRef);
+        const options = yield* SubscriptionRef.get(optionsRef);
         if (options.safeStartStop) {
           yield* moveToOwnHouse("before");
         }
@@ -356,7 +359,7 @@ export const layer = Layer.effect(
         return yield* runMain.pipe(
           Effect.matchCauseEffect({
             onFailure: (cause) =>
-              Ref.get(optionsRef).pipe(
+              SubscriptionRef.get(optionsRef).pipe(
                 Effect.flatMap((currentOptions) =>
                   currentOptions.safeStartStop
                     ? moveToOwnHouse("after")
@@ -365,7 +368,7 @@ export const layer = Layer.effect(
                 Effect.andThen(Effect.failCause(cause)),
               ),
             onSuccess: () =>
-              Ref.get(optionsRef).pipe(
+              SubscriptionRef.get(optionsRef).pipe(
                 Effect.flatMap((currentOptions) =>
                   currentOptions.safeStartStop
                     ? moveToOwnHouse("after")
@@ -406,18 +409,18 @@ export const layer = Layer.effect(
             console.log("[script]", message);
           }),
         options: {
-          getAll: () => Ref.get(optionsRef),
+          getAll: () => SubscriptionRef.get(optionsRef),
           getSafeStartStop: () =>
-            Ref.get(optionsRef).pipe(
+            SubscriptionRef.get(optionsRef).pipe(
               Effect.map((options) => options.safeStartStop),
             ),
           getUsePrivateRooms: () =>
-            Ref.get(optionsRef).pipe(
+            SubscriptionRef.get(optionsRef).pipe(
               Effect.map((options) => options.usePrivateRooms),
             ),
           reset: () =>
-            Ref.set(optionsRef, defaultOptions).pipe(
-              Effect.andThen(Ref.get(optionsRef)),
+            SubscriptionRef.set(optionsRef, defaultOptions).pipe(
+              Effect.andThen(SubscriptionRef.get(optionsRef)),
             ),
           setSafeStartStop: (enabled) =>
             setOptions((options) => ({
@@ -449,7 +452,7 @@ export const layer = Layer.effect(
 
     const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>
       events
-        .on({ kind: "runtime", type: "connection" }, (event) =>
+        .on({ type: "connection" }, (event) =>
           isConnectionLoss(event)
             ? failActiveCause(
                 id,
@@ -582,13 +585,14 @@ export const layer = Layer.effect(
     yield* Effect.addFinalizer(() => stop("shutdown").pipe(Effect.asVoid));
 
     return ScriptRunner.of({
-      getOptions: () => Ref.get(optionsRef),
+      getOptions: () => SubscriptionRef.get(optionsRef),
       getStatus,
       isRunning: () =>
         Ref.get(activeRef).pipe(Effect.map((active) => active !== null)),
       onOptions: (listener) =>
-        optionListeners.on(Ref.get(optionsRef), listener),
-      onStatus: (listener) => listeners.on(getStatus(), listener),
+        observe(SubscriptionRef.changes(optionsRef), listener),
+      onStatus: (listener) =>
+        observe(SubscriptionRef.changes(statusRef), listener),
       resetOptions: () => setOptions(() => defaultOptions),
       setSafeStartStop: (enabled) =>
         setOptions((options) => ({ ...options, safeStartStop: enabled })),

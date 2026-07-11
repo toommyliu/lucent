@@ -1,119 +1,23 @@
 import { Layer, ManagedRuntime } from "effect";
 
-import * as ArmyApi from "../army/Army";
-import * as AuthApi from "./api/Auth";
-import * as BankApi from "./api/Bank";
-import * as CombatApi from "./api/Combat";
-import * as DropsApi from "./api/Drops";
-import * as EventsApi from "./api/Events";
-import * as HouseApi from "./api/House";
-import * as InventoryApi from "./api/Inventory";
-import * as MapApi from "./api/Map";
-import * as MonstersApi from "./api/Monsters";
-import * as PacketApi from "./api/Packet";
-import * as PlayerApi from "./api/Player";
-import * as PlayersApi from "./api/Players";
-import * as QuestsApi from "./api/Quests";
-import * as SettingsApi from "./api/Settings";
-import * as ShopsApi from "./api/Shops";
-import * as TempInventoryApi from "./api/TempInventory";
-import * as WaitApi from "./api/Wait";
-import * as FlashCallbacks from "./FlashCallbacks";
-import * as AutoAttack from "./features/AutoAttack";
-import * as AutoRelogin from "./features/AutoRelogin";
-import * as AutoZone from "./features/AutoZone";
-import * as Jobs from "./jobs/Jobs";
-import * as SettingsPolicy from "./policies/SettingsPolicy";
-import * as ScriptRunner from "../scripting/ScriptRunner";
-import * as SwfBridge from "./SwfBridge";
-import * as FlashProtocol from "./protocol/FlashProtocol";
-import * as Projectors from "./protocol/Projectors";
-import * as DropsState from "./state/Drops";
-import * as ItemsState from "./state/Items";
-import * as QuestsState from "./state/Quests";
-import * as SettingsState from "./state/Settings";
-import * as ShopsState from "./state/Shops";
-import * as WorldState from "./state/World";
+import * as Army from "../army/Army";
+import * as Automation from "../automation/Automation";
+import * as SettingsPolicy from "../automation/SettingsPolicy";
+import * as Scripting from "../scripting/ScriptRunner";
+import * as Api from "./api/Api";
+import * as Bridge from "./bridge/Bridge";
+import * as Gateway from "./bridge/Gateway";
 
-export const FlashStateLayer = Layer.mergeAll(
-  DropsState.layer,
-  ItemsState.layer,
-  QuestsState.layer,
-  SettingsState.layer,
-  ShopsState.layer,
-  WorldState.layer,
+const gatewayLayer = Gateway.layer.pipe(Layer.provideMerge(Bridge.layer));
+export const apiLayer = Api.layer.pipe(Layer.provideMerge(gatewayLayer));
+
+const consumerLayer = Layer.mergeAll(Automation.layer, Army.layer).pipe(
+  Layer.provideMerge(apiLayer),
 );
 
-const FlashBaseLayer = Layer.mergeAll(
-  FlashCallbacks.layer,
-  SwfBridge.layer,
-  FlashStateLayer,
-);
+export const liveLayer = Layer.mergeAll(
+  SettingsPolicy.layer,
+  Scripting.layer,
+).pipe(Layer.provideMerge(consumerLayer));
 
-export const FlashProtocolLayer = FlashProtocol.layer.pipe(
-  Layer.provideMerge(FlashBaseLayer),
-);
-
-const FlashWaitLayer = WaitApi.layer.pipe(
-  Layer.provideMerge(FlashProtocolLayer),
-);
-
-const FlashPrimaryApiLayer = Layer.mergeAll(
-  EventsApi.layer,
-  HouseApi.layer,
-  InventoryApi.layer,
-  MapApi.layer,
-  MonstersApi.layer,
-  PacketApi.layer,
-  PlayersApi.layer,
-  QuestsApi.layer,
-  SettingsApi.layer,
-  TempInventoryApi.layer,
-  AuthApi.layer,
-).pipe(Layer.provideMerge(FlashWaitLayer));
-
-const FlashDependentApiLayer = Layer.mergeAll(
-  BankApi.layer,
-  DropsApi.layer,
-  PlayerApi.layer,
-  ShopsApi.layer,
-).pipe(Layer.provideMerge(FlashPrimaryApiLayer));
-
-export const FlashApiLayer = CombatApi.layer.pipe(
-  Layer.provideMerge(FlashDependentApiLayer),
-);
-
-export const FlashJobsLayer = Jobs.layer;
-
-const FlashRuntimeServicesLayer = Layer.mergeAll(FlashApiLayer, FlashJobsLayer);
-
-const FlashArmyLayer = ArmyApi.layer.pipe(
-  Layer.provideMerge(FlashRuntimeServicesLayer),
-);
-
-const FlashPolicyLayer = SettingsPolicy.layer.pipe(
-  Layer.provideMerge(FlashRuntimeServicesLayer),
-);
-
-export const FlashFeatureLayer = Layer.mergeAll(
-  AutoAttack.layer,
-  AutoRelogin.layer,
-  AutoZone.layer,
-).pipe(Layer.provideMerge(FlashRuntimeServicesLayer));
-
-export const FlashLiveLayer = Projectors.layer.pipe(
-  Layer.provideMerge(
-    Layer.mergeAll(
-      FlashRuntimeServicesLayer,
-      FlashArmyLayer,
-      FlashPolicyLayer,
-      FlashFeatureLayer,
-    ),
-  ),
-);
-
-export const FlashScriptingLayer = ScriptRunner.layer.pipe(
-  Layer.provideMerge(FlashLiveLayer),
-);
-
-export const flashRuntime = ManagedRuntime.make(FlashScriptingLayer);
+export const flashRuntime = ManagedRuntime.make(liveLayer);

@@ -8,19 +8,12 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import type {
-  CombatKillOptions,
-  ItemSelector,
-  MonsterSelector,
-} from "../flash/Types";
-import { AuthApi } from "../flash/api/Auth";
-import { CombatApi } from "../flash/api/Combat";
-import { DropsApi } from "../flash/api/Drops";
-import { InventoryApi } from "../flash/api/Inventory";
-import { PlayerApi } from "../flash/api/Player";
-import { PlayersApi } from "../flash/api/Players";
-import { TempInventoryApi } from "../flash/api/TempInventory";
-import { WaitApi } from "../flash/api/Wait";
+import type { ItemQuery, MonsterQuery } from "@lucent/game";
+import { Api } from "../flash/api/Api";
+import type { CombatKillOptions } from "../flash/api/Combat";
+
+type ItemSelector = ItemQuery;
+type MonsterSelector = MonsterQuery;
 
 export class ArmyError extends Error {
   readonly _tag = "ArmyError";
@@ -242,14 +235,16 @@ const equipOrder = [
 export const layer = Layer.effect(
   ArmyApi,
   Effect.gen(function* () {
-    const auth = yield* AuthApi;
-    const combat = yield* CombatApi;
-    const drops = yield* DropsApi;
-    const inventory = yield* InventoryApi;
-    const player = yield* PlayerApi;
-    const players = yield* PlayersApi;
-    const tempInventory = yield* TempInventoryApi;
-    const wait = yield* WaitApi;
+    const {
+      auth,
+      combat,
+      drops,
+      inventory,
+      player,
+      players,
+      tempInventory,
+      wait,
+    } = yield* Api;
     const stateRef = yield* SynchronizedRef.make<ArmyState>(defaultState);
 
     const getState = SynchronizedRef.get(stateRef);
@@ -465,7 +460,7 @@ export const layer = Layer.effect(
                 ? `Timed out waiting for army roster in ${label}; ${
                     session.playerName
                   } cannot see: ${lastMissing.join(", ")}`
-                : `Timed out waiting for army roster in ${label}; pending clients: ${lastProgress.pendingPlayers.join(
+                : `Timed out waiting for army roster in ${label}; pending players: ${lastProgress.pendingPlayers.join(
                     ", ",
                   )}`;
             yield* failSession(session, reason, { label, step });

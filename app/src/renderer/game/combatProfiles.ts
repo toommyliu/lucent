@@ -8,10 +8,8 @@ import type {
   CombatProfileStatCondition,
   CombatProfileStep,
 } from "@lucent/core/combatProfiles";
-import type { CombatApiShape } from "./flash/api/Combat";
-import type { PlayerApiShape } from "./flash/api/Player";
-import type { PlayersApiShape } from "./flash/api/Players";
-import type { Aura } from "./flash/Types";
+import type { Aura } from "@lucent/game";
+import type { ApiService } from "./flash/api/Api";
 
 export interface CombatProfileCursor {
   readonly state: Ref.Ref<CombatProfileCursorState>;
@@ -35,14 +33,14 @@ interface CombatProfileCursorState {
 
 export interface CombatProfileRuntimeDeps {
   readonly combat: Pick<
-    CombatApiShape,
+    ApiService["combat"],
     "attackMonster" | "canUseSkill" | "target" | "useSkill"
   >;
   readonly player: Pick<
-    PlayerApiShape,
+    ApiService["player"],
     "auras" | "getHp" | "getMaxHp" | "getMaxMp" | "getMp"
   >;
-  readonly players: Pick<PlayersApiShape, "getAll" | "getMe">;
+  readonly players: Pick<ApiService["players"], "getAll" | "getMe">;
 }
 
 export const makeCombatProfileRuntimeDeps = (

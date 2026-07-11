@@ -1,55 +1,76 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Fiber, Stream } from "effect";
 
-import type {
-  ClientPacketSendType,
-  FlashPacket,
-  PacketSelector,
-  ServerPacketSendType,
-  WaitOptions,
-} from "../Types";
-import { FlashProtocol } from "../protocol/FlashProtocol";
+import type { GatewayService } from "../bridge/Gateway";
+import { matchesPacket, type PacketSelector } from "../contract/Packet";
+import type { Packet as PacketContract } from "../contract/Packet";
+import type { Store } from "../state/Store";
+import type { Wait } from "./Wait";
 
-export type PacketHandler = (packet: FlashPacket) => Effect.Effect<void>;
+const placeholders = [
+  "MAP_ID",
+  "ROOM_NUMBER",
+  "MAP_NAME",
+  "PLAYER_NAME",
+] as const;
 
-export interface PacketApiShape {
-  readonly on: (
-    selector: PacketSelector | undefined,
-    handler: PacketHandler,
-  ) => Effect.Effect<() => void>;
-  readonly once: (
-    selector?: PacketSelector,
-    options?: WaitOptions,
-  ) => Effect.Effect<FlashPacket | null>;
-  readonly sendClient: (
-    packet: string,
-    type?: ClientPacketSendType,
-  ) => Effect.Effect<void>;
-  readonly sendServer: (
-    packet: string,
-    type?: ServerPacketSendType,
-  ) => Effect.Effect<void>;
-}
-
-export class PacketApi extends Context.Service<PacketApi, PacketApiShape>()(
-  "lucent/game/flash/api/Packet",
-) {}
-
-export const layer = Layer.effect(
-  PacketApi,
-  Effect.gen(function* () {
-    const protocol = yield* FlashProtocol;
-
-    return PacketApi.of({
-      on: protocol.onPacket,
-      once: (selector, options) =>
-        protocol.oncePacket(
-          selector,
-          options?.timeout === undefined
-            ? undefined
-            : { timeout: options.timeout },
-        ),
-      sendClient: protocol.sendClient,
-      sendServer: protocol.sendServer,
+export const makePacket = Effect.fnUntraced(function* (
+  gateway: GatewayService,
+  store: Store,
+  wait: Wait,
+) {
+  const scope = yield* Effect.scope;
+  const runFork = Effect.runForkWith(yield* Effect.context<never>());
+  const stream = (selector?: PacketSelector) =>
+    gateway.packets.pipe(
+      Stream.filter((packet) => matchesPacket(packet, selector)),
+    );
+  const resolve = (packet: string) =>
+    Effect.gen(function* () {
+      if (!placeholders.some((token) => packet.includes(`{${token}}`))) {
+        return packet;
+      }
+      const map = yield* store.world.getMap;
+      const player = yield* store.world.getMe;
+      return packet
+        .replaceAll("{MAP_ID}", String(map.id))
+        .replaceAll("{ROOM_NUMBER}", String(map.roomNumber))
+        .replaceAll("{MAP_NAME}", map.name)
+        .replaceAll("{PLAYER_NAME}", player?.username ?? "");
     });
-  }),
-);
+
+  const on = (
+    selector: PacketSelector | undefined,
+    handler: (packet: PacketContract) => Effect.Effect<void, unknown, never>,
+  ) =>
+    stream(selector).pipe(
+      Stream.runForEach(handler),
+      Effect.forkIn(scope),
+      Effect.map((fiber) => () => {
+        runFork(Fiber.interrupt(fiber));
+      }),
+    );
+
+  const once = wait.forPacket;
+
+  const sendClient = (packet: string, type?: "str" | "json" | "xml") =>
+    resolve(packet).pipe(
+      Effect.flatMap((resolved) => gateway.sendClient(resolved, type)),
+      Effect.asVoid,
+    );
+
+  const sendServer = (packet: string, type?: "String" | "Json") =>
+    resolve(packet).pipe(
+      Effect.flatMap((resolved) => gateway.sendServer(resolved, type)),
+      Effect.asVoid,
+    );
+
+  return {
+    on,
+    once,
+    sendClient,
+    sendServer,
+    stream,
+  };
+});
+
+export type Packet = Effect.Success<ReturnType<typeof makePacket>>;

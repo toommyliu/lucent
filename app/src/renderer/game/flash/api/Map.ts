@@ -1,66 +1,78 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Option, Schema } from "effect";
 
-import type { MapInfo } from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { WorldState } from "../state/World";
-import { WaitApi } from "./Wait";
+import type { BridgeService } from "../bridge/Bridge";
+import type { Store } from "../state/Store";
+import { PositiveWireInt } from "../contract/Coercion";
+import type { Wait } from "./Wait";
 
-export interface MapApiShape {
-  readonly getCellPads: () => Effect.Effect<readonly string[]>;
-  readonly getCells: () => Effect.Effect<readonly string[]>;
-  readonly getId: () => Effect.Effect<number>;
-  readonly getMapItem: (itemId: number) => Effect.Effect<void>;
-  readonly getName: () => Effect.Effect<string>;
-  readonly getRoomNumber: () => Effect.Effect<number>;
-  readonly isLoaded: () => Effect.Effect<boolean>;
-  readonly loadSwf: (swf: string) => Effect.Effect<void>;
-  readonly reload: () => Effect.Effect<void>;
-  readonly setSpawnPoint: (cell?: string, pad?: string) => Effect.Effect<void>;
-}
+const Strings = Schema.Array(Schema.String);
 
-export class MapApi extends Context.Service<MapApi, MapApiShape>()(
-  "lucent/game/flash/api/Map",
-) {}
+const decodeItemId = Schema.decodeUnknownOption(PositiveWireInt);
 
-const stringArray = (value: unknown): readonly string[] =>
-  Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-
-export const layer = Layer.effect(
-  MapApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const wait = yield* WaitApi;
-    const world = yield* WorldState;
-
-    const getMap = world.getMap();
-    const project = <A>(f: (map: MapInfo) => A) => getMap.pipe(Effect.map(f));
-
-    return MapApi.of({
-      getCellPads: () =>
-        bridge.call("world.getCellPads").pipe(Effect.map(stringArray)),
-      getCells: () =>
-        bridge.call("world.getCells").pipe(Effect.map(stringArray)),
-      getId: () => project((map) => map.id),
-      getMapItem: (itemId) =>
-        Effect.gen(function* () {
-          const available = yield* wait.forGameAction("getMapItem");
-          if (available && Number.isFinite(itemId) && itemId > 0) {
-            yield* bridge.call("world.getMapItem", [Math.trunc(itemId)]);
-          }
+export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
+  const getCellPads = () =>
+    bridge.invoke("world.getCellPads", undefined, Strings).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => store.world.getCellPads,
+          onSome: (cellPads) =>
+            store.world.setCellPads(cellPads).pipe(Effect.as(cellPads)),
         }),
-      getName: () => project((map) => map.name),
-      getRoomNumber: () => project((map) => map.roomNumber),
-      isLoaded: () => bridge.call("world.isLoaded"),
-      loadSwf: (swf) => bridge.call("world.loadSwf", [swf]),
-      reload: () => bridge.call("world.reload"),
-      setSpawnPoint: (cell, pad) =>
-        cell === undefined && pad === undefined
-          ? bridge.call("world.setSpawnPoint")
-          : pad === undefined
-            ? bridge.call("world.setSpawnPoint", [cell])
-            : bridge.call("world.setSpawnPoint", [cell, pad]),
-    });
-  }),
-);
+      ),
+    );
+  const getCells = () =>
+    bridge.invoke("world.getCells", undefined, Strings).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => store.world.getCells,
+          onSome: (cells) => store.world.setCells(cells).pipe(Effect.as(cells)),
+        }),
+      ),
+    );
+  const getId = () => store.world.getMap.pipe(Effect.map((map) => map.id));
+
+  const getMapItem = (input: unknown) => {
+    const itemId = decodeItemId(input);
+    if (Option.isNone(itemId)) return Effect.void;
+    return wait.forGameAction("getMapItem").pipe(
+      Effect.flatMap((ready) =>
+        ready
+          ? bridge.invoke("world.getMapItem", [itemId.value], Schema.Void)
+          : Effect.succeed(Option.none()),
+      ),
+      Effect.asVoid,
+    );
+  };
+  const getName = () => store.world.getMap.pipe(Effect.map((map) => map.name));
+
+  const getRoomNumber = () =>
+    store.world.getMap.pipe(Effect.map((map) => map.roomNumber));
+
+  const isLoaded = () =>
+    bridge
+      .invoke("world.isLoaded", undefined, Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+  const loadSwf = (swf: string) =>
+    bridge.invoke("world.loadSwf", [swf], Schema.Void).pipe(Effect.asVoid);
+  const reload = () =>
+    bridge.invoke("world.reload", undefined, Schema.Void).pipe(Effect.asVoid);
+  const setSpawnPoint = (cell?: string, pad?: string) =>
+    bridge
+      .invoke("world.setSpawnPoint", [cell, pad], Schema.Void)
+      .pipe(Effect.asVoid);
+
+  return {
+    getCellPads,
+    getCells,
+    getId,
+    getMapItem,
+    getName,
+    getRoomNumber,
+    isLoaded,
+    loadSwf,
+    reload,
+    setSpawnPoint,
+  };
+};
+
+export type Map = ReturnType<typeof makeMap>;

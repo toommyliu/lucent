@@ -1,113 +1,89 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Option, Schema } from "effect";
 
-import type {
-  Aura,
-  AuraQueryOptions,
-  Monster,
-  MonsterSelector,
-} from "../Types";
-import { SwfBridge } from "../SwfBridge";
-import { asPositiveInt, equalsIgnoreCase } from "../payload";
-import { normalizeMonsterSelector } from "../selectors";
-import { WorldState } from "../state/World";
+import type { BridgeService } from "../bridge/Bridge";
+import { MonsterPayload, toMonster } from "../contract/payload/World";
+import { decodeMonsterSelector } from "../domain/Selectors";
+import type { Store } from "../state/Store";
 
-export interface MonsterAuraApi {
-  readonly get: (
-    monster: MonsterSelector,
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<Aura | null>;
-  readonly getAll: (
-    monster: MonsterSelector,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<readonly Aura[]>;
-  readonly has: (
-    monster: MonsterSelector,
-    auraName: string,
-    options?: AuraQueryOptions,
-  ) => Effect.Effect<boolean>;
-}
+const NullableMonster = Schema.NullOr(MonsterPayload);
 
-export interface MonstersApiShape {
-  readonly auras: MonsterAuraApi;
-  readonly get: (selector: MonsterSelector) => Effect.Effect<Monster | null>;
-  readonly getAll: () => Effect.Effect<readonly Monster[]>;
-  readonly getAvailable: () => Effect.Effect<readonly Monster[]>;
-  readonly isAvailable: (selector: MonsterSelector) => Effect.Effect<boolean>;
-}
+export const makeMonsters = (bridge: BridgeService, store: Store) => {
+  const get = (selector: unknown) => {
+    const decoded = decodeMonsterSelector(selector);
+    if (Option.isNone(decoded)) return Effect.succeed(null);
+    return store.world.getMonster(decoded.value).pipe(
+      Effect.flatMap((current) =>
+        current !== null
+          ? Effect.succeed(current)
+          : bridge
+              .invoke("world.getMonster", [decoded.value], NullableMonster)
+              .pipe(
+                Effect.flatMap(
+                  Option.match({
+                    onNone: () => Effect.succeed(null),
+                    onSome: (payload) =>
+                      payload === null
+                        ? Effect.succeed(null)
+                        : store.world.putMonster(toMonster(payload)),
+                  }),
+                ),
+              ),
+      ),
+    );
+  };
 
-export class MonstersApi extends Context.Service<
-  MonstersApi,
-  MonstersApiShape
->()("lucent/game/flash/api/Monsters") {}
+  const getAuras = (
+    selector: unknown,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    get(selector).pipe(
+      Effect.flatMap((monster) =>
+        monster === null
+          ? Effect.succeed([])
+          : store.world.getMonsterAuras(monster.monsterMapId, options),
+      ),
+    );
 
-export const layer = Layer.effect(
-  MonstersApi,
-  Effect.gen(function* () {
-    const bridge = yield* SwfBridge;
-    const world = yield* WorldState;
+  const getAura = (
+    selector: unknown,
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    getAuras(selector, options).pipe(
+      Effect.map(
+        (auras) =>
+          auras.find(
+            (aura) =>
+              aura.name.localeCompare(name, undefined, {
+                sensitivity: "accent",
+              }) === 0,
+          ) ?? null,
+      ),
+    );
 
-    const getAuras = (monster: MonsterSelector, options?: AuraQueryOptions) =>
-      Effect.gen(function* () {
-        const target = yield* world.getMonster(monster);
-        return target === null
-          ? []
-          : yield* world.getMonsterAuras(target.monsterMapId, options);
-      });
+  const hasAura = (
+    selector: unknown,
+    name: string,
+    options?: { kind?: "active" | "passive" },
+  ) =>
+    getAura(selector, name, options).pipe(Effect.map((aura) => aura !== null));
 
-    const auras: MonsterAuraApi = {
-      get: (monster, auraName, options) =>
-        getAuras(monster, options).pipe(
-          Effect.map(
-            (auras) =>
-              auras.find((aura) => equalsIgnoreCase(aura.name, auraName)) ??
-              null,
-          ),
-        ),
-      getAll: getAuras,
-      has: (monster, auraName, options) =>
-        auras
-          .get(monster, auraName, options)
-          .pipe(Effect.map((aura) => aura !== null)),
-    };
+  const auras = { get: getAura, getAll: getAuras, has: hasAura };
+  const getAll = () => store.world.getMonsters;
+  const getAvailable = () =>
+    store.world.getMonsters.pipe(
+      Effect.map((monsters) => monsters.filter((monster) => monster.alive)),
+    );
+  const isAvailable = (selector: unknown) =>
+    get(selector).pipe(Effect.map((monster) => monster?.alive === true));
 
-    const isAvailable: MonstersApiShape["isAvailable"] = (selector) =>
-      Effect.gen(function* () {
-        const normalized = normalizeMonsterSelector(selector);
-        if (normalized === null) {
-          return false;
-        }
+  return {
+    auras,
+    get,
+    getAll,
+    getAvailable,
+    isAvailable,
+  };
+};
 
-        const monster = yield* world.getMonster(normalized);
-        if (monster === null) {
-          return false;
-        }
-
-        return yield* bridge.call("world.isMonsterAvailable", [
-          monster.monsterMapId,
-        ]);
-      });
-
-    return MonstersApi.of({
-      auras,
-      get: world.getMonster,
-      getAll: world.getMonsters,
-      getAvailable: () =>
-        bridge.call("world.getAvailableMonsterMapIds").pipe(
-          Effect.flatMap((ids) =>
-            Effect.forEach(
-              Array.isArray(ids) ? ids.map(asPositiveInt) : [],
-              (id) =>
-                id === undefined
-                  ? Effect.succeed(null)
-                  : world.getMonster({ monMapId: id }),
-            ),
-          ),
-          Effect.map((monsters) =>
-            monsters.filter((monster): monster is Monster => monster !== null),
-          ),
-        ),
-      isAvailable,
-    });
-  }),
-);
+export type Monsters = ReturnType<typeof makeMonsters>;

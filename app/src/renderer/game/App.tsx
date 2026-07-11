@@ -62,24 +62,24 @@ import {
 } from "@lucent/core/hotkeys";
 import { hotkeyInputMatchKey } from "../../shared/hotkeys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
-import * as Api from "./flash";
-import type { FlashSettingsPatch, FlashSettingsSnapshot } from "./flash";
-import { flashRuntime as runtime } from "./flash";
+import { Api, type ApiService, flashRuntime as runtime } from "./flash";
+import type {
+  Settings as FlashSettingsSnapshot,
+  SettingsPatch as FlashSettingsPatch,
+} from "./flash/contract/Settings";
+import { Automation } from "./automation/Automation";
 import {
-  AutoAttack,
   parseAutoAttackTargetPriority,
   type AutoAttackState,
-} from "./flash/features/AutoAttack";
+} from "./automation/AutoAttack";
 import {
-  AutoRelogin,
   type AutoReloginLifecycleEvent,
   type AutoReloginState,
-} from "./flash/features/AutoRelogin";
+} from "./automation/AutoRelogin";
 import {
-  AutoZone,
   type AutoZoneState,
   type AutoZoneSupportedMap,
-} from "./flash/features/AutoZone";
+} from "./automation/AutoZone";
 import {
   ScriptRunner,
   type ScriptRunnerStatus,
@@ -243,43 +243,11 @@ const EffectFunction = Function as unknown as new (
 const collectFlashServices = () =>
   runtime.runPromise(
     Effect.gen(function* () {
-      const auth = yield* Api.AuthApi.AuthApi;
-      const bank = yield* Api.BankApi.BankApi;
-      const combat = yield* Api.CombatApi.CombatApi;
-      const drops = yield* Api.DropsApi.DropsApi;
-      const events = yield* Api.EventsApi.EventsApi;
-      const house = yield* Api.HouseApi.HouseApi;
-      const inventory = yield* Api.InventoryApi.InventoryApi;
-      const map = yield* Api.MapApi.MapApi;
-      const monsters = yield* Api.MonstersApi.MonstersApi;
-      const packet = yield* Api.PacketApi.PacketApi;
-      const player = yield* Api.PlayerApi.PlayerApi;
-      const players = yield* Api.PlayersApi.PlayersApi;
-      const quests = yield* Api.QuestsApi.QuestsApi;
-      const settings = yield* Api.SettingsApi.SettingsApi;
-      const shops = yield* Api.ShopsApi.ShopsApi;
-      const tempInventory = yield* Api.TempInventoryApi.TempInventoryApi;
-      const wait = yield* Api.WaitApi.WaitApi;
+      const api = yield* Api;
 
       return {
-        auth,
-        bank,
-        combat,
-        drops,
-        events,
-        house,
-        inventory,
-        map,
-        monsters,
-        outfits: player.outfits,
-        packet,
-        player,
-        players,
-        quests,
-        settings,
-        shops,
-        tempInventory,
-        wait,
+        ...api,
+        outfits: api.player.outfits,
       };
     }),
   );
@@ -552,8 +520,7 @@ ${source}
 const readCachedTravelOptions = (): Promise<TravelOptions> =>
   runtime.runPromise(
     Effect.gen(function* () {
-      const map = yield* Api.MapApi.MapApi;
-      const player = yield* Api.PlayerApi.PlayerApi;
+      const { map, player } = yield* Api;
       const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
         map.getCells(),
         map.getCellPads(),
@@ -573,8 +540,7 @@ const readCachedTravelOptions = (): Promise<TravelOptions> =>
 const readBridgeTravelOptions = (): Promise<TravelOptions> =>
   runtime.runPromise(
     Effect.gen(function* () {
-      const map = yield* Api.MapApi.MapApi;
-      const player = yield* Api.PlayerApi.PlayerApi;
+      const { map, player } = yield* Api;
       const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
         map.getCells(),
         map.getCellPads(),
@@ -594,7 +560,7 @@ const readBridgeTravelOptions = (): Promise<TravelOptions> =>
 const readPlayerReady = (): Promise<boolean> =>
   runtime.runPromise(
     Effect.gen(function* () {
-      const player = yield* Api.PlayerApi.PlayerApi;
+      const { player } = yield* Api;
       return yield* player.isReady();
     }),
   );
@@ -1021,7 +987,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const settings = yield* Api.SettingsApi.SettingsApi;
+          const { settings } = yield* Api;
           return yield* settings.get();
         }),
       )
@@ -1034,14 +1000,14 @@ export function App(props: {
   const runSettingsUpdate = (
     label: string,
     optimisticPatch: FlashSettingsPatch,
-    update: (settings: Api.SettingsApi.SettingsApiShape) => Effect.Effect<void>,
+    update: (settings: ApiService["settings"]) => Effect.Effect<void>,
   ) => {
     patchFlashSettingsState(optimisticPatch);
 
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const settings = yield* Api.SettingsApi.SettingsApi;
+          const { settings } = yield* Api;
           yield* update(settings);
           return yield* settings.get();
         }),
@@ -1069,7 +1035,7 @@ export function App(props: {
       | "skipCutscenesEnabled"
     >,
     update: (
-      settings: Api.SettingsApi.SettingsApiShape,
+      settings: ApiService["settings"],
       enabled: boolean,
     ) => Effect.Effect<void>,
   ) => {
@@ -1267,7 +1233,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoZone = yield* AutoZone;
+          const { autoZone } = yield* Automation;
           return yield* autoZone.getState();
         }),
       )
@@ -1284,7 +1250,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoZone = yield* AutoZone;
+          const { autoZone } = yield* Automation;
           yield* autoZone.setEnabled(nextEnabled);
           return yield* autoZone.getState();
         }),
@@ -1302,7 +1268,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoZone = yield* AutoZone;
+          const { autoZone } = yield* Automation;
           yield* autoZone.setMap(map);
           return yield* autoZone.getState();
         }),
@@ -1329,7 +1295,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           return yield* autoRelogin.getState();
         }),
       )
@@ -1343,7 +1309,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const auth = yield* Api.AuthApi.AuthApi;
+          const { auth } = yield* Api;
           return yield* auth.getServers();
         }),
       )
@@ -1366,7 +1332,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           yield* autoRelogin.setEnabled(nextEnabled);
           return yield* autoRelogin.getState();
         }),
@@ -1387,7 +1353,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           yield* autoRelogin.setServer(server);
           return yield* autoRelogin.getState();
         }),
@@ -1409,7 +1375,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           yield* autoRelogin.setDelay(delayMs);
           return yield* autoRelogin.getState();
         }),
@@ -1592,11 +1558,10 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const player = yield* Api.PlayerApi.PlayerApi;
+          const { player } = yield* Api;
           yield* player.jumpToCell(
             targetCell,
             targetPad === "" ? undefined : targetPad,
-            true,
           );
           const [currentCell, currentPad] = yield* Effect.all([
             player.getCell(),
@@ -1650,7 +1615,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoAttack = yield* AutoAttack;
+          const { autoAttack } = yield* Automation;
           return yield* autoAttack.getState();
         }),
       )
@@ -1688,7 +1653,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoAttack = yield* AutoAttack;
+          const { autoAttack } = yield* Automation;
           const library = combatProfileLibrary();
           const selectedProfileId = getAvailableAutoAttackProfileId(
             library,
@@ -1728,7 +1693,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const bank = yield* Api.BankApi.BankApi;
+          const { bank } = yield* Api;
           yield* bank.open();
         }),
       )
@@ -1949,7 +1914,7 @@ export function App(props: {
     try {
       const username = await runtime.runPromise(
         Effect.gen(function* () {
-          const auth = yield* Api.AuthApi.AuthApi;
+          const { auth } = yield* Api;
           return yield* auth.getUsername();
         }),
       );
@@ -2073,7 +2038,7 @@ export function App(props: {
 
       const loginResult = await runtime.runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           return yield* autoRelogin.runLogin({
             onLifecycle: (event) =>
               Effect.promise(() =>
@@ -2459,18 +2424,16 @@ export function App(props: {
     const travelEventFiber = runtime.runFork(
       Effect.scoped(
         Effect.gen(function* () {
-          const events = yield* Api.EventsApi.EventsApi;
-          yield* events.on({ kind: "runtime", type: "progress" }, (event) =>
+          const { events } = yield* Api;
+          yield* events.on({ type: "progress" }, (event) =>
             Effect.sync(() => {
               if (event.type === "progress") {
-                setLoadProgress(event.payload.percent);
+                setLoadProgress(event.percent);
               }
             }),
           );
-          yield* events.on({ kind: "runtime", type: "loaded" }, () =>
-            Effect.sync(markLoaded),
-          );
-          yield* events.on({ kind: "projection", type: "joinMap" }, () =>
+          yield* events.on({ type: "loaded" }, () => Effect.sync(markLoaded));
+          yield* events.on({ type: "join-map" }, () =>
             Effect.sync(() =>
               schedulePlayerReadyRefresh({
                 onReady: syncTravelOptionsFromState,
@@ -2478,18 +2441,9 @@ export function App(props: {
               }),
             ),
           );
-          yield* events.on({ kind: "projection", type: "playerLocation" }, () =>
-            Effect.sync(() =>
-              schedulePlayerReadyRefresh({
-                onReady: syncTravelOptionsFromState,
-                retry: true,
-              }),
-            ),
-          );
-          yield* events.on({ kind: "runtime", type: "connection" }, (event) =>
+          yield* events.on({ type: "connection" }, (event) =>
             Effect.sync(() => {
-              const status =
-                event.type === "connection" ? event.payload.status : "";
+              const status = event.type === "connection" ? event.status : "";
               if (
                 status === "OnConnectionLost" ||
                 status === "OnConnectionFailed"
@@ -2514,7 +2468,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const settings = yield* Api.SettingsApi.SettingsApi;
+          const { settings } = yield* Api;
           return yield* settings.onState(applyFlashSettingsState);
         }),
       )
@@ -2534,7 +2488,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoAttack = yield* AutoAttack;
+          const { autoAttack } = yield* Automation;
           return yield* autoAttack.onState(applyAutoAttackState);
         }),
       )
@@ -2554,7 +2508,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoZone = yield* AutoZone;
+          const { autoZone } = yield* Automation;
           return yield* autoZone.onState(applyAutoZoneState);
         }),
       )
@@ -2573,7 +2527,7 @@ export function App(props: {
     void runtime
       .runPromise(
         Effect.gen(function* () {
-          const autoRelogin = yield* AutoRelogin;
+          const { autoRelogin } = yield* Automation;
           return yield* autoRelogin.onState(applyAutoReloginState);
         }),
       )

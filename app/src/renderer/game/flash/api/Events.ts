@@ -1,39 +1,40 @@
-import { Context, Effect, Layer } from "effect";
+import { Effect, Fiber, Stream } from "effect";
 
-import type { EventSelector, FlashEvent, WaitOptions } from "../Types";
-import { FlashProtocol } from "../protocol/FlashProtocol";
+import type { GatewayService } from "../bridge/Gateway";
+import { matchesEvent, type EventSelector } from "../contract/Event";
+import type { Wait } from "./Wait";
+import type { Event } from "../contract/Event";
 
-export type FlashEventHandler = (event: FlashEvent) => Effect.Effect<void>;
+export const makeEvents = Effect.fnUntraced(function* (
+  gateway: GatewayService,
+  wait: Wait,
+) {
+  const scope = yield* Effect.scope;
+  const runFork = Effect.runForkWith(yield* Effect.context<never>());
+  const stream = (selector?: EventSelector) =>
+    gateway.events.pipe(
+      Stream.filter((event) => matchesEvent(event, selector)),
+    );
 
-export interface EventsApiShape {
-  readonly on: (
+  const on = (
     selector: EventSelector | undefined,
-    handler: FlashEventHandler,
-  ) => Effect.Effect<() => void>;
-  readonly once: (
-    selector?: EventSelector,
-    options?: WaitOptions,
-  ) => Effect.Effect<FlashEvent | null>;
-}
+    handler: (event: Event) => Effect.Effect<void, unknown, never>,
+  ) =>
+    stream(selector).pipe(
+      Stream.runForEach(handler),
+      Effect.forkIn(scope),
+      Effect.map((fiber) => () => {
+        runFork(Fiber.interrupt(fiber));
+      }),
+    );
 
-export class EventsApi extends Context.Service<EventsApi, EventsApiShape>()(
-  "lucent/game/flash/api/Events",
-) {}
+  const once = wait.forEvent;
 
-export const layer = Layer.effect(
-  EventsApi,
-  Effect.gen(function* () {
-    const protocol = yield* FlashProtocol;
+  return {
+    on,
+    once,
+    stream,
+  };
+});
 
-    return EventsApi.of({
-      on: protocol.onEvent,
-      once: (selector, options) =>
-        protocol.onceEvent(
-          selector,
-          options?.timeout === undefined
-            ? undefined
-            : { timeout: options.timeout },
-        ),
-    });
-  }),
-);
+export type Events = Effect.Success<ReturnType<typeof makeEvents>>;
