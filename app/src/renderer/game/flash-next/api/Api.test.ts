@@ -1,0 +1,60 @@
+import { describe, expect, it } from "@effect/vitest";
+import { Effect } from "effect";
+
+import { Bridge, makeBridge } from "../bridge/Bridge";
+import { Gateway, makeGateway } from "../bridge/Gateway";
+import { makeApi } from "./Api";
+
+describe("Api", () => {
+  it.effect(
+    "constructs isolated namespaces and retains a last-good refresh",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          let failRefresh = false;
+          const target = {
+            swf: {
+              "bank.getItems": () => {
+                if (failRefresh) throw new Error("refresh failed");
+                return [{ ItemID: "42", iQty: "2", sName: "Indexed Item" }];
+              },
+            },
+          } as unknown as Window;
+          const bridge = yield* makeBridge(target);
+          const gateway = yield* makeGateway(target).pipe(
+            Effect.provideService(Bridge, bridge),
+          );
+          const api = yield* makeApi.pipe(
+            Effect.provideService(Bridge, bridge),
+            Effect.provideService(Gateway, gateway),
+          );
+
+          expect(Object.keys(api).toSorted()).toEqual([
+            "auth",
+            "bank",
+            "combat",
+            "drops",
+            "events",
+            "house",
+            "inventory",
+            "map",
+            "monsters",
+            "packet",
+            "player",
+            "players",
+            "quests",
+            "settings",
+            "shops",
+            "tempInventory",
+            "wait",
+          ]);
+          expect(api.bank).not.toBe(api.inventory);
+          expect((yield* api.bank.getAll())[0]?.quantity).toBe(2);
+
+          failRefresh = true;
+          const retained = yield* api.bank.getAll();
+          expect(retained[0]?.itemId).toBe(42);
+        }),
+      ),
+  );
+});

@@ -92,4 +92,6 @@ export class Bridge extends Context.Service<Bridge>()(
   { make: makeBridge() },
 ) {}
 
+export type BridgeService = Effect.Success<ReturnType<typeof makeBridge>>;
+
 export const layer = Layer.effect(Bridge, Bridge.make);

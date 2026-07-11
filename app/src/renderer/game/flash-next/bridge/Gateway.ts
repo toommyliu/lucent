@@ -12,7 +12,7 @@ import {
 import { decodeCallback, type Callback } from "../contract/Callback";
 import type { Diagnostic } from "../contract/Diagnostic";
 import { makeDiagnostic } from "../contract/Diagnostic";
-import type { Event } from "../contract/Event";
+import type { Event, RuntimeEvent } from "../contract/Event";
 import type { Packet, PacketDirection } from "../contract/Packet";
 import { parsePacket } from "../protocol/PacketCodec";
 import { Bridge } from "./Bridge";
@@ -45,7 +45,7 @@ const packetInput = (
   }
 };
 
-const runtimeEvent = (callback: Callback): Event | undefined => {
+const runtimeEvent = (callback: Callback): RuntimeEvent | undefined => {
   switch (callback.type) {
     case "connection":
       return { type: "connection", status: callback.status };
@@ -142,7 +142,7 @@ export const makeGateway = (target?: Window) =>
     const dispatch = (
       callback: Callback,
       project: (packet: Packet) => Effect.Effect<void>,
-      projectRuntime: (event: Event) => Effect.Effect<void>,
+      projectRuntime: (event: RuntimeEvent) => Effect.Effect<void>,
     ) =>
       Effect.gen(function* () {
         const event = runtimeEvent(callback);
@@ -181,7 +181,8 @@ export const makeGateway = (target?: Window) =>
 
     const start = (
       project: (packet: Packet) => Effect.Effect<void>,
-      projectRuntime: (event: Event) => Effect.Effect<void> = () => Effect.void,
+      projectRuntime: (event: RuntimeEvent) => Effect.Effect<void> = () =>
+        Effect.void,
     ) =>
       Effect.suspend(() => {
         if (started) return Effect.void;
@@ -236,5 +237,7 @@ export class Gateway extends Context.Service<Gateway>()(
   "lucent/renderer/flash/Gateway",
   { make: makeGateway() },
 ) {}
+
+export type GatewayService = Effect.Success<ReturnType<typeof makeGateway>>;
 
 export const layer = Layer.effect(Gateway, Gateway.make);
