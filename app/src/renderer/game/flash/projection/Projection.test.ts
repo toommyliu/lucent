@@ -16,6 +16,14 @@ const extension = (command: string, data: unknown): Packet => ({
   wireType: "json",
 });
 
+const server = (command: string, data: unknown): Packet => ({
+  command,
+  data,
+  direction: "server",
+  raw: "",
+  wireType: "json",
+});
+
 const client = (command: string, params: readonly string[]): Packet => ({
   command,
   direction: "client",
@@ -181,6 +189,16 @@ describe("Projection", () => {
         expect((yield* store.world.getMe)?.hp).toBe(80);
 
         yield* pipeline.packet(
+          server("moveToArea", {
+            areaId: 99,
+            areaName: "duplicate-99",
+            monBranch: [],
+            uoBranch: [],
+          }),
+        );
+        expect((yield* store.world.getMap).id).toBe(0);
+
+        yield* pipeline.packet(
           extension("moveToArea", {
             areaId: 12,
             areaName: "battleon-42",
@@ -205,6 +223,11 @@ describe("Projection", () => {
         );
         expect((yield* store.world.getMap).roomNumber).toBe(42);
         expect((yield* store.world.getMe)?.username).toBe("Hero");
+
+        yield* pipeline.packet(extension("ct", { m: { "1": { intHP: 20 } } }));
+        expect((yield* store.world.getMonster(1))?.hp).toBe(100);
+        yield* pipeline.packet(server("ct", { m: { "1": { intHP: 80 } } }));
+        expect((yield* store.world.getMonster(1))?.hp).toBe(80);
 
         yield* pipeline.packet(
           client("moveToCell", [

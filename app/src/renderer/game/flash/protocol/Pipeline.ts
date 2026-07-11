@@ -70,19 +70,18 @@ const itemCommands = new Set([
   "unequipItem",
 ]);
 const questCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
-const worldCommands = new Set([
+const clientWorldCommands = new Set(["moveToCell", "mv"]);
+const extensionWorldCommands = new Set([
   "moveToArea",
   "initUserData",
   "initUserDatas",
   "exitArea",
   "uotls",
   "mtls",
-  "moveToCell",
   "clearAuras",
   "event",
   "respawnMon",
   "addGoldExp",
-  "mv",
   "mtcid",
 ]);
 
@@ -127,7 +126,19 @@ export const makePipeline = (
   const projectionFor = (
     packet: Packet,
   ): Effect.Effect<readonly Event[]> | undefined => {
-    if (packet.command === "ct" || packet.command === "cb") {
+    if (packet.direction === "server") {
+      return packet.command === "ct"
+        ? projectCombat(store, packet, diagnose)
+        : undefined;
+    }
+
+    if (packet.direction === "client") {
+      return clientWorldCommands.has(packet.command)
+        ? projectWorld(store, packet, diagnose, bridge)
+        : undefined;
+    }
+
+    if (packet.command === "cb") {
       return projectCombat(store, packet, diagnose);
     }
     if (itemCommands.has(packet.command)) {
@@ -139,7 +150,7 @@ export const makePipeline = (
     if (packet.command === "loadShop") {
       return projectShops(store, packet, diagnose);
     }
-    if (worldCommands.has(packet.command)) {
+    if (extensionWorldCommands.has(packet.command)) {
       return projectWorld(store, packet, diagnose, bridge);
     }
     return undefined;
