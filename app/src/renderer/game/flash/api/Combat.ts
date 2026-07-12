@@ -1,5 +1,8 @@
-import { EntityState } from "@lucent/game";
-import { toMonsterSelector } from "@lucent/game";
+import {
+  EntityState,
+  orderMonstersByPriority,
+  toMonsterSelector,
+} from "@lucent/game";
 import type { ItemQuery, Monster, MonsterQuery } from "@lucent/game";
 import type { CombatProfile } from "@lucent/core/combatProfiles";
 import { Effect, Option, Schema } from "effect";
@@ -31,7 +34,7 @@ import type { Settings } from "./Settings";
 import type { TempInventory } from "./TempInventory";
 import type { Wait } from "./Wait";
 
-export type Skill = number | string;
+export type Skill = number;
 
 export interface HuntOptions {
   readonly findMost?: boolean;
@@ -43,11 +46,10 @@ export interface SkillUseOptions {
 }
 
 export interface CombatKillOptions {
-  readonly maxKills?: number;
+  readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfile;
   readonly skillDelay?: number;
-  readonly skillSet?: readonly Skill[] | string;
-  readonly timeout?: Duration.Input;
+  readonly skillSet?: readonly Skill[];
 }
 
 const Consumable = Schema.NullOr(
@@ -97,20 +99,21 @@ const TargetPayload = Schema.NullOr(
 );
 
 const skillIndex = (skill: Skill): number | null => {
-  const parsed = typeof skill === "number" ? skill : Number(skill.trim());
-  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
+  return Number.isInteger(skill) && skill >= 0 && skill <= 5 ? skill : null;
 };
 
 const DEFAULT_SKILL_SET: readonly Skill[] = [1, 2, 3, 4];
-const skillSet = (input: CombatKillOptions["skillSet"]): readonly Skill[] => {
-  if (Array.isArray(input))
-    return input.length === 0 ? DEFAULT_SKILL_SET : input;
-  if (typeof input === "string") {
-    const skills = input.split(/[^0-9]+/).filter(Boolean);
-    return skills.length === 0 ? DEFAULT_SKILL_SET : skills;
-  }
-  return DEFAULT_SKILL_SET;
+const normalizeSkillSet = (
+  input: CombatKillOptions["skillSet"],
+): readonly Skill[] => {
+  const skills = (input ?? []).filter((skill) => skillIndex(skill) !== null);
+  return skills.length === 0 ? DEFAULT_SKILL_SET : skills;
 };
+
+const normalizeSkillDelay = (delay: number | undefined): number =>
+  delay === undefined || !Number.isFinite(delay)
+    ? 150
+    : Math.max(0, Math.trunc(delay));
 
 interface KillProfileRuntime {
   readonly cursor: CombatProfileCursor;
@@ -308,18 +311,39 @@ export const makeCombat = (
     options: CombatKillOptions | undefined,
     runtime: KillProfileRuntime | null,
   ) => {
-    const skills = skillSet(options?.skillSet);
+    const skills = normalizeSkillSet(options?.skillSet);
+    const skillDelay = normalizeSkillDelay(options?.skillDelay);
+    const attackOrder = [
+      ...(options?.killPriority ?? []),
+      monster.monsterMapId,
+    ];
+
+    const selectTarget = Effect.gen(function* () {
+      const available = yield* monsters.getAvailable();
+      const candidates = orderMonstersByPriority(available, attackOrder);
+
+      for (const candidate of candidates) {
+        if (!(yield* antiCounterActive(candidate.monsterMapId)))
+          return candidate;
+      }
+
+      return null;
+    });
+
     return Effect.forever(
       Effect.gen(function* () {
         if (!(yield* player.isAlive())) {
           yield* Effect.sleep("250 millis");
           return;
         }
-        if (!(yield* monsters.isAvailable(monster.monsterMapId))) {
+
+        const target = yield* selectTarget;
+        if (target === null) {
+          yield* stopCombat;
           yield* Effect.sleep("100 millis");
           return;
         }
-        if (!(yield* attackMonster(monster.monsterMapId))) {
+        if (!(yield* attackMonster(target.monsterMapId))) {
           yield* Effect.sleep("250 millis");
           return;
         }
@@ -338,7 +362,7 @@ export const makeCombat = (
 
         for (const skill of skills) {
           yield* useSkill(skill);
-          yield* Effect.sleep(options?.skillDelay ?? 150);
+          yield* Effect.sleep(skillDelay);
         }
       }),
     );
@@ -359,52 +383,63 @@ export const makeCombat = (
           type: "monster-death",
         },
         {
-          timeout: options?.timeout ?? "60 seconds",
           trigger: Effect.forkScoped(fight(monster, options, runtime)).pipe(
             Effect.as(true),
           ),
         },
       );
-      if (death === null) return false;
-      if (runtime?.profile.resetSkillIndexOnMonsterDeath === true) {
-        yield* resetCombatProfileCursor(runtime.cursor);
-      }
-      return true;
+      return death !== null;
     });
 
-  const withProfileMessages = <A>(
+  const withProfileEvents = <A>(
     runtime: KillProfileRuntime | null,
     effect: Effect.Effect<A>,
   ) => {
     if (runtime === null) return effect;
+
+    const subscriptions: Effect.Effect<() => void>[] = [];
+    if ((runtime.profile.messageTriggers?.length ?? 0) > 0) {
+      subscriptions.push(
+        events.on({ type: "update-message" }, (event) => {
+          if (event.type !== "update-message") return Effect.void;
+          return castCombatProfileMessageTriggers(
+            runtime.dependencies,
+            runtime.profile,
+            {
+              message: event.message,
+              ...(event.monsterMapId === undefined
+                ? {}
+                : { monMapId: event.monsterMapId }),
+              source: event.source,
+            },
+            runtime.messageState,
+          );
+        }),
+      );
+    }
+    if (runtime.profile.resetSkillIndexOnMonsterDeath === true) {
+      subscriptions.push(
+        events.on({ type: "monster-death" }, () =>
+          resetCombatProfileCursor(runtime.cursor),
+        ),
+      );
+    }
+    if (subscriptions.length === 0) return effect;
+
     return Effect.acquireUseRelease(
-      events.on({ type: "update-message" }, (event) => {
-        if (event.type !== "update-message") return Effect.void;
-        return castCombatProfileMessageTriggers(
-          runtime.dependencies,
-          runtime.profile,
-          {
-            message: event.message,
-            ...(event.monsterMapId === undefined
-              ? {}
-              : { monMapId: event.monsterMapId }),
-            source: event.source,
-          },
-          runtime.messageState,
-        );
-      }),
+      Effect.all(subscriptions),
       () => effect,
-      (dispose) => Effect.sync(dispose),
+      (disposers) =>
+        Effect.sync(() => {
+          for (const dispose of disposers) dispose();
+        }),
     );
   };
 
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>
     makeKillProfileRuntime(options?.profile).pipe(
       Effect.flatMap((runtime) =>
-        withProfileMessages(
-          runtime,
-          killWithRuntime(selector, options, runtime),
-        ),
+        withProfileEvents(runtime, killWithRuntime(selector, options, runtime)),
       ),
       Effect.ensuring(stopCombat),
     );
@@ -417,27 +452,23 @@ export const makeCombat = (
     options?: CombatKillOptions,
   ) => {
     const wanted = Math.max(1, Math.trunc(requested ?? 1));
-    const maxKills = Math.max(1, Math.trunc(options?.maxKills ?? 100));
     return makeKillProfileRuntime(options?.profile).pipe(
       Effect.flatMap((runtime) => {
-        const loop = (kills: number): Effect.Effect<boolean> =>
-          Effect.gen(function* () {
+        const loop = Effect.gen(function* () {
+          while (true) {
             if (yield* source.contains(item, wanted)) return true;
             if (yield* drops.contains(item)) {
               yield* drops.accept(item);
               if (yield* source.contains(item, wanted)) return true;
             }
-            if (kills >= maxKills) return false;
             if (!(yield* killWithRuntime(selector, options, runtime))) {
-              return false;
+              yield* Effect.sleep("100 millis");
             }
-            return yield* loop(kills + 1);
-          });
+          }
+        });
 
-        return withProfileMessages(runtime, loop(0));
+        return withProfileEvents(runtime, loop);
       }),
-      Effect.timeoutOption(options?.timeout ?? "60 seconds"),
-      Effect.map(Option.getOrElse(() => false)),
       Effect.ensuring(stopCombat),
     );
   };

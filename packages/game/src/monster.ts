@@ -47,6 +47,25 @@ export interface Monster extends Entity {
   matches(selector: MonsterQuery): boolean;
 }
 
+export const orderMonstersByPriority = (
+  monsters: readonly Monster[],
+  priorities: readonly MonsterQuery[],
+): readonly Monster[] => {
+  const ordered: Monster[] = [];
+  const selected = new Set<number>();
+
+  for (const priority of priorities) {
+    for (const monster of monsters) {
+      if (!selected.has(monster.monsterMapId) && monster.matches(priority)) {
+        ordered.push(monster);
+        selected.add(monster.monsterMapId);
+      }
+    }
+  }
+
+  return ordered;
+};
+
 export interface MonsterData extends EntityData {
   level: number;
   monsterId: number;

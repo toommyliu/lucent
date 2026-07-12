@@ -3,9 +3,12 @@ import type {
   CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { getCombatProfileById } from "@lucent/core/combatProfiles";
-import { EntityState } from "@lucent/game";
-import { parseMonsterMapId } from "@lucent/game";
-import type { Monster } from "@lucent/game";
+import {
+  EntityState,
+  orderMonstersByPriority,
+  parseMonsterMapId,
+} from "@lucent/game";
+import type { Monster, MonsterQuery } from "@lucent/game";
 import {
   Cause,
   Effect,
@@ -25,14 +28,10 @@ import {
   makeCombatProfileRuntimeDeps,
 } from "../combatProfiles";
 
-export type AutoAttackTargetPriority =
-  | { readonly kind: "monster-map-id"; readonly monsterMapId: number }
-  | { readonly kind: "monster-name"; readonly name: string };
-
 export interface AutoAttackStartOptions {
   readonly library: CombatProfileLibrary;
   readonly profileId: string;
-  readonly targetPriority?: readonly AutoAttackTargetPriority[];
+  readonly targetPriority?: readonly MonsterQuery[];
 }
 
 export interface AutoAttackState {
@@ -54,36 +53,25 @@ const separator = /[,;\n]+/u;
 
 export const parseAutoAttackTargetPriority = (
   value: string,
-): readonly AutoAttackTargetPriority[] =>
+): readonly MonsterQuery[] =>
   value
     .split(separator)
     .map((token) => token.trim())
     .filter(Boolean)
     .map((token) => {
       const monsterMapId = parseMonsterMapId(token);
-      return monsterMapId === undefined
-        ? { kind: "monster-name", name: token }
-        : { kind: "monster-map-id", monsterMapId };
+      return monsterMapId ?? token;
     });
 
 const selectTarget = (
   monsters: readonly Monster[],
-  priorities: readonly AutoAttackTargetPriority[],
+  priorities: readonly MonsterQuery[],
 ) => {
   const available = monsters.filter(
     (monster) => monster.hp > 0 && monster.state !== EntityState.Dead,
   );
-  for (const priority of priorities) {
-    const target = available.find((monster) =>
-      priority.kind === "monster-map-id"
-        ? monster.monsterMapId === priority.monsterMapId
-        : monster.name.localeCompare(priority.name, undefined, {
-            sensitivity: "accent",
-          }) === 0,
-    );
-    if (target !== undefined) return target;
-  }
-  return available[0];
+  const prioritized = orderMonstersByPriority(available, priorities);
+  return prioritized[0] ?? available[0];
 };
 
 const publicState = (state: State, running: boolean): AutoAttackState => ({
@@ -119,10 +107,7 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
     ),
   );
 
-  const loop = (
-    profile: CombatProfile,
-    priorities: readonly AutoAttackTargetPriority[],
-  ) =>
+  const loop = (profile: CombatProfile, priorities: readonly MonsterQuery[]) =>
     Effect.gen(function* () {
       const cursor = yield* makeCombatProfileCursor();
       const deps = makeCombatProfileRuntimeDeps(

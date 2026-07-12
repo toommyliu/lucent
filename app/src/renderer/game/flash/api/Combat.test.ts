@@ -1,7 +1,8 @@
 import type { CombatProfile } from "@lucent/core/combatProfiles";
 import { EntityState, LiveMonster, LivePlayer } from "@lucent/game";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Fiber } from "effect";
+import * as TestClock from "effect/testing/TestClock";
 
 import { makePipeline } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
@@ -34,26 +35,43 @@ const profile: CombatProfile = {
 
 describe("Combat", () => {
   it.effect(
-    "kills from a profile death event and accepts an existing drop",
+    "kills priorities before the requested target and accepts a drop",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
           let skillUses = 0;
           let acceptedDrop = false;
+          let currentTarget: number | undefined;
+          const attackedTargets: number[] = [];
+          const availableMonsters = new Set([7, 8]);
           const target = {} as Window;
           target.swf = {
-            "combat.attackMonster": () => true,
+            "combat.attackMonster": (selector: { monMapId?: number }) => {
+              currentTarget = selector.monMapId;
+              if (currentTarget !== undefined) {
+                attackedTargets.push(currentTarget);
+              }
+              return currentTarget !== undefined;
+            },
             "combat.cancelAutoAttack": () => undefined,
             "combat.cancelTarget": () => undefined,
             "combat.getSkillCooldownRemaining": () => 0,
             "combat.getTarget": () => null,
             "combat.useSkill": () => {
+              if (currentTarget === undefined) return false;
               skillUses += 1;
+              const defeated = currentTarget;
+              availableMonsters.delete(defeated);
               target.onExtensionResponse?.(
                 JSON.stringify({
                   dataObj: {
                     cmd: "cb",
-                    m: { 7: { intHP: 0, intState: EntityState.Dead } },
+                    m: {
+                      [defeated]: {
+                        intHP: 0,
+                        intState: EntityState.Dead,
+                      },
+                    },
                   },
                   type: "json",
                 }),
@@ -61,8 +79,9 @@ describe("Combat", () => {
               return true;
             },
             "player.jump": () => undefined,
-            "world.getAvailableMonsterMapIds": () => [7],
-            "world.isMonsterAvailable": () => true,
+            "world.getAvailableMonsterMapIds": () => [...availableMonsters],
+            "world.isMonsterAvailable": (monsterMapId: number) =>
+              availableMonsters.has(monsterMapId),
           } as unknown as Window["swf"];
 
           const bridge = yield* makeBridge(target);
@@ -156,12 +175,35 @@ describe("Combat", () => {
               state: EntityState.Idle,
             }),
           );
+          yield* store.world.putMonster(
+            new LiveMonster({
+              cell: "Enter",
+              hp: 100,
+              level: 1,
+              maxHp: 100,
+              maxMp: 0,
+              monsterId: 3,
+              monsterMapId: 8,
+              mp: 0,
+              name: "Priority",
+              race: "None",
+              state: EntityState.Idle,
+            }),
+          );
 
-          expect(yield* combat.kill(7, { profile })).toBe(true);
-          expect(skillUses).toBe(1);
+          const killFiber = yield* combat
+            .kill(7, { killPriority: [8], profile })
+            .pipe(Effect.forkScoped);
+          yield* Effect.yieldNow;
+          yield* TestClock.adjust("1 second");
+          yield* Effect.yieldNow;
+
+          expect(yield* Fiber.join(killFiber)).toBe(true);
+          expect(skillUses).toBe(2);
+          expect(attackedTargets).toEqual([8, 7]);
           expect(yield* combat.killForItem(7, 99, 1)).toBe(true);
           expect(acceptedDrop).toBe(true);
         }),
-      ),
+      ).pipe(Effect.provide(TestClock.layer())),
   );
 });

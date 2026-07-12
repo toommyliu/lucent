@@ -6,6 +6,7 @@ import {
   LiveMonster,
   LivePlayer,
   LiveServer,
+  orderMonstersByPriority,
   toItemSelector,
   toMonsterSelector,
 } from "./index";
@@ -102,5 +103,41 @@ describe("game domain models", () => {
     expect(monster.matches("id:9")).toBe(true);
     expect(toMonsterSelector("id:9")).toEqual({ monMapId: 9 });
     expect(server.full).toBe(true);
+  });
+
+  it("orders monsters by typed priority without duplicates", () => {
+    const monsters = [
+      new LiveMonster({
+        cell: "r1",
+        hp: 100,
+        level: 5,
+        maxHp: 100,
+        maxMp: 0,
+        monsterId: 1,
+        monsterMapId: 10,
+        mp: 0,
+        name: "Guard",
+        race: "Human",
+        state: EntityState.Idle,
+      }),
+      new LiveMonster({
+        cell: "r1",
+        hp: 100,
+        level: 5,
+        maxHp: 100,
+        maxMp: 0,
+        monsterId: 2,
+        monsterMapId: 11,
+        mp: 0,
+        name: "Elite Guard",
+        race: "Human",
+        state: EntityState.Idle,
+      }),
+    ];
+
+    expect(orderMonstersByPriority(monsters, [11, "guard"])).toEqual([
+      monsters[1],
+      monsters[0],
+    ]);
   });
 });
