@@ -26,6 +26,11 @@ interface WaitSource {
   >;
 }
 
+/**
+ * Runs `trigger` only after the subscription is live. A `true` result means the
+ * command was sent and a matching response should be awaited; `false` closes
+ * the scoped subscription immediately and returns `null`.
+ */
 export interface TriggeredWaitOptions<E = never, R = never> extends Pick<
   WaitOptions,
   "timeout"
@@ -56,7 +61,7 @@ export const makeWait = (source: WaitSource) => ({
   forEvent: <E = never, R = never>(
     selector?: EventSelector,
     options?: TriggeredWaitOptions<E, R>,
-  ): Effect.Effect<Event | null, E, R> =>
+  ) =>
     Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* source.subscribeEvents;
@@ -73,7 +78,7 @@ export const makeWait = (source: WaitSource) => ({
   forPacket: <E = never, R = never>(
     selector?: PacketSelector,
     options?: TriggeredWaitOptions<E, R>,
-  ): Effect.Effect<Packet | null, E, R> =>
+  ) =>
     Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* source.subscribePackets;

@@ -5,6 +5,8 @@ import {
   type EntitySnapshot,
 } from "./entity";
 
+export type BoostType = "classPoints" | "exp" | "gold" | "rep";
+
 export interface Position {
   readonly x: number;
   readonly y: number;
@@ -64,6 +66,7 @@ export class LivePlayer extends LiveEntity<PlayerData> implements Player {
     return {
       ...this.modelData,
       alive: this.alive,
+      auras: this.auras.map((aura) => aura.toJSON()),
       dead: this.dead,
       hpPercent: this.hpPercent,
       idle: this.idle,

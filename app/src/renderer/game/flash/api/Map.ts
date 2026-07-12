@@ -17,6 +17,7 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
         }),
       ),
     );
+
   const getCells = () =>
     bridge.invoke("world.getCells", undefined, Strings).pipe(
       Effect.flatMap(
@@ -26,6 +27,7 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
         }),
       ),
     );
+
   const getId = () => store.world.getMap.pipe(Effect.map((map) => map.id));
 
   const getMapItem = (itemId: number) => {
@@ -39,6 +41,7 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
       Effect.asVoid,
     );
   };
+
   const getName = () => store.world.getMap.pipe(Effect.map((map) => map.name));
 
   const getRoomNumber = () =>
@@ -48,10 +51,13 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
     bridge
       .invoke("world.isLoaded", undefined, Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
+
   const loadSwf = (swf: string) =>
     bridge.invoke("world.loadSwf", [swf], Schema.Void).pipe(Effect.asVoid);
+
   const reload = () =>
     bridge.invoke("world.reload", undefined, Schema.Void).pipe(Effect.asVoid);
+
   const setSpawnPoint = (cell?: string, pad?: string) =>
     bridge
       .invoke("world.setSpawnPoint", [cell, pad], Schema.Void)

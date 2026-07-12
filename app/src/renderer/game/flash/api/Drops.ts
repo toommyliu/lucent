@@ -91,6 +91,7 @@ export const makeDrops = Effect.fnUntraced(function* (
     bridge
       .invoke("drops.isUsingCustomDrops", undefined, Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
+
   const reject = (selector: ItemQuery) => {
     return Effect.gen(function* () {
       if (!(yield* auth.isLoggedIn())) return false;

@@ -99,6 +99,7 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
     return {
       ...this.modelData,
       alive: this.alive,
+      auras: this.auras.map((aura) => aura.toJSON()),
       dead: this.dead,
       hpPercent: this.hpPercent,
       idle: this.idle,

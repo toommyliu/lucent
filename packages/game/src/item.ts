@@ -75,6 +75,7 @@ export interface Item {
   readonly quantity: number;
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
+  readonly wearable: boolean;
   readonly weapon: boolean;
   matches(selector: ItemQuery | ShopItemQuery): boolean;
   toJSON(): ItemSnapshot;
@@ -99,6 +100,7 @@ export interface ItemData {
   quantity: number;
   shopItemId?: number;
   temporaryItem: boolean;
+  wearable?: boolean;
 }
 
 export type ItemSnapshot = Readonly<ItemData> & {
@@ -109,6 +111,7 @@ export type ItemSnapshot = Readonly<ItemData> & {
   readonly helm: boolean;
   readonly pet: boolean;
   readonly weapon: boolean;
+  readonly wearable: boolean;
 };
 
 export class LiveItem extends LiveModel<ItemData> implements Item {
@@ -187,6 +190,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   get weapon(): boolean {
     return this.equipmentSlot === "Weapon";
   }
+  get wearable(): boolean {
+    return this.modelData.wearable ?? false;
+  }
 
   matches(selector: ItemQuery | ShopItemQuery): boolean {
     if (typeof selector === "number") return this.itemId === selector;
@@ -213,6 +219,7 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
         : { enhancement: { ...this.enhancement } }),
       helm: this.helm,
       pet: this.pet,
+      wearable: this.wearable,
       weapon: this.weapon,
     };
   }

@@ -55,13 +55,11 @@ export const makePacket = Effect.fnUntraced(function* (
   const sendClient = (packet: string, type?: "str" | "json") =>
     resolve(packet).pipe(
       Effect.flatMap((resolved) => gateway.sendClient(resolved, type)),
-      Effect.asVoid,
     );
 
   const sendServer = (packet: string, type?: "String" | "Json") =>
     resolve(packet).pipe(
       Effect.flatMap((resolved) => gateway.sendServer(resolved, type)),
-      Effect.asVoid,
     );
 
   return {

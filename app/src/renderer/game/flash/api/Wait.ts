@@ -3,6 +3,7 @@ import type { Duration } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import type { GatewayService } from "../bridge/Gateway";
+import type { GameAction } from "../contract/GameAction";
 import type { WaitOptions } from "../contract/Packet";
 import { makeWait } from "../protocol/Wait";
 
@@ -14,14 +15,18 @@ const isWaitOptions = (
   ("timeout" in options || "interval" in options);
 
 export const makeWaitApi = (bridge: BridgeService, gateway: GatewayService) => {
+  // A triggered wait acquires its event/packet subscription before running the
+  // command Effect. The command returns true only when a response is expected,
+  // which prevents both synchronous-response races and pointless timeouts after
+  // a command failed to send.
   const wait = makeWait(gateway);
-  const isGameActionAvailable = (action: string) =>
+  const isGameActionAvailable = (action: GameAction) =>
     bridge
       .invoke("world.isActionAvailable", [action], Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
 
   const forGameAction = (
-    action: string,
+    action: GameAction,
     options?: WaitOptions | Duration.Input,
   ) => {
     const normalized: WaitOptions =

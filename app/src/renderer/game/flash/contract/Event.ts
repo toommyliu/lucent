@@ -59,6 +59,7 @@ export type ProjectionEvent =
 export type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
 
 export interface EventSelector {
+  readonly monsterMapId?: number;
   readonly questId?: number;
   readonly type?: Event["type"];
 }
@@ -68,5 +69,8 @@ export const matchesEvent = (
   selector: EventSelector | undefined,
 ): boolean =>
   (selector?.type === undefined || selector.type === event.type) &&
+  (selector?.monsterMapId === undefined ||
+    (event.type === "monster-death" &&
+      event.monsterMapId === selector.monsterMapId)) &&
   (selector?.questId === undefined ||
     (event.type === "quest-complete" && event.questId === selector.questId));

@@ -52,53 +52,46 @@ export const makeMonsters = (bridge: BridgeService, store: Store) => {
     );
   };
 
-  const getAuras = (
-    selector: MonsterQuery,
-    options?: { kind?: "active" | "passive" },
-  ) =>
+  const getAll = () => store.world.getMonsters;
+  const getAvailable = () =>
+    bridge
+      .invoke(
+        "world.getAvailableMonsterMapIds",
+        undefined,
+        Schema.Array(Schema.Number),
+      )
+      .pipe(
+        Effect.flatMap(
+          Option.match({
+            onNone: () => Effect.succeed([]),
+            onSome: (ids) =>
+              store.world.getMonsters.pipe(
+                Effect.map((monsters) => {
+                  const available = new Set(ids);
+                  return monsters.filter((monster) =>
+                    available.has(monster.monsterMapId),
+                  );
+                }),
+              ),
+          }),
+        ),
+      );
+  const isAvailable = (selector: MonsterQuery) =>
     get(selector).pipe(
       Effect.flatMap((monster) =>
         monster === null
-          ? Effect.succeed([])
-          : store.world.getMonsterAuras(monster.monsterMapId, options),
+          ? Effect.succeed(false)
+          : bridge
+              .invoke(
+                "world.isMonsterAvailable",
+                [monster.monsterMapId],
+                Schema.Boolean,
+              )
+              .pipe(Effect.map(Option.getOrElse(() => false))),
       ),
     );
-
-  const getAura = (
-    selector: MonsterQuery,
-    name: string,
-    options?: { kind?: "active" | "passive" },
-  ) =>
-    getAuras(selector, options).pipe(
-      Effect.map(
-        (auras) =>
-          auras.find(
-            (aura) =>
-              aura.name.localeCompare(name, undefined, {
-                sensitivity: "accent",
-              }) === 0,
-          ) ?? null,
-      ),
-    );
-
-  const hasAura = (
-    selector: MonsterQuery,
-    name: string,
-    options?: { kind?: "active" | "passive" },
-  ) =>
-    getAura(selector, name, options).pipe(Effect.map((aura) => aura !== null));
-
-  const auras = { get: getAura, getAll: getAuras, has: hasAura };
-  const getAll = () => store.world.getMonsters;
-  const getAvailable = () =>
-    store.world.getMonsters.pipe(
-      Effect.map((monsters) => monsters.filter((monster) => monster.alive)),
-    );
-  const isAvailable = (selector: MonsterQuery) =>
-    get(selector).pipe(Effect.map((monster) => monster?.alive === true));
 
   return {
-    auras,
     get,
     getAll,
     getAvailable,

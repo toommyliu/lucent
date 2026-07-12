@@ -18,12 +18,11 @@ import {
 
 import type { ApiService } from "../flash/api/Api";
 import {
-  castCombatProfileMessageTrigger,
+  castCombatProfileMessageTriggers,
   castNextCombatProfileStep,
   makeCombatProfileMessageTriggerState,
   makeCombatProfileCursor,
   makeCombatProfileRuntimeDeps,
-  matchesCombatProfileMessageTrigger,
 } from "../combatProfiles";
 
 export type AutoAttackTargetPriority =
@@ -222,16 +221,12 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
           api.player,
           api.players,
         );
-        for (const trigger of profile.messageTriggers ?? []) {
-          if (!matchesCombatProfileMessageTrigger(trigger, message)) continue;
-          yield* castCombatProfileMessageTrigger(
-            dependencies,
-            profile,
-            trigger,
-            message,
-            messageState,
-          );
-        }
+        yield* castCombatProfileMessageTriggers(
+          dependencies,
+          profile,
+          message,
+          messageState,
+        );
       }),
   );
   yield* Effect.addFinalizer(() => Effect.sync(disposeMessages));

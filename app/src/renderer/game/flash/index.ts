@@ -24,6 +24,7 @@ export type { TempInventory } from "./api/TempInventory";
 export type { Wait } from "./api/Wait";
 export type * from "./contract/Diagnostic";
 export type * from "./contract/Event";
+export * from "./contract/GameAction";
 export type * from "./contract/Packet";
 export type * from "./contract/Settings";
 export * from "./runtime";

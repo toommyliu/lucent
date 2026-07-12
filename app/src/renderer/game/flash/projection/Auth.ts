@@ -7,7 +7,12 @@ const lostConnections = new Set(["OnConnectionLost", "OnConnectionFailed"]);
 
 export const projectAuth = (store: Store, event: RuntimeEvent) =>
   event.type === "connection" && lostConnections.has(event.status)
-    ? Effect.all([store.auth.setLoggedIn(false), store.world.clearSelf], {
-        discard: true,
-      })
+    ? Effect.all(
+        [
+          store.auth.setLoggedIn(false),
+          store.items.clear,
+          store.world.clearSelf,
+        ],
+        { discard: true },
+      )
     : Effect.void;

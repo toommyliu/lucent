@@ -1,68 +1,35 @@
-import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
+import { normalizeItemQuantity } from "@lucent/game";
 import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import { ItemPayload, ItemPayloads, toItem } from "../contract/payload/Items";
-import { WireInt } from "../contract/Coercion";
+import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
+import { packetData } from "../contract/Packet";
 import type { Store } from "../state/Store";
+import type { Packet } from "./Packet";
 import type { Wait } from "./Wait";
 
-const NullableItem = Schema.NullOr(ItemPayload);
+const WearResponse = Schema.Struct({
+  ItemID: PositiveWireInt,
+  success: WireBoolean,
+});
+const decodeWearResponse = Schema.decodeUnknownOption(WearResponse);
 
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
+  packet: Packet,
   wait: Wait,
 ) => {
-  const getAll = () =>
-    bridge.invoke("inventory.getItems", undefined, ItemPayloads).pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () => store.items.getAll("inventory"),
-          onSome: (payloads) => {
-            const items = payloads.map((payload) =>
-              toItem(payload, { context: "inventory" }),
-            );
-            return store.items
-              .replace("inventory", items)
-              .pipe(Effect.as(items));
-          },
-        }),
-      ),
-    );
-  const get = (selector: ItemQuery) => {
-    return store.items.get("inventory", selector).pipe(
-      Effect.flatMap((cached) =>
-        cached !== null
-          ? Effect.succeed(cached)
-          : bridge
-              .invoke(
-                "inventory.getItem",
-                [toItemSelector(selector)],
-                NullableItem,
-              )
-              .pipe(
-                Effect.flatMap(
-                  Option.match({
-                    onNone: () => Effect.succeed(null),
-                    onSome: (payload) => {
-                      if (payload === null) return Effect.succeed(null);
-                      const item = toItem(payload, { context: "inventory" });
-                      return store.items
-                        .upsert("inventory", item)
-                        .pipe(Effect.map((stored) => stored));
-                    },
-                  }),
-                ),
-              ),
-      ),
-    );
-  };
+  const getAll = () => store.items.getAll("inventory");
+
+  const get = (selector: ItemQuery) => store.items.get("inventory", selector);
+
   const getSlots = () =>
     bridge
       .invoke("inventory.getSlots", undefined, WireInt)
       .pipe(Effect.map(Option.getOrElse(() => 0)));
+
   const getUsedSlots = () =>
     store.items.getAll("inventory").pipe(Effect.map((items) => items.length));
 
@@ -92,15 +59,61 @@ export const makeInventory = (
           Effect.flatMap(
             Option.match({
               onNone: () => Effect.succeed(false),
-              onSome: (sent) =>
-                sent
-                  ? wait.until(
-                      get(item.itemId).pipe(
-                        Effect.map((current) => current?.equipped === true),
-                      ),
-                      { timeout: "5 seconds" },
-                    )
-                  : Effect.succeed(false),
+              onSome: (sent) => {
+                if (!sent) return Effect.succeed(false);
+                if (!item.wearable) {
+                  return wait.until(
+                    get(item.itemId).pipe(
+                      Effect.map((current) => current?.equipped === true),
+                    ),
+                    { timeout: "5 seconds" },
+                  );
+                }
+
+                return wait.forGameAction("wearItem").pipe(
+                  Effect.flatMap((ready) =>
+                    ready ? store.world.getMap : Effect.succeed(null),
+                  ),
+                  Effect.flatMap((map) => {
+                    if (map === null) return Effect.succeed(false);
+                    let response: typeof WearResponse.Type | undefined;
+                    return wait
+                      .forPacket(
+                        {
+                          command: "wearItem",
+                          direction: "extension",
+                          predicate: (candidate) => {
+                            const decoded = decodeWearResponse(
+                              packetData(candidate),
+                            );
+                            if (
+                              Option.isNone(decoded) ||
+                              decoded.value.ItemID !== item.itemId
+                            ) {
+                              return false;
+                            }
+                            response = decoded.value;
+                            return true;
+                          },
+                          wireType: "json",
+                        },
+                        {
+                          timeout: "5 seconds",
+                          trigger: packet.sendServer(
+                            `%xt%zm%wearItem%${map.id}%${item.itemId}%`,
+                            "String",
+                          ),
+                        },
+                      )
+                      .pipe(
+                        Effect.map(
+                          (wearPacket) =>
+                            wearPacket !== null && response?.success === true,
+                        ),
+                      );
+                  }),
+                );
+              },
             }),
           ),
         );

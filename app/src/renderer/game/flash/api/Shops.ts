@@ -3,7 +3,7 @@ import type { ItemQuery, LiveItem, ShopItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
-import { WireBoolean, WireInt } from "../contract/Coercion";
+import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import { ItemPayloads, toItem } from "../contract/payload/Items";
 import type { Store } from "../state/Store";
@@ -15,7 +15,14 @@ const BuyResponse = Schema.Struct({
   bitSuccess: WireBoolean,
   iQty: Schema.optionalKey(WireInt),
 });
+const ShopIdentity = Schema.Struct({ ShopID: PositiveWireInt });
+const ShopLoadResponse = Schema.Union([
+  ShopIdentity,
+  Schema.Struct({ shopinfo: ShopIdentity }),
+]);
+
 const decodeBuyResponse = Schema.decodeUnknownOption(BuyResponse);
+const decodeShopLoadResponse = Schema.decodeUnknownOption(ShopLoadResponse);
 
 const isShopId = (shopId: number): boolean =>
   Number.isSafeInteger(shopId) && shopId > 0;
@@ -122,17 +129,36 @@ export const makeShops = (
       ) {
         yield* close(current.id);
       }
-      if (
-        Option.isNone(yield* bridge.invoke("shops.load", [shopId], Schema.Void))
-      ) {
+      if (!(yield* wait.forGameAction("loadShop", { timeout: "5 seconds" }))) {
         return false;
       }
-      return yield* wait.until(
-        Effect.all([store.shops.get, isOpen(shopId)]).pipe(
-          Effect.map(([shop, open]) => shop?.id === shopId && open),
-        ),
-        { timeout: "5 seconds" },
+
+      const packet = yield* wait.forPacket(
+        {
+          command: "loadShop",
+          direction: "extension",
+          predicate: (candidate) => {
+            const decoded = decodeShopLoadResponse(packetData(candidate));
+            if (Option.isNone(decoded)) return false;
+            const identity =
+              "shopinfo" in decoded.value
+                ? decoded.value.shopinfo
+                : decoded.value;
+            return identity.ShopID === shopId;
+          },
+          wireType: "json",
+        },
+        {
+          timeout: "5 seconds",
+          trigger: bridge
+            .invoke("shops.load", [shopId], Schema.Void)
+            .pipe(Effect.map(Option.isSome)),
+        },
       );
+      if (packet === null) return false;
+
+      const [shop, open] = yield* Effect.all([store.shops.get, isOpen(shopId)]);
+      return shop?.id === shopId && open;
     });
   };
 
@@ -269,9 +295,14 @@ export const makeShops = (
 
   const loadHairShop = (shopId: number) => {
     if (!isShopId(shopId)) return Effect.void;
-    return bridge
-      .invoke("shops.loadHairShop", [shopId], Schema.Void)
-      .pipe(Effect.asVoid);
+    return wait.forGameAction("loadHairShop", { timeout: "5 seconds" }).pipe(
+      Effect.flatMap((ready) =>
+        ready
+          ? bridge.invoke("shops.loadHairShop", [shopId], Schema.Void)
+          : Effect.succeed(Option.none()),
+      ),
+      Effect.asVoid,
+    );
   };
 
   return {

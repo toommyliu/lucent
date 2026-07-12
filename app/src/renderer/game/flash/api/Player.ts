@@ -1,5 +1,5 @@
 import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
-import type { ItemQuery } from "@lucent/game";
+import type { BoostType, ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
@@ -15,7 +15,6 @@ import type { Inventory } from "./Inventory";
 import type { Map } from "./Map";
 import type { Wait } from "./Wait";
 
-const Position = Schema.Tuple([WireInt, WireInt]);
 const FactionPayload = Schema.Struct({
   FactionID: PositiveWireInt,
   iRank: Schema.optionalKey(WireInt),
@@ -248,18 +247,10 @@ export const makePlayer = (
   const getState = () =>
     get().pipe(Effect.map((current) => current?.state ?? EntityState.Idle));
   const getPosition = () =>
-    bridge.invoke("player.getPosition", undefined, Position).pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () =>
-            get().pipe(
-              Effect.map((current) => ({
-                ...(current?.position ?? { x: 0, y: 0 }),
-              })),
-            ),
-          onSome: ([x, y]) => Effect.succeed({ x, y }),
-        }),
-      ),
+    get().pipe(
+      Effect.map((current) => ({
+        ...(current?.position ?? { x: 0, y: 0 }),
+      })),
     );
   const goToPlayer = (name: string) => {
     const username = name.trim();
@@ -269,7 +260,7 @@ export const makePlayer = (
           .invoke("player.goToPlayer", [username], Schema.Void)
           .pipe(Effect.asVoid);
   };
-  const hasActiveBoost = (boostType: string) =>
+  const hasActiveBoost = (boostType: BoostType) =>
     bridge
       .invoke("player.hasActiveBoost", [boostType], Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
@@ -455,13 +446,10 @@ export const makePlayer = (
         .pipe(Effect.map(Option.getOrElse(() => false)));
       if (!started) return false;
       return yield* wait.until(
-        bridge.invoke("player.getPosition", undefined, Position).pipe(
+        get().pipe(
           Effect.map(
-            Option.match({
-              onNone: () => false,
-              onSome: ([currentX, currentY]) =>
-                currentX === targetX && currentY === targetY,
-            }),
+            (current) =>
+              current?.position.x === targetX && current.position.y === targetY,
           ),
         ),
         { timeout: "3 seconds" },

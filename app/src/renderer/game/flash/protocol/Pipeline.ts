@@ -64,6 +64,7 @@ const itemCommands = new Set([
   "loadInventoryBig",
   "initInventory",
   "loadHouseInventory",
+  "loadBank",
   "bankFromInv",
   "bankToInv",
   "bankSwapInv",
@@ -76,6 +77,7 @@ const itemCommands = new Set([
   "sellItem",
   "removeTempItem",
   "unequipItem",
+  "wearItem",
 ]);
 const questCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
 const clientWorldCommands = new Set(["moveToCell", "mv"]);

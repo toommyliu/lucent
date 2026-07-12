@@ -13,6 +13,7 @@ export interface ItemsState {
   readonly charItemIds: Map<ItemContainer, Map<number, number>>;
   readonly containers: Map<ItemContainer, Map<number, LiveItem>>;
   readonly itemIds: Map<ItemContainer, Map<number, Set<number>>>;
+  readonly hydration: Map<ItemContainer, number>;
   readonly names: Map<ItemContainer, Map<string, Set<number>>>;
 }
 
@@ -35,6 +36,7 @@ export const makeItemsState = (): ItemsState => ({
   charItemIds: new Map(containers.map((container) => [container, new Map()])),
   containers: new Map(containers.map((container) => [container, new Map()])),
   itemIds: new Map(containers.map((container) => [container, new Map()])),
+  hydration: new Map(containers.map((container) => [container, 0])),
   names: new Map(containers.map((container) => [container, new Map()])),
 });
 
@@ -157,6 +159,17 @@ export const replaceItems = (
     removeItemIndexes(state, container, key, item);
   }
   for (const item of incoming) upsertItem(state, container, item);
+  state.hydration.set(container, (state.hydration.get(container) ?? 0) + 1);
+};
+
+export const clearItems = (state: ItemsState): void => {
+  for (const container of containers) {
+    state.charItemIds.get(container)?.clear();
+    state.containers.get(container)?.clear();
+    state.itemIds.get(container)?.clear();
+    state.names.get(container)?.clear();
+    state.hydration.set(container, 0);
+  }
 };
 
 export const removeItem = (

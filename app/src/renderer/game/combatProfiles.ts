@@ -324,3 +324,22 @@ export const castCombatProfileMessageTrigger = (
       return true;
     }),
   );
+
+export const castCombatProfileMessageTriggers = (
+  deps: CombatProfileRuntimeDeps,
+  profile: CombatProfile,
+  event: CombatProfileMessageTriggerEvent,
+  state: CombatProfileMessageTriggerState,
+) =>
+  Effect.gen(function* () {
+    for (const trigger of profile.messageTriggers ?? []) {
+      if (!matchesCombatProfileMessageTrigger(trigger, event)) continue;
+      yield* castCombatProfileMessageTrigger(
+        deps,
+        profile,
+        trigger,
+        event,
+        state,
+      );
+    }
+  });

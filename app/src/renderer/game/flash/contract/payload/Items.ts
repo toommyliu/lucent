@@ -26,6 +26,7 @@ export const ItemPayload = Schema.Struct({
   bEquip: Schema.optionalKey(WireBoolean),
   bHouse: Schema.optionalKey(WireBoolean),
   bTemp: Schema.optionalKey(WireBoolean),
+  bWear: Schema.optionalKey(WireBoolean),
   iCost: Schema.optionalKey(WireNumber),
   iEnh: Schema.optionalKey(NonNegativeWireInt),
   iQty: Schema.optionalKey(WireInt),
@@ -113,5 +114,6 @@ export const toItem = (
         : { shopItemId: defaults.shopItemId }
       : { shopItemId: payload.ShopItemID }),
     temporaryItem,
+    wearable: payload.bWear !== undefined,
   });
 };

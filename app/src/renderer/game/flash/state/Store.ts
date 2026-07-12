@@ -17,6 +17,7 @@ import type {
 
 import { makeAuthState } from "./Auth";
 import {
+  clearItems,
   getItem,
   getItemByCharItemId,
   getItems,
@@ -30,7 +31,6 @@ import { makeQuestsState } from "./Quests";
 import { makeSettingsState, type SettingsState } from "./Settings";
 import { makeShopsState } from "./Shops";
 import {
-  auraKey,
   clearArea,
   makeWorldState,
   normalizeUsername,
@@ -39,6 +39,16 @@ import {
   type MapState,
 } from "./World";
 
+const entityForAura = (
+  state: ReturnType<typeof makeWorldState>,
+  target: "monster" | "player",
+  id: number,
+): LiveMonster | LivePlayer | undefined => {
+  if (target === "monster") return state.monsters.get(id);
+  const username = state.playerIds.get(id);
+  return username === undefined ? undefined : state.players.get(username);
+};
+
 export const makeStore = Effect.gen(function* () {
   const authRef = yield* SynchronizedRef.make(makeAuthState());
   const itemsRef = yield* SynchronizedRef.make(makeItemsState());
@@ -46,23 +56,6 @@ export const makeStore = Effect.gen(function* () {
   const settingsRef = yield* SubscriptionRef.make(makeSettingsState());
   const shopsRef = yield* SynchronizedRef.make(makeShopsState());
   const worldRef = yield* SynchronizedRef.make(makeWorldState());
-
-  const auras = (
-    target: "monster" | "player",
-    id: number,
-    options?: AuraQueryOptions,
-  ) =>
-    SynchronizedRef.get(worldRef).pipe(
-      Effect.map((state) =>
-        Array.from(
-          (target === "monster" ? state.monsterAuras : state.playerAuras)
-            .get(id)
-            ?.values() ?? [],
-        ).filter(
-          (aura) => options?.kind === undefined || aura.kind === options.kind,
-        ),
-      ),
-    );
 
   const auth = {
     clear: SynchronizedRef.update(authRef, (state) => {
@@ -100,6 +93,10 @@ export const makeStore = Effect.gen(function* () {
   };
 
   const items = {
+    clear: SynchronizedRef.update(itemsRef, (state) => {
+      clearItems(state);
+      return state;
+    }),
     get: (container: ItemContainer, selector: ItemQuery | ShopItemQuery) =>
       SynchronizedRef.get(itemsRef).pipe(
         Effect.map((state) => getItem(state, container, selector)),
@@ -114,6 +111,10 @@ export const makeStore = Effect.gen(function* () {
           getItemByCharItemId(state, container, charItemId),
         ),
       ),
+    getHydrationVersion: (container: ItemContainer) =>
+      SynchronizedRef.get(itemsRef).pipe(
+        Effect.map((state) => state.hydration.get(container) ?? 0),
+      ),
     quantity: (container: ItemContainer, selector: ItemQuery) =>
       SynchronizedRef.get(itemsRef).pipe(
         Effect.map(
@@ -125,6 +126,10 @@ export const makeStore = Effect.gen(function* () {
         removeItem(state, container, key),
         state,
       ]),
+    isHydrated: (container: ItemContainer) =>
+      SynchronizedRef.get(itemsRef).pipe(
+        Effect.map((state) => (state.hydration.get(container) ?? 0) > 0),
+      ),
     replace: (container: ItemContainer, values: readonly LiveItem[]) =>
       SynchronizedRef.update(itemsRef, (state) => {
         replaceItems(state, container, values);
@@ -205,31 +210,21 @@ export const makeStore = Effect.gen(function* () {
       operation: "add" | "refresh",
     ) =>
       SynchronizedRef.update(worldRef, (state) => {
-        const source =
-          target === "monster" ? state.monsterAuras : state.playerAuras;
-        const values = source.get(id) ?? new Map<string, LiveAura>();
-        const key = auraKey(aura);
-        const current = values.get(key);
-        if (current === undefined) {
-          values.set(key, aura);
-        } else {
-          const stack = operation === "add" ? current.stack + 1 : current.stack;
-          current.update({ ...aura.toJSON(), stack });
-        }
-        source.set(id, values);
+        entityForAura(state, target, id)?.addAura(aura, operation);
         return state;
       }),
     clearAuras: (target?: "monster" | "player", id?: number) =>
       SynchronizedRef.update(worldRef, (state) => {
-        const sources =
-          target === "monster"
-            ? [state.monsterAuras]
-            : target === "player"
-              ? [state.playerAuras]
-              : [state.monsterAuras, state.playerAuras];
-        for (const source of sources) {
-          if (id === undefined) source.clear();
-          else source.delete(id);
+        if (target !== undefined && id !== undefined) {
+          entityForAura(state, target, id)?.clearAuras();
+          return state;
+        }
+
+        if (target !== "player") {
+          for (const monster of state.monsters.values()) monster.clearAuras();
+        }
+        if (target !== "monster") {
+          for (const player of state.players.values()) player.clearAuras();
         }
         return state;
       }),
@@ -264,7 +259,13 @@ export const makeStore = Effect.gen(function* () {
         ),
       ),
     getMonsterAuras: (id: number, options?: AuraQueryOptions) =>
-      auras("monster", id, options),
+      SynchronizedRef.get(worldRef).pipe(
+        Effect.map((state) =>
+          (state.monsters.get(id)?.auras ?? []).filter(
+            (aura) => options?.kind === undefined || aura.kind === options.kind,
+          ),
+        ),
+      ),
     getMonsters: SynchronizedRef.get(worldRef).pipe(
       Effect.map((state) => Array.from(state.monsters.values())),
     ),
@@ -279,7 +280,16 @@ export const makeStore = Effect.gen(function* () {
         }),
       ),
     getPlayerAuras: (id: number, options?: AuraQueryOptions) =>
-      auras("player", id, options),
+      SynchronizedRef.get(worldRef).pipe(
+        Effect.map((state) => {
+          const username = state.playerIds.get(id);
+          const player =
+            username === undefined ? undefined : state.players.get(username);
+          return (player?.auras ?? []).filter(
+            (aura) => options?.kind === undefined || aura.kind === options.kind,
+          );
+        }),
+      ),
     getSelfEntityId: SynchronizedRef.get(worldRef).pipe(
       Effect.map((state) => state.selfEntityId),
     ),
@@ -325,30 +335,13 @@ export const makeStore = Effect.gen(function* () {
       kind?: "active" | "passive",
     ) =>
       SynchronizedRef.update(worldRef, (state) => {
-        const source =
-          target === "monster" ? state.monsterAuras : state.playerAuras;
-        const values = source.get(id);
-        if (values === undefined) return state;
-        for (const [key, aura] of values) {
-          if (
-            aura.name.localeCompare(name, undefined, {
-              sensitivity: "accent",
-            }) === 0 &&
-            (kind === undefined || aura.kind === kind)
-          ) {
-            const stack = Math.max(0, aura.stack - 1);
-            if (stack === 0) values.delete(key);
-            else aura.update({ stack });
-          }
-        }
-        if (values.size === 0) source.delete(id);
+        entityForAura(state, target, id)?.removeAura(name, kind);
         return state;
       }),
     removeMonster: (id: number) =>
       SynchronizedRef.modify(worldRef, (state) => {
         const current = state.monsters.get(id) ?? null;
         state.monsters.delete(id);
-        state.monsterAuras.delete(id);
         return [current, state];
       }),
     removePlayer: (username: string) =>
@@ -358,7 +351,6 @@ export const makeStore = Effect.gen(function* () {
         if (current !== null) {
           state.players.delete(key);
           state.playerIds.delete(current.entityId);
-          state.playerAuras.delete(current.entityId);
         }
         return [current, state];
       }),
@@ -380,7 +372,6 @@ export const makeStore = Effect.gen(function* () {
     setMonsters: (monsters: readonly LiveMonster[]) =>
       SynchronizedRef.update(worldRef, (state) => {
         state.monsters.clear();
-        state.monsterAuras.clear();
         for (const monster of monsters) putMonster(state, monster);
         return state;
       }),
@@ -388,7 +379,6 @@ export const makeStore = Effect.gen(function* () {
       SynchronizedRef.update(worldRef, (state) => {
         state.players.clear();
         state.playerIds.clear();
-        state.playerAuras.clear();
         for (const player of players) putPlayer(state, player);
         return state;
       }),
@@ -412,8 +402,8 @@ export const makeStore = Effect.gen(function* () {
       })),
     ),
     items: SynchronizedRef.get(itemsRef).pipe(
-      Effect.map((state) =>
-        Object.fromEntries(
+      Effect.map((state) => ({
+        containers: Object.fromEntries(
           Array.from(state.containers, ([container, items]) => [
             container,
             Object.fromEntries(
@@ -421,7 +411,8 @@ export const makeStore = Effect.gen(function* () {
             ),
           ]),
         ),
-      ),
+        hydration: Object.fromEntries(state.hydration),
+      })),
     ),
     quests: SynchronizedRef.get(questsRef).pipe(
       Effect.map((state) => ({
@@ -442,24 +433,8 @@ export const makeStore = Effect.gen(function* () {
         cellPads: [...state.cellPads],
         cells: [...state.cells],
         map: { ...state.map },
-        monsterAuras: Object.fromEntries(
-          Array.from(state.monsterAuras, ([id, auras]) => [
-            id,
-            Object.fromEntries(
-              Array.from(auras, ([key, aura]) => [key, aura.toJSON()]),
-            ),
-          ]),
-        ),
         monsters: Object.fromEntries(
           Array.from(state.monsters, ([id, monster]) => [id, monster.toJSON()]),
-        ),
-        playerAuras: Object.fromEntries(
-          Array.from(state.playerAuras, ([id, auras]) => [
-            id,
-            Object.fromEntries(
-              Array.from(auras, ([key, aura]) => [key, aura.toJSON()]),
-            ),
-          ]),
         ),
         players: Object.fromEntries(
           Array.from(state.players, ([username, player]) => [

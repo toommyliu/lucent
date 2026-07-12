@@ -13,6 +13,7 @@ import type { ItemContainer } from "../state/Items";
 import type { Store } from "../state/Store";
 
 const InventoryLoad = Schema.Struct({
+  bitSuccess: Schema.optionalKey(WireBoolean),
   hitems: Schema.optionalKey(Schema.Array(Schema.Unknown)),
   items: Schema.optionalKey(Schema.Array(Schema.Unknown)),
 });
@@ -40,6 +41,7 @@ const CharacterItemMutation = Schema.Struct({
 });
 const EquipmentMutation = Schema.Struct({
   ItemID: PositiveWireInt,
+  success: Schema.optionalKey(WireBoolean),
   strES: Schema.optionalKey(Schema.String),
   uid: Schema.optionalKey(PositiveWireInt),
 });
@@ -132,7 +134,8 @@ export const projectItems = (
     switch (packet.command) {
       case "loadInventoryBig":
       case "initInventory":
-      case "loadHouseInventory": {
+      case "loadHouseInventory":
+      case "loadBank": {
         const decoded = decodeInventoryLoad(data);
         if (Option.isNone(decoded)) {
           yield* diagnose(
@@ -142,11 +145,19 @@ export const projectItems = (
           );
           return [];
         }
-        if (decoded.value.items !== undefined) {
+        if (decoded.value.bitSuccess === false) return [];
+        if (
+          decoded.value.items !== undefined ||
+          packet.command === "loadBank"
+        ) {
           const context =
-            packet.command === "loadHouseInventory" ? "house" : "inventory";
+            packet.command === "loadBank"
+              ? "bank"
+              : packet.command === "loadHouseInventory"
+                ? "house"
+                : "inventory";
           const items = yield* decodeContainerItems(
-            decoded.value.items,
+            decoded.value.items ?? [],
             context,
             `items:${packet.command}:entries`,
             diagnose,
@@ -218,6 +229,7 @@ export const projectItems = (
         return [];
       }
       case "equipItem":
+      case "wearItem":
       case "unequipItem": {
         const decoded = decodeEquipmentMutation(data);
         if (Option.isNone(decoded)) {
@@ -230,8 +242,9 @@ export const projectItems = (
         }
         const self = yield* store.world.getMe;
         if (
-          decoded.value.uid !== undefined &&
-          self?.entityId !== decoded.value.uid
+          decoded.value.success === false ||
+          (decoded.value.uid !== undefined &&
+            self?.entityId !== decoded.value.uid)
         ) {
           return [];
         }
@@ -242,7 +255,7 @@ export const projectItems = (
           if (item === null) continue;
 
           if (
-            packet.command === "equipItem" &&
+            packet.command !== "unequipItem" &&
             decoded.value.strES !== undefined
           ) {
             const items = yield* store.items.getAll(container);
@@ -252,7 +265,7 @@ export const projectItems = (
               }
             }
           }
-          item.update({ equipped: packet.command === "equipItem" });
+          item.update({ equipped: packet.command !== "unequipItem" });
           break;
         }
         return [];

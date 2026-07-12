@@ -273,7 +273,7 @@ describe("Projection", () => {
             m: { "1": { intHP: 0, intState: 0 } },
           }),
         );
-        expect((yield* store.world.getPlayerAuras(10))[0]?.name).toBe(
+        expect((yield* store.world.getPlayer(10))?.auras[0]?.name).toBe(
           "Empowered",
         );
         expect(events.some((event) => event.type === "monster-death")).toBe(
@@ -291,7 +291,7 @@ describe("Projection", () => {
             ],
           }),
         );
-        expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(2);
+        expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(2);
 
         yield* pipeline.packet(
           extension("cb", {
@@ -304,7 +304,7 @@ describe("Projection", () => {
             ],
           }),
         );
-        expect((yield* store.world.getPlayerAuras(10))[0]?.stack).toBe(1);
+        expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
 
         yield* pipeline.packet(
           extension("moveToArea", {
@@ -315,7 +315,7 @@ describe("Projection", () => {
           }),
         );
         expect(yield* store.world.getMonsters).toEqual([]);
-        expect(yield* store.world.getPlayerAuras(10)).toEqual([]);
+        expect(yield* store.world.getPlayer(10)).toBeNull();
         expect(userIdReads).toBe(1);
       }),
     ),
