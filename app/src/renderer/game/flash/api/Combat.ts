@@ -18,7 +18,7 @@ import {
 } from "../../combatProfiles";
 import type { BridgeService } from "../bridge/Bridge";
 import { WireBoolean, WireInt } from "../contract/Coercion";
-import { isAntiCounterAura } from "../domain/AntiCounter";
+import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
 import type { Drops } from "./Drops";
@@ -188,7 +188,7 @@ export const makeCombat = (
           enabled
             ? store.world
                 .getMonsterAuras(monsterMapId, { kind: "active" })
-                .pipe(Effect.map((auras) => auras.some(isAntiCounterAura)))
+                .pipe(Effect.map((auras) => auras.some(isCounterAttackAura)))
             : Effect.succeed(false),
         ),
       );
