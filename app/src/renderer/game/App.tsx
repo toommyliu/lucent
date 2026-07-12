@@ -168,6 +168,7 @@ const accountLaunchLifecycleMessage = (
   server: string | undefined,
 ): string => {
   if (event.message !== undefined) {
+    if (event.message.startsWith("Waiting for ")) return event.message;
     return event.attemptsRemaining > 0
       ? `Retrying login (${event.attemptsRemaining} left): ${event.message}`
       : event.message;

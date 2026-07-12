@@ -21,15 +21,12 @@ import {
   type ButtonProps,
 } from "@lucent/ui";
 import {
-  createEffect,
   createSignal,
   For,
-  Match,
   onCleanup,
   onMount,
   Show,
   splitProps,
-  Switch as SolidSwitch,
   type Accessor,
   type JSX,
   type Setter,
@@ -409,12 +406,19 @@ export function TopNav(props: TopNavProps): JSX.Element {
 
   const autoReloginNeedsAttention = (): boolean =>
     props.autoReloginLastError() !== "";
+  const autoReloginAwaitingSession = (): boolean =>
+    props.autoReloginEnabled() && !props.autoReloginCaptured();
+  const autoReloginShimmering = (): boolean =>
+    props.autoReloginToggling() ||
+    props.autoReloginAttempting() ||
+    props.autoReloginWaitingDelay() ||
+    autoReloginAwaitingSession();
 
   const autoReloginAttemptsRemainingLabel = (): string => {
     const remaining = props.autoReloginAttemptsRemaining();
     if (remaining === null) return "";
-    if (remaining <= 0) return "No retry attempts left";
-    return `${remaining} retry ${remaining === 1 ? "attempt" : "attempts"} left`;
+    if (remaining <= 0) return "final attempt";
+    return `${remaining} ${remaining === 1 ? "retry" : "retries"} left`;
   };
 
   const autoReloginTriggerLabel = (): string => {
@@ -429,32 +433,38 @@ export function TopNav(props: TopNavProps): JSX.Element {
       return "Auto Relogin waiting before reconnect";
     }
 
+    if (autoReloginAwaitingSession()) {
+      return "Auto Relogin waiting for login";
+    }
+
     const error = props.autoReloginLastError();
     return error === "" ? "Auto Relogin" : `Auto Relogin failed: ${error}`;
   };
 
-  const autoReloginTriggerHasStatus = (): boolean =>
-    props.autoReloginAttempting() ||
-    props.autoReloginWaitingDelay() ||
-    autoReloginNeedsAttention();
+  const autoReloginHasTerminalError = (): boolean =>
+    autoReloginNeedsAttention() &&
+    !props.autoReloginToggling() &&
+    !props.autoReloginAttempting() &&
+    !props.autoReloginWaitingDelay() &&
+    !autoReloginAwaitingSession();
 
-  const autoReloginMenuHasStatus = (): boolean =>
-    props.autoReloginToggling() ||
-    autoReloginTriggerHasStatus() ||
-    autoReloginAttemptsRemainingLabel() !== "";
+  const autoReloginMenuStatus = (): string => {
+    if (props.autoReloginToggling()) {
+      return props.autoReloginEnabled() ? "Enabling" : "Disabling";
+    }
 
-  const autoReloginTriggerStatusKind = ():
-    | "waiting"
-    | "retrying"
-    | "alert"
-    | undefined =>
-    props.autoReloginAttempting()
-      ? "retrying"
-      : props.autoReloginWaitingDelay()
-        ? "waiting"
-        : autoReloginNeedsAttention()
-          ? "alert"
-          : undefined;
+    let status = "";
+    if (props.autoReloginWaitingDelay()) status = "Waiting to reconnect";
+    else if (autoReloginAwaitingSession()) status = "Waiting for login";
+    else if (props.autoReloginAttempting()) status = "Reconnecting";
+
+    if (status !== "") {
+      const attempts = autoReloginAttemptsRemainingLabel();
+      return attempts === "" ? status : `${status} (${attempts})`;
+    }
+
+    return props.autoReloginLastError();
+  };
 
   const autoAttackTriggerLabel = (): string => {
     const profileLabel = autoAttackTriggerText();
@@ -535,12 +545,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
       observer.disconnect();
       document.documentElement.style.removeProperty("--topnav-offset");
     });
-  });
-
-  createEffect(() => {
-    if (props.autoReloginAttempting()) {
-      setAutoReloginServerMenuOpen(false);
-    }
   });
 
   const setMenuOpen =
@@ -850,10 +854,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
               aria-label={autoReloginTriggerLabel()}
               class={cn(
                 "game-topnav__trigger--relogin",
-                autoReloginNeedsAttention() &&
-                  !props.autoReloginAttempting() &&
-                  !props.autoReloginWaitingDelay() &&
-                  "game-topnav__trigger--alert",
+                autoReloginHasTerminalError() && "game-topnav__trigger--alert",
               )}
               expanded={props.openMenu() === "relogin"}
               title={
@@ -864,7 +865,12 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   : autoReloginTriggerLabel()
               }
             >
-              <span>Auto Relogin</span>
+              <span
+                class="game-topnav__relogin-label"
+                data-shimmer={autoReloginShimmering() ? "" : undefined}
+              >
+                Auto Relogin
+              </span>
               <Show
                 when={props.autoReloginEnabled() && props.autoReloginServer()}
               >
@@ -872,33 +878,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   {props.autoReloginServer()}
                 </span>
               </Show>
-              <span
-                aria-hidden="true"
-                class="game-topnav__status-slot"
-                data-kind={autoReloginTriggerStatusKind()}
-                data-visible={autoReloginTriggerHasStatus() ? "" : undefined}
-              >
-                <SolidSwitch>
-                  <Match when={autoReloginTriggerStatusKind() === "waiting"}>
-                    <Icon
-                      icon="clock"
-                      class="game-topnav__status-icon game-topnav__delay-icon"
-                    />
-                  </Match>
-                  <Match when={autoReloginTriggerStatusKind() === "retrying"}>
-                    <Icon
-                      icon="loader_circle"
-                      class="game-topnav__status-icon game-topnav__retry-spinner"
-                    />
-                  </Match>
-                  <Match when={autoReloginTriggerStatusKind() === "alert"}>
-                    <Icon
-                      icon="circle_alert"
-                      class="game-topnav__status-icon game-topnav__alert-icon"
-                    />
-                  </Match>
-                </SolidSwitch>
-              </span>
             </TopNavMenuTrigger>
             <MenuContent
               ref={(element) => {
@@ -908,65 +887,24 @@ export function TopNav(props: TopNavProps): JSX.Element {
               portal={false}
             >
               <MenuAutofocusAnchor />
-              <Show when={autoReloginMenuHasStatus()}>
-                <div class="game-menu__status game-menu__status--relogin">
-                  <Show when={props.autoReloginToggling()}>
-                    <span class="game-menu__status-row">
-                      <Icon
-                        icon="loader_circle"
-                        aria-hidden="true"
-                        class="game-menu__status-icon game-menu__status-icon--spin"
-                      />
-                      <span>
-                        {props.autoReloginEnabled() ? "Enabling" : "Disabling"}
-                      </span>
-                    </span>
-                  </Show>
-                  <Show when={props.autoReloginWaitingDelay()}>
-                    <span class="game-menu__status-row">
-                      <Icon
-                        icon="clock"
-                        aria-hidden="true"
-                        class="game-menu__status-icon"
-                      />
-                      <span>Waiting before reconnect</span>
-                    </span>
-                  </Show>
-                  <Show when={props.autoReloginAttempting()}>
-                    <span class="game-menu__status-row">
-                      <Icon
-                        icon="loader_circle"
-                        aria-hidden="true"
-                        class="game-menu__status-icon game-menu__status-icon--spin"
-                      />
-                      <span>Attempting reconnect</span>
-                    </span>
-                  </Show>
-                  <Show when={props.autoReloginLastError()}>
-                    {(error) => (
-                      <span class="game-menu__status-row game-menu__error">
-                        <Icon
-                          icon="circle_alert"
-                          aria-hidden="true"
-                          class="game-menu__status-icon"
-                        />
-                        <span>{error()}</span>
-                      </span>
-                    )}
-                  </Show>
-                  <Show when={autoReloginAttemptsRemainingLabel()}>
-                    {(label) => (
-                      <span class="game-menu__status-row">
-                        <span
-                          aria-hidden="true"
-                          class="game-menu__status-icon"
-                        />
-                        <span>{label()}</span>
-                      </span>
-                    )}
-                  </Show>
-                </div>
-                <MenuSeparator />
+              <Show when={autoReloginMenuStatus()}>
+                {(status) => (
+                  <>
+                    <div
+                      class="game-menu__status game-menu__status--relogin"
+                      classList={{
+                        "game-menu__error": autoReloginHasTerminalError(),
+                      }}
+                      role="status"
+                      title={
+                        autoReloginHasTerminalError() ? status() : undefined
+                      }
+                    >
+                      {status()}
+                    </div>
+                    <MenuSeparator />
+                  </>
+                )}
               </Show>
               <MenuCheckboxItem
                 checked={props.autoReloginEnabled()}
@@ -992,12 +930,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 }
                 closeOnSelect={false}
               >
-                <MenuSubTrigger
-                  aria-disabled={
-                    props.autoReloginAttempting() ? "true" : undefined
-                  }
-                  class="game-menu__item game-menu__server-trigger"
-                >
+                <MenuSubTrigger class="game-menu__item game-menu__server-trigger">
                   <span class="game-menu__item-label">Server</span>
                   <span class="game-menu__item-value">
                     {props.autoReloginServer() || "None"}
@@ -1026,7 +959,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
                           checked={props.autoReloginServer() === serverName}
                           class="game-menu__item"
                           closeOnSelect={false}
-                          disabled={props.autoReloginAttempting()}
                           onClick={() =>
                             props.handleSelectAutoReloginServer(serverName)
                           }

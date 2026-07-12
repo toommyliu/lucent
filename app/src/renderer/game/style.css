@@ -196,95 +196,39 @@ html[data-topnav-hidden] #swf {
   color: var(--color-success-foreground);
 }
 
-.game-topnav__status-slot {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  justify-content: center;
-  width: 0;
-  height: 12px;
-  margin-left: 0;
-  overflow: hidden;
+.game-topnav__relogin-label[data-shimmer] {
+  --relogin-shimmer-spread: calc(3ch + 40px);
+  --relogin-shimmer-half-spread: calc(1.5ch + 20px);
+
   color: var(--color-muted-foreground);
-  line-height: 1;
-  opacity: 0;
-  scale: 0.96;
-  transform-origin: center;
-  translate: -2px 0;
-  transition:
-    width 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    margin-left 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 120ms ease,
-    scale 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    translate 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  background-image: linear-gradient(
+    110deg,
+    var(--color-muted-foreground)
+      calc(50% - var(--relogin-shimmer-spread)),
+    rgba(var(--foreground), 0.72)
+      calc(50% - var(--relogin-shimmer-half-spread)),
+    var(--color-foreground) 50%,
+    rgba(var(--foreground), 0.72)
+      calc(50% + var(--relogin-shimmer-half-spread)),
+    var(--color-muted-foreground)
+      calc(50% + var(--relogin-shimmer-spread))
+  );
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: calc(200% + 6ch + 80px) 100%;
+  background-clip: text;
+  animation: game-topnav-relogin-shimmer 2s linear infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.game-topnav__status-slot[data-kind="alert"] {
-  color: var(--color-destructive-foreground);
-}
-
-.game-topnav__status-slot[data-visible] {
-  width: 12px;
-  margin-left: 4px;
-  overflow: visible;
-  opacity: 1;
-  scale: 1;
-  translate: 0 0;
-}
-
-.game-topnav__trigger--relogin svg.game-topnav__status-icon {
-  display: block;
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  margin: 0;
-  opacity: 1;
-  stroke-width: 2.25;
-  transform: rotate(0deg);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.game-topnav__status-slot[data-kind="alert"] .game-topnav__alert-icon {
-  animation: game-topnav-alert-pulse 1.2s cubic-bezier(0.23, 1, 0.32, 1)
-    infinite;
-  will-change: opacity;
-}
-
-.game-topnav__status-slot[data-kind="waiting"] .game-topnav__delay-icon {
-  animation: game-topnav-delay-breathe 1.6s ease-in-out infinite;
-}
-
-.game-topnav__status-slot[data-kind="retrying"] .game-topnav__retry-spinner {
-  animation: game-topnav-retry-spin 0.8s linear infinite;
-  will-change: transform;
-}
-
-@keyframes game-topnav-alert-pulse {
-  0%,
-  100% {
-    opacity: 0.66;
+@keyframes game-topnav-relogin-shimmer {
+  from {
+    background-position: 100% 0;
   }
 
-  42% {
-    opacity: 1;
-  }
-}
-
-@keyframes game-topnav-delay-breathe {
-  0%,
-  100% {
-    opacity: 0.56;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes game-topnav-retry-spin {
   to {
-    transform: rotate(360deg);
+    background-position: 0 0;
   }
 }
 
@@ -661,45 +605,40 @@ html[data-topnav-hidden] #swf {
 }
 
 .game-menu__status--relogin {
-  gap: 6px;
+  display: block;
+  max-width: 15rem;
+  overflow: hidden;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.game-menu__status-row {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.game-menu__status-row > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.game-menu__status-icon {
-  justify-self: center;
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.25;
-}
-
-.game-menu__status-icon--spin {
-  animation: game-menu-status-spin 0.8s linear infinite;
-}
-
-@keyframes game-menu-status-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.game-menu__status--relogin.game-menu__error {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .game-menu__error {
   color: var(--color-destructive-foreground);
 }
 
-.game-menu__error > span:last-child::first-letter {
-  text-transform: uppercase;
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion="off"])
+    .game-topnav__relogin-label[data-shimmer] {
+    color: inherit;
+    background: none;
+    animation: none !important;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+:root[data-reduce-motion="on"] .game-topnav__relogin-label[data-shimmer] {
+  color: inherit;
+  background: none;
+  animation: none !important;
+  -webkit-text-fill-color: currentColor;
 }
 
 .game-options-grid {
@@ -953,8 +892,8 @@ html[data-topnav-hidden] #swf {
   background: rgb(var(--background));
   pointer-events: auto;
   transition:
-    opacity var(--duration-normal) ease,
-    visibility var(--duration-normal) ease;
+    opacity 240ms cubic-bezier(0.23, 1, 0.32, 1),
+    visibility 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .game-app--topnav-hidden .game-loader {
@@ -975,6 +914,11 @@ html[data-topnav-hidden] #swf {
   gap: 10px;
   color: rgb(var(--muted-foreground));
   text-align: center;
+  transition: transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.game-loader--hidden .game-loader__content {
+  transform: scale(0.94);
 }
 
 .game-loader__spinner {

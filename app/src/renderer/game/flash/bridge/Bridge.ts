@@ -32,7 +32,12 @@ export const makeBridge = (target?: Pick<Window, "swf">) =>
     ) =>
       PubSub.publish(
         diagnostics,
-        makeDiagnostic("invoke", String(method), cause, args),
+        makeDiagnostic(
+          "invoke",
+          String(method),
+          cause,
+          method === "auth.login" ? undefined : args,
+        ),
       ).pipe(Effect.as(Option.none()));
 
     const invoke = <M extends Method, A>(

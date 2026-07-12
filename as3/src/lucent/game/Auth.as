@@ -40,7 +40,7 @@ package lucent.game
     public static function logout():void
     {
       var game:Object = Main.Game;
-      if (game.sfc.isConnected)
+      if (game.sfc != null && game.sfc.isConnected)
       {
         game.sfc.disconnect();
       }

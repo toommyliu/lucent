@@ -26,6 +26,9 @@ const ConnectResult = Schema.Union([
 ]);
 const decodeCredentials = Schema.decodeUnknownOption(Credentials);
 const NullableServers = Schema.NullOr(ServerPayloads);
+const NullableString = Schema.NullOr(Schema.String);
+const temporaryKickFallbackMs = 60_000;
+const temporaryKickMaximumMs = 70_000;
 
 export interface ConnectOutcome {
   readonly message: string;
@@ -59,6 +62,45 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
     .invoke("auth.isTemporarilyKicked", undefined, Schema.Boolean)
     .pipe(Effect.map(Option.getOrElse(() => false)));
 
+  const getTemporaryKickRemainingMs = () =>
+    bridge
+      .invokeJson("flash.getGameObject", ["mcLogin.warning.n"], Schema.Number)
+      .pipe(
+        Effect.map(
+          Option.match({
+            onNone: () => undefined,
+            onSome: (seconds) =>
+              Number.isFinite(seconds) && seconds > 0
+                ? Math.min(temporaryKickMaximumMs, Math.ceil(seconds) * 1_000)
+                : undefined,
+          }),
+        ),
+      );
+
+  const waitForTemporaryKickClear = Effect.gen(function* () {
+    if (!(yield* temporarilyKicked)) return true;
+
+    const remainingMs =
+      (yield* getTemporaryKickRemainingMs()) ?? temporaryKickFallbackMs;
+    const initialSleepMs = Math.min(
+      temporaryKickMaximumMs,
+      remainingMs + 1_000,
+    );
+    yield* Effect.sleep(`${initialSleepMs} millis`);
+
+    if (!(yield* temporarilyKicked)) return true;
+    const finalWaitMs = Math.max(0, temporaryKickMaximumMs - initialSleepMs);
+    if (finalWaitMs === 0) return false;
+
+    return yield* wait.until(
+      temporarilyKicked.pipe(Effect.map((kicked) => !kicked)),
+      {
+        interval: "5 seconds",
+        timeout: `${finalWaitMs} millis`,
+      },
+    );
+  });
+
   const connectTo = (server: string): Effect.Effect<ConnectOutcome> => {
     const requested = server.trim();
     if (requested === "") {
@@ -68,37 +110,72 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
         status: "not-found",
       });
     }
-    return bridge.invoke("auth.connectTo", [requested], ConnectResult).pipe(
-      Effect.map(
-        Option.match({
-          onNone: (): ConnectOutcome => ({
-            message: "server selection is not ready",
-            retryable: true,
-            serverName: requested,
-            status: "not-ready",
+    const select = bridge
+      .invoke("auth.connectTo", [requested], ConnectResult)
+      .pipe(
+        Effect.map(
+          Option.match({
+            onNone: (): ConnectOutcome => ({
+              message: "server selection is not ready",
+              retryable: true,
+              serverName: requested,
+              status: "not-ready",
+            }),
+            onSome: (result): ConnectOutcome =>
+              result.ok
+                ? {
+                    message: result.message,
+                    retryable: false,
+                    serverName: result.serverName ?? requested,
+                    status: "connected",
+                  }
+                : {
+                    message: result.message,
+                    retryable:
+                      result.status === "not-ready" || result.reason === "full",
+                    serverName: result.serverName ?? requested,
+                    status: result.reason === "full" ? "full" : result.status,
+                  },
           }),
-          onSome: (result): ConnectOutcome =>
-            result.ok
-              ? {
-                  message: result.message,
-                  retryable: false,
-                  serverName: result.serverName ?? requested,
-                  status: "connected",
-                }
-              : {
-                  message: result.message,
-                  retryable:
-                    result.status === "not-ready" || result.reason === "full",
-                  serverName: result.serverName ?? requested,
-                  status: result.reason === "full" ? "full" : result.status,
-                },
-        }),
-      ),
-    );
+        ),
+      );
+
+    return Effect.gen(function* () {
+      const initial = yield* select;
+      if (initial.status !== "not-ready") return initial;
+
+      yield* Effect.sleep("250 millis");
+      const settled = yield* wait.untilSome(
+        select.pipe(
+          Effect.map((outcome) =>
+            outcome.status === "not-ready"
+              ? Option.none<ConnectOutcome>()
+              : Option.some(outcome),
+          ),
+        ),
+        { interval: "500 millis", timeout: "5 seconds" },
+      );
+      return settled ?? initial;
+    });
   };
 
   const getPassword = () =>
-    store.auth.get.pipe(Effect.map((state) => state.password));
+    Effect.gen(function* () {
+      const cached = yield* store.auth.get;
+      const live = yield* bridge.invokeJson(
+        "flash.getGameObjectS",
+        ["loginInfo.strPassword"],
+        NullableString,
+      );
+      const password = Option.match(live, {
+        onNone: () => cached.password,
+        onSome: (value) => value ?? cached.password,
+      });
+      if (password !== "" && password !== cached.password) {
+        yield* store.auth.setCredentials(cached.username, password);
+      }
+      return password;
+    });
 
   const getServers = () =>
     bridge.invoke("auth.getServers", undefined, NullableServers).pipe(
@@ -122,7 +199,22 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
     );
 
   const getUsername = () =>
-    store.auth.get.pipe(Effect.map((state) => state.username));
+    Effect.gen(function* () {
+      const cached = yield* store.auth.get;
+      const live = yield* bridge.invokeJson(
+        "flash.getGameObjectS",
+        ["loginInfo.strUsername"],
+        NullableString,
+      );
+      const username = Option.match(live, {
+        onNone: () => cached.username,
+        onSome: (value) => value ?? cached.username,
+      }).trim();
+      if (username !== "" && username !== cached.username) {
+        yield* store.auth.setCredentials(username, cached.password);
+      }
+      return username;
+    });
 
   const isServerSelectReady = () =>
     bridge
@@ -145,34 +237,29 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
     ) {
       return Effect.succeed(false);
     }
-    return wait
-      .until(temporarilyKicked.pipe(Effect.map((kicked) => !kicked)), {
-        interval: "1 second",
-        timeout: "1 minute",
-      })
-      .pipe(
-        Effect.flatMap((ready) =>
-          ready
-            ? bridge.invoke(
-                "auth.login",
-                [credentials.value.username, credentials.value.password],
-                Schema.Void,
+    return waitForTemporaryKickClear.pipe(
+      Effect.flatMap((ready) =>
+        ready
+          ? bridge.invoke(
+              "auth.login",
+              [credentials.value.username, credentials.value.password],
+              Schema.Void,
+            )
+          : Effect.succeed(Option.none()),
+      ),
+      Effect.flatMap(
+        Option.match({
+          onNone: () => Effect.succeed(false),
+          onSome: () =>
+            store.auth
+              .setCredentials(
+                credentials.value.username,
+                credentials.value.password,
               )
-            : Effect.succeed(Option.none()),
-        ),
-        Effect.flatMap(
-          Option.match({
-            onNone: () => Effect.succeed(false),
-            onSome: () =>
-              store.auth
-                .setCredentials(
-                  credentials.value.username,
-                  credentials.value.password,
-                )
-                .pipe(Effect.as(true)),
-          }),
-        ),
-      );
+              .pipe(Effect.as(true)),
+        }),
+      ),
+    );
   };
 
   const logout = () =>
