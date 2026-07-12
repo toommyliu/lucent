@@ -17,6 +17,7 @@ const makeTarget = () => {
     deposits: 0,
     equips: 0,
     hairShopLoads: 0,
+    swaps: 0,
     wears: 0,
     withdrawals: 0,
   };
@@ -45,12 +46,18 @@ const makeTarget = () => {
       calls.bankLoadForces.push(force);
       if (failBankLoad) throw new Error("load failed");
       bankItems = [
-        { ItemID: "42", iQty: "2", sName: "Indexed Item" },
+        {
+          ItemID: "42",
+          bCoins: 1,
+          iQty: "2",
+          sName: "Indexed Item",
+        },
         {
           ItemID: "43",
           bHouse: 1,
           sName: "Banked House Item",
         },
+        { ItemID: "44", sName: "Occupied Slot" },
       ];
       bankLoaded = true;
     },
@@ -58,6 +65,15 @@ const makeTarget = () => {
     "bank.open": () => {
       calls.bankOpens += 1;
       bankOpen = !bankOpen;
+    },
+    "bank.swap": () => {
+      calls.swaps += 1;
+      emitExtension(target, {
+        bankItemID: 42,
+        cmd: "bankSwapInv",
+        invItemID: 50,
+      });
+      return true;
     },
     "bank.withdraw": () => {
       calls.withdrawals += 1;
@@ -230,6 +246,11 @@ describe("Api", () => {
         expect(calls.bankLoadForces).toEqual([true, true, true]);
         expect(yield* api.bank.contains(51)).toBe(true);
         expect(yield* api.inventory.contains(51)).toBe(false);
+
+        expect(yield* api.bank.swap(50, 42)).toBe(true);
+        expect(calls.swaps).toBe(1);
+        expect(yield* api.bank.contains(50)).toBe(true);
+        expect(yield* api.inventory.contains(42)).toBe(true);
 
         expect(yield* api.inventory.equip(52)).toBe(true);
         expect(calls.wears).toBe(1);

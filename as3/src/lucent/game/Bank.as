@@ -173,7 +173,13 @@ package lucent.game
       }
 
       var game:Object = Main.Game;
-      game.world.sendBankSwapInvRequest(bankItem, invItem);
+      game.sfc.sendXtMessage(
+        "zm",
+        "bankSwapInv",
+        [invItem.ItemID, invItem.CharItemID, bankItem.ItemID, bankItem.CharItemID],
+        "str",
+        game.world.curRoom
+      );
       return true;
     }
 

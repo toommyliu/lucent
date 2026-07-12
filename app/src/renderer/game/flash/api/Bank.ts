@@ -250,20 +250,6 @@ export const makeBank = Effect.fnUntraced(function* (
       if (inventoryItem === null || bankItem === null) {
         return false;
       }
-      if (
-        bankItem.houseItem &&
-        !(yield* destinationCanAccept(bankItem.itemId, house))
-      ) {
-        return false;
-      }
-      if (
-        !inventoryItem.coins &&
-        bankItem.coins &&
-        (yield* store.items.get("bank", inventoryItem.itemId)) === null &&
-        (yield* getAvailableSlots()) <= 0
-      ) {
-        return false;
-      }
       const packet = yield* wait.forPacket(
         {
           command: "bankSwapInv",
@@ -283,7 +269,10 @@ export const makeBank = Effect.fnUntraced(function* (
           trigger: bridge
             .invoke(
               "bank.swap",
-              [toItemSelector(inventorySelector), toItemSelector(bankSelector)],
+              [
+                toItemSelector(inventoryItem.itemId),
+                toItemSelector(bankItem.itemId),
+              ],
               Schema.Boolean,
             )
             .pipe(Effect.map(Option.getOrElse(() => false))),
