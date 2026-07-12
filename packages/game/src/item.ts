@@ -69,6 +69,7 @@ export interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
@@ -95,6 +96,7 @@ export interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  memberOnly: boolean;
   meta: string;
   name: string;
   quantity: number;
@@ -168,6 +170,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   }
   get link(): string {
     return this.modelData.link;
+  }
+  get memberOnly(): boolean {
+    return this.modelData.memberOnly;
   }
   get meta(): string {
     return this.modelData.meta;

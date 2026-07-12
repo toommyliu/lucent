@@ -14,6 +14,7 @@ const makeTarget = () => {
     actions: [] as string[],
     bankLoadForces: [] as boolean[],
     deposits: 0,
+    equips: 0,
     hairShopLoads: 0,
     wears: 0,
     withdrawals: 0,
@@ -64,8 +65,12 @@ const makeTarget = () => {
       return "";
     },
     "house.getSlots": () => 1,
-    "inventory.equip": () => true,
-    "inventory.getSlots": () => 3,
+    "inventory.equip": () => {
+      calls.equips += 1;
+      return true;
+    },
+    "inventory.getSlots": () => 4,
+    "player.isMember": () => false,
     "shops.isOpen": (shopId = 0) =>
       openShopId !== 0 && (shopId === 0 || shopId === openShopId),
     "shops.load": (shopId: number) => {
@@ -156,6 +161,7 @@ describe("Api", () => {
                   { ItemID: 50, sName: "Normal Item" },
                   { ItemID: 51, bCoins: 1, sName: "Coin Item" },
                   { ItemID: 52, bWear: 0, sName: "Wearable Item" },
+                  { ItemID: 53, bUpg: 1, sName: "Member Item" },
                 ],
               });
               return true;
@@ -179,6 +185,9 @@ describe("Api", () => {
         expect(yield* api.inventory.equip(52)).toBe(true);
         expect(calls.wears).toBe(1);
         expect((yield* api.inventory.get(52))?.equipped).toBe(true);
+
+        expect(yield* api.inventory.equip(53)).toBe(false);
+        expect(calls.equips).toBe(1);
 
         expect(yield* api.shops.load(101)).toBe(true);
         yield* api.shops.loadHairShop(202);

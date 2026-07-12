@@ -54,6 +54,7 @@ describe("game domain models", () => {
       houseItem: false,
       itemId: 7,
       link: "Sword",
+      memberOnly: false,
       meta: "",
       name: "Test Sword",
       quantity: 1,

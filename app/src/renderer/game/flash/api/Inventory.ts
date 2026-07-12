@@ -41,85 +41,64 @@ export const makeInventory = (
       ),
     );
 
-  const equip = (selector: ItemQuery) => {
-    return get(selector).pipe(
-      Effect.flatMap((item) => {
-        if (item === null) return Effect.succeed(false);
-        if (item.equipped) return Effect.succeed(true);
-        return wait.forGameAction("equipItem").pipe(
-          Effect.flatMap((ready) =>
-            ready
-              ? bridge.invoke(
-                  "inventory.equip",
-                  [{ itemId: item.itemId }],
-                  Schema.Boolean,
-                )
-              : Effect.succeed(Option.none()),
-          ),
-          Effect.flatMap(
-            Option.match({
-              onNone: () => Effect.succeed(false),
-              onSome: (sent) => {
-                if (!sent) return Effect.succeed(false);
-                if (!item.wearable) {
-                  return wait.until(
-                    get(item.itemId).pipe(
-                      Effect.map((current) => current?.equipped === true),
-                    ),
-                    { timeout: "5 seconds" },
-                  );
-                }
+  const equip = (selector: ItemQuery) =>
+    Effect.gen(function* () {
+      const item = yield* get(selector);
+      if (item === null) return false;
+      if (item.equipped) return true;
 
-                return wait.forGameAction("wearItem").pipe(
-                  Effect.flatMap((ready) =>
-                    ready ? store.world.getMap : Effect.succeed(null),
-                  ),
-                  Effect.flatMap((map) => {
-                    if (map === null) return Effect.succeed(false);
-                    let response: typeof WearResponse.Type | undefined;
-                    return wait
-                      .forPacket(
-                        {
-                          command: "wearItem",
-                          direction: "extension",
-                          predicate: (candidate) => {
-                            const decoded = decodeWearResponse(
-                              packetData(candidate),
-                            );
-                            if (
-                              Option.isNone(decoded) ||
-                              decoded.value.ItemID !== item.itemId
-                            ) {
-                              return false;
-                            }
-                            response = decoded.value;
-                            return true;
-                          },
-                          wireType: "json",
-                        },
-                        {
-                          timeout: "5 seconds",
-                          trigger: packet.sendServer(
-                            `%xt%zm%wearItem%${map.id}%${item.itemId}%`,
-                            "String",
-                          ),
-                        },
-                      )
-                      .pipe(
-                        Effect.map(
-                          (wearPacket) =>
-                            wearPacket !== null && response?.success === true,
-                        ),
-                      );
-                  }),
-                );
-              },
-            }),
+      if (item.memberOnly) {
+        const member = yield* bridge
+          .invoke("player.isMember", undefined, Schema.Boolean)
+          .pipe(Effect.map(Option.getOrElse(() => false)));
+        if (!member) return false;
+      }
+
+      if (!(yield* wait.forGameAction("equipItem"))) return false;
+      const sent = yield* bridge
+        .invoke("inventory.equip", [{ itemId: item.itemId }], Schema.Boolean)
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+      if (!sent) return false;
+
+      if (!item.wearable) {
+        return yield* wait.until(
+          get(item.itemId).pipe(
+            Effect.map((current) => current?.equipped === true),
           ),
+          { timeout: "5 seconds" },
         );
-      }),
-    );
-  };
+      }
+
+      if (!(yield* wait.forGameAction("wearItem"))) return false;
+      const map = yield* store.world.getMap;
+      let response: typeof WearResponse.Type | undefined;
+      const wearPacket = yield* wait.forPacket(
+        {
+          command: "wearItem",
+          direction: "extension",
+          predicate: (candidate) => {
+            const decoded = decodeWearResponse(packetData(candidate));
+            if (
+              Option.isNone(decoded) ||
+              decoded.value.ItemID !== item.itemId
+            ) {
+              return false;
+            }
+            response = decoded.value;
+            return true;
+          },
+          wireType: "json",
+        },
+        {
+          timeout: "5 seconds",
+          trigger: packet.sendServer(
+            `%xt%zm%wearItem%${map.id}%${item.itemId}%`,
+            "String",
+          ),
+        },
+      );
+      return wearPacket !== null && response?.success === true;
+    });
 
   const getAvailableSlots = () =>
     Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
