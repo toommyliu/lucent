@@ -100,7 +100,10 @@ export const makeBank = (
   const open = (force = false) =>
     Effect.gen(function* () {
       if (!(yield* auth.isLoggedIn())) return false;
-      if (!(yield* load(force))) return false;
+
+      if (force) {
+        yield* bridge.invoke("bank.loadItems", [true], Schema.Void);
+      }
 
       const opened = yield* isOpen();
       if (opened && !force) return true;

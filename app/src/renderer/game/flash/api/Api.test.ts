@@ -12,6 +12,7 @@ const emitExtension = (target: Window, dataObj: object): void => {
 const makeTarget = () => {
   const calls = {
     actions: [] as string[],
+    bankOpens: 0,
     bankLoadForces: [] as boolean[],
     deposits: 0,
     equips: 0,
@@ -20,6 +21,7 @@ const makeTarget = () => {
     withdrawals: 0,
   };
   let failBankLoad = false;
+  let bankOpen = false;
   let openShopId = 0;
   const target = {} as Window;
 
@@ -50,6 +52,11 @@ const makeTarget = () => {
           },
         ],
       });
+    },
+    "bank.isOpen": () => bankOpen,
+    "bank.open": () => {
+      calls.bankOpens += 1;
+      bankOpen = !bankOpen;
     },
     "bank.withdraw": () => {
       calls.withdrawals += 1;
@@ -144,6 +151,9 @@ describe("Api", () => {
         expect(calls.bankLoadForces).toEqual([true, true]);
         const retained = yield* api.bank.getAll();
         expect(retained[0]?.itemId).toBe(42);
+        expect(yield* api.bank.open()).toBe(true);
+        expect(calls.bankOpens).toBe(1);
+        expect(calls.bankLoadForces).toEqual([true, true]);
 
         const inventoryLoad = yield* api.wait.forPacket(
           {
