@@ -14,6 +14,7 @@ import type {
   ArmyLeavePayload,
   ArmyProgressPayload,
   ArmyProgressResult,
+  ArmySessionEndedPayload,
   ArmySessionPayload,
   ArmyStartPayload,
   ArmySyncPayload,
@@ -153,6 +154,9 @@ export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
   readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
   readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;
+  readonly onEnded: (
+    listener: (payload: ArmySessionEndedPayload) => void,
+  ) => () => void;
   readonly progress: (
     payload: ArmyProgressPayload,
   ) => Promise<ArmyProgressResult>;

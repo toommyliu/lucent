@@ -508,6 +508,7 @@ export const projectWorld = (
         ];
       }
       case "mtcid": {
+        yield* Effect.log("[world] mtcid packet received", { packet });
         if (packet.direction !== "extension" || bridge === undefined) return [];
         const current = yield* getOrHydrateSelf(store, bridge, diagnose);
         if (current === null) {

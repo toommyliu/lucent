@@ -126,7 +126,7 @@ export const makeDesktopLayer = (
   );
 
   const armyLayer = Layer.mergeAll(
-    ArmyCoordinator.layer,
+    ArmyCoordinator.layer.pipe(Layer.provideMerge(DesktopIpc.layer)),
     ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
   );
 

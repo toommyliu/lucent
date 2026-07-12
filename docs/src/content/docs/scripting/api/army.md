@@ -274,3 +274,17 @@ api.army.sync(label?: string, options?: ArmyRunStepOptions): Effect.Effect<void,
 **Yields:** `void`
 
 **Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a>
+
+<a id="member-api-army-waitforallinmap"></a>
+
+### `api.army.waitForAllInMap()`
+
+Waits until every army participant reports the same map and room and can see the full configured roster.
+
+```ts
+api.army.waitForAllInMap(): Effect.Effect<void, ArmyError, never>
+```
+
+**Yields:** `void`
+
+**Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a>

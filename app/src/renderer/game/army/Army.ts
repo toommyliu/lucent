@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Layer, SynchronizedRef } from "effect";
+import { Cause, Clock, Context, Effect, Layer, SynchronizedRef } from "effect";
 
 import {
   resolveArmyEquipSet,
@@ -9,7 +9,8 @@ import {
   type ArmySessionPayload,
 } from "@lucent/core/army";
 import type { ItemQuery, MonsterQuery } from "@lucent/game";
-import { Api } from "../flash/api/Api";
+import type { DesktopArmyBridge } from "../../../shared/desktopBridge";
+import { Api, type ApiService } from "../flash/api/Api";
 import type { CombatKillOptions } from "../flash/api/Combat";
 
 type ItemSelector = ItemQuery;
@@ -95,6 +96,7 @@ export interface ArmyApiShape {
     label?: string,
     options?: ArmyRunStepOptions,
   ) => Effect.Effect<void, ArmyError>;
+  readonly waitForAllInMap: () => Effect.Effect<void, ArmyError>;
 }
 
 export class ArmyApi extends Context.Service<ArmyApi, ArmyApiShape>()(
@@ -127,15 +129,6 @@ const fromDesktop = <A>(label: string, promise: () => Promise<A>) =>
   Effect.tryPromise({
     try: promise,
     catch: (cause) => new ArmyError(label, cause),
-  });
-
-const requireArmyBridge = () =>
-  Effect.sync(() => {
-    const army = window.desktop.army;
-    if (army === undefined) {
-      throw new ArmyError("Army bridge is unavailable");
-    }
-    return army;
   });
 
 const normalizePlayerKey = (name: string): string => name.trim().toLowerCase();
@@ -220,7 +213,7 @@ const resolveConfigValue = (
   return value === undefined ? defaultValue : value;
 };
 
-const equipOrder = [
+const armyEquipOrder = [
   "safeClass",
   "safePot",
   "class",
@@ -232,22 +225,32 @@ const equipOrder = [
   "pet",
 ] as const satisfies readonly (keyof ArmyEquipSet)[];
 
-export const layer = Layer.effect(
-  ArmyApi,
+const makeArmyApi = (
+  api: ApiService,
+  bridge: DesktopArmyBridge | undefined = window.desktop.army,
+) =>
   Effect.gen(function* () {
     const {
       auth,
       combat,
       drops,
       inventory,
+      map,
       player,
       players,
       tempInventory,
       wait,
-    } = yield* Api;
+    } = api;
     const stateRef = yield* SynchronizedRef.make<ArmyState>(defaultState);
+    const coordinationRef = yield* SynchronizedRef.make(false);
+    const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
     const getState = SynchronizedRef.get(stateRef);
+
+    const requireArmyBridge = () =>
+      bridge === undefined
+        ? Effect.fail(new ArmyError("Army bridge is unavailable"))
+        : Effect.succeed(bridge);
 
     const getSession: ArmyApiShape["getSession"] = () =>
       getState.pipe(
@@ -269,18 +272,41 @@ export const layer = Layer.effect(
       { ...state, nextStep: state.nextStep + 1 },
     ]);
 
+    const withCoordination = <A, E>(
+      operation: Effect.Effect<A, E>,
+    ): Effect.Effect<A, E | ArmyError> =>
+      Effect.gen(function* () {
+        const acquired = yield* SynchronizedRef.modify(
+          coordinationRef,
+          (busy) => [!busy, true] as const,
+        );
+        if (!acquired) {
+          return yield* Effect.fail(
+            new ArmyError(
+              "Another coordinated army operation is already running",
+            ),
+          );
+        }
+        return yield* operation.pipe(
+          Effect.ensuring(SynchronizedRef.set(coordinationRef, false)),
+        );
+      });
+
     const failSession = (
       session: ArmySession,
       reason: string,
       details?: { readonly label?: string; readonly step?: number },
     ) =>
       Effect.gen(function* () {
-        const army = yield* requireArmyBridge();
+        const army = bridge;
+        if (army === undefined) {
+          yield* SynchronizedRef.set(stateRef, defaultState);
+          return;
+        }
         yield* fromDesktop("Failed to fail army session", () =>
           army.fail({
             ...(details?.label === undefined ? {} : { label: details.label }),
             ...(details?.step === undefined ? {} : { step: details.step }),
-            playerName: session.playerName,
             reason,
             sessionId: session.sessionId,
           }),
@@ -299,13 +325,14 @@ export const layer = Layer.effect(
         yield* fromDesktop("Failed to synchronize army", () =>
           army.sync({
             label,
-            playerName: session.playerName,
             sessionId: session.sessionId,
             step,
             ...(options?.timeoutMs === undefined
               ? {}
               : { timeoutMs: options.timeoutMs }),
           }),
+        ).pipe(
+          Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
         );
       });
 
@@ -322,17 +349,18 @@ export const layer = Layer.effect(
           army.progress({
             complete,
             label,
-            playerName: session.playerName,
             sessionId: session.sessionId,
             step,
             ...(options?.timeoutMs === undefined
               ? {}
               : { timeoutMs: options.timeoutMs }),
           }),
+        ).pipe(
+          Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
         );
       });
 
-    const runStep: ArmyApiShape["runStep"] = (label, action, options) =>
+    const runStepInternal: ArmyApiShape["runStep"] = (label, action, options) =>
       Effect.gen(function* () {
         const step = yield* nextStep;
         const session = yield* assertStarted;
@@ -347,26 +375,41 @@ export const layer = Layer.effect(
         return result;
       });
 
+    const runStep: ArmyApiShape["runStep"] = (label, action, options) =>
+      withCoordination(runStepInternal(label, action, options));
+
     const sync: ArmyApiShape["sync"] = (label = "sync", options) =>
-      Effect.gen(function* () {
-        const step = yield* nextStep;
-        const session = yield* assertStarted;
-        yield* waitAtSync(session, step, label, options);
-      });
+      withCoordination(
+        Effect.gen(function* () {
+          const step = yield* nextStep;
+          const session = yield* assertStarted;
+          yield* waitAtSync(session, step, label, options);
+        }),
+      );
 
     const start: ArmyApiShape["start"] = (configName) =>
-      Effect.gen(function* () {
-        const username = yield* auth.getUsername();
-        const army = yield* requireArmyBridge();
-        const session = yield* fromDesktop("Failed to start army", () =>
-          army.start({ configName, playerName: username }),
-        );
-        yield* SynchronizedRef.set(stateRef, {
-          nextStep: 0,
-          session,
-        });
-        return cloneSession(session);
-      });
+      withCoordination(
+        Effect.gen(function* () {
+          const current = yield* getState;
+          if (current.session !== null) {
+            return yield* Effect.fail(
+              new ArmyError(
+                "Army has already been started; leave it before starting again",
+              ),
+            );
+          }
+          const username = yield* auth.getUsername();
+          const army = yield* requireArmyBridge();
+          const session = yield* fromDesktop("Failed to start army", () =>
+            army.start({ configName, playerName: username }),
+          );
+          yield* SynchronizedRef.set(stateRef, {
+            nextStep: 0,
+            session,
+          });
+          return cloneSession(session);
+        }),
+      );
 
     const leave: ArmyApiShape["leave"] = () =>
       Effect.gen(function* () {
@@ -375,10 +418,13 @@ export const layer = Layer.effect(
           return;
         }
 
-        const army = yield* requireArmyBridge();
+        const army = bridge;
+        if (army === undefined) {
+          yield* SynchronizedRef.set(stateRef, defaultState);
+          return;
+        }
         yield* fromDesktop("Failed to leave army", () =>
           army.leave({
-            playerName: state.session!.playerName,
             sessionId: state.session!.sessionId,
           }),
         ).pipe(Effect.catchCause(() => Effect.void));
@@ -431,17 +477,18 @@ export const layer = Layer.effect(
         );
       });
 
-    const waitForRosterVisible = (
-      session: ArmySession,
-      step: number,
-      label: string,
-    ) =>
+    const waitForAllInMapInternal = (session: ArmySession, step: number) =>
       Effect.gen(function* () {
-        const deadline = Date.now() + joinRosterTimeoutMs;
+        const deadline = (yield* Clock.currentTimeMillis) + joinRosterTimeoutMs;
         let lastProgress: ArmyProgressResult | undefined;
         let lastMissing: readonly string[] = [];
         while (true) {
-          const missing = yield* visibleMissingPlayers(session);
+          const [mapName, roomNumber, missing] = yield* Effect.all([
+            map.getName(),
+            map.getRoomNumber(),
+            visibleMissingPlayers(session),
+          ]);
+          const label = `map:${mapName.trim().toLowerCase()}-${roomNumber}`;
           lastMissing = missing;
           lastProgress = yield* waitAtProgress(
             session,
@@ -454,7 +501,7 @@ export const layer = Layer.effect(
             return;
           }
 
-          if (Date.now() >= deadline) {
+          if ((yield* Clock.currentTimeMillis) >= deadline) {
             const reason =
               lastMissing.length > 0
                 ? `Timed out waiting for army roster in ${label}; ${
@@ -471,24 +518,35 @@ export const layer = Layer.effect(
         }
       });
 
+    const waitForAllInMap: ArmyApiShape["waitForAllInMap"] = () =>
+      withCoordination(
+        Effect.gen(function* () {
+          const step = yield* nextStep;
+          const session = yield* assertStarted;
+          yield* waitForAllInMapInternal(session, step);
+        }),
+      );
+
     const joinMap: ArmyApiShape["joinMap"] = (map, cell, pad) =>
-      Effect.gen(function* () {
-        const targetStep = yield* nextStep;
-        const joinedStep = yield* nextStep;
-        const session = yield* assertStarted;
-        const resolvedMap = withArmyRoom(map, session.room);
-        const label = `join:${resolvedMap}`;
-        yield* waitAtSync(session, targetStep, `join-ready:${resolvedMap}`);
+      withCoordination(
+        Effect.gen(function* () {
+          const targetStep = yield* nextStep;
+          const joinedStep = yield* nextStep;
+          const session = yield* assertStarted;
+          const resolvedMap = withArmyRoom(map, session.room);
+          const label = `join:${resolvedMap}`;
+          yield* waitAtSync(session, targetStep, `join-ready:${resolvedMap}`);
 
-        const joined = yield* player.joinMap(resolvedMap, cell, pad);
-        if (!joined) {
-          const reason = `Failed to join army map: ${resolvedMap}`;
-          yield* failSession(session, reason, { label, step: joinedStep });
-          return yield* Effect.fail(new ArmyError(reason));
-        }
+          const joined = yield* player.joinMap(resolvedMap, cell, pad);
+          if (!joined) {
+            const reason = `Failed to join army map: ${resolvedMap}`;
+            yield* failSession(session, reason, { label, step: joinedStep });
+            return yield* Effect.fail(new ArmyError(reason));
+          }
 
-        yield* waitForRosterVisible(session, joinedStep, label);
-      });
+          yield* waitForAllInMapInternal(session, joinedStep);
+        }),
+      );
 
     const kill: ArmyApiShape["kill"] = (target, options) =>
       runStep(
@@ -501,33 +559,35 @@ export const layer = Layer.effect(
       readonly isComplete: () => Effect.Effect<boolean, E>;
       readonly label: string;
     }): Effect.Effect<void, E | ArmyError> =>
-      Effect.gen(function* () {
-        const step = yield* nextStep;
-        const session = yield* assertStarted;
+      withCoordination(
+        Effect.gen(function* () {
+          const step = yield* nextStep;
+          const session = yield* assertStarted;
 
-        while (true) {
-          const complete = yield* args.isComplete();
-          const progress = yield* waitAtProgress(
-            session,
-            step,
-            args.label,
-            complete,
-          );
-          if (progress.complete) {
-            return;
+          while (true) {
+            const complete = yield* args.isComplete();
+            const progress = yield* waitAtProgress(
+              session,
+              step,
+              args.label,
+              complete,
+            );
+            if (progress.complete) {
+              return;
+            }
+
+            yield* args.action().pipe(
+              Effect.catchCause((cause) =>
+                failSession(session, causeMessage(cause), {
+                  label: args.label,
+                  step,
+                }).pipe(Effect.andThen(Effect.failCause(cause))),
+              ),
+            );
+            yield* Effect.sleep("100 millis");
           }
-
-          yield* args.action().pipe(
-            Effect.catchCause((cause) =>
-              failSession(session, causeMessage(cause), {
-                label: args.label,
-                step,
-              }).pipe(Effect.andThen(Effect.failCause(cause))),
-            ),
-          );
-          yield* Effect.sleep("100 millis");
-        }
-      });
+        }),
+      );
 
     const killForItem: ArmyApiShape["killForItem"] = (
       target,
@@ -665,7 +725,7 @@ export const layer = Layer.effect(
           }
 
           const resolveItems = options?.resolveItems === true;
-          for (const field of equipOrder) {
+          for (const field of armyEquipOrder) {
             const item = set[field];
             if (typeof item === "string") {
               yield* equipItem(session, setName, field, item, resolveItems);
@@ -689,6 +749,17 @@ export const layer = Layer.effect(
     const executeWithArmy: ArmyApiShape["executeWithArmy"] = (action) =>
       runStep("execute", action);
 
+    const disposeEnded = bridge?.onEnded((payload) => {
+      runFork(
+        SynchronizedRef.update(stateRef, (state) =>
+          state.session?.sessionId === payload.sessionId ? defaultState : state,
+        ),
+      );
+    });
+    if (disposeEnded !== undefined) {
+      yield* Effect.addFinalizer(() => Effect.sync(disposeEnded));
+    }
+
     return ArmyApi.of({
       equipSet,
       executeWithArmy,
@@ -707,6 +778,11 @@ export const layer = Layer.effect(
       runStep,
       start,
       sync,
+      waitForAllInMap,
     });
-  }),
+  });
+
+export const layer = Layer.effect(
+  ArmyApi,
+  Effect.flatMap(Api, (api) => makeArmyApi(api)),
 );

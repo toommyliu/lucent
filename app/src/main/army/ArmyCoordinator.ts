@@ -1,5 +1,13 @@
 import type { BrowserWindow } from "electron";
-import { Context, Effect, Layer } from "effect";
+import {
+  Context,
+  Deferred,
+  Effect,
+  Layer,
+  Schema,
+  Scope,
+  SynchronizedRef,
+} from "effect";
 
 import {
   normalizeArmyPlayerKey,
@@ -7,100 +15,172 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import { isElectronWindowUsable } from "../electron/windowUsability";
+import { ArmyIpc } from "../../shared/ipc";
+import { DesktopIpc } from "../ipc/DesktopIpc";
 
-const ARMY_START_TIMEOUT_MS = 120_000;
+export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
 
-interface DeferredStart {
+const SessionReasons = Schema.Literals([
+  "inactive",
+  "not-started",
+  "aborted",
+  "start-timeout",
+]);
+
+export class ArmySessionError extends Schema.TaggedErrorClass<ArmySessionError>()(
+  "ArmySessionError",
+  {
+    reason: SessionReasons,
+    detail: Schema.String,
+    sessionId: Schema.optionalKey(Schema.String),
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
+const ParticipantReasons = Schema.Literals([
+  "not-configured",
+  "already-joined",
+  "not-joined",
+  "sender-mismatch",
+]);
+
+export class ArmyParticipantError extends Schema.TaggedErrorClass<ArmyParticipantError>()(
+  "ArmyParticipantError",
+  {
+    reason: ParticipantReasons,
+    detail: Schema.String,
+    playerName: Schema.optionalKey(Schema.String),
+    sessionId: Schema.optionalKey(Schema.String),
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
+const SynchronizationReasons = Schema.Literals([
+  "timeout",
+  "duplicate-arrival",
+  "signature-mismatch",
+  "completed-step",
+  "invalid-step",
+]);
+
+export class ArmySynchronizationError extends Schema.TaggedErrorClass<ArmySynchronizationError>()(
+  "ArmySynchronizationError",
+  {
+    reason: SynchronizationReasons,
+    detail: Schema.String,
+    label: Schema.optionalKey(Schema.String),
+    sessionId: Schema.String,
+    step: Schema.Int,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
+export type ArmyCoordinatorError =
+  | ArmySessionError
+  | ArmyParticipantError
+  | ArmySynchronizationError;
+
+interface Participant {
   readonly playerName: string;
-  readonly timer?: ReturnType<typeof setTimeout>;
-  readonly window: BrowserWindow;
-  reject(error: Error): void;
-  resolve(value: ArmySessionPayload): void;
+  readonly windowId: number;
 }
 
-interface DeferredVoid {
-  readonly playerName: string;
-  reject(error: Error): void;
-  resolve(): void;
+interface StepSignature {
+  readonly kind: "barrier" | "progress";
+  readonly label: string;
+  readonly timeoutMs: number;
 }
 
-interface DeferredProgress {
-  readonly complete: boolean;
-  readonly playerName: string;
-  reject(error: Error): void;
-  resolve(result: ArmyProgressResult): void;
+interface BarrierCheckpoint {
+  readonly arrived: ReadonlySet<string>;
+  readonly gate: Deferred.Deferred<void, ArmyCoordinatorError>;
+  readonly kind: "barrier";
+  readonly signature: StepSignature;
 }
 
-interface ArmyParticipantState {
-  readonly playerName: string;
-  readonly waiters: DeferredStart[];
-  window: BrowserWindow;
+interface ProgressCheckpoint {
+  readonly arrived: ReadonlyMap<string, boolean>;
+  readonly gate: Deferred.Deferred<ArmyProgressResult, ArmyCoordinatorError>;
+  readonly kind: "progress";
+  readonly signature: StepSignature;
 }
 
-export interface ArmySyncState {
-  readonly arrived: Map<string, DeferredVoid>;
-  readonly key: string;
-  readonly label?: string;
-  readonly step: number;
-  readonly timer: ReturnType<typeof setTimeout>;
-}
-
-export interface ArmyProgressState {
-  readonly arrived: Map<string, DeferredProgress>;
-  readonly key: string;
-  readonly label?: string;
-  readonly step: number;
-  readonly timer: ReturnType<typeof setTimeout>;
-}
+type Checkpoint = BarrierCheckpoint | ProgressCheckpoint;
 
 export interface ArmySessionState extends ArmyConfigPayload {
+  readonly checkpoints: ReadonlyMap<number, Checkpoint>;
+  readonly completedSteps: ReadonlySet<number>;
+  readonly participants: ReadonlyMap<string, Participant>;
   readonly playerKeys: ReadonlySet<string>;
-  readonly participants: Map<string, ArmyParticipantState>;
-  readonly progressCheckpoints: Map<string, ArmyProgressState>;
   readonly sessionId: string;
-  readonly startTimer: ReturnType<typeof setTimeout>;
-  readonly syncPoints: Map<string, ArmySyncState>;
-  started: boolean;
+  readonly signatures: ReadonlyMap<number, StepSignature>;
+  readonly startGate: Deferred.Deferred<void, ArmyCoordinatorError>;
+  readonly status: "collecting" | "active";
 }
 
+interface CoordinatorState {
+  readonly activeSessionByConfig: ReadonlyMap<string, string>;
+  readonly nextSessionId: number;
+  readonly sessions: ReadonlyMap<string, ArmySessionState>;
+  readonly windowSessions: ReadonlyMap<number, string>;
+}
+
+const initialState: CoordinatorState = {
+  activeSessionByConfig: new Map(),
+  nextSessionId: 0,
+  sessions: new Map(),
+  windowSessions: new Map(),
+};
+
 export interface ArmyCoordinatorShape {
-  readonly abortSession: (session: ArmySessionState, reason: string) => void;
-  readonly failSession: (
+  readonly abortSession: (
     sessionId: string,
-    playerName: string,
     reason: string,
-  ) => void;
-  readonly getOrCreateSession: (config: ArmyConfigPayload) => ArmySessionState;
-  readonly getSession: (sessionId: string) => ArmySessionState | undefined;
-  readonly getSessions: () => readonly ArmySessionState[];
+  ) => Effect.Effect<void>;
+  readonly fail: (
+    sessionId: string,
+    sender: BrowserWindow,
+    reason: string,
+  ) => Effect.Effect<void, ArmyCoordinatorError>;
+  readonly getSessions: () => Effect.Effect<readonly ArmySessionState[]>;
   readonly join: (
-    session: ArmySessionState,
+    config: ArmyConfigPayload,
     playerName: string,
-    window: BrowserWindow,
-  ) => Promise<ArmySessionPayload>;
-  readonly leave: (sessionId: string, playerName: string) => void;
-  readonly nextSessionId: () => number;
-  readonly waitAtProgress: (
-    session: ArmySessionState,
-    playerName: string,
+    sender: BrowserWindow,
+  ) => Effect.Effect<ArmySessionPayload, ArmyCoordinatorError>;
+  readonly leave: (
+    sessionId: string,
+    sender: BrowserWindow,
+  ) => Effect.Effect<void, ArmyCoordinatorError>;
+  readonly progress: (
+    sessionId: string,
+    sender: BrowserWindow,
     payload: {
       readonly complete: boolean;
       readonly label?: string;
       readonly step: number;
       readonly timeoutMs?: number;
     },
-  ) => Promise<ArmyProgressResult>;
-  readonly waitAtSync: (
-    session: ArmySessionState,
-    playerName: string,
+  ) => Effect.Effect<ArmyProgressResult, ArmyCoordinatorError>;
+  readonly sync: (
+    sessionId: string,
+    sender: BrowserWindow,
     payload: {
       readonly label?: string;
       readonly step: number;
       readonly timeoutMs?: number;
     },
-  ) => Promise<void>;
+  ) => Effect.Effect<void, ArmyCoordinatorError>;
 }
 
 export class ArmyCoordinator extends Context.Service<
@@ -108,7 +188,93 @@ export class ArmyCoordinator extends Context.Service<
   ArmyCoordinatorShape
 >()("lucent/desktop/army/ArmyCoordinator") {}
 
-const findPlayerName = (
+interface CoordinatorHooks {
+  readonly sessionEnded: (
+    windowIds: readonly number[],
+    payload: { readonly reason: string; readonly sessionId: string },
+  ) => Effect.Effect<void>;
+}
+
+type JoinOutcome =
+  | { readonly error: ArmyCoordinatorError; readonly type: "reject" }
+  | {
+      readonly activated: boolean;
+      readonly playerKey: string;
+      readonly session: ArmySessionState;
+      readonly type: "wait";
+    };
+
+type BarrierOutcome =
+  | { readonly error: ArmyCoordinatorError; readonly type: "reject" }
+  | {
+      readonly complete: boolean;
+      readonly gate: Deferred.Deferred<void, ArmyCoordinatorError>;
+      readonly type: "wait";
+    };
+
+type ProgressOutcome =
+  | { readonly error: ArmyCoordinatorError; readonly type: "reject" }
+  | {
+      readonly gate: Deferred.Deferred<
+        ArmyProgressResult,
+        ArmyCoordinatorError
+      >;
+      readonly result?: ArmyProgressResult;
+      readonly type: "wait";
+    };
+
+const noHooks: CoordinatorHooks = {
+  sessionEnded: () => Effect.void,
+};
+
+const normalizeTimeout = (value: number | undefined): number =>
+  Number.isFinite(value)
+    ? Math.max(1, Math.trunc(value!))
+    : ARMY_SYNC_TIMEOUT_MS;
+
+const normalizeLabel = (label: string | undefined): string =>
+  label === undefined ? "sync" : label;
+
+const sessionError = (
+  reason: typeof SessionReasons.Type,
+  detail: string,
+  sessionId?: string,
+) =>
+  new ArmySessionError({
+    reason,
+    detail,
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
+const participantError = (
+  reason: typeof ParticipantReasons.Type,
+  detail: string,
+  sessionId?: string,
+  playerName?: string,
+) =>
+  new ArmyParticipantError({
+    reason,
+    detail,
+    ...(playerName === undefined ? {} : { playerName }),
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
+const syncError = (
+  reason: typeof SynchronizationReasons.Type,
+  detail: string,
+  sessionId: string,
+  step: number,
+  label?: string,
+) =>
+  new ArmySynchronizationError({
+    reason,
+    detail,
+    sessionId,
+    step,
+    ...(label === undefined ? {} : { label }),
+  });
+
+const canonicalPlayerName = (
   session: Pick<ArmySessionState, "players">,
   playerKey: string,
 ): string =>
@@ -116,63 +282,42 @@ const findPlayerName = (
     (player) => normalizeArmyPlayerKey(player) === playerKey,
   ) ?? playerKey;
 
-const resolvePlayerNumber = (
+const playerNumber = (
   session: Pick<ArmySessionState, "players">,
-  playerName: string,
-): number => {
-  const playerKey = normalizeArmyPlayerKey(playerName);
-  const index = session.players.findIndex(
+  playerKey: string,
+): number =>
+  session.players.findIndex(
     (player) => normalizeArmyPlayerKey(player) === playerKey,
-  );
-  return index < 0 ? -1 : index + 1;
-};
+  ) + 1;
 
-const toSessionPayload = (
+const toPayload = (
   session: ArmySessionState,
-  playerName: string,
+  playerKey: string,
 ): ArmySessionPayload => {
-  const playerNumber = resolvePlayerNumber(session, playerName);
+  const number = playerNumber(session, playerKey);
   return {
     configName: session.configName,
     items: session.items,
-    playerName: findPlayerName(session, normalizeArmyPlayerKey(playerName)),
-    playerNumber,
+    playerName: canonicalPlayerName(session, playerKey),
+    playerNumber: number,
     players: session.players,
     raw: session.raw,
-    role: playerNumber === 1 ? "leader" : "member",
+    role: number === 1 ? "leader" : "member",
     room: session.room,
     sessionId: session.sessionId,
     sets: session.sets,
   };
 };
 
-const timeoutMs = (value: number | undefined): number =>
-  Math.max(1, Math.trunc(value ?? ARMY_SYNC_TIMEOUT_MS));
+const findSender = (
+  session: ArmySessionState,
+  windowId: number,
+): readonly [string, Participant] | undefined =>
+  [...session.participants].find(
+    ([, participant]) => participant.windowId === windowId,
+  );
 
-const syncLabel = (label?: string): string => label ?? "sync";
-
-const describeLabel = (label?: string): string =>
-  label === undefined ? "<none>" : label;
-
-const rejectSync = (sync: ArmySyncState, error: Error): void => {
-  clearTimeout(sync.timer);
-  for (const waiter of sync.arrived.values()) {
-    waiter.reject(error);
-  }
-  sync.arrived.clear();
-};
-
-const rejectProgress = (checkpoint: ArmyProgressState, error: Error): void => {
-  clearTimeout(checkpoint.timer);
-  for (const waiter of checkpoint.arrived.values()) {
-    waiter.reject(error);
-  }
-  checkpoint.arrived.clear();
-};
-
-const syncKey = (step: number): string => String(step);
-
-const getMissingPlayers = (
+const missingPlayers = (
   session: ArmySessionState,
   arrived: ReadonlySet<string>,
 ): readonly string[] =>
@@ -180,441 +325,758 @@ const getMissingPlayers = (
     (player) => !arrived.has(normalizeArmyPlayerKey(player)),
   );
 
-const sameWindow = (left: BrowserWindow, right: BrowserWindow): boolean =>
-  left === right;
+const sameSignature = (left: StepSignature, right: StepSignature): boolean =>
+  left.kind === right.kind &&
+  left.label === right.label &&
+  left.timeoutMs === right.timeoutMs;
 
-export const makeArmyCoordinator = (): ArmyCoordinatorShape => {
-  let nextSessionId = 0;
-  const sessions = new Map<string, ArmySessionState>();
-  const activeSessionByConfig = new Map<string, string>();
-  const windowSessionIds = new WeakMap<BrowserWindow, Set<string>>();
-  const trackedWindows = new WeakSet<BrowserWindow>();
+const signatureDescription = (signature: StepSignature): string =>
+  `${signature.kind} ${signature.label}`;
 
-  const detachSessionFromWindows = (session: ArmySessionState): void => {
-    for (const participant of session.participants.values()) {
-      windowSessionIds.get(participant.window)?.delete(session.sessionId);
-    }
-  };
+export const makeArmyCoordinator = (
+  hooks: CoordinatorHooks = noHooks,
+): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const stateRef = yield* SynchronizedRef.make(initialState);
+    const trackedWindows = new WeakSet<BrowserWindow>();
+    const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
-  const abortSession = (session: ArmySessionState, reason: string): void => {
-    sessions.delete(session.sessionId);
-    if (activeSessionByConfig.get(session.configName) === session.sessionId) {
-      activeSessionByConfig.delete(session.configName);
-    }
+    const getSession = (sessionId: string) =>
+      SynchronizedRef.get(stateRef).pipe(
+        Effect.map((state) => state.sessions.get(sessionId)),
+      );
 
-    clearTimeout(session.startTimer);
-    const error = new Error(reason);
-    for (const participant of session.participants.values()) {
-      for (const waiter of participant.waiters) {
-        if (waiter.timer !== undefined) {
-          clearTimeout(waiter.timer);
-        }
-        waiter.reject(error);
-      }
-      participant.waiters.length = 0;
-    }
+    const abortSession: ArmyCoordinatorShape["abortSession"] = (
+      sessionId,
+      reason,
+    ) =>
+      Effect.gen(function* () {
+        const removed = yield* SynchronizedRef.modify(
+          stateRef,
+          (
+            state,
+          ): readonly [ArmySessionState | undefined, CoordinatorState] => {
+            const session = state.sessions.get(sessionId);
+            if (session === undefined) return [undefined, state];
 
-    for (const sync of session.syncPoints.values()) {
-      rejectSync(sync, error);
-    }
-    session.syncPoints.clear();
+            const sessions = new Map(state.sessions);
+            sessions.delete(sessionId);
+            const activeSessionByConfig = new Map(state.activeSessionByConfig);
+            if (activeSessionByConfig.get(session.configName) === sessionId) {
+              activeSessionByConfig.delete(session.configName);
+            }
+            const windowSessions = new Map(state.windowSessions);
+            for (const participant of session.participants.values()) {
+              if (windowSessions.get(participant.windowId) === sessionId) {
+                windowSessions.delete(participant.windowId);
+              }
+            }
 
-    for (const checkpoint of session.progressCheckpoints.values()) {
-      rejectProgress(checkpoint, error);
-    }
-    session.progressCheckpoints.clear();
+            return [
+              session,
+              { ...state, activeSessionByConfig, sessions, windowSessions },
+            ];
+          },
+        );
+        if (removed === undefined) return;
 
-    detachSessionFromWindows(session);
-    session.participants.clear();
-  };
+        const error = sessionError("aborted", reason, sessionId);
+        yield* Deferred.fail(removed.startGate, error);
+        yield* Effect.forEach(
+          removed.checkpoints.values(),
+          (checkpoint) =>
+            Deferred.fail(
+              checkpoint.gate as Deferred.Deferred<
+                unknown,
+                ArmyCoordinatorError
+              >,
+              error,
+            ),
+          { concurrency: "unbounded", discard: true },
+        );
+        yield* hooks.sessionEnded(
+          [...removed.participants.values()].map(
+            (participant) => participant.windowId,
+          ),
+          { reason, sessionId },
+        );
+      });
 
-  const abortWindowSessions = (window: BrowserWindow, reason: string): void => {
-    const sessionIds = windowSessionIds.get(window);
-    if (sessionIds === undefined) {
-      return;
-    }
+    const abortWindow = (windowId: number, reason: string) =>
+      SynchronizedRef.get(stateRef).pipe(
+        Effect.map((state) => state.windowSessions.get(windowId)),
+        Effect.flatMap((sessionId) =>
+          sessionId === undefined
+            ? Effect.void
+            : abortSession(sessionId, reason),
+        ),
+      );
 
-    for (const sessionId of sessionIds) {
-      const session = sessions.get(sessionId);
-      if (session !== undefined) {
-        abortSession(session, reason);
-      }
-    }
-  };
-
-  const trackWindow = (window: BrowserWindow): void => {
-    if (trackedWindows.has(window)) {
-      return;
-    }
-
-    trackedWindows.add(window);
-    window.once("closed", () =>
-      abortWindowSessions(window, "Army window closed"),
-    );
-    window.webContents.once("destroyed", () =>
-      abortWindowSessions(window, "Army window destroyed"),
-    );
-  };
-
-  const attachWindow = (
-    session: ArmySessionState,
-    playerName: string,
-    window: BrowserWindow,
-  ): ArmyParticipantState => {
-    const playerKey = normalizeArmyPlayerKey(playerName);
-    if (!session.playerKeys.has(playerKey)) {
-      throw new Error(`Player is not in army config: ${playerName}`);
-    }
-
-    const current = session.participants.get(playerKey);
-    if (current !== undefined) {
-      if (isElectronWindowUsable(current.window)) {
-        if (sameWindow(current.window, window)) {
-          return current;
-        }
-        throw new Error(`Army player already joined: ${playerName}`);
-      }
-
-      current.window = window;
-      return current;
-    }
-
-    const participant: ArmyParticipantState = {
-      playerName: findPlayerName(session, playerKey),
-      waiters: [],
-      window,
+    const trackWindow = (window: BrowserWindow): void => {
+      if (trackedWindows.has(window)) return;
+      trackedWindows.add(window);
+      window.once("closed", () => {
+        runFork(abortWindow(window.id, "Army window closed"));
+      });
+      window.webContents.once("destroyed", () => {
+        runFork(abortWindow(window.id, "Army window destroyed"));
+      });
     };
-    session.participants.set(playerKey, participant);
-    return participant;
-  };
 
-  const attachSessionToWindow = (
-    session: ArmySessionState,
-    window: BrowserWindow,
-  ): void => {
-    let sessionIds = windowSessionIds.get(window);
-    if (sessionIds === undefined) {
-      sessionIds = new Set<string>();
-      windowSessionIds.set(window, sessionIds);
-    }
-    sessionIds.add(session.sessionId);
-    trackWindow(window);
-  };
-
-  const resolveStartIfReady = (session: ArmySessionState): void => {
-    if (session.started || session.participants.size < session.players.length) {
-      return;
-    }
-
-    session.started = true;
-    clearTimeout(session.startTimer);
-    for (const participant of session.participants.values()) {
-      const waiters = participant.waiters.splice(0);
-      for (const waiter of waiters) {
-        if (waiter.timer !== undefined) {
-          clearTimeout(waiter.timer);
-        }
-        waiter.resolve(toSessionPayload(session, waiter.playerName));
-      }
-    }
-  };
-
-  const service: ArmyCoordinatorShape = {
-    abortSession,
-    failSession: (sessionId, playerName, reason) => {
-      const session = sessions.get(sessionId);
-      if (session === undefined) {
-        return;
-      }
-
-      abortSession(session, `Army failed for ${playerName}: ${reason}`);
-    },
-    getOrCreateSession: (config) => {
-      const activeSessionId = activeSessionByConfig.get(config.configName);
-      const activeSession =
-        activeSessionId === undefined
-          ? undefined
-          : sessions.get(activeSessionId);
-      if (activeSession !== undefined) {
-        return activeSession;
-      }
-
-      let session: ArmySessionState;
-      const sessionId = `${Date.now().toString(36)}-${nextSessionId++}`;
-      const startTimer = setTimeout(() => {
-        const current = sessions.get(sessionId);
-        if (current === undefined || current.started) {
-          return;
-        }
-
-        const missing = getMissingPlayers(
-          current,
-          new Set(current.participants.keys()),
-        );
-        abortSession(
-          current,
-          `Timed out waiting for army players: ${missing.join(", ")}`,
-        );
-      }, ARMY_START_TIMEOUT_MS);
-
-      session = {
-        ...config,
-        participants: new Map(),
-        playerKeys: new Set(config.players.map(normalizeArmyPlayerKey)),
-        progressCheckpoints: new Map(),
-        sessionId,
-        startTimer,
-        started: false,
-        syncPoints: new Map(),
-      };
-      sessions.set(session.sessionId, session);
-      activeSessionByConfig.set(session.configName, session.sessionId);
-      return session;
-    },
-    getSession: (sessionId) => sessions.get(sessionId),
-    getSessions: () => [...sessions.values()],
-    join: (session, playerName, window) =>
-      new Promise((resolve, reject) => {
-        try {
-          const participant = attachWindow(session, playerName, window);
-          attachSessionToWindow(session, window);
-          if (session.started) {
-            resolve(toSessionPayload(session, playerName));
-            return;
-          }
-
-          const waiter: DeferredStart = {
-            playerName,
-            resolve,
-            reject,
-            window,
-          };
-          participant.waiters.push(waiter);
-          resolveStartIfReady(session);
-        } catch (cause) {
-          reject(cause instanceof Error ? cause : new Error(String(cause)));
-        }
-      }),
-    leave: (sessionId, playerName) => {
-      const session = sessions.get(sessionId);
-      if (session === undefined) {
-        return;
-      }
-
-      abortSession(session, `Army player left: ${playerName}`);
-    },
-    nextSessionId: () => nextSessionId++,
-    waitAtProgress: (session, playerName, payload) => {
-      const playerKey = normalizeArmyPlayerKey(playerName);
-      if (!session.started) {
-        return Promise.reject(new Error("Army session has not started"));
-      }
-      if (!session.playerKeys.has(playerKey)) {
-        return Promise.reject(
-          new Error(`Player is not in army config: ${playerName}`),
-        );
-      }
-      if (!session.participants.has(playerKey)) {
-        return Promise.reject(
-          new Error(`Army player has not joined: ${playerName}`),
-        );
-      }
-
-      const key = syncKey(payload.step);
-      let checkpoint = session.progressCheckpoints.get(key);
-      if (checkpoint === undefined) {
-        const timer = setTimeout(() => {
-          const current = session.progressCheckpoints.get(key);
-          if (
-            sessions.get(session.sessionId) !== session ||
-            current === undefined
-          ) {
-            return;
-          }
-
-          const missing = getMissingPlayers(
-            session,
-            new Set(current.arrived.keys()),
+    const requireSender = (
+      sessionId: string,
+      sender: BrowserWindow,
+    ): Effect.Effect<
+      readonly [ArmySessionState, string],
+      ArmyCoordinatorError
+    > =>
+      Effect.gen(function* () {
+        const session = yield* getSession(sessionId);
+        if (session === undefined) {
+          return yield* sessionError(
+            "inactive",
+            "Army session is not active",
+            sessionId,
           );
+        }
+        if (session.status !== "active") {
+          return yield* sessionError(
+            "not-started",
+            "Army session has not started",
+            sessionId,
+          );
+        }
+        const participant = findSender(session, sender.id);
+        if (participant === undefined) {
+          return yield* participantError(
+            "sender-mismatch",
+            "Army sender is not attached to this session",
+            sessionId,
+          );
+        }
+        return [session, participant[0]] as const;
+      });
+
+    const awaitWithTimeout = <A>(args: {
+      readonly effect: Effect.Effect<A, ArmyCoordinatorError>;
+      readonly onInterrupt: string;
+      readonly onTimeout: () => Effect.Effect<A, ArmyCoordinatorError>;
+      readonly timeoutMs: number;
+    }): Effect.Effect<A, ArmyCoordinatorError> =>
+      args.effect.pipe(
+        Effect.timeoutOrElse({
+          duration: args.timeoutMs,
+          orElse: args.onTimeout,
+        }),
+        Effect.onInterrupt(() =>
           abortSession(
-            session,
-            `Timed out waiting for army progress ${payload.step} (${syncLabel(
-              current.label,
-            )}); missing: ${missing.join(", ")}`,
-          );
-        }, timeoutMs(payload.timeoutMs));
+            args.onInterrupt.split("\u0000", 1)[0]!,
+            args.onInterrupt.slice(args.onInterrupt.indexOf("\u0000") + 1),
+          ),
+        ),
+      );
 
-        checkpoint = {
-          arrived: new Map(),
-          key,
-          ...(payload.label === undefined ? {} : { label: payload.label }),
-          step: payload.step,
-          timer,
-        };
-        session.progressCheckpoints.set(key, checkpoint);
-      }
+    const join: ArmyCoordinatorShape["join"] = (
+      config,
+      requestedPlayerName,
+      sender,
+    ) =>
+      Effect.gen(function* () {
+        trackWindow(sender);
+        const playerKey = normalizeArmyPlayerKey(requestedPlayerName);
 
-      if (checkpoint.arrived.has(playerKey)) {
-        const error = new Error(
-          `Army player already reached progress ${payload.step}: ${playerName}`,
+        const outcome = yield* SynchronizedRef.modifyEffect<
+          CoordinatorState,
+          JoinOutcome,
+          never,
+          never
+        >(
+          stateRef,
+          (state): Effect.Effect<readonly [JoinOutcome, CoordinatorState]> =>
+            Effect.gen(function* () {
+              let session =
+                state.activeSessionByConfig.get(config.configName) === undefined
+                  ? undefined
+                  : state.sessions.get(
+                      state.activeSessionByConfig.get(config.configName)!,
+                    );
+              let nextState = state;
+
+              if (session === undefined) {
+                const sessionId = `${Date.now().toString(36)}-${state.nextSessionId}`;
+                const startGate = yield* Deferred.make<
+                  void,
+                  ArmyCoordinatorError
+                >();
+                session = {
+                  ...config,
+                  checkpoints: new Map(),
+                  completedSteps: new Set(),
+                  participants: new Map(),
+                  playerKeys: new Set(
+                    config.players.map(normalizeArmyPlayerKey),
+                  ),
+                  sessionId,
+                  signatures: new Map(),
+                  startGate,
+                  status: "collecting",
+                };
+                nextState = {
+                  ...state,
+                  activeSessionByConfig: new Map(
+                    state.activeSessionByConfig,
+                  ).set(config.configName, sessionId),
+                  nextSessionId: state.nextSessionId + 1,
+                  sessions: new Map(state.sessions).set(sessionId, session),
+                };
+              }
+
+              if (!session.playerKeys.has(playerKey)) {
+                const error = participantError(
+                  "not-configured",
+                  `Player is not in army config: ${requestedPlayerName}`,
+                  session.sessionId,
+                  requestedPlayerName,
+                );
+                return [{ type: "reject" as const, error }, nextState] as const;
+              }
+
+              const boundSessionId = nextState.windowSessions.get(sender.id);
+              if (
+                boundSessionId !== undefined &&
+                boundSessionId !== session.sessionId
+              ) {
+                const error = participantError(
+                  "already-joined",
+                  "Army window is already attached to another session",
+                  boundSessionId,
+                  requestedPlayerName,
+                );
+                return [{ type: "reject" as const, error }, nextState] as const;
+              }
+
+              const existing = session.participants.get(playerKey);
+              if (existing !== undefined && existing.windowId !== sender.id) {
+                const error = participantError(
+                  "already-joined",
+                  `Army player already joined: ${requestedPlayerName}`,
+                  session.sessionId,
+                  requestedPlayerName,
+                );
+                return [{ type: "reject" as const, error }, nextState] as const;
+              }
+
+              const participants = new Map(session.participants);
+              participants.set(playerKey, {
+                playerName: canonicalPlayerName(session, playerKey),
+                windowId: sender.id,
+              });
+              const activated = participants.size === session.players.length;
+              const updated: ArmySessionState = {
+                ...session,
+                participants,
+                status: activated ? "active" : session.status,
+              };
+              const sessions = new Map(nextState.sessions).set(
+                session.sessionId,
+                updated,
+              );
+              const windowSessions = new Map(nextState.windowSessions).set(
+                sender.id,
+                session.sessionId,
+              );
+
+              return [
+                {
+                  type: "wait" as const,
+                  activated,
+                  playerKey,
+                  session: updated,
+                },
+                { ...nextState, sessions, windowSessions },
+              ] as const;
+            }),
         );
-        abortSession(session, error.message);
-        return Promise.reject(error);
-      }
 
-      if (syncLabel(checkpoint.label) !== syncLabel(payload.label)) {
-        const error = new Error(
-          `Army progress label mismatch for step ${
-            payload.step
-          }: expected ${describeLabel(checkpoint.label)}, got ${describeLabel(
-            payload.label,
-          )}`,
+        if (outcome.type === "reject") return yield* outcome.error;
+        if (outcome.activated) {
+          yield* Deferred.succeed(outcome.session.startGate, undefined);
+        }
+
+        const startTimeout = sessionError(
+          "start-timeout",
+          `Timed out waiting for army players`,
+          outcome.session.sessionId,
         );
-        abortSession(session, error.message);
-        return Promise.reject(error);
-      }
-
-      return new Promise((resolve, reject) => {
-        checkpoint.arrived.set(playerKey, {
-          complete: payload.complete,
-          playerName,
-          reject,
-          resolve,
+        yield* awaitWithTimeout({
+          effect: Deferred.await(outcome.session.startGate),
+          timeoutMs: ARMY_START_TIMEOUT_MS,
+          onInterrupt: `${outcome.session.sessionId}\u0000Army start interrupted`,
+          onTimeout: () =>
+            abortSession(outcome.session.sessionId, startTimeout.message).pipe(
+              Effect.andThen(Effect.fail(startTimeout)),
+            ),
         });
-
-        if (checkpoint.arrived.size < session.players.length) {
-          return;
-        }
-
-        const completedKeys = new Set<string>();
-        for (const [arrivedKey, waiter] of checkpoint.arrived) {
-          if (waiter.complete) {
-            completedKeys.add(arrivedKey);
-          }
-        }
-
-        const completedPlayers = session.players.filter((player) =>
-          completedKeys.has(normalizeArmyPlayerKey(player)),
-        );
-        const pendingPlayers = session.players.filter(
-          (player) => !completedKeys.has(normalizeArmyPlayerKey(player)),
-        );
-        const result = {
-          complete: pendingPlayers.length === 0,
-          completedPlayers,
-          pendingPlayers,
-        } satisfies ArmyProgressResult;
-
-        clearTimeout(checkpoint.timer);
-        session.progressCheckpoints.delete(checkpoint.key);
-        const waiters = [...checkpoint.arrived.values()];
-        checkpoint.arrived.clear();
-        for (const waiter of waiters) {
-          waiter.resolve(result);
-        }
+        return toPayload(outcome.session, outcome.playerKey);
       });
-    },
-    waitAtSync: (session, playerName, payload) => {
-      const playerKey = normalizeArmyPlayerKey(playerName);
-      if (!session.started) {
-        return Promise.reject(new Error("Army session has not started"));
-      }
-      if (!session.playerKeys.has(playerKey)) {
-        return Promise.reject(
-          new Error(`Player is not in army config: ${playerName}`),
-        );
-      }
-      if (!session.participants.has(playerKey)) {
-        return Promise.reject(
-          new Error(`Army player has not joined: ${playerName}`),
-        );
-      }
 
-      const key = syncKey(payload.step);
-      let sync = session.syncPoints.get(key);
-      if (sync === undefined) {
-        const timer = setTimeout(() => {
-          const current = session.syncPoints.get(key);
-          if (
-            sessions.get(session.sessionId) !== session ||
-            current === undefined
-          ) {
-            return;
+    const registerBarrier = (
+      sessionId: string,
+      playerKey: string,
+      signature: StepSignature,
+      step: number,
+    ) =>
+      SynchronizedRef.modifyEffect<
+        CoordinatorState,
+        BarrierOutcome,
+        never,
+        never
+      >(stateRef, (state) =>
+        Effect.gen(function* () {
+          const session = state.sessions.get(sessionId);
+          if (session === undefined) {
+            return [
+              {
+                type: "reject" as const,
+                error: sessionError(
+                  "inactive",
+                  "Army session is not active",
+                  sessionId,
+                ),
+              },
+              state,
+            ] as const;
+          }
+          if (session.completedSteps.has(step)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "completed-step",
+                  `Army step ${step} has already completed`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          }
+          const expected = session.signatures.get(step);
+          if (expected !== undefined && !sameSignature(expected, signature)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "signature-mismatch",
+                  `Army step mismatch for step ${step}: expected ${signatureDescription(expected)}, got ${signatureDescription(signature)}`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
           }
 
-          const missing = getMissingPlayers(
-            session,
-            new Set(current.arrived.keys()),
-          );
-          abortSession(
-            session,
-            `Timed out waiting for army sync ${payload.step} (${syncLabel(
-              current.label,
-            )}); missing: ${missing.join(", ")}`,
-          );
-        }, timeoutMs(payload.timeoutMs));
+          const existing = session.checkpoints.get(step);
+          let checkpoint: BarrierCheckpoint;
+          if (existing === undefined) {
+            checkpoint = {
+              arrived: new Set(),
+              gate: yield* Deferred.make<void, ArmyCoordinatorError>(),
+              kind: "barrier",
+              signature,
+            };
+          } else if (existing.kind !== "barrier") {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "signature-mismatch",
+                  `Army step mismatch for step ${step}: expected progress, got barrier`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          } else {
+            checkpoint = existing;
+          }
 
-        sync = {
-          arrived: new Map(),
-          key,
-          ...(payload.label === undefined ? {} : { label: payload.label }),
-          step: payload.step,
-          timer,
-        };
-        session.syncPoints.set(key, sync);
-      }
+          if (checkpoint.arrived.has(playerKey)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "duplicate-arrival",
+                  `Army player already reached sync ${step}: ${canonicalPlayerName(session, playerKey)}`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          }
 
-      if (sync.arrived.has(playerKey)) {
-        const error = new Error(
-          `Army player already reached sync ${payload.step}: ${playerName}`,
+          const arrived = new Set(checkpoint.arrived).add(playerKey);
+          const complete = arrived.size === session.players.length;
+          const checkpoints = new Map(session.checkpoints);
+          if (complete) checkpoints.delete(step);
+          else checkpoints.set(step, { ...checkpoint, arrived });
+          const completedSteps = new Set(session.completedSteps);
+          if (complete) completedSteps.add(step);
+          const updated: ArmySessionState = {
+            ...session,
+            checkpoints,
+            completedSteps,
+            signatures: new Map(session.signatures).set(step, signature),
+          };
+          return [
+            { type: "wait" as const, complete, gate: checkpoint.gate },
+            {
+              ...state,
+              sessions: new Map(state.sessions).set(sessionId, updated),
+            },
+          ] as const;
+        }),
+      );
+
+    const registerProgress = (
+      sessionId: string,
+      playerKey: string,
+      signature: StepSignature,
+      step: number,
+      playerComplete: boolean,
+    ) =>
+      SynchronizedRef.modifyEffect<
+        CoordinatorState,
+        ProgressOutcome,
+        never,
+        never
+      >(stateRef, (state) =>
+        Effect.gen(function* () {
+          const session = state.sessions.get(sessionId);
+          if (session === undefined) {
+            return [
+              {
+                type: "reject" as const,
+                error: sessionError(
+                  "inactive",
+                  "Army session is not active",
+                  sessionId,
+                ),
+              },
+              state,
+            ] as const;
+          }
+          if (session.completedSteps.has(step)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "completed-step",
+                  `Army step ${step} has already completed`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          }
+          const expected = session.signatures.get(step);
+          if (expected !== undefined && !sameSignature(expected, signature)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "signature-mismatch",
+                  `Army step mismatch for step ${step}: expected ${signatureDescription(expected)}, got ${signatureDescription(signature)}`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          }
+
+          const existing = session.checkpoints.get(step);
+          let checkpoint: ProgressCheckpoint;
+          if (existing === undefined) {
+            checkpoint = {
+              arrived: new Map(),
+              gate: yield* Deferred.make<
+                ArmyProgressResult,
+                ArmyCoordinatorError
+              >(),
+              kind: "progress",
+              signature,
+            };
+          } else if (existing.kind !== "progress") {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "signature-mismatch",
+                  `Army step mismatch for step ${step}: expected barrier, got progress`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          } else {
+            checkpoint = existing;
+          }
+
+          if (checkpoint.arrived.has(playerKey)) {
+            return [
+              {
+                type: "reject" as const,
+                error: syncError(
+                  "duplicate-arrival",
+                  `Army player already reached progress ${step}: ${canonicalPlayerName(session, playerKey)}`,
+                  sessionId,
+                  step,
+                  signature.label,
+                ),
+              },
+              state,
+            ] as const;
+          }
+
+          const arrived = new Map(checkpoint.arrived).set(
+            playerKey,
+            playerComplete,
+          );
+          const roundComplete = arrived.size === session.players.length;
+          let result: ArmyProgressResult | undefined;
+          if (roundComplete) {
+            const completedPlayers = session.players.filter(
+              (player) => arrived.get(normalizeArmyPlayerKey(player)) === true,
+            );
+            const pendingPlayers = session.players.filter(
+              (player) => arrived.get(normalizeArmyPlayerKey(player)) !== true,
+            );
+            result = {
+              complete: pendingPlayers.length === 0,
+              completedPlayers,
+              pendingPlayers,
+            };
+          }
+
+          const checkpoints = new Map(session.checkpoints);
+          if (roundComplete) checkpoints.delete(step);
+          else checkpoints.set(step, { ...checkpoint, arrived });
+          const completedSteps = new Set(session.completedSteps);
+          if (result?.complete === true) completedSteps.add(step);
+          const updated: ArmySessionState = {
+            ...session,
+            checkpoints,
+            completedSteps,
+            signatures: new Map(session.signatures).set(step, signature),
+          };
+          return [
+            {
+              type: "wait" as const,
+              gate: checkpoint.gate,
+              ...(result === undefined ? {} : { result }),
+            },
+            {
+              ...state,
+              sessions: new Map(state.sessions).set(sessionId, updated),
+            },
+          ] as const;
+        }),
+      );
+
+    const checkpointTimeout = <A>(
+      sessionId: string,
+      step: number,
+      label: string,
+      kind: "progress" | "sync",
+    ): Effect.Effect<A, ArmyCoordinatorError> =>
+      Effect.gen(function* () {
+        const session = yield* getSession(sessionId);
+        const checkpoint = session?.checkpoints.get(step);
+        const arrived =
+          checkpoint?.kind === "barrier"
+            ? checkpoint.arrived
+            : new Set(checkpoint?.arrived.keys() ?? []);
+        const missing =
+          session === undefined ? [] : missingPlayers(session, arrived);
+        const error = syncError(
+          "timeout",
+          `Timed out waiting for army ${kind} ${step} (${label}); missing: ${missing.join(", ")}`,
+          sessionId,
+          step,
+          label,
         );
-        abortSession(session, error.message);
-        return Promise.reject(error);
-      }
+        yield* abortSession(sessionId, error.message);
+        return yield* error;
+      });
 
-      if (syncLabel(sync.label) !== syncLabel(payload.label)) {
-        const error = new Error(
-          `Army sync label mismatch for step ${
-            payload.step
-          }: expected ${describeLabel(sync.label)}, got ${describeLabel(
+    const sync: ArmyCoordinatorShape["sync"] = (sessionId, sender, payload) =>
+      Effect.gen(function* () {
+        if (!Number.isSafeInteger(payload.step) || payload.step < 0) {
+          return yield* syncError(
+            "invalid-step",
+            "Army step must be a non-negative safe integer",
+            sessionId,
+            payload.step,
             payload.label,
-          )}`,
+          );
+        }
+        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const signature: StepSignature = {
+          kind: "barrier",
+          label: normalizeLabel(payload.label),
+          timeoutMs: normalizeTimeout(payload.timeoutMs),
+        };
+        const outcome = yield* registerBarrier(
+          sessionId,
+          playerKey,
+          signature,
+          payload.step,
         );
-        abortSession(session, error.message);
-        return Promise.reject(error);
-      }
-
-      return new Promise((resolve, reject) => {
-        sync.arrived.set(playerKey, { playerName, reject, resolve });
-        if (sync.arrived.size < session.players.length) {
-          return;
+        if (outcome.type === "reject") {
+          yield* abortSession(sessionId, outcome.error.message);
+          return yield* outcome.error;
         }
-
-        clearTimeout(sync.timer);
-        session.syncPoints.delete(sync.key);
-        const waiters = [...sync.arrived.values()];
-        sync.arrived.clear();
-        for (const waiter of waiters) {
-          waiter.resolve();
-        }
+        if (outcome.complete) yield* Deferred.succeed(outcome.gate, undefined);
+        yield* awaitWithTimeout({
+          effect: Deferred.await(outcome.gate),
+          timeoutMs: signature.timeoutMs,
+          onInterrupt: `${sessionId}\u0000Army sync interrupted`,
+          onTimeout: () =>
+            checkpointTimeout<void>(
+              sessionId,
+              payload.step,
+              signature.label,
+              "sync",
+            ),
+        });
       });
-    },
-  };
 
-  return service;
-};
+    const progress: ArmyCoordinatorShape["progress"] = (
+      sessionId,
+      sender,
+      payload,
+    ) =>
+      Effect.gen(function* () {
+        if (!Number.isSafeInteger(payload.step) || payload.step < 0) {
+          return yield* syncError(
+            "invalid-step",
+            "Army step must be a non-negative safe integer",
+            sessionId,
+            payload.step,
+            payload.label,
+          );
+        }
+        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const signature: StepSignature = {
+          kind: "progress",
+          label: normalizeLabel(payload.label),
+          timeoutMs: normalizeTimeout(payload.timeoutMs),
+        };
+        const outcome = yield* registerProgress(
+          sessionId,
+          playerKey,
+          signature,
+          payload.step,
+          payload.complete,
+        );
+        if (outcome.type === "reject") {
+          yield* abortSession(sessionId, outcome.error.message);
+          return yield* outcome.error;
+        }
+        if (outcome.result !== undefined) {
+          yield* Deferred.succeed(outcome.gate, outcome.result);
+        }
+        return yield* awaitWithTimeout({
+          effect: Deferred.await(outcome.gate),
+          timeoutMs: signature.timeoutMs,
+          onInterrupt: `${sessionId}\u0000Army progress interrupted`,
+          onTimeout: () =>
+            checkpointTimeout<ArmyProgressResult>(
+              sessionId,
+              payload.step,
+              signature.label,
+              "progress",
+            ),
+        });
+      });
+
+    const leave: ArmyCoordinatorShape["leave"] = (sessionId, sender) =>
+      Effect.gen(function* () {
+        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const playerName = canonicalPlayerName(
+          (yield* getSession(sessionId))!,
+          playerKey,
+        );
+        yield* abortSession(sessionId, `Army player left: ${playerName}`);
+      });
+
+    const fail: ArmyCoordinatorShape["fail"] = (sessionId, sender, reason) =>
+      Effect.gen(function* () {
+        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const playerName = canonicalPlayerName(
+          (yield* getSession(sessionId))!,
+          playerKey,
+        );
+        yield* abortSession(
+          sessionId,
+          `Army failed for ${playerName}: ${reason}`,
+        );
+      });
+
+    const service: ArmyCoordinatorShape = {
+      abortSession,
+      fail,
+      getSessions: () =>
+        SynchronizedRef.get(stateRef).pipe(
+          Effect.map((state) => [...state.sessions.values()]),
+        ),
+      join,
+      leave,
+      progress,
+      sync,
+    };
+
+    yield* Effect.addFinalizer(() =>
+      service
+        .getSessions()
+        .pipe(
+          Effect.flatMap((sessions) =>
+            Effect.forEach(
+              sessions,
+              (session) =>
+                service.abortSession(
+                  session.sessionId,
+                  "Application is quitting",
+                ),
+              { discard: true },
+            ),
+          ),
+        ),
+    );
+
+    return service;
+  });
 
 export const layer = Layer.effect(
   ArmyCoordinator,
   Effect.gen(function* () {
-    const service = makeArmyCoordinator();
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        for (const session of service.getSessions()) {
-          service.abortSession(session, "Application is quitting");
-        }
-      }),
-    );
-    return ArmyCoordinator.of(service);
+    const ipc = yield* DesktopIpc;
+    return yield* makeArmyCoordinator({
+      sessionEnded: (windowIds, payload) =>
+        ipc.sendToBrowserWindowIds(windowIds, ArmyIpc.ended, payload),
+    });
   }),
 );

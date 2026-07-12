@@ -2,16 +2,16 @@ import { Schema } from "effect";
 
 import {
   ArmyConfigPayloadSchema,
+  ArmySessionEndedPayloadSchema,
   ArmySessionPayloadSchema,
   type ArmyProgressResult,
 } from "@lucent/core/army";
-import { defineInvoke } from "./core";
+import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:army";
 
 const SyncPayloadFields = {
   label: Schema.optionalKey(Schema.String),
-  playerName: Schema.String,
   sessionId: Schema.String,
   step: Schema.Int,
   timeoutMs: Schema.optionalKey(Schema.Number),
@@ -47,7 +47,6 @@ export const ArmyIpc = {
     channel: `${namespace}:leave`,
     name: "army.leave",
     payload: Schema.Struct({
-      playerName: Schema.String,
       sessionId: Schema.String,
     }),
     result: Schema.Void,
@@ -72,12 +71,16 @@ export const ArmyIpc = {
     name: "army.fail",
     payload: Schema.Struct({
       label: Schema.optionalKey(Schema.String),
-      playerName: Schema.String,
       reason: Schema.String,
       sessionId: Schema.String,
       step: Schema.optionalKey(Schema.Int),
     }),
     result: Schema.Void,
+  }),
+  ended: defineEvent({
+    channel: `${namespace}:ended`,
+    name: "army.ended",
+    payload: ArmySessionEndedPayloadSchema,
   }),
 } as const;
 

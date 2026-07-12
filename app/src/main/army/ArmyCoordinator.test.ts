@@ -1,173 +1,216 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { BrowserWindow } from "electron";
+import { Effect, Fiber, Result } from "effect";
+import * as TestClock from "effect/testing/TestClock";
 
 import type { ArmyConfigPayload } from "@lucent/core/army";
 import { makeArmyCoordinator } from "./ArmyCoordinator";
 
-const makeWindow = (): BrowserWindow =>
-  ({
+let nextWindowId = 1;
+
+const makeWindow = (): BrowserWindow => {
+  const listeners = new Map<string, () => void>();
+  return {
+    id: nextWindowId++,
     isDestroyed: () => false,
-    once: () => undefined,
+    once: (event: string, listener: () => void) => {
+      listeners.set(event, listener);
+      return undefined as never;
+    },
     webContents: {
       isDestroyed: () => false,
-      once: () => undefined,
+      once: (event: string, listener: () => void) => {
+        listeners.set(`web:${event}`, listener);
+        return undefined as never;
+      },
     },
-  }) as unknown as BrowserWindow;
+  } as unknown as BrowserWindow;
+};
 
 const makeConfig = (players: readonly string[]): ArmyConfigPayload => ({
   configName: "test",
   items: {},
   players,
-  raw: {
-    players,
-    room: "1234",
-  },
+  raw: { players, room: "1234" },
   room: "1234",
   sets: {},
 });
 
-const expectRejectedError = async (promise: Promise<unknown>) => {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-
-  throw new Error("Expected promise to reject");
-};
-
 describe("ArmyCoordinator", () => {
-  it("resolves start waiters only after every configured player joins", async () => {
-    const coordinator = makeArmyCoordinator();
-    const session = coordinator.getOrCreateSession(
-      makeConfig(["Alice", "Bob"]),
-    );
-    let aliceSettled = false;
+  it.effect("starts only after the full configured roster joins", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const aliceWindow = makeWindow();
+        const bobWindow = makeWindow();
+        const alice = yield* coordinator
+          .join(makeConfig(["Alice", "Bob"]), "Alice", aliceWindow)
+          .pipe(Effect.forkScoped);
 
-    const alice = coordinator
-      .join(session, "Alice", makeWindow())
-      .then((payload) => {
-        aliceSettled = true;
-        return payload;
-      });
-    await Promise.resolve();
-    expect(aliceSettled).toBe(false);
+        const bob = yield* coordinator.join(
+          makeConfig(["Alice", "Bob"]),
+          "Bob",
+          bobWindow,
+        );
+        const alicePayload = yield* Fiber.join(alice);
 
-    const [alicePayload, bobPayload] = await Promise.all([
-      alice,
-      coordinator.join(session, "Bob", makeWindow()),
-    ]);
-
-    expect(alicePayload.role).toBe("leader");
-    expect(alicePayload.playerNumber).toBe(1);
-    expect(bobPayload.role).toBe("member");
-    expect(bobPayload.playerNumber).toBe(2);
-  });
-
-  it("rejects duplicate live windows for the same player", async () => {
-    const coordinator = makeArmyCoordinator();
-    const session = coordinator.getOrCreateSession(makeConfig(["Alice"]));
-    await coordinator.join(session, "Alice", makeWindow());
-
-    await expect(
-      coordinator.join(session, "Alice", makeWindow()),
-    ).rejects.toThrow("Army player already joined: Alice");
-
-    coordinator.abortSession(session, "test cleanup");
-  });
-
-  it("aborts the session when sync labels mismatch", async () => {
-    const coordinator = makeArmyCoordinator();
-    const session = coordinator.getOrCreateSession(
-      makeConfig(["Alice", "Bob"]),
-    );
-    await Promise.all([
-      coordinator.join(session, "Alice", makeWindow()),
-      coordinator.join(session, "Bob", makeWindow()),
-    ]);
-
-    const alice = coordinator.waitAtSync(session, "Alice", {
-      label: "first",
-      step: 0,
-    });
-    const aliceRejected = expectRejectedError(alice);
-
-    await expect(
-      coordinator.waitAtSync(session, "Bob", {
-        label: "second",
-        step: 0,
+        expect(alicePayload.role).toBe("leader");
+        expect(alicePayload.playerNumber).toBe(1);
+        expect(bob.role).toBe("member");
+        expect(bob.playerNumber).toBe(2);
       }),
-    ).rejects.toThrow(
-      "Army sync label mismatch for step 0: expected first, got second",
-    );
+    ),
+  );
 
-    await expect(aliceRejected).resolves.toMatchObject({
-      message:
-        "Army sync label mismatch for step 0: expected first, got second",
-    });
-    expect(coordinator.getSession(session.sessionId)).toBeUndefined();
-  });
-
-  it("returns aggregate progress and allows completed players to keep participating", async () => {
-    const coordinator = makeArmyCoordinator();
-    const session = coordinator.getOrCreateSession(
-      makeConfig(["Alice", "Bob"]),
-    );
-    await Promise.all([
-      coordinator.join(session, "Alice", makeWindow()),
-      coordinator.join(session, "Bob", makeWindow()),
-    ]);
-
-    const firstRound = await Promise.all([
-      coordinator.waitAtProgress(session, "Alice", {
-        complete: true,
-        label: "kill-item",
-        step: 0,
+  it.effect("rejects a second sender for an attached player", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        yield* coordinator.join(makeConfig(["Alice"]), "Alice", makeWindow());
+        const error = yield* Effect.flip(
+          coordinator.join(makeConfig(["Alice"]), "Alice", makeWindow()),
+        );
+        expect(error.message).toBe("Army player already joined: Alice");
       }),
-      coordinator.waitAtProgress(session, "Bob", {
-        complete: false,
-        label: "kill-item",
-        step: 0,
-      }),
-    ]);
+    ),
+  );
 
-    expect(firstRound).toEqual([
-      {
-        complete: false,
-        completedPlayers: ["Alice"],
-        pendingPlayers: ["Bob"],
-      },
-      {
-        complete: false,
-        completedPlayers: ["Alice"],
-        pendingPlayers: ["Bob"],
-      },
-    ]);
-
-    const secondRound = await Promise.all([
-      coordinator.waitAtProgress(session, "Alice", {
-        complete: true,
-        label: "kill-item",
-        step: 0,
+  it.effect("rejects operations from a sender that did not join", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const aliceWindow = makeWindow();
+        const session = yield* coordinator.join(
+          makeConfig(["Alice"]),
+          "Alice",
+          aliceWindow,
+        );
+        const error = yield* Effect.flip(
+          coordinator.sync(session.sessionId, makeWindow(), {
+            label: "sync",
+            step: 0,
+          }),
+        );
+        expect(error.message).toBe(
+          "Army sender is not attached to this session",
+        );
+        expect((yield* coordinator.getSessions()).length).toBe(1);
       }),
-      coordinator.waitAtProgress(session, "Bob", {
-        complete: true,
-        label: "kill-item",
-        step: 0,
-      }),
-    ]);
+    ),
+  );
 
-    expect(secondRound).toEqual([
-      {
-        complete: true,
-        completedPlayers: ["Alice", "Bob"],
-        pendingPlayers: [],
-      },
-      {
-        complete: true,
-        completedPlayers: ["Alice", "Bob"],
-        pendingPlayers: [],
-      },
-    ]);
-  });
+  it.effect("aborts a collecting session when roster startup times out", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const pending = yield* coordinator
+          .join(makeConfig(["Alice", "Bob"]), "Alice", makeWindow())
+          .pipe(Effect.result, Effect.forkScoped);
+        yield* Effect.yieldNow;
+        yield* TestClock.adjust("120 seconds");
+        const result = yield* Fiber.join(pending);
+
+        expect(Result.isFailure(result)).toBe(true);
+        expect((yield* coordinator.getSessions()).length).toBe(0);
+      }),
+    ),
+  );
+
+  it.effect("aborts every waiter when step signatures disagree", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const aliceWindow = makeWindow();
+        const bobWindow = makeWindow();
+        const [alice, bob] = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              "Alice",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        );
+
+        const aliceWait = yield* coordinator
+          .sync(alice.sessionId, aliceWindow, { label: "first", step: 0 })
+          .pipe(Effect.result, Effect.forkScoped);
+        const bobError = yield* Effect.flip(
+          coordinator.sync(bob.sessionId, bobWindow, {
+            label: "second",
+            step: 0,
+          }),
+        );
+        const aliceResult = yield* Fiber.join(aliceWait);
+
+        expect(bobError.message).toContain("Army step mismatch for step 0");
+        expect(Result.isFailure(aliceResult)).toBe(true);
+        expect((yield* coordinator.getSessions()).length).toBe(0);
+      }),
+    ),
+  );
+
+  it.effect(
+    "repeats local progress rounds until every player is complete",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const coordinator = yield* makeArmyCoordinator();
+          const aliceWindow = makeWindow();
+          const bobWindow = makeWindow();
+          const [alice, bob] = yield* Effect.all(
+            [
+              coordinator.join(
+                makeConfig(["Alice", "Bob"]),
+                "Alice",
+                aliceWindow,
+              ),
+              coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+            ],
+            { concurrency: "unbounded" },
+          );
+
+          const roundOne = yield* Effect.all(
+            [
+              coordinator.progress(alice.sessionId, aliceWindow, {
+                complete: true,
+                label: "kill-item",
+                step: 0,
+              }),
+              coordinator.progress(bob.sessionId, bobWindow, {
+                complete: false,
+                label: "kill-item",
+                step: 0,
+              }),
+            ],
+            { concurrency: "unbounded" },
+          );
+          expect(roundOne[0]).toEqual({
+            complete: false,
+            completedPlayers: ["Alice"],
+            pendingPlayers: ["Bob"],
+          });
+
+          const roundTwo = yield* Effect.all(
+            [
+              coordinator.progress(alice.sessionId, aliceWindow, {
+                complete: true,
+                label: "kill-item",
+                step: 0,
+              }),
+              coordinator.progress(bob.sessionId, bobWindow, {
+                complete: true,
+                label: "kill-item",
+                step: 0,
+              }),
+            ],
+            { concurrency: "unbounded" },
+          );
+          expect(roundTwo[0].complete).toBe(true);
+          expect(roundTwo[0].pendingPlayers).toEqual([]);
+        }),
+      ),
+  );
 });

@@ -143,6 +143,7 @@ const bridge: DesktopBridge = {
           leave: (payload) => invoke(ArmyIpc.leave, payload),
           loadConfig: (configName) =>
             invoke(ArmyIpc.loadConfig, { configName }),
+          onEnded: (listener) => subscribe(ArmyIpc.ended, listener),
           progress: (payload) => invoke(ArmyIpc.progress, payload),
           start: (payload) => invoke(ArmyIpc.start, payload),
           sync: (payload) => invoke(ArmyIpc.sync, payload),

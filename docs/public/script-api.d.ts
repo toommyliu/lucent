@@ -210,6 +210,7 @@ interface ScriptArmyApi {
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
     sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
+    waitForAllInMap(): Effect<void, ArmyError>;
 }
 interface ScriptAuthApi {
     connectTo(server: string): Effect<AuthConnectOutcome, never>;
