@@ -101,6 +101,9 @@ const makeTarget = () => {
 
   return {
     calls,
+    closeBankUi: () => {
+      bankOpen = false;
+    },
     failNextBankLoad: () => {
       failBankLoad = true;
     },
@@ -118,8 +121,13 @@ describe("Api", () => {
   it.effect("protects container commands and action-locked workflows", () =>
     Effect.scoped(
       Effect.gen(function* () {
-        const { calls, failNextBankLoad, resetBankSession, target } =
-          makeTarget();
+        const {
+          calls,
+          closeBankUi,
+          failNextBankLoad,
+          resetBankSession,
+          target,
+        } = makeTarget();
         const bridge = yield* makeBridge(target);
         const gateway = yield* makeGateway(target).pipe(
           Effect.provideService(Bridge, bridge),
@@ -215,8 +223,11 @@ describe("Api", () => {
         expect(calls.deposits).toBe(0);
         expect(calls.withdrawals).toBe(0);
 
+        closeBankUi();
         expect(yield* api.bank.deposit(51)).toBe(true);
         expect(calls.deposits).toBe(1);
+        expect(calls.bankOpens).toBe(3);
+        expect(calls.bankLoadForces).toEqual([true, true, true]);
         expect(yield* api.bank.contains(51)).toBe(true);
         expect(yield* api.inventory.contains(51)).toBe(false);
 

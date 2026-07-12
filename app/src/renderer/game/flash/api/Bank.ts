@@ -157,7 +157,7 @@ export const makeBank = Effect.fnUntraced(function* (
 
   const deposit = (selector: ItemQuery) => {
     return Effect.gen(function* () {
-      if (!(yield* load())) return false;
+      if (!(yield* open())) return false;
       const inventoryItem = yield* inventory.get(selector);
       if (inventoryItem === null || !(yield* bankCanAccept(inventoryItem))) {
         return false;
@@ -199,7 +199,7 @@ export const makeBank = Effect.fnUntraced(function* (
 
   const withdraw = (selector: ItemQuery) => {
     return Effect.gen(function* () {
-      if (!(yield* load())) return false;
+      if (!(yield* open())) return false;
       const bankItem = yield* get(selector);
       if (bankItem === null) return false;
       const destination = bankItem.houseItem ? house : inventory;
@@ -244,7 +244,7 @@ export const makeBank = Effect.fnUntraced(function* (
 
   const swap = (inventorySelector: ItemQuery, bankSelector: ItemQuery) => {
     return Effect.gen(function* () {
-      if (!(yield* load())) return false;
+      if (!(yield* open())) return false;
       const inventoryItem = yield* inventory.get(inventorySelector);
       const bankItem = yield* get(bankSelector);
       if (inventoryItem === null || bankItem === null) {
