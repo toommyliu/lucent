@@ -33,6 +33,7 @@ package lucent.generated
       external.externalize("bank.getItems", Bank.getItems);
       external.externalize("bank.getSlots", Bank.getSlots);
       external.externalize("bank.getUsedSlots", Bank.getUsedSlots);
+      external.externalize("bank.isLoaded", Bank.isLoaded);
       external.externalize("bank.isOpen", Bank.isOpen);
       external.externalize("bank.loadItems", Bank.loadItems);
       external.externalize("bank.open", Bank.open);

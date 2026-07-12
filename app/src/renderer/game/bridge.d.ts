@@ -24,6 +24,7 @@ declare global {
       "bank.getItems": () => unknown[];
       "bank.getSlots": () => number;
       "bank.getUsedSlots": () => number;
+      "bank.isLoaded": () => boolean;
       "bank.isOpen": () => boolean;
       "bank.loadItems": (force?: boolean) => void;
       "bank.open": () => void;

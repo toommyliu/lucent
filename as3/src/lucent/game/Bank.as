@@ -2,22 +2,55 @@ package lucent.game
 {
   import lucent.Main;
   import flash.display.MovieClip;
+  import flash.events.Event;
+  import flash.events.IOErrorEvent;
 
   [BridgeNamespace("bank")]
   public class Bank
   {
+    private static var items:Array = [];
     private static var loaded:Boolean = false;
+    private static var loading:Boolean = false;
+
+    private static function failLoad(message:String):void
+    {
+      loading = false;
+      loaded = false;
+      Main.getInstance().emitDebug("Bank load failed: " + message);
+    }
+
+    private static function onLoadComplete(event:Event):void
+    {
+      try
+      {
+        var response:Object = JSON.parse(event.target.data);
+        if (!(response is Array))
+        {
+          failLoad("invalid response");
+          return;
+        }
+
+        var snapshot:Array = response as Array;
+        Main.Game.world.addItemsToBank(snapshot);
+        items = snapshot;
+        loading = false;
+        loaded = true;
+      }
+      catch (error:Error)
+      {
+        failLoad(error.message);
+      }
+    }
+
+    private static function onLoadError(event:IOErrorEvent):void
+    {
+      failLoad(event.text);
+    }
 
     [BridgeExport]
     public static function getItems():Array
     {
-      var game:Object = Main.Game;
-      if (!game.world.bankinfo || !(game.world.bankinfo.items is Array))
-      {
-        return [];
-      }
-
-      return game.world.bankinfo.items;
+      return items;
     }
 
     [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
@@ -60,13 +93,26 @@ package lucent.game
     public static function loadItems(force:Boolean = false):void
     {
       var game:Object = Main.Game;
-      if (loaded && !force)
+      if (loading || (loaded && !force))
       {
         return;
       }
 
-      game.getBank();
-      loaded = true;
+      loaded = false;
+      loading = true;
+      game.requestAPI(
+        "bank",
+        {"layout":{"cat":"all"}},
+        onLoadComplete,
+        onLoadError,
+        true
+      );
+    }
+
+    [BridgeExport]
+    public static function isLoaded():Boolean
+    {
+      return loaded;
     }
 
     [BridgeExport]
@@ -135,10 +181,6 @@ package lucent.game
     public static function open():void
     {
       var game:Object = Main.Game;
-      if (!loaded)
-      {
-        loadItems();
-      }
       if (!game.world.uiLock)
       {
         if (game.ui.mcPopup.currentLabel == "Bank")
@@ -162,7 +204,9 @@ package lucent.game
     [BridgeIgnore]
     public static function onLogout():void
     {
+      items = [];
       loaded = false;
+      loading = false;
     }
   }
 }

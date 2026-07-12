@@ -21,7 +21,9 @@ const makeTarget = () => {
     withdrawals: 0,
   };
   let failBankLoad = false;
+  let bankLoaded = false;
   let bankOpen = false;
+  let bankItems: readonly unknown[] = [];
   let openShopId = 0;
   const target = {} as Window;
 
@@ -37,21 +39,20 @@ const makeTarget = () => {
       return true;
     },
     "bank.getSlots": () => 2,
+    "bank.getItems": () => bankItems,
+    "bank.isLoaded": () => bankLoaded,
     "bank.loadItems": (force = false) => {
       calls.bankLoadForces.push(force);
       if (failBankLoad) throw new Error("load failed");
-      emitExtension(target, {
-        bitSuccess: 1,
-        cmd: "loadBank",
-        items: [
-          { ItemID: "42", iQty: "2", sName: "Indexed Item" },
-          {
-            ItemID: "43",
-            bHouse: 1,
-            sName: "Banked House Item",
-          },
-        ],
-      });
+      bankItems = [
+        { ItemID: "42", iQty: "2", sName: "Indexed Item" },
+        {
+          ItemID: "43",
+          bHouse: 1,
+          sName: "Banked House Item",
+        },
+      ];
+      bankLoaded = true;
     },
     "bank.isOpen": () => bankOpen,
     "bank.open": () => {
@@ -103,6 +104,12 @@ const makeTarget = () => {
     failNextBankLoad: () => {
       failBankLoad = true;
     },
+    resetBankSession: () => {
+      bankItems = [];
+      bankLoaded = false;
+      bankOpen = false;
+      failBankLoad = false;
+    },
     target,
   };
 };
@@ -111,7 +118,8 @@ describe("Api", () => {
   it.effect("protects container commands and action-locked workflows", () =>
     Effect.scoped(
       Effect.gen(function* () {
-        const { calls, failNextBankLoad, target } = makeTarget();
+        const { calls, failNextBankLoad, resetBankSession, target } =
+          makeTarget();
         const bridge = yield* makeBridge(target);
         const gateway = yield* makeGateway(target).pipe(
           Effect.provideService(Bridge, bridge),
@@ -142,18 +150,38 @@ describe("Api", () => {
         ]);
         expect(api.bank).not.toBe(api.inventory);
         expect(yield* api.bank.getAll()).toEqual([]);
-        expect(yield* api.bank.load()).toBe(true);
+        expect(yield* api.bank.open()).toBe(true);
         expect(calls.bankLoadForces).toEqual([true]);
         expect((yield* api.bank.getAll())[0]?.quantity).toBe(2);
+        expect(calls.bankOpens).toBe(1);
+
+        expect(yield* api.bank.open()).toBe(true);
+        expect(calls.bankLoadForces).toEqual([true]);
+        expect(calls.bankOpens).toBe(1);
+
+        const disconnected = yield* api.wait.forEvent(
+          { type: "connection" },
+          {
+            trigger: Effect.sync(() => {
+              resetBankSession();
+              target.onConnection?.("OnConnectionLost");
+              return true;
+            }),
+          },
+        );
+        expect(disconnected).not.toBeNull();
+        expect(yield* api.bank.getAll()).toEqual([]);
+
+        expect(yield* api.bank.open()).toBe(true);
+        expect(calls.bankLoadForces).toEqual([true, true]);
+        expect(calls.bankOpens).toBe(2);
+        expect((yield* api.bank.getAll())[0]?.itemId).toBe(42);
 
         failNextBankLoad();
         expect(yield* api.bank.load(true)).toBe(false);
-        expect(calls.bankLoadForces).toEqual([true, true]);
+        expect(calls.bankLoadForces).toEqual([true, true, true]);
         const retained = yield* api.bank.getAll();
         expect(retained[0]?.itemId).toBe(42);
-        expect(yield* api.bank.open()).toBe(true);
-        expect(calls.bankOpens).toBe(1);
-        expect(calls.bankLoadForces).toEqual([true, true]);
 
         const inventoryLoad = yield* api.wait.forPacket(
           {

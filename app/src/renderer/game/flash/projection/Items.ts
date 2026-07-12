@@ -134,8 +134,7 @@ export const projectItems = (
     switch (packet.command) {
       case "loadInventoryBig":
       case "initInventory":
-      case "loadHouseInventory":
-      case "loadBank": {
+      case "loadHouseInventory": {
         const decoded = decodeInventoryLoad(data);
         if (Option.isNone(decoded)) {
           yield* diagnose(
@@ -146,16 +145,9 @@ export const projectItems = (
           return [];
         }
         if (decoded.value.bitSuccess === false) return [];
-        if (
-          decoded.value.items !== undefined ||
-          packet.command === "loadBank"
-        ) {
+        if (decoded.value.items !== undefined) {
           const context =
-            packet.command === "loadBank"
-              ? "bank"
-              : packet.command === "loadHouseInventory"
-                ? "house"
-                : "inventory";
+            packet.command === "loadHouseInventory" ? "house" : "inventory";
           const items = yield* decodeContainerItems(
             decoded.value.items ?? [],
             context,

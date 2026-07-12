@@ -64,7 +64,6 @@ const itemCommands = new Set([
   "loadInventoryBig",
   "initInventory",
   "loadHouseInventory",
-  "loadBank",
   "bankFromInv",
   "bankToInv",
   "bankSwapInv",

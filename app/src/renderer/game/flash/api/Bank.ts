@@ -1,10 +1,11 @@
 import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
 import type { ItemQuery, LiveItem } from "@lucent/game";
-import { Effect, Option, Schema } from "effect";
+import { Effect, Option, Schema, Semaphore } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
+import { ItemPayloads, toItem } from "../contract/payload/Items";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
 import type { House } from "./House";
@@ -36,14 +37,16 @@ const destinationCanAccept = (itemId: number, destination: Inventory | House) =>
       ),
     );
 
-export const makeBank = (
+export const makeBank = Effect.fnUntraced(function* (
   bridge: BridgeService,
   store: Store,
   auth: Auth,
   inventory: Inventory,
   house: House,
   wait: Wait,
-) => {
+) {
+  const loads = yield* Semaphore.make(1);
+
   const isOpen = () =>
     bridge
       .invoke("bank.isOpen", undefined, Schema.Boolean)
@@ -77,53 +80,56 @@ export const makeBank = (
       Effect.map((items) => items.filter((item) => !item.coins).length),
     );
 
-  const load = (force = false) =>
-    Effect.gen(function* () {
-      if (!(yield* auth.isLoggedIn())) return false;
+  const isLoaded = () =>
+    bridge
+      .invoke("bank.isLoaded", undefined, Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
 
-      const version = yield* store.items.getHydrationVersion("bank");
-      if (version > 0 && !force) return true;
-      const requestForce = force || version === 0;
-      const loaded = yield* wait.forPacket(
-        { command: "loadBank", direction: "extension", wireType: "json" },
-        {
+  const load = (force = false) => {
+    return loads.withPermits(1)(
+      Effect.gen(function* () {
+        if (!(yield* auth.isLoggedIn())) return false;
+
+        const version = yield* store.items.getHydrationVersion("bank");
+        if (version > 0 && !force) return true;
+
+        const requested = yield* bridge.invoke(
+          "bank.loadItems",
+          [force || version === 0],
+          Schema.Void,
+        );
+        if (Option.isNone(requested)) return false;
+
+        const loaded = yield* wait.until(isLoaded(), {
+          interval: "100 millis",
           timeout: "10 seconds",
-          trigger: bridge
-            .invoke("bank.loadItems", [requestForce], Schema.Void)
-            .pipe(Effect.map(Option.isSome)),
-        },
-      );
-      if (loaded === null) return false;
-      return (yield* store.items.getHydrationVersion("bank")) > version;
-    });
+        });
+        if (!loaded) return false;
+
+        const snapshot = yield* bridge.invoke(
+          "bank.getItems",
+          undefined,
+          ItemPayloads,
+        );
+        if (Option.isNone(snapshot)) return false;
+
+        const items = snapshot.value.map((payload) =>
+          toItem(payload, { context: "bank" }),
+        );
+        yield* store.items.replace("bank", items);
+        return true;
+      }),
+    );
+  };
 
   const open = (force = false) =>
     Effect.gen(function* () {
       if (!(yield* auth.isLoggedIn())) return false;
 
-      if (force) {
-        yield* bridge.invoke("bank.loadItems", [true], Schema.Void);
-      }
+      if (!(yield* load(force))) return false;
 
       const opened = yield* isOpen();
-      if (opened && !force) return true;
-      if (opened) {
-        if (
-          Option.isNone(
-            yield* bridge.invoke("bank.open", undefined, Schema.Void),
-          )
-        ) {
-          return false;
-        }
-
-        if (
-          !(yield* wait.until(isOpen().pipe(Effect.map((value) => !value)), {
-            timeout: "3 seconds",
-          }))
-        ) {
-          return false;
-        }
-      }
+      if (opened) return true;
 
       if (
         Option.isNone(yield* bridge.invoke("bank.open", undefined, Schema.Void))
@@ -324,6 +330,6 @@ export const makeBank = (
     withdraw,
     withdrawBatch,
   };
-};
+});
 
-export type Bank = ReturnType<typeof makeBank>;
+export type Bank = Effect.Success<ReturnType<typeof makeBank>>;
