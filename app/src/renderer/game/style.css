@@ -191,6 +191,10 @@ html[data-topnav-hidden] #swf {
   white-space: nowrap;
 }
 
+.game-topnav__relogin-label {
+  line-height: 1.2;
+}
+
 .game-topnav__trigger--success,
 .game-topnav__button--success {
   color: var(--color-success-foreground);
