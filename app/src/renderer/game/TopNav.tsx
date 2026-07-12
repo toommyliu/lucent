@@ -76,7 +76,7 @@ export interface TopNavOptionItem {
   readonly label: string;
   readonly checked: boolean;
   readonly disabled?: boolean;
-  readonly onSelect: () => void;
+  readonly onCheckedChange: (checked: boolean) => void;
 }
 
 export interface TopNavOptionsMenuContentProps {
@@ -251,15 +251,6 @@ const MenuAutofocusAnchor = (): JSX.Element => (
   />
 );
 
-const clickOption =
-  (option: TopNavOptionItem): JSX.EventHandler<HTMLDivElement, MouseEvent> =>
-  () => {
-    if (option.disabled) {
-      return;
-    }
-    option.onSelect();
-  };
-
 const stopMenuInputKeyPropagation: JSX.EventHandler<
   HTMLInputElement,
   KeyboardEvent
@@ -333,7 +324,7 @@ export function TopNavOptionsMenuContent(
               class="game-menu__item"
               closeOnSelect={false}
               disabled={option.disabled}
-              onClick={clickOption(option)}
+              onCheckedChange={option.onCheckedChange}
               value={option.id}
             >
               <span class="game-menu__option-content">

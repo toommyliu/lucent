@@ -1089,7 +1089,7 @@ export function App(props: {
       });
   };
 
-  const toggleFlashSetting = (
+  const setFlashSetting = (
     label: string,
     key: keyof Pick<
       FlashSettingsSnapshot,
@@ -1104,12 +1104,12 @@ export function App(props: {
       | "provokeCellEnabled"
       | "skipCutscenesEnabled"
     >,
+    enabled: boolean,
     update: (
       settings: ApiService["settings"],
       enabled: boolean,
     ) => Effect.Effect<void>,
   ) => {
-    const enabled = !flashSettings()[key];
     runSettingsUpdate(
       label,
       { [key]: enabled } as FlashSettingsPatch,
@@ -1117,12 +1117,12 @@ export function App(props: {
     );
   };
 
-  const handleToggleHidePlayers = () => {
-    const visible = flashSettings().otherPlayersVisible;
+  const handleHidePlayersCheckedChange = (hidden: boolean) => {
+    const visible = !hidden;
     runSettingsUpdate(
       "hide players",
-      { otherPlayersVisible: !visible },
-      (settings) => settings.setOtherPlayersVisible(!visible),
+      { otherPlayersVisible: visible },
+      (settings) => settings.setOtherPlayersVisible(visible),
     );
   };
 
@@ -1172,10 +1172,11 @@ export function App(props: {
       label: "Infinite Range",
       checked: flashSettings().infiniteRangeEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle infinite range",
           "infiniteRangeEnabled",
+          enabled,
           (settings, enabled) => settings.setInfiniteRangeEnabled(enabled),
         ),
     },
@@ -1184,10 +1185,11 @@ export function App(props: {
       label: "Provoke Cell",
       checked: flashSettings().provokeCellEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle provoke cell",
           "provokeCellEnabled",
+          enabled,
           (settings, enabled) => settings.setProvokeCellEnabled(enabled),
         ),
     },
@@ -1196,10 +1198,11 @@ export function App(props: {
       label: "Enemy Magnet",
       checked: flashSettings().enemyMagnetEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle enemy magnet",
           "enemyMagnetEnabled",
+          enabled,
           (settings, enabled) => settings.setEnemyMagnetEnabled(enabled),
         ),
     },
@@ -1208,10 +1211,11 @@ export function App(props: {
       label: "Lag Killer",
       checked: flashSettings().lagKillerEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle lag killer",
           "lagKillerEnabled",
+          enabled,
           (settings, enabled) => settings.setLagKillerEnabled(enabled),
         ),
     },
@@ -1220,17 +1224,18 @@ export function App(props: {
       label: "Hide Players",
       checked: !flashSettings().otherPlayersVisible,
       disabled: optionsDisabled(),
-      onSelect: handleToggleHidePlayers,
+      onCheckedChange: handleHidePlayersCheckedChange,
     },
     {
       id: "skip-cutscenes",
       label: "Skip Cutscenes",
       checked: flashSettings().skipCutscenesEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle skip cutscenes",
           "skipCutscenesEnabled",
+          enabled,
           (settings, enabled) => settings.setSkipCutscenesEnabled(enabled),
         ),
     },
@@ -1239,10 +1244,11 @@ export function App(props: {
       label: "Anti-Counter",
       checked: flashSettings().antiCounterEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle anti-counter",
           "antiCounterEnabled",
+          enabled,
           (settings, enabled) => settings.setAntiCounterEnabled(enabled),
         ),
     },
@@ -1251,10 +1257,11 @@ export function App(props: {
       label: "Animations",
       checked: flashSettings().animationsEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle animations",
           "animationsEnabled",
+          enabled,
           (settings, enabled) => settings.setAnimationsEnabled(enabled),
         ),
     },
@@ -1263,10 +1270,11 @@ export function App(props: {
       label: "Collisions",
       checked: flashSettings().collisionsEnabled,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle collisions",
           "collisionsEnabled",
+          enabled,
           (settings, enabled) => settings.setCollisionsEnabled(enabled),
         ),
     },
@@ -1275,10 +1283,11 @@ export function App(props: {
       label: "Death Ads",
       checked: flashSettings().deathAdsVisible,
       disabled: optionsDisabled(),
-      onSelect: () =>
-        toggleFlashSetting(
+      onCheckedChange: (enabled) =>
+        setFlashSetting(
           "toggle death ads",
           "deathAdsVisible",
+          enabled,
           (settings, enabled) => settings.setDeathAdsVisible(enabled),
         ),
     },
@@ -2355,7 +2364,7 @@ export function App(props: {
       return;
     }
 
-    option.onSelect();
+    option.onCheckedChange(!option.checked);
     setOpenMenu(null);
   };
 

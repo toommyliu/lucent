@@ -1,15 +1,49 @@
-import { Effect, Fiber, Schema, Stream } from "effect";
+import { Effect, Fiber, Schema, Semaphore, Stream } from "effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import type { SettingsPatch as SettingsPatchValue } from "../contract/Settings";
 import type { Store } from "../state/Store";
 import type { SettingsState } from "../state/Settings";
 
+const normalizePatch = (input: SettingsPatchValue): SettingsPatchValue => ({
+  ...input,
+  ...(input.frameRate === undefined
+    ? {}
+    : { frameRate: Math.max(1, Math.min(60, input.frameRate)) }),
+  ...(input.walkSpeed === undefined
+    ? {}
+    : { walkSpeed: Math.max(1, input.walkSpeed) }),
+});
+
+const reapplyPatch = (state: SettingsState): SettingsPatchValue => {
+  const {
+    customGuild,
+    customGuildConfigured,
+    customName,
+    customNameConfigured,
+    ...settings
+  } = state;
+
+  return {
+    ...settings,
+    ...(customGuildConfigured ? { customGuild } : {}),
+    ...(customNameConfigured ? { customName } : {}),
+  };
+};
+
+const recurringActionsPatch = (state: SettingsState): SettingsPatchValue => ({
+  enemyMagnetEnabled: state.enemyMagnetEnabled,
+  infiniteRangeEnabled: state.infiniteRangeEnabled,
+  provokeCellEnabled: state.provokeCellEnabled,
+  skipCutscenesEnabled: state.skipCutscenesEnabled,
+});
+
 export const makeSettings = Effect.fnUntraced(function* (
   bridge: BridgeService,
   store: Store,
 ) {
   const scope = yield* Effect.scope;
+  const updates = yield* Semaphore.make(1);
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const command = (
     method: keyof Window["swf"],
@@ -19,33 +53,24 @@ export const makeSettings = Effect.fnUntraced(function* (
       .invoke(method, value === undefined ? undefined : [value], Schema.Void)
       .pipe(Effect.asVoid);
 
-  const apply = (input: SettingsPatchValue) => {
-    const patch: SettingsPatchValue = {
-      ...input,
-      ...(input.frameRate === undefined
-        ? {}
-        : { frameRate: Math.max(1, Math.min(60, input.frameRate)) }),
-      ...(input.walkSpeed === undefined
-        ? {}
-        : { walkSpeed: Math.max(1, input.walkSpeed) }),
-    };
+  const execute = (patch: SettingsPatchValue) => {
     const effects: Effect.Effect<void>[] = [];
-    const set = <K extends keyof SettingsPatchValue>(
+    const enqueue = <K extends keyof SettingsPatchValue>(
       key: K,
       method: keyof Window["swf"],
     ) => {
       const value = patch[key];
       if (value !== undefined) effects.push(command(method, value));
     };
-    set("animationsEnabled", "settings.setAnimationsEnabled");
-    set("collisionsEnabled", "settings.setCollisionsEnabled");
-    set("customGuild", "settings.setCustomGuild");
-    set("customName", "settings.setCustomName");
-    set("deathAdsVisible", "settings.setDeathAdsVisible");
-    set("frameRate", "settings.setFrameRate");
-    set("lagKillerEnabled", "settings.setLagKillerEnabled");
-    set("otherPlayersVisible", "settings.setOtherPlayersVisible");
-    set("walkSpeed", "settings.setWalkSpeed");
+    enqueue("animationsEnabled", "settings.setAnimationsEnabled");
+    enqueue("collisionsEnabled", "settings.setCollisionsEnabled");
+    enqueue("customGuild", "settings.setCustomGuild");
+    enqueue("customName", "settings.setCustomName");
+    enqueue("deathAdsVisible", "settings.setDeathAdsVisible");
+    enqueue("frameRate", "settings.setFrameRate");
+    enqueue("lagKillerEnabled", "settings.setLagKillerEnabled");
+    enqueue("otherPlayersVisible", "settings.setOtherPlayersVisible");
+    enqueue("walkSpeed", "settings.setWalkSpeed");
     if (patch.enemyMagnetEnabled === true) {
       effects.push(command("settings.enemyMagnet"));
     }
@@ -58,9 +83,15 @@ export const makeSettings = Effect.fnUntraced(function* (
     if (patch.skipCutscenesEnabled === true) {
       effects.push(command("settings.skipCutscenes"));
     }
-    return Effect.all(effects, { discard: true }).pipe(
-      Effect.andThen(
-        store.settings.patch({
+    return Effect.all(effects, { discard: true });
+  };
+
+  const apply = (input: SettingsPatchValue) =>
+    updates.withPermits(1)(
+      Effect.gen(function* () {
+        const patch = normalizePatch(input);
+        yield* execute(patch);
+        yield* store.settings.patch({
           ...patch,
           ...(patch.customGuild === undefined
             ? {}
@@ -68,11 +99,9 @@ export const makeSettings = Effect.fnUntraced(function* (
           ...(patch.customName === undefined
             ? {}
             : { customNameConfigured: true }),
-        }),
-      ),
-      Effect.asVoid,
+        });
+      }),
     );
-  };
 
   const action = (
     key:
@@ -82,15 +111,28 @@ export const makeSettings = Effect.fnUntraced(function* (
       | "skipCutscenesEnabled",
     method: keyof Window["swf"],
   ) =>
-    command(method).pipe(
-      Effect.andThen(
-        store.settings.get.pipe(
-          Effect.flatMap((state) =>
-            store.settings.patch({ [key]: !state[key] }),
-          ),
-        ),
+    updates.withPermits(1)(
+      Effect.gen(function* () {
+        yield* command(method);
+        const state = yield* store.settings.get;
+        yield* store.settings.patch({ [key]: !state[key] });
+      }),
+    );
+
+  const reapply = () =>
+    updates.withPermits(1)(
+      store.settings.get.pipe(
+        Effect.map(reapplyPatch),
+        Effect.flatMap(execute),
       ),
-      Effect.asVoid,
+    );
+
+  const reapplyActions = () =>
+    updates.withPermits(1)(
+      store.settings.get.pipe(
+        Effect.map(recurringActionsPatch),
+        Effect.flatMap(execute),
+      ),
     );
 
   const set =
@@ -142,6 +184,8 @@ export const makeSettings = Effect.fnUntraced(function* (
     isAntiCounterEnabled,
     onState,
     provokeCell,
+    reapply,
+    reapplyActions,
     setAnimationsEnabled,
     setAntiCounterEnabled,
     setCollisionsEnabled,
