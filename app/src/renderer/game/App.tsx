@@ -1461,16 +1461,15 @@ export function App(props: {
     const version = ++playerReadyRefreshVersion;
     return readPlayerReady()
       .then((ready) => {
-        if (version === playerReadyRefreshVersion) {
-          setPlayerReady(ready);
+        // Once a session is ready, transient cell/map transition reads must not
+        // disable the controls. Explicit unload and disconnect events reset it.
+        if (version === playerReadyRefreshVersion && ready) {
+          setPlayerReady(true);
         }
         return ready;
       })
       .catch((error: unknown) => {
         console.error("[game:player]", "readiness refresh failed", error);
-        if (version === playerReadyRefreshVersion) {
-          setPlayerReady(false);
-        }
         return false;
       });
   };

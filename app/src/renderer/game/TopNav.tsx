@@ -578,12 +578,15 @@ export function TopNav(props: TopNavProps): JSX.Element {
 
   const gameInteractionDisabled = () => !props.playerReady();
 
-  const travelDisabled = () => gameInteractionDisabled() || props.travelBusy();
+  const travelUnavailable = () => gameInteractionDisabled();
+
+  const travelInteractionBlocked = () =>
+    travelUnavailable() || props.travelBusy();
 
   const toggleTravelMenu =
     (menu: "pads" | "cells"): JSX.EventHandler<HTMLButtonElement, MouseEvent> =>
     (event) => {
-      if (travelDisabled()) {
+      if (travelInteractionBlocked()) {
         event.preventDefault();
         return;
       }
@@ -1221,7 +1224,8 @@ export function TopNav(props: TopNavProps): JSX.Element {
           >
             <TopNavMenuTrigger
               class="game-topnav__select-trigger"
-              disabled={travelDisabled()}
+              aria-busy={props.travelBusy() ? "true" : undefined}
+              disabled={travelUnavailable()}
               expanded={props.openMenu() === "pads"}
               onClick={toggleTravelMenu("pads")}
               variant="secondary"
@@ -1271,7 +1275,8 @@ export function TopNav(props: TopNavProps): JSX.Element {
           >
             <TopNavMenuTrigger
               class="game-topnav__select-trigger game-topnav__select-trigger--cell"
-              disabled={travelDisabled()}
+              aria-busy={props.travelBusy() ? "true" : undefined}
+              disabled={travelUnavailable()}
               expanded={props.openMenu() === "cells"}
               onClick={toggleTravelMenu("cells")}
               variant="secondary"
