@@ -56,6 +56,10 @@ const parseLaunchMode = (
   value: string | undefined,
 ): AppLaunchMode | undefined => {
   const normalized = normalizeOptional(value)?.toLowerCase();
+  if (normalized === "manager") {
+    return "account-manager";
+  }
+
   return isAppLaunchMode(normalized) ? normalized : undefined;
 };
 
