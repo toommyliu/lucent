@@ -78,6 +78,7 @@ export interface DesktopWindowsShape {
   readonly revealBrowserWindow: (
     browserWindowId: number,
   ) => Effect.Effect<boolean, DesktopWindowError>;
+  readonly setBackgroundColor: (backgroundColor: string) => Effect.Effect<void>;
 }
 
 export class DesktopWindows extends Context.Service<
@@ -448,6 +449,38 @@ const makeDesktopWindows = Effect.gen(function* () {
       };
     });
 
+  const setBackgroundColor: DesktopWindowsShape["setBackgroundColor"] = (
+    backgroundColor,
+  ) =>
+    Effect.forEach(
+      windows.entries(),
+      ([id, record]) => {
+        if (!isElectronWindowUsable(record.window)) {
+          windows.delete(id);
+          return Effect.void;
+        }
+
+        return Effect.try({
+          try: () => record.window.setBackgroundColor(backgroundColor),
+          catch: (cause) =>
+            new DesktopWindowError({
+              id,
+              detail: `Failed to update desktop window background: ${id}`,
+              cause,
+            }),
+        }).pipe(
+          Effect.catch((cause) =>
+            observability.warn(
+              "window",
+              "Failed to update desktop window background",
+              { cause, id },
+            ),
+          ),
+        );
+      },
+      { discard: true },
+    );
+
   const findOpenInstance = (
     kind: DesktopWindowKind,
   ): readonly [DesktopWindowInstanceId, DesktopWindowRecord] | null => {
@@ -593,6 +626,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     open,
     reveal,
     revealBrowserWindow,
+    setBackgroundColor,
   });
 });
 

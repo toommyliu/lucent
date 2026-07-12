@@ -1,5 +1,6 @@
 const { build, context } = require("esbuild");
 const { solidPlugin } = require("esbuild-plugin-solid");
+const { createHash } = require("crypto");
 const {
   copyFileSync,
   existsSync,
@@ -32,9 +33,19 @@ const baseOptions = {
   sourcemap: !isProduction,
 };
 
+const rendererThemeBootstrapScript =
+  'document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";';
+const rendererThemeBootstrapHash = createHash("sha256")
+  .update(rendererThemeBootstrapScript)
+  .digest("base64");
+const rendererScriptSources = [
+  "'self'",
+  `'sha256-${rendererThemeBootstrapHash}'`,
+];
+
 const baseContentSecurityPolicyDirectives = {
   "default-src": ["'self'"],
-  "script-src": ["'self'"],
+  "script-src": rendererScriptSources,
   "style-src": ["'self'", "'unsafe-inline'"],
 };
 
@@ -52,7 +63,7 @@ const rendererViews = [
   {
     contentSecurityPolicy: formatContentSecurityPolicy({
       "default-src": ["'self'", "https://game.aq.com"],
-      "script-src": ["'self'", "'unsafe-eval'"],
+      "script-src": [...rendererScriptSources, "'unsafe-eval'"],
       "plugin-types": ["application/x-shockwave-flash"],
     }),
     entryPoint: "src/renderer/game/index.tsx",
@@ -133,11 +144,7 @@ const preloadOptions = {
 };
 
 const rendererHtmlAttributes = (view) =>
-  [
-    'lang="en"',
-    view.ready === true ? 'data-ready="false"' : undefined,
-    'data-theme="dark"',
-  ]
+  ['lang="en"', view.ready === true ? 'data-ready="false"' : undefined]
     .filter(Boolean)
     .join(" ");
 
@@ -155,6 +162,7 @@ const rendererIndexHtml = (view) => {
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${view.title}</title>
+    <script>${rendererThemeBootstrapScript}</script>
     <link rel="stylesheet" href="../styles.css" />
     <link rel="stylesheet" href="./style.css" />
   </head>

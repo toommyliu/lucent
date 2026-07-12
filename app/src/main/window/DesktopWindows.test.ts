@@ -51,6 +51,7 @@ const makeTempDir = async (prefix: string): Promise<string> => {
 type TestWindowListener = (...args: readonly unknown[]) => void;
 
 interface TestWindowHandle extends ElectronWindowHandle {
+  readonly backgroundColors: () => readonly string[];
   readonly emit: (eventName: string, ...args: readonly unknown[]) => void;
   readonly hideCount: () => number;
 }
@@ -66,10 +67,12 @@ const addWindowListener = (
 const makeHandle = (id: number): TestWindowHandle => {
   const listeners = new Map<string, TestWindowListener[]>();
   const onceListeners = new Map<string, TestWindowListener[]>();
+  const backgroundColors: string[] = [];
   let hiddenCount = 0;
   let visible = true;
 
   return {
+    backgroundColors: () => backgroundColors,
     id,
     webContents: {
       id: id + 100,
@@ -106,6 +109,9 @@ const makeHandle = (id: number): TestWindowHandle => {
     once: (eventName, listener) =>
       addWindowListener(onceListeners, eventName, listener),
     restore: () => undefined,
+    setBackgroundColor: (backgroundColor) => {
+      backgroundColors.push(backgroundColor);
+    },
     setMenuBarVisibility: () => undefined,
     show: () => {
       visible = true;
@@ -232,6 +238,11 @@ describe("DesktopWindows", () => {
       expect(prepareGameNetworkingCount).toBe(2);
       expect(loadCount).toBe(2);
       expect(revealCount).toBe(2);
+
+      yield* windows.setBackgroundColor("#ffffff");
+      expect(createdHandles.map((handle) => handle.backgroundColors())).toEqual(
+        [["#ffffff"], ["#ffffff"]],
+      );
 
       createdHandles[0]?.emit("closed");
     }),

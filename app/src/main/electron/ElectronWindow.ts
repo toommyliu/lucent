@@ -35,6 +35,7 @@ export interface ElectronWindowHandle {
   readonly on: (eventName: string, listener: (...args: any[]) => void) => void;
   readonly once: (eventName: string, listener: () => void) => void;
   readonly restore: () => void;
+  readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
   readonly show: () => void;
 }

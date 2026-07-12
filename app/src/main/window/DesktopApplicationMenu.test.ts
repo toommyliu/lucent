@@ -195,6 +195,7 @@ describe("DesktopApplicationMenu", () => {
           open: () => Effect.succeed("settings-1"),
           reveal: () => Effect.succeed(true),
           revealBrowserWindow: () => Effect.succeed(true),
+          setBackgroundColor: () => Effect.void,
         });
         const app = ElectronApp.of({
           appendCommandLineSwitch: () => Effect.void,
@@ -326,6 +327,7 @@ describe("DesktopApplicationMenu", () => {
             open: () => Effect.succeed("settings-1"),
             reveal: () => Effect.succeed(true),
             revealBrowserWindow: () => Effect.succeed(true),
+            setBackgroundColor: () => Effect.void,
           });
           const app = ElectronApp.of({
             appendCommandLineSwitch: () => Effect.void,

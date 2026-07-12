@@ -1,5 +1,6 @@
 import { Cause, Effect } from "effect";
 
+import { createAppearanceSnapshot } from "@lucent/core/appearance";
 import type { AppSettings } from "@lucent/core/settings";
 import type { CliOptions } from "../cli";
 import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
@@ -18,30 +19,36 @@ import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopApplicationMenu } from "../window/DesktopApplicationMenu";
 import { DesktopWindows } from "../window/DesktopWindows";
 
-export const installDesktopNativeThemeSync = (initialSettings: AppSettings) =>
+export const installDesktopNativeAppearanceSync = (
+  initialSettings: AppSettings,
+) =>
   Effect.gen(function* () {
     const observability = yield* DesktopObservability;
     const settingsService = yield* DesktopSettings;
     const theme = yield* ElectronTheme;
+    const windows = yield* DesktopWindows;
     const context = yield* Effect.context<never>();
     const runPromise = Effect.runPromiseWith(context);
 
-    const applyNativeTheme = (settings: AppSettings) =>
-      theme
-        .setThemeMode(settings.appearance.themeMode)
-        .pipe(
-          Effect.catch((cause) =>
-            observability.warn(
-              "appearance",
-              "Failed to update Electron native theme",
-              { cause },
-            ),
+    const applyNativeAppearance = (settings: AppSettings) =>
+      Effect.gen(function* () {
+        yield* theme.setThemeMode(settings.appearance.themeMode);
+        const systemPrefersDark = yield* theme.shouldUseDarkColors;
+        const snapshot = createAppearanceSnapshot(settings, systemPrefersDark);
+        yield* windows.setBackgroundColor(snapshot.backgroundColor);
+      }).pipe(
+        Effect.catch((cause) =>
+          observability.warn(
+            "appearance",
+            "Failed to update Electron native appearance",
+            { cause },
           ),
-        );
+        ),
+      );
 
-    yield* applyNativeTheme(initialSettings);
+    yield* applyNativeAppearance(initialSettings);
     const unsubscribe = yield* settingsService.onChanged((settings) => {
-      void runPromise(applyNativeTheme(settings)).catch(() => undefined);
+      void runPromise(applyNativeAppearance(settings)).catch(() => undefined);
     });
     yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
   });
@@ -74,7 +81,7 @@ export const makeDesktopRuntime = (
       const settings = yield* settingsService.load;
 
       yield* app.whenReady;
-      yield* installDesktopNativeThemeSync(settings);
+      yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers;
       yield* applicationMenu.install;
       if (cliOptions.obs !== undefined) {
