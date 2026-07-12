@@ -341,8 +341,6 @@ describe("DesktopWindows", () => {
         expect(createdOptions[0]).toEqual(
           expect.objectContaining({
             height: 1080,
-            minHeight: 600,
-            minWidth: 800,
             width: 960,
             x: 960,
             y: 0,
@@ -351,8 +349,6 @@ describe("DesktopWindows", () => {
         expect(createdOptions[1]).toEqual(
           expect.objectContaining({
             height: 540,
-            minHeight: 540,
-            minWidth: 800,
             width: 1920,
             x: 0,
             y: 540,
@@ -361,8 +357,6 @@ describe("DesktopWindows", () => {
         expect(createdOptions[2]).toEqual(
           expect.objectContaining({
             height: 540,
-            minHeight: 540,
-            minWidth: 800,
             width: 960,
             x: 0,
             y: 540,

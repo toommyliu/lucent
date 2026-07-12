@@ -26,8 +26,6 @@ const desktopWindowCatalog: ReadonlyMap<
       kind: "game",
       width: 1024,
       height: 768,
-      minWidth: 800,
-      minHeight: 600,
       closeBehavior: "destroy",
       requiresFlashPlugin: true,
       singleInstance: false,

@@ -19,18 +19,19 @@ import {
   MenuTrigger,
   cn,
   type ButtonProps,
+  type MenuContentProps,
+  type MenuSubContentProps,
 } from "@lucent/ui";
 import {
   createSignal,
   For,
-  onCleanup,
-  onMount,
   Show,
   splitProps,
   type Accessor,
   type JSX,
   type Setter,
 } from "solid-js";
+import { Portal } from "solid-js/web";
 
 import type { AppPlatform } from "../../shared/desktopBridge";
 import {
@@ -304,6 +305,42 @@ function TopNavMenuTrigger(props: TopNavMenuTriggerProps): JSX.Element {
   );
 }
 
+type GameMenuPortalProps = {
+  readonly portalMount: Accessor<Node | undefined>;
+};
+
+function GameMenuContent(
+  props: MenuContentProps & GameMenuPortalProps,
+): JSX.Element {
+  const [local, rest] = splitProps(props, ["portalMount"]);
+
+  return (
+    <Show when={local.portalMount()}>
+      {(portalMount) => (
+        <Portal mount={portalMount()}>
+          <MenuContent {...rest} portal={false} />
+        </Portal>
+      )}
+    </Show>
+  );
+}
+
+function GameMenuSubContent(
+  props: MenuSubContentProps & GameMenuPortalProps,
+): JSX.Element {
+  const [local, rest] = splitProps(props, ["portalMount"]);
+
+  return (
+    <Show when={local.portalMount()}>
+      {(portalMount) => (
+        <Portal mount={portalMount()}>
+          <MenuSubContent {...rest} portal={false} />
+        </Portal>
+      )}
+    </Show>
+  );
+}
+
 export function TopNavOptionsMenuContent(
   props: TopNavOptionsMenuContentProps,
 ): JSX.Element {
@@ -399,8 +436,8 @@ export function TopNavOptionsMenuContent(
 }
 
 export function TopNav(props: TopNavProps): JSX.Element {
-  let topNavContainer: HTMLDivElement | undefined;
   let autoReloginMenuContent: HTMLDivElement | undefined;
+  const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
 
@@ -517,36 +554,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
     }
   };
 
-  onMount(() => {
-    let lastTopNavHeight = 0;
-
-    const setTopNavOffset = (height: number): void => {
-      if (!Number.isFinite(height)) return;
-
-      const roundedHeight = Math.ceil(height);
-      if (roundedHeight <= 0 || roundedHeight === lastTopNavHeight) return;
-
-      lastTopNavHeight = roundedHeight;
-      document.documentElement.style.setProperty(
-        "--topnav-offset",
-        `${roundedHeight}px`,
-      );
-    };
-
-    const observer = new ResizeObserver(([entry]) => {
-      const height =
-        entry?.borderBoxSize[0]?.blockSize ?? entry?.contentRect.height;
-      if (height !== undefined) setTopNavOffset(height);
-    });
-
-    if (topNavContainer) observer.observe(topNavContainer);
-
-    onCleanup(() => {
-      observer.disconnect();
-      document.documentElement.style.removeProperty("--topnav-offset");
-    });
-  });
-
   const setMenuOpen =
     (menu: GameTopNavMenu) =>
     (details: { readonly open: boolean }): void => {
@@ -617,13 +624,11 @@ export function TopNav(props: TopNavProps): JSX.Element {
   };
 
   return (
-    <div
-      ref={(element) => {
-        topNavContainer = element;
-      }}
-      id="topnav-container"
-      class="game-topnav-container"
-    >
+    <div id="topnav-container" class="game-topnav-container">
+      <div
+        ref={(element) => setMenuPortalMount(element)}
+        class="game-topnav__menu-portal"
+      />
       <nav id="topnav" class="game-topnav" aria-label="Game controls">
         <div
           class="game-topnav__left"
@@ -645,7 +650,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
             >
               Windows
             </TopNavMenuTrigger>
-            <MenuContent class="game-menu game-menu--mega" portal={false}>
+            <GameMenuContent
+              class="game-menu game-menu--mega"
+              portalMount={menuPortalMount}
+            >
               <div class="game-menu__mega-grid">
                 <For each={gameWindowGroups}>
                   {(group) => (
@@ -676,7 +684,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   )}
                 </For>
               </div>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -689,7 +697,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
             >
               Scripts
             </TopNavMenuTrigger>
-            <MenuContent class="game-menu game-menu--scripts" portal={false}>
+            <GameMenuContent
+              class="game-menu game-menu--scripts"
+              portalMount={menuPortalMount}
+            >
               <div class="game-menu__status" role="status">
                 {props.scriptStatus()}
               </div>
@@ -736,9 +747,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   <MenuSubTrigger class="game-menu__item">
                     <span class="game-menu__item-label">Options</span>
                   </MenuSubTrigger>
-                  <MenuSubContent
+                  <GameMenuSubContent
                     class="game-menu game-menu--compact"
-                    portal={false}
+                    portalMount={menuPortalMount}
                   >
                     <MenuCheckboxItem
                       checked={props.scriptUsePrivateRooms()}
@@ -758,10 +769,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     >
                       Safe Start/Stop
                     </MenuCheckboxItem>
-                  </MenuSubContent>
+                  </GameMenuSubContent>
                 </MenuSub>
               </MenuGroup>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -774,9 +785,12 @@ export function TopNav(props: TopNavProps): JSX.Element {
             >
               Options
             </TopNavMenuTrigger>
-            <MenuContent class="game-menu game-menu--options" portal={false}>
+            <GameMenuContent
+              class="game-menu game-menu--options"
+              portalMount={menuPortalMount}
+            >
               <TopNavOptionsMenuContent {...props} />
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -800,7 +814,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </span>
               </Show>
             </TopNavMenuTrigger>
-            <MenuContent class="game-menu game-menu--autozone" portal={false}>
+            <GameMenuContent
+              class="game-menu game-menu--autozone"
+              portalMount={menuPortalMount}
+            >
               <MenuAutofocusAnchor />
               <MenuCheckboxItem
                 checked={props.autoZoneEnabled()}
@@ -818,9 +835,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     {getAutoZoneMapLabel(props.autoZoneMap()) || "None"}
                   </span>
                 </MenuSubTrigger>
-                <MenuSubContent
+                <GameMenuSubContent
                   class="game-menu game-menu--compact game-menu--autozone-maps"
-                  portal={false}
+                  portalMount={menuPortalMount}
                 >
                   <For each={AUTO_ZONE_MAP_OPTIONS}>
                     {(option) => (
@@ -841,9 +858,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       </MenuCheckboxItem>
                     )}
                   </For>
-                </MenuSubContent>
+                </GameMenuSubContent>
               </MenuSub>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -879,12 +896,12 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </span>
               </Show>
             </TopNavMenuTrigger>
-            <MenuContent
+            <GameMenuContent
               ref={(element) => {
                 autoReloginMenuContent = element;
               }}
               class="game-menu game-menu--relogin"
-              portal={false}
+              portalMount={menuPortalMount}
             >
               <MenuAutofocusAnchor />
               <Show when={autoReloginMenuStatus()}>
@@ -936,10 +953,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     {props.autoReloginServer() || "None"}
                   </span>
                 </MenuSubTrigger>
-                <MenuSubContent
+                <GameMenuSubContent
                   class="game-menu game-menu--compact game-menu--relogin-servers"
                   onKeyDownCapture={closeAutoReloginServerMenuToParent}
-                  portal={false}
+                  portalMount={menuPortalMount}
                 >
                   <Show
                     when={props.autoReloginServers().length > 0}
@@ -971,7 +988,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       )}
                     </For>
                   </Show>
-                </MenuSubContent>
+                </GameMenuSubContent>
               </MenuSub>
               <MenuSeparator />
               <div class="game-menu__fields game-menu__fields--single-row">
@@ -999,7 +1016,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   </div>
                 </Label>
               </div>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Button
@@ -1056,7 +1073,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 class="game-topnav__select-chevron"
               />
             </TopNavMenuTrigger>
-            <MenuContent class="game-menu game-menu--combat" portal={false}>
+            <GameMenuContent
+              class="game-menu game-menu--combat"
+              portalMount={menuPortalMount}
+            >
               <MenuAutofocusAnchor />
               <MenuCheckboxItem
                 checked={props.autoAttackEnabled()}
@@ -1080,9 +1100,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     {autoAttackPrioritySummary()}
                   </span>
                 </MenuSubTrigger>
-                <MenuSubContent
+                <GameMenuSubContent
                   class="game-menu game-menu--combat-priority"
-                  portal={false}
+                  portalMount={menuPortalMount}
                 >
                   <div class="game-menu__fields game-menu__fields--single-row">
                     <Label class="game-menu__field game-menu__field--wide">
@@ -1102,7 +1122,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       />
                     </Label>
                   </div>
-                </MenuSubContent>
+                </GameMenuSubContent>
               </MenuSub>
               <MenuSeparator />
               <MenuGroup>
@@ -1138,7 +1158,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   )}
                 </For>
               </MenuRadioGroup>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -1162,9 +1182,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 class="game-topnav__select-chevron"
               />
             </TopNavMenuTrigger>
-            <MenuContent
+            <GameMenuContent
               class="game-menu game-menu--compact game-menu--pads"
-              portal={false}
+              portalMount={menuPortalMount}
             >
               <Show
                 when={props.pads().length > 0}
@@ -1189,7 +1209,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   )}
                 </For>
               </Show>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Menu
@@ -1213,9 +1233,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 class="game-topnav__select-chevron"
               />
             </TopNavMenuTrigger>
-            <MenuContent
+            <GameMenuContent
               class="game-menu game-menu--compact game-menu--cells"
-              portal={false}
+              portalMount={menuPortalMount}
             >
               <Show
                 when={props.cells().length > 0}
@@ -1237,7 +1257,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   )}
                 </For>
               </Show>
-            </MenuContent>
+            </GameMenuContent>
           </Menu>
 
           <Button

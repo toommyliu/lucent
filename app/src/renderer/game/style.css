@@ -1,5 +1,5 @@
 :root {
-  --topnav-height: 32px;
+  --topnav-height: 35px;
 }
 
 html,
@@ -17,11 +17,11 @@ body {
 
 #swf {
   position: fixed;
-  top: var(--topnav-offset, var(--topnav-height, 32px));
+  top: var(--topnav-height, 35px);
   left: 0;
   z-index: 0;
   width: 100%;
-  height: calc(100% - var(--topnav-offset, var(--topnav-height, 32px)));
+  height: calc(100% - var(--topnav-height, 35px));
   border: 0;
   background: rgb(var(--background));
 }
@@ -56,19 +56,56 @@ html[data-topnav-hidden] #swf {
   position: relative;
   z-index: 10000;
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-background);
+  height: var(--topnav-height, 35px);
+  pointer-events: auto;
+}
+
+.game-topnav__menu-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  pointer-events: none;
+}
+
+.game-topnav__menu-portal .menu__positioner {
   pointer-events: auto;
 }
 
 .game-topnav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  height: calc(100% - 1px);
   min-width: 0;
-  min-height: var(--topnav-height, 28px);
-  padding: 0 10px;
+  padding: 0 6px;
+  overflow-x: auto;
+  overflow-x: overlay;
+  overflow-y: hidden;
+  background: var(--color-background);
+  overscroll-behavior-x: contain;
+  scrollbar-color: rgb(var(--scrollbar-thumb)) transparent;
+}
+
+.game-topnav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.game-topnav::-webkit-scrollbar-track,
+.game-topnav::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.game-topnav::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--scrollbar-thumb));
+  border: 0;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.game-topnav::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--scrollbar-thumb-hover));
 }
 
 .game-topnav__left,
@@ -87,12 +124,13 @@ html[data-topnav-hidden] #swf {
 }
 
 .game-topnav__left {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  margin-right: auto;
   overflow: visible;
 }
 
 .game-topnav__right {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 
@@ -295,41 +333,39 @@ html[data-topnav-hidden] #swf {
   line-height: 1.2;
 }
 
-.game-topnav .menu__positioner {
-  z-index: 10001;
-  pointer-events: auto;
-}
-
 .game-menu {
+  box-sizing: border-box;
+  max-width: calc(100vw - 0.5rem);
+  min-width: min(9rem, calc(100vw - 0.5rem));
   font-size: var(--text-sm);
 }
 
 .game-menu--mega {
-  min-width: min(42rem, calc(100vw - 1rem));
+  width: min(42rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--scripts {
-  min-width: 15rem;
+  width: min(15rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--relogin {
-  width: min(17rem, calc(100vw - 1rem)) !important;
+  width: min(17rem, calc(100vw - 0.5rem)) !important;
 }
 
 .game-menu--options {
-  min-width: min(24rem, calc(100vw - 1rem));
+  width: min(24rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--autozone {
-  width: min(14rem, calc(100vw - 1rem)) !important;
+  width: min(14rem, calc(100vw - 0.5rem)) !important;
 }
 
 .game-menu--combat {
-  width: min(16rem, calc(100vw - 1rem)) !important;
+  width: min(16rem, calc(100vw - 0.5rem)) !important;
 }
 
 .game-menu--combat-priority {
-  width: min(15rem, calc(100vw - 1rem)) !important;
+  width: min(15rem, calc(100vw - 0.5rem)) !important;
 }
 
 .game-menu--combat .menu__label {
@@ -338,27 +374,27 @@ html[data-topnav-hidden] #swf {
 }
 
 .game-menu--compact {
-  min-width: 7rem;
+  min-width: min(7rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--relogin-servers {
   width: max-content;
-  min-width: 10rem !important;
-  max-width: 20rem;
+  min-width: min(10rem, calc(100vw - 0.5rem)) !important;
+  max-width: min(20rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--pads {
-  min-width: 8rem;
+  min-width: min(8rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--cells {
-  min-width: 10rem;
+  min-width: min(10rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--cells .menu__viewport {
   max-height: min(
     18rem,
-    calc(100vh - var(--topnav-offset, var(--topnav-height, 32px)) - 1rem)
+    calc(100vh - var(--topnav-height, 35px) - 1rem)
   );
 }
 
@@ -372,7 +408,10 @@ html[data-topnav-hidden] #swf {
 
 .game-menu__mega-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(9rem, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(9rem, 100%), 1fr)
+  );
   gap: 6px;
 }
 
@@ -595,8 +634,8 @@ html[data-topnav-hidden] #swf {
 
 .game-menu--autozone-maps {
   width: max-content;
-  min-width: 10rem !important;
-  max-width: 16rem;
+  min-width: min(10rem, calc(100vw - 0.5rem)) !important;
+  max-width: min(16rem, calc(100vw - 0.5rem));
 }
 
 .game-menu__status {
@@ -647,13 +686,19 @@ html[data-topnav-hidden] #swf {
 
 .game-options-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(10rem, 100%), 1fr)
+  );
   gap: 2px;
 }
 
 .game-menu__fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(10rem, 100%), 1fr)
+  );
   gap: 8px;
   padding: 4px;
 }
@@ -696,6 +741,10 @@ html[data-topnav-hidden] #swf {
 .game-script-inputs-dialog.dialog__content {
   max-height: min(42rem, calc(100vh - 2rem));
   max-width: min(30rem, calc(100vw - 2rem));
+}
+
+.game-script-inputs-dialog .dialog__footer {
+  flex-wrap: wrap;
 }
 
 .game-script-inputs-dialog .dialog__description {
@@ -885,7 +934,7 @@ html[data-topnav-hidden] #swf {
 
 .game-loader {
   position: fixed;
-  top: var(--topnav-offset, var(--topnav-height, 32px));
+  top: var(--topnav-height, 35px);
   right: 0;
   bottom: 0;
   left: 0;
@@ -1074,8 +1123,13 @@ html[data-topnav-hidden] #swf {
   word-break: break-word;
 }
 
-@media (width <= 640px) {
-  .game-topnav__right {
-    display: none;
+@media (width <= 480px), (height <= 320px) {
+  .game-script-inputs-dialog .dialog__header,
+  .game-script-inputs-dialog .dialog__footer {
+    padding: 0.75rem;
+  }
+
+  .game-script-inputs-dialog__fields {
+    padding: 0 0.75rem;
   }
 }
