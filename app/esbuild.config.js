@@ -11,6 +11,7 @@ const {
   unwatchFile,
   watchFile,
   writeFileSync,
+  appendFileSync,
 } = require("fs");
 const { dirname, join } = require("path");
 
@@ -220,7 +221,7 @@ const notifyBuild = (label, options = {}) => {
   notifiedLabels.add(label);
 
   mkdirSync(dirname(notifyPath), { recursive: true });
-  require("fs").appendFileSync(
+  appendFileSync(
     notifyPath,
     `${JSON.stringify({
       label,
@@ -234,13 +235,13 @@ const notifyBuild = (label, options = {}) => {
 const rendererStaticFilePaths = () =>
   rendererViews.map((view) => `src/renderer/${view.id}/style.css`);
 
+const fileChanged = (current, previous) =>
+  current.mtimeMs !== previous.mtimeMs || current.size !== previous.size;
+
 const watchRendererStaticFiles = () => {
   const watchedPaths = rendererStaticFilePaths();
   const listener = (current, previous) => {
-    if (
-      current.mtimeMs === previous.mtimeMs &&
-      current.size === previous.size
-    ) {
+    if (!fileChanged(current, previous)) {
       return;
     }
 
@@ -260,6 +261,23 @@ const watchRendererStaticFiles = () => {
     for (const path of watchedPaths) {
       unwatchFile(path, listener);
     }
+  };
+};
+
+const watchLoaderSwf = () => {
+  const loaderPath = join("..", "assets", "loader.swf");
+  const listener = (current, previous) => {
+    if (!fileChanged(current, previous)) {
+      return;
+    }
+
+    notifyBuild("renderer", { skipInitial: false });
+  };
+
+  watchFile(loaderPath, { interval: staticAssetWatchIntervalMs }, listener);
+
+  return () => {
+    unwatchFile(loaderPath, listener);
   };
 };
 
@@ -353,6 +371,7 @@ const watch = async () => {
   ]);
   copyRendererFiles();
   watchRendererStaticFiles();
+  watchLoaderSwf();
 };
 
 const run = isWatch ? watch : buildOnce;
