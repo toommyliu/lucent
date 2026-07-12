@@ -18,7 +18,7 @@ export interface ElectronWindowWebContents {
   readonly on: (eventName: string, listener: (...args: any[]) => void) => void;
   readonly openDevTools: (options?: { readonly mode?: string }) => void;
   readonly setWindowOpenHandler?: (
-    handler: () => { readonly action: "deny" },
+    handler: (details: { readonly url: string }) => { readonly action: "deny" },
   ) => void;
 }
 
@@ -68,9 +68,12 @@ export type ElectronWindowCreateOptions = BrowserWindowConstructorOptions & {
   readonly width: number;
 };
 
+export type ElectronWindowOpenRequestHandler = (url: string) => void;
+
 export interface ElectronWindowShape {
   readonly create: (
     options: ElectronWindowCreateOptions,
+    onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
   ) => Effect.Effect<ElectronWindowHandle, ElectronWindowCreateError>;
   readonly loadFile: (
     window: ElectronWindowHandle,
@@ -84,13 +87,25 @@ export class ElectronWindow extends Context.Service<
   ElectronWindowShape
 >()("lucent/desktop/electron/ElectronWindow") {}
 
-const denyRendererWindowOpen = (window: ElectronWindowHandle): void => {
-  // TODO: allow wiki links...
-  window.webContents.setWindowOpenHandler?.(() => ({ action: "deny" }));
+const denyRendererWindowOpen = (
+  window: ElectronWindowHandle,
+  onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
+): void => {
+  if (window.webContents.setWindowOpenHandler !== undefined) {
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      onWindowOpenRequest?.(url);
+      return { action: "deny" };
+    });
+    return;
+  }
+
   window.webContents.on(
     "new-window",
-    (event: { preventDefault: () => void }) => {
+    (event: { preventDefault: () => void }, url: unknown) => {
       event.preventDefault();
+      if (typeof url === "string") {
+        onWindowOpenRequest?.(url);
+      }
     },
   );
 };
@@ -115,13 +130,13 @@ const makeCenteredOptions = (
 export const layer = Layer.succeed(
   ElectronWindow,
   ElectronWindow.of({
-    create: (options) =>
+    create: (options, onWindowOpenRequest) =>
       Effect.try({
         try: () => {
           const window = new BrowserWindow({
             ...makeCenteredOptions(options),
           }) as unknown as ElectronWindowHandle;
-          denyRendererWindowOpen(window);
+          denyRendererWindowOpen(window, onWindowOpenRequest);
           return window;
         },
         catch: (cause) => new ElectronWindowCreateError({ cause }),

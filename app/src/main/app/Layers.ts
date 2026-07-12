@@ -88,6 +88,7 @@ export const makeDesktopLayer = (
       Layer.mergeAll(
         ElectronApp.layer,
         electronSessionLayer,
+        ElectronShell.layer,
         ElectronTheme.layer,
         ElectronWindow.layer,
         environmentLayer,

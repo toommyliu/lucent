@@ -32,10 +32,12 @@ import {
 import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronSession } from "../electron/ElectronSession";
+import { ElectronShell } from "../electron/ElectronShell";
 import { ElectronTheme } from "../electron/ElectronTheme";
 import {
   ElectronWindow,
   type ElectronWindowHandle,
+  type ElectronWindowOpenRequestHandler,
 } from "../electron/ElectronWindow";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopWindows, layer as desktopWindowsLayer } from "./DesktopWindows";
@@ -157,11 +159,17 @@ describe("DesktopWindows", () => {
       let revealCount = 0;
       const createdHandles: TestWindowHandle[] = [];
       const createdOptions: BrowserWindowConstructorOptions[] = [];
+      const openRequestHandlers: (
+        | ElectronWindowOpenRequestHandler
+        | undefined
+      )[] = [];
+      const openedExternalUrls: string[] = [];
       const electronWindow = ElectronWindow.of({
-        create: (options) =>
+        create: (options, onWindowOpenRequest) =>
           Effect.sync(() => {
             createCount += 1;
             createdOptions.push(options);
+            openRequestHandlers.push(onWindowOpenRequest);
             const handle = makeHandle(createCount);
             createdHandles.push(handle);
             return handle;
@@ -179,6 +187,14 @@ describe("DesktopWindows", () => {
         prepareGameNetworking: Effect.sync(() => {
           prepareGameNetworkingCount += 1;
         }),
+      });
+      const shell = ElectronShell.of({
+        openExternal: (url) =>
+          Effect.sync(() => {
+            openedExternalUrls.push(String(url));
+            return true;
+          }),
+        openPath: () => Effect.succeed(true),
       });
       const app = ElectronApp.of({
         appendCommandLineSwitch: () => Effect.void,
@@ -211,6 +227,7 @@ describe("DesktopWindows", () => {
             Layer.succeed(DesktopObservability, observability),
             Layer.succeed(ElectronApp, app),
             Layer.succeed(ElectronSession, session),
+            Layer.succeed(ElectronShell, shell),
             Layer.succeed(ElectronTheme, theme),
             Layer.succeed(ElectronWindow, electronWindow),
             Layer.succeed(DesktopSettings, settings),
@@ -238,6 +255,14 @@ describe("DesktopWindows", () => {
       expect(prepareGameNetworkingCount).toBe(2);
       expect(loadCount).toBe(2);
       expect(revealCount).toBe(2);
+
+      openRequestHandlers[0]?.("https://www.aq.com/help/");
+      openRequestHandlers[0]?.("https://aq.com.example.com/");
+      yield* Effect.promise(() =>
+        vi.waitFor(() => {
+          expect(openedExternalUrls).toEqual(["https://www.aq.com/help/"]);
+        }),
+      );
 
       yield* windows.setBackgroundColor("#ffffff");
       expect(createdHandles.map((handle) => handle.backgroundColors())).toEqual(
@@ -289,6 +314,10 @@ describe("DesktopWindows", () => {
         const session = ElectronSession.of({
           prepareGameNetworking: Effect.void,
         });
+        const shell = ElectronShell.of({
+          openExternal: () => Effect.succeed(true),
+          openPath: () => Effect.succeed(true),
+        });
         const app = ElectronApp.of({
           appendCommandLineSwitch: () => Effect.void,
           exit: () => Effect.void,
@@ -320,6 +349,7 @@ describe("DesktopWindows", () => {
               Layer.succeed(DesktopObservability, observability),
               Layer.succeed(ElectronApp, app),
               Layer.succeed(ElectronSession, session),
+              Layer.succeed(ElectronShell, shell),
               Layer.succeed(ElectronTheme, theme),
               Layer.succeed(ElectronWindow, electronWindow),
               Layer.succeed(DesktopSettings, settings),
@@ -420,6 +450,10 @@ describe("DesktopWindows", () => {
           prepareGameNetworkingCount += 1;
         }),
       });
+      const shell = ElectronShell.of({
+        openExternal: () => Effect.succeed(true),
+        openPath: () => Effect.succeed(true),
+      });
       const app = ElectronApp.of({
         appendCommandLineSwitch: () => Effect.void,
         exit: () => Effect.void,
@@ -451,6 +485,7 @@ describe("DesktopWindows", () => {
             Layer.succeed(DesktopObservability, observability),
             Layer.succeed(ElectronApp, app),
             Layer.succeed(ElectronSession, session),
+            Layer.succeed(ElectronShell, shell),
             Layer.succeed(ElectronTheme, theme),
             Layer.succeed(ElectronWindow, electronWindow),
             Layer.succeed(DesktopSettings, settings),

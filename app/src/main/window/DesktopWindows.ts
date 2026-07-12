@@ -18,6 +18,7 @@ import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronSession } from "../electron/ElectronSession";
+import { ElectronShell } from "../electron/ElectronShell";
 import { ElectronTheme } from "../electron/ElectronTheme";
 import {
   ElectronWindow,
@@ -31,6 +32,7 @@ import {
   type DesktopWindowDefinition,
   type DesktopWindowKind,
 } from "./DesktopWindowCatalog";
+import { parseAllowedGameWindowOpenUrl } from "./GameWindowOpenPolicy";
 
 export type DesktopWindowInstanceId = string;
 
@@ -269,6 +271,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
   const electronWindow = yield* ElectronWindow;
   const electronSession = yield* ElectronSession;
+  const electronShell = yield* ElectronShell;
   const observability = yield* DesktopObservability;
   const settings = yield* DesktopSettings;
   const theme = yield* ElectronTheme;
@@ -282,6 +285,25 @@ const makeDesktopWindows = Effect.gen(function* () {
     (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>
   >();
   let appIsQuitting = false;
+
+  const openAllowedGameUrl = (rawUrl: string): void => {
+    const url = parseAllowedGameWindowOpenUrl(rawUrl);
+    if (url === null) {
+      return;
+    }
+
+    void runPromise(
+      electronShell.openExternal(url).pipe(
+        Effect.flatMap((opened) =>
+          opened
+            ? Effect.void
+            : observability.warn("window", "Failed to open game URL", {
+                url,
+              }),
+        ),
+      ),
+    ).catch(() => undefined);
+  };
 
   yield* app.on("before-quit", () => {
     appIsQuitting = true;
@@ -540,6 +562,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             snapshot,
             bounds,
           ),
+          kind === "game" ? openAllowedGameUrl : undefined,
         );
         const browserWindowId = window.id;
         windows.set(id, {
