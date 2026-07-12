@@ -55,7 +55,9 @@ type MenuItem = {
   readonly checked?: boolean;
   readonly click?: () => void;
   readonly label?: string;
+  readonly role?: string;
   readonly submenu?: readonly MenuItem[];
+  readonly type?: string;
 };
 
 const findMenuItem = (items: readonly MenuItem[], label: string): MenuItem => {
@@ -239,6 +241,22 @@ describe("DesktopApplicationMenu", () => {
 
         const file = findMenuItem(latestMenuTemplate(), "File");
         const help = findMenuItem(latestMenuTemplate(), "Help");
+        const view = findMenuItem(latestMenuTemplate(), "View");
+        expect(
+          view.submenu?.map(({ label, role, type }) => role ?? label ?? type),
+        ).toEqual([
+          "reload",
+          "forceReload",
+          "toggleDevTools",
+          "separator",
+          "resetZoom",
+          "zoomIn",
+          "zoomOut",
+          "separator",
+          "Appearance",
+          "separator",
+          "togglefullscreen",
+        ]);
         expect(file.submenu?.some((item) => item.label === "Settings")).toBe(
           false,
         );
