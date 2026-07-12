@@ -19,21 +19,6 @@ package lucent.game {
       return getQualifiedClassName(child) == DROP_MC && Boolean(child.fData);
     }
 
-    private static function getCustomDropItem(itemId:int):Object {
-      var game:Object = Main.Game;
-      if (!game.cDropsUI || !(game.cDropsUI.invTree is Array)) {
-        return null;
-      }
-
-      for each (var item:Object in game.cDropsUI.invTree) {
-        if (item && int(item.ItemID) == itemId) {
-          return item;
-        }
-      }
-
-      return null;
-    }
-
     private static function getCustomDropEntry(itemId:int):* {
       var source:* = getCustomDropSource();
       if (!source) {
@@ -67,12 +52,6 @@ package lucent.game {
     public static function acceptDrop(itemId:int):Boolean {
       var game:Object = Main.Game;
       if (isUsingCustomDrops()) {
-        var itemObj:* = getCustomDropItem(itemId);
-        if (!itemObj) {
-          Main.getInstance().emitDebug("No item Obj");
-          return false;
-        }
-
         if (!isCustomDropsUiOpen())
           toggleUi();
 
