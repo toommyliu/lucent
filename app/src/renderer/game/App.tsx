@@ -1,6 +1,17 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Alert,
   AlertDescription,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
   Checkbox,
   Combobox,
@@ -20,6 +31,7 @@ import {
   Label,
   Spinner,
   Textarea,
+  TooltipIconButton,
 } from "@lucent/ui";
 import { Effect, Fiber } from "effect";
 import {
@@ -84,6 +96,11 @@ import {
   ScriptRunner,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
+import {
+  fatalScriptAlertFromError,
+  fatalScriptAlertFromStatus,
+  type FatalScriptAlert,
+} from "./scripting/fatalAlert";
 import {
   TopNav,
   type GameTopNavMenu,
@@ -967,6 +984,11 @@ export function App(props: {
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
+  const [fatalScriptAlert, setFatalScriptAlert] =
+    createSignal<FatalScriptAlert | null>(null);
+  const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
+  const [fatalScriptAlertCopied, setFatalScriptAlertCopied] =
+    createSignal(false);
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
   const scriptInputEditorRefs = new Map<string, HTMLElement>();
   const [selectedAutoAttackProfileId, setSelectedAutoAttackProfileId] =
@@ -1013,6 +1035,8 @@ export function App(props: {
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
+  let lastShownFatalScriptAlertKey = "";
+  let fatalScriptAlertCopiedTimer: number | undefined;
   const scriptLoaded = createMemo(() => loadedScript() !== null);
   const scriptRunning = createMemo(() => {
     const state = scriptRunnerStatus().state;
@@ -1880,6 +1904,60 @@ export function App(props: {
       : bridge.saveInputValues(definition, normalized);
   };
 
+  const showFatalScriptAlert = (alert: FatalScriptAlert): void => {
+    if (alert.key === lastShownFatalScriptAlertKey) {
+      return;
+    }
+
+    lastShownFatalScriptAlertKey = alert.key;
+    setFatalScriptAlert(alert);
+    setFatalScriptAlertCopied(false);
+    setFatalScriptAlertOpen(true);
+  };
+
+  const showFatalScriptError = (
+    sourceName: string,
+    error: unknown,
+    sourcePath?: string,
+  ): void => {
+    showFatalScriptAlert(
+      fatalScriptAlertFromError(sourceName, error, sourcePath),
+    );
+  };
+
+  const applyScriptRunnerStatus = (status: ScriptRunnerStatus): void => {
+    setScriptRunnerStatus(status);
+    if (status.state === "failed") {
+      showFatalScriptAlert(fatalScriptAlertFromStatus(status));
+    }
+  };
+
+  const markFatalScriptAlertCopied = (): void => {
+    if (fatalScriptAlertCopiedTimer !== undefined) {
+      window.clearTimeout(fatalScriptAlertCopiedTimer);
+    }
+
+    setFatalScriptAlertCopied(true);
+    fatalScriptAlertCopiedTimer = window.setTimeout(() => {
+      setFatalScriptAlertCopied(false);
+      fatalScriptAlertCopiedTimer = undefined;
+    }, 900);
+  };
+
+  const copyFatalScriptAlertDetails = async (): Promise<void> => {
+    const detailsText = fatalScriptAlert()?.detailsText;
+    if (detailsText === undefined || detailsText.trim() === "") {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(detailsText);
+      markFatalScriptAlertCopied();
+    } catch (error) {
+      console.error("Failed to copy script stack trace:", error);
+    }
+  };
+
   const loadScript = async () => {
     if (scriptRunning() || scriptBusy()) {
       return;
@@ -1959,7 +2037,7 @@ export function App(props: {
         return yield* runner.start(file, inputValues);
       }),
     );
-    setScriptRunnerStatus(status);
+    applyScriptRunnerStatus(status);
     setOpenMenu(null);
   };
 
@@ -2173,6 +2251,13 @@ export function App(props: {
       const message =
         error instanceof Error ? error.message : "Account launch failed";
       console.error("[game:account-launch]", message, error);
+      if (payload.script !== undefined) {
+        showFatalScriptError(
+          accountScriptLabel(payload.script) ?? "script",
+          error,
+          payload.script.path,
+        );
+      }
       await publishAccountLaunchStatus("failed", message);
     }
   };
@@ -2224,6 +2309,12 @@ export function App(props: {
       }
     } catch (error) {
       console.error("[game:script]", "save inputs failed", error);
+      if (shouldStart) {
+        const file = loadedScript();
+        if (file !== null) {
+          showFatalScriptError(file.name, error, file.path);
+        }
+      }
       setScriptInputDialogError({
         fields: [],
         message: shouldStart
@@ -2251,6 +2342,8 @@ export function App(props: {
       return;
     }
 
+    const wasRunning = scriptRunning();
+    const file = loadedScript();
     setScriptBusy(true);
     try {
       if (scriptRunning()) {
@@ -2264,7 +2357,6 @@ export function App(props: {
         return;
       }
 
-      const file = loadedScript();
       if (file === null) {
         return;
       }
@@ -2287,6 +2379,9 @@ export function App(props: {
       await startLoadedScript(file, inputValues);
     } catch (error) {
       console.error("[game:script]", "toggle failed", error);
+      if (!wasRunning && file !== null) {
+        showFatalScriptError(file.name, error, file.path);
+      }
     } finally {
       setScriptBusy(false);
     }
@@ -2464,6 +2559,7 @@ export function App(props: {
         event.defaultPrevented ||
         event.repeat ||
         event.isComposing ||
+        fatalScriptAlertOpen() ||
         isEditableHotkeyTarget(event.target) ||
         isFlashTextFieldFocused()
       ) {
@@ -2629,7 +2725,7 @@ export function App(props: {
           const status = yield* runner.getStatus();
           const options = yield* runner.getOptions();
           const dispose = yield* runner.onStatus((nextStatus) => {
-            setScriptRunnerStatus(nextStatus);
+            applyScriptRunnerStatus(nextStatus);
             void publishAccountScriptRunnerStatus(nextStatus);
           });
           const disposeOptions = yield* runner.onOptions((nextOptions) => {
@@ -2640,7 +2736,7 @@ export function App(props: {
         }),
       )
       .then(({ dispose, disposeOptions, options, status }) => {
-        setScriptRunnerStatus(status);
+        applyScriptRunnerStatus(status);
         setScriptUsePrivateRooms(options.usePrivateRooms);
         setScriptSafeStartStop(options.safeStartStop);
 
@@ -2679,6 +2775,9 @@ export function App(props: {
       stopPlayerReadyRetry();
       resetTravelOptions();
       runtime.runFork(Fiber.interrupt(travelEventFiber));
+      if (fatalScriptAlertCopiedTimer !== undefined) {
+        window.clearTimeout(fatalScriptAlertCopiedTimer);
+      }
     });
   });
 
@@ -2984,6 +3083,86 @@ export function App(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={fatalScriptAlertOpen()}
+        onOpenChange={(details) => {
+          setFatalScriptAlertOpen(details.open);
+          if (!details.open) {
+            setFatalScriptAlertCopied(false);
+          }
+        }}
+      >
+        <AlertDialogContent class="game-script-error-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Script failed</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span class="game-script-error-dialog__source">
+                <span>{fatalScriptAlert()?.sourceName ?? "script"}</span>
+                <Show when={fatalScriptAlert()?.sourcePath}>
+                  {(path) => (
+                    <TooltipIconButton
+                      aria-label="Open script file"
+                      class="game-script-error-dialog__open-source"
+                      onClick={() => {
+                        const bridge = window.desktop.scripting;
+                        if (bridge !== undefined) {
+                          void bridge.openPath(path()).catch((error) => {
+                            console.error("Failed to open script file", error);
+                          });
+                        }
+                      }}
+                      portal={false}
+                      positioning={{ placement: "right" }}
+                      size="icon-xs"
+                      tooltip="Open script file"
+                      variant="ghost"
+                    >
+                      <Icon icon="external_link" class="button__icon" />
+                    </TooltipIconButton>
+                  )}
+                </Show>
+              </span>
+              <span class="game-script-error-dialog__message">
+                {fatalScriptAlert()?.message ?? "Script failed"}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Show when={fatalScriptAlert()?.detailsText}>
+            {(detailsText) => (
+              <Accordion
+                collapsible
+                class="game-script-error-dialog__accordion"
+              >
+                <AccordionItem value="stack-trace">
+                  <AccordionTrigger>Stack trace</AccordionTrigger>
+                  <AccordionContent>
+                    <pre class="game-script-error-dialog__stack">
+                      {detailsText()}
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </Show>
+          <AlertDialogFooter>
+            <Show when={fatalScriptAlert()?.detailsText}>
+              <Button
+                class="game-script-error-dialog__copy"
+                onClick={() => void copyFatalScriptAlertDetails()}
+                size="sm"
+                variant="outline"
+              >
+                <Icon
+                  icon={fatalScriptAlertCopied() ? "check" : "copy"}
+                  class="button__icon"
+                />
+                {fatalScriptAlertCopied() ? "Copied" : "Copy stack trace"}
+              </Button>
+            </Show>
+            <AlertDialogAction size="sm">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <TopNav
         openMenu={openMenu}
         setOpenMenu={setOpenMenu}

@@ -51,6 +51,7 @@ export type ScriptRunnerStatus =
       readonly state: "completed";
     }
   | {
+      readonly detailsText?: string;
       readonly failedAt: string;
       readonly message: string;
       readonly name: string;
@@ -140,6 +141,16 @@ const causeMessage = (cause: Cause.Cause<unknown>): string => {
   return squashed instanceof Error && squashed.message.length > 0
     ? squashed.message
     : Cause.pretty(cause);
+};
+
+const causeDetailsText = (cause: Cause.Cause<unknown>): string | undefined => {
+  const squashed = Cause.squash(cause);
+  if (squashed instanceof Error && squashed.stack?.trim() !== "") {
+    return squashed.stack;
+  }
+
+  const pretty = Cause.pretty(cause);
+  return pretty.trim() === "" ? undefined : pretty;
 };
 
 const logScriptFailureCause = (
@@ -291,8 +302,10 @@ export const layer = Layer.effect(
         yield* active.scope.close;
         yield* Ref.set(activeRef, null);
         yield* logScriptFailureCause(cause);
+        const detailsText = causeDetailsText(cause);
         yield* setStatus({
           ...activeStatusFields(active),
+          ...(detailsText === undefined ? {} : { detailsText }),
           failedAt: nowIso(),
           message: causeMessage(cause),
           state: "failed",
@@ -490,11 +503,13 @@ export const layer = Layer.effect(
               );
             }
 
+            const detailsText = causeDetailsText(cause);
             return logScriptFailureCause(cause).pipe(
               Effect.andThen(
                 finishIfActive(
                   id,
                   {
+                    ...(detailsText === undefined ? {} : { detailsText }),
                     failedAt: nowIso(),
                     message: causeMessage(cause),
                     name: statusName(file),
