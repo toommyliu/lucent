@@ -1,11 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
+import { Schema } from "effect";
 
 import {
+  AccountLaunchRequestSchema,
   normalizeAccountManagerStorage,
   renameGroupMemberUsername,
   removeGroupMemberUsername,
   serializeAccountManagerStorage,
 } from "./accounts";
+
+const isAccountLaunchRequest = Schema.is(AccountLaunchRequestSchema);
 
 describe("account manager storage", () => {
   it("normalizes existing account JSON while preserving the saved shape", () => {
@@ -49,5 +53,40 @@ describe("account manager storage", () => {
       Farmers: ["Alt"],
       Solo: [],
     });
+  });
+});
+
+describe("account launch request", () => {
+  it("accepts only complete, valid tiling placements", () => {
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", count: 2, index: 1 },
+      }),
+    ).toBe(true);
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "none", count: 2, index: 0 },
+      }),
+    ).toBe(false);
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", count: 1, index: 0 },
+      }),
+    ).toBe(false);
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", count: 2, index: 2 },
+      }),
+    ).toBe(false);
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        tiling: { algorithm: "horizontal", count: 2.5, index: 0 },
+      }),
+    ).toBe(false);
   });
 });

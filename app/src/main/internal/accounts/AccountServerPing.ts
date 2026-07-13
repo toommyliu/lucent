@@ -1,49 +1,45 @@
 import { createConnection } from "net";
+import { Schema } from "effect";
 
 import type { AccountGameServerPing } from "@lucent/core/accounts";
 
 export const ACCOUNT_SERVER_PING_CACHE_TTL_MS = 30_000;
-export const ACCOUNT_SERVER_PING_CONCURRENCY = 6;
-export const ACCOUNT_SERVER_PING_TIMEOUT_MS = 2_000;
+const ACCOUNT_SERVER_PING_CONCURRENCY = 6;
+const ACCOUNT_SERVER_PING_TIMEOUT_MS = 2_000;
 
-export interface AccountServerData {
-  readonly bOnline: number;
-  readonly bUpg: number;
-  readonly iChat?: number;
-  readonly iCount: number;
-  readonly iLevel?: number;
-  readonly iMax: number;
-  readonly iPort: number;
-  readonly sIP: string;
-  readonly sLang: string;
-  readonly sName: string;
-}
+export const AccountServerDataSchema = Schema.Struct({
+  bOnline: Schema.Number,
+  bUpg: Schema.Number,
+  iChat: Schema.optionalKey(Schema.Number),
+  iCount: Schema.Number,
+  iLevel: Schema.optionalKey(Schema.Number),
+  iMax: Schema.Number,
+  iPort: Schema.Number,
+  sIP: Schema.String,
+  sLang: Schema.String,
+  sName: Schema.String,
+});
 
-export interface AccountServerPingTarget {
+export type AccountServerData = typeof AccountServerDataSchema.Type;
+
+interface AccountServerPingTarget {
   readonly serverName: string;
   readonly host: string;
   readonly port: number;
   readonly online: boolean;
 }
 
-export interface AccountServerConnectLatencyOptions {
+interface AccountServerConnectLatencyOptions {
   readonly now: () => number;
   readonly timeoutMs: number;
 }
 
-export type AccountServerConnectLatency = (
+type AccountServerConnectLatency = (
   target: AccountServerPingTarget,
   options: AccountServerConnectLatencyOptions,
 ) => Promise<number>;
 
-export interface AccountServerPingOptions {
-  readonly concurrency?: number;
-  readonly connectLatency?: AccountServerConnectLatency;
-  readonly now?: () => number;
-  readonly timeoutMs?: number;
-}
-
-export class AccountServerPingTimeoutError extends Error {
+class AccountServerPingTimeoutError extends Error {
   public constructor(serverName: string, timeoutMs: number) {
     super(`Timed out while pinging ${serverName} after ${timeoutMs}ms`);
     this.name = "AccountServerPingTimeoutError";
@@ -67,15 +63,7 @@ const toPingTarget = (server: AccountServerData): AccountServerPingTarget => ({
   online: server.bOnline === 1,
 });
 
-const normalizeConcurrency = (value: number | undefined): number => {
-  if (value === undefined || !Number.isFinite(value)) {
-    return ACCOUNT_SERVER_PING_CONCURRENCY;
-  }
-
-  return Math.max(1, Math.trunc(value));
-};
-
-export const measureTcpConnectLatency: AccountServerConnectLatency = (
+const measureTcpConnectLatency: AccountServerConnectLatency = (
   target,
   options,
 ) =>
@@ -135,11 +123,8 @@ export const measureTcpConnectLatency: AccountServerConnectLatency = (
     }
   });
 
-export const pingAccountServer = async (
+const pingAccountServer = async (
   target: AccountServerPingTarget,
-  options: Required<
-    Pick<AccountServerPingOptions, "connectLatency" | "now" | "timeoutMs">
-  >,
 ): Promise<AccountGameServerPing> => {
   if (!target.online) {
     return {
@@ -149,9 +134,9 @@ export const pingAccountServer = async (
   }
 
   try {
-    const latencyMs = await options.connectLatency(target, {
-      now: options.now,
-      timeoutMs: options.timeoutMs,
+    const latencyMs = await measureTcpConnectLatency(target, {
+      now: Date.now,
+      timeoutMs: ACCOUNT_SERVER_PING_TIMEOUT_MS,
     });
     return {
       latencyMs,
@@ -171,12 +156,7 @@ export const pingAccountServer = async (
 
 export const pingAccountServers = async (
   servers: readonly AccountServerData[],
-  options: AccountServerPingOptions = {},
 ): Promise<readonly AccountGameServerPing[]> => {
-  const concurrency = normalizeConcurrency(options.concurrency);
-  const connectLatency = options.connectLatency ?? measureTcpConnectLatency;
-  const now = options.now ?? Date.now;
-  const timeoutMs = options.timeoutMs ?? ACCOUNT_SERVER_PING_TIMEOUT_MS;
   const targets = servers.map(toPingTarget);
   const pings: AccountGameServerPing[] = [];
   let nextIndex = 0;
@@ -191,15 +171,11 @@ export const pingAccountServers = async (
       }
 
       const target = targets[index]!;
-      pings[index] = await pingAccountServer(target, {
-        connectLatency,
-        now,
-        timeoutMs,
-      });
+      pings[index] = await pingAccountServer(target);
     }
   };
 
-  const workerCount = Math.min(concurrency, targets.length);
+  const workerCount = Math.min(ACCOUNT_SERVER_PING_CONCURRENCY, targets.length);
   await Promise.all(
     Array.from({ length: workerCount }, async () => {
       await worker();

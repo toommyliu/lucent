@@ -1,16 +1,16 @@
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Option, Schema, Semaphore } from "effect";
 
 import {
   normalizeScriptInputValues,
   type ScriptInputsDefinition,
   type ScriptInputValues,
 } from "@lucent/core/scriptInputs";
-import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
   type JsonFileError,
   readJsonFile,
   writeJsonFile,
-} from "../settings/JsonFile";
+} from "../../settings/JsonFile";
 
 const inputRepositoryOperationSchema = Schema.Literals(["read", "write"]);
 
@@ -40,12 +40,28 @@ export interface ScriptInputRepositoryShape {
 export class ScriptInputRepository extends Context.Service<
   ScriptInputRepository,
   ScriptInputRepositoryShape
->()("lucent/desktop/scripting/ScriptInputRepository") {}
+>()("lucent/internal/scripting/ScriptInputRepository") {}
 
-type Store = Record<string, Record<string, unknown>>;
+const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
+type UnknownRecord = typeof UnknownRecordSchema.Type;
+type Store = Record<string, UnknownRecord>;
+const decodeUnknownRecord = Schema.decodeUnknownOption(UnknownRecordSchema);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+const decodeStore = (value: unknown): Store => {
+  const decodedStore = decodeUnknownRecord(value);
+  if (Option.isNone(decodedStore)) {
+    return {};
+  }
+
+  const store: Store = {};
+  for (const [key, entry] of Object.entries(decodedStore.value)) {
+    const decodedEntry = decodeUnknownRecord(entry);
+    if (Option.isSome(decodedEntry)) {
+      store[key] = decodedEntry.value;
+    }
+  }
+  return store;
+};
 
 const wrapJsonError = (
   operation: "read" | "write",
@@ -63,17 +79,8 @@ const readStore = (
   readJsonFile(path).pipe(
     Effect.mapError((error: JsonFileError) => wrapJsonError("read", error)),
     Effect.map((result) => {
-      if (result.status === "missing" || !isRecord(result.value)) {
-        return {};
-      }
-
-      const store: Store = {};
-      for (const [key, value] of Object.entries(result.value)) {
-        if (isRecord(value)) {
-          store[key] = value;
-        }
-      }
-      return store;
+      if (result.status === "missing") return {};
+      return decodeStore(result.value);
     }),
   );
 
@@ -90,22 +97,34 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
     const path = env.appDataPath("script-inputs.json");
+    const writes = yield* Semaphore.make(1);
 
-    return ScriptInputRepository.of({
-      getValues: (definition) =>
-        readStore(path).pipe(
-          Effect.map((store) =>
-            normalizeScriptInputValues(definition, store[definition.id] ?? {}),
-          ),
+    const getValues = (definition: ScriptInputsDefinition) =>
+      readStore(path).pipe(
+        Effect.map((store) =>
+          normalizeScriptInputValues(definition, store[definition.id] ?? {}),
         ),
-      saveValues: (definition, values) =>
+      );
+
+    const saveValues = (
+      definition: ScriptInputsDefinition,
+      values: ScriptInputValues,
+    ) =>
+      writes.withPermits(1)(
         Effect.gen(function* () {
           const normalized = normalizeScriptInputValues(definition, values);
           const store = yield* readStore(path);
-          store[definition.id] = normalized;
-          yield* writeStore(path, store);
+          yield* writeStore(path, {
+            ...store,
+            [definition.id]: normalized,
+          });
           return normalized;
         }),
+      );
+
+    return ScriptInputRepository.of({
+      getValues,
+      saveValues,
     });
   }),
 );

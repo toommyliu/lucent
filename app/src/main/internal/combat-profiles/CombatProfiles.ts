@@ -10,12 +10,13 @@ import {
   type CombatProfile,
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
-import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { makeListenerRegistry } from "../../app/ListenerRegistry";
 import {
   type JsonFileError,
   readJsonFile,
   writeJsonFile,
-} from "../settings/JsonFile";
+} from "../../settings/JsonFile";
 
 const combatProfilesOperationSchema = Schema.Literals([
   "delete-profile",
@@ -28,8 +29,8 @@ const combatProfilesOperationSchema = Schema.Literals([
   "write",
 ]);
 
-export class DesktopCombatProfilesError extends Schema.TaggedErrorClass<DesktopCombatProfilesError>()(
-  "DesktopCombatProfilesError",
+export class CombatProfilesError extends Schema.TaggedErrorClass<CombatProfilesError>()(
+  "CombatProfilesError",
   {
     detail: Schema.String,
     operation: combatProfilesOperationSchema,
@@ -41,30 +42,27 @@ export class DesktopCombatProfilesError extends Schema.TaggedErrorClass<DesktopC
   }
 }
 
-export interface DesktopCombatProfilesShape {
+export interface CombatProfilesShape {
   readonly deleteProfile: (
     profileId: string,
-  ) => Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError>;
-  readonly get: Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError>;
-  readonly load: Effect.Effect<
-    CombatProfileLibrary,
-    DesktopCombatProfilesError
-  >;
+  ) => Effect.Effect<CombatProfileLibrary, CombatProfilesError>;
+  readonly get: Effect.Effect<CombatProfileLibrary, CombatProfilesError>;
+  readonly load: Effect.Effect<CombatProfileLibrary, CombatProfilesError>;
   readonly onChanged: (
     listener: (library: CombatProfileLibrary) => void,
   ) => Effect.Effect<() => void>;
   readonly saveProfile: (
     profile: CombatProfile,
-  ) => Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError>;
+  ) => Effect.Effect<CombatProfileLibrary, CombatProfilesError>;
 }
 
-export class DesktopCombatProfiles extends Context.Service<
-  DesktopCombatProfiles,
-  DesktopCombatProfilesShape
->()("lucent/desktop/combat-profiles/DesktopCombatProfiles") {}
+export class CombatProfiles extends Context.Service<
+  CombatProfiles,
+  CombatProfilesShape
+>()("lucent/internal/combat-profiles/CombatProfiles") {}
 
-const wrapDataError = (error: JsonFileError): DesktopCombatProfilesError =>
-  new DesktopCombatProfilesError({
+const wrapDataError = (error: JsonFileError): CombatProfilesError =>
+  new CombatProfilesError({
     operation: error.operation,
     detail: error.message,
     cause: error,
@@ -73,8 +71,8 @@ const wrapDataError = (error: JsonFileError): DesktopCombatProfilesError =>
 const validationError = (
   operation: typeof combatProfilesOperationSchema.Type,
   detail: string,
-): DesktopCombatProfilesError =>
-  new DesktopCombatProfilesError({
+): CombatProfilesError =>
+  new CombatProfilesError({
     operation,
     detail,
   });
@@ -106,7 +104,7 @@ const saveProfileToLibrary = (
 const deleteProfileFromLibrary = (
   current: CombatProfileLibrary,
   profileId: string,
-): Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError> =>
+): Effect.Effect<CombatProfileLibrary, CombatProfilesError> =>
   Effect.gen(function* () {
     if (profileId === DEFAULT_COMBAT_PROFILE_ID) {
       return yield* validationError(
@@ -131,13 +129,13 @@ const deleteProfileFromLibrary = (
     });
   });
 
-const makeDesktopCombatProfiles = Effect.gen(function* () {
+const makeCombatProfiles = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
   const path = env.appDataPath("combat-profiles.json");
   const libraryRef = yield* SynchronizedRef.make<CombatProfileLibrary | null>(
     null,
   );
-  const listeners = new Set<(library: CombatProfileLibrary) => void>();
+  const libraryChanges = makeListenerRegistry<CombatProfileLibrary>();
 
   const readLibraryFromFile = Effect.gen(function* () {
     const result = yield* readJsonFile(path).pipe(
@@ -154,7 +152,7 @@ const makeDesktopCombatProfiles = Effect.gen(function* () {
     const library = yield* Effect.try({
       try: () => normalizeCombatProfileLibrary(result.value),
       catch: (cause) =>
-        new DesktopCombatProfilesError({
+        new CombatProfilesError({
           operation: "parse",
           detail:
             cause instanceof Error
@@ -181,16 +179,9 @@ const makeDesktopCombatProfiles = Effect.gen(function* () {
     ),
   );
 
-  const publish = (library: CombatProfileLibrary): Effect.Effect<void> =>
-    Effect.sync(() => {
-      for (const listener of listeners) {
-        listener(library);
-      }
-    });
-
   const writeLibraryFile = (
     library: CombatProfileLibrary,
-  ): Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError> => {
+  ): Effect.Effect<CombatProfileLibrary, CombatProfilesError> => {
     const normalized = normalizeCombatProfileLibrary(library);
     return writeJsonFile(path, serializeCombatProfileLibrary(normalized)).pipe(
       Effect.mapError(wrapDataError),
@@ -201,7 +192,7 @@ const makeDesktopCombatProfiles = Effect.gen(function* () {
   const update = (
     modify: (
       current: CombatProfileLibrary,
-    ) => Effect.Effect<CombatProfileLibrary, DesktopCombatProfilesError>,
+    ) => Effect.Effect<CombatProfileLibrary, CombatProfilesError>,
   ) =>
     SynchronizedRef.modifyEffect(libraryRef, (current) =>
       (current === null ? readLibraryFromFile : Effect.succeed(current)).pipe(
@@ -209,28 +200,23 @@ const makeDesktopCombatProfiles = Effect.gen(function* () {
         Effect.flatMap(writeLibraryFile),
         Effect.map((saved) => [saved, saved] as const),
       ),
-    ).pipe(Effect.tap(publish));
+    ).pipe(Effect.tap(libraryChanges.publish));
 
-  return DesktopCombatProfiles.of({
-    deleteProfile: (profileId) =>
-      update((current) => deleteProfileFromLibrary(current, profileId)),
+  const deleteProfile: CombatProfilesShape["deleteProfile"] = (profileId) =>
+    update((current) => deleteProfileFromLibrary(current, profileId));
+
+  const onChanged: CombatProfilesShape["onChanged"] = libraryChanges.subscribe;
+
+  const saveProfile: CombatProfilesShape["saveProfile"] = (profile) =>
+    update((current) => Effect.succeed(saveProfileToLibrary(current, profile)));
+
+  return CombatProfiles.of({
+    deleteProfile,
     get,
     load,
-    onChanged: (listener) =>
-      Effect.sync(() => {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      }),
-    saveProfile: (profile) =>
-      update((current) =>
-        Effect.succeed(saveProfileToLibrary(current, profile)),
-      ),
+    onChanged,
+    saveProfile,
   });
 });
 
-export const layer = Layer.effect(
-  DesktopCombatProfiles,
-  makeDesktopCombatProfiles,
-);
+export const layer = Layer.effect(CombatProfiles, makeCombatProfiles);

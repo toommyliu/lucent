@@ -142,7 +142,6 @@ describe("DesktopWindows", () => {
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
         platform: "darwin",
-        rendererDir: join(appDataDir, "renderer"),
         workspaceDir,
       });
       const observability = DesktopObservability.of({
@@ -244,7 +243,9 @@ describe("DesktopWindows", () => {
       expect(createdOptions[0]?.backgroundColor).toBe(
         rgbToHex(DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background),
       );
-      expect(createdOptions[0]?.webPreferences?.preload).toBe(env.preloadPath);
+      expect(createdOptions[0]?.webPreferences?.preload).toBe(
+        join(__dirname, "../renderer/preload.js"),
+      );
       expect(createdOptions[0]?.webPreferences?.additionalArguments).toEqual(
         expect.arrayContaining([
           `${DESKTOP_VIEW_ARGUMENT}=game`,
@@ -288,7 +289,6 @@ describe("DesktopWindows", () => {
           assetsDir: join(appDataDir, "assets"),
           isDev: true,
           platform: "darwin",
-          rendererDir: join(appDataDir, "renderer"),
           workspaceDir,
         });
         const observability = DesktopObservability.of({
@@ -408,7 +408,6 @@ describe("DesktopWindows", () => {
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
         platform: "darwin",
-        rendererDir: join(appDataDir, "renderer"),
         workspaceDir,
       });
       const observability = DesktopObservability.of({

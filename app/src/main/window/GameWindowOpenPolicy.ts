@@ -18,16 +18,19 @@ const isAllowedUrl = (url: URL): boolean =>
         url.hostname.endsWith(`.${rule.hostname}`)),
   );
 
-export const parseAllowedGameWindowOpenUrl = (
-  rawUrl: string,
-): string | null => {
+export const parseAllowedGameWindowOpenUrl = (rawUrl: string): URL | null => {
   try {
     const url = new URL(rawUrl);
-    if (url.port !== "" || !isAllowedUrl(url)) {
+    if (
+      url.port !== "" ||
+      url.username !== "" ||
+      url.password !== "" ||
+      !isAllowedUrl(url)
+    ) {
       return null;
     }
 
-    return url.href;
+    return url;
   } catch {
     return null;
   }

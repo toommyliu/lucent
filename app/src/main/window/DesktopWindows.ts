@@ -113,10 +113,11 @@ interface DesktopWindowBounds {
   readonly y: number;
 }
 
-const viewHtmlPath = (
-  env: DesktopEnvironment["Service"],
-  kind: DesktopWindowKind,
-): string => join(env.rendererDir, kind, "index.html");
+const rendererRoot = join(__dirname, "../renderer");
+const preloadPath = join(rendererRoot, "preload.js");
+
+const viewHtmlPath = (kind: DesktopWindowKind): string =>
+  join(rendererRoot, kind, "index.html");
 
 const normalizeTilePlacement = (
   tile: DesktopWindowTilePlacement | undefined,
@@ -224,7 +225,7 @@ const createWindowOptions = (
       ],
       contextIsolation: true,
       nodeIntegration: false,
-      preload: env.preloadPath,
+      preload: preloadPath,
       sandbox: false,
       plugins: definition.requiresFlashPlugin,
     },
@@ -305,9 +306,10 @@ const makeDesktopWindows = Effect.gen(function* () {
     ).catch(() => undefined);
   };
 
-  yield* app.on("before-quit", () => {
+  const unsubscribeBeforeQuit = yield* app.on("before-quit", () => {
     appIsQuitting = true;
   });
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeBeforeQuit));
 
   const hasOpenRootGameWindows = (): boolean =>
     [...windows.values()].some(
@@ -615,10 +617,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           yield* options.onCreated(createdEvent);
         }
 
-        yield* electronWindow.loadFile(
-          window,
-          viewHtmlPath(env, definition.kind),
-        );
+        yield* electronWindow.loadFile(window, viewHtmlPath(definition.kind));
         yield* electronWindow.reveal(window);
         yield* observability.info("window", "Desktop window opened", {
           id,

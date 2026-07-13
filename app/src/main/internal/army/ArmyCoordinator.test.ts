@@ -1,31 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { BrowserWindow } from "electron";
 import { Effect, Fiber, Result } from "effect";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { ArmyConfigPayload } from "@lucent/core/army";
 import { makeArmyCoordinator } from "./ArmyCoordinator";
 
-let nextWindowId = 1;
+let nextParticipantId = 1;
 
-const makeWindow = (): BrowserWindow => {
-  const listeners = new Map<string, () => void>();
-  return {
-    id: nextWindowId++,
-    isDestroyed: () => false,
-    once: (event: string, listener: () => void) => {
-      listeners.set(event, listener);
-      return undefined as never;
-    },
-    webContents: {
-      isDestroyed: () => false,
-      once: (event: string, listener: () => void) => {
-        listeners.set(`web:${event}`, listener);
-        return undefined as never;
-      },
-    },
-  } as unknown as BrowserWindow;
-};
+const makeParticipant = (): number => nextParticipantId++;
 
 const makeConfig = (players: readonly string[]): ArmyConfigPayload => ({
   configName: "test",
@@ -41,8 +23,8 @@ describe("ArmyCoordinator", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
-        const aliceWindow = makeWindow();
-        const bobWindow = makeWindow();
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
         const alice = yield* coordinator
           .join(makeConfig(["Alice", "Bob"]), "Alice", aliceWindow)
           .pipe(Effect.forkScoped);
@@ -66,9 +48,13 @@ describe("ArmyCoordinator", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
-        yield* coordinator.join(makeConfig(["Alice"]), "Alice", makeWindow());
+        yield* coordinator.join(
+          makeConfig(["Alice"]),
+          "Alice",
+          makeParticipant(),
+        );
         const error = yield* Effect.flip(
-          coordinator.join(makeConfig(["Alice"]), "Alice", makeWindow()),
+          coordinator.join(makeConfig(["Alice"]), "Alice", makeParticipant()),
         );
         expect(error.message).toBe("Army player already joined: Alice");
       }),
@@ -79,14 +65,14 @@ describe("ArmyCoordinator", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
-        const aliceWindow = makeWindow();
+        const aliceWindow = makeParticipant();
         const session = yield* coordinator.join(
           makeConfig(["Alice"]),
           "Alice",
           aliceWindow,
         );
         const error = yield* Effect.flip(
-          coordinator.sync(session.sessionId, makeWindow(), {
+          coordinator.sync(session.sessionId, makeParticipant(), {
             label: "sync",
             step: 0,
           }),
@@ -104,7 +90,7 @@ describe("ArmyCoordinator", () => {
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
         const pending = yield* coordinator
-          .join(makeConfig(["Alice", "Bob"]), "Alice", makeWindow())
+          .join(makeConfig(["Alice", "Bob"]), "Alice", makeParticipant())
           .pipe(Effect.result, Effect.forkScoped);
         yield* Effect.yieldNow;
         yield* TestClock.adjust("120 seconds");
@@ -120,8 +106,8 @@ describe("ArmyCoordinator", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
-        const aliceWindow = makeWindow();
-        const bobWindow = makeWindow();
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
         const [alice, bob] = yield* Effect.all(
           [
             coordinator.join(
@@ -158,8 +144,8 @@ describe("ArmyCoordinator", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const coordinator = yield* makeArmyCoordinator();
-          const aliceWindow = makeWindow();
-          const bobWindow = makeWindow();
+          const aliceWindow = makeParticipant();
+          const bobWindow = makeParticipant();
           const [alice, bob] = yield* Effect.all(
             [
               coordinator.join(

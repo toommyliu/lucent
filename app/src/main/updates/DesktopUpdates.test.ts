@@ -129,7 +129,6 @@ const makeUpdatesHarness = (options: {
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
       platform: "darwin",
-      rendererDir: join(appDataDir, "renderer"),
       workspaceDir,
     });
     if (options.cache !== undefined) {
@@ -219,7 +218,7 @@ describe("DesktopUpdates", () => {
         mockGitHubResponse({
           body: JSON.stringify({
             draft: false,
-            html_url: "https://example.test/release",
+            html_url: "https://github.com/toommyliu/lucent/releases/tag/v1.2.3",
             name: "Lucent 1.2.3",
             prerelease: false,
             published_at: "2026-06-23T00:00:00Z",
@@ -256,7 +255,7 @@ describe("DesktopUpdates", () => {
       mockGitHubResponse({
         body: JSON.stringify({
           draft: true,
-          html_url: "https://example.test/release",
+          html_url: "https://github.com/toommyliu/lucent/releases/tag/v1.2.3",
           prerelease: false,
           tag_name: "v1.2.3",
         }),
@@ -278,7 +277,7 @@ describe("DesktopUpdates", () => {
       mockGitHubResponse({
         body: JSON.stringify({
           draft: false,
-          html_url: "https://example.test/release",
+          html_url: "https://github.com/toommyliu/lucent/releases/tag/v1.2.3",
           prerelease: true,
           tag_name: "v1.2.3",
         }),
@@ -310,7 +309,8 @@ describe("DesktopUpdates", () => {
           cache: {
             etag: "etag-1",
             release: {
-              htmlUrl: "https://example.test/release",
+              htmlUrl:
+                "https://github.com/toommyliu/lucent/releases/tag/v1.0.0",
               tagName: "v1.0.0",
               version: "1.0.0",
             },

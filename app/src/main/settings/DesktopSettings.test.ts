@@ -46,7 +46,6 @@ describe("DesktopSettings", () => {
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
         platform: "darwin",
-        rendererDir: join(appDataDir, "renderer"),
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(
@@ -96,7 +95,6 @@ describe("DesktopSettings", () => {
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
         platform: "darwin",
-        rendererDir: join(appDataDir, "renderer"),
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(
@@ -142,7 +140,6 @@ describe("DesktopSettings", () => {
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
         platform: "darwin",
-        rendererDir: join(appDataDir, "renderer"),
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(

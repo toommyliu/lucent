@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,7 +13,7 @@ import {
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+} from "../../app/DesktopEnvironment";
 import {
   ScriptInputRepository,
   layer as scriptInputRepositoryLayer,
@@ -78,7 +78,6 @@ const makeRepository = () =>
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
       platform: "darwin",
-      rendererDir: join(appDataDir, "renderer"),
       workspaceDir,
     });
     const repository = yield* ScriptInputRepository.pipe(
@@ -91,7 +90,7 @@ const makeRepository = () =>
     return { env, repository };
   });
 
-describe("ScriptInputRepository", () => {
+describe("ScriptInputRepository service", () => {
   it.effect("returns default values when no saved values exist", () =>
     Effect.gen(function* () {
       const { repository } = yield* makeRepository();
@@ -135,5 +134,67 @@ describe("ScriptInputRepository", () => {
         "repository-test": values,
       });
     }),
+  );
+
+  it.effect("preserves concurrent saves for different scripts", () =>
+    Effect.gen(function* () {
+      const { env, repository } = yield* makeRepository();
+      const alternateDefinition: ScriptInputsDefinition = {
+        ...definition,
+        id: "alternate-test",
+      };
+
+      const [primaryValues, alternateValues] = yield* Effect.all(
+        [
+          repository.saveValues(definition, { target: "primary" }),
+          repository.saveValues(alternateDefinition, { target: "alternate" }),
+        ],
+        { concurrency: "unbounded" },
+      );
+      const persisted = JSON.parse(
+        yield* Effect.promise(() =>
+          readFile(env.appDataPath("script-inputs.json"), "utf8"),
+        ),
+      ) as Record<string, unknown>;
+
+      expect(persisted).toEqual({
+        "alternate-test": alternateValues,
+        "repository-test": primaryValues,
+      });
+    }),
+  );
+
+  it.effect(
+    "preserves valid entries when another stored entry is malformed",
+    () =>
+      Effect.gen(function* () {
+        const { env, repository } = yield* makeRepository();
+        const path = env.appDataPath("script-inputs.json");
+        yield* Effect.promise(() =>
+          writeFile(
+            path,
+            JSON.stringify({
+              "existing-test": { target: "existing" },
+              malformed: "not-an-object",
+            }),
+            "utf8",
+          ),
+        );
+
+        yield* repository.saveValues(definition, { target: "new" });
+        const persisted = JSON.parse(
+          yield* Effect.promise(() => readFile(path, "utf8")),
+        ) as Record<string, unknown>;
+
+        expect(persisted).toEqual({
+          "existing-test": { target: "existing" },
+          "repository-test": {
+            count: 3,
+            enabled: false,
+            server: "Artix",
+            target: "new",
+          },
+        });
+      }),
   );
 });

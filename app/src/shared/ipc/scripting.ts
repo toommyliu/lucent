@@ -1,33 +1,19 @@
 import { Schema } from "effect";
 
 import {
+  ScriptFileSchema,
   ScriptInputsDefinitionSchema,
   ScriptInputValuesSchema,
+  ScriptOpenFileResultSchema,
 } from "@lucent/core/scriptInputs";
 import { defineInvoke } from "./core";
 
+export type {
+  ScriptFile,
+  ScriptOpenFileResult,
+} from "@lucent/core/scriptInputs";
+
 const namespace = "desktop:scripting";
-
-export const ScriptFileSchema = Schema.Struct({
-  path: Schema.String,
-  name: Schema.String,
-  source: Schema.String,
-  inputs: Schema.NullOr(ScriptInputsDefinitionSchema),
-});
-
-export type ScriptFile = typeof ScriptFileSchema.Type;
-
-export const ScriptOpenFileResultSchema = Schema.Union([
-  Schema.Struct({
-    canceled: Schema.Literal(true),
-  }),
-  Schema.Struct({
-    canceled: Schema.Literal(false),
-    file: ScriptFileSchema,
-  }),
-]);
-
-export type ScriptOpenFileResult = typeof ScriptOpenFileResultSchema.Type;
 
 export const ScriptingIpc = {
   openFile: defineInvoke({

@@ -1480,7 +1480,6 @@ export function App(): JSX.Element {
     const script = launchScriptPayload();
     const server = launchServer();
     const tilingAlgorithm = launchTilingAlgorithm();
-    const shouldTile = tilingAlgorithm !== "none" && usernames.length > 1;
     try {
       for (const [index, username] of usernames.entries()) {
         try {
@@ -1488,15 +1487,15 @@ export function App(): JSX.Element {
             username,
             script,
             ...(server === "" ? {} : { server }),
-            ...(shouldTile
-              ? {
+            ...(tilingAlgorithm === "none" || usernames.length <= 1
+              ? {}
+              : {
                   tiling: {
                     algorithm: tilingAlgorithm,
                     index,
                     count: usernames.length,
                   },
-                }
-              : {}),
+                }),
           });
         } catch (error) {
           console.error(`Failed to launch account ${username}:`, error);

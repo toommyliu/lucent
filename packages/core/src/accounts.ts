@@ -131,21 +131,36 @@ export const AccountManagerStateSchema = Schema.Struct({
 
 export type AccountManagerState = typeof AccountManagerStateSchema.Type;
 
-export const AccountLaunchTilingAlgorithmSchema = Schema.Literals([
-  "none",
+export const AccountWindowTilingAlgorithmSchema = Schema.Literals([
   "auto-grid",
   "horizontal",
   "vertical",
 ]);
 
+export type AccountWindowTilingAlgorithm =
+  typeof AccountWindowTilingAlgorithmSchema.Type;
+
+export const AccountLaunchTilingAlgorithmSchema = Schema.Union([
+  Schema.Literal("none"),
+  AccountWindowTilingAlgorithmSchema,
+]);
+
 export type AccountLaunchTilingAlgorithm =
   typeof AccountLaunchTilingAlgorithmSchema.Type;
 
+const AccountLaunchTilingCountSchema = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(2),
+);
+
 export const AccountLaunchTilingPlacementSchema = Schema.Struct({
-  algorithm: AccountLaunchTilingAlgorithmSchema,
-  index: Schema.Number,
-  count: Schema.Number,
-});
+  algorithm: AccountWindowTilingAlgorithmSchema,
+  index: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  count: AccountLaunchTilingCountSchema,
+}).check(
+  Schema.makeFilter(({ count, index }) => index < count, {
+    expected: "tiling index to be less than tiling count",
+  }),
+);
 
 export type AccountLaunchTilingPlacement =
   typeof AccountLaunchTilingPlacementSchema.Type;

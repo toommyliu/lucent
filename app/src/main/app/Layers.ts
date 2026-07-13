@@ -4,17 +4,22 @@ import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as GameConsoleObservability from "./GameConsoleObservability";
-import * as ArmyConfigRepository from "../army/ArmyConfigRepository";
-import * as ArmyCoordinator from "../army/ArmyCoordinator";
-import * as DesktopAccounts from "../accounts/DesktopAccounts";
-import * as DesktopCombatProfiles from "../combat-profiles/DesktopCombatProfiles";
+import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
+import * as ArmyIpcHandlers from "../ipc/ArmyIpcHandlers";
+import * as AccountRepository from "../internal/accounts/AccountRepository";
+import * as Accounts from "../internal/accounts/Accounts";
+import * as AccountServers from "../internal/accounts/AccountServers";
+import * as AccountSessions from "../internal/accounts/AccountSessions";
+import * as CombatProfiles from "../internal/combat-profiles/CombatProfiles";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
-import * as ScriptInputRepository from "../scripting/ScriptInputRepository";
-import * as ScriptInputsExtractor from "../scripting/ScriptInputsExtractor";
-import * as ScriptLibrary from "../scripting/ScriptLibrary";
+import * as ScriptFiles from "../internal/scripting/ScriptFiles";
+import * as ScriptInputRepository from "../internal/scripting/ScriptInputRepository";
+import * as ScriptInputsExtractor from "../internal/scripting/ScriptInputsExtractor";
+import * as DesktopScriptLibrary from "../scripting/DesktopScriptLibrary";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
+import * as DesktopAccountGameWindows from "../window/DesktopAccountGameWindows";
 import * as DesktopWindows from "../window/DesktopWindows";
 import * as ElectronApp from "../electron/ElectronApp";
 import * as ElectronDialog from "../electron/ElectronDialog";
@@ -51,20 +56,25 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
 
-  const combatProfilesLayer = DesktopCombatProfiles.layer.pipe(
+  const combatProfilesLayer = CombatProfiles.layer.pipe(
     Layer.provideMerge(environmentLayer),
+  );
+
+  const scriptFilesLayer = ScriptFiles.layer.pipe(
+    Layer.provideMerge(ScriptInputsExtractor.layer),
   );
 
   const scriptingLayer = Layer.mergeAll(
     ScriptInputsExtractor.layer,
     ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
-    ScriptLibrary.layer.pipe(
+    scriptFilesLayer,
+    DesktopScriptLibrary.layer.pipe(
       Layer.provideMerge(
         Layer.mergeAll(
           ElectronDialog.layer,
           ElectronShell.layer,
           environmentLayer,
-          ScriptInputsExtractor.layer,
+          scriptFilesLayer,
         ),
       ),
     ),
@@ -77,7 +87,6 @@ export const makeDesktopLayer = (
         ElectronShell.layer,
         environmentLayer,
         observabilityLayer,
-        combatProfilesLayer,
         settingsLayer,
       ),
     ),
@@ -98,9 +107,23 @@ export const makeDesktopLayer = (
     ),
   );
 
-  const accountsLayer = DesktopAccounts.layer.pipe(
+  const accountRepositoryLayer = AccountRepository.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
+  const accountServersLayer = AccountServers.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(environmentLayer, observabilityLayer)),
+  );
+  const accountGameWindowsLayer = DesktopAccountGameWindows.layer.pipe(
+    Layer.provideMerge(windowsLayer),
+  );
+  const accountsLayer = Accounts.layer.pipe(
     Layer.provideMerge(
-      Layer.mergeAll(environmentLayer, observabilityLayer, windowsLayer),
+      Layer.mergeAll(
+        accountGameWindowsLayer,
+        accountRepositoryLayer,
+        accountServersLayer,
+        AccountSessions.layer,
+      ),
     ),
   );
 
@@ -118,16 +141,14 @@ export const makeDesktopLayer = (
         environmentLayer,
         observabilityLayer,
         settingsLayer,
-        scriptingLayer,
         updatesLayer,
         windowsLayer,
-        accountsLayer,
       ),
     ),
   );
 
   const armyLayer = Layer.mergeAll(
-    ArmyCoordinator.layer.pipe(Layer.provideMerge(DesktopIpc.layer)),
+    ArmyIpcHandlers.coordinatorLayer.pipe(Layer.provideMerge(DesktopIpc.layer)),
     ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
   );
 

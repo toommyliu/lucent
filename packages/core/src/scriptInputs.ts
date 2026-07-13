@@ -47,7 +47,17 @@ export const ScriptSelectInputFieldSchema = Schema.Struct({
   type: Schema.Literal("select"),
   options: Schema.Array(Schema.String),
   default: Schema.optionalKey(Schema.String),
-});
+}).check(
+  Schema.makeFilter(
+    ({ default: defaultValue, options }) =>
+      options.length > 0 &&
+      (defaultValue === undefined || options.includes(defaultValue)),
+    {
+      expected:
+        "select input options to be non-empty and contain the default value",
+    },
+  ),
+);
 
 export const ScriptInputFieldSchema = Schema.Union([
   ScriptStringInputFieldSchema,
@@ -61,9 +71,36 @@ export type ScriptInputField = typeof ScriptInputFieldSchema.Type;
 export const ScriptInputsDefinitionSchema = Schema.Struct({
   id: Schema.String,
   fields: Schema.Array(ScriptInputFieldSchema),
-});
+}).check(
+  Schema.makeFilter(
+    ({ fields }) =>
+      new Set(fields.map((field) => field.key)).size === fields.length,
+    { expected: "script input field keys to be unique" },
+  ),
+);
 
 export type ScriptInputsDefinition = typeof ScriptInputsDefinitionSchema.Type;
+
+export const ScriptFileSchema = Schema.Struct({
+  path: Schema.String,
+  name: Schema.String,
+  source: Schema.String,
+  inputs: Schema.NullOr(ScriptInputsDefinitionSchema),
+});
+
+export type ScriptFile = typeof ScriptFileSchema.Type;
+
+export const ScriptOpenFileResultSchema = Schema.Union([
+  Schema.Struct({
+    canceled: Schema.Literal(true),
+  }),
+  Schema.Struct({
+    canceled: Schema.Literal(false),
+    file: ScriptFileSchema,
+  }),
+]);
+
+export type ScriptOpenFileResult = typeof ScriptOpenFileResultSchema.Type;
 
 export const ScriptInputValuesSchema = Schema.Record(
   Schema.String,

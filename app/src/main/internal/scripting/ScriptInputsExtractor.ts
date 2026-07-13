@@ -4,10 +4,18 @@ import { Context, Effect, Layer, Option, Schema } from "effect";
 import {
   ScriptInputsDefinitionSchema,
   type ScriptInputsDefinition,
-  type ScriptInputField,
 } from "@lucent/core/scriptInputs";
 
-type AstNode = acorn.Node & Record<string, unknown>;
+const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
+const AstNodeSchema = Schema.Struct({ type: Schema.String });
+const isUnknownRecord = Schema.is(UnknownRecordSchema);
+const hasAstNodeShape = Schema.is(AstNodeSchema);
+const decodeScriptInputsDefinition = Schema.decodeUnknownEffect(
+  ScriptInputsDefinitionSchema,
+  { onExcessProperty: "error" },
+);
+
+type AstNode = typeof AstNodeSchema.Type & Record<string, unknown>;
 
 const inputExtractorOperationSchema = Schema.Literals([
   "parse",
@@ -38,15 +46,9 @@ export interface ScriptInputsExtractorShape {
 export class ScriptInputsExtractor extends Context.Service<
   ScriptInputsExtractor,
   ScriptInputsExtractorShape
->()("lucent/desktop/scripting/ScriptInputsExtractor") {}
+>()("lucent/internal/scripting/ScriptInputsExtractor") {}
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const isNode = (value: unknown): value is AstNode =>
-  typeof value === "object" &&
-  value !== null &&
-  typeof (value as { readonly type?: unknown }).type === "string";
+const isNode = (value: unknown): value is AstNode => hasAstNodeShape(value);
 
 const staticError = (detail: string, cause?: unknown) =>
   new ScriptInputsExtractorError({
@@ -188,21 +190,11 @@ const findInputsExpression = (program: AstNode): Option.Option<AstNode> => {
   return Option.none();
 };
 
-const assertUniqueFieldKeys = (definition: ScriptInputsDefinition): void => {
-  const keys = new Set<string>();
-  for (const field of definition.fields as readonly ScriptInputField[]) {
-    if (keys.has(field.key)) {
-      throw validationError(`Duplicate script input key: ${field.key}.`);
-    }
-    keys.add(field.key);
-  }
-};
-
 const normalizeInputDefinitionValue = (
   value: unknown,
   fallbackId: string,
 ): unknown => {
-  if (!isRecord(value)) {
+  if (!isUnknownRecord(value)) {
     return value;
   }
 
@@ -218,22 +210,11 @@ const normalizeDefinition = (
   value: unknown,
   fallbackId: string,
 ): Effect.Effect<ScriptInputsDefinition, ScriptInputsExtractorError> =>
-  Schema.decodeUnknownEffect(ScriptInputsDefinitionSchema, {
-    onExcessProperty: "error",
-  })(normalizeInputDefinitionValue(value, fallbackId)).pipe(
+  decodeScriptInputsDefinition(
+    normalizeInputDefinitionValue(value, fallbackId),
+  ).pipe(
     Effect.mapError((cause) =>
       validationError("Script inputs definition is invalid.", cause),
-    ),
-    Effect.tap((definition) =>
-      Effect.try({
-        try: () => {
-          assertUniqueFieldKeys(definition);
-        },
-        catch: (cause) =>
-          cause instanceof ScriptInputsExtractorError
-            ? cause
-            : validationError("Script inputs definition is invalid.", cause),
-      }),
     ),
   );
 
@@ -254,29 +235,31 @@ const parseSource = (
       }),
   });
 
+const extract: ScriptInputsExtractorShape["extract"] = (source, fallbackId) =>
+  Effect.gen(function* () {
+    const program = yield* parseSource(source);
+    const expression = findInputsExpression(program);
+    if (Option.isNone(expression)) {
+      return null;
+    }
+
+    const value = yield* Effect.try({
+      try: () => evaluateStaticExpression(expression.value),
+      catch: (cause) =>
+        cause instanceof ScriptInputsExtractorError
+          ? cause
+          : staticError(
+              "Script inputs could not be statically evaluated.",
+              cause,
+            ),
+    });
+
+    return yield* normalizeDefinition(value, fallbackId);
+  });
+
 export const layer = Layer.succeed(
   ScriptInputsExtractor,
   ScriptInputsExtractor.of({
-    extract: (source, fallbackId) =>
-      Effect.gen(function* () {
-        const program = yield* parseSource(source);
-        const expression = findInputsExpression(program);
-        if (Option.isNone(expression)) {
-          return null;
-        }
-
-        const value = yield* Effect.try({
-          try: () => evaluateStaticExpression(expression.value),
-          catch: (cause) =>
-            cause instanceof ScriptInputsExtractorError
-              ? cause
-              : staticError(
-                  "Script inputs could not be statically evaluated.",
-                  cause,
-                ),
-        });
-
-        return yield* normalizeDefinition(value, fallbackId);
-      }),
+    extract,
   }),
 );

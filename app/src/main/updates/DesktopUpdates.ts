@@ -1,7 +1,7 @@
 import type { IncomingHttpHeaders } from "http";
 import { get } from "https";
 
-import { Context, Effect, Layer, Ref, Schema } from "effect";
+import { Context, Effect, Layer, Option, Ref, Schema } from "effect";
 
 import {
   UpdateReleaseInfo,
@@ -9,11 +9,13 @@ import {
   type UpdateReleaseCache,
 } from "../../shared/updates";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
+import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
 
 const RELEASE_URL =
   "https://api.github.com/repos/toommyliu/lucent/releases/latest";
@@ -58,15 +60,27 @@ export class DesktopUpdates extends Context.Service<
   DesktopUpdatesShape
 >()("lucent/desktop/updates/DesktopUpdates") {}
 
-interface GitHubReleasePayload {
-  readonly body?: unknown;
-  readonly draft?: unknown;
-  readonly html_url?: unknown;
-  readonly name?: unknown;
-  readonly prerelease?: unknown;
-  readonly published_at?: unknown;
-  readonly tag_name?: unknown;
-}
+const GitHubReleasePayloadSchema = Schema.Struct({
+  body: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  draft: Schema.Boolean,
+  html_url: Schema.String,
+  name: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  prerelease: Schema.Boolean,
+  published_at: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  tag_name: Schema.String,
+});
+type GitHubReleasePayload = typeof GitHubReleasePayloadSchema.Type;
+const decodeGitHubReleasePayload = Schema.decodeUnknownSync(
+  GitHubReleasePayloadSchema,
+);
+
+const UpdateReleaseCacheSchema = Schema.Struct({
+  release: UpdateReleaseInfo,
+  etag: Schema.optionalKey(Schema.String),
+});
+const decodeUpdateReleaseCache = Schema.decodeUnknownOption(
+  UpdateReleaseCacheSchema,
+);
 
 const normalizeVersion = (version: string): string =>
   version.trim().replace(/^v/i, "");
@@ -114,14 +128,12 @@ const parseGitHubReleasePayload = (
     throw new Error("Latest release is not a stable release.");
   }
 
-  const tagName = optionalString(payload.tag_name);
-  const htmlUrl = optionalString(payload.html_url);
-  if (tagName === undefined) {
+  const tagName = payload.tag_name.trim();
+  const releaseUrl = parseAllowedUpdateReleaseUrl(payload.html_url.trim());
+  if (tagName.length === 0)
     throw new Error("Release payload is missing tag_name.");
-  }
-  if (htmlUrl === undefined) {
-    throw new Error("Release payload is missing html_url.");
-  }
+  if (releaseUrl === null)
+    throw new Error("Release payload has an invalid html_url.");
 
   const name = optionalString(payload.name);
   const publishedAt = optionalString(payload.published_at);
@@ -130,7 +142,7 @@ const parseGitHubReleasePayload = (
   return new UpdateReleaseInfo({
     version: normalizeVersion(tagName),
     tagName,
-    htmlUrl,
+    htmlUrl: releaseUrl.href,
     ...(name === undefined ? {} : { name }),
     ...(publishedAt === undefined ? {} : { publishedAt }),
     ...(body === undefined ? {} : { body }),
@@ -200,7 +212,7 @@ const fetchLatestGitHubRelease = (options?: {
                 resolve({
                   status: "modified",
                   release: parseGitHubReleasePayload(
-                    JSON.parse(source) as GitHubReleasePayload,
+                    decodeGitHubReleasePayload(JSON.parse(source)),
                   ),
                   ...(etag === undefined ? {} : { etag }),
                 });
@@ -223,45 +235,11 @@ const fetchLatestGitHubRelease = (options?: {
       }),
   });
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const normalizeUpdateReleaseCache = (
   value: unknown,
 ): UpdateReleaseCache | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const release = value["release"];
-  if (!isRecord(release)) {
-    return null;
-  }
-
-  const version = optionalString(release["version"]);
-  const tagName = optionalString(release["tagName"]);
-  const htmlUrl = optionalString(release["htmlUrl"]);
-  if (version === undefined || tagName === undefined || htmlUrl === undefined) {
-    return null;
-  }
-
-  const etag = optionalString(value["etag"]);
-  const name = optionalString(release["name"]);
-  const publishedAt = optionalString(release["publishedAt"]);
-  const body =
-    typeof release["body"] === "string" ? release["body"] : undefined;
-
-  return {
-    release: new UpdateReleaseInfo({
-      version,
-      tagName,
-      htmlUrl,
-      ...(name === undefined ? {} : { name }),
-      ...(publishedAt === undefined ? {} : { publishedAt }),
-      ...(body === undefined ? {} : { body }),
-    }),
-    ...(etag === undefined ? {} : { etag }),
-  };
+  const decoded = decodeUpdateReleaseCache(value);
+  return Option.isSome(decoded) ? decoded.value : null;
 };
 
 const serializeUpdateReleaseCache = (cache: UpdateReleaseCache): unknown => ({
@@ -318,18 +296,13 @@ const makeDesktopUpdates = (
     );
     const cacheRef = yield* Ref.make<UpdateReleaseCache | null>(null);
     const cacheLoadedRef = yield* Ref.make(false);
-    const listeners = new Set<(state: UpdateCheckState) => void>();
+    const stateChanges = makeListenerRegistry<UpdateCheckState>();
     let inFlight: Promise<UpdateCheckState> | null = null;
 
-    const publish = (state: UpdateCheckState): Effect.Effect<void> =>
-      Effect.sync(() => {
-        for (const listener of listeners) {
-          listener(state);
-        }
-      });
-
     const setState = (state: UpdateCheckState): Effect.Effect<void> =>
-      Ref.set(stateRef, state).pipe(Effect.flatMap(() => publish(state)));
+      Ref.set(stateRef, state).pipe(
+        Effect.flatMap(() => stateChanges.publish(state)),
+      );
 
     const loadCacheOnce = Effect.gen(function* () {
       const loaded = yield* Ref.get(cacheLoadedRef);
@@ -433,38 +406,43 @@ const makeDesktopUpdates = (
         ),
       );
 
-    return {
-      getState: Ref.get(stateRef),
-      onStateChanged: (listener) =>
-        Effect.sync(() => {
-          listeners.add(listener);
-          return () => {
-            listeners.delete(listener);
-          };
-        }),
-      openReleasePage: Ref.get(stateRef).pipe(
-        Effect.flatMap((state) =>
-          state.status === "available"
-            ? options.openExternal(state.release.htmlUrl)
-            : Effect.succeed(false),
-        ),
-      ),
-      checkNow: (checkOptions) => {
-        if (inFlight !== null) {
-          const active = inFlight;
-          return Effect.promise(() => active);
-        }
+    const getState: DesktopUpdatesShape["getState"] = Ref.get(stateRef);
 
-        const promise = runPromise(runCheck(checkOptions?.force === true));
-        inFlight = promise;
-        return Effect.promise(() =>
-          promise.finally(() => {
-            if (inFlight === promise) {
-              inFlight = null;
-            }
-          }),
-        );
-      },
+    const onStateChanged: DesktopUpdatesShape["onStateChanged"] =
+      stateChanges.subscribe;
+
+    const openReleasePage: DesktopUpdatesShape["openReleasePage"] = Ref.get(
+      stateRef,
+    ).pipe(
+      Effect.flatMap((state) =>
+        state.status === "available"
+          ? options.openExternal(state.release.htmlUrl)
+          : Effect.succeed(false),
+      ),
+    );
+
+    const checkNow: DesktopUpdatesShape["checkNow"] = (checkOptions) => {
+      if (inFlight !== null) {
+        const active = inFlight;
+        return Effect.promise(() => active);
+      }
+
+      const promise = runPromise(runCheck(checkOptions?.force === true));
+      inFlight = promise;
+      return Effect.promise(() =>
+        promise.finally(() => {
+          if (inFlight === promise) {
+            inFlight = null;
+          }
+        }),
+      );
+    };
+
+    return {
+      checkNow,
+      getState,
+      onStateChanged,
+      openReleasePage,
     };
   });
 
@@ -478,40 +456,56 @@ export const layer = Layer.effect(
     const settings = yield* DesktopSettings;
     const currentVersion = yield* app.getVersion;
 
-    return DesktopUpdates.of(
-      yield* makeDesktopUpdates({
-        currentVersion,
-        fetchRelease: fetchLatestGitHubRelease,
-        isEnabled: settings.get.pipe(
-          Effect.map(
-            (currentSettings) => currentSettings.preferences.checkForUpdates,
-          ),
-        ),
-        loadCache: readJsonFile(env.releaseCachePath).pipe(
-          Effect.map((result) =>
-            result.status === "ok"
-              ? normalizeUpdateReleaseCache(result.value)
-              : null,
-          ),
-          Effect.catch((cause) =>
-            observability
-              .warn("updates", "Failed to load release cache", { cause })
-              .pipe(Effect.as(null)),
-          ),
-        ),
-        saveCache: (cache) =>
-          writeJsonFile(
-            env.releaseCachePath,
-            serializeUpdateReleaseCache(cache),
-          ).pipe(
-            Effect.catch((cause) =>
-              observability.warn("updates", "Failed to save release cache", {
-                cause,
-              }),
-            ),
-          ),
-        openExternal: (url) => shell.openExternal(url),
-      }),
+    const fetchRelease: DesktopUpdatesOptions["fetchRelease"] =
+      fetchLatestGitHubRelease;
+
+    const isEnabled: DesktopUpdatesOptions["isEnabled"] = settings.get.pipe(
+      Effect.map(
+        (currentSettings) => currentSettings.preferences.checkForUpdates,
+      ),
     );
+
+    const loadCache: DesktopUpdatesOptions["loadCache"] = readJsonFile(
+      env.releaseCachePath,
+    ).pipe(
+      Effect.map((result) =>
+        result.status === "ok"
+          ? normalizeUpdateReleaseCache(result.value)
+          : null,
+      ),
+      Effect.catch((cause) =>
+        observability
+          .warn("updates", "Failed to load release cache", { cause })
+          .pipe(Effect.as(null)),
+      ),
+    );
+
+    const saveCache: DesktopUpdatesOptions["saveCache"] = (cache) =>
+      writeJsonFile(
+        env.releaseCachePath,
+        serializeUpdateReleaseCache(cache),
+      ).pipe(
+        Effect.catch((cause) =>
+          observability.warn("updates", "Failed to save release cache", {
+            cause,
+          }),
+        ),
+      );
+
+    const openExternal: DesktopUpdatesOptions["openExternal"] = (rawUrl) => {
+      const url = parseAllowedUpdateReleaseUrl(rawUrl);
+      return url === null ? Effect.succeed(false) : shell.openExternal(url);
+    };
+
+    const updates = yield* makeDesktopUpdates({
+      currentVersion,
+      fetchRelease,
+      isEnabled,
+      loadCache,
+      openExternal,
+      saveCache,
+    });
+
+    return DesktopUpdates.of(updates);
   }),
 );

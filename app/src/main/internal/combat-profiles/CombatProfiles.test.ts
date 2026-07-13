@@ -15,11 +15,11 @@ import {
 import {
   DesktopEnvironment,
   makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+} from "../../app/DesktopEnvironment";
 import {
-  DesktopCombatProfiles,
+  CombatProfiles,
   layer as desktopCombatProfilesLayer,
-} from "./DesktopCombatProfiles";
+} from "./CombatProfiles";
 
 const tempDirs = new Set<string>();
 
@@ -49,13 +49,12 @@ const makeHarness = () =>
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
       platform: "darwin",
-      rendererDir: join(appDataDir, "renderer"),
       workspaceDir,
     });
     const combatProfilesLayer = desktopCombatProfilesLayer.pipe(
       Layer.provide(Layer.succeed(DesktopEnvironment, env)),
     );
-    const combatProfiles = yield* DesktopCombatProfiles.pipe(
+    const combatProfiles = yield* CombatProfiles.pipe(
       Effect.provide(combatProfilesLayer),
     );
 
@@ -76,7 +75,7 @@ const testProfile: CombatProfile = {
   messageTriggers: [],
 };
 
-describe("DesktopCombatProfiles", () => {
+describe("CombatProfiles", () => {
   it.effect("deletes saved profiles from the library", () =>
     Effect.gen(function* () {
       const { combatProfiles } = yield* makeHarness();

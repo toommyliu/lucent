@@ -11,7 +11,6 @@ const environmentFor = (platform: NodeJS.Platform) =>
     assetsDir: "/assets",
     isDev: true,
     platform,
-    rendererDir: "/renderer",
     workspaceDir: "/workspace",
   });
 
@@ -26,7 +25,6 @@ describe("DesktopEnvironment", () => {
       flashPluginPathOverride: "/custom/pepflashplayer.dll",
       isDev: true,
       platform: "win32",
-      rendererDir: "/renderer",
       workspaceDir,
     });
 

@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import {
   Context,
   Deferred,
@@ -15,8 +14,6 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import { ArmyIpc } from "../../shared/ipc";
-import { DesktopIpc } from "../ipc/DesktopIpc";
 
 export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
@@ -90,9 +87,11 @@ export type ArmyCoordinatorError =
   | ArmyParticipantError
   | ArmySynchronizationError;
 
+export type ArmyParticipantId = number;
+
 interface Participant {
   readonly playerName: string;
-  readonly windowId: number;
+  readonly id: ArmyParticipantId;
 }
 
 interface StepSignature {
@@ -132,39 +131,43 @@ interface CoordinatorState {
   readonly activeSessionByConfig: ReadonlyMap<string, string>;
   readonly nextSessionId: number;
   readonly sessions: ReadonlyMap<string, ArmySessionState>;
-  readonly windowSessions: ReadonlyMap<number, string>;
+  readonly participantSessions: ReadonlyMap<ArmyParticipantId, string>;
 }
 
 const initialState: CoordinatorState = {
   activeSessionByConfig: new Map(),
   nextSessionId: 0,
   sessions: new Map(),
-  windowSessions: new Map(),
+  participantSessions: new Map(),
 };
 
 export interface ArmyCoordinatorShape {
+  readonly abortParticipant: (
+    participantId: ArmyParticipantId,
+    reason: string,
+  ) => Effect.Effect<void>;
   readonly abortSession: (
     sessionId: string,
     reason: string,
   ) => Effect.Effect<void>;
   readonly fail: (
     sessionId: string,
-    sender: BrowserWindow,
+    participantId: ArmyParticipantId,
     reason: string,
   ) => Effect.Effect<void, ArmyCoordinatorError>;
   readonly getSessions: () => Effect.Effect<readonly ArmySessionState[]>;
   readonly join: (
     config: ArmyConfigPayload,
     playerName: string,
-    sender: BrowserWindow,
+    participantId: ArmyParticipantId,
   ) => Effect.Effect<ArmySessionPayload, ArmyCoordinatorError>;
   readonly leave: (
     sessionId: string,
-    sender: BrowserWindow,
+    participantId: ArmyParticipantId,
   ) => Effect.Effect<void, ArmyCoordinatorError>;
   readonly progress: (
     sessionId: string,
-    sender: BrowserWindow,
+    participantId: ArmyParticipantId,
     payload: {
       readonly complete: boolean;
       readonly label?: string;
@@ -174,7 +177,7 @@ export interface ArmyCoordinatorShape {
   ) => Effect.Effect<ArmyProgressResult, ArmyCoordinatorError>;
   readonly sync: (
     sessionId: string,
-    sender: BrowserWindow,
+    participantId: ArmyParticipantId,
     payload: {
       readonly label?: string;
       readonly step: number;
@@ -186,11 +189,11 @@ export interface ArmyCoordinatorShape {
 export class ArmyCoordinator extends Context.Service<
   ArmyCoordinator,
   ArmyCoordinatorShape
->()("lucent/desktop/army/ArmyCoordinator") {}
+>()("lucent/internal/army/ArmyCoordinator") {}
 
 interface CoordinatorHooks {
   readonly sessionEnded: (
-    windowIds: readonly number[],
+    participantIds: readonly ArmyParticipantId[],
     payload: { readonly reason: string; readonly sessionId: string },
   ) => Effect.Effect<void>;
 }
@@ -309,12 +312,12 @@ const toPayload = (
   };
 };
 
-const findSender = (
+const findParticipant = (
   session: ArmySessionState,
-  windowId: number,
+  participantId: ArmyParticipantId,
 ): readonly [string, Participant] | undefined =>
   [...session.participants].find(
-    ([, participant]) => participant.windowId === windowId,
+    ([, participant]) => participant.id === participantId,
   );
 
 const missingPlayers = (
@@ -338,8 +341,6 @@ export const makeArmyCoordinator = (
 ): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
-    const trackedWindows = new WeakSet<BrowserWindow>();
-    const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
     const getSession = (sessionId: string) =>
       SynchronizedRef.get(stateRef).pipe(
@@ -365,16 +366,21 @@ export const makeArmyCoordinator = (
             if (activeSessionByConfig.get(session.configName) === sessionId) {
               activeSessionByConfig.delete(session.configName);
             }
-            const windowSessions = new Map(state.windowSessions);
+            const participantSessions = new Map(state.participantSessions);
             for (const participant of session.participants.values()) {
-              if (windowSessions.get(participant.windowId) === sessionId) {
-                windowSessions.delete(participant.windowId);
+              if (participantSessions.get(participant.id) === sessionId) {
+                participantSessions.delete(participant.id);
               }
             }
 
             return [
               session,
-              { ...state, activeSessionByConfig, sessions, windowSessions },
+              {
+                ...state,
+                activeSessionByConfig,
+                participantSessions,
+                sessions,
+              },
             ];
           },
         );
@@ -396,15 +402,18 @@ export const makeArmyCoordinator = (
         );
         yield* hooks.sessionEnded(
           [...removed.participants.values()].map(
-            (participant) => participant.windowId,
+            (participant) => participant.id,
           ),
           { reason, sessionId },
         );
       });
 
-    const abortWindow = (windowId: number, reason: string) =>
+    const abortParticipant: ArmyCoordinatorShape["abortParticipant"] = (
+      participantId,
+      reason,
+    ) =>
       SynchronizedRef.get(stateRef).pipe(
-        Effect.map((state) => state.windowSessions.get(windowId)),
+        Effect.map((state) => state.participantSessions.get(participantId)),
         Effect.flatMap((sessionId) =>
           sessionId === undefined
             ? Effect.void
@@ -412,20 +421,9 @@ export const makeArmyCoordinator = (
         ),
       );
 
-    const trackWindow = (window: BrowserWindow): void => {
-      if (trackedWindows.has(window)) return;
-      trackedWindows.add(window);
-      window.once("closed", () => {
-        runFork(abortWindow(window.id, "Army window closed"));
-      });
-      window.webContents.once("destroyed", () => {
-        runFork(abortWindow(window.id, "Army window destroyed"));
-      });
-    };
-
-    const requireSender = (
+    const requireParticipant = (
       sessionId: string,
-      sender: BrowserWindow,
+      participantId: ArmyParticipantId,
     ): Effect.Effect<
       readonly [ArmySessionState, string],
       ArmyCoordinatorError
@@ -446,7 +444,7 @@ export const makeArmyCoordinator = (
             sessionId,
           );
         }
-        const participant = findSender(session, sender.id);
+        const participant = findParticipant(session, participantId);
         if (participant === undefined) {
           return yield* participantError(
             "sender-mismatch",
@@ -479,10 +477,9 @@ export const makeArmyCoordinator = (
     const join: ArmyCoordinatorShape["join"] = (
       config,
       requestedPlayerName,
-      sender,
+      participantId,
     ) =>
       Effect.gen(function* () {
-        trackWindow(sender);
         const playerKey = normalizeArmyPlayerKey(requestedPlayerName);
 
         const outcome = yield* SynchronizedRef.modifyEffect<
@@ -541,7 +538,8 @@ export const makeArmyCoordinator = (
                 return [{ type: "reject" as const, error }, nextState] as const;
               }
 
-              const boundSessionId = nextState.windowSessions.get(sender.id);
+              const boundSessionId =
+                nextState.participantSessions.get(participantId);
               if (
                 boundSessionId !== undefined &&
                 boundSessionId !== session.sessionId
@@ -556,7 +554,7 @@ export const makeArmyCoordinator = (
               }
 
               const existing = session.participants.get(playerKey);
-              if (existing !== undefined && existing.windowId !== sender.id) {
+              if (existing !== undefined && existing.id !== participantId) {
                 const error = participantError(
                   "already-joined",
                   `Army player already joined: ${requestedPlayerName}`,
@@ -568,8 +566,8 @@ export const makeArmyCoordinator = (
 
               const participants = new Map(session.participants);
               participants.set(playerKey, {
+                id: participantId,
                 playerName: canonicalPlayerName(session, playerKey),
-                windowId: sender.id,
               });
               const activated = participants.size === session.players.length;
               const updated: ArmySessionState = {
@@ -581,10 +579,9 @@ export const makeArmyCoordinator = (
                 session.sessionId,
                 updated,
               );
-              const windowSessions = new Map(nextState.windowSessions).set(
-                sender.id,
-                session.sessionId,
-              );
+              const participantSessions = new Map(
+                nextState.participantSessions,
+              ).set(participantId, session.sessionId);
 
               return [
                 {
@@ -593,7 +590,7 @@ export const makeArmyCoordinator = (
                   playerKey,
                   session: updated,
                 },
-                { ...nextState, sessions, windowSessions },
+                { ...nextState, participantSessions, sessions },
               ] as const;
             }),
         );
@@ -922,7 +919,11 @@ export const makeArmyCoordinator = (
         return yield* error;
       });
 
-    const sync: ArmyCoordinatorShape["sync"] = (sessionId, sender, payload) =>
+    const sync: ArmyCoordinatorShape["sync"] = (
+      sessionId,
+      participantId,
+      payload,
+    ) =>
       Effect.gen(function* () {
         if (!Number.isSafeInteger(payload.step) || payload.step < 0) {
           return yield* syncError(
@@ -933,7 +934,10 @@ export const makeArmyCoordinator = (
             payload.label,
           );
         }
-        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const [, playerKey] = yield* requireParticipant(
+          sessionId,
+          participantId,
+        );
         const signature: StepSignature = {
           kind: "barrier",
           label: normalizeLabel(payload.label),
@@ -966,7 +970,7 @@ export const makeArmyCoordinator = (
 
     const progress: ArmyCoordinatorShape["progress"] = (
       sessionId,
-      sender,
+      participantId,
       payload,
     ) =>
       Effect.gen(function* () {
@@ -979,7 +983,10 @@ export const makeArmyCoordinator = (
             payload.label,
           );
         }
-        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const [, playerKey] = yield* requireParticipant(
+          sessionId,
+          participantId,
+        );
         const signature: StepSignature = {
           kind: "progress",
           label: normalizeLabel(payload.label),
@@ -1013,9 +1020,12 @@ export const makeArmyCoordinator = (
         });
       });
 
-    const leave: ArmyCoordinatorShape["leave"] = (sessionId, sender) =>
+    const leave: ArmyCoordinatorShape["leave"] = (sessionId, participantId) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const [, playerKey] = yield* requireParticipant(
+          sessionId,
+          participantId,
+        );
         const playerName = canonicalPlayerName(
           (yield* getSession(sessionId))!,
           playerKey,
@@ -1023,9 +1033,16 @@ export const makeArmyCoordinator = (
         yield* abortSession(sessionId, `Army player left: ${playerName}`);
       });
 
-    const fail: ArmyCoordinatorShape["fail"] = (sessionId, sender, reason) =>
+    const fail: ArmyCoordinatorShape["fail"] = (
+      sessionId,
+      participantId,
+      reason,
+    ) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* requireSender(sessionId, sender);
+        const [, playerKey] = yield* requireParticipant(
+          sessionId,
+          participantId,
+        );
         const playerName = canonicalPlayerName(
           (yield* getSession(sessionId))!,
           playerKey,
@@ -1036,13 +1053,16 @@ export const makeArmyCoordinator = (
         );
       });
 
+    const getSessions: ArmyCoordinatorShape["getSessions"] = () =>
+      SynchronizedRef.get(stateRef).pipe(
+        Effect.map((state) => [...state.sessions.values()]),
+      );
+
     const service: ArmyCoordinatorShape = {
+      abortParticipant,
       abortSession,
       fail,
-      getSessions: () =>
-        SynchronizedRef.get(stateRef).pipe(
-          Effect.map((state) => [...state.sessions.values()]),
-        ),
+      getSessions,
       join,
       leave,
       progress,
@@ -1070,13 +1090,4 @@ export const makeArmyCoordinator = (
     return service;
   });
 
-export const layer = Layer.effect(
-  ArmyCoordinator,
-  Effect.gen(function* () {
-    const ipc = yield* DesktopIpc;
-    return yield* makeArmyCoordinator({
-      sessionEnded: (windowIds, payload) =>
-        ipc.sendToBrowserWindowIds(windowIds, ArmyIpc.ended, payload),
-    });
-  }),
-);
+export const layer = Layer.effect(ArmyCoordinator, makeArmyCoordinator());

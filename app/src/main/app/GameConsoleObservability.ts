@@ -14,7 +14,7 @@ import {
   GameConsoleIpc,
   type GameConsoleRendererMessagePayload,
 } from "../../shared/ipc";
-import { DesktopAccounts } from "../accounts/DesktopAccounts";
+import { Accounts } from "../internal/accounts/Accounts";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { DesktopObservability } from "./DesktopObservability";
 
@@ -1134,7 +1134,7 @@ export class GameConsoleObservability extends Context.Service<
 >()("lucent/desktop/app/GameConsoleObservability") {}
 
 const makeGameConsoleObservability = Effect.gen(function* () {
-  const accounts = yield* DesktopAccounts;
+  const accounts = yield* Accounts;
   const observability = yield* DesktopObservability;
   const windows = yield* DesktopWindows;
 

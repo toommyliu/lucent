@@ -28,16 +28,21 @@ export class ElectronTheme extends Context.Service<
   ElectronThemeShape
 >()("lucent/desktop/electron/ElectronTheme") {}
 
+const setThemeMode: ElectronThemeShape["setThemeMode"] = (themeMode) =>
+  Effect.try({
+    try: () => {
+      nativeTheme.themeSource = themeMode;
+    },
+    catch: (cause) => new ElectronThemeError({ cause, themeMode }),
+  });
+
+const shouldUseDarkColors: ElectronThemeShape["shouldUseDarkColors"] =
+  Effect.sync(() => nativeTheme.shouldUseDarkColors);
+
 export const layer = Layer.succeed(
   ElectronTheme,
   ElectronTheme.of({
-    setThemeMode: (themeMode) =>
-      Effect.try({
-        try: () => {
-          nativeTheme.themeSource = themeMode;
-        },
-        catch: (cause) => new ElectronThemeError({ cause, themeMode }),
-      }),
-    shouldUseDarkColors: Effect.sync(() => nativeTheme.shouldUseDarkColors),
+    setThemeMode,
+    shouldUseDarkColors,
   }),
 );

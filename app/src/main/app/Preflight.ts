@@ -84,7 +84,6 @@ const resolveEnvironmentConfig = (
     isDev,
     ...(cliOptions.obs === undefined ? {} : { observeGameConsole: true }),
     platform,
-    rendererDir: join(__dirname, "../renderer"),
     workspaceDir: resolveWorkspaceHome({
       documentsPath: app.getPath("documents"),
     }),

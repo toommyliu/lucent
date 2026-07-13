@@ -1,0 +1,602 @@
+import { Context, Effect, Layer } from "effect";
+
+import {
+  removeGroupMemberUsername,
+  renameGroupMemberUsername,
+  type AccountGameLaunchPayload,
+  type AccountGameServerPingsResult,
+  type AccountGameServersResult,
+  type AccountLaunchRequest,
+  type AccountLaunchResult,
+  type AccountManagerState,
+  type AccountManagerStorage,
+  type AccountScriptStatusUpdate,
+  type ManagedAccount,
+  type ManagedAccountDraft,
+  type ManagedAccountGroupDraft,
+  type ManagedAccountGroupPatch,
+  type ManagedAccountGroups,
+  type ManagedAccountPatch,
+} from "@lucent/core/accounts";
+import { makeListenerRegistry } from "../../app/ListenerRegistry";
+import { AccountGameWindows } from "./AccountGameWindows";
+import { AccountRepository } from "./AccountRepository";
+import { AccountServers } from "./AccountServers";
+import { AccountSessions, type PendingAccountLaunch } from "./AccountSessions";
+import {
+  AccountsError,
+  accountError,
+  type AccountOperation,
+} from "./AccountsError";
+
+export interface AccountsShape {
+  readonly closeGameWindow: (
+    gameWindowId: number,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly createAccount: (
+    draft: ManagedAccountDraft,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly createGroup: (
+    draft: ManagedAccountGroupDraft,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly deleteAccount: (
+    username: string,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly deleteGroup: (
+    name: string,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly focusGameWindow: (
+    gameWindowId: number,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly getGameLaunch: (
+    gameWindowId: number,
+  ) => Effect.Effect<AccountGameLaunchPayload | null, AccountsError>;
+  readonly getServerPings: Effect.Effect<
+    AccountGameServerPingsResult,
+    AccountsError
+  >;
+  readonly getServers: Effect.Effect<AccountGameServersResult, AccountsError>;
+  readonly getState: Effect.Effect<AccountManagerState, AccountsError>;
+  readonly launch: (
+    request: AccountLaunchRequest,
+  ) => Effect.Effect<AccountLaunchResult, AccountsError>;
+  readonly load: Effect.Effect<AccountManagerState, AccountsError>;
+  readonly onChanged: (
+    listener: (state: AccountManagerState) => void,
+  ) => Effect.Effect<() => void>;
+  readonly refreshServers: Effect.Effect<
+    AccountGameServersResult,
+    AccountsError
+  >;
+  readonly updateAccount: (
+    username: string,
+    patch: ManagedAccountPatch,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly updateGroup: (
+    name: string,
+    patch: ManagedAccountGroupPatch,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly updateScriptStatus: (
+    gameWindowId: number,
+    update: AccountScriptStatusUpdate,
+  ) => Effect.Effect<void, AccountsError>;
+}
+
+export class Accounts extends Context.Service<Accounts, AccountsShape>()(
+  "lucent/internal/accounts/Accounts",
+) {}
+
+const normalizeRequiredString = (
+  value: unknown,
+  field: string,
+  operation: AccountOperation,
+): Effect.Effect<string, AccountsError> =>
+  Effect.gen(function* () {
+    if (typeof value !== "string") {
+      return yield* accountError(operation, `${field} must be a string`);
+    }
+    const normalized = value.trim();
+    if (normalized === "") {
+      return yield* accountError(operation, `${field} is required`);
+    }
+    return normalized;
+  });
+
+const normalizeOptionalString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+};
+
+const normalizeAccountDraft = (
+  draft: ManagedAccountDraft,
+  operation: AccountOperation,
+): Effect.Effect<ManagedAccount, AccountsError> =>
+  Effect.gen(function* () {
+    const username = yield* normalizeRequiredString(
+      draft.username,
+      "username",
+      operation,
+    );
+    const password = yield* normalizeRequiredString(
+      draft.password,
+      "password",
+      operation,
+    );
+    const label =
+      typeof draft.label === "string" && draft.label.trim() !== ""
+        ? draft.label.trim()
+        : username;
+    return { label, password, username };
+  });
+
+const normalizeAccountPatch = (
+  patch: ManagedAccountPatch,
+): Effect.Effect<ManagedAccountPatch, AccountsError> =>
+  Effect.gen(function* () {
+    const output: Record<string, string> = {};
+    for (const key of ["label", "username", "password"] as const) {
+      if (patch[key] !== undefined) {
+        output[key] = yield* normalizeRequiredString(
+          patch[key],
+          key,
+          "update-account",
+        );
+      }
+    }
+    return output;
+  });
+
+const hasAccountUsername = (
+  accounts: readonly ManagedAccount[],
+  username: string,
+  options: { readonly exceptUsername?: string } = {},
+): boolean => {
+  const key = username.toLowerCase();
+  const exceptKey = options.exceptUsername?.toLowerCase();
+  return accounts.some(
+    (account) =>
+      account.username.toLowerCase() === key &&
+      account.username.toLowerCase() !== exceptKey,
+  );
+};
+
+const findGroupName = (
+  groups: ManagedAccountGroups,
+  name: string,
+): string | undefined => {
+  const key = name.toLowerCase();
+  return Object.keys(groups).find(
+    (groupName) => groupName.toLowerCase() === key,
+  );
+};
+
+const hasGroupName = (
+  groups: ManagedAccountGroups,
+  name: string,
+  options: { readonly exceptName?: string } = {},
+): boolean => {
+  const key = name.toLowerCase();
+  const exceptKey = options.exceptName?.toLowerCase();
+  return Object.keys(groups).some(
+    (groupName) => groupName.toLowerCase() === key && key !== exceptKey,
+  );
+};
+
+const normalizeGroupMembers = (
+  value: readonly string[],
+  accounts: readonly ManagedAccount[],
+  operation: AccountOperation,
+): Effect.Effect<readonly string[], AccountsError> =>
+  Effect.gen(function* () {
+    const accountUsernames = new Set(
+      accounts.map((account) => account.username),
+    );
+    const seen = new Set<string>();
+    const usernames: string[] = [];
+    for (const username of value) {
+      const normalized = yield* normalizeRequiredString(
+        username,
+        "group username",
+        operation,
+      );
+      if (!accountUsernames.has(normalized)) {
+        return yield* accountError(
+          operation,
+          `Account not found: ${normalized}`,
+        );
+      }
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) {
+        return yield* accountError(
+          operation,
+          `Duplicate group member: ${normalized}`,
+        );
+      }
+      seen.add(key);
+      usernames.push(normalized);
+    }
+    return usernames;
+  });
+
+const normalizeGroupDraft = (
+  draft: ManagedAccountGroupDraft,
+  accounts: readonly ManagedAccount[],
+): Effect.Effect<ManagedAccountGroupDraft, AccountsError> =>
+  Effect.gen(function* () {
+    const name = yield* normalizeRequiredString(
+      draft.name,
+      "group name",
+      "create-group",
+    );
+    const usernames = yield* normalizeGroupMembers(
+      draft.usernames,
+      accounts,
+      "create-group",
+    );
+    return { name, usernames };
+  });
+
+const normalizeGroupPatch = (
+  patch: ManagedAccountGroupPatch,
+  accounts: readonly ManagedAccount[],
+): Effect.Effect<ManagedAccountGroupPatch, AccountsError> =>
+  Effect.gen(function* () {
+    return {
+      ...(patch.name === undefined
+        ? {}
+        : {
+            name: yield* normalizeRequiredString(
+              patch.name,
+              "group name",
+              "update-group",
+            ),
+          }),
+      ...(patch.usernames === undefined
+        ? {}
+        : {
+            usernames: yield* normalizeGroupMembers(
+              patch.usernames,
+              accounts,
+              "update-group",
+            ),
+          }),
+    };
+  });
+
+export const makeAccounts = Effect.gen(function* () {
+  const gameWindows = yield* AccountGameWindows;
+  const repository = yield* AccountRepository;
+  const servers = yield* AccountServers;
+  const sessions = yield* AccountSessions;
+  const stateChanges = makeListenerRegistry<AccountManagerState>();
+
+  const toState = (storage: AccountManagerStorage): AccountManagerState => ({
+    accounts: storage.accounts,
+    groups: storage.groups,
+    sessions: sessions.snapshot(),
+    storagePath: repository.path,
+  });
+
+  const getState = repository.get.pipe(Effect.map(toState));
+
+  const publishCurrentState = getState.pipe(
+    Effect.flatMap(stateChanges.publish),
+  );
+
+  const updateStorage = (
+    modify: (
+      storage: AccountManagerStorage,
+    ) => Effect.Effect<AccountManagerStorage, AccountsError>,
+  ) =>
+    repository
+      .update(modify)
+      .pipe(Effect.map(toState), Effect.tap(stateChanges.publish));
+
+  const removeWindowSession = (gameWindowId: number) =>
+    Effect.sync(() => sessions.remove(gameWindowId)).pipe(
+      Effect.flatMap((removed) =>
+        removed ? publishCurrentState : Effect.void,
+      ),
+    );
+
+  const unsubscribeWindows = yield* gameWindows.onClosed(removeWindowSession);
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
+
+  const closeGameWindow: AccountsShape["closeGameWindow"] = (gameWindowId) =>
+    gameWindows.close(gameWindowId).pipe(
+      Effect.flatMap(() => removeWindowSession(gameWindowId)),
+      Effect.flatMap(() => getState),
+      Effect.mapError((cause) =>
+        cause instanceof AccountsError
+          ? cause
+          : accountError(
+              "close-game-window",
+              `Failed to close game window: ${gameWindowId}`,
+              cause,
+            ),
+      ),
+    );
+
+  const createAccount: AccountsShape["createAccount"] = (draft) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const account = yield* normalizeAccountDraft(draft, "create-account");
+        if (hasAccountUsername(storage.accounts, account.username)) {
+          return yield* accountError(
+            "create-account",
+            "An account with this username already exists",
+          );
+        }
+        return { ...storage, accounts: [...storage.accounts, account] };
+      }),
+    );
+
+  const createGroup: AccountsShape["createGroup"] = (draft) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const group = yield* normalizeGroupDraft(draft, storage.accounts);
+        if (hasGroupName(storage.groups, group.name)) {
+          return yield* accountError(
+            "create-group",
+            "A group with this name already exists",
+          );
+        }
+        return {
+          ...storage,
+          groups: { ...storage.groups, [group.name]: group.usernames },
+        };
+      }),
+    );
+
+  const deleteAccount: AccountsShape["deleteAccount"] = (username) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const accountUsername = yield* normalizeRequiredString(
+          username,
+          "username",
+          "delete-account",
+        );
+        const accounts = storage.accounts.filter(
+          (account) => account.username !== accountUsername,
+        );
+        if (accounts.length === storage.accounts.length) {
+          return yield* accountError("delete-account", "Account not found");
+        }
+        return {
+          accounts,
+          groups: removeGroupMemberUsername(storage.groups, accountUsername),
+        };
+      }),
+    );
+
+  const deleteGroup: AccountsShape["deleteGroup"] = (name) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const groupName = yield* normalizeRequiredString(
+          name,
+          "group name",
+          "delete-group",
+        );
+        const existingName = findGroupName(storage.groups, groupName);
+        if (existingName === undefined) {
+          return yield* accountError("delete-group", "Group not found");
+        }
+        const groups: Record<string, readonly string[]> = {};
+        for (const [currentName, usernames] of Object.entries(storage.groups)) {
+          if (currentName !== existingName) groups[currentName] = usernames;
+        }
+        return { ...storage, groups };
+      }),
+    );
+
+  const focusGameWindow: AccountsShape["focusGameWindow"] = (gameWindowId) =>
+    gameWindows.reveal(gameWindowId).pipe(
+      Effect.flatMap((revealed) =>
+        revealed ? Effect.void : removeWindowSession(gameWindowId),
+      ),
+      Effect.flatMap(() => getState),
+      Effect.mapError((cause) =>
+        accountError(
+          "focus-game-window",
+          `Failed to focus game window: ${gameWindowId}`,
+          cause,
+        ),
+      ),
+    );
+
+  const getGameLaunch: AccountsShape["getGameLaunch"] = (gameWindowId) =>
+    Effect.sync(() => sessions.getLaunch(gameWindowId)).pipe(
+      Effect.tap((payload) =>
+        payload === null ? Effect.void : publishCurrentState,
+      ),
+      Effect.mapError((cause) =>
+        accountError(
+          "get-game-launch",
+          `Failed to read game launch payload: ${gameWindowId}`,
+          cause,
+        ),
+      ),
+    );
+
+  const getServerPings: AccountsShape["getServerPings"] = servers.getPings;
+
+  const getServers: AccountsShape["getServers"] = servers.get;
+
+  const launch: AccountsShape["launch"] = (request) =>
+    Effect.gen(function* () {
+      const username = yield* normalizeRequiredString(
+        request.username,
+        "username",
+        "launch",
+      );
+      const storage = yield* repository.get;
+      const account = storage.accounts.find(
+        (candidate) => candidate.username === username,
+      );
+      if (account === undefined) {
+        return yield* accountError("launch", "Account not found");
+      }
+      const launchServer = normalizeOptionalString(request.server);
+      const pending: PendingAccountLaunch = {
+        account,
+        ...(request.script === null || request.script === undefined
+          ? {}
+          : { script: request.script }),
+        ...(launchServer === undefined ? {} : { server: launchServer }),
+        requestedAt: Date.now(),
+      };
+      let gameWindowId: number | undefined;
+      const resolvedGameWindowId = yield* gameWindows
+        .open({
+          ...(request.tiling === undefined ? {} : { tile: request.tiling }),
+          onCreated: (createdId) =>
+            Effect.sync(() => {
+              gameWindowId = createdId;
+              sessions.trackLaunch(createdId, pending);
+            }).pipe(Effect.andThen(publishCurrentState)),
+        })
+        .pipe(
+          Effect.catch((cause) =>
+            gameWindowId === undefined
+              ? Effect.fail(cause)
+              : removeWindowSession(gameWindowId).pipe(
+                  Effect.andThen(Effect.fail(cause)),
+                ),
+          ),
+        );
+      if (sessions.getLaunch(resolvedGameWindowId) === null) {
+        sessions.trackLaunch(resolvedGameWindowId, pending);
+        yield* publishCurrentState;
+      }
+      return { gameWindowId: resolvedGameWindowId };
+    }).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof AccountsError
+          ? cause
+          : accountError("launch", "Failed to launch account", cause),
+      ),
+    );
+
+  const load: AccountsShape["load"] = repository.load.pipe(Effect.map(toState));
+
+  const onChanged: AccountsShape["onChanged"] = stateChanges.subscribe;
+
+  const refreshServers: AccountsShape["refreshServers"] = servers.refresh;
+
+  const updateAccount: AccountsShape["updateAccount"] = (username, patch) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const currentUsername = yield* normalizeRequiredString(
+          username,
+          "username",
+          "update-account",
+        );
+        const accountPatch = yield* normalizeAccountPatch(patch);
+        const nextUsername = accountPatch.username ?? currentUsername;
+        if (
+          hasAccountUsername(storage.accounts, nextUsername, {
+            exceptUsername: currentUsername,
+          })
+        ) {
+          return yield* accountError(
+            "update-account",
+            "An account with this username already exists",
+          );
+        }
+        let found = false;
+        const accounts = storage.accounts.map((account) => {
+          if (account.username !== currentUsername) return account;
+          found = true;
+          return {
+            ...account,
+            ...accountPatch,
+            label: accountPatch.label ?? account.label,
+          };
+        });
+        if (!found) {
+          return yield* accountError("update-account", "Account not found");
+        }
+        return {
+          accounts,
+          groups: renameGroupMemberUsername(
+            storage.groups,
+            currentUsername,
+            nextUsername,
+          ),
+        };
+      }),
+    );
+
+  const updateGroup: AccountsShape["updateGroup"] = (name, patch) =>
+    updateStorage((storage) =>
+      Effect.gen(function* () {
+        const currentName = yield* normalizeRequiredString(
+          name,
+          "group name",
+          "update-group",
+        );
+        const existingName = findGroupName(storage.groups, currentName);
+        if (existingName === undefined) {
+          return yield* accountError("update-group", "Group not found");
+        }
+        const groupPatch = yield* normalizeGroupPatch(patch, storage.accounts);
+        const nextName = groupPatch.name ?? existingName;
+        if (
+          hasGroupName(storage.groups, nextName, {
+            exceptName: existingName,
+          })
+        ) {
+          return yield* accountError(
+            "update-group",
+            "A group with this name already exists",
+          );
+        }
+        const groups: Record<string, readonly string[]> = {};
+        for (const [groupName, usernames] of Object.entries(storage.groups)) {
+          groups[groupName === existingName ? nextName : groupName] =
+            groupName === existingName
+              ? (groupPatch.usernames ?? usernames)
+              : usernames;
+        }
+        return { ...storage, groups };
+      }),
+    );
+
+  const updateScriptStatus: AccountsShape["updateScriptStatus"] = (
+    gameWindowId,
+    update,
+  ) =>
+    Effect.sync(() => sessions.updateStatus(gameWindowId, update)).pipe(
+      Effect.andThen(publishCurrentState),
+      Effect.mapError((cause) =>
+        accountError(
+          "update-script-status",
+          `Failed to update script status for game window: ${gameWindowId}`,
+          cause,
+        ),
+      ),
+    );
+
+  return Accounts.of({
+    closeGameWindow,
+    createAccount,
+    createGroup,
+    deleteAccount,
+    deleteGroup,
+    focusGameWindow,
+    getGameLaunch,
+    getServerPings,
+    getServers,
+    getState,
+    launch,
+    load,
+    onChanged,
+    refreshServers,
+    updateAccount,
+    updateGroup,
+    updateScriptStatus,
+  });
+});
+
+export const layer = Layer.effect(Accounts, makeAccounts);

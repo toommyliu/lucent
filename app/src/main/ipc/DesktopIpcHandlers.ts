@@ -9,13 +9,13 @@ import {
   UpdatesIpc,
   WindowsIpc,
 } from "../../shared/ipc";
-import { ScriptInputRepository } from "../scripting/ScriptInputRepository";
-import { ScriptLibrary } from "../scripting/ScriptLibrary";
-import { DesktopAccounts } from "../accounts/DesktopAccounts";
-import { DesktopCombatProfiles } from "../combat-profiles/DesktopCombatProfiles";
+import { ScriptInputRepository } from "../internal/scripting/ScriptInputRepository";
+import { DesktopScriptLibrary } from "../scripting/DesktopScriptLibrary";
+import { Accounts } from "../internal/accounts/Accounts";
+import { CombatProfiles } from "../internal/combat-profiles/CombatProfiles";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
-import { installArmyIpcHandlers } from "../army/ArmyIpcHandlers";
+import { installArmyIpcHandlers } from "./ArmyIpcHandlers";
 import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { DesktopIpc } from "./DesktopIpc";
@@ -33,10 +33,10 @@ class DesktopIpcSenderError extends Schema.TaggedErrorClass<DesktopIpcSenderErro
 
 export const installDesktopIpcHandlers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc;
-  const accounts = yield* DesktopAccounts;
+  const accounts = yield* Accounts;
   const scriptInputs = yield* ScriptInputRepository;
-  const scripts = yield* ScriptLibrary;
-  const combatProfiles = yield* DesktopCombatProfiles;
+  const scripts = yield* DesktopScriptLibrary;
+  const combatProfiles = yield* CombatProfiles;
   const settings = yield* DesktopSettings;
   const updates = yield* DesktopUpdates;
   const windows = yield* DesktopWindows;

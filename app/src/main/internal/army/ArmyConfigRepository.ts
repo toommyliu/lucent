@@ -9,7 +9,7 @@ import {
   normalizeArmyConfig,
   type ArmyConfigPayload,
 } from "@lucent/core/army";
-import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 
 const armyConfigOperationSchema = Schema.Literals([
   "parse",
@@ -42,7 +42,7 @@ export interface ArmyConfigRepositoryShape {
 export class ArmyConfigRepository extends Context.Service<
   ArmyConfigRepository,
   ArmyConfigRepositoryShape
->()("lucent/desktop/army/ArmyConfigRepository") {}
+>()("lucent/internal/army/ArmyConfigRepository") {}
 
 const error = (
   operation: typeof armyConfigOperationSchema.Type,

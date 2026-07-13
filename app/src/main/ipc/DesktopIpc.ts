@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Schema, Scope } from "effect";
 
 import { isElectronWindowUsable } from "../electron/windowUsability";
 import {
@@ -19,7 +19,7 @@ export interface DesktopIpcShape {
       payload: IpcInvokePayload<Descriptor>,
       event: IpcMainInvokeEvent,
     ) => Effect.Effect<IpcInvokeResult<Descriptor>, unknown, never>,
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<void, never, Scope.Scope>;
   readonly sendToAll: <Descriptor extends IpcEventDescriptor<unknown>>(
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
@@ -79,12 +79,19 @@ const makeDesktopIpc = Effect.gen(function* () {
       payload: IpcInvokePayload<Descriptor>,
       event: IpcMainInvokeEvent,
     ) => Effect.Effect<IpcInvokeResult<Descriptor>, unknown, never>,
-  ): Effect.Effect<void> =>
-    Effect.sync(() => {
-      ipcMain.removeHandler(descriptor.channel);
-      ipcMain.handle(
-        descriptor.channel,
-        createDesktopIpcInvokeHandler(descriptor, handler, runPromise),
+  ): Effect.Effect<void, never, Scope.Scope> =>
+    Effect.gen(function* () {
+      yield* Effect.sync(() => {
+        ipcMain.removeHandler(descriptor.channel);
+        ipcMain.handle(
+          descriptor.channel,
+          createDesktopIpcInvokeHandler(descriptor, handler, runPromise),
+        );
+      });
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          ipcMain.removeHandler(descriptor.channel);
+        }),
       );
     });
 

@@ -58,6 +58,7 @@ export const layer = Layer.effect(
           forceExitTimer = undefined;
         }
       };
+      yield* Effect.addFinalizer(() => Effect.sync(clearForceExitTimer));
 
       const disposeWillQuit = yield* app.on("will-quit", () => {
         clearForceExitTimer();
@@ -106,8 +107,11 @@ export const layer = Layer.effect(
       }
     });
 
+    const awaitQuit: DesktopLifecycleShape["awaitQuit"] =
+      Deferred.await(quitRequested);
+
     return DesktopLifecycle.of({
-      awaitQuit: Deferred.await(quitRequested),
+      awaitQuit,
       register,
     });
   }),

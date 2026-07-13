@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
-import { Context, Effect, Layer } from "effect";
+import type { EventEmitter } from "events";
+import { Context, Effect, Layer, Scope } from "effect";
 
 import { DesktopEnvironment } from "./DesktopEnvironment";
 
@@ -22,7 +23,7 @@ export interface DesktopObservabilityShape {
     message: string,
     data?: unknown,
   ) => Effect.Effect<void>;
-  readonly installProcessHooks: Effect.Effect<void>;
+  readonly installProcessHooks: Effect.Effect<void, never, Scope.Scope>;
   readonly warn: (
     component: string,
     message: string,
@@ -113,19 +114,33 @@ const makeDesktopObservability = Effect.gen(function* () {
   const installProcessHooks = Effect.gen(function* () {
     const context = yield* Effect.context<never>();
     const runPromise = Effect.runPromiseWith(context);
+    const handleUncaughtException = (cause: unknown): void => {
+      void runPromise(error("process", "Uncaught exception", cause)).catch(
+        () => undefined,
+      );
+    };
+    const handleUnhandledRejection = (cause: unknown): void => {
+      void runPromise(error("process", "Unhandled rejection", cause)).catch(
+        () => undefined,
+      );
+    };
 
     yield* Effect.sync(() => {
-      process.on("uncaughtException", (cause) => {
-        void runPromise(error("process", "Uncaught exception", cause)).catch(
-          () => undefined,
-        );
-      });
-      process.on("unhandledRejection", (cause) => {
-        void runPromise(error("process", "Unhandled rejection", cause)).catch(
-          () => undefined,
-        );
-      });
+      process.on("uncaughtException", handleUncaughtException);
+      process.on("unhandledRejection", handleUnhandledRejection);
     });
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        (process as EventEmitter).removeListener(
+          "uncaughtException",
+          handleUncaughtException,
+        );
+        (process as EventEmitter).removeListener(
+          "unhandledRejection",
+          handleUnhandledRejection,
+        );
+      }),
+    );
   });
 
   return DesktopObservability.of({

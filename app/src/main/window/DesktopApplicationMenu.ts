@@ -279,8 +279,8 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     ),
   );
 
-  return DesktopApplicationMenu.of({
-    install: Effect.gen(function* () {
+  const install: DesktopApplicationMenuShape["install"] = Effect.gen(
+    function* () {
       yield* rebuild;
       const unsubscribe = yield* settings.onChanged(() => {
         void runPromise(rebuild).catch((cause) =>
@@ -288,7 +288,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         );
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
-    }),
+    },
+  );
+
+  return DesktopApplicationMenu.of({
+    install,
   });
 });
 

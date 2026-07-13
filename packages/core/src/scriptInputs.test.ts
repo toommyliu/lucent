@@ -1,11 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
+import { Schema } from "effect";
 
 import {
+  ScriptInputsDefinitionSchema,
   findMissingRequiredScriptInputs,
   normalizeScriptInputValues,
   validateScriptInputValues,
   type ScriptInputsDefinition,
 } from "./scriptInputs";
+
+const isScriptInputsDefinition = Schema.is(ScriptInputsDefinitionSchema);
 
 const definition = {
   id: "sample",
@@ -96,5 +100,39 @@ describe("scriptInputs", () => {
         },
       },
     ]);
+  });
+
+  it("rejects duplicate field keys and invalid select defaults", () => {
+    expect(
+      isScriptInputsDefinition({
+        id: "duplicate",
+        fields: [
+          { key: "target", label: "Target", type: "string" },
+          { key: "target", label: "Other Target", type: "string" },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isScriptInputsDefinition({
+        id: "empty-select",
+        fields: [
+          { key: "server", label: "Server", type: "select", options: [] },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isScriptInputsDefinition({
+        id: "invalid-default",
+        fields: [
+          {
+            key: "server",
+            label: "Server",
+            type: "select",
+            options: ["Artix"],
+            default: "Yorumi",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });

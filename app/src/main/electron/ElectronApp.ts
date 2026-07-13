@@ -24,36 +24,61 @@ export class ElectronApp extends Context.Service<
   ElectronAppShape
 >()("lucent/desktop/electron/ElectronApp") {}
 
+const appendCommandLineSwitch: ElectronAppShape["appendCommandLineSwitch"] = (
+  name,
+  value,
+) =>
+  Effect.sync(() => {
+    if (value === undefined) {
+      app.commandLine.appendSwitch(name);
+    } else {
+      app.commandLine.appendSwitch(name, value);
+    }
+  });
+
+const exit: ElectronAppShape["exit"] = (code) =>
+  Effect.sync(() => {
+    app.exit(code);
+  });
+
+const getVersion: ElectronAppShape["getVersion"] = Effect.sync(() =>
+  app.getVersion(),
+);
+
+const isPackaged: ElectronAppShape["isPackaged"] = Effect.sync(
+  () => app.isPackaged,
+);
+
+const on: ElectronAppShape["on"] = (eventName, listener) =>
+  Effect.sync(() => {
+    app.on(eventName as never, listener as never);
+    return () => {
+      app.removeListener(eventName as never, listener as never);
+    };
+  });
+
+const relaunch: ElectronAppShape["relaunch"] = Effect.sync(() => {
+  app.relaunch();
+});
+
+const quit: ElectronAppShape["quit"] = Effect.sync(() => {
+  app.quit();
+});
+
+const whenReady: ElectronAppShape["whenReady"] = Effect.promise(() =>
+  app.whenReady(),
+).pipe(Effect.asVoid);
+
 export const layer = Layer.succeed(
   ElectronApp,
   ElectronApp.of({
-    appendCommandLineSwitch: (name, value) =>
-      Effect.sync(() => {
-        if (value === undefined) {
-          app.commandLine.appendSwitch(name);
-        } else {
-          app.commandLine.appendSwitch(name, value);
-        }
-      }),
-    exit: (code) =>
-      Effect.sync(() => {
-        app.exit(code);
-      }),
-    getVersion: Effect.sync(() => app.getVersion()),
-    isPackaged: Effect.sync(() => app.isPackaged),
-    on: (eventName, listener) =>
-      Effect.sync(() => {
-        app.on(eventName as never, listener as never);
-        return () => {
-          app.removeListener(eventName as never, listener as never);
-        };
-      }),
-    relaunch: Effect.sync(() => {
-      app.relaunch();
-    }),
-    quit: Effect.sync(() => {
-      app.quit();
-    }),
-    whenReady: Effect.promise(() => app.whenReady()).pipe(Effect.asVoid),
+    appendCommandLineSwitch,
+    exit,
+    getVersion,
+    isPackaged,
+    on,
+    relaunch,
+    quit,
+    whenReady,
   }),
 );

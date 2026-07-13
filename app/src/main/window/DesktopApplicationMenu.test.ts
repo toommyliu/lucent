@@ -220,7 +220,6 @@ describe("DesktopApplicationMenu", () => {
           assetsDir: "/assets",
           isDev: true,
           platform: "darwin",
-          rendererDir: "/renderer",
           workspaceDir: "/workspace",
         });
         const layer = desktopApplicationMenuLayer.pipe(
@@ -355,7 +354,6 @@ describe("DesktopApplicationMenu", () => {
             assetsDir: "/assets",
             isDev: true,
             platform: "darwin",
-            rendererDir: "/renderer",
             workspaceDir: "/workspace",
           });
           const layer = desktopApplicationMenuLayer.pipe(

@@ -21,7 +21,7 @@ const extractInputsResult = (source: string) =>
     }),
   );
 
-describe("ScriptInputsExtractor", () => {
+describe("ScriptInputsExtractor service", () => {
   it.effect("extracts static inputs and fills a missing id", () =>
     Effect.gen(function* () {
       const definition = yield* extractInputs(`
@@ -67,7 +67,10 @@ describe("ScriptInputsExtractor", () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error).toBeInstanceOf(ScriptInputsExtractorError);
-        expect(result.error.message).toContain("Duplicate script input key");
+        expect(result.error).toMatchObject({
+          operation: "validate",
+          message: "Script inputs definition is invalid.",
+        });
       }
     }),
   );

@@ -12,7 +12,6 @@ export interface DesktopEnvironmentConfig {
   readonly isDev: boolean;
   readonly observeGameConsole?: boolean;
   readonly platform: NodeJS.Platform;
-  readonly rendererDir: string;
   readonly workspaceDir: string;
 }
 
@@ -25,7 +24,6 @@ export interface DesktopEnvironmentShape extends DesktopEnvironmentConfig {
   readonly flashTrustRootPath: string;
   readonly logFilePath: string;
   readonly logsDir: string;
-  readonly preloadPath: string;
   readonly releaseCachePath: string;
   readonly scriptsDir: string;
   readonly settingsPath: string;
@@ -119,7 +117,6 @@ export const makeDesktopEnvironment = (
     flashTrustRootPath: resolveFlashTrustRootPath(config.appDataDir),
     logFilePath: join(logsDir, "lucent.log"),
     logsDir,
-    preloadPath: join(config.rendererDir, "preload.js"),
     releaseCachePath: appDataPath("release-cache.json"),
     scriptsDir: workspacePath("scripts"),
     settingsPath: appDataPath("settings.json"),

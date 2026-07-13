@@ -1,21 +1,20 @@
 import { promises as fs } from "fs";
-import { basename } from "path";
 
 import { Context, Effect, Layer, Schema } from "effect";
 
 import type {
   ScriptFile,
   ScriptOpenFileResult,
-} from "../../shared/ipc/scripting";
+} from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronShell } from "../electron/ElectronShell";
-import { ScriptInputsExtractor } from "./ScriptInputsExtractor";
+import { ScriptFiles } from "../internal/scripting/ScriptFiles";
 
 const scriptLibraryOperationSchema = Schema.Literals(["mkdir", "open", "read"]);
 
-export class ScriptLibraryError extends Schema.TaggedErrorClass<ScriptLibraryError>()(
-  "ScriptLibraryError",
+export class DesktopScriptLibraryError extends Schema.TaggedErrorClass<DesktopScriptLibraryError>()(
+  "DesktopScriptLibraryError",
   {
     operation: scriptLibraryOperationSchema,
     path: Schema.optionalKey(Schema.String),
@@ -29,25 +28,28 @@ export class ScriptLibraryError extends Schema.TaggedErrorClass<ScriptLibraryErr
   }
 }
 
-export interface ScriptLibraryShape {
-  readonly openFile: Effect.Effect<ScriptOpenFileResult, ScriptLibraryError>;
+export interface DesktopScriptLibraryShape {
+  readonly openFile: Effect.Effect<
+    ScriptOpenFileResult,
+    DesktopScriptLibraryError
+  >;
   readonly openPath: (path: string) => Effect.Effect<boolean>;
   readonly readFile: (
     path: string,
-  ) => Effect.Effect<ScriptFile, ScriptLibraryError>;
+  ) => Effect.Effect<ScriptFile, DesktopScriptLibraryError>;
 }
 
-export class ScriptLibrary extends Context.Service<
-  ScriptLibrary,
-  ScriptLibraryShape
->()("lucent/desktop/scripting/ScriptLibrary") {}
+export class DesktopScriptLibrary extends Context.Service<
+  DesktopScriptLibrary,
+  DesktopScriptLibraryShape
+>()("lucent/desktop/scripting/DesktopScriptLibrary") {}
 
 const wrapError = (
   operation: typeof scriptLibraryOperationSchema.Type,
   cause: unknown,
   path?: string,
 ) =>
-  new ScriptLibraryError({
+  new DesktopScriptLibraryError({
     operation,
     cause,
     ...(path === undefined ? {} : { path }),
@@ -55,46 +57,27 @@ const wrapError = (
 
 const ensureDirectory = (
   path: string,
-): Effect.Effect<void, ScriptLibraryError> =>
+): Effect.Effect<void, DesktopScriptLibraryError> =>
   Effect.tryPromise({
     try: () => fs.mkdir(path, { recursive: true }),
     catch: (cause) => wrapError("mkdir", cause, path),
   }).pipe(Effect.asVoid);
 
-const readText = (path: string): Effect.Effect<string, ScriptLibraryError> =>
-  Effect.tryPromise({
-    try: () => fs.readFile(path, "utf8"),
-    catch: (cause) => wrapError("read", cause, path),
-  });
-
 export const layer = Layer.effect(
-  ScriptLibrary,
+  DesktopScriptLibrary,
   Effect.gen(function* () {
     const dialog = yield* ElectronDialog;
     const env = yield* DesktopEnvironment;
-    const extractor = yield* ScriptInputsExtractor;
+    const files = yield* ScriptFiles;
     const shell = yield* ElectronShell;
 
     const readFile = (path: string) =>
-      Effect.gen(function* () {
-        const source = yield* readText(path);
-        const inputs = yield* extractor.extract(source, path);
-        return {
-          inputs,
-          name: basename(path),
-          path,
-          source,
-        } satisfies ScriptFile;
-      }).pipe(
-        Effect.mapError((cause) =>
-          cause instanceof ScriptLibraryError
-            ? cause
-            : wrapError("read", cause, path),
-        ),
-      );
+      files
+        .read(path)
+        .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
 
-    return ScriptLibrary.of({
-      openFile: Effect.gen(function* () {
+    const openFile: DesktopScriptLibraryShape["openFile"] = Effect.gen(
+      function* () {
         yield* ensureDirectory(env.scriptsDir);
         const result = yield* dialog
           .showOpenDialog({
@@ -116,8 +99,15 @@ export const layer = Layer.effect(
 
         const file = yield* readFile(path);
         return { canceled: false, file } satisfies ScriptOpenFileResult;
-      }),
-      openPath: (path) => shell.openPath(path),
+      },
+    );
+
+    const openPath: DesktopScriptLibraryShape["openPath"] = (path) =>
+      shell.openPath(path);
+
+    return DesktopScriptLibrary.of({
+      openFile,
+      openPath,
       readFile,
     });
   }),

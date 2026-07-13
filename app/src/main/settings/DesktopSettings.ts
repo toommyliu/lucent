@@ -25,6 +25,7 @@ import {
   type SettingsCommandId,
 } from "@lucent/core/hotkeys";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { type JsonFileError, readJsonFile, writeJsonFile } from "./JsonFile";
 
 const settingsOperationSchema = Schema.Literals([
@@ -228,7 +229,7 @@ const applyHotkeysPatch = (
 const makeDesktopSettings = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
   const settingsRef = yield* SynchronizedRef.make<AppSettings | null>(null);
-  const listeners = new Set<(settings: AppSettings) => void>();
+  const settingsChanges = makeListenerRegistry<AppSettings>();
 
   const readSettingsFromFile = Effect.gen(function* () {
     const result = yield* readJsonFile(env.settingsPath).pipe(
@@ -249,15 +250,19 @@ const makeDesktopSettings = Effect.gen(function* () {
     return settings;
   });
 
-  const loadSettings = SynchronizedRef.modifyEffect(settingsRef, () =>
-    readSettingsFromFile.pipe(
-      Effect.map((settings) => [settings, settings] as const),
-    ),
+  const load: DesktopSettingsShape["load"] = SynchronizedRef.modifyEffect(
+    settingsRef,
+    () =>
+      readSettingsFromFile.pipe(
+        Effect.map((settings) => [settings, settings] as const),
+      ),
   );
 
-  const getSettings = SynchronizedRef.get(settingsRef).pipe(
+  const get: DesktopSettingsShape["get"] = SynchronizedRef.get(
+    settingsRef,
+  ).pipe(
     Effect.flatMap((current) =>
-      current === null ? loadSettings : Effect.succeed(current),
+      current === null ? load : Effect.succeed(current),
     ),
   );
 
@@ -271,13 +276,6 @@ const makeDesktopSettings = Effect.gen(function* () {
     ).pipe(Effect.mapError(wrapDataError), Effect.as(normalized));
   };
 
-  const publish = (settings: AppSettings): Effect.Effect<void> =>
-    Effect.sync(() => {
-      for (const listener of listeners) {
-        listener(settings);
-      }
-    });
-
   const update = (
     modify: (
       current: AppSettings,
@@ -289,42 +287,50 @@ const makeDesktopSettings = Effect.gen(function* () {
         Effect.flatMap(writeSettingsFile),
         Effect.map((saved) => [saved, saved] as const),
       ),
-    ).pipe(Effect.tap(publish));
+    ).pipe(Effect.tap(settingsChanges.publish));
 
-  return DesktopSettings.of({
-    get: getSettings,
-    load: loadSettings,
-    onChanged: (listener) =>
-      Effect.sync(() => {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      }),
-    resetAppearance: update((current) =>
+  const onChanged: DesktopSettingsShape["onChanged"] =
+    settingsChanges.subscribe;
+
+  const resetAppearance: DesktopSettingsShape["resetAppearance"] = update(
+    (current) =>
       Effect.succeed(
         normalizeAppSettings({
           ...current,
           appearance: DEFAULT_APP_SETTINGS.appearance,
         }),
       ),
+  );
+
+  const resetHotkeys: DesktopSettingsShape["resetHotkeys"] = update((current) =>
+    Effect.succeed(
+      normalizeAppSettings({
+        ...current,
+        hotkeys: DEFAULT_HOTKEYS,
+      }),
     ),
-    resetHotkeys: update((current) =>
-      Effect.succeed(
-        normalizeAppSettings({
-          ...current,
-          hotkeys: DEFAULT_HOTKEYS,
-        }),
-      ),
-    ),
-    updateAppearance: (patch) =>
-      update((current) => Effect.succeed(applyAppearancePatch(current, patch))),
-    updateHotkeys: (patch) =>
-      update((current) => applyHotkeysPatch(current, patch)),
-    updatePreferences: (patch) =>
-      update((current) =>
-        Effect.succeed(applyPreferencesPatch(current, patch)),
-      ),
+  );
+
+  const updateAppearance: DesktopSettingsShape["updateAppearance"] = (patch) =>
+    update((current) => Effect.succeed(applyAppearancePatch(current, patch)));
+
+  const updateHotkeys: DesktopSettingsShape["updateHotkeys"] = (patch) =>
+    update((current) => applyHotkeysPatch(current, patch));
+
+  const updatePreferences: DesktopSettingsShape["updatePreferences"] = (
+    patch,
+  ) =>
+    update((current) => Effect.succeed(applyPreferencesPatch(current, patch)));
+
+  return DesktopSettings.of({
+    get,
+    load,
+    onChanged,
+    resetAppearance,
+    resetHotkeys,
+    updateAppearance,
+    updateHotkeys,
+    updatePreferences,
   });
 });
 
