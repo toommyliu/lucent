@@ -227,9 +227,6 @@
   border-bottom: 1px solid rgba(var(--border), 0.5);
 }
 
-.active-windows-menu__row--bottom {
-}
-
 .active-windows-menu__identity {
   display: flex;
   align-items: center;
