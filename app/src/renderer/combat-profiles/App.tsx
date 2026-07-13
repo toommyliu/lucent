@@ -60,10 +60,10 @@ import {
 } from "@lucent/core/combatProfiles";
 import type { DesktopBridge } from "../../shared/desktopBridge";
 import {
-  getPreferredCombatProfileId,
-  readStoredId,
-  writeStoredId,
-} from "../lib/combatProfileSelection";
+  readStoredCombatProfileId,
+  resolvePreferredCombatProfileId,
+  writeStoredCombatProfileId,
+} from "./profileSelection";
 import { createRandomId } from "../../shared/randomId";
 
 type CombatProfilesDesktopBridge = DesktopBridge & {
@@ -88,7 +88,6 @@ const conditionTypes = [
 }[];
 
 const skillIndices = [0, 1, 2, 3, 4, 5] as const;
-const selectedProfileStorageKey = "lucent.combatProfiles.selectedProfileId";
 
 const cooldownModeOptions = [
   { value: "use-if-ready", label: "Use if ready" },
@@ -287,7 +286,7 @@ export function App(): JSX.Element {
     DEFAULT_COMBAT_PROFILE_LIBRARY,
   );
   const [selectedId, setSelectedId] = createSignal(
-    readStoredId(selectedProfileStorageKey) ?? DEFAULT_COMBAT_PROFILE_ID,
+    readStoredCombatProfileId() ?? DEFAULT_COMBAT_PROFILE_ID,
   );
   const [label, setLabel] = createSignal("Generic");
   const [className, setClassName] = createSignal("");
@@ -332,7 +331,7 @@ export function App(): JSX.Element {
   });
   const selectProfile = (profileId: string): void => {
     setSelectedId(profileId);
-    writeStoredId(selectedProfileStorageKey, profileId);
+    writeStoredCombatProfileId(profileId);
   };
 
   const focusNameInput = (): void => {
@@ -392,9 +391,9 @@ export function App(): JSX.Element {
         !nextLibrary.profiles.some((profile) => profile.id === selectedId())
       ) {
         selectProfile(
-          getPreferredCombatProfileId(
+          resolvePreferredCombatProfileId(
             nextLibrary.profiles,
-            readStoredId(selectedProfileStorageKey),
+            readStoredCombatProfileId(),
           ),
         );
       }
@@ -405,9 +404,9 @@ export function App(): JSX.Element {
       .then((nextLibrary) => {
         setLibrary(nextLibrary);
         selectProfile(
-          getPreferredCombatProfileId(
+          resolvePreferredCombatProfileId(
             nextLibrary.profiles,
-            readStoredId(selectedProfileStorageKey),
+            readStoredCombatProfileId(),
           ),
         );
       })
@@ -601,7 +600,7 @@ export function App(): JSX.Element {
     );
     if (nextLibrary !== null) {
       selectProfile(
-        getPreferredCombatProfileId(nextLibrary.profiles, undefined),
+        resolvePreferredCombatProfileId(nextLibrary.profiles, undefined),
       );
     }
   };

@@ -1,4 +1,5 @@
 import { createHotkey } from "@tanstack/solid-hotkeys";
+import { Schema } from "effect";
 import {
   formatHotkeyDisplay,
   formatHotkeyDisplayParts,
@@ -70,6 +71,7 @@ import {
   type JSX,
 } from "solid-js";
 import {
+  AccountLaunchTilingAlgorithmSchema,
   type AccountGameServer,
   type AccountGameServerPing,
   type AccountLaunchTilingAlgorithm,
@@ -86,8 +88,8 @@ import {
   readStoredAccountLoginServerPreference,
   resolveAccountLoginServerPreference,
   writeStoredAccountLoginServerPreference,
-} from "../lib/accountLoginServerSelection";
-import { resolveSelectedAccountUsernames } from "../lib/accountSelection";
+} from "./loginServerPreference";
+import { resolveSelectedAccountUsernames } from "./accountSelection";
 
 interface AccountFormState {
   readonly label: string;
@@ -148,10 +150,9 @@ const LAUNCH_TILING_OPTIONS: readonly LaunchTilingOption[] = [
 const hasOpenAlertDialog = (): boolean =>
   document.querySelector("[data-slot='alert-dialog-content']") !== null;
 
-const isAccountLaunchTilingAlgorithm = (
-  value: string | undefined,
-): value is AccountLaunchTilingAlgorithm =>
-  LAUNCH_TILING_OPTIONS.some((option) => option.value === value);
+const isAccountLaunchTilingAlgorithm = Schema.is(
+  AccountLaunchTilingAlgorithmSchema,
+);
 
 const emptyState: AccountManagerState = {
   accounts: [],
@@ -2008,7 +2009,9 @@ export function App(): JSX.Element {
                     const nextLaunchServer =
                       value === NO_SERVER_VALUE ? "" : value;
                     writeStoredAccountLoginServerPreference(
-                      nextLaunchServer === "" ? null : nextLaunchServer,
+                      nextLaunchServer === ""
+                        ? { type: "none" }
+                        : { type: "server", name: nextLaunchServer },
                     );
                     setLaunchServer(nextLaunchServer);
                     setServerInputValue(nextLaunchServer);
