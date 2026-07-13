@@ -1,31 +1,35 @@
 # AGENTS.md
 
-## Task Completion Requirements
-
-- Before considering a task complete, `pnpm format`, `pnpm lint`, and `pnpm typecheck` must pass.
-
-## Project Description
+## Project
 
 Lucent is a third-party toolkit for enhancing gameplay experiences in AdventureQuest Worlds (AQW).
 
-## Core Priorities
+## Priorities
 
-1. Performance first.
-2. Reliability first.
-3. Keep behavior predictable under load and during failures (unexpected failures, timeouts, disconnects, etc.).
+Preserve correctness, reliability, and predictable behavior under load and during failures. Among designs that satisfy those requirements, prefer lower runtime and resource cost.
 
-Proposing sweeping changes that improve long-term maintainability is encouraged. If a tradeoff is required, choose correctness and robustness over short-term convenience.
+Prefer maintainable designs over short-term convenience. Extract shared logic when multiple call sites implement the same stable behavior and the abstraction improves ownership or testing. Do not generalize for speculative reuse.
 
-## Maintainability
+Do not implement material changes outside the requested scope without approval.
 
-Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
+## Validation
+
+After code changes, run:
+
+- `pnpm format`
+- `pnpm lint`
+- `pnpm typecheck`
+
+Run relevant tests when available. Report any command that cannot pass because of an unrelated existing failure.
 
 ## Package Roles
 
-- `app/src/main` : The main entrypoint for the project. Contains the electron main process.
-- `app/src/renderer`: The main entrypoint for the renderer process. Contains the SolidJS app(s) and related client side behaviors.
-- `app/src/shared`: Shared code between main and renderer processes. This includes shared types, utilities, and any logic that needs to be used in both contexts.
-- `packages/`: Shared packages consumed by the app.
+- `app/src/main`: Electron main process and native application services.
+- `app/src/renderer`: SolidJS applications and client-side behavior.
+- `app/src/shared`: IPC contracts and code shared between Electron processes.
+- `packages/core`: Shared application schemas and domain types.
+- `packages/game`: AQW game-domain models and types.
+- `packages/ui`: Reusable SolidJS components, styles, and design tokens.
 
 ## Vendored Repositories
 
