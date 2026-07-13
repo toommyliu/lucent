@@ -129,6 +129,11 @@ html[data-topnav-hidden] #swf {
   pointer-events: auto;
 }
 
+body[data-inert] .game-topnav-container,
+body[data-inert] .game-topnav__menu-portal .menu__positioner {
+  pointer-events: none;
+}
+
 .game-topnav__menu-portal {
   position: fixed;
   inset: 0;

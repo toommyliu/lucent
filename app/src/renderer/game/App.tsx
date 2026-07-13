@@ -1910,6 +1910,7 @@ export function App(props: {
     }
 
     lastShownFatalScriptAlertKey = alert.key;
+    setOpenMenu(null);
     setFatalScriptAlert(alert);
     setFatalScriptAlertCopied(false);
     setFatalScriptAlertOpen(true);
