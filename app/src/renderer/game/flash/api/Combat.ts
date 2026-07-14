@@ -372,8 +372,10 @@ export const makeCombat = (
     runtime: KillProfileRuntime | null,
   ) =>
     Effect.gen(function* () {
-      const monster = yield* hunt(selector);
-      if (monster === null) return false;
+      const monster = (yield* monsters.getAvailable()).find((candidate) =>
+        candidate.matches(selector),
+      );
+      if (monster === undefined) return false;
 
       const death = yield* wait.forEvent(
         {
