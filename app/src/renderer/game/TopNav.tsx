@@ -441,6 +441,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
 
+  const handleToggleScriptClick = (): void => {
+    void props.toggleScript();
+  };
+
   const autoReloginNeedsAttention = (): boolean =>
     props.autoReloginLastError() !== "";
   const autoReloginAwaitingSession = (): boolean =>
@@ -736,12 +740,20 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 <MenuItem
                   class="game-menu__item"
                   disabled={!props.scriptLoaded()}
-                  onSelect={props.toggleScript}
+                  onClick={handleToggleScriptClick}
                   value="start-script"
                 >
                   <span class="game-menu__item-label">
                     {props.scriptRunning() ? "Stop" : "Start"}
                   </span>
+                  <Show
+                    when={formatOptionalHotkeyDisplay(
+                      commandHotkey(props.hotkeyBindings(), "toggleScript"),
+                      props.hotkeyPlatform,
+                    )}
+                  >
+                    {(shortcut) => <Kbd>{shortcut()}</Kbd>}
+                  </Show>
                 </MenuItem>
                 <MenuSub closeOnSelect={false}>
                   <MenuSubTrigger class="game-menu__item">
@@ -1028,7 +1040,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 "game-topnav__button--success",
             )}
             disabled={!props.scriptLoaded()}
-            onClick={props.toggleScript}
+            onClick={handleToggleScriptClick}
             size="sm"
             variant="ghost"
           >
