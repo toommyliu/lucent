@@ -1,10 +1,13 @@
 import { promises as fs } from "fs";
+import { basename } from "path";
 
 import { Context, Effect, Layer, Schema } from "effect";
 
 import type {
   ScriptFile,
+  ScriptFileResolution,
   ScriptOpenFileResult,
+  ScriptSelectFileResult,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronDialog } from "../electron/ElectronDialog";
@@ -37,6 +40,11 @@ export interface DesktopScriptLibraryShape {
   readonly readFile: (
     path: string,
   ) => Effect.Effect<ScriptFile, DesktopScriptLibraryError>;
+  readonly resolveFile: (path: string) => Effect.Effect<ScriptFileResolution>;
+  readonly selectFile: Effect.Effect<
+    ScriptSelectFileResult,
+    DesktopScriptLibraryError
+  >;
 }
 
 export class DesktopScriptLibrary extends Context.Service<
@@ -76,24 +84,45 @@ export const layer = Layer.effect(
         .read(path)
         .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
 
+    const selectPath = Effect.gen(function* () {
+      yield* ensureDirectory(env.scriptsDir);
+      const result = yield* dialog
+        .showOpenDialog({
+          buttonLabel: "Load Script",
+          defaultPath: env.scriptsDir,
+          filters: [
+            { extensions: ["js", "cjs"], name: "JavaScript Scripts" },
+            { extensions: ["*"], name: "All Files" },
+          ],
+          properties: ["openFile"],
+          title: "Load Script",
+        })
+        .pipe(Effect.mapError((cause) => wrapError("open", cause)));
+
+      const [path] = result.filePaths;
+      if (result.canceled || path === undefined) {
+        return null;
+      }
+
+      return path;
+    });
+
+    const selectFile: DesktopScriptLibraryShape["selectFile"] = Effect.gen(
+      function* () {
+        const path = yield* selectPath;
+        return path === null
+          ? ({ canceled: true } satisfies ScriptSelectFileResult)
+          : ({
+              canceled: false,
+              file: { name: basename(path), path },
+            } satisfies ScriptSelectFileResult);
+      },
+    );
+
     const openFile: DesktopScriptLibraryShape["openFile"] = Effect.gen(
       function* () {
-        yield* ensureDirectory(env.scriptsDir);
-        const result = yield* dialog
-          .showOpenDialog({
-            buttonLabel: "Load Script",
-            defaultPath: env.scriptsDir,
-            filters: [
-              { extensions: ["js", "cjs"], name: "JavaScript Scripts" },
-              { extensions: ["*"], name: "All Files" },
-            ],
-            properties: ["openFile"],
-            title: "Load Script",
-          })
-          .pipe(Effect.mapError((cause) => wrapError("open", cause)));
-
-        const [path] = result.filePaths;
-        if (result.canceled || path === undefined) {
+        const path = yield* selectPath;
+        if (path === null) {
           return { canceled: true } satisfies ScriptOpenFileResult;
         }
 
@@ -109,6 +138,8 @@ export const layer = Layer.effect(
       openFile,
       openPath,
       readFile,
+      resolveFile: files.resolve,
+      selectFile,
     });
   }),
 );

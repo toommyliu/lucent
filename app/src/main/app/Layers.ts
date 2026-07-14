@@ -15,7 +15,6 @@ import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopSettings from "../settings/DesktopSettings";
 import * as ScriptFiles from "../internal/scripting/ScriptFiles";
 import * as ScriptInputRepository from "../internal/scripting/ScriptInputRepository";
-import * as ScriptInputsExtractor from "../internal/scripting/ScriptInputsExtractor";
 import * as DesktopScriptLibrary from "../scripting/DesktopScriptLibrary";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
@@ -60,12 +59,9 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
 
-  const scriptFilesLayer = ScriptFiles.layer.pipe(
-    Layer.provideMerge(ScriptInputsExtractor.layer),
-  );
+  const scriptFilesLayer = ScriptFiles.layer;
 
   const scriptingLayer = Layer.mergeAll(
-    ScriptInputsExtractor.layer,
     ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
     scriptFilesLayer,
     DesktopScriptLibrary.layer.pipe(

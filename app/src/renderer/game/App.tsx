@@ -48,8 +48,8 @@ import {
 import type { AppPlatform } from "../../shared/desktopBridge";
 import type {
   AccountGameLaunchPayload,
+  AccountScriptReference,
   AccountScriptStatusUpdate,
-  ScriptExecutePayload,
 } from "@lucent/core/accounts";
 import {
   DEFAULT_COMBAT_PROFILE_ID,
@@ -101,6 +101,7 @@ import {
   fatalScriptAlertFromStatus,
   type FatalScriptAlert,
 } from "./scripting/fatalAlert";
+import { resolveAccountScript } from "./scripting/accountScriptResolution";
 import {
   TopNav,
   type GameTopNavMenu,
@@ -1035,6 +1036,7 @@ export function App(props: {
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
+  let activeAccountScriptMissing = false;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
   const scriptLoaded = createMemo(() => loadedScript() !== null);
@@ -2043,15 +2045,8 @@ export function App(props: {
   };
 
   const accountScriptLabel = (
-    script: ScriptExecutePayload | undefined,
+    script: AccountScriptReference | undefined,
   ): string | undefined => script?.name ?? script?.path;
-
-  const accountScriptFile = (script: ScriptExecutePayload): ScriptFile => ({
-    source: script.source,
-    name: script.name ?? script.path ?? "script",
-    path: script.path ?? script.name ?? "account-script",
-    inputs: script.inputs ?? null,
-  });
 
   const publishAccountStatus = async (
     update: AccountScriptStatusUpdate,
@@ -2152,7 +2147,7 @@ export function App(props: {
       return;
     }
 
-    if (payload.script === undefined) {
+    if (payload.script === undefined || activeAccountScriptMissing) {
       await publishAccountStatus({
         currentUsername,
         status: "stopped",
@@ -2187,6 +2182,7 @@ export function App(props: {
     payload: AccountGameLaunchPayload,
   ): Promise<void> => {
     activeAccountLaunchPayload = payload;
+    activeAccountScriptMissing = false;
     await publishAccountLaunchStatus("starting", "Waiting...");
 
     try {
@@ -2227,7 +2223,25 @@ export function App(props: {
         return;
       }
 
-      const file = accountScriptFile(payload.script);
+      const bridge = window.desktop.scripting;
+      if (bridge === undefined) {
+        throw new Error("Desktop scripting bridge unavailable");
+      }
+
+      await publishAccountLaunchStatus("starting", "Loading script...");
+      const file = await resolveAccountScript(
+        (path) => bridge.resolveFile(path),
+        payload.script.path,
+      );
+      if (file === null) {
+        activeAccountScriptMissing = true;
+        setLoadedScript(null);
+        setScriptRunnerStatus({ state: "idle" });
+        setScriptInputValues({});
+        setScriptInputDialogError(null);
+        await publishAccountLaunchStatus("stopped", "Logged in");
+        return;
+      }
       setLoadedScript(file);
       setScriptRunnerStatus({ state: "idle" });
       setScriptInputDialogError(null);

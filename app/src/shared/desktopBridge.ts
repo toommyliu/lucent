@@ -19,7 +19,12 @@ import type {
   ArmyStartPayload,
   ArmySyncPayload,
 } from "@lucent/core/army";
-import type { ScriptFile, ScriptOpenFileResult } from "./ipc/scripting";
+import type {
+  ScriptFile,
+  ScriptFileResolution,
+  ScriptOpenFileResult,
+  ScriptSelectFileResult,
+} from "./ipc/scripting";
 import type {
   ScriptInputsDefinition,
   ScriptInputValues,
@@ -83,6 +88,8 @@ export interface DesktopScriptingBridge {
   readonly openFile: () => Promise<ScriptOpenFileResult>;
   readonly openPath: (path: string) => Promise<boolean>;
   readonly readFile: (path: string) => Promise<ScriptFile>;
+  readonly resolveFile: (path: string) => Promise<ScriptFileResolution>;
+  readonly selectFile: () => Promise<ScriptSelectFileResult>;
   readonly saveInputValues: (
     definition: ScriptInputsDefinition,
     values: ScriptInputValues,

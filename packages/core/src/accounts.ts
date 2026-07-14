@@ -1,6 +1,6 @@
 import { Option, Schema } from "effect";
 
-import { ScriptInputsDefinitionSchema } from "./scriptInputs";
+import { ScriptFileReferenceSchema } from "./scriptInputs";
 
 export const ManagedAccountSchema = Schema.Struct({
   label: Schema.String,
@@ -49,14 +49,9 @@ export const ManagedAccountGroupPatchSchema = Schema.Struct({
 export type ManagedAccountGroupPatch =
   typeof ManagedAccountGroupPatchSchema.Type;
 
-export const ScriptExecutePayloadSchema = Schema.Struct({
-  source: Schema.String,
-  path: Schema.optionalKey(Schema.String),
-  name: Schema.optionalKey(Schema.String),
-  inputs: Schema.optionalKey(Schema.NullOr(ScriptInputsDefinitionSchema)),
-});
+export const AccountScriptReferenceSchema = ScriptFileReferenceSchema;
 
-export type ScriptExecutePayload = typeof ScriptExecutePayloadSchema.Type;
+export type AccountScriptReference = typeof AccountScriptReferenceSchema.Type;
 
 export const AccountScriptStatusSchema = Schema.Literals([
   "idle",
@@ -167,7 +162,7 @@ export type AccountLaunchTilingPlacement =
 
 export const AccountLaunchRequestSchema = Schema.Struct({
   username: Schema.String,
-  script: Schema.optionalKey(Schema.NullOr(ScriptExecutePayloadSchema)),
+  script: Schema.optionalKey(Schema.NullOr(AccountScriptReferenceSchema)),
   server: Schema.optionalKey(Schema.String),
   tiling: Schema.optionalKey(AccountLaunchTilingPlacementSchema),
 });
@@ -189,7 +184,7 @@ export type AccountGameWindowTargetRequest =
 
 export const AccountGameLaunchPayloadSchema = Schema.Struct({
   account: ManagedAccountSchema,
-  script: Schema.optionalKey(ScriptExecutePayloadSchema),
+  script: Schema.optionalKey(AccountScriptReferenceSchema),
   server: Schema.optionalKey(Schema.String),
   gameWindowId: Schema.Number,
   requestedAt: Schema.Number,

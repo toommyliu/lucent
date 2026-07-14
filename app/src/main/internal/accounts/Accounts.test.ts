@@ -122,9 +122,16 @@ describe("Accounts", () => {
           username: "Alice",
           password: "secret",
         });
-        const launch = yield* accounts.launch({ username: "Alice" });
+        const launch = yield* accounts.launch({
+          username: "Alice",
+          script: { name: "farm.js", path: "/scripts/farm.js" },
+        });
         const payload = yield* accounts.getGameLaunch(launch.gameWindowId);
         expect(payload?.account.username).toBe("Alice");
+        expect(payload?.script).toEqual({
+          name: "farm.js",
+          path: "/scripts/farm.js",
+        });
 
         yield* accounts.updateScriptStatus(launch.gameWindowId, {
           status: "running",

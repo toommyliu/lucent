@@ -81,11 +81,19 @@ export const ScriptInputsDefinitionSchema = Schema.Struct({
 
 export type ScriptInputsDefinition = typeof ScriptInputsDefinitionSchema.Type;
 
+export const ScriptFileReferenceSchema = Schema.Struct({
+  path: Schema.String,
+  name: Schema.String,
+});
+
+export type ScriptFileReference = typeof ScriptFileReferenceSchema.Type;
+
 export const ScriptFileSchema = Schema.Struct({
   path: Schema.String,
   name: Schema.String,
   source: Schema.String,
   inputs: Schema.NullOr(ScriptInputsDefinitionSchema),
+  revision: Schema.String,
 });
 
 export type ScriptFile = typeof ScriptFileSchema.Type;
@@ -101,6 +109,37 @@ export const ScriptOpenFileResultSchema = Schema.Union([
 ]);
 
 export type ScriptOpenFileResult = typeof ScriptOpenFileResultSchema.Type;
+
+export const ScriptSelectFileResultSchema = Schema.Union([
+  Schema.Struct({
+    canceled: Schema.Literal(true),
+  }),
+  Schema.Struct({
+    canceled: Schema.Literal(false),
+    file: ScriptFileReferenceSchema,
+  }),
+]);
+
+export type ScriptSelectFileResult = typeof ScriptSelectFileResultSchema.Type;
+
+export const ScriptFileResolutionSchema = Schema.Union([
+  Schema.Struct({
+    status: Schema.Literal("found"),
+    file: ScriptFileSchema,
+  }),
+  Schema.Struct({
+    status: Schema.Literal("missing"),
+    path: Schema.String,
+  }),
+  Schema.Struct({
+    status: Schema.Literal("failed"),
+    path: Schema.String,
+    message: Schema.String,
+    detailsText: Schema.optionalKey(Schema.String),
+  }),
+]);
+
+export type ScriptFileResolution = typeof ScriptFileResolutionSchema.Type;
 
 export const ScriptInputValuesSchema = Schema.Record(
   Schema.String,

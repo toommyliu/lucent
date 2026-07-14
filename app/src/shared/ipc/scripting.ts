@@ -1,16 +1,20 @@
 import { Schema } from "effect";
 
 import {
+  ScriptFileResolutionSchema,
   ScriptFileSchema,
   ScriptInputsDefinitionSchema,
   ScriptInputValuesSchema,
   ScriptOpenFileResultSchema,
+  ScriptSelectFileResultSchema,
 } from "@lucent/core/scriptInputs";
 import { defineInvoke } from "./core";
 
 export type {
   ScriptFile,
+  ScriptFileResolution,
   ScriptOpenFileResult,
+  ScriptSelectFileResult,
 } from "@lucent/core/scriptInputs";
 
 const namespace = "desktop:scripting";
@@ -29,6 +33,20 @@ export const ScriptingIpc = {
       path: Schema.String,
     }),
     result: ScriptFileSchema,
+  }),
+  resolveFile: defineInvoke({
+    channel: `${namespace}:resolve-file`,
+    name: "scripting.resolveFile",
+    payload: Schema.Struct({
+      path: Schema.String,
+    }),
+    result: ScriptFileResolutionSchema,
+  }),
+  selectFile: defineInvoke({
+    channel: `${namespace}:select-file`,
+    name: "scripting.selectFile",
+    payload: Schema.Void,
+    result: ScriptSelectFileResultSchema,
   }),
   openPath: defineInvoke({
     channel: `${namespace}:open-path`,

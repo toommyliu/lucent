@@ -2,21 +2,21 @@ import { Context, Effect, Layer } from "effect";
 
 import type {
   AccountGameLaunchPayload,
+  AccountScriptReference,
   AccountScriptSession,
   AccountScriptStatusUpdate,
   ManagedAccount,
-  ScriptExecutePayload,
 } from "@lucent/core/accounts";
 
 export interface PendingAccountLaunch {
   readonly account: ManagedAccount;
   readonly requestedAt: number;
-  readonly script?: ScriptExecutePayload;
+  readonly script?: AccountScriptReference;
   readonly server?: string;
 }
 
 const scriptName = (
-  script: ScriptExecutePayload | null | undefined,
+  script: AccountScriptReference | null | undefined,
 ): string | undefined => {
   const name = script?.name?.trim();
   if (name !== undefined && name !== "") return name;
@@ -99,7 +99,7 @@ export const layer = Layer.effect(
       const updateScriptName =
         update.scriptName === undefined
           ? undefined
-          : scriptName({ source: "", name: update.scriptName });
+          : scriptName({ name: update.scriptName, path: update.scriptName });
       sessions.set(gameWindowId, {
         gameWindowId,
         ...(payload === undefined

@@ -111,6 +111,15 @@ const mainOptions = {
   target: "node12",
 };
 
+const scriptFileWorkerOptions = {
+  ...baseOptions,
+  entryPoints: ["src/main/internal/scripting/ScriptFileWorker.ts"],
+  format: "cjs",
+  outfile: "dist/main/script-file-worker.js",
+  platform: "node",
+  target: "node12",
+};
+
 const rendererOptions = (view) => ({
   ...baseOptions,
   entryPoints: [view.entryPoint],
@@ -293,6 +302,7 @@ const buildOnce = async () => {
   clean();
   await Promise.all([
     build(mainOptions),
+    build(scriptFileWorkerOptions),
     ...rendererBuildOptions.map((options) => build(options)),
     build(sharedCssOptions),
     build(preloadOptions),
@@ -340,6 +350,21 @@ const watch = async () => {
       }),
     ),
   );
+  const scriptFileWorkerContext = await context({
+    ...scriptFileWorkerOptions,
+    plugins: [
+      {
+        name: "lucent-script-file-worker-watch-notify",
+        setup(pluginBuild) {
+          pluginBuild.onEnd((result) => {
+            if (result.errors.length === 0) {
+              notifyBuild("main");
+            }
+          });
+        },
+      },
+    ],
+  });
   const preloadContext = await context({
     ...preloadOptions,
     plugins: [
@@ -373,6 +398,7 @@ const watch = async () => {
 
   await Promise.all([
     mainContext.watch(),
+    scriptFileWorkerContext.watch(),
     ...rendererContexts.map((rendererContext) => rendererContext.watch()),
     preloadContext.watch(),
     sharedCssContext.watch(),

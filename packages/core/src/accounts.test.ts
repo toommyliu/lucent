@@ -57,6 +57,21 @@ describe("account manager storage", () => {
 });
 
 describe("account launch request", () => {
+  it("accepts path-only script references", () => {
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        script: { name: "farm.js", path: "/scripts/farm.js" },
+      }),
+    ).toBe(true);
+    expect(
+      isAccountLaunchRequest({
+        username: "Hero",
+        script: { name: "farm.js" },
+      }),
+    ).toBe(false);
+  });
+
   it("accepts only complete, valid tiling placements", () => {
     expect(
       isAccountLaunchRequest({

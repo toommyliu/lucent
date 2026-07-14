@@ -159,6 +159,8 @@ const bridge: DesktopBridge = {
           openFile: () => invoke(ScriptingIpc.openFile, undefined),
           openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
           readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
+          resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
+          selectFile: () => invoke(ScriptingIpc.selectFile, undefined),
           saveInputValues: (definition, values) =>
             invoke(ScriptingIpc.saveInputValues, { definition, values }),
         },
@@ -174,6 +176,8 @@ const bridge: DesktopBridge = {
           openFile: () => invoke(ScriptingIpc.openFile, undefined),
           openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
           readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
+          resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
+          selectFile: () => invoke(ScriptingIpc.selectFile, undefined),
           saveInputValues: (definition, values) =>
             invoke(ScriptingIpc.saveInputValues, { definition, values }),
         },

@@ -567,6 +567,7 @@ export const layer = Layer.effect(
         const loaded = yield* loadScriptModule({
           lucent,
           name: file.path ?? file.name,
+          revision: file.revision,
           source: file.source,
         });
         yield* installReadinessWatcher(id, scope);

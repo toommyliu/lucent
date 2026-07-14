@@ -33,7 +33,10 @@ const CommonJsFunction = Function as unknown as new (
   require: CommonJsRequire,
 ) => void;
 
-export const sanitizeScriptSourceUrl = (name: string | undefined): string => {
+export const sanitizeScriptSourceUrl = (
+  name: string | undefined,
+  revision?: string,
+): string => {
   const fallback = "anonymous-script";
   const normalized = (name ?? fallback)
     .trim()
@@ -45,7 +48,11 @@ export const sanitizeScriptSourceUrl = (name: string | undefined): string => {
     .replace(/[^A-Za-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  return `lucent-script://${encodeURIComponent(slug === "" ? fallback : slug)}`;
+  const sourceUrl = `lucent-script://${encodeURIComponent(slug === "" ? fallback : slug)}`;
+  const normalizedRevision = revision?.trim();
+  return normalizedRevision === undefined || normalizedRevision === ""
+    ? sourceUrl
+    : `${sourceUrl}?v=${encodeURIComponent(normalizedRevision)}`;
 };
 
 const isGeneratorFunction = (value: unknown): value is ScriptMain =>
@@ -70,12 +77,13 @@ const makeRequire =
 export const loadScriptModule = (input: {
   readonly lucent: ScriptLucentStd;
   readonly name?: string;
+  readonly revision?: string;
   readonly source: string;
 }): Effect.Effect<LoadedScriptModule, ScriptLoadError> =>
   Effect.try({
     try: () => {
       const module: CommonJsModule = { exports: {} };
-      const sourceUrl = sanitizeScriptSourceUrl(input.name);
+      const sourceUrl = sanitizeScriptSourceUrl(input.name, input.revision);
       const execute = new CommonJsFunction(
         "module",
         "exports",

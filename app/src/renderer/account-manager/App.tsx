@@ -76,11 +76,11 @@ import {
   type AccountGameServerPing,
   type AccountLaunchTilingAlgorithm,
   type AccountManagerState,
+  type AccountScriptReference,
   type AccountScriptSession,
   type ManagedAccount,
   type ManagedAccountGroups,
   type ManagedAccountDraft,
-  type ScriptExecutePayload,
 } from "@lucent/core/accounts";
 import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../shared/accountPolicy";
 import type { DesktopBridge } from "../../shared/desktopBridge";
@@ -103,7 +103,7 @@ interface SaveOptions {
 
 interface LaunchScriptSelection {
   readonly enabled: boolean;
-  readonly payload: ScriptExecutePayload | null;
+  readonly payload: AccountScriptReference | null;
 }
 
 interface GroupFormState {
@@ -1239,7 +1239,7 @@ export function App(): JSX.Element {
     }));
   };
 
-  const setLaunchScriptPayload = (payload: ScriptExecutePayload) => {
+  const setLaunchScriptPayload = (payload: AccountScriptReference) => {
     setLaunchScript({
       enabled: true,
       payload,
@@ -1625,15 +1625,12 @@ export function App(): JSX.Element {
     setBusy(true);
     setScriptError("");
     try {
-      const result = await scriptingBridge().openFile();
+      const result = await scriptingBridge().selectFile();
       if (result.canceled) {
         return;
       }
 
-      setLaunchScriptPayload({
-        ...result.file,
-        ...(result.file.inputs === null ? {} : { inputs: result.file.inputs }),
-      });
+      setLaunchScriptPayload(result.file);
     } catch (error) {
       console.error("Failed to load script:", error);
     } finally {

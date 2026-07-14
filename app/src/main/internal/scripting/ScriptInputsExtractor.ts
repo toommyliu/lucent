@@ -235,7 +235,10 @@ const parseSource = (
       }),
   });
 
-const extract: ScriptInputsExtractorShape["extract"] = (source, fallbackId) =>
+export const extractScriptInputs: ScriptInputsExtractorShape["extract"] = (
+  source,
+  fallbackId,
+) =>
   Effect.gen(function* () {
     const program = yield* parseSource(source);
     const expression = findInputsExpression(program);
@@ -260,6 +263,6 @@ const extract: ScriptInputsExtractorShape["extract"] = (source, fallbackId) =>
 export const layer = Layer.succeed(
   ScriptInputsExtractor,
   ScriptInputsExtractor.of({
-    extract,
+    extract: extractScriptInputs,
   }),
 );

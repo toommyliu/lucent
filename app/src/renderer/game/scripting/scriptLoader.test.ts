@@ -2,7 +2,11 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
 import type { ScriptLucentStd } from "./ScriptApi";
-import { loadScriptModule, ScriptLoadError } from "./scriptLoader";
+import {
+  loadScriptModule,
+  sanitizeScriptSourceUrl,
+  ScriptLoadError,
+} from "./scriptLoader";
 
 const script = Object.freeze({ marker: "script-api" });
 const lucent = Object.freeze({
@@ -21,6 +25,15 @@ const loadResult = (source: string) =>
   );
 
 describe("scriptLoader", () => {
+  it("uses the content revision to distinguish source URLs", () => {
+    expect(sanitizeScriptSourceUrl("/scripts/farm.js", "abc123")).toBe(
+      "lucent-script://farm.js?v=abc123",
+    );
+    expect(sanitizeScriptSourceUrl("/scripts/farm.js")).toBe(
+      "lucent-script://farm.js",
+    );
+  });
+
   it("loads generator exports with the supported module facades", async () => {
     const result = await loadResult(`
       const lucent = require("lucent");

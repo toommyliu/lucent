@@ -197,6 +197,10 @@ export const installDesktopIpcHandlers = Effect.gen(function* () {
   yield* ipc.handle(ScriptingIpc.readFile, (payload) =>
     scripts.readFile(payload.path),
   );
+  yield* ipc.handle(ScriptingIpc.resolveFile, (payload) =>
+    scripts.resolveFile(payload.path),
+  );
+  yield* ipc.handle(ScriptingIpc.selectFile, () => scripts.selectFile);
   yield* ipc.handle(ScriptingIpc.openPath, (payload) =>
     scripts.openPath(payload.path),
   );
