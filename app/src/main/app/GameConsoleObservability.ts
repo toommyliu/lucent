@@ -24,17 +24,6 @@ import { DesktopObservability } from "./DesktopObservability";
  * Enable with `--obs` or `--obs=<port>`. When enabled, Lucent starts a
  * loopback-only HTTP/SSE server at `http://127.0.0.1:<port>` and captures only
  * console messages from windows registered as DesktopWindow kind `"game"`.
- *
- * Available routes:
- * - `GET /` renders the live dashboard.
- * - `GET /health` returns a small server/buffer health payload.
- * - `GET /api/state` returns buffer stats and active/closed game-window state.
- * - `GET /api/messages` returns JSON rows, oldest to newest. Filters:
- *   `sinceId`, `limit`, `windowId`, `username`, and `q`.
- * - `GET /api/messages.ndjson` returns the same filtered rows as NDJSON for
- *   shell tools and agent grep/read workflows.
- * - `GET /events` opens an SSE stream. Event names are `message`,
- *   `window-opened`, `window-closed`, and `session-updated`.
  */
 export const DEFAULT_GAME_CONSOLE_MAX_ROWS = 5_000;
 export const DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES = 1024 * 1024;
