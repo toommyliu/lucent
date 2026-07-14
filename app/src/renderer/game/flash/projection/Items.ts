@@ -45,6 +45,9 @@ const EquipmentMutation = Schema.Struct({
   strES: Schema.optionalKey(Schema.String),
   uid: Schema.optionalKey(PositiveWireInt),
 });
+const QuestTurnIn = Schema.Struct({
+  sItems: Schema.optionalKey(Schema.NullOr(Schema.String)),
+});
 
 const decodeInventoryLoad = Schema.decodeUnknownOption(InventoryLoad);
 const decodeItemMutation = Schema.decodeUnknownOption(ItemMutation);
@@ -54,7 +57,43 @@ const decodeCharacterItemMutation = Schema.decodeUnknownOption(
   CharacterItemMutation,
 );
 const decodeEquipmentMutation = Schema.decodeUnknownOption(EquipmentMutation);
+const decodeQuestTurnIn = Schema.decodeUnknownOption(QuestTurnIn);
 const decodeItem = Schema.decodeUnknownOption(ItemPayload);
+
+interface TurnInItem {
+  readonly itemId: number;
+  readonly quantity: number;
+}
+
+const parseTurnInItems = (
+  value: string,
+): {
+  readonly invalid: readonly string[];
+  readonly items: readonly TurnInItem[];
+} => {
+  const invalid: string[] = [];
+  const items: TurnInItem[] = [];
+
+  for (const entry of value.split(",")) {
+    if (entry.trim() === "") continue;
+    const parts = entry.split(":");
+    const itemId = Number(parts[0]);
+    const quantity = Number(parts[1]);
+    if (
+      parts.length !== 2 ||
+      !Number.isSafeInteger(itemId) ||
+      itemId <= 0 ||
+      !Number.isSafeInteger(quantity) ||
+      quantity <= 0
+    ) {
+      invalid.push(entry);
+      continue;
+    }
+    items.push({ itemId, quantity });
+  }
+
+  return { invalid, items };
+};
 
 const decodeContainerItems = (
   values: readonly unknown[],
@@ -122,6 +161,25 @@ const swap = (store: Store, inventoryItemId: number, bankItemId: number) =>
     const target = bankItem.houseItem ? "house" : "inventory";
     bankItem.update({ context: target });
     yield* store.items.upsert(target, bankItem);
+  });
+
+const consumeTurnInItem = (store: Store, item: TurnInItem) =>
+  Effect.gen(function* () {
+    const temporary = yield* store.items.get("temporary", item.itemId);
+    const inventory =
+      temporary === null
+        ? yield* store.items.get("inventory", item.itemId)
+        : null;
+    const current = temporary ?? inventory;
+    if (current === null) return;
+
+    const container = temporary === null ? "inventory" : "temporary";
+    const quantity = current.quantity - item.quantity;
+    if (quantity <= 0) {
+      yield* store.items.remove(container, current.itemId);
+    } else {
+      current.update({ quantity });
+    }
   });
 
 export const projectItems = (
@@ -307,6 +365,29 @@ export const projectItems = (
             item,
           );
         }
+        return [];
+      }
+      case "turnIn": {
+        const decoded = decodeQuestTurnIn(data);
+        if (Option.isNone(decoded)) {
+          yield* diagnose(
+            "items:turnIn",
+            new Error("Malformed quest turn-in payload"),
+            [data],
+          );
+          return [];
+        }
+        if (decoded.value.sItems == null) return [];
+
+        const { invalid, items } = parseTurnInItems(decoded.value.sItems);
+        if (invalid.length > 0) {
+          yield* diagnose(
+            "items:turnIn:entries",
+            new Error(`Ignored ${invalid.length} malformed turn-in entries`),
+            invalid,
+          );
+        }
+        for (const item of items) yield* consumeTurnInItem(store, item);
         return [];
       }
       case "removeItem":

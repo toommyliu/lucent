@@ -140,6 +140,35 @@ describe("Projection", () => {
       }),
   );
 
+  it.effect("consumes temporary requirements on quest turn-in", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const pipeline = makePipeline(store, {
+        publishEvent: () => Effect.void,
+      });
+
+      yield* pipeline.packet(
+        extension("forceAddItem", {
+          items: {
+            temporary: {
+              ItemID: 100,
+              bTemp: 1,
+              iQty: 3,
+              sName: "Quest Drop",
+            },
+          },
+        }),
+      );
+      expect((yield* store.items.get("temporary", 100))?.quantity).toBe(3);
+
+      yield* pipeline.packet(extension("turnIn", { sItems: "100:2" }));
+      expect((yield* store.items.get("temporary", 100))?.quantity).toBe(1);
+
+      yield* pipeline.packet(extension("turnIn", { sItems: "100:1" }));
+      expect(yield* store.items.get("temporary", 100)).toBeNull();
+    }),
+  );
+
   it.effect("resets area state and applies combat auras and deaths", () =>
     Effect.scoped(
       Effect.gen(function* () {

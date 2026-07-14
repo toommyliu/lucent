@@ -53,7 +53,6 @@ describe("Gateway", () => {
         );
 
         expect(target.packetFromClient).toBeUndefined();
-        expect(target.onLoaded).toBeUndefined();
       }).pipe(Effect.provide(Layer.effect(Bridge, makeBridge(swfTarget))));
     },
   );

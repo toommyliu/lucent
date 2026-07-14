@@ -75,6 +75,7 @@ const itemCommands = new Set([
   "removeItem",
   "sellItem",
   "removeTempItem",
+  "turnIn",
   "unequipItem",
   "wearItem",
 ]);
