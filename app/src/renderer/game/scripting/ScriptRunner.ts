@@ -5,7 +5,9 @@ import {
   Effect,
   Fiber,
   Layer,
+  Option,
   Ref,
+  Schema,
   Semaphore,
   Stream,
   SubscriptionRef,
@@ -16,6 +18,7 @@ import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
 import { Api } from "../flash/api/Api";
+import { Bridge } from "../flash/bridge/Bridge";
 import type { Event as FlashEvent } from "../flash/contract/Event";
 import type {
   ScriptMain,
@@ -233,6 +236,7 @@ export const layer = Layer.effect(
     const api = yield* Api;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
+    const bridge = yield* Bridge;
     const {
       auth,
       bank,
@@ -530,6 +534,12 @@ export const layer = Layer.effect(
         }),
       );
 
+    const returnInfoPath = "world.returnInfo";
+    const setReturnInfo = (value: unknown) =>
+      bridge
+        .invoke("flash.setGameObject", [returnInfoPath, value], Schema.Void)
+        .pipe(Effect.map(Option.isSome));
+
     const moveToOwnHouse = (phase: "after" | "before") =>
       Effect.gen(function* () {
         const username = (yield* auth.getUsername()).trim();
@@ -541,25 +551,51 @@ export const layer = Layer.effect(
         }
 
         yield* combat.exit();
-        yield* Effect.sleep("1 second");
-        yield* packet.sendServer(`%xt%zm%house%1%${username}%`);
-        yield* Effect.sleep("1 second");
-        const moved = yield* wait.until(
-          Effect.gen(function* () {
-            const [mapName, ready] = yield* Effect.all([
-              map.getName(),
-              player.isReady(),
-            ]);
-            return mapName.toLowerCase() === "house" && ready;
-          }),
-          { timeout: "5 seconds" },
-        );
+        yield* wait.forGameAction("tfer", { timeout: "5 seconds" });
 
-        if (!moved) {
+        const move = Effect.gen(function* () {
+          yield* packet.sendServer(`%xt%zm%house%1%${username}%`);
+          const moved = yield* wait.until(
+            Effect.gen(function* () {
+              const [mapName, ready] = yield* Effect.all([
+                map.getName(),
+                player.isReady(),
+              ]);
+              return mapName.toLowerCase() === "house" && ready;
+            }),
+            { timeout: "5 seconds" },
+          );
+
+          if (!moved) {
+            yield* Effect.logWarning({
+              message: `script safeStartStop ${phase}-run house move timed out`,
+            });
+          }
+        });
+
+        // Clear (potentially) stale returnInfo for clean transfer.
+        const returnInfoIsNull = yield* bridge.invoke(
+          "flash.isNull",
+          [returnInfoPath],
+          Schema.Boolean,
+        );
+        if (Option.getOrElse(returnInfoIsNull, () => false)) return yield* move;
+
+        const returnInfo = yield* bridge.invokeJson(
+          "flash.getGameObject",
+          [returnInfoPath],
+          Schema.Unknown,
+        );
+        if (Option.isNone(returnInfo) || !(yield* setReturnInfo(null))) {
           yield* Effect.logWarning({
-            message: `script safeStartStop ${phase}-run house move timed out`,
+            message: `script safeStartStop ${phase}-run skipped; world.returnInfo could not be cleared`,
           });
+          return;
         }
+
+        yield* move.pipe(
+          Effect.ensuring(setReturnInfo(returnInfo.value).pipe(Effect.asVoid)),
+        );
       }).pipe(warnSafeStartStopFailure(phase));
 
     const runWithSafeStartStop = (main: ScriptMain) =>
