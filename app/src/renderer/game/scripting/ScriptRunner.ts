@@ -6,6 +6,7 @@ import {
   Fiber,
   Layer,
   Ref,
+  Semaphore,
   Stream,
   SubscriptionRef,
 } from "effect";
@@ -25,7 +26,7 @@ import {
   makeScriptAsyncScope,
   type ScriptAsyncScope,
 } from "./scriptAsyncScope";
-import { loadScriptModule, ScriptLoadError } from "./scriptLoader";
+import { loadScriptModule } from "./scriptLoader";
 import {
   makeScriptLucentStd,
   type ScriptRuntimeServices,
@@ -38,6 +39,12 @@ import {
 
 export type ScriptRunnerStatus =
   | { readonly state: "idle" }
+  | {
+      readonly name: string;
+      readonly path?: string;
+      readonly startedAt: string;
+      readonly state: "starting";
+    }
   | {
       readonly name: string;
       readonly path?: string;
@@ -91,7 +98,7 @@ export interface ScriptRunnerShape {
   readonly start: (
     file: ScriptFile,
     inputs: ScriptInputValues,
-  ) => Effect.Effect<ScriptRunnerStatus, ScriptLoadError | ScriptNotReadyError>;
+  ) => Effect.Effect<ScriptRunnerStatus>;
   readonly stop: (reason?: string) => Effect.Effect<ScriptRunnerStatus>;
 }
 
@@ -108,12 +115,38 @@ interface ActiveScript {
   readonly scope: ScriptAsyncScope;
 }
 
+interface PendingFinalization {
+  readonly done: Deferred.Deferred<ScriptRunnerStatus>;
+  readonly id: number;
+}
+
+interface StartingCancellation {
+  readonly reason?: string;
+}
+
+interface StartingScript {
+  readonly cancel: Deferred.Deferred<StartingCancellation>;
+  readonly commandId: number;
+  readonly done: Deferred.Deferred<ScriptRunnerStatus>;
+  readonly id: number;
+  readonly name: string;
+  readonly path?: string;
+}
+
 const defaultOptions: ScriptRuntimeOptions = {
   safeStartStop: true,
   usePrivateRooms: true,
 };
 
 const nowIso = (): string => new Date().toISOString();
+
+const snapshotOptions = (
+  options: ScriptRuntimeOptions,
+): ScriptRuntimeOptions => ({ ...options });
+
+const snapshotStatus = (status: ScriptRunnerStatus): ScriptRunnerStatus => ({
+  ...status,
+});
 
 const statusName = (file: Pick<ScriptFile, "name" | "path">) =>
   file.name.trim() === "" ? (file.path ?? "script") : file.name;
@@ -123,17 +156,39 @@ const activeStatusFields = (active: Pick<ActiveScript, "name" | "path">) => ({
   ...(active.path === undefined ? {} : { path: active.path }),
 });
 
-const stopSignalReason = (cause: Cause.Cause<unknown>): string | undefined => {
+type ScriptTermination =
+  | { readonly kind: "failed" }
+  | { readonly kind: "stopped"; readonly reason?: string };
+
+const classifyScriptTermination = (
+  cause: Cause.Cause<unknown>,
+): ScriptTermination => {
+  let stopReason: string | undefined;
+  let sawStopSignal = false;
+
   for (const reason of cause.reasons) {
+    if (Cause.isInterruptReason(reason)) {
+      continue;
+    }
+
     if (
       Cause.isFailReason(reason) &&
       reason.error instanceof ScriptStopSignal
     ) {
-      return reason.error.reason;
+      sawStopSignal = true;
+      stopReason ??= reason.error.reason;
+      continue;
     }
+
+    return { kind: "failed" };
   }
 
-  return undefined;
+  return sawStopSignal || Cause.hasInterruptsOnly(cause)
+    ? {
+        kind: "stopped",
+        ...(stopReason === undefined ? {} : { reason: stopReason }),
+      }
+    : { kind: "failed" };
 };
 
 const causeMessage = (cause: Cause.Cause<unknown>): string => {
@@ -221,97 +276,251 @@ export const layer = Layer.effect(
     };
 
     const activeRef = yield* Ref.make<ActiveScript | null>(null);
+    const lifecycleGate = yield* Semaphore.make(1);
+    const latestCommandIdRef = yield* Ref.make(0);
     const nextIdRef = yield* Ref.make(0);
+    const pendingFinalizationRef = yield* Ref.make<PendingFinalization | null>(
+      null,
+    );
+    const startingRef = yield* Ref.make<StartingScript | null>(null);
     const optionsRef =
       yield* SubscriptionRef.make<ScriptRuntimeOptions>(defaultOptions);
     const statusRef = yield* SubscriptionRef.make<ScriptRunnerStatus>({
       state: "idle",
     });
 
-    const getStatus = () => SubscriptionRef.get(statusRef);
+    const getStatus = () =>
+      SubscriptionRef.get(statusRef).pipe(Effect.map(snapshotStatus));
 
     const setStatus = (status: ScriptRunnerStatus) =>
-      SubscriptionRef.set(statusRef, status);
+      SubscriptionRef.set(statusRef, snapshotStatus(status));
+
+    const getOptions = () =>
+      SubscriptionRef.get(optionsRef).pipe(Effect.map(snapshotOptions));
 
     const setOptions = (
       update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
-    ) => SubscriptionRef.updateAndGet(optionsRef, update);
+    ) =>
+      SubscriptionRef.updateAndGet(optionsRef, (options) =>
+        snapshotOptions(update(options)),
+      ).pipe(Effect.map(snapshotOptions));
 
     const observe = <A>(
       changes: Stream.Stream<A>,
+      snapshot: (value: A) => A,
       listener: (value: A) => void,
     ) =>
       changes.pipe(
-        Stream.runForEach((value) => Effect.sync(() => listener(value))),
+        Stream.runForEach((value) =>
+          Effect.sync(() => listener(snapshot(value))),
+        ),
         Effect.forkIn(scope),
         Effect.map((fiber) => () => {
           runFork(Fiber.interrupt(fiber));
         }),
       );
 
-    const stopActive = (reason?: string): Effect.Effect<ScriptRunnerStatus> =>
-      Effect.gen(function* () {
-        const active = yield* Ref.get(activeRef);
-        if (active === null) {
-          return yield* getStatus();
-        }
+    const awaitStatus = (done: Deferred.Deferred<ScriptRunnerStatus>) =>
+      Deferred.await(done).pipe(Effect.map(snapshotStatus));
 
-        yield* setStatus({
-          ...activeStatusFields(active),
-          state: "stopping",
+    const requestInterrupt = Effect.fn("ScriptRunner.requestInterrupt")(
+      function* (fiber: Fiber.Fiber<void, unknown>) {
+        const interruptor = yield* Effect.fiberId;
+        yield* Effect.sync(() => {
+          // Request cancellation synchronously; the owning finalizer awaits
+          // termination before releasing script resources.
+          fiber.interruptUnsafe(interruptor);
         });
-        yield* active.scope.close;
-        yield* Fiber.interrupt(active.fiber);
-        yield* Ref.set(activeRef, null);
+      },
+    );
 
-        const stopped: ScriptRunnerStatus = {
-          ...(reason === undefined ? {} : { reason }),
-          state: "stopped",
-          stoppedAt: nowIso(),
-        };
-        yield* setStatus(stopped);
-        return stopped;
-      });
+    interface FinalizationOptions {
+      readonly active: ActiveScript;
+      readonly awaitFiber: boolean;
+      readonly cause?: Cause.Cause<unknown>;
+      readonly done: PendingFinalization["done"];
+      readonly terminalStatus: () => ScriptRunnerStatus;
+    }
 
-    const finishIfActive = (
+    const completeFinalization = Effect.fn("ScriptRunner.completeFinalization")(
+      function* (
+        id: number,
+        done: PendingFinalization["done"],
+        status: ScriptRunnerStatus,
+      ) {
+        yield* lifecycleGate.withPermit(
+          Effect.gen(function* () {
+            const pending = yield* Ref.get(pendingFinalizationRef);
+            if (pending?.id !== id || pending.done !== done) {
+              yield* Deferred.succeed(done, yield* getStatus());
+              return;
+            }
+
+            yield* Ref.set(pendingFinalizationRef, null);
+            yield* setStatus(status);
+            yield* Deferred.succeed(done, snapshotStatus(status));
+          }),
+        );
+      },
+    );
+
+    const finalize = Effect.fn("ScriptRunner.finalize")(function* (
+      options: FinalizationOptions,
+    ) {
+      if (options.awaitFiber) {
+        yield* Fiber.await(options.active.fiber);
+      }
+      yield* options.active.scope.close;
+      if (options.cause !== undefined) {
+        yield* logScriptFailureCause(options.cause);
+      }
+      yield* completeFinalization(
+        options.active.id,
+        options.done,
+        options.terminalStatus(),
+      );
+    });
+
+    const beginFinalization = Effect.fn("ScriptRunner.beginFinalization")(
+      function* (
+        active: ActiveScript,
+        options: {
+          readonly awaitFiber: boolean;
+          readonly cause?: Cause.Cause<unknown>;
+          readonly intermediateStatus?: ScriptRunnerStatus;
+          readonly interrupt: boolean;
+          readonly terminalStatus: () => ScriptRunnerStatus;
+        },
+      ) {
+        return yield* Effect.uninterruptible(
+          Effect.gen(function* () {
+            const done = yield* Deferred.make<ScriptRunnerStatus>();
+            yield* Ref.set(activeRef, null);
+            yield* Ref.set(pendingFinalizationRef, { done, id: active.id });
+            if (options.intermediateStatus !== undefined) {
+              yield* setStatus(options.intermediateStatus);
+            }
+
+            yield* active.scope.cancel;
+            if (options.interrupt) {
+              yield* requestInterrupt(active.fiber);
+            }
+
+            yield* finalize({
+              active,
+              awaitFiber: options.awaitFiber,
+              ...(options.cause === undefined ? {} : { cause: options.cause }),
+              done,
+              terminalStatus: options.terminalStatus,
+            }).pipe(Effect.forkDetach);
+            return done;
+          }),
+        );
+      },
+    );
+
+    const stopActive = Effect.fn("ScriptRunner.stopActive")(function* (
+      reason?: string,
+    ) {
+      yield* Ref.update(latestCommandIdRef, (value) => value + 1);
+      const result = yield* lifecycleGate.withPermit(
+        Effect.gen(function* () {
+          const starting = yield* Ref.get(startingRef);
+          if (starting !== null) {
+            yield* Deferred.succeed(
+              starting.cancel,
+              reason === undefined ? {} : { reason },
+            );
+            return { done: starting.done, kind: "waiting" } as const;
+          }
+
+          const pending = yield* Ref.get(pendingFinalizationRef);
+          if (pending !== null) {
+            return { done: pending.done, kind: "waiting" } as const;
+          }
+
+          const active = yield* Ref.get(activeRef);
+          if (active === null) {
+            return { kind: "status", status: yield* getStatus() } as const;
+          }
+
+          const done = yield* beginFinalization(active, {
+            awaitFiber: true,
+            intermediateStatus: {
+              ...activeStatusFields(active),
+              state: "stopping",
+            },
+            interrupt: true,
+            terminalStatus: () => ({
+              ...(reason === undefined ? {} : { reason }),
+              state: "stopped",
+              stoppedAt: nowIso(),
+            }),
+          });
+          return { done, kind: "waiting" } as const;
+        }),
+      );
+
+      return result.kind === "status"
+        ? result.status
+        : yield* awaitStatus(result.done);
+    });
+
+    const finishIfActive = Effect.fn("ScriptRunner.finishIfActive")(function* (
       id: number,
-      status: ScriptRunnerStatus,
-      scope: ScriptAsyncScope,
-    ) =>
-      Effect.gen(function* () {
-        yield* scope.close;
-        const active = yield* Ref.get(activeRef);
-        if (active?.id !== id) {
-          return;
-        }
+      terminalStatus: () => ScriptRunnerStatus,
+    ) {
+      const done = yield* lifecycleGate.withPermit(
+        Effect.gen(function* () {
+          if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
+            return null;
+          }
+          const active = yield* Ref.get(activeRef);
+          return active?.id === id
+            ? yield* beginFinalization(active, {
+                awaitFiber: false,
+                interrupt: false,
+                terminalStatus,
+              })
+            : null;
+        }),
+      );
+      if (done !== null) {
+        yield* awaitStatus(done);
+      }
+    });
 
-        yield* Ref.set(activeRef, null);
-        yield* setStatus(status);
-      });
-
-    const failActiveCause = (
-      id: number,
-      cause: Cause.Cause<unknown>,
-    ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        const active = yield* Ref.get(activeRef);
-        if (active?.id !== id) {
-          return;
-        }
-
-        yield* active.scope.close;
-        yield* Ref.set(activeRef, null);
-        yield* logScriptFailureCause(cause);
+    const failActiveCause = Effect.fn("ScriptRunner.failActiveCause")(
+      function* (id: number, cause: Cause.Cause<unknown>) {
         const detailsText = causeDetailsText(cause);
-        yield* setStatus({
-          ...activeStatusFields(active),
-          ...(detailsText === undefined ? {} : { detailsText }),
-          failedAt: nowIso(),
-          message: causeMessage(cause),
-          state: "failed",
-        });
-        yield* Fiber.interrupt(active.fiber);
-      });
+        const done = yield* lifecycleGate.withPermit(
+          Effect.gen(function* () {
+            if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
+              return null;
+            }
+
+            const active = yield* Ref.get(activeRef);
+            return active?.id === id
+              ? yield* beginFinalization(active, {
+                  awaitFiber: true,
+                  cause,
+                  interrupt: true,
+                  terminalStatus: () => ({
+                    ...activeStatusFields(active),
+                    ...(detailsText === undefined ? {} : { detailsText }),
+                    failedAt: nowIso(),
+                    message: causeMessage(cause),
+                    state: "failed",
+                  }),
+                })
+              : null;
+          }),
+        );
+        if (done !== null) {
+          yield* awaitStatus(done);
+        }
+      },
+    );
 
     const warnSafeStartStopFailure = (phase: "after" | "before") =>
       Effect.catchCause((cause: Cause.Cause<unknown>) =>
@@ -414,7 +623,7 @@ export const layer = Layer.effect(
             });
           }),
         inputs: {
-          get: (key) => Effect.succeed(inputValues[key]),
+          get: (key: string) => Effect.succeed(inputValues[key]),
           getAll: () => Effect.succeed({ ...inputValues }),
         },
         log: (message) =>
@@ -422,7 +631,7 @@ export const layer = Layer.effect(
             console.log("[script]", message);
           }),
         options: {
-          getAll: () => SubscriptionRef.get(optionsRef),
+          getAll: getOptions,
           getSafeStartStop: () =>
             SubscriptionRef.get(optionsRef).pipe(
               Effect.map((options) => options.safeStartStop),
@@ -431,16 +640,13 @@ export const layer = Layer.effect(
             SubscriptionRef.get(optionsRef).pipe(
               Effect.map((options) => options.usePrivateRooms),
             ),
-          reset: () =>
-            SubscriptionRef.set(optionsRef, defaultOptions).pipe(
-              Effect.andThen(SubscriptionRef.get(optionsRef)),
-            ),
-          setSafeStartStop: (enabled) =>
+          reset: () => setOptions(() => defaultOptions),
+          setSafeStartStop: (enabled: boolean) =>
             setOptions((options) => ({
               ...options,
               safeStartStop: enabled,
             })),
-          setUsePrivateRooms: (enabled) =>
+          setUsePrivateRooms: (enabled: boolean) =>
             setOptions((options) => ({
               ...options,
               usePrivateRooms: enabled,
@@ -479,66 +685,99 @@ export const layer = Layer.effect(
         )
         .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
 
-    const runScript = (
-      id: number,
-      file: ScriptFile,
-      main: ScriptMain,
-      scope: ScriptAsyncScope,
-    ) =>
+    const runScript = (id: number, file: ScriptFile, main: ScriptMain) =>
       runWithSafeStartStop(main).pipe(
         Effect.matchCauseEffect({
           onFailure: (cause) => {
-            const stoppedReason = stopSignalReason(cause);
-            if (stoppedReason !== undefined || Cause.hasInterruptsOnly(cause)) {
-              return finishIfActive(
-                id,
-                {
-                  ...(stoppedReason === undefined
-                    ? {}
-                    : { reason: stoppedReason }),
-                  state: "stopped",
-                  stoppedAt: nowIso(),
-                },
-                scope,
-              );
+            const termination = classifyScriptTermination(cause);
+            if (termination.kind === "stopped") {
+              return finishIfActive(id, () => ({
+                ...(termination.reason === undefined
+                  ? {}
+                  : { reason: termination.reason }),
+                state: "stopped",
+                stoppedAt: nowIso(),
+              }));
             }
 
             const detailsText = causeDetailsText(cause);
             return logScriptFailureCause(cause).pipe(
               Effect.andThen(
-                finishIfActive(
-                  id,
-                  {
-                    ...(detailsText === undefined ? {} : { detailsText }),
-                    failedAt: nowIso(),
-                    message: causeMessage(cause),
-                    name: statusName(file),
-                    ...(file.path === undefined ? {} : { path: file.path }),
-                    state: "failed",
-                  },
-                  scope,
-                ),
+                finishIfActive(id, () => ({
+                  ...(detailsText === undefined ? {} : { detailsText }),
+                  failedAt: nowIso(),
+                  message: causeMessage(cause),
+                  name: statusName(file),
+                  ...(file.path === undefined ? {} : { path: file.path }),
+                  state: "failed",
+                })),
               ),
             );
           },
           onSuccess: () =>
-            finishIfActive(
-              id,
-              {
-                completedAt: nowIso(),
-                name: statusName(file),
-                ...(file.path === undefined ? {} : { path: file.path }),
-                state: "completed",
-              },
-              scope,
-            ),
+            finishIfActive(id, () => ({
+              completedAt: nowIso(),
+              name: statusName(file),
+              ...(file.path === undefined ? {} : { path: file.path }),
+              state: "completed",
+            })),
         }),
       );
 
-    const start: ScriptRunnerShape["start"] = (file, inputs) =>
-      Effect.gen(function* () {
-        yield* stopActive("replaced");
+    const completeStarting = Effect.fn("ScriptRunner.completeStarting")(
+      function* (starting: StartingScript, status: ScriptRunnerStatus) {
+        return yield* lifecycleGate.withPermit(
+          Effect.uninterruptible(
+            Effect.gen(function* () {
+              const current = yield* Ref.get(startingRef);
+              const authoritative =
+                current?.id === starting.id && current.done === starting.done
+                  ? status
+                  : yield* getStatus();
 
+              if (
+                current?.id === starting.id &&
+                current.done === starting.done
+              ) {
+                yield* Ref.set(startingRef, null);
+                yield* setStatus(status);
+              }
+              yield* Deferred.succeed(
+                starting.done,
+                snapshotStatus(authoritative),
+              );
+              return authoritative;
+            }),
+          ),
+        );
+      },
+    );
+
+    const runStarting = Effect.fn("ScriptRunner.runStarting")(function* (
+      starting: StartingScript,
+      file: ScriptFile,
+      inputs: ScriptInputValues,
+    ) {
+      const scriptScope = makeScriptAsyncScope();
+      let activated = false;
+      let scriptFiber: Fiber.Fiber<void, unknown> | undefined;
+
+      const cleanup = Effect.suspend(() =>
+        activated
+          ? Effect.void
+          : Effect.uninterruptible(
+              Effect.gen(function* () {
+                yield* scriptScope.cancel;
+                if (scriptFiber !== undefined) {
+                  yield* requestInterrupt(scriptFiber);
+                  yield* Fiber.await(scriptFiber);
+                }
+                yield* scriptScope.close;
+              }),
+            ),
+      );
+
+      const setup = Effect.gen(function* () {
         const loggedIn = yield* auth
           .isLoggedIn()
           .pipe(Effect.catchCause(() => Effect.succeed(false)));
@@ -551,16 +790,14 @@ export const layer = Layer.effect(
           });
         }
 
-        const id = yield* Ref.updateAndGet(nextIdRef, (value) => value + 1);
-        const scope = makeScriptAsyncScope();
-        yield* scope.addCleanup(() =>
+        yield* scriptScope.addCleanup(() =>
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
         );
-        const script = makeScriptApi(scope, inputs);
+        const script = makeScriptApi(scriptScope, inputs);
         const lucent = makeScriptLucentStd({
-          failCause: (cause) => failActiveCause(id, cause),
+          failCause: (cause) => failActiveCause(starting.id, cause),
           features: { autoRelogin, autoZone },
-          scope,
+          scope: scriptScope,
           script,
           services,
         });
@@ -570,45 +807,233 @@ export const layer = Layer.effect(
           revision: file.revision,
           source: file.source,
         });
-        yield* installReadinessWatcher(id, scope);
+        yield* installReadinessWatcher(starting.id, scriptScope);
 
         const release = yield* Deferred.make<void>();
         const fiber = yield* Deferred.await(release).pipe(
-          Effect.andThen(runScript(id, file, loaded.main, scope)),
+          Effect.andThen(runScript(starting.id, file, loaded.main)),
           Effect.forkDetach,
         );
+        scriptFiber = fiber;
         const active: ActiveScript = {
           fiber,
-          id,
-          name: statusName(file),
-          ...(file.path === undefined ? {} : { path: file.path }),
-          scope,
+          id: starting.id,
+          name: starting.name,
+          ...(starting.path === undefined ? {} : { path: starting.path }),
+          scope: scriptScope,
         };
-        yield* Ref.set(activeRef, active);
-
         const status: ScriptRunnerStatus = {
           ...activeStatusFields(active),
           startedAt: nowIso(),
           state: "running",
         };
-        yield* setStatus(status);
-        yield* Deferred.succeed(release, undefined);
+
+        const committed = yield* lifecycleGate.withPermit(
+          Effect.uninterruptible(
+            Effect.gen(function* () {
+              const current = yield* Ref.get(startingRef);
+              const latestCommandId = yield* Ref.get(latestCommandIdRef);
+              const cancelled = yield* Deferred.isDone(starting.cancel);
+              if (
+                current?.id !== starting.id ||
+                current.done !== starting.done ||
+                latestCommandId !== starting.commandId ||
+                cancelled
+              ) {
+                return false;
+              }
+
+              yield* Effect.sync(() => {
+                activated = true;
+              });
+              yield* Ref.set(startingRef, null);
+              yield* Ref.set(activeRef, active);
+              yield* setStatus(status);
+              yield* Deferred.succeed(release, undefined);
+              return true;
+            }),
+          ),
+        );
+        if (!committed) {
+          return yield* Effect.interrupt;
+        }
         return status;
+      }).pipe(Effect.ensuring(cleanup));
+
+      const status = yield* Effect.raceFirst(
+        setup.pipe(
+          Effect.map((status) => ({ kind: "started", status }) as const),
+        ),
+        Deferred.await(starting.cancel).pipe(
+          Effect.map(
+            (cancellation) => ({ cancellation, kind: "cancelled" }) as const,
+          ),
+        ),
+      ).pipe(
+        Effect.matchCauseEffect({
+          onFailure: (cause) =>
+            Effect.gen(function* () {
+              if (Cause.hasInterruptsOnly(cause)) {
+                const cancellation = (yield* Deferred.isDone(starting.cancel))
+                  ? yield* Deferred.await(starting.cancel)
+                  : { reason: "start interrupted" };
+                return {
+                  ...(cancellation.reason === undefined
+                    ? {}
+                    : { reason: cancellation.reason }),
+                  state: "stopped",
+                  stoppedAt: nowIso(),
+                } as ScriptRunnerStatus;
+              }
+
+              yield* logScriptFailureCause(cause);
+              const detailsText = causeDetailsText(cause);
+              return {
+                ...(detailsText === undefined ? {} : { detailsText }),
+                failedAt: nowIso(),
+                message: causeMessage(cause),
+                name: starting.name,
+                ...(starting.path === undefined ? {} : { path: starting.path }),
+                state: "failed",
+              } as ScriptRunnerStatus;
+            }),
+          onSuccess: (outcome) =>
+            outcome.kind === "started"
+              ? Effect.succeed<ScriptRunnerStatus>(outcome.status)
+              : Effect.succeed<ScriptRunnerStatus>({
+                  ...(outcome.cancellation.reason === undefined
+                    ? {}
+                    : { reason: outcome.cancellation.reason }),
+                  state: "stopped",
+                  stoppedAt: nowIso(),
+                }),
+        }),
+      );
+
+      yield* completeStarting(starting, status);
+    });
+
+    const beginStarting = Effect.fn("ScriptRunner.beginStarting")(function* (
+      commandId: number,
+      file: ScriptFile,
+      inputs: ScriptInputValues,
+    ) {
+      return yield* Effect.uninterruptible(
+        Effect.gen(function* () {
+          const id = yield* Ref.updateAndGet(nextIdRef, (value) => value + 1);
+          const cancel = yield* Deferred.make<StartingCancellation>();
+          const done = yield* Deferred.make<ScriptRunnerStatus>();
+          const starting: StartingScript = {
+            cancel,
+            commandId,
+            done,
+            id,
+            name: statusName(file),
+            ...(file.path === undefined ? {} : { path: file.path }),
+          };
+          yield* Ref.set(startingRef, starting);
+          yield* setStatus({
+            ...activeStatusFields(starting),
+            startedAt: nowIso(),
+            state: "starting",
+          });
+          yield* runStarting(starting, file, inputs).pipe(Effect.forkDetach);
+          return done;
+        }),
+      );
+    });
+
+    const start: ScriptRunnerShape["start"] = (file, inputs) => {
+      const fileSnapshot = { ...file };
+      const inputSnapshot = { ...inputs };
+      return Effect.gen(function* () {
+        const commandId = yield* Ref.updateAndGet(
+          latestCommandIdRef,
+          (value) => value + 1,
+        );
+        while (true) {
+          const result = yield* lifecycleGate.withPermit(
+            Effect.gen(function* () {
+              if ((yield* Ref.get(latestCommandIdRef)) !== commandId) {
+                return {
+                  kind: "status",
+                  status: yield* getStatus(),
+                } as const;
+              }
+
+              const starting = yield* Ref.get(startingRef);
+              if (starting !== null) {
+                yield* Deferred.succeed(starting.cancel, {
+                  reason: "replaced",
+                });
+                return { done: starting.done, kind: "waiting" } as const;
+              }
+
+              const pending = yield* Ref.get(pendingFinalizationRef);
+              if (pending !== null) {
+                return { done: pending.done, kind: "waiting" } as const;
+              }
+
+              const active = yield* Ref.get(activeRef);
+              if (active !== null) {
+                const done = yield* beginFinalization(active, {
+                  awaitFiber: true,
+                  intermediateStatus: {
+                    ...activeStatusFields(active),
+                    state: "stopping",
+                  },
+                  interrupt: true,
+                  terminalStatus: () => ({
+                    reason: "replaced",
+                    state: "stopped",
+                    stoppedAt: nowIso(),
+                  }),
+                });
+                return { done, kind: "waiting" } as const;
+              }
+
+              return {
+                done: yield* beginStarting(
+                  commandId,
+                  fileSnapshot,
+                  inputSnapshot,
+                ),
+                kind: "starting",
+              } as const;
+            }),
+          );
+
+          if (result.kind === "status") {
+            return result.status;
+          }
+          const status = yield* awaitStatus(result.done);
+          if (result.kind === "starting") {
+            return status;
+          }
+        }
       });
+    };
 
     const stop: ScriptRunnerShape["stop"] = (reason) => stopActive(reason);
 
     yield* Effect.addFinalizer(() => stop("shutdown").pipe(Effect.asVoid));
 
     return ScriptRunner.of({
-      getOptions: () => SubscriptionRef.get(optionsRef),
+      getOptions,
       getStatus,
       isRunning: () =>
-        Ref.get(activeRef).pipe(Effect.map((active) => active !== null)),
+        getStatus().pipe(
+          Effect.map(
+            (status) =>
+              status.state === "running" ||
+              status.state === "starting" ||
+              status.state === "stopping",
+          ),
+        ),
       onOptions: (listener) =>
-        observe(SubscriptionRef.changes(optionsRef), listener),
+        observe(SubscriptionRef.changes(optionsRef), snapshotOptions, listener),
       onStatus: (listener) =>
-        observe(SubscriptionRef.changes(statusRef), listener),
+        observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
       resetOptions: () => setOptions(() => defaultOptions),
       setSafeStartStop: (enabled) =>
         setOptions((options) => ({ ...options, safeStartStop: enabled })),

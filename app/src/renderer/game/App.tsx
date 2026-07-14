@@ -340,6 +340,10 @@ const scriptStatusLabel = (
   loaded: ScriptFile | null,
   status: ScriptRunnerStatus,
 ): string => {
+  if (status.state === "starting") {
+    return `Starting ${status.name}`;
+  }
+
   if (status.state === "running") {
     return `Running ${status.name}`;
   }
@@ -1032,17 +1036,19 @@ export function App(props: {
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
   let autoAttackToggleInFlight = false;
+  let scriptStopInFlight = false;
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
+  let accountScriptRunnerStatusPublishQueue = Promise.resolve();
   let activeAccountScriptMissing = false;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
   const scriptLoaded = createMemo(() => loadedScript() !== null);
   const scriptRunning = createMemo(() => {
     const state = scriptRunnerStatus().state;
-    return state === "running" || state === "stopping";
+    return state === "running" || state === "starting" || state === "stopping";
   });
   const scriptInputsAvailable = createMemo(
     () =>
@@ -2087,13 +2093,15 @@ export function App(props: {
     currentUsername,
     ...(scriptName === undefined ? {} : { scriptName }),
     status:
-      status.state === "running" || status.state === "stopping"
-        ? "running"
-        : status.state === "failed"
-          ? "failed"
-          : status.state === "idle"
-            ? "idle"
-            : "stopped",
+      status.state === "starting"
+        ? "starting"
+        : status.state === "running" || status.state === "stopping"
+          ? "running"
+          : status.state === "failed"
+            ? "failed"
+            : status.state === "idle"
+              ? "idle"
+              : "stopped",
     ...(status.state === "failed"
       ? { message: status.message }
       : status.state === "stopped"
@@ -2138,6 +2146,21 @@ export function App(props: {
     await publishAccountStatus(
       accountScriptRunnerUpdate(status, currentUsername, scriptName),
     );
+  };
+
+  const enqueueAccountScriptRunnerStatus = (
+    status: ScriptRunnerStatus,
+  ): void => {
+    accountScriptRunnerStatusPublishQueue =
+      accountScriptRunnerStatusPublishQueue
+        .then(() => publishAccountScriptRunnerStatus(status))
+        .catch((error: unknown) => {
+          console.error(
+            "[game:account-launch]",
+            "runner status publish failed",
+            error,
+          );
+        });
   };
 
   const publishAccountConnectionStatus = async (): Promise<void> => {
@@ -2353,15 +2376,14 @@ export function App(props: {
   };
 
   const toggleScript = async () => {
-    if (scriptBusy()) {
-      return;
-    }
-
     const wasRunning = scriptRunning();
-    const file = loadedScript();
-    setScriptBusy(true);
-    try {
-      if (scriptRunning()) {
+    if (wasRunning) {
+      if (scriptStopInFlight) {
+        return;
+      }
+
+      scriptStopInFlight = true;
+      try {
         const status = await runtime.runPromise(
           Effect.gen(function* () {
             const runner = yield* ScriptRunner;
@@ -2369,9 +2391,21 @@ export function App(props: {
           }),
         );
         setScriptRunnerStatus(status);
-        return;
+      } catch (error) {
+        console.error("[game:script]", "stop failed", error);
+      } finally {
+        scriptStopInFlight = false;
       }
+      return;
+    }
 
+    if (scriptBusy()) {
+      return;
+    }
+
+    const file = loadedScript();
+    setScriptBusy(true);
+    try {
       if (file === null) {
         return;
       }
@@ -2741,7 +2775,7 @@ export function App(props: {
           const options = yield* runner.getOptions();
           const dispose = yield* runner.onStatus((nextStatus) => {
             applyScriptRunnerStatus(nextStatus);
-            void publishAccountScriptRunnerStatus(nextStatus);
+            enqueueAccountScriptRunnerStatus(nextStatus);
           });
           const disposeOptions = yield* runner.onOptions((nextOptions) => {
             setScriptUsePrivateRooms(nextOptions.usePrivateRooms);

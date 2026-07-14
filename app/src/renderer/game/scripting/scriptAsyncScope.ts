@@ -4,6 +4,7 @@ export type ScriptCleanup = () => void | Effect.Effect<void, unknown>;
 
 export interface ScriptAsyncScope {
   readonly addCleanup: (cleanup: ScriptCleanup) => Effect.Effect<void>;
+  readonly cancel: Effect.Effect<void>;
   readonly close: Effect.Effect<void>;
   readonly controller: AbortController;
   readonly signal: AbortSignal;
@@ -26,11 +27,14 @@ export const makeScriptAsyncScope = (): ScriptAsyncScope => {
   const controller = new AbortController();
   const cleanups = new Set<ScriptCleanup>();
 
-  const close = Effect.gen(function* () {
+  const cancel = Effect.sync(() => {
     if (!controller.signal.aborted) {
       controller.abort();
     }
+  });
 
+  const close = Effect.gen(function* () {
+    yield* cancel;
     const pending = Array.from(cleanups).reverse();
     cleanups.clear();
     yield* Effect.forEach(pending, runCleanup, { discard: true });
@@ -46,6 +50,7 @@ export const makeScriptAsyncScope = (): ScriptAsyncScope => {
         cleanups.add(cleanup);
         return Effect.void;
       }),
+    cancel,
     close,
     controller,
     signal: controller.signal,
