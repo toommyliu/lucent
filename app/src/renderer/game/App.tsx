@@ -959,6 +959,10 @@ export function App(props: {
     loaded: false,
     progress: 0,
   });
+  let resolveGameLoaded: (() => void) | undefined;
+  const gameLoadedPromise = new Promise<void>((resolve) => {
+    resolveGameLoaded = () => resolve();
+  });
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(null);
   const [topNavVisible, setTopNavVisible] = createSignal(true);
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
@@ -1069,7 +1073,15 @@ export function App(props: {
       loaded: true,
       progress: 100,
     });
+    resolveGameLoaded?.();
   };
+
+  window.onLoaded = markLoaded;
+  window.onProgress = setLoadProgress;
+  onCleanup(() => {
+    if (window.onLoaded === markLoaded) delete window.onLoaded;
+    if (window.onProgress === setLoadProgress) delete window.onProgress;
+  });
 
   const applyFlashSettingsState = (state: FlashSettingsSnapshot) => {
     setFlashSettings(state);
@@ -2191,14 +2203,11 @@ export function App(props: {
     new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
   const waitForGameLoaded = async (): Promise<boolean> => {
-    const startedAt = Date.now();
-    while (!gameLoaded()) {
-      if (Date.now() - startedAt >= ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS) {
-        return false;
-      }
-      await wait(PLAYER_READY_RETRY_INTERVAL_MS);
-    }
-    return true;
+    if (gameLoaded()) return true;
+    return Promise.race([
+      gameLoadedPromise.then(() => true),
+      wait(ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS).then(() => false),
+    ]);
   };
 
   const runAccountLaunch = async (
@@ -2210,7 +2219,7 @@ export function App(props: {
 
     try {
       if (!(await waitForGameLoaded())) {
-        throw new Error("Game did not finish loading");
+        throw new Error(`Game did not finish loading (${progress()}%)`);
       }
 
       const loginResult = await runtime.runPromise(
@@ -2649,14 +2658,6 @@ export function App(props: {
       Effect.scoped(
         Effect.gen(function* () {
           const { events } = yield* Api;
-          yield* events.on({ type: "progress" }, (event) =>
-            Effect.sync(() => {
-              if (event.type === "progress") {
-                setLoadProgress(event.percent);
-              }
-            }),
-          );
-          yield* events.on({ type: "loaded" }, () => Effect.sync(markLoaded));
           yield* events.on({ type: "join-map" }, () =>
             Effect.sync(() =>
               schedulePlayerReadyRefresh({

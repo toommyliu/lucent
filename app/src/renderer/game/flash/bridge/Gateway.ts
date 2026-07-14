@@ -25,8 +25,6 @@ type CallbackKey =
   | "onConnection"
   | "onDebug"
   | "onExtensionResponse"
-  | "onLoaded"
-  | "onProgress"
   | "packetFromClient"
   | "packetFromServer";
 
@@ -55,10 +53,6 @@ const runtimeEvent = (callback: Callback): RuntimeEvent | undefined => {
       return { type: "connection", status: callback.status };
     case "debug":
       return { type: "debug", message: callback.message };
-    case "loaded":
-      return { type: "loaded" };
-    case "progress":
-      return { type: "progress", percent: callback.percent };
     default:
       return undefined;
   }
@@ -132,9 +126,6 @@ export const makeGateway = (target?: Window) =>
       onDebug: (message) => offer("onDebug", { type: "debug", message }),
       onExtensionResponse: (raw) =>
         offer("onExtensionResponse", { type: "extension-packet", raw }),
-      onLoaded: () => offer("onLoaded", { type: "loaded" }),
-      onProgress: (percent) =>
-        offer("onProgress", { type: "progress", percent }),
       packetFromClient: (raw) =>
         offer("packetFromClient", { type: "client-packet", raw }),
       packetFromServer: (raw) =>

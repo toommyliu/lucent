@@ -1,10 +1,8 @@
 import type { Packet, PacketDirection } from "./Packet";
 
 export type RuntimeEvent =
-  | { readonly type: "loaded" }
   | { readonly type: "connection"; readonly status: string }
-  | { readonly type: "debug"; readonly message: string }
-  | { readonly type: "progress"; readonly percent: number };
+  | { readonly type: "debug"; readonly message: string };
 
 export type ProtocolEvent =
   | { readonly type: "packet"; readonly packet: Packet }
