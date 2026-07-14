@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { Effect, Schema } from "effect";
 
 import { defineInvoke } from "../../shared/ipc";
@@ -33,7 +33,6 @@ const senders = DesktopIpcSenders.of({
     Effect.sync(() => {
       expect(allowedKinds).toEqual(["game"]);
       return {
-        browserWindow: { id: 42 } as BrowserWindow,
         browserWindowId: 42,
         kind: "game" as const,
       };

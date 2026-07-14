@@ -70,6 +70,11 @@ export interface DesktopWindowsShape {
       event: DesktopWindowCreatedEvent,
     ) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
+  readonly onRendererDestroyed: (
+    listener: (
+      event: DesktopWindowRendererDestroyedEvent,
+    ) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
   readonly open: (
     kind: DesktopWindowKind,
     options?: DesktopWindowOpenOptions,
@@ -250,7 +255,12 @@ export interface DesktopWindowCreatedEvent {
   readonly browserWindowId: number;
   readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
-  readonly window: ElectronWindowHandle;
+}
+
+export interface DesktopWindowRendererDestroyedEvent {
+  readonly browserWindowId: number;
+  readonly id: DesktopWindowInstanceId;
+  readonly kind: DesktopWindowKind;
 }
 
 const makeInstanceId = (kind: DesktopWindowKind): DesktopWindowInstanceId =>
@@ -284,6 +294,9 @@ const makeDesktopWindows = Effect.gen(function* () {
   >();
   const closedListeners = new Set<
     (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>
+  >();
+  const rendererDestroyedListeners = new Set<
+    (event: DesktopWindowRendererDestroyedEvent) => Effect.Effect<void, unknown>
   >();
   let appIsQuitting = false;
 
@@ -473,6 +486,16 @@ const makeDesktopWindows = Effect.gen(function* () {
       };
     });
 
+  const onRendererDestroyed: DesktopWindowsShape["onRendererDestroyed"] = (
+    listener,
+  ) =>
+    Effect.sync(() => {
+      rendererDestroyedListeners.add(listener);
+      return () => {
+        rendererDestroyedListeners.delete(listener);
+      };
+    });
+
   const setBackgroundColor: DesktopWindowsShape["setBackgroundColor"] = (
     backgroundColor,
   ) =>
@@ -567,6 +590,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           kind === "game" ? openAllowedGameUrl : undefined,
         );
         const browserWindowId = window.id;
+        const webContents = window.webContents;
         windows.set(id, {
           browserWindowId,
           kind,
@@ -576,8 +600,20 @@ const makeDesktopWindows = Effect.gen(function* () {
           browserWindowId,
           id,
           kind,
-          window,
         };
+        const rendererDestroyedEvent: DesktopWindowRendererDestroyedEvent = {
+          browserWindowId,
+          id,
+          kind,
+        };
+
+        webContents.on("destroyed", () => {
+          for (const listener of rendererDestroyedListeners) {
+            void runPromise(listener(rendererDestroyedEvent)).catch(
+              () => undefined,
+            );
+          }
+        });
 
         if (definition.closeBehavior === "hide") {
           window.on("close", (event) => {
@@ -645,6 +681,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     getBrowserWindowKind,
     onClosed,
     onCreated,
+    onRendererDestroyed,
     open,
     reveal,
     revealBrowserWindow,

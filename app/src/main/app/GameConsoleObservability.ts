@@ -1159,14 +1159,15 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         if (window === null) {
           return;
         }
+        const browserWindowId = window.id;
 
         void runPromise(
-          windows.getBrowserWindowKind(window.id).pipe(
+          windows.getBrowserWindowKind(browserWindowId).pipe(
             Effect.flatMap((kind) =>
               kind === "game"
                 ? Effect.sync(() => {
                     const row = store.appendMessage({
-                      gameWindowId: window.id,
+                      gameWindowId: browserWindowId,
                       message: payload.message,
                     });
                     publish("message", row);

@@ -30,7 +30,6 @@ describe("DesktopIpcSenders", () => {
       const sender = yield* senders.require(event, ["game"]);
 
       expect(sender).toEqual({
-        browserWindow,
         browserWindowId: 42,
         kind: "game",
       });

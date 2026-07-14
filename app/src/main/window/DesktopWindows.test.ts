@@ -40,7 +40,11 @@ import {
   type ElectronWindowOpenRequestHandler,
 } from "../electron/ElectronWindow";
 import { DesktopSettings } from "../settings/DesktopSettings";
-import { DesktopWindows, layer as desktopWindowsLayer } from "./DesktopWindows";
+import {
+  DesktopWindows,
+  layer as desktopWindowsLayer,
+  type DesktopWindowRendererDestroyedEvent,
+} from "./DesktopWindows";
 
 const tempDirs = new Set<string>();
 
@@ -54,6 +58,7 @@ type TestWindowListener = (...args: readonly unknown[]) => void;
 
 interface TestWindowHandle extends ElectronWindowHandle {
   readonly backgroundColors: () => readonly string[];
+  readonly destroyWebContents: () => void;
   readonly emit: (eventName: string, ...args: readonly unknown[]) => void;
   readonly hideCount: () => number;
 }
@@ -69,22 +74,48 @@ const addWindowListener = (
 const makeHandle = (id: number): TestWindowHandle => {
   const listeners = new Map<string, TestWindowListener[]>();
   const onceListeners = new Map<string, TestWindowListener[]>();
+  const webContentsListeners = new Map<string, TestWindowListener[]>();
   const backgroundColors: string[] = [];
+  let destroyed = false;
   let hiddenCount = 0;
   let visible = true;
+  const webContents: ElectronWindowHandle["webContents"] = {
+    id: id + 100,
+    isDestroyed: () => destroyed,
+    off: ((eventName: string, listener: TestWindowListener) => {
+      webContentsListeners.set(
+        eventName,
+        (webContentsListeners.get(eventName) ?? []).filter(
+          (registered) => registered !== listener,
+        ),
+      );
+    }) as unknown as ElectronWindowHandle["webContents"]["off"],
+    on: ((eventName: string, listener: TestWindowListener) => {
+      addWindowListener(webContentsListeners, eventName, listener);
+    }) as unknown as ElectronWindowHandle["webContents"]["on"],
+    openDevTools: () => undefined,
+    setWindowOpenHandler: () => undefined,
+  };
 
   return {
     backgroundColors: () => backgroundColors,
-    id,
-    webContents: {
-      id: id + 100,
-      isDestroyed: () => false,
-      off: (() =>
-        undefined) as unknown as ElectronWindowHandle["webContents"]["off"],
-      on: (() =>
-        undefined) as unknown as ElectronWindowHandle["webContents"]["on"],
-      openDevTools: () => undefined,
-      setWindowOpenHandler: () => undefined,
+    destroyWebContents: () => {
+      destroyed = true;
+      for (const listener of webContentsListeners.get("destroyed") ?? []) {
+        listener();
+      }
+    },
+    get id() {
+      if (destroyed) {
+        throw new TypeError("Object has been destroyed");
+      }
+      return id;
+    },
+    get webContents() {
+      if (destroyed) {
+        throw new TypeError("Object has been destroyed");
+      }
+      return webContents;
     },
     close: () => {
       visible = false;
@@ -105,7 +136,7 @@ const makeHandle = (id: number): TestWindowHandle => {
       visible = false;
     },
     hideCount: () => hiddenCount,
-    isDestroyed: () => false,
+    isDestroyed: () => destroyed,
     isMinimized: () => false,
     isVisible: () => visible,
     loadFile: () => Promise.resolve(),
@@ -245,6 +276,12 @@ describe("DesktopWindows", () => {
         ),
       );
       const windows = yield* DesktopWindows.pipe(Effect.provide(layer));
+      const rendererDestroyedEvents: DesktopWindowRendererDestroyedEvent[] = [];
+      yield* windows.onRendererDestroyed((event) =>
+        Effect.sync(() => {
+          rendererDestroyedEvents.push(event);
+        }),
+      );
 
       const first = yield* windows.open("game");
       const second = yield* windows.open("game");
@@ -280,6 +317,11 @@ describe("DesktopWindows", () => {
       expect(createdHandles.map((handle) => handle.backgroundColors())).toEqual(
         [["#ffffff"], ["#ffffff"]],
       );
+
+      expect(() => createdHandles[0]?.destroyWebContents()).not.toThrow();
+      expect(rendererDestroyedEvents).toEqual([
+        { browserWindowId: 1, id: first, kind: "game" },
+      ]);
 
       createdHandles[0]?.emit("closed");
     }),

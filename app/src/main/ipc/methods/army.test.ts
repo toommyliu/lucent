@@ -1,15 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EventEmitter } from "events";
 import { Deferred, Effect } from "effect";
 
 import {
   ArmyCoordinator,
   type ArmyCoordinatorShape,
 } from "../../internal/army/ArmyCoordinator";
-import type { ElectronWindowHandle } from "../../electron/ElectronWindow";
 import {
   DesktopWindows,
-  type DesktopWindowCreatedEvent,
+  type DesktopWindowRendererDestroyedEvent,
   type DesktopWindowsShape,
 } from "../../window/DesktopWindows";
 import { DesktopIpc, type DesktopIpcShape } from "../DesktopIpc";
@@ -22,11 +20,10 @@ describe("Army IPC lifecycle", () => {
         readonly browserWindowId: number;
         readonly reason: string;
       }>();
-      type CreatedListener = (
-        event: DesktopWindowCreatedEvent,
+      type RendererDestroyedListener = (
+        event: DesktopWindowRendererDestroyedEvent,
       ) => Effect.Effect<void, unknown>;
-      let onCreated: CreatedListener | undefined;
-      const webContents = new EventEmitter();
+      let onRendererDestroyed: RendererDestroyedListener | undefined;
       const coordinator = ArmyCoordinator.of({
         abortParticipant: (browserWindowId: number, reason: string) =>
           Deferred.succeed(aborted, { browserWindowId, reason }).pipe(
@@ -39,11 +36,11 @@ describe("Army IPC lifecycle", () => {
       } as unknown as DesktopIpcShape);
       const windows = DesktopWindows.of({
         onClosed: () => Effect.succeed(() => undefined),
-        onCreated: (listener: CreatedListener) =>
+        onRendererDestroyed: (listener: RendererDestroyedListener) =>
           Effect.sync(() => {
-            onCreated = listener;
+            onRendererDestroyed = listener;
             return () => {
-              onCreated = undefined;
+              onRendererDestroyed = undefined;
             };
           }),
       } as unknown as DesktopWindowsShape);
@@ -55,17 +52,12 @@ describe("Army IPC lifecycle", () => {
             Effect.provideService(DesktopIpc, ipc),
             Effect.provideService(DesktopWindows, windows),
           );
-          expect(onCreated).toBeDefined();
-          yield* onCreated!({
+          expect(onRendererDestroyed).toBeDefined();
+          yield* onRendererDestroyed!({
             browserWindowId: 42,
             id: "game-test",
             kind: "game",
-            window: {
-              webContents,
-            } as unknown as ElectronWindowHandle,
           });
-
-          webContents.emit("destroyed");
 
           expect(yield* Deferred.await(aborted)).toEqual({
             browserWindowId: 42,

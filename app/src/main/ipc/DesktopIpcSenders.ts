@@ -9,7 +9,6 @@ import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
 import { DesktopWindows } from "../window/DesktopWindows";
 
 export interface DesktopIpcSender {
-  readonly browserWindow: BrowserWindow;
   readonly browserWindowId: number;
   readonly kind: DesktopWindowKind;
 }
@@ -64,11 +63,12 @@ export const makeDesktopIpcSenders = (
       });
     }
 
-    const kind = yield* windows.getBrowserWindowKind(browserWindow.id).pipe(
+    const browserWindowId = browserWindow.id;
+    const kind = yield* windows.getBrowserWindowKind(browserWindowId).pipe(
       Effect.mapError(
         () =>
           new DesktopIpcSenderError({
-            detail: `Failed to resolve IPC sender window: ${browserWindow.id}`,
+            detail: `Failed to resolve IPC sender window: ${browserWindowId}`,
           }),
       ),
     );
@@ -79,8 +79,7 @@ export const makeDesktopIpcSenders = (
     }
 
     return {
-      browserWindow,
-      browserWindowId: browserWindow.id,
+      browserWindowId,
       kind,
     };
   });

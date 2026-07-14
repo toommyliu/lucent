@@ -94,13 +94,6 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     const coordinator = yield* ArmyCoordinator;
     const ipc = yield* DesktopIpc;
     const windows = yield* DesktopWindows;
-    const context = yield* Effect.context<never>();
-    const runFork = Effect.runForkWith(context);
-    const destroyedListenerCleanups = new Map<number, () => void>();
-
-    const cleanupDestroyedListener = (browserWindowId: number): void => {
-      destroyedListenerCleanups.get(browserWindowId)?.();
-    };
 
     yield* Effect.acquireRelease(
       coordinator.onSessionEnded((event) =>
@@ -113,28 +106,12 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     );
 
     yield* Effect.acquireRelease(
-      windows.onCreated((event) =>
+      windows.onRendererDestroyed((event) =>
         event.kind === "game"
-          ? Effect.sync(() => {
-              cleanupDestroyedListener(event.browserWindowId);
-
-              const handleDestroyed = (): void => {
-                cleanupDestroyedListener(event.browserWindowId);
-                runFork(
-                  coordinator.abortParticipant(
-                    event.browserWindowId,
-                    "Army window destroyed",
-                  ),
-                );
-              };
-              const cleanup = (): void => {
-                event.window.webContents.off("destroyed", handleDestroyed);
-                destroyedListenerCleanups.delete(event.browserWindowId);
-              };
-
-              event.window.webContents.on("destroyed", handleDestroyed);
-              destroyedListenerCleanups.set(event.browserWindowId, cleanup);
-            })
+          ? coordinator.abortParticipant(
+              event.browserWindowId,
+              "Army window destroyed",
+            )
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),
@@ -143,26 +120,13 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onClosed((event) =>
         event.kind === "game"
-          ? Effect.gen(function* () {
-              yield* Effect.sync(() =>
-                cleanupDestroyedListener(event.browserWindowId),
-              );
-              yield* coordinator.abortParticipant(
-                event.browserWindowId,
-                "Army window closed",
-              );
-            })
+          ? coordinator.abortParticipant(
+              event.browserWindowId,
+              "Army window closed",
+            )
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),
-    );
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        for (const cleanup of destroyedListenerCleanups.values()) {
-          cleanup();
-        }
-      }),
     );
   },
 );
