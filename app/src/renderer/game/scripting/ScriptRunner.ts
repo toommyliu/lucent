@@ -550,8 +550,21 @@ export const layer = Layer.effect(
           return;
         }
 
-        yield* combat.exit();
-        yield* wait.forGameAction("tfer", { timeout: "5 seconds" });
+        if (!(yield* player.isAlive())) {
+          yield* Effect.logInfo({
+            message: `script safeStartStop ${phase}-run waiting for automatic respawn`,
+          });
+          yield* wait.until(player.isAlive());
+        }
+
+        if (!(yield* combat.exit())) {
+          yield* Effect.logWarning({
+            message: `script safeStartStop ${phase}-run skipped; combat could not be exited`,
+          });
+          return;
+        }
+
+        yield* Effect.sleep("1 second");
 
         const move = Effect.gen(function* () {
           yield* packet.sendServer(`%xt%zm%house%1%${username}%`);

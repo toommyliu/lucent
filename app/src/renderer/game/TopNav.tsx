@@ -17,8 +17,12 @@ import {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   cn,
   type ButtonProps,
+  type MenuCheckboxItemProps,
   type MenuContentProps,
   type MenuSubContentProps,
 } from "@lucent/ui";
@@ -772,15 +776,33 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     >
                       Use Private Rooms
                     </MenuCheckboxItem>
-                    <MenuCheckboxItem
-                      checked={props.scriptSafeStartStop()}
-                      class="game-menu__item"
-                      closeOnSelect={false}
-                      onClick={props.handleToggleScriptSafeStartStop}
-                      value="script-safe-start-stop"
+                    <Tooltip
+                      closeDelay={0}
+                      openDelay={400}
+                      positioning={{ placement: "right" }}
                     >
-                      Safe Start/Stop
-                    </MenuCheckboxItem>
+                      <TooltipTrigger
+                        asChild={(triggerProps) => (
+                          <MenuCheckboxItem
+                            {...(triggerProps({
+                              "aria-description":
+                                "Best-effort attempt to start or stop the script at your house.",
+                              checked: props.scriptSafeStartStop(),
+                              class: "game-menu__item",
+                              closeOnSelect: false,
+                              onClick: props.handleToggleScriptSafeStartStop,
+                              value: "script-safe-start-stop",
+                            } as unknown as ButtonProps) as unknown as MenuCheckboxItemProps)}
+                          >
+                            Safe Start/Stop
+                          </MenuCheckboxItem>
+                        )}
+                      />
+                      <TooltipContent>
+                        Best-effort attempt to start or stop the script at your
+                        house.
+                      </TooltipContent>
+                    </Tooltip>
                   </GameMenuSubContent>
                 </MenuSub>
               </MenuGroup>
