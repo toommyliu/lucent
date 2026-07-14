@@ -11,15 +11,18 @@ export interface ObservabilityCliOptions {
 
 export interface CliOptions {
   readonly flashPluginPath?: string;
+  readonly flashVersion?: string;
   readonly launchMode?: AppLaunchMode;
   readonly obs?: ObservabilityCliOptions;
 }
 
-type CliOptionName = "flashPluginPath" | "launchMode" | "obs";
+type CliOptionName = "flashPluginPath" | "flashVersion" | "launchMode" | "obs";
 
 const optionNames: Readonly<Record<string, CliOptionName>> = {
   "flash-plugin-path": "flashPluginPath",
+  "flash-version": "flashVersion",
   flashPath: "flashPluginPath",
+  flashVersion: "flashVersion",
   "launch-mode": "launchMode",
   launchMode: "launchMode",
   obs: "obs",
@@ -84,6 +87,7 @@ export const parseCliOptions = (
   const cwd = options.cwd ?? process.cwd();
   const output: {
     flashPluginPath?: string;
+    flashVersion?: string;
     launchMode?: AppLaunchMode;
     obs?: ObservabilityCliOptions;
   } = {};
@@ -122,7 +126,10 @@ export const parseCliOptions = (
 
     const normalized = normalizeOptional(value);
     if (normalized !== undefined) {
-      output[optionName] = normalizeCliPath(normalized, cwd);
+      output[optionName] =
+        optionName === "flashPluginPath"
+          ? normalizeCliPath(normalized, cwd)
+          : normalized;
     }
   }
 

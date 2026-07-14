@@ -12,6 +12,8 @@ describe("main CLI", () => {
     const parsed = parseCliOptions(
       [
         "--flash-plugin-path=PepperFlashPlayer.plugin",
+        "--flash-version",
+        "32.0.0.371",
         "--launch-mode",
         "account-manager",
         "--obs",
@@ -20,6 +22,7 @@ describe("main CLI", () => {
     );
     expect(parsed).toEqual({
       flashPluginPath: join(cwd, "PepperFlashPlayer.plugin"),
+      flashVersion: "32.0.0.371",
       launchMode: "account-manager",
       obs: { port: DEFAULT_OBSERVABILITY_PORT },
     });
@@ -29,6 +32,7 @@ describe("main CLI", () => {
         "--launch-mode",
         "settings",
         "--flash-plugin-path",
+        "--flash-version=   ",
         "--another-flag",
       ]),
     ).toEqual({});

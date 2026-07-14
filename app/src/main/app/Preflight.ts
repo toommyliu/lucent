@@ -92,6 +92,7 @@ const resolveEnvironmentConfig = (
 
 export const configureFlashStartup = (
   envConfig: DesktopEnvironmentConfig,
+  flashVersion?: string,
 ): FlashStartupResult => {
   const env = makeDesktopEnvironment(envConfig);
   const trustedPaths = [join(env.assetsDir, "loader.swf")];
@@ -101,6 +102,9 @@ export const configureFlashStartup = (
 
   if (!pluginMissing) {
     app.commandLine.appendSwitch("ppapi-flash-path", flashPluginPath);
+    if (flashVersion !== undefined) {
+      app.commandLine.appendSwitch("ppapi-flash-version", flashVersion);
+    }
   }
 
   try {
@@ -142,6 +146,6 @@ export const prepareMainProcess = (): MainProcessBootstrap => {
 
   const cliOptions = parseMainCliOptions();
   const envConfig = resolveEnvironmentConfig(cliOptions);
-  const flash = configureFlashStartup(envConfig);
+  const flash = configureFlashStartup(envConfig, cliOptions.flashVersion);
   return { cliOptions, envConfig, flash };
 };
