@@ -43,6 +43,7 @@ describe("Combat", () => {
           let acceptedDrop = false;
           let currentTarget: number | undefined;
           const attackedTargets: number[] = [];
+          const jumpedCells: string[] = [];
           const availableMonsters = new Set([7, 8]);
           const target = {} as Window;
           target.swf = {
@@ -78,7 +79,9 @@ describe("Combat", () => {
               );
               return true;
             },
-            "player.jump": () => undefined,
+            "player.jump": (cell: string) => {
+              jumpedCells.push(cell);
+            },
             "world.getAvailableMonsterMapIds": () => [...availableMonsters],
             "world.isMonsterAvailable": (monsterMapId: number) =>
               availableMonsters.has(monsterMapId),
@@ -190,6 +193,12 @@ describe("Combat", () => {
               state: EntityState.Idle,
             }),
           );
+
+          availableMonsters.clear();
+          expect((yield* combat.hunt("target"))?.monsterMapId).toBe(7);
+          expect(jumpedCells).toEqual(["Enter"]);
+          availableMonsters.add(7);
+          availableMonsters.add(8);
 
           const killFiber = yield* combat
             .kill(7, { killPriority: [8], profile })

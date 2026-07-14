@@ -254,11 +254,9 @@ export const makeCombat = (
   };
 
   const hunt = (selector: MonsterQuery, options?: HuntOptions) => {
-    return monsters.getAvailable().pipe(
-      Effect.flatMap((available) => {
-        const matches = available.filter((monster) =>
-          monster.matches(selector),
-        );
+    return monsters.getAll().pipe(
+      Effect.flatMap((all) => {
+        const matches = all.filter((monster) => monster.matches(selector));
         if (options?.findMost !== true || matches.length < 2) {
           const target = matches[0] ?? null;
           return target === null || target.cell === ""
