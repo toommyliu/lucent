@@ -2,6 +2,7 @@ import {
   BrowserWindow,
   screen,
   type BrowserWindowConstructorOptions,
+  type WebContents,
 } from "electron";
 
 import { Context, Effect, Layer, Schema } from "effect";
@@ -15,7 +16,8 @@ import { isElectronWindowUsable } from "./windowUsability";
 export interface ElectronWindowWebContents {
   readonly id: number;
   readonly isDestroyed: () => boolean;
-  readonly on: (eventName: string, listener: (...args: any[]) => void) => void;
+  readonly off: WebContents["removeListener"];
+  readonly on: WebContents["on"];
   readonly openDevTools: (options?: { readonly mode?: string }) => void;
   readonly setWindowOpenHandler?: (
     handler: (details: { readonly url: string }) => { readonly action: "deny" },
@@ -32,8 +34,8 @@ export interface ElectronWindowHandle {
   readonly isMinimized: () => boolean;
   readonly isVisible: () => boolean;
   readonly loadFile: (path: string) => Promise<void>;
-  readonly on: (eventName: string, listener: (...args: any[]) => void) => void;
-  readonly once: (eventName: string, listener: () => void) => void;
+  readonly on: BrowserWindow["on"];
+  readonly once: BrowserWindow["once"];
   readonly restore: () => void;
   readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
@@ -99,15 +101,10 @@ const denyRendererWindowOpen = (
     return;
   }
 
-  window.webContents.on(
-    "new-window",
-    (event: { preventDefault: () => void }, url: unknown) => {
-      event.preventDefault();
-      if (typeof url === "string") {
-        onWindowOpenRequest?.(url);
-      }
-    },
-  );
+  window.webContents.on("new-window", (event, url) => {
+    event.preventDefault();
+    onWindowOpenRequest?.(url);
+  });
 };
 
 const makeCenteredOptions = (

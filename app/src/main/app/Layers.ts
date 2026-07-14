@@ -5,13 +5,14 @@ import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as GameConsoleObservability from "./GameConsoleObservability";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
-import * as ArmyIpcHandlers from "../ipc/ArmyIpcHandlers";
+import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as AccountRepository from "../internal/accounts/AccountRepository";
 import * as Accounts from "../internal/accounts/Accounts";
 import * as AccountServers from "../internal/accounts/AccountServers";
 import * as AccountSessions from "../internal/accounts/AccountSessions";
 import * as CombatProfiles from "../internal/combat-profiles/CombatProfiles";
 import * as DesktopIpc from "../ipc/DesktopIpc";
+import * as DesktopIpcSenders from "../ipc/DesktopIpcSenders";
 import * as DesktopSettings from "../settings/DesktopSettings";
 import * as ScriptFiles from "../internal/scripting/ScriptFiles";
 import * as ScriptInputRepository from "../internal/scripting/ScriptInputRepository";
@@ -144,12 +145,17 @@ export const makeDesktopLayer = (
   );
 
   const armyLayer = Layer.mergeAll(
-    ArmyIpcHandlers.coordinatorLayer.pipe(Layer.provideMerge(DesktopIpc.layer)),
+    ArmyCoordinator.layer,
     ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
+  );
+
+  const ipcSendersLayer = DesktopIpcSenders.layer.pipe(
+    Layer.provideMerge(windowsLayer),
   );
 
   return Layer.mergeAll(
     armyLayer,
+    ipcSendersLayer,
     electronLayer,
     environmentLayer,
     accountsLayer,

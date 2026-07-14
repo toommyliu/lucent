@@ -82,7 +82,7 @@ export const makeDesktopRuntime = (
 
       yield* app.whenReady;
       yield* installDesktopNativeAppearanceSync(settings);
-      yield* installDesktopIpcHandlers;
+      yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
       if (cliOptions.obs !== undefined) {
         yield* gameConsoleObservability

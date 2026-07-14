@@ -79,7 +79,10 @@ const makeHandle = (id: number): TestWindowHandle => {
     webContents: {
       id: id + 100,
       isDestroyed: () => false,
-      on: () => undefined,
+      off: (() =>
+        undefined) as unknown as ElectronWindowHandle["webContents"]["off"],
+      on: (() =>
+        undefined) as unknown as ElectronWindowHandle["webContents"]["on"],
       openDevTools: () => undefined,
       setWindowOpenHandler: () => undefined,
     },
@@ -106,10 +109,18 @@ const makeHandle = (id: number): TestWindowHandle => {
     isMinimized: () => false,
     isVisible: () => visible,
     loadFile: () => Promise.resolve(),
-    on: (eventName, listener) =>
-      addWindowListener(listeners, eventName, listener),
-    once: (eventName, listener) =>
-      addWindowListener(onceListeners, eventName, listener),
+    on: ((eventName: string, listener: TestWindowListener) =>
+      addWindowListener(
+        listeners,
+        eventName,
+        listener,
+      )) as unknown as ElectronWindowHandle["on"],
+    once: ((eventName: string, listener: TestWindowListener) =>
+      addWindowListener(
+        onceListeners,
+        eventName,
+        listener,
+      )) as unknown as ElectronWindowHandle["once"],
     restore: () => undefined,
     setBackgroundColor: (backgroundColor) => {
       backgroundColors.push(backgroundColor);

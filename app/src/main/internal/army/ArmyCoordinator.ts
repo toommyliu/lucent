@@ -89,6 +89,12 @@ export type ArmyCoordinatorError =
 
 export type ArmyParticipantId = number;
 
+export interface ArmySessionEndedEvent {
+  readonly participantIds: readonly ArmyParticipantId[];
+  readonly reason: string;
+  readonly sessionId: string;
+}
+
 interface Participant {
   readonly playerName: string;
   readonly id: ArmyParticipantId;
@@ -165,6 +171,9 @@ export interface ArmyCoordinatorShape {
     sessionId: string,
     participantId: ArmyParticipantId,
   ) => Effect.Effect<void, ArmyCoordinatorError>;
+  readonly onSessionEnded: (
+    listener: (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
   readonly progress: (
     sessionId: string,
     participantId: ArmyParticipantId,
@@ -190,13 +199,6 @@ export class ArmyCoordinator extends Context.Service<
   ArmyCoordinator,
   ArmyCoordinatorShape
 >()("lucent/internal/army/ArmyCoordinator") {}
-
-interface CoordinatorHooks {
-  readonly sessionEnded: (
-    participantIds: readonly ArmyParticipantId[],
-    payload: { readonly reason: string; readonly sessionId: string },
-  ) => Effect.Effect<void>;
-}
 
 type JoinOutcome =
   | { readonly error: ArmyCoordinatorError; readonly type: "reject" }
@@ -225,10 +227,6 @@ type ProgressOutcome =
       readonly result?: ArmyProgressResult;
       readonly type: "wait";
     };
-
-const noHooks: CoordinatorHooks = {
-  sessionEnded: () => Effect.void,
-};
 
 const normalizeTimeout = (value: number | undefined): number =>
   Number.isFinite(value)
@@ -336,11 +334,32 @@ const sameSignature = (left: StepSignature, right: StepSignature): boolean =>
 const signatureDescription = (signature: StepSignature): string =>
   `${signature.kind} ${signature.label}`;
 
-export const makeArmyCoordinator = (
-  hooks: CoordinatorHooks = noHooks,
-): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
+export const makeArmyCoordinator = (): Effect.Effect<
+  ArmyCoordinatorShape,
+  never,
+  Scope.Scope
+> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
+    const sessionEndedListeners = new Set<
+      (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>
+    >();
+
+    const onSessionEnded: ArmyCoordinatorShape["onSessionEnded"] = (listener) =>
+      Effect.sync(() => {
+        sessionEndedListeners.add(listener);
+        return () => {
+          sessionEndedListeners.delete(listener);
+        };
+      });
+
+    const publishSessionEnded = (event: ArmySessionEndedEvent) =>
+      Effect.forEach(
+        [...sessionEndedListeners],
+        (listener) =>
+          listener(event).pipe(Effect.catchCause(() => Effect.void)),
+        { discard: true },
+      );
 
     const getSession = (sessionId: string) =>
       SynchronizedRef.get(stateRef).pipe(
@@ -400,12 +419,13 @@ export const makeArmyCoordinator = (
             ),
           { concurrency: "unbounded", discard: true },
         );
-        yield* hooks.sessionEnded(
-          [...removed.participants.values()].map(
+        yield* publishSessionEnded({
+          participantIds: [...removed.participants.values()].map(
             (participant) => participant.id,
           ),
-          { reason, sessionId },
-        );
+          reason,
+          sessionId,
+        });
       });
 
     const abortParticipant: ArmyCoordinatorShape["abortParticipant"] = (
@@ -1065,26 +1085,30 @@ export const makeArmyCoordinator = (
       getSessions,
       join,
       leave,
+      onSessionEnded,
       progress,
       sync,
     };
 
     yield* Effect.addFinalizer(() =>
-      service
-        .getSessions()
-        .pipe(
-          Effect.flatMap((sessions) =>
-            Effect.forEach(
-              sessions,
-              (session) =>
-                service.abortSession(
-                  session.sessionId,
-                  "Application is quitting",
-                ),
-              { discard: true },
-            ),
+      service.getSessions().pipe(
+        Effect.flatMap((sessions) =>
+          Effect.forEach(
+            sessions,
+            (session) =>
+              service.abortSession(
+                session.sessionId,
+                "Application is quitting",
+              ),
+            { discard: true },
           ),
         ),
+        Effect.ensuring(
+          Effect.sync(() => {
+            sessionEndedListeners.clear();
+          }),
+        ),
+      ),
     );
 
     return service;

@@ -32,13 +32,14 @@ const bridgeError = (
 export const createDesktopIpcInvokeHandler = <
   Descriptor extends IpcInvokeDescriptor<unknown, unknown>,
   Event,
+  HandlerContext,
 >(
   descriptor: Descriptor,
   handler: (
     payload: IpcInvokePayload<Descriptor>,
     event: Event,
-  ) => Effect.Effect<IpcInvokeResult<Descriptor>, unknown, never>,
-  runPromise: <A>(effect: Effect.Effect<A, never, never>) => Promise<A>,
+  ) => Effect.Effect<IpcInvokeResult<Descriptor>, unknown, HandlerContext>,
+  runPromise: <A, E>(effect: Effect.Effect<A, E, HandlerContext>) => Promise<A>,
 ): ((
   event: Event,
   rawPayload: unknown,

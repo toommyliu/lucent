@@ -19,6 +19,36 @@ const makeConfig = (players: readonly string[]): ArmyConfigPayload => ({
 });
 
 describe("ArmyCoordinator", () => {
+  it.effect("publishes session-ended events without an IPC dependency", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const participantId = makeParticipant();
+        const events: Array<unknown> = [];
+        yield* coordinator.onSessionEnded((event) =>
+          Effect.sync(() => {
+            events.push(event);
+          }),
+        );
+        const session = yield* coordinator.join(
+          makeConfig(["Alice"]),
+          "Alice",
+          participantId,
+        );
+
+        yield* coordinator.abortSession(session.sessionId, "Test complete");
+
+        expect(events).toEqual([
+          {
+            participantIds: [participantId],
+            reason: "Test complete",
+            sessionId: session.sessionId,
+          },
+        ]);
+      }),
+    ),
+  );
+
   it.effect("starts only after the full configured roster joins", () =>
     Effect.scoped(
       Effect.gen(function* () {
