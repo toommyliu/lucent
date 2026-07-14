@@ -89,6 +89,43 @@ describe("GameConsoleObservability store", () => {
     ]);
   });
 
+  it("resets only the reloaded window's messages and counters", () => {
+    const store = makeGameConsoleStore();
+    store.openWindow(1, "2026-07-08T12:00:00.000Z");
+    store.openWindow(2, "2026-07-08T12:00:00.000Z");
+    store.updateSessions([
+      { gameWindowId: 1, username: "Alpha" },
+      { gameWindowId: 2, username: "Bravo" },
+    ]);
+    store.appendMessage({ gameWindowId: 1, message: "old run" });
+    store.appendMessage({ gameWindowId: 2, message: "other window" });
+
+    const reset = store.resetWindow(1);
+
+    expect(store.queryMessages()).toEqual([
+      expect.objectContaining({ gameWindowId: 2, message: "other window" }),
+    ]);
+    expect(reset).toEqual(
+      expect.objectContaining({
+        gameWindowId: 1,
+        lastMessageAt: null,
+        lastMessageId: null,
+        messageCount: 0,
+        state: "active",
+        username: "Alpha",
+      }),
+    );
+    expect(store.state().buffer.size).toBe(1);
+
+    const nextRun = store.appendMessage({
+      gameWindowId: 1,
+      message: "new run",
+    });
+    expect(nextRun).toEqual(
+      expect.objectContaining({ id: 3, username: "Alpha" }),
+    );
+  });
+
   it("filters messages and serializes NDJSON", () => {
     const store = makeGameConsoleStore();
     store.openWindow(1);

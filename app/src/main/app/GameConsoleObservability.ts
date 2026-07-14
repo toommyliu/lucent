@@ -104,6 +104,7 @@ export interface GameConsoleStore {
   readonly queryMessages: (
     query?: GameConsoleMessageQuery,
   ) => readonly GameConsoleMessage[];
+  readonly resetWindow: (gameWindowId: number) => GameConsoleWindowState;
   readonly state: () => GameConsoleState;
   readonly updateSessions: (
     sessions: readonly GameConsoleSessionSnapshot[],
@@ -252,6 +253,22 @@ export const makeGameConsoleStore = (
     return changed;
   };
 
+  const resetWindow: GameConsoleStore["resetWindow"] = (gameWindowId) => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.gameWindowId === gameWindowId) {
+        messages.splice(index, 1);
+      }
+    }
+
+    const current = windows.get(gameWindowId) ?? openWindow(gameWindowId);
+    return setWindow({
+      ...current,
+      lastMessageAt: null,
+      lastMessageId: null,
+      messageCount: 0,
+    });
+  };
+
   const queryMessages: GameConsoleStore["queryMessages"] = (query = {}) => {
     const normalizedQuery = query.q?.trim().toLowerCase();
     const normalizedUsername = query.username?.trim().toLowerCase();
@@ -309,6 +326,7 @@ export const makeGameConsoleStore = (
     closeWindow,
     openWindow,
     queryMessages,
+    resetWindow,
     state,
     updateSessions,
   };
@@ -942,6 +960,14 @@ const dashboardHtml = `<!doctype html>
         if (autoScroll) scrollToBottom();
       };
 
+      const resetWindowRows = (windowState) => {
+        rows = rows.filter(
+          (row) => row.gameWindowId !== windowState.gameWindowId,
+        );
+        renderRows();
+        refreshWindows();
+      };
+
       queryEl.addEventListener("input", refreshMessages);
       windowFilterEl.addEventListener("change", refreshMessages);
       usernameFilterEl.addEventListener("input", refreshMessages);
@@ -982,6 +1008,9 @@ const dashboardHtml = `<!doctype html>
         });
         events.addEventListener("window-opened", refreshWindows);
         events.addEventListener("window-closed", refreshWindows);
+        events.addEventListener("window-reset", (event) => {
+          resetWindowRows(JSON.parse(event.data));
+        });
         events.addEventListener("session-updated", refreshWindows);
         events.addEventListener("error", () => {
           if (hasConnectedEvents) {
@@ -1143,6 +1172,35 @@ const makeGameConsoleObservability = Effect.gen(function* () {
           publish("session-updated", windowState);
         }
       };
+      const removeReloadListeners = new Map<number, () => void>();
+      const observeReloads = (gameWindowId: number): void => {
+        const window = BrowserWindow.fromId(gameWindowId);
+        if (window === null) {
+          return;
+        }
+
+        let initialLoadStarted = false;
+        const handleLoadStarted = (): void => {
+          if (!initialLoadStarted) {
+            initialLoadStarted = true;
+            return;
+          }
+
+          const windowState = store.resetWindow(gameWindowId);
+          publish("window-reset", windowState);
+        };
+        window.webContents.on("did-start-loading", handleLoadStarted);
+        removeReloadListeners.set(gameWindowId, () => {
+          window.webContents.removeListener(
+            "did-start-loading",
+            handleLoadStarted,
+          );
+        });
+      };
+      const stopObservingReloads = (gameWindowId: number): void => {
+        removeReloadListeners.get(gameWindowId)?.();
+        removeReloadListeners.delete(gameWindowId);
+      };
       const context = yield* Effect.context<never>();
       const runPromise = Effect.runPromiseWith(context);
       const handleRendererMessage = (
@@ -1186,6 +1244,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
 
         return Effect.sync(() => {
           const windowState = store.openWindow(event.browserWindowId);
+          observeReloads(event.browserWindowId);
           publish("window-opened", windowState);
         });
       });
@@ -1195,6 +1254,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
+          stopObservingReloads(event.browserWindowId);
           const windowState = store.closeWindow(event.browserWindowId);
           publish("window-closed", windowState);
         });
@@ -1241,6 +1301,9 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         unsubscribeAccounts();
         unsubscribeClosed();
         unsubscribeCreated();
+        for (const gameWindowId of removeReloadListeners.keys()) {
+          stopObservingReloads(gameWindowId);
+        }
         for (const client of sseClients) {
           client.end();
         }
