@@ -253,7 +253,10 @@ const rendererStaticFilePaths = () =>
   rendererViews.map((view) => `src/renderer/${view.id}/style.css`);
 
 const fileChanged = (current, previous) =>
-  current.mtimeMs !== previous.mtimeMs || current.size !== previous.size;
+  current.mtimeMs !== previous.mtimeMs ||
+  current.ctimeMs !== previous.ctimeMs ||
+  current.size !== previous.size ||
+  current.ino !== previous.ino;
 
 const watchRendererStaticFiles = () => {
   const watchedPaths = rendererStaticFilePaths();
