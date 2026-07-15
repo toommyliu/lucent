@@ -133,6 +133,7 @@ const LAUNCH_WITH_SCRIPT_CHECKBOX_ID = "account-manager-launch-with-script";
 const ACCOUNT_PASSWORD_INPUT_ID = "account-manager-account-password";
 const SERVER_CAPACITY_WARNING_MIN_SPARE_SLOTS = 2;
 const SHORTCUT_TOOLTIP_OPEN_DELAY_MS = 500;
+const INITIAL_LOADING_INDICATOR_DELAY_MS = 150;
 const NEW_ACCOUNT_HOTKEY = "Mod+N";
 const LOGIN_SERVER_HOTKEY = "Mod+L";
 const SELECT_SCRIPT_HOTKEY = "Mod+O";
@@ -525,6 +526,7 @@ export function App(): JSX.Element {
   let serverPingRequestId = 0;
   const [state, setState] = createSignal<AccountManagerState>(emptyState);
   const [stateLoaded, setStateLoaded] = createSignal(false);
+  const [initialLoadingVisible, setInitialLoadingVisible] = createSignal(false);
   const [selectedAccountUsernames, setSelectedAccountUsernames] = createSignal<
     ReadonlySet<string>
   >(new Set());
@@ -1731,6 +1733,11 @@ export function App(): JSX.Element {
 
   onMount(() => {
     const unsubscribe = accountsBridge().onChanged(applyState);
+    const loadingIndicatorTimeout = window.setTimeout(() => {
+      if (!stateLoaded()) {
+        setInitialLoadingVisible(true);
+      }
+    }, INITIAL_LOADING_INDICATOR_DELAY_MS);
     const refreshCooldownTimer = window.setInterval(() => {
       setServerRefreshNow(Date.now());
     }, 1_000);
@@ -1750,6 +1757,7 @@ export function App(): JSX.Element {
     onCleanup(() => {
       unsubscribe();
       serverPingRequestId += 1;
+      window.clearTimeout(loadingIndicatorTimeout);
       window.clearInterval(refreshCooldownTimer);
       if (serverSelectionSettlingTimeout !== undefined) {
         window.clearTimeout(serverSelectionSettlingTimeout);
@@ -2644,132 +2652,130 @@ export function App(): JSX.Element {
             </div>
           </div>
 
-          <div class="account-list" aria-live="polite">
+          <div
+            class="account-list"
+            aria-busy={!stateLoaded()}
+            aria-live="polite"
+          >
             <Show
-              when={filteredAccounts().length > 0}
+              when={stateLoaded()}
               fallback={
-                <Show
-                  when={stateLoaded()}
-                  fallback={
-                    <div
-                      class="account-list__loading"
-                      aria-label="Loading accounts"
-                      aria-busy="true"
-                    >
-                      <div class="account-list__loading-content">
-                        <Spinner
-                          class="account-list__loading-spinner"
-                          size="xl"
-                        />
-                        <span>Loading...</span>
-                      </div>
-                    </div>
-                  }
-                >
-                  <Empty class="account-list__empty">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <Icon
-                          icon={
-                            accounts().length === 0 ? "user_plus" : "search"
-                          }
-                        />
-                      </EmptyMedia>
-                      <EmptyTitle>
-                        {accounts().length === 0
-                          ? "No accounts yet"
-                          : "No matching accounts"}
-                      </EmptyTitle>
-                      <EmptyDescription>
-                        {accounts().length === 0
-                          ? "Add an account to get started."
-                          : "Try adjusting your search."}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                <Show when={initialLoadingVisible()}>
+                  <div class="account-list__loading" role="status">
+                    <Spinner class="account-list__loading-spinner" size="sm" />
+                    <span>Loading accounts...</span>
+                  </div>
                 </Show>
               }
             >
-              <For each={filteredAccounts()}>
-                {(account, index) => {
-                  return (
-                    <Card
-                      class="account-row"
-                      style={{
-                        "animation-delay": `${Math.min(index() * 12, 36)}ms`,
-                      }}
-                    >
-                      <div
-                        class="account-row__select-area"
-                        onClick={(event) => {
-                          if (event.target.closest(".checkbox")) {
-                            return;
-                          }
-                          toggleSelected(
-                            account.username,
-                            !selectedAccountUsernames().has(account.username),
-                          );
-                        }}
-                      >
-                        <Checkbox
-                          id={`checkbox-${account.username}`}
-                          checked={selectedAccountUsernames().has(
-                            account.username,
-                          )}
-                          onChange={(event) =>
-                            toggleSelected(
-                              account.username,
-                              event.currentTarget.checked,
-                            )
-                          }
-                          size="default"
-                          aria-label={`Select ${account.label}`}
-                        />
-                        <div class="account-row__identity">
-                          <span class="account-row__title">
-                            {account.label}
-                          </span>
-                          <span class="account-row__meta">
-                            {account.username}
-                          </span>
-                        </div>
-                      </div>
-                      <div class="account-row__actions">
-                        <Button
-                          aria-label={`Launch ${account.label}`}
-                          class="account-row__launch-btn"
-                          disabled={busy()}
-                          onClick={() =>
-                            void handleLaunchAccountUsername(account.username)
-                          }
-                          size="sm"
-                          variant="secondary"
-                        >
-                          Launch
-                        </Button>
-                        <Button
-                          class="account-row__edit-btn"
-                          disabled={busy()}
-                          onClick={() => openEditDialog(account)}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          class="account-row__delete-btn"
-                          disabled={busy()}
-                          onClick={() => setAccountToDelete(account)}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </Card>
-                  );
-                }}
-              </For>
+              <div class="account-list__results">
+                <Show
+                  when={filteredAccounts().length > 0}
+                  fallback={
+                    <Empty class="account-list__empty">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <Icon
+                            icon={
+                              accounts().length === 0 ? "user_plus" : "search"
+                            }
+                          />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                          {accounts().length === 0
+                            ? "No accounts yet"
+                            : "No matching accounts"}
+                        </EmptyTitle>
+                        <EmptyDescription>
+                          {accounts().length === 0
+                            ? "Add an account to get started."
+                            : "Try adjusting your search."}
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  }
+                >
+                  <For each={filteredAccounts()}>
+                    {(account) => {
+                      return (
+                        <Card class="account-row">
+                          <div
+                            class="account-row__select-area"
+                            onClick={(event) => {
+                              if (event.target.closest(".checkbox")) {
+                                return;
+                              }
+                              toggleSelected(
+                                account.username,
+                                !selectedAccountUsernames().has(
+                                  account.username,
+                                ),
+                              );
+                            }}
+                          >
+                            <Checkbox
+                              id={`checkbox-${account.username}`}
+                              checked={selectedAccountUsernames().has(
+                                account.username,
+                              )}
+                              onChange={(event) =>
+                                toggleSelected(
+                                  account.username,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                              size="default"
+                              aria-label={`Select ${account.label}`}
+                            />
+                            <div class="account-row__identity">
+                              <span class="account-row__title">
+                                {account.label}
+                              </span>
+                              <span class="account-row__meta">
+                                {account.username}
+                              </span>
+                            </div>
+                          </div>
+                          <div class="account-row__actions">
+                            <Button
+                              aria-label={`Launch ${account.label}`}
+                              class="account-row__launch-btn"
+                              disabled={busy()}
+                              onClick={() =>
+                                void handleLaunchAccountUsername(
+                                  account.username,
+                                )
+                              }
+                              size="sm"
+                              variant="secondary"
+                            >
+                              Launch
+                            </Button>
+                            <Button
+                              class="account-row__edit-btn"
+                              disabled={busy()}
+                              onClick={() => openEditDialog(account)}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              class="account-row__delete-btn"
+                              disabled={busy()}
+                              onClick={() => setAccountToDelete(account)}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </Card>
+                      );
+                    }}
+                  </For>
+                </Show>
+              </div>
             </Show>
           </div>
         </section>
