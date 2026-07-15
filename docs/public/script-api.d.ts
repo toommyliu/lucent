@@ -186,6 +186,7 @@ interface ScriptApi {
 }
 interface ScriptRuntimeApi {
     readonly signal: AbortSignal;
+    beep(times?: number): Effect<void, ScriptExecutionError>;
     readonly inputs: ScriptRuntimeInputsApi;
     readonly options: ScriptRuntimeOptionsApi;
     exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect<never, ScriptStopSignal>;

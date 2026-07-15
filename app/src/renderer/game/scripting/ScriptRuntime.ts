@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import type { ApiService } from "../flash/api/Api";
 import type { ScriptRuntimeApi, ScriptRuntimeOptions } from "./ScriptApi";
+import { playBeep } from "./beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import { ScriptExecutionError, ScriptStopSignal } from "./ScriptRunnerErrors";
 
@@ -35,6 +36,14 @@ export const makeScriptRuntimeApi = (
 ): ScriptRuntimeApi => {
   const inputValues = { ...options.inputValues };
   const script: ScriptRuntimeApi = {
+    beep: (times = 1) =>
+      Number.isFinite(times)
+        ? Effect.sync(() => playBeep(Math.max(1, Math.floor(times))))
+        : Effect.fail(
+            new ScriptExecutionError({
+              detail: "script.beep requires a finite number of repetitions.",
+            }),
+          ),
     exit: (exitOptions) =>
       Effect.gen(function* () {
         if (exitOptions?.logout === true) {

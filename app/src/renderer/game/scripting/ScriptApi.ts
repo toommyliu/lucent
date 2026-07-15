@@ -85,6 +85,7 @@ export interface ScriptOptionsApi {
 
 export interface ScriptRuntimeApi {
   readonly signal: AbortSignal;
+  readonly beep: (times?: number) => Effect.Effect<void, ScriptExecutionError>;
   readonly inputs: ScriptInputsApi;
   readonly options: ScriptOptionsApi;
   readonly exit: (options?: {
