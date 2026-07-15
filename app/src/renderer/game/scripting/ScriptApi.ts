@@ -8,8 +8,11 @@ import type {
 } from "@lucent/core/scriptInputs";
 import type { AutomationService } from "../automation/Automation";
 import type { ApiService } from "../flash/api/Api";
-import type { Event, EventSelector } from "../flash/contract/Event";
-import type { Packet, PacketSelector } from "../flash/contract/Packet";
+import type { ScriptCallbackResult, ScriptGenerator } from "./api/Callbacks";
+import type { ScriptEventsApi } from "./api/Events";
+import type { ScriptPacketApi } from "./api/Packet";
+import type { ScriptRecipesApi } from "./api/Recipes";
+import type { ScriptSettingsApi } from "./api/Settings";
 import type {
   ScriptExecutionError,
   ScriptStopSignal,
@@ -17,35 +20,8 @@ import type {
 
 export type ScriptEffect<A = unknown, E = unknown> = Effect.Effect<A, E>;
 
-export type ScriptGenerator<A = unknown> = Generator<
-  Effect.Effect<any, any, never>,
-  A,
-  any
->;
-
-export type ScriptCallbackResult<A = unknown> =
-  | Effect.Effect<A, unknown>
-  | ScriptGenerator<A>;
-
-export interface ScriptEventsApi {
-  readonly on: (
-    selector: EventSelector | undefined,
-    handler: (event: Event) => ScriptCallbackResult,
-  ) => Effect.Effect<() => void>;
-  readonly once: ApiService["events"]["once"];
-  readonly stream: ApiService["events"]["stream"];
-}
-
-export interface ScriptPacketApi {
-  readonly on: (
-    selector: PacketSelector | undefined,
-    handler: (packet: Packet) => ScriptCallbackResult,
-  ) => Effect.Effect<() => void>;
-  readonly once: ApiService["packet"]["once"];
-  readonly sendClient: ApiService["packet"]["sendClient"];
-  readonly sendServer: ApiService["packet"]["sendServer"];
-  readonly stream: ApiService["packet"]["stream"];
-}
+export type { ScriptCallbackResult, ScriptGenerator };
+export type { ScriptEnhanceItemOptions, ScriptRecipesApi } from "./api/Recipes";
 
 export type ScriptInputType = "string" | "number" | "boolean" | "select";
 
@@ -60,24 +36,6 @@ export interface ScriptFeaturesApi {
   readonly antiCounter: ScriptAntiCounterFeature;
   readonly autoRelogin: AutomationService["autoRelogin"];
   readonly autoZone: AutomationService["autoZone"];
-}
-
-export interface ScriptSettingsApi {
-  readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
-  readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCollisionsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCustomGuild: (name: string) => Effect.Effect<void>;
-  readonly setCustomName: (name: string) => Effect.Effect<void>;
-  readonly setDeathAdsVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setEnemyMagnetEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setFrameRate: (fps: number) => Effect.Effect<void>;
-  readonly setInfiniteRangeEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setLagKillerEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setOtherPlayersVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
 }
 
 export interface ScriptApi {
@@ -95,6 +53,7 @@ export interface ScriptApi {
   readonly player: ApiService["player"];
   readonly players: ApiService["players"];
   readonly quests: ApiService["quests"];
+  readonly recipes: ScriptRecipesApi;
   readonly settings: ScriptSettingsApi;
   readonly shops: ApiService["shops"];
   readonly tempInventory: ApiService["tempInventory"];

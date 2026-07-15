@@ -64,7 +64,7 @@ describe("Projection", () => {
             items: [
               {
                 CharItemID: "77",
-                EnhID: 0,
+                EnhID: -1,
                 ItemID: "7",
                 iQty: "3",
                 sName: "Health Potion",
@@ -166,6 +166,62 @@ describe("Projection", () => {
 
       yield* pipeline.packet(extension("turnIn", { sItems: "100:1" }));
       expect(yield* store.items.get("temporary", 100)).toBeNull();
+    }),
+  );
+
+  it.effect("derives omitted item ids from item record keys", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      let addItemsChanged: boolean | undefined;
+      const pipeline = makePipeline(store, {
+        publishEvent: () => Effect.void,
+        reportProjectionTrace: (operation, trace) =>
+          Effect.sync(() => {
+            if (operation === "projection:addItems") {
+              addItemsChanged = trace.changed;
+            }
+          }),
+      });
+
+      yield* store.items.replace("inventory", [
+        toItem(
+          {
+            CharItemID: 200,
+            EnhID: -1,
+            ItemID: 12_917,
+            iQty: 200,
+            sName: "Scroll of Enrage",
+          },
+          { context: "inventory" },
+        ),
+      ]);
+      yield* pipeline.packet(
+        extension("addItems", {
+          items: {
+            "12917": {
+              CharItemID: 200,
+              bBank: 0,
+              iQty: 200,
+              iQtyNow: 400,
+            },
+          },
+          msg: "",
+        }),
+      );
+      expect((yield* store.items.get("inventory", 12_917))?.quantity).toBe(400);
+      expect(addItemsChanged).toBe(true);
+      yield* pipeline.packet(
+        extension("forceAddItem", {
+          items: {
+            scroll: {
+              ItemID: 12_917,
+              iQty: 200,
+              iQtyNow: 450,
+            },
+          },
+        }),
+      );
+      expect((yield* store.items.get("inventory", 12_917))?.quantity).toBe(450);
     }),
   );
 

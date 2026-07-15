@@ -51,20 +51,12 @@ package lucent.game {
     [BridgeExport]
     public static function acceptDrop(itemId:int):Boolean {
       var game:Object = Main.Game;
-      if (isUsingCustomDrops()) {
-        if (!isCustomDropsUiOpen())
-          toggleUi();
+      if (isUsingCustomDrops() && !isCustomDropsUiOpen())
+        toggleUi();
 
-        // The response handler removes and redraws the entry only after the server accepts it.
-        game.sfc.sendXtMessage("zm", "getDrop", [itemId], "str", game.world.curRoom);
-        return true;
-      }
-
-      var frame:* = getDefaultDropFrame(itemId);
-      if (!frame)
-        return false;
-
-      frame.cnt.ybtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      // The response handler updates and closes
+      // whichever UI is active after the server accepts the item.
+      game.sfc.sendXtMessage("zm", "getDrop", [itemId], "str", game.world.curRoom);
       return true;
     }
 

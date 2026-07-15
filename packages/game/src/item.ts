@@ -13,6 +13,7 @@ export interface Enhancement {
   readonly id?: number;
   readonly level?: number;
   readonly patternId?: number;
+  readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
 }

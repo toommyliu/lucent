@@ -124,7 +124,7 @@ declare global {
       "player.useBoost": (itemId: number) => boolean;
       "player.walkTo": (x: number, y: number, walkSpeed?: number) => boolean;
       "quests.abandon": (questId: number) => void;
-      "quests.accept": (questId: number) => boolean;
+      "quests.accept": (questId: number, silent?: boolean) => boolean;
       "quests.canComplete": (questId: number) => boolean;
       "quests.complete": (
         questId: number,
@@ -163,6 +163,10 @@ declare global {
         quantity?: number,
       ) => boolean;
       "shops.close": (shopId?: number) => boolean;
+      "shops.enhance": (
+        selector: FlashTypes.ShopItemSelector,
+        itemId: number,
+      ) => boolean;
       "shops.getItem": (
         selector: FlashTypes.ShopItemSelector,
       ) => Record<string, unknown> | null;

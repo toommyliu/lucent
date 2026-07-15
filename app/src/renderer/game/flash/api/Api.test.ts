@@ -17,6 +17,7 @@ const makeTarget = () => {
     deposits: 0,
     equips: 0,
     hairShopLoads: 0,
+    shopLoads: 0,
     swaps: 0,
     wears: 0,
     withdrawals: 0,
@@ -25,6 +26,7 @@ const makeTarget = () => {
   let bankLoaded = false;
   let bankOpen = false;
   let bankItems: readonly unknown[] = [];
+  let cachedShopId = 0;
   let openShopId = 0;
   const target = {} as Window;
 
@@ -98,7 +100,10 @@ const makeTarget = () => {
     "shops.isOpen": (shopId = 0) =>
       openShopId !== 0 && (shopId === 0 || shopId === openShopId),
     "shops.load": (shopId: number) => {
+      calls.shopLoads += 1;
       openShopId = shopId;
+      if (cachedShopId === shopId) return;
+      cachedShopId = shopId;
       emitExtension(target, {
         ShopID: shopId,
         cmd: "loadShop",
@@ -120,6 +125,9 @@ const makeTarget = () => {
     closeBankUi: () => {
       bankOpen = false;
     },
+    closeShopUi: () => {
+      openShopId = 0;
+    },
     failNextBankLoad: () => {
       failBankLoad = true;
     },
@@ -140,6 +148,7 @@ describe("Api", () => {
         const {
           calls,
           closeBankUi,
+          closeShopUi,
           failNextBankLoad,
           resetBankSession,
           target,
@@ -260,6 +269,10 @@ describe("Api", () => {
         expect(calls.equips).toBe(1);
 
         expect(yield* api.shops.load(101)).toBe(true);
+        closeShopUi();
+        expect(yield* api.shops.isOpen(101)).toBe(false);
+        expect(yield* api.shops.load(101)).toBe(true);
+        expect(calls.shopLoads).toBe(2);
         yield* api.shops.loadHairShop(202);
         expect(calls.actions).toContain("loadShop");
         expect(calls.actions).toContain("loadHairShop");

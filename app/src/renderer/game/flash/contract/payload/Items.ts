@@ -14,12 +14,15 @@ export const ItemPayload = Schema.Struct({
   ItemID: PositiveWireInt,
   CharItemID: Schema.optionalKey(PositiveWireInt),
   EnhDPS: Schema.optionalKey(WireNumber),
-  EnhID: Schema.optionalKey(NonNegativeWireInt),
+  EnhID: Schema.optionalKey(WireInt),
   EnhLvl: Schema.optionalKey(NonNegativeWireInt),
   EnhPatternID: Schema.optionalKey(NonNegativeWireInt),
   EnhPID: Schema.optionalKey(NonNegativeWireInt),
   EnhRng: Schema.optionalKey(WireNumber),
   EnhRty: Schema.optionalKey(WireNumber),
+  ItemProcID: Schema.optionalKey(NonNegativeWireInt),
+  PatternID: Schema.optionalKey(NonNegativeWireInt),
+  ProcID: Schema.optionalKey(NonNegativeWireInt),
   ShopItemID: Schema.optionalKey(PositiveWireInt),
   bBank: Schema.optionalKey(WireBoolean),
   bCoins: Schema.optionalKey(WireBoolean),
@@ -29,8 +32,10 @@ export const ItemPayload = Schema.Struct({
   bUpg: Schema.optionalKey(WireBoolean),
   bWear: Schema.optionalKey(WireBoolean),
   iCost: Schema.optionalKey(WireNumber),
-  iEnh: Schema.optionalKey(NonNegativeWireInt),
+  iEnh: Schema.optionalKey(WireInt),
+  iLvl: Schema.optionalKey(NonNegativeWireInt),
   iQty: Schema.optionalKey(WireInt),
+  iQtyNow: Schema.optionalKey(WireInt),
   sDesc: Schema.optionalKey(Schema.String),
   sES: Schema.optionalKey(Schema.String),
   sFile: Schema.optionalKey(Schema.String),
@@ -62,10 +67,13 @@ export const toItem = (
       : (defaults.context ??
         (temporaryItem ? "temporary" : houseItem ? "house" : "inventory"));
   const rawEnhancementId = payload.EnhID ?? payload.iEnh;
-  const rawEnhancementLevel = payload.EnhLvl;
-  const rawEnhancementPatternId = payload.EnhPatternID ?? payload.EnhPID;
+  const rawEnhancementLevel =
+    payload.EnhLvl ?? (defaults.context === "shop" ? payload.iLvl : undefined);
+  const rawEnhancementPatternId =
+    payload.EnhPatternID ?? payload.EnhPID ?? payload.PatternID;
+  const rawEnhancementProcId = payload.ItemProcID ?? payload.ProcID;
   const enhancementId =
-    rawEnhancementId === undefined || rawEnhancementId === 0
+    rawEnhancementId === undefined || rawEnhancementId <= 0
       ? undefined
       : rawEnhancementId;
   const enhancementLevel =
@@ -76,6 +84,10 @@ export const toItem = (
     rawEnhancementPatternId === undefined || rawEnhancementPatternId === 0
       ? undefined
       : rawEnhancementPatternId;
+  const enhancementProcId =
+    rawEnhancementProcId === undefined || rawEnhancementProcId === 0
+      ? undefined
+      : rawEnhancementProcId;
   const enhancement = {
     ...(payload.EnhDPS === undefined ? {} : { dps: payload.EnhDPS }),
     ...(enhancementId === undefined ? {} : { id: enhancementId }),
@@ -83,6 +95,7 @@ export const toItem = (
     ...(enhancementPatternId === undefined
       ? {}
       : { patternId: enhancementPatternId }),
+    ...(enhancementProcId === undefined ? {} : { procId: enhancementProcId }),
     ...(payload.EnhRng === undefined ? {} : { range: payload.EnhRng }),
     ...(payload.EnhRty === undefined ? {} : { rarity: payload.EnhRty }),
   };
@@ -109,7 +122,10 @@ export const toItem = (
     memberOnly: payload.bUpg ?? defaults.memberOnly ?? false,
     meta: payload.sMeta ?? defaults.meta ?? "",
     name: payload.sName ?? defaults.name ?? `Item ${payload.ItemID}`,
-    quantity: Math.max(0, payload.iQty ?? defaults.quantity ?? 1),
+    quantity: Math.max(
+      0,
+      payload.iQtyNow ?? payload.iQty ?? defaults.quantity ?? 1,
+    ),
     ...(payload.ShopItemID === undefined
       ? defaults.shopItemId === undefined
         ? {}

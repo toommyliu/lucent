@@ -78,6 +78,8 @@ const itemCommands = new Set([
   "turnIn",
   "unequipItem",
   "wearItem",
+  "enhanceItemShop",
+  "Wheel",
 ]);
 const questCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
 const clientWorldCommands = new Set(["moveToCell", "mv"]);

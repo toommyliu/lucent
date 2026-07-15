@@ -156,6 +156,10 @@ package lucent.game {
         SHOP_POPUP_LABELS[popup.currentLabel] === true;
     }
 
+    private static function isEnhancement(item:Object):Boolean {
+      return item && "sType" in item && String(item.sType).toLowerCase() == "enhancement";
+    }
+
     [BridgeExport]
     public static function isOpen(shopId:int = 0):Boolean {
       var info:Object = getShopInfo();
@@ -187,6 +191,9 @@ package lucent.game {
         return false;
       }
       else if (item.bUpg == 1 && !game.world.myAvatar.isUpgraded()) {
+        return false;
+      }
+      else if (int(item.iLvl) > int(game.world.myAvatar.objData.intLevel)) {
         return false;
       }
       else if (item.FactionID > 1 && game.world.myAvatar.getRep(item.FactionID) < item.iReqRep) {
@@ -302,6 +309,32 @@ package lucent.game {
 
     [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
     [BridgeExport]
+    public static function enhance(selector:Object, itemId:int):Boolean {
+      if (!selector || itemId <= 0 || !getShopInfo()) {
+        return false;
+      }
+
+      var enhancement:Object = getShopItem(selector);
+      if (!isEnhancement(enhancement) || !canBuyShopItem(enhancement)) {
+        return false;
+      }
+
+      var game:Object = Main.Game;
+      if (!game.world.coolDown("buyItem")) {
+        return false;
+      }
+
+      game.world.enhItem = [itemId];
+      game.world.confirmSendEnhItemRequestShop({
+        accept: true,
+        enh: enhancement,
+        item: [itemId]
+      });
+      return true;
+    }
+
+    [BridgeTsParamType("selector: FlashTypes.ShopItemSelector")]
+    [BridgeExport]
     public static function buy(selector:Object, quantity:int = 1):void {
       if (!selector || quantity <= 0) {
         return;
@@ -370,6 +403,10 @@ package lucent.game {
       var item:Object = getShopItem(selector);
       if (!item) {
         return false;
+      }
+
+      if (isEnhancement(item)) {
+        return quantity === 1 && canBuyShopItem(item);
       }
 
       return canBuyQuantity(item, quantity);

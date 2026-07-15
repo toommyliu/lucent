@@ -1,10 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
-import {
-  makeScriptPlayerFacades,
-  normalizeScriptCallback,
-} from "./ScriptRuntimeStd";
+import { normalizeScriptCallback } from "./api/Callbacks";
+import { makeScriptPlayerApis } from "./api/Player";
 import { ScriptExecutionError } from "./ScriptRunnerErrors";
 
 describe("ScriptRuntimeStd", () => {
@@ -18,7 +16,7 @@ describe("ScriptRuntimeStd", () => {
       const self = { username: "Local" } as never;
       const staleSelf = { username: "Stale" } as never;
       let usePrivateRooms = true;
-      const facades = makeScriptPlayerFacades(
+      const facades = makeScriptPlayerApis(
         {
           get: () => Effect.succeed(self),
           joinMap: (map, cell, pad) =>

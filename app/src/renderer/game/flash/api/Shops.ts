@@ -122,6 +122,9 @@ export const makeShops = (
     return Effect.gen(function* () {
       if (yield* isOpen(shopId)) return true;
       const current = yield* store.shops.get;
+      // The client reopens cached non-limited shops without emitting a loadShop packet.
+      const reopensCachedShop =
+        current?.id === shopId && current.limited === false;
       if (
         current !== null &&
         current.id !== shopId &&
@@ -131,6 +134,17 @@ export const makeShops = (
       }
       if (!(yield* wait.forGameAction("loadShop", { timeout: "5 seconds" }))) {
         return false;
+      }
+
+      if (reopensCachedShop) {
+        if (
+          Option.isNone(
+            yield* bridge.invoke("shops.load", [shopId], Schema.Void),
+          )
+        ) {
+          return false;
+        }
+        return yield* wait.until(isOpen(shopId), { timeout: "5 seconds" });
       }
 
       const packet = yield* wait.forPacket(

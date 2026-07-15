@@ -1,7 +1,13 @@
 import { Effect, Option, Schema } from "effect";
 import { LiveItem } from "@lucent/game";
 
-import { WireBoolean, WireInt, PositiveWireInt } from "../contract/Coercion";
+import {
+  NonNegativeWireInt,
+  PositiveWireInt,
+  WireBoolean,
+  WireInt,
+  WireNumber,
+} from "../contract/Coercion";
 import type { Event } from "../contract/Event";
 import {
   ignoreDiagnostic,
@@ -48,6 +54,24 @@ const EquipmentMutation = Schema.Struct({
 const QuestTurnIn = Schema.Struct({
   sItems: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
+const EnhancementMutation = Schema.Struct({
+  EnhDPS: Schema.optionalKey(WireNumber),
+  EnhID: Schema.optionalKey(NonNegativeWireInt),
+  EnhLvl: Schema.optionalKey(NonNegativeWireInt),
+  EnhPID: Schema.optionalKey(NonNegativeWireInt),
+  EnhRng: Schema.optionalKey(WireNumber),
+  EnhRty: Schema.optionalKey(WireNumber),
+  ItemIDs: Schema.Array(PositiveWireInt),
+  ProcID: Schema.optionalKey(NonNegativeWireInt),
+});
+const WheelRewards = Schema.Struct({
+  CharItemID: Schema.optionalKey(PositiveWireInt),
+  Item: Schema.optionalKey(Schema.Unknown),
+  charItem1: Schema.optionalKey(PositiveWireInt),
+  charItem2: Schema.optionalKey(PositiveWireInt),
+  dropItems: Schema.Record(Schema.String, Schema.Unknown),
+  dropQty: Schema.optionalKey(NonNegativeWireInt),
+});
 
 const decodeInventoryLoad = Schema.decodeUnknownOption(InventoryLoad);
 const decodeItemMutation = Schema.decodeUnknownOption(ItemMutation);
@@ -58,7 +82,13 @@ const decodeCharacterItemMutation = Schema.decodeUnknownOption(
 );
 const decodeEquipmentMutation = Schema.decodeUnknownOption(EquipmentMutation);
 const decodeQuestTurnIn = Schema.decodeUnknownOption(QuestTurnIn);
+const decodeEnhancementMutation =
+  Schema.decodeUnknownOption(EnhancementMutation);
+const decodeWheelRewards = Schema.decodeUnknownOption(WheelRewards);
 const decodeItem = Schema.decodeUnknownOption(ItemPayload);
+
+const WHEEL_TREASURE_POTION_ID = 18_927; // Treasure Potion
+const WHEEL_SECONDARY_REWARD_ID = 19_189; // Daily XP Boost! (1 hr)
 
 interface TurnInItem {
   readonly itemId: number;
@@ -180,6 +210,58 @@ const consumeTurnInItem = (store: Store, item: TurnInItem) =>
     } else {
       current.update({ quantity });
     }
+  });
+
+const wheelRewardPayload = (
+  value: unknown,
+  overrides: Readonly<Record<string, unknown>>,
+): unknown =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? { ...value, ...overrides }
+    : value;
+
+const itemRecordPayload = (key: string, value: unknown): unknown => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const itemId = Number(key);
+  if (
+    record["ItemID"] !== undefined ||
+    !Number.isSafeInteger(itemId) ||
+    itemId <= 0
+  ) {
+    return value;
+  }
+
+  return { ...record, ItemID: itemId };
+};
+
+const upsertWheelReward = (
+  store: Store,
+  value: unknown,
+  overrides: Readonly<Record<string, unknown>>,
+) =>
+  Effect.gen(function* () {
+    const decoded = decodeItem(wheelRewardPayload(value, overrides));
+    if (Option.isNone(decoded)) return false;
+
+    const reward = toItem(decoded.value, { context: "inventory" });
+    const container: ItemContainer = reward.banked
+      ? "bank"
+      : reward.houseItem
+        ? "house"
+        : reward.temporaryItem
+          ? "temporary"
+          : "inventory";
+    const current = yield* store.items.get(container, reward.itemId);
+    const quantity = (current?.quantity ?? 0) + reward.quantity;
+    yield* store.items.upsert(
+      container,
+      new LiveItem({ ...reward.snapshot(), context: container, quantity }),
+    );
+    return true;
   });
 
 export const projectItems = (
@@ -320,6 +402,90 @@ export const projectItems = (
         }
         return [];
       }
+      case "enhanceItemShop": {
+        const decoded = decodeEnhancementMutation(data);
+        if (Option.isNone(decoded)) {
+          yield* diagnose(
+            "items:enhanceItemShop",
+            new Error("Malformed enhancement response"),
+            [data],
+          );
+          return [];
+        }
+        for (const itemId of decoded.value.ItemIDs) {
+          const item = yield* store.items.get("inventory", itemId);
+          if (item === null) continue;
+          item.update({
+            enhancement: {
+              ...(decoded.value.EnhDPS === undefined
+                ? {}
+                : { dps: decoded.value.EnhDPS }),
+              ...(decoded.value.EnhID === undefined
+                ? {}
+                : { id: decoded.value.EnhID }),
+              ...(decoded.value.EnhLvl === undefined
+                ? {}
+                : { level: decoded.value.EnhLvl }),
+              ...(decoded.value.EnhPID === undefined
+                ? {}
+                : { patternId: decoded.value.EnhPID }),
+              ...(decoded.value.ProcID === undefined
+                ? {}
+                : { procId: decoded.value.ProcID }),
+              ...(decoded.value.EnhRng === undefined
+                ? {}
+                : { range: decoded.value.EnhRng }),
+              ...(decoded.value.EnhRty === undefined
+                ? {}
+                : { rarity: decoded.value.EnhRty }),
+            },
+          });
+        }
+        return [];
+      }
+      case "Wheel": {
+        const decoded = decodeWheelRewards(data);
+        if (Option.isNone(decoded)) {
+          yield* diagnose(
+            "items:Wheel",
+            new Error("Malformed Wheel reward response"),
+            [data],
+          );
+          return [];
+        }
+
+        const rewards = decoded.value;
+        const treasurePotion =
+          rewards.dropItems[String(WHEEL_TREASURE_POTION_ID)];
+        const secondaryReward =
+          rewards.dropItems[String(WHEEL_SECONDARY_REWARD_ID)];
+        if (treasurePotion !== undefined) {
+          yield* upsertWheelReward(store, treasurePotion, {
+            ...(rewards.charItem1 === undefined
+              ? {}
+              : { CharItemID: rewards.charItem1 }),
+            iQty: rewards.dropQty ?? 1,
+          });
+        }
+        if (secondaryReward !== undefined) {
+          yield* upsertWheelReward(store, secondaryReward, {
+            ...(rewards.charItem2 === undefined
+              ? {}
+              : { CharItemID: rewards.charItem2 }),
+            iQty: 1,
+          });
+        }
+        if (rewards.Item !== undefined) {
+          yield* upsertWheelReward(store, rewards.Item, {
+            bBank: false,
+            ...(rewards.CharItemID === undefined
+              ? {}
+              : { CharItemID: rewards.CharItemID }),
+            iQty: 1,
+          });
+        }
+        return [];
+      }
       case "getDrop": {
         const decoded = decodeItemMutation(data);
         if (Option.isNone(decoded)) {
@@ -356,14 +522,26 @@ export const projectItems = (
       case "forceAddItem": {
         const decoded = decodeItemsRecord(data);
         if (Option.isNone(decoded)) return [];
-        for (const value of Object.values(decoded.value.items)) {
-          const payload = decodeItem(value);
+        for (const [key, value] of Object.entries(decoded.value.items)) {
+          const payload = decodeItem(itemRecordPayload(key, value));
           if (Option.isNone(payload)) continue;
           const item = toItem(payload.value);
-          yield* store.items.upsert(
-            item.temporaryItem ? "temporary" : "inventory",
-            item,
-          );
+          const container: ItemContainer = item.banked
+            ? "bank"
+            : item.houseItem
+              ? "house"
+              : item.temporaryItem
+                ? "temporary"
+                : "inventory";
+          const current = yield* store.items.get(container, item.itemId);
+          if (current === null) {
+            yield* store.items.upsert(container, item);
+          } else {
+            current.update({
+              quantity:
+                payload.value.iQtyNow ?? current.quantity + item.quantity,
+            });
+          }
         }
         return [];
       }

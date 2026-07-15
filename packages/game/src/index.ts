@@ -1,4 +1,5 @@
 export * from "./aura";
+export * from "./enhancement";
 export * from "./entity";
 export * from "./faction";
 export * from "./item";

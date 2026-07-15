@@ -28,10 +28,8 @@ import {
   type ScriptAsyncScope,
 } from "./scriptAsyncScope";
 import { loadScriptModule } from "./scriptLoader";
-import {
-  makeScriptLucentStd,
-  type ScriptRuntimeServices,
-} from "./ScriptRuntimeStd";
+import { makeScriptLucentStd } from "./ScriptRuntimeStd";
+import type { ScriptRuntimeServices } from "./api/Services";
 import {
   makeMoveToOwnHouse,
   runWithSafeStartStop as withSafeStartStop,
@@ -747,6 +745,7 @@ export const layer = Layer.effect(
         );
         const script = makeScriptApi(scriptScope, inputs);
         const lucent = makeScriptLucentStd({
+          bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
           features: { autoRelogin, autoZone },
           scope: scriptScope,

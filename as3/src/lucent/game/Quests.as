@@ -34,7 +34,7 @@ package lucent.game
     }
 
     [BridgeExport]
-    public static function accept(questId:int):Boolean
+    public static function accept(questId:int, silent:Boolean = false):Boolean
     {
       var game:Object = Main.Game;
       if (!game.world.coolDown("acceptQuest"))
@@ -42,12 +42,13 @@ package lucent.game
         return false;
       }
 
-      var mcQFrame:* = game.getInstanceFromModalStack("QFrameMC");
-      var isOpen:Boolean = (mcQFrame != null);
-
-      if (isOpen)
+      if (silent)
       {
-        game.world.toggleQuestLog();
+        var mcQFrame:* = game.getInstanceFromModalStack("QFrameMC");
+        if (mcQFrame != null)
+        {
+          game.world.toggleQuestLog();
+        }
       }
 
       game.world.acceptQuest(questId);
