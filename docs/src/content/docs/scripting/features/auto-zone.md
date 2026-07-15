@@ -12,21 +12,31 @@ tableOfContents:
 
 ## Members
 
+<a id="member-features-autozone-changes"></a>
+
+### `features.autoZone.changes` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L269" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:269" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+```ts
+features.autoZone.changes: Stream<AutoZoneState, never, never>
+```
+
+**Returns:** `Stream`&lt;<a href="/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a>, `never`, `never`&gt;
+
 <a id="member-features-autozone-getmap"></a>
 
-### `features.autoZone.getMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L51" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:51" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.getMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L270" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:270" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoZone.getMap(): Effect.Effect<'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined, never, never>
 ```
 
-**Yields:** <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> \| `undefined`
+**Yields:** '`ledgermayne`' \| '`moreskulls`' \| '`ultradage`' \| '`darkcarnax`' \| '`astralshrine`' \| '`queeniona`' \| '`magnumopus`' \| `undefined`
 
 **Errors:** `never`
 
 <a id="member-features-autozone-getstate"></a>
 
-### `features.autoZone.getState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L52" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:52" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.getState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L271" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:271" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoZone.getState(): Effect.Effect<AutoZoneState, never, never>
@@ -38,7 +48,7 @@ features.autoZone.getState(): Effect.Effect<AutoZoneState, never, never>
 
 <a id="member-features-autozone-isenabled"></a>
 
-### `features.autoZone.isEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L53" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:53" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.isEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L272" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:272" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoZone.isEnabled(): Effect.Effect<boolean, never, never>
@@ -50,24 +60,23 @@ features.autoZone.isEnabled(): Effect.Effect<boolean, never, never>
 
 <a id="member-features-autozone-onstate"></a>
 
-### `features.autoZone.onState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L54" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:54" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.onState()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/Automation.ts#L53" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/Automation.ts:53" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-features.autoZone.onState(listener: (state: AutoZoneState) => void, options?: StateSubscriptionOptions): Effect.Effect<StateDisposer, never, never>
+features.autoZone.onState(listener: (state: AutoZoneState) => void): Effect.Effect<() => void, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `listener` | (`state`: <a href="/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a>) =&gt; `void` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/state-subscription-options/" data-script-type="state-subscription-options"><code>StateSubscriptionOptions</code></a> |  |  |
 
-**Yields:** <a href="/scripting/types/state-disposer/" data-script-type="state-disposer"><code>StateDisposer</code></a>
+**Yields:** () =&gt; `void`
 
 **Errors:** `never`
 
 <a id="member-features-autozone-setenabled"></a>
 
-### `features.autoZone.setEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L58" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:58" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.setEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L273" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:273" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoZone.setEnabled(enabled: boolean): Effect.Effect<AutoZoneState, never, never>
@@ -83,7 +92,7 @@ features.autoZone.setEnabled(enabled: boolean): Effect.Effect<AutoZoneState, nev
 
 <a id="member-features-autozone-setmap"></a>
 
-### `features.autoZone.setMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/features/AutoZone.ts#L59" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/features/AutoZone.ts:59" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `features.autoZone.setMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L274" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/automation/AutoZone.ts:274" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 features.autoZone.setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect.Effect<AutoZoneState, never, never>

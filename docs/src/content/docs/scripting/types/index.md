@@ -14,16 +14,20 @@ Referenced types are generated from the types directly linked by the documented 
 
 | Type | Kind | Summary |
 | --- | --- | --- |
+| <a href="/scripting/types/army-config-core/" data-script-type="army-config-core"><code>ArmyConfigCore</code></a> | interface |  |
+| <a href="/scripting/types/army-config-payload/" data-script-type="army-config-payload"><code>ArmyConfigPayload</code></a> | interface |  |
+| <a href="/scripting/types/army-config-raw/" data-script-type="army-config-raw"><code>ArmyConfigRaw</code></a> | type alias |  |
+| <a href="/scripting/types/army-equip-set/" data-script-type="army-equip-set"><code>ArmyEquipSet</code></a> | interface |  |
 | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
-| <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias |  |
-| <a href="/scripting/types/aura/" data-script-type="aura"><code>Aura</code></a> | interface |  |
+| <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
+| <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
+| <a href="/scripting/types/army-set-config/" data-script-type="army-set-config"><code>ArmySetConfig</code></a> | interface |  |
 | <a href="/scripting/types/aura-data/" data-script-type="aura-data"><code>AuraData</code></a> | interface |  |
 | <a href="/scripting/types/aura-kind/" data-script-type="aura-kind"><code>AuraKind</code></a> | type alias |  |
 | <a href="/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> | interface |  |
 | <a href="/scripting/types/aura-snapshot/" data-script-type="aura-snapshot"><code>AuraSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/auth-connect-outcome/" data-script-type="auth-connect-outcome"><code>AuthConnectOutcome</code></a> | interface |  |
 | <a href="/scripting/types/auto-relogin-lifecycle-event/" data-script-type="auto-relogin-lifecycle-event"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
 | <a href="/scripting/types/auto-relogin-lifecycle-step/" data-script-type="auto-relogin-lifecycle-step"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
 | <a href="/scripting/types/auto-relogin-login-error/" data-script-type="auto-relogin-login-error"><code>AutoReloginLoginError</code></a> | class |  |
@@ -32,23 +36,21 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/auto-relogin-state/" data-script-type="auto-relogin-state"><code>AutoReloginState</code></a> | interface |  |
 | <a href="/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a> | interface |  |
 | <a href="/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
-| <a href="/scripting/types/client-packet-send-type/" data-script-type="client-packet-send-type"><code>ClientPacketSendType</code></a> | type alias |  |
+| <a href="/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
 | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | type alias |  |
+| <a href="/scripting/types/connect-outcome/" data-script-type="connect-outcome"><code>ConnectOutcome</code></a> | interface |  |
 | <a href="/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
+| <a href="/scripting/types/entity-data/" data-script-type="entity-data"><code>EntityData</code></a> | interface |  |
+| <a href="/scripting/types/entity-snapshot/" data-script-type="entity-snapshot"><code>EntitySnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | type alias |  |
+| <a href="/scripting/types/event/" data-script-type="event"><code>Event</code></a> | type alias |  |
 | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | interface |  |
-| <a href="/scripting/types/faction/" data-script-type="faction"><code>Faction</code></a> | interface |  |
 | <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | interface |  |
 | <a href="/scripting/types/faction-snapshot/" data-script-type="faction-snapshot"><code>FactionSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> | type alias |  |
-| <a href="/scripting/types/flash-event-handler/" data-script-type="flash-event-handler"><code>FlashEventHandler</code></a> | type alias |  |
-| <a href="/scripting/types/flash-event-kind/" data-script-type="flash-event-kind"><code>FlashEventKind</code></a> | type alias |  |
-| <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> | type alias |  |
-| <a href="/scripting/types/flash-packet-direction/" data-script-type="flash-packet-direction"><code>FlashPacketDirection</code></a> | type alias |  |
-| <a href="/scripting/types/flash-packet-event/" data-script-type="flash-packet-event"><code>FlashPacketEvent</code></a> | type alias |  |
-| <a href="/scripting/types/flash-projection-event/" data-script-type="flash-projection-event"><code>FlashProjectionEvent</code></a> | type alias |  |
-| <a href="/scripting/types/flash-runtime-event/" data-script-type="flash-runtime-event"><code>FlashRuntimeEvent</code></a> | type alias |  |
+| <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |
 | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
+| <a href="/scripting/types/input/" data-script-type="input"><code>Input</code></a> | interface |  |
 | <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> | interface |  |
 | <a href="/scripting/types/item-context/" data-script-type="item-context"><code>ItemContext</code></a> | type alias |  |
 | <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | interface |  |
@@ -57,38 +59,51 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/item-selector-by-id/" data-script-type="item-selector-by-id"><code>ItemSelectorById</code></a> | interface |  |
 | <a href="/scripting/types/item-selector-by-name/" data-script-type="item-selector-by-name"><code>ItemSelectorByName</code></a> | interface |  |
 | <a href="/scripting/types/item-snapshot/" data-script-type="item-snapshot"><code>ItemSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/map-info/" data-script-type="map-info"><code>MapInfo</code></a> | interface |  |
-| <a href="/scripting/types/monster/" data-script-type="monster"><code>Monster</code></a> | interface |  |
+| <a href="/scripting/types/live-aura/" data-script-type="live-aura"><code>LiveAura</code></a> | class |  |
+| <a href="/scripting/types/live-entity/" data-script-type="live-entity"><code>LiveEntity</code></a> | class |  |
+| <a href="/scripting/types/live-faction/" data-script-type="live-faction"><code>LiveFaction</code></a> | class |  |
+| <a href="/scripting/types/live-item/" data-script-type="live-item"><code>LiveItem</code></a> | class |  |
+| <a href="/scripting/types/live-model/" data-script-type="live-model"><code>LiveModel</code></a> | class |  |
+| <a href="/scripting/types/live-monster/" data-script-type="live-monster"><code>LiveMonster</code></a> | class |  |
+| <a href="/scripting/types/live-outfit/" data-script-type="live-outfit"><code>LiveOutfit</code></a> | class |  |
+| <a href="/scripting/types/live-player/" data-script-type="live-player"><code>LivePlayer</code></a> | class |  |
+| <a href="/scripting/types/live-quest/" data-script-type="live-quest"><code>LiveQuest</code></a> | class |  |
+| <a href="/scripting/types/live-server/" data-script-type="live-server"><code>LiveServer</code></a> | class |  |
+| <a href="/scripting/types/live-shop/" data-script-type="live-shop"><code>LiveShop</code></a> | class |  |
+| <a href="/scripting/types/monster-data/" data-script-type="monster-data"><code>MonsterData</code></a> | interface |  |
 | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | type alias |  |
 | <a href="/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
-| <a href="/scripting/types/monster-target-info/" data-script-type="monster-target-info"><code>MonsterTargetInfo</code></a> | type alias |  |
-| <a href="/scripting/types/outfit/" data-script-type="outfit"><code>Outfit</code></a> | interface |  |
+| <a href="/scripting/types/monster-selector-by-map-id/" data-script-type="monster-selector-by-map-id"><code>MonsterSelectorByMapId</code></a> | interface |  |
+| <a href="/scripting/types/monster-selector-by-name/" data-script-type="monster-selector-by-name"><code>MonsterSelectorByName</code></a> | interface |  |
+| <a href="/scripting/types/monster-snapshot/" data-script-type="monster-snapshot"><code>MonsterSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/outfit-colors/" data-script-type="outfit-colors"><code>OutfitColors</code></a> | interface |  |
 | <a href="/scripting/types/outfit-data/" data-script-type="outfit-data"><code>OutfitData</code></a> | interface |  |
 | <a href="/scripting/types/outfit-equipment/" data-script-type="outfit-equipment"><code>OutfitEquipment</code></a> | interface |  |
-| <a href="/scripting/types/outfit-options/" data-script-type="outfit-options"><code>OutfitOptions</code></a> | interface |  |
 | <a href="/scripting/types/outfit-snapshot/" data-script-type="outfit-snapshot"><code>OutfitSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/packet-handler/" data-script-type="packet-handler"><code>PacketHandler</code></a> | type alias |  |
+| <a href="/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a> | type alias |  |
+| <a href="/scripting/types/packet-direction/" data-script-type="packet-direction"><code>PacketDirection</code></a> | type alias |  |
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
-| <a href="/scripting/types/player/" data-script-type="player"><code>Player</code></a> | interface |  |
-| <a href="/scripting/types/player-target-info/" data-script-type="player-target-info"><code>PlayerTargetInfo</code></a> | type alias |  |
+| <a href="/scripting/types/packet-wire-type/" data-script-type="packet-wire-type"><code>PacketWireType</code></a> | type alias |  |
+| <a href="/scripting/types/player-data/" data-script-type="player-data"><code>PlayerData</code></a> | interface |  |
+| <a href="/scripting/types/player-snapshot/" data-script-type="player-snapshot"><code>PlayerSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
-| <a href="/scripting/types/quantity-options/" data-script-type="quantity-options"><code>QuantityOptions</code></a> | interface |  |
-| <a href="/scripting/types/quest/" data-script-type="quest"><code>Quest</code></a> | interface |  |
+| <a href="/scripting/types/projection-event/" data-script-type="projection-event"><code>ProjectionEvent</code></a> | type alias |  |
+| <a href="/scripting/types/protocol-event/" data-script-type="protocol-event"><code>ProtocolEvent</code></a> | type alias |  |
 | <a href="/scripting/types/quest-cadence/" data-script-type="quest-cadence"><code>QuestCadence</code></a> | type alias |  |
 | <a href="/scripting/types/quest-data/" data-script-type="quest-data"><code>QuestData</code></a> | interface |  |
 | <a href="/scripting/types/quest-item/" data-script-type="quest-item"><code>QuestItem</code></a> | interface |  |
 | <a href="/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | interface |  |
 | <a href="/scripting/types/quest-snapshot/" data-script-type="quest-snapshot"><code>QuestSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/script-combat-profile-input/" data-script-type="script-combat-profile-input"><code>ScriptCombatProfileInput</code></a> | type alias |  |
+| <a href="/scripting/types/runtime-event/" data-script-type="runtime-event"><code>RuntimeEvent</code></a> | type alias |  |
+| <a href="/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | type alias |  |
+| <a href="/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a> | class |  |
+| <a href="/scripting/types/script-generator/" data-script-type="script-generator"><code>ScriptGenerator</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
-| <a href="/scripting/types/server/" data-script-type="server"><code>Server</code></a> | interface |  |
+| <a href="/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a> | class |  |
 | <a href="/scripting/types/server-data/" data-script-type="server-data"><code>ServerData</code></a> | interface |  |
-| <a href="/scripting/types/server-packet-send-type/" data-script-type="server-packet-send-type"><code>ServerPacketSendType</code></a> | type alias |  |
 | <a href="/scripting/types/server-snapshot/" data-script-type="server-snapshot"><code>ServerSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/shop/" data-script-type="shop"><code>Shop</code></a> | interface |  |
 | <a href="/scripting/types/shop-data/" data-script-type="shop-data"><code>ShopData</code></a> | interface |  |
 | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | type alias |  |
 | <a href="/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
@@ -96,9 +111,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/shop-snapshot/" data-script-type="shop-snapshot"><code>ShopSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
 | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
-| <a href="/scripting/types/state-disposer/" data-script-type="state-disposer"><code>StateDisposer</code></a> | type alias |  |
-| <a href="/scripting/types/state-subscription-options/" data-script-type="state-subscription-options"><code>StateSubscriptionOptions</code></a> | interface |  |
-| <a href="/scripting/types/target-base-info/" data-script-type="target-base-info"><code>TargetBaseInfo</code></a> | type alias |  |
-| <a href="/scripting/types/target-info/" data-script-type="target-info"><code>TargetInfo</code></a> | type alias |  |
-| <a href="/scripting/types/unknown-record/" data-script-type="unknown-record"><code>UnknownRecord</code></a> | type alias |  |
+| <a href="/scripting/types/state/" data-script-type="state"><code>State</code></a> | interface |  |
+| <a href="/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a> | interface | Runs `trigger` only after the subscription is live. A `true` result means the<br>command was sent and a matching response should be awaited; `false` closes<br>the scoped subscription immediately and returns `null`. |
 | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> | interface |  |

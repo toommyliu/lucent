@@ -14,33 +14,33 @@ tableOfContents:
 
 <a id="member-api-wait-forevent"></a>
 
-### `api.wait.forEvent()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forEvent()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L61" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/protocol/Wait.ts:61" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forEvent(selector?: EventSelector, options?: WaitOptions): Effect.Effect<FlashEvent | null, never, never>
+api.wait.forEvent(selector?: EventSelector | undefined, options?: TriggeredWaitOptions<E, R> | undefined): Effect.Effect<Event | null, E, Exclude<R, Scope.Scope>>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> |  |  |
-| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+| `selector` | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a>&lt;`E`, `R`&gt; \| `undefined` |  |  |
 
-**Yields:** <a href="/scripting/types/flash-event/" data-script-type="flash-event"><code>FlashEvent</code></a> \| `null`
+**Yields:** <a href="/scripting/types/event/" data-script-type="event"><code>Event</code></a> \| `null`
 
-**Errors:** `never`
+**Errors:** `E`
 
 <a id="member-api-wait-forgameaction"></a>
 
-### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Wait.ts#L46" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:46" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forGameAction(action: string, options?: WaitOptions | Duration.Input): Effect.Effect<boolean, never, never>
+api.wait.forGameAction(action: GameAction, options?: WaitOptions | Duration.Input | undefined): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `action` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> \| `Duration`.`Input` |  |  |
+| `action` | <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> \| `Duration`.<a href="/scripting/types/input/" data-script-type="input"><code>Input</code></a> \| `undefined` |  |  |
 
 **Yields:** `boolean`
 
@@ -48,32 +48,32 @@ api.wait.forGameAction(action: string, options?: WaitOptions | Duration.Input): 
 
 <a id="member-api-wait-forpacket"></a>
 
-### `api.wait.forPacket()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L23" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:23" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forPacket()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L78" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/protocol/Wait.ts:78" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.forPacket(selector?: PacketSelector, options?: WaitOptions): Effect.Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | null, never, never>
+api.wait.forPacket(selector?: PacketSelector | undefined, options?: TriggeredWaitOptions<E, R> | undefined): Effect.Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope.Scope>>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> |  |  |
-| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a>&lt;`E`, `R`&gt; \| `undefined` |  |  |
 
-**Yields:** <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> \| `null`
+**Yields:** { `readonly` `command`: `string`; `readonly` `direction`: '`client`'; `readonly` `params`: `readonly` `string`[]; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`server`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`extension`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| `null`
 
-**Errors:** `never`
+**Errors:** `E`
 
 <a id="member-api-wait-isgameactionavailable"></a>
 
-### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L27" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:27" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Wait.ts#L47" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:47" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.isGameActionAvailable(action: string): Effect.Effect<boolean, never, never>
+api.wait.isGameActionAvailable(action: GameAction): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `action` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `action` | <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -81,16 +81,16 @@ api.wait.isGameActionAvailable(action: string): Effect.Effect<boolean, never, ne
 
 <a id="member-api-wait-until"></a>
 
-### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L28" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:28" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L97" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/protocol/Wait.ts:97" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.until(condition: Effect.Effect<boolean, never, never>, options?: WaitOptions): Effect.Effect<boolean, never, never>
+api.wait.until(condition: Effect.Effect<boolean, never, never>, options?: WaitOptions | undefined): Effect.Effect<boolean, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `condition` | `Effect`.`Effect`&lt;`boolean`, `never`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> \| `undefined` |  |  |
 
 **Yields:** `boolean`
 
@@ -98,16 +98,16 @@ api.wait.until(condition: Effect.Effect<boolean, never, never>, options?: WaitOp
 
 <a id="member-api-wait-untilsome"></a>
 
-### `api.wait.untilSome()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/flash/api/Wait.ts#L32" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/api/Wait.ts:32" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.untilSome()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L112" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/flash/protocol/Wait.ts:112" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.wait.untilSome(condition: Effect.Effect<Option.Option<A>, never, never>, options?: WaitOptions): Effect.Effect<A | null, never, never>
+api.wait.untilSome(condition: Effect.Effect<Option.Option<A>, never, never>, options?: WaitOptions | undefined): Effect.Effect<A | null, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `condition` | `Effect`.`Effect`&lt;`Option`.`Option`&lt;`A`&gt;, `never`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> |  |  |
+| `options` | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> \| `undefined` |  |  |
 
 **Yields:** `A` \| `null`
 

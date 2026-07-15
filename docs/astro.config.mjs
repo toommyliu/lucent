@@ -70,14 +70,11 @@ export default defineConfig({
               label: "Features",
               items: [
                 { link: "/scripting/features/", label: "Features" },
-                { link: "/scripting/features/auto-zone/", label: "Auto Zone" },
                 {
-                  link: "/scripting/features/auto-relogin/",
-                  label: "Auto Relogin",
-                },
-                {
-                  link: "/scripting/features/anti-counter/",
-                  label: "Anti-Counter",
+                  autogenerate: {
+                    directory: "scripting/features",
+                    collapsed: true,
+                  },
                 },
               ],
             },
@@ -85,27 +82,12 @@ export default defineConfig({
               label: "API",
               items: [
                 { link: "/scripting/api/", label: "API" },
-                { link: "/scripting/api/army/", label: "Army" },
-                { link: "/scripting/api/auth/", label: "Auth" },
-                { link: "/scripting/api/bank/", label: "Bank" },
-                { link: "/scripting/api/combat/", label: "Combat" },
-                { link: "/scripting/api/drops/", label: "Drops" },
-                { link: "/scripting/api/environment/", label: "Environment" },
-                { link: "/scripting/api/events/", label: "Events" },
-                { link: "/scripting/api/house/", label: "House" },
-                { link: "/scripting/api/inventory/", label: "Inventory" },
-                { link: "/scripting/api/packet/", label: "Packet" },
-                { link: "/scripting/api/player/", label: "Player" },
-                { link: "/scripting/api/quests/", label: "Quests" },
-                { link: "/scripting/api/recipes/", label: "Recipes" },
-                { link: "/scripting/api/settings/", label: "Settings" },
-                { link: "/scripting/api/shops/", label: "Shops" },
                 {
-                  link: "/scripting/api/temp-inventory/",
-                  label: "Temp Inventory",
+                  autogenerate: {
+                    directory: "scripting/api",
+                    collapsed: true,
+                  },
                 },
-                { link: "/scripting/api/wait/", label: "Wait" },
-                { link: "/scripting/api/world/", label: "World" },
               ],
             },
             {

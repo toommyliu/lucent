@@ -165,23 +165,24 @@ interface ScriptLucentStd {
 }
 interface ScriptApi {
     readonly army: ScriptArmyApi;
-    readonly auth: ScriptAuthApi;
-    readonly bank: ScriptBankApi;
-    readonly combat: ScriptCombatApi;
-    readonly drops: ScriptDropsApi;
+    readonly auth: { connectTo: (server: string) => Effect<ConnectOutcome>; getPassword: () => Effect<string, never, never>; getServers: () => Effect<LiveServer[], never, never>; getUsername: () => Effect<string, never, never>; isLoggedIn: () => Effect<boolean, never, never>; isServerSelectReady: () => Effect<boolean, never, never>; isTemporarilyKicked: () => Effect<boolean, never, never>; login: (username: string, password: string) => Effect<boolean, never, never>; logout: () => Effect<void, never, never>; };
+    readonly bank: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; deposit: (selector: ItemQuery) => Effect<boolean, never, never>; depositBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; isOpen: () => Effect<boolean, never, never>; load: (force?: boolean) => Effect<boolean, never, never>; open: (force?: boolean) => Effect<boolean, never, never>; swap: (inventorySelector: ItemQuery, bankSelector: ItemQuery) => Effect<boolean, never, never>; withdraw: (selector: ItemQuery) => Effect<boolean, never, never>; withdrawBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; };
+    readonly combat: { attackMonster: (selector: MonsterQuery) => Effect<boolean, never, never>; cancelAutoAttack: () => Effect<void, never, never>; cancelTarget: () => Effect<void, never, never>; canUseSkill: (skill: Skill) => Effect<boolean, never, never>; exit: () => Effect<boolean, never, never>; getConsumableSkillItem: () => Effect<{ itemId: number; } | null, never, never>; hunt: (selector: MonsterQuery, options?: HuntOptions) => Effect<LiveMonster | null, never, never>; kill: (selector: MonsterQuery, options?: CombatKillOptions) => Effect<boolean, never, never>; killForItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; killForTempItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; target: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; get: () => Effect<{ readonly cell: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly monsterId: number; readonly monsterMapId: number; readonly name: string; readonly race: string; readonly state: number; readonly type: 'monster'; } | { readonly afk: boolean; readonly cell: string; readonly entityId: number; readonly entityType: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly maxMp: number; readonly mp: number; readonly name: string; readonly pad: string; readonly sp: number; readonly state: number; readonly type: 'player'; readonly username: string; } | null, never, never>; }; useSkill: (skill: Skill, options?: SkillUseOptions) => Effect<boolean, never, never>; };
+    readonly drops: { accept: (selector: ItemQuery) => Effect<boolean, never, never>; contains: (selector: ItemQuery) => Effect<boolean, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; isCustomUiEnabled: () => Effect<boolean, never, never>; reject: (selector: ItemQuery) => Effect<boolean, never, never>; toggleUi: () => Effect<void, never, never>; };
     readonly events: ScriptEventsApi;
-    readonly house: ScriptHouseApi;
-    readonly inventory: ScriptInventoryApi;
-    readonly map: ScriptMapApi;
-    readonly monsters: ScriptMonstersApi;
+    readonly house: { get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; };
+    readonly inventory: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; equip: (selector: ItemQuery) => Effect<boolean, never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; unequipConsumable: (selector: ItemQuery) => Effect<boolean, never, never>; };
+    readonly map: { getCellPads: () => Effect<readonly string[], never, never>; getCells: () => Effect<readonly string[], never, never>; getId: () => Effect<number, never, never>; getMapItem: (itemId: number) => Effect<void, never, never>; getName: () => Effect<string, never, never>; getRoomNumber: () => Effect<number, never, never>; isLoaded: () => Effect<boolean, never, never>; loadSwf: (swf: string) => Effect<void, never, never>; reload: () => Effect<void, never, never>; setSpawnPoint: (cell?: string, pad?: string) => Effect<void, never, never>; };
+    readonly monsters: { get: (selector: MonsterQuery) => Effect<LiveMonster | null, never, never>; getAll: () => Effect<LiveMonster[], never, never>; getAvailable: () => Effect<LiveMonster[], never, never>; isAvailable: (selector: MonsterQuery) => Effect<boolean, never, never>; };
     readonly packet: ScriptPacketApi;
-    readonly player: ScriptPlayerApi;
-    readonly players: ScriptPlayersApi;
-    readonly quests: ScriptQuestsApi;
+    readonly player: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; factions: { get: (selector: string | number) => Effect<LiveFaction | null, never, never>; getAll: () => Effect<LiveFaction[], never, never>; }; get: () => Effect<LivePlayer | null, never, never>; getCell: () => Effect<string, never, never>; getClassName: () => Effect<string, never, never>; getGender: () => Effect<string, never, never>; getGold: () => Effect<number, never, never>; getHp: () => Effect<number, never, never>; getLevel: () => Effect<number, never, never>; getMaxHp: () => Effect<number, never, never>; getMaxMp: () => Effect<number, never, never>; getMp: () => Effect<number, never, never>; getPad: () => Effect<string, never, never>; getPosition: () => Effect<{ x: number; y: number; }, never, never>; getState: () => Effect<EntityState, never, never>; goToPlayer: (name: string) => Effect<void, never, never>; hasActiveBoost: (boostType: BoostType) => Effect<boolean, never, never>; isAfk: () => Effect<boolean, never, never>; isAlive: () => Effect<boolean, never, never>; isMember: () => Effect<boolean, never, never>; isReady: () => Effect<boolean, never, never>; joinMap: (target: string, cell?: string, pad?: string) => Effect<boolean, never, never>; jumpToCell: (cell: string, pad?: string) => Effect<boolean, never, never>; outfits: { equip: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; get: (name: string) => Effect<LiveOutfit | null, never, never>; getAll: () => Effect<LiveOutfit[], never, never>; wear: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; }; rest: (full?: boolean) => Effect<void, never, never>; useBoost: (selector: ItemQuery) => Effect<boolean, never, never>; walkTo: (x: number, y: number, speed?: number) => Effect<boolean, never, never>; };
+    readonly players: { get: (selector: string | number) => Effect<LivePlayer | null, never, never>; getAll: () => Effect<LivePlayer[], never, never>; getMe: () => Effect<LivePlayer | null, never, never>; };
+    readonly quests: { abandon: (questId: number) => Effect<boolean, never, never>; accept: (questId: number, silent?: boolean) => Effect<boolean, never, never>; acceptBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; canComplete: (questId: number) => Effect<boolean, never, never>; complete: (questId: number, requestedTurnIns?: number, itemId?: number, special?: boolean) => Effect<boolean, never, never>; get: (questId: number) => Effect<LiveQuest | null, never, never>; getAccepted: () => Effect<LiveQuest[], never, never>; getAll: () => Effect<LiveQuest[], never, never>; getMaxTurnIns: (questId: number) => Effect<number, never, never>; isAvailable: (questId: number) => Effect<boolean, never, never>; isInProgress: (questId: number) => Effect<boolean, never, never>; load: (questId: number, silent?: boolean) => Effect<boolean, never, never>; loadBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; };
+    readonly recipes: ScriptRecipesApi;
     readonly settings: ScriptSettingsApi;
-    readonly shops: ScriptShopsApi;
-    readonly tempInventory: ScriptTempInventoryApi;
-    readonly wait: ScriptWaitApi;
+    readonly shops: { buy: (selector: ShopItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; canBuy: (selector: ShopItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; close: (shopId?: number) => Effect<boolean, never, never>; get: (selector: ShopItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getInfo: () => Effect<LiveShop | null, never, never>; getMaxBuyQuantity: (selector: ShopItemQuery) => Effect<number, never, never>; isMergeShop: () => Effect<boolean, never, never>; isOpen: (shopId?: number) => Effect<boolean, never, never>; load: (shopId: number) => Effect<boolean, never, never>; loadArmorCustomize: () => Effect<void, never, never>; loadHairShop: (shopId: number) => Effect<void, never, never>; sell: (selector: ItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; };
+    readonly tempInventory: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; };
+    readonly wait: { forGameAction: (action: GameAction, options?: WaitOptions | DurationInput) => Effect<boolean, never, never>; isGameActionAvailable: (action: GameAction) => Effect<boolean, never, never>; forEvent: <E = never, R = never>(selector?: EventSelector, options?: TriggeredWaitOptions<E, R>) => Effect<Event | null, E, Exclude<R, Scope>>; forPacket: <E = never, R = never>(selector?: PacketSelector, options?: TriggeredWaitOptions<E, R>) => Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope>>; until: (condition: Effect<boolean>, options?: WaitOptions) => Effect<boolean>; untilSome: <A>(condition: Effect<Option<A>>, options?: WaitOptions) => Effect<A | null>; };
 }
 interface ScriptRuntimeApi {
     readonly signal: AbortSignal;
@@ -212,66 +213,10 @@ interface ScriptArmyApi {
     sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
     waitForAllInMap(): Effect<void, ArmyError>;
 }
-interface ScriptAuthApi {
-    connectTo(server: string): Effect<AuthConnectOutcome, never>;
-    getPassword(): Effect<string, never>;
-    getServers(): Effect<readonly Server[], never>;
-    getUsername(): Effect<string, never>;
-    isLoggedIn(): Effect<boolean, never>;
-    isServerSelectReady(): Effect<boolean, never>;
-    isTemporarilyKicked(): Effect<boolean, never>;
-    login(username: string, password: string): Effect<boolean, never>;
-    logout(): Effect<void, never>;
-}
-interface ScriptBankApi {
-    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
-    deposit(selector: ItemQuery): Effect<boolean, never>;
-    depositBatch(selectors: readonly ItemQuery[]): Effect<readonly boolean[], never>;
-    get(selector: ItemQuery): Effect<Item | null, never>;
-    getAll(): Effect<readonly Item[], never>;
-    getAvailableSlots(): Effect<number, never>;
-    getSlots(): Effect<number, never>;
-    getUsedSlots(): Effect<number, never>;
-    isOpen(): Effect<boolean, never>;
-    open(force?: boolean): Effect<boolean, never>;
-    swap(inventorySelector: ItemQuery, bankSelector: ItemQuery): Effect<boolean, never>;
-    withdraw(selector: ItemQuery): Effect<boolean, never>;
-    withdrawBatch(selectors: readonly ItemQuery[]): Effect<readonly boolean[], never>;
-}
-interface ScriptCombatApi {
-    attackMonster(selector: MonsterQuery): Effect<boolean, never>;
-    cancelAutoAttack(): Effect<void, never>;
-    cancelTarget(): Effect<void, never>;
-    canUseSkill(index: Skill): Effect<boolean, never>;
-    exit(): Effect<boolean, never>;
-    getConsumableSkillItem(): Effect<{ readonly itemId: number; } | null, never>;
-    hunt(selector: MonsterQuery, options?: HuntOptions): Effect<Monster | null, never>;
-    kill(selector: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
-    killForItem(monster: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
-    killForTempItem(monster: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
-    readonly target: ScriptCombatTargetApi;
-    useSkill(index: Skill, options?: SkillUseOptions): Effect<boolean, never>;
-}
-interface ScriptCombatTargetApi {
-    readonly auras: ScriptCombatTargetAurasApi;
-    get(): Effect<TargetInfo | null, never>;
-}
-interface ScriptCombatTargetAurasApi {
-    get(auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
-    getAll(options?: AuraQueryOptions): Effect<readonly Aura[], never>;
-    has(auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
-}
-interface ScriptDropsApi {
-    accept(selector: ItemQuery): Effect<boolean, never>;
-    contains(selector: ItemQuery): Effect<boolean, never>;
-    getAll(): Effect<readonly Item[], never>;
-    isCustomUiEnabled(): Effect<boolean, never>;
-    reject(selector: ItemQuery): Effect<boolean, never>;
-    toggleUi(): Effect<void, never>;
-}
 interface ScriptEventsApi {
-    on(selector: EventSelector | undefined, handler: FlashEventHandler): Effect<() => void, never>;
-    once(selector?: EventSelector, options?: WaitOptions): Effect<FlashEvent | null, never>;
+    on(selector: EventSelector | undefined, handler: (event: Event) => ScriptCallbackResult): Effect<() => void, never>;
+    readonly once: <E = never, R = never>(selector?: EventSelector, options?: TriggeredWaitOptions<E, R>) => Effect<Event | null, E, Exclude<R, Scope>>;
+    readonly stream: (selector?: EventSelector) => Stream<Event, never, never>;
 }
 interface ScriptFeaturesAntiCounterApi {
     isEnabled(): Effect<boolean, never>;
@@ -279,145 +224,21 @@ interface ScriptFeaturesAntiCounterApi {
 }
 interface ScriptFeaturesApi {
     readonly antiCounter: ScriptFeaturesAntiCounterApi;
-    readonly autoRelogin: ScriptFeaturesAutoReloginApi;
-    readonly autoZone: ScriptFeaturesAutoZoneApi;
-}
-interface ScriptFeaturesAutoReloginApi {
-    disable(): Effect<AutoReloginState, never>;
-    enable(): Effect<AutoReloginState, never>;
-    getDelay(): Effect<number, never>;
-    getServer(): Effect<string | undefined, never>;
-    getState(): Effect<AutoReloginState, never>;
-    isEnabled(): Effect<boolean, never>;
-    onState(listener: (state: AutoReloginState) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
-    runLogin(request: AutoReloginLoginRequest): Effect<AutoReloginLoginResult, AutoReloginLoginError>;
-    setDelay(delayMs: number): Effect<AutoReloginState, never>;
-    setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
-    setServer(serverName: string): Effect<AutoReloginState, never>;
-}
-interface ScriptFeaturesAutoZoneApi {
-    getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
-    getState(): Effect<AutoZoneState, never>;
-    isEnabled(): Effect<boolean, never>;
-    onState(listener: (state: AutoZoneState) => void, options?: StateSubscriptionOptions): Effect<StateDisposer, never>;
-    setEnabled(enabled: boolean): Effect<AutoZoneState, never>;
-    setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
-}
-interface ScriptHouseApi {
-    get(selector: ItemQuery): Effect<Item | null, never>;
-    getAll(): Effect<readonly Item[], never>;
-    getAvailableSlots(): Effect<number, never>;
-    getSlots(): Effect<number, never>;
-    getUsedSlots(): Effect<number, never>;
-}
-interface ScriptInventoryApi {
-    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
-    equip(selector: ItemQuery): Effect<boolean, never>;
-    get(selector: ItemQuery): Effect<Item | null, never>;
-    getAll(): Effect<readonly Item[], never>;
-    getAvailableSlots(): Effect<number, never>;
-    getSlots(): Effect<number, never>;
-    getUsedSlots(): Effect<number, never>;
-    unequipConsumable(selector: ItemQuery): Effect<boolean, never>;
-}
-interface ScriptMapApi {
-    getCellPads(): Effect<readonly string[], never>;
-    getCells(): Effect<readonly string[], never>;
-    getId(): Effect<number, never>;
-    getMapItem(itemId: number): Effect<void, never>;
-    getName(): Effect<string, never>;
-    getRoomNumber(): Effect<number, never>;
-    isLoaded(): Effect<boolean, never>;
-    loadSwf(swf: string): Effect<void, never>;
-    reload(): Effect<void, never>;
-    setSpawnPoint(cell?: string, pad?: string): Effect<void, never>;
-}
-interface ScriptMonstersApi {
-    readonly auras: ScriptMonstersAurasApi;
-    get(selector: MonsterQuery): Effect<Monster | null, never>;
-    getAll(): Effect<readonly Monster[], never>;
-    getAvailable(): Effect<readonly Monster[], never>;
-    isAvailable(selector: MonsterQuery): Effect<boolean, never>;
-}
-interface ScriptMonstersAurasApi {
-    get(monster: MonsterQuery, auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
-    getAll(monster: MonsterQuery, options?: AuraQueryOptions): Effect<readonly Aura[], never>;
-    has(monster: MonsterQuery, auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
+    readonly autoRelogin: { onState: (listener: (state: AutoReloginState) => void) => Effect<() => void, never, never>; changes: Stream<AutoReloginState, never, never>; disable: () => Effect<AutoReloginState, never, never>; enable: () => Effect<AutoReloginState, never, never>; getDelay: () => Effect<number, never, never>; getServer: () => Effect<string | undefined, never, never>; getState: () => Effect<AutoReloginState, never, never>; isEnabled: () => Effect<boolean, never, never>; runLogin: (request: AutoReloginLoginRequest) => Effect<AutoReloginLoginResult, AutoReloginLoginError>; setDelay: (delayMs: number) => Effect<AutoReloginState, never, never>; setEnabled: (enabled: boolean) => Effect<AutoReloginState, never, never>; setServer: (server: string) => Effect<AutoReloginState, never, never>; };
+    readonly autoZone: { onState: (listener: (state: AutoZoneState) => void) => Effect<() => void, never, never>; changes: Stream<AutoZoneState, never, never>; getMap: () => Effect<'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined, never, never>; getState: () => Effect<AutoZoneState, never, never>; isEnabled: () => Effect<boolean, never, never>; setEnabled: (enabled: boolean) => Effect<AutoZoneState, never, never>; setMap: (map: AutoZoneSupportedMap | undefined) => Effect<AutoZoneState, never, never>; };
 }
 interface ScriptPacketApi {
-    on(selector: PacketSelector | undefined, handler: PacketHandler): Effect<() => void, never>;
-    once(selector?: PacketSelector, options?: WaitOptions): Effect<FlashPacket | null, never>;
-    sendClient(packet: string, type?: ClientPacketSendType): Effect<void, never>;
-    sendServer(packet: string, type?: ServerPacketSendType): Effect<void, never>;
+    on(selector: PacketSelector | undefined, handler: (packet: Packet) => ScriptCallbackResult): Effect<() => void, never>;
+    readonly once: <E = never, R = never>(selector?: PacketSelector, options?: TriggeredWaitOptions<E, R>) => Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope>>;
+    readonly sendClient: (packet: string, type?: 'str' | 'json') => Effect<boolean, never, never>;
+    readonly sendServer: (packet: string, type?: 'String' | 'Json') => Effect<boolean, never, never>;
+    readonly stream: (selector?: PacketSelector) => Stream<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; }, never, never>;
 }
-interface ScriptPlayerApi {
-    readonly auras: ScriptPlayerAurasApi;
-    readonly factions: ScriptPlayerFactionsApi;
-    get(): Effect<Player | null, never>;
-    getCell(): Effect<string, never>;
-    getClassName(): Effect<string, never>;
-    getGender(): Effect<string, never>;
-    getGold(): Effect<number, never>;
-    getHp(): Effect<number, never>;
-    getLevel(): Effect<number, never>;
-    getMaxHp(): Effect<number, never>;
-    getMaxMp(): Effect<number, never>;
-    getMp(): Effect<number, never>;
-    getPad(): Effect<string, never>;
-    getPosition(): Effect<Position, never>;
-    getState(): Effect<EntityStateValue, never>;
-    goToPlayer(name: string): Effect<void, never>;
-    hasActiveBoost(boostType: string): Effect<boolean, never>;
-    isAfk(): Effect<boolean, never>;
-    isAlive(): Effect<boolean, never>;
-    isMember(): Effect<boolean, never>;
-    isReady(): Effect<boolean, never>;
-    joinMap(map: string, cell?: string, pad?: string): Effect<boolean, never>;
-    jumpToCell(cell: string, pad?: string, correction?: boolean): Effect<boolean, never>;
-    readonly outfits: ScriptPlayerOutfitsApi;
-    rest(full?: boolean): Effect<void, never>;
-    useBoost(selector: ItemQuery): Effect<boolean, never>;
-    walkTo(x: number, y: number, walkSpeed?: number): Effect<boolean, never>;
-}
-interface ScriptPlayerAurasApi {
-    get(auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
-    getAll(options?: AuraQueryOptions): Effect<readonly Aura[], never>;
-    has(auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
-}
-interface ScriptPlayerFactionsApi {
-    get(selector: string | number): Effect<Faction | null, never>;
-    getAll(): Effect<readonly Faction[], never>;
-}
-interface ScriptPlayerOutfitsApi {
-    equip(name: string, options?: OutfitOptions): Effect<boolean, never>;
-    get(name: string): Effect<Outfit | null, never>;
-    getAll(): Effect<readonly Outfit[], never>;
-    wear(name: string, options?: OutfitOptions): Effect<boolean, never>;
-}
-interface ScriptPlayersApi {
-    readonly auras: ScriptPlayersAurasApi;
-    get(selector: string | number): Effect<Player | null, never>;
-    getAll(): Effect<readonly Player[], never>;
-    getMe(): Effect<Player | null, never>;
-}
-interface ScriptPlayersAurasApi {
-    get(player: string | number, auraName: string, options?: AuraQueryOptions): Effect<Aura | null, never>;
-    getAll(player: string | number, options?: AuraQueryOptions): Effect<readonly Aura[], never>;
-    has(player: string | number, auraName: string, options?: AuraQueryOptions): Effect<boolean, never>;
-}
-interface ScriptQuestsApi {
-    abandon(questId: number): Effect<boolean, never>;
-    accept(questId: number): Effect<boolean, never>;
-    acceptBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
-    complete(questId: number, turnIns?: number, itemId?: number, special?: boolean): Effect<boolean, never>;
-    get(questId: number): Effect<Quest | null, never>;
-    getAccepted(): Effect<readonly Quest[], never>;
-    getAll(): Effect<readonly Quest[], never>;
-    getMaxTurnIns(questId: number): Effect<number, never>;
-    isAvailable(questId: number): Effect<boolean, never>;
-    isInProgress(questId: number): Effect<boolean, never>;
-    load(questId: number): Effect<boolean, never>;
-    loadBatch(questIds: readonly number[]): Effect<readonly boolean[], never>;
+interface ScriptRecipesApi {
+    doWheelOfDoom(toBank?: boolean): Effect<boolean, never>;
+    enhanceItem(item: ItemQuery, options: { readonly enhancement: string; readonly special?: string; }): Effect<boolean, never>;
+    ensureLifeSteal(quantity: number): Effect<boolean, never>;
+    ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
 }
 interface ScriptRuntimeInputsApi {
     get(key: string): Effect<ScriptInputValue | undefined, never>;
@@ -448,34 +269,6 @@ interface ScriptSettingsApi {
     setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
     setWalkSpeed(speed: number): Effect<void, never>;
 }
-interface ScriptShopsApi {
-    buy(selector: ShopItemQuery, options?: QuantityOptions): Effect<boolean, never>;
-    canBuy(selector: ShopItemQuery, options?: QuantityOptions): Effect<boolean, never>;
-    close(shopId?: number): Effect<boolean, never>;
-    get(selector: ShopItemQuery): Effect<Item | null, never>;
-    getAll(): Effect<readonly Item[], never>;
-    getInfo(): Effect<Shop | null, never>;
-    getMaxBuyQuantity(selector: ShopItemQuery): Effect<number, never>;
-    isMergeShop(): Effect<boolean, never>;
-    isOpen(shopId?: number): Effect<boolean, never>;
-    load(shopId: number): Effect<boolean, never>;
-    loadArmorCustomize(): Effect<void, never>;
-    loadHairShop(shopId: number): Effect<void, never>;
-    sell(selector: ItemQuery, options?: QuantityOptions): Effect<boolean, never>;
-}
-interface ScriptTempInventoryApi {
-    contains(selector: ItemQuery, quantity?: number): Effect<boolean, never>;
-    get(selector: ItemQuery): Effect<Item | null, never>;
-    getAll(): Effect<readonly Item[], never>;
-}
-interface ScriptWaitApi {
-    forEvent(selector?: EventSelector, options?: WaitOptions): Effect<FlashEvent | null, never>;
-    forGameAction(action: string, options?: WaitOptions | DurationInput): Effect<boolean, never>;
-    forPacket(selector?: PacketSelector, options?: WaitOptions): Effect<FlashPacket | null, never>;
-    isGameActionAvailable(action: string): Effect<boolean, never>;
-    until(condition: Effect<boolean, never, never>, options?: WaitOptions): Effect<boolean, never>;
-    untilSome<A>(condition: Effect<Option<A>, never, never>, options?: WaitOptions): Effect<A | null, never>;
-}
 
 interface ArmyEquipSetOptions {
   readonly resolveItems?: boolean;
@@ -487,33 +280,6 @@ interface ArmyRunStepOptions {
   readonly timeoutMs?: number;
 }
 type ArmySession = ArmySessionPayload;
-interface Aura {
-  readonly category: string | undefined;
-  readonly duration: number;
-  readonly icon: string | undefined;
-  readonly kind: AuraKind;
-  readonly name: string;
-  readonly stack: number;
-  readonly value: number | undefined;
-  toJSON(): AuraSnapshot;
-}
-interface AuraQueryOptions {
-  readonly kind?: AuraKind;
-}
-interface AuthConnectOutcome {
-  readonly message: string;
-  readonly retryable: boolean;
-  readonly serverName?: string;
-  readonly status:
-    | "blocked"
-    | "connected"
-    | "connection-error"
-    | "connection-failed"
-    | "full"
-    | "not-found"
-    | "not-ready"
-    | "timeout";
-}
 interface AutoReloginLoginError {
   readonly message: string;
 }
@@ -544,37 +310,427 @@ interface AutoZoneState {
   readonly map: AutoZoneSupportedMap | undefined;
 }
 type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus';
-type ClientPacketSendType = "str" | "json" | "xml";
+type BoostType = "classPoints" | "exp" | "gold" | "rep";
 interface CombatKillOptions {
-  readonly findMost?: boolean;
-  readonly killPriority?: readonly MonsterSelector[] | string;
-  readonly maxKills?: number;
-  readonly profile?: ScriptCombatProfileInput;
+  readonly killPriority?: readonly MonsterQuery[];
+  readonly profile?: CombatProfile;
   readonly skillDelay?: number;
-  readonly skillSet?: readonly Skill[] | string;
-  readonly skillWait?: boolean;
-  readonly timeout?: DurationInput;
+  readonly skillSet?: readonly Skill[];
 }
-interface EntityStateValue { readonly [key: string]: unknown; }
+interface ConnectOutcome {
+  readonly message: string;
+  readonly retryable: boolean;
+  readonly serverName?: string;
+  readonly status:
+    | "blocked"
+    | "connected"
+    | "connection-error"
+    | "connection-failed"
+    | "full"
+    | "not-found"
+    | "not-ready"
+    | "timeout";
+}
+type EntityState = EntityState;
+type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
 interface EventSelector {
-  readonly kind?: FlashEventKind;
-  readonly type?: FlashEventType;
+  readonly monsterMapId?: number;
+  readonly questId?: number;
+  readonly type?: Event["type"];
 }
-interface Faction {
+type GameAction = GameAction;
+interface HuntOptions {
+  readonly findMost?: boolean;
+}
+type ItemQuery = ItemSelector | number | string;
+interface Json { readonly [key: string]: unknown; }
+interface LiveAura extends LiveModel<AuraData> {
+  readonly category: string | undefined;
+  readonly duration: number;
+  readonly icon: string | undefined;
+  readonly kind: AuraKind;
+  readonly name: string;
+  readonly stack: number;
+  readonly value: number | undefined;
+  toJSON(): Readonly<AuraData>;
+}
+interface LiveFaction extends LiveModel<FactionData> {
   readonly id: number;
   readonly name: string;
   readonly rank: number;
   readonly reputation: number;
-  toJSON(): FactionSnapshot;
+  toJSON(): Readonly<FactionData>;
 }
-type FlashEvent =
-  | FlashPacketEvent
-  | FlashProjectionEvent
-  | FlashRuntimeEvent;
-type FlashEventHandler = (event: FlashEvent) => Effect<void>;
-type FlashPacket = { readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json' | 'xml' | 'unknown'; };
-interface HuntOptions {
-  readonly findMost?: boolean;
+interface LiveItem extends LiveModel<ItemData> {
+  readonly armor: boolean;
+  readonly banked: boolean;
+  readonly cape: boolean;
+  readonly category: string;
+  readonly charItemId: number | undefined;
+  readonly classItem: boolean;
+  readonly coins: boolean;
+  readonly context: ItemContext;
+  readonly cost: number;
+  readonly description: string;
+  readonly enhancement: Enhancement | undefined;
+  readonly equipped: boolean;
+  readonly equipmentSlot: string;
+  readonly file: string;
+  readonly helm: boolean;
+  readonly houseItem: boolean;
+  readonly itemId: number;
+  readonly link: string;
+  readonly memberOnly: boolean;
+  readonly meta: string;
+  readonly name: string;
+  readonly pet: boolean;
+  readonly quantity: number;
+  readonly shopItemId: number | undefined;
+  readonly temporaryItem: boolean;
+  readonly weapon: boolean;
+  readonly wearable: boolean;
+  matches(selector: string | number | ItemSelectorById | ItemSelectorByName | ShopItemSelectorById): boolean;
+  toJSON(): ItemSnapshot;
+}
+interface LiveMonster extends LiveEntity<MonsterData> {
+  readonly level: number;
+  readonly monsterId: number;
+  readonly monsterMapId: number;
+  readonly name: string;
+  readonly race: string;
+  matches(selector: MonsterQuery): boolean;
+  toJSON(): MonsterSnapshot;
+}
+interface LiveOutfit extends LiveModel<OutfitData> {
+  readonly colors: OutfitColors;
+  readonly equipment: OutfitEquipment;
+  readonly name: string;
+  toJSON(): Readonly<OutfitData>;
+}
+interface LivePlayer extends LiveEntity<PlayerData> {
+  readonly afk: boolean;
+  readonly entityId: number;
+  readonly entityType: string;
+  readonly level: number;
+  readonly name: string;
+  readonly pad: string;
+  readonly position: Position;
+  readonly username: string;
+  toJSON(): PlayerSnapshot;
+}
+interface LiveQuest extends LiveModel<QuestData> {
+  readonly cadence: QuestCadence;
+  readonly id: number;
+  readonly name: string;
+  readonly once: boolean;
+  readonly requirements: readonly QuestItem[];
+  readonly rewards: readonly QuestReward[];
+  toJSON(): Readonly<QuestData>;
+}
+interface LiveServer extends LiveModel<ServerData> {
+  readonly chat: number;
+  readonly count: number;
+  readonly full: boolean;
+  readonly language: string;
+  readonly max: number;
+  readonly memberOnly: boolean;
+  readonly name: string;
+  readonly online: boolean;
+  toJSON(): ServerSnapshot;
+}
+interface LiveShop extends LiveModel<ShopData> {
+  readonly house: boolean;
+  readonly id: number;
+  readonly items: readonly Item[];
+  readonly limited: boolean;
+  readonly merge: boolean;
+  readonly name: string;
+  toJSON(): ShopSnapshot;
+}
+type MonsterQuery = MonsterSelector | number | string;
+type Packet = { on: <E>(selector: PacketSelector | undefined, handler: (packet: PacketContract) => Effect<void, E>) => Effect<() => void, never, never>; once: <E = never, R = never>(selector?: PacketSelector, options?: TriggeredWaitOptions<E, R>) => Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope>>; sendClient: (packet: string, type?: 'str' | 'json') => Effect<boolean, never, never>; sendServer: (packet: string, type?: 'String' | 'Json') => Effect<boolean, never, never>; stream: (selector?: PacketSelector) => Stream.Stream<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; }, never, never>; };
+interface PacketSelector {
+  readonly command?: string;
+  readonly direction?: PacketDirection;
+  readonly predicate?: (packet: Packet) => boolean;
+  readonly wireType?: PacketWireType;
+}
+interface R { readonly [key: string]: unknown; }
+interface Scope { readonly [key: string]: unknown; }
+type ScriptCallbackResult<A = unknown> =
+  | Effect<A, unknown>
+  | ScriptGenerator<A>;
+interface ScriptRuntimeOptions {
+  readonly safeStartStop: boolean;
+  readonly usePrivateRooms: boolean;
+}
+type ShopItemQuery = ShopItemSelector | number | string;
+interface SkillUseOptions {
+  readonly force?: boolean;
+  readonly wait?: boolean;
+}
+interface Stream { readonly [key: string]: unknown; }
+interface TriggeredWaitOptions<E = never, R = never> extends Pick<
+  WaitOptions,
+  "timeout"
+> {
+  readonly trigger?: Effect<boolean, E, R>;
+}
+interface WaitOptions {
+  readonly interval?: DurationInput;
+  readonly timeout?: DurationInput;
+}
+interface _tag { readonly [key: string]: unknown; }
+interface ArmySessionPayload extends ArmyConfigPayload {
+  readonly playerName: string;
+  readonly playerNumber: number;
+  readonly role: "leader" | "member";
+  readonly sessionId: string;
+}
+interface AutoReloginLifecycleEvent {
+  readonly attemptsRemaining: number;
+  readonly message?: string;
+  readonly step: AutoReloginLifecycleStep;
+}
+type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+type RuntimeEvent =
+  | { readonly type: "connection"; readonly status: string }
+  | { readonly type: "debug"; readonly message: string };
+type ProtocolEvent =
+  | { readonly type: "packet"; readonly packet: Packet }
+  | {
+      readonly type: "packet-decode-failed";
+      readonly direction: PacketDirection;
+      readonly raw: string;
+    };
+type ProjectionEvent =
+  | {
+      readonly type: "join-map";
+      readonly map: {
+        readonly id: number;
+        readonly name: string;
+        readonly roomNumber: number;
+      };
+    }
+  | { readonly type: "quest-complete"; readonly questId: number }
+  | { readonly type: "monster-death"; readonly monsterMapId: number }
+  | { readonly type: "monster-respawn"; readonly monsterMapId: number }
+  | {
+      readonly type: "player-death";
+      readonly entityId: number;
+      readonly username: string;
+    }
+  | {
+      readonly type: "aura-added";
+      readonly name: string;
+      readonly targetId: number;
+      readonly targetType: "monster" | "player";
+    }
+  | {
+      readonly type: "aura-removed";
+      readonly name: string;
+      readonly targetId: number;
+      readonly targetType: "monster" | "player";
+    }
+  | {
+      readonly type: "player-location";
+      readonly entityId: number;
+      readonly username: string;
+    }
+  | {
+      readonly type: "update-message";
+      readonly message: string;
+      readonly monsterMapId?: number;
+      readonly source: "animation" | "aura";
+    }
+  | { readonly type: "zone"; readonly map: string; readonly zone: string };
+type ItemSelector = ItemQuery;
+interface LiveModel<State extends object> {
+  update(patch: Partial<State>): void;
+  replaceFrom(model: LiveModel<State>): void;
+  snapshot(): State;
+}
+interface AuraData {
+  category?: string;
+  duration: number;
+  icon?: string;
+  kind: AuraKind;
+  name: string;
+  stack: number;
+  value?: number;
+}
+type AuraKind = "active" | "passive";
+interface FactionData {
+  id: number;
+  name: string;
+  rank: number;
+  reputation: number;
+}
+interface ItemData {
+  category: string;
+  charItemId?: number;
+  coins: boolean;
+  context: ItemContext;
+  cost: number;
+  description: string;
+  enhancement?: Enhancement;
+  equipped: boolean;
+  equipmentSlot: string;
+  file: string;
+  houseItem: boolean;
+  itemId: number;
+  link: string;
+  memberOnly: boolean;
+  meta: string;
+  name: string;
+  quantity: number;
+  shopItemId?: number;
+  temporaryItem: boolean;
+  wearable?: boolean;
+}
+type ItemContext =
+  | "bank"
+  | "drop"
+  | "house"
+  | "inventory"
+  | "shop"
+  | "temporary";
+interface Enhancement {
+  readonly dps?: number;
+  readonly id?: number;
+  readonly level?: number;
+  readonly patternId?: number;
+  readonly procId?: number;
+  readonly range?: number;
+  readonly rarity?: number;
+}
+interface ItemSelectorById {
+  readonly itemId: number;
+  readonly name?: never;
+}
+interface ItemSelectorByName {
+  readonly itemId?: never;
+  readonly name: string;
+}
+interface ShopItemSelectorById {
+  readonly itemId?: never;
+  readonly name?: never;
+  readonly shopItemId: number;
+}
+type ItemSnapshot = Readonly<ItemData> & {
+  readonly armor: boolean;
+  readonly banked: boolean;
+  readonly cape: boolean;
+  readonly classItem: boolean;
+  readonly helm: boolean;
+  readonly pet: boolean;
+  readonly weapon: boolean;
+  readonly wearable: boolean;
+};
+interface LiveEntity<State extends EntityData> extends LiveModel<State> {
+  readonly alive: boolean;
+  readonly auras: readonly LiveAura[];
+  readonly cell: string;
+  readonly dead: boolean;
+  readonly hp: number;
+  readonly hpPercent: number;
+  readonly idle: boolean;
+  readonly inCombat: boolean;
+  readonly maxHp: number;
+  readonly maxMp: number;
+  readonly mp: number;
+  readonly mpPercent: number;
+  readonly state: EntityState;
+  addAura(aura: LiveAura, operation: 'add' | 'refresh'): void;
+  clearAuras(): void;
+  getAura(name: string, options?: AuraQueryOptions): LiveAura | null;
+  hasAura(name: string, options?: AuraQueryOptions): boolean;
+  removeAura(name: string, kind?: AuraKind): void;
+  isInCell(cell: string): boolean;
+  toJSON(): EntitySnapshot;
+}
+interface MonsterData extends EntityData {
+  level: number;
+  monsterId: number;
+  monsterMapId: number;
+  name: string;
+  race: string;
+}
+type MonsterSnapshot = Readonly<MonsterData> & EntitySnapshot;
+interface OutfitData {
+  colors: OutfitColors;
+  equipment: OutfitEquipment;
+  name: string;
+}
+interface OutfitColors {
+  readonly accessory: number | undefined;
+  readonly base: number | undefined;
+  readonly eye: number | undefined;
+  readonly hair: number | undefined;
+  readonly skin: number | undefined;
+  readonly trim: number | undefined;
+}
+interface OutfitEquipment {
+  readonly armorItemId: number | undefined;
+  readonly capeItemId: number | undefined;
+  readonly classItemId: number | undefined;
+  readonly helmItemId: number | undefined;
+  readonly itemId: number | undefined;
+  readonly miscItemId: number | undefined;
+  readonly petItemId: number | undefined;
+  readonly weaponItemId: number | undefined;
+}
+interface PlayerData extends EntityData {
+  afk: boolean;
+  entityId: number;
+  entityType: string;
+  level: number;
+  name: string;
+  pad: string;
+  position: Position;
+  username: string;
+}
+interface Position {
+  readonly x: number;
+  readonly y: number;
+}
+type PlayerSnapshot = Readonly<PlayerData> & EntitySnapshot;
+interface QuestData {
+  cadence: QuestCadence;
+  id: number;
+  name: string;
+  once: boolean;
+  requirements: readonly QuestItem[];
+  rewards: readonly QuestReward[];
+}
+type QuestCadence = "daily" | "monthly" | "none" | "weekly";
+interface QuestItem {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
+}
+interface QuestReward extends QuestItem {
+  readonly dropChance?: number;
+}
+interface ServerData {
+  chat: number;
+  count: number;
+  language: string;
+  max: number;
+  memberOnly: boolean;
+  name: string;
+  online: boolean;
+}
+type ServerSnapshot = Readonly<ServerData> & {
+  readonly full: boolean;
+};
+interface ShopData {
+  house: boolean;
+  id: number;
+  items: readonly Item[];
+  limited: boolean;
+  merge: boolean;
+  name: string;
 }
 interface Item {
   readonly armor: boolean;
@@ -595,480 +751,47 @@ interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
+  readonly wearable: boolean;
   readonly weapon: boolean;
   matches(selector: ItemQuery | ShopItemQuery): boolean;
   toJSON(): ItemSnapshot;
 }
-type ItemQuery = ItemSelector | number | string;
-interface Monster extends Entity {
-  readonly level: number;
-  readonly monsterId: number;
-  readonly monsterMapId: number;
-  readonly name: string;
-  readonly race: string;
-  matches(selector: MonsterQuery): boolean;
-}
-type MonsterQuery = MonsterSelector | number | string;
-interface Outfit {
-  readonly colors: OutfitColors;
-  readonly equipment: OutfitEquipment;
-  readonly name: string;
-  toJSON(): OutfitSnapshot;
-}
-interface OutfitOptions {
-  readonly keepColors?: boolean;
-}
-type PacketHandler = (packet: FlashPacket) => Effect<void>;
-interface PacketSelector {
-  readonly command?: string;
-  readonly direction?: FlashPacketDirection;
-  readonly wireType?: FlashPacketWireType;
-}
-interface Player extends Entity {
-  readonly afk: boolean;
-  readonly entityId: number;
-  readonly entityType: string;
-  readonly level: number;
-  readonly name: string;
-  readonly pad: string;
-  readonly position: Position;
-  readonly username: string;
-}
-interface Position {
-  readonly x: number;
-  readonly y: number;
-}
-interface QuantityOptions {
-  readonly quantity?: number;
-}
-interface Quest {
-  readonly cadence: QuestCadence;
-  readonly id: number;
-  readonly name: string;
-  readonly once: boolean;
-  readonly requirements: readonly QuestItem[];
-  readonly rewards: readonly QuestReward[];
-  toJSON(): QuestSnapshot;
-}
-interface ScriptRuntimeOptions {
-  readonly safeStartStop: boolean;
-  readonly usePrivateRooms: boolean;
-}
-interface Server {
-  readonly chat: number;
-  readonly count: number;
-  readonly full: boolean;
-  readonly language: string;
-  readonly max: number;
-  readonly memberOnly: boolean;
-  readonly name: string;
-  readonly online: boolean;
-  toJSON(): ServerSnapshot;
-}
-type ServerPacketSendType = "String" | "Json";
-interface Shop {
-  readonly house: boolean;
-  readonly id: number;
-  readonly items: readonly Item[];
-  readonly limited: boolean;
-  readonly merge: boolean;
-  readonly name: string;
-  toJSON(): ShopSnapshot;
-}
-type ShopItemQuery = ShopItemSelector | number | string;
-interface SkillUseOptions {
-  readonly force?: boolean;
-  readonly wait?: boolean;
-}
-type StateDisposer = () => void;
-interface StateSubscriptionOptions {
-  readonly emitCurrent?: boolean;
-}
-type TargetInfo = MonsterTargetInfo | PlayerTargetInfo;
-interface WaitOptions {
-  readonly interval?: DurationInput;
-  readonly timeout?: DurationInput;
-}
-interface _tag { readonly [key: string]: unknown; }
-interface ArmySessionPayload extends ArmyConfigPayload {
-  readonly playerName: string;
-  readonly playerNumber: number;
-  readonly role: "leader" | "member";
-  readonly sessionId: string;
-}
-type AuraKind = "active" | "passive";
-type AuraSnapshot = Readonly<AuraData>;
-interface AutoReloginLifecycleEvent {
-  readonly attemptsRemaining: number;
-  readonly message?: string;
-  readonly step: AutoReloginLifecycleStep;
-}
-type MonsterSelector = MonsterQuery;
-type ScriptCombatProfileInput =
-  | CombatProfile
-  | CombatProfileDefinition
-  | string;
-type FlashEventKind = "packet" | "projection" | "runtime";
-type FlashEventType = FlashEvent["type"];
-type FactionSnapshot = Readonly<FactionData>;
-type FlashPacketEvent =
-  | {
-      readonly kind: "packet";
-      readonly payload: FlashPacket;
-      readonly type: "packetReceived";
-    }
-  | {
-      readonly kind: "packet";
-      readonly payload: {
-        readonly direction: FlashPacketDirection;
-        readonly raw: string;
-      };
-      readonly type: "packetParseFailed";
-    };
-type FlashProjectionEvent =
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: UnknownRecord;
-      readonly type: "questComplete";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: MapInfo;
-      readonly type: "joinMap";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly map: string;
-        readonly zone: string;
-      };
-      readonly type: "zone";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly afk: boolean;
-        readonly entityId?: number;
-        readonly isSelf: boolean;
-        readonly username: string;
-      };
-      readonly type: "playerAfk";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly cell?: string;
-        readonly entityId?: number;
-        readonly isSelf: boolean;
-        readonly pad?: string;
-        readonly position?: Position;
-        readonly username: string;
-      };
-      readonly type: "playerLocation";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: { readonly monsterMapId: number };
-      readonly type: "monsterDeath";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly aura: Aura;
-        readonly auraKind: AuraKind;
-        readonly targetId: number;
-        readonly targetType: "monster" | "player";
-      };
-      readonly type: "auraAdded";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly auraName: string;
-        readonly auraKind: AuraKind;
-        readonly remainingStack: number;
-        readonly targetId: number;
-        readonly targetType: "monster" | "player";
-      };
-      readonly type: "auraRemoved";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly cell: string;
-        readonly entityId: number;
-        readonly hp: number;
-        readonly isSelf: boolean;
-        readonly pad: string;
-        readonly state: EntityState;
-        readonly username: string;
-      };
-      readonly type: "playerDeath";
-    }
-  | {
-      readonly kind: "projection";
-      readonly packet: FlashPacket;
-      readonly payload: {
-        readonly auraName?: string;
-        readonly auraPhase?: "off" | "on";
-        readonly message: string;
-        readonly monMapId?: number;
-        readonly source: "animation" | "aura";
-        readonly sourceMonMapId?: number;
-        readonly targetId?: number;
-        readonly targetMonMapId?: number;
-        readonly targetName?: string;
-        readonly targetType?: "monster" | "player";
-      };
-      readonly type: "updateMessage";
-    };
-type FlashRuntimeEvent =
-  | {
-      readonly kind: "runtime";
-      readonly payload: { readonly status: string };
-      readonly type: "connection";
-    }
-  | {
-      readonly kind: "runtime";
-      readonly payload: { readonly message: string };
-      readonly type: "debug";
-    }
-  | {
-      readonly kind: "runtime";
-      readonly type: "loaded";
-    }
-  | {
-      readonly kind: "runtime";
-      readonly payload: { readonly percent: number };
-      readonly type: "progress";
-    };
-type ItemContext =
-  | "bank"
-  | "drop"
-  | "house"
-  | "inventory"
-  | "shop"
-  | "temporary";
-interface Enhancement {
-  readonly dps?: number;
-  readonly id?: number;
-  readonly level?: number;
-  readonly patternId?: number;
-  readonly range?: number;
-  readonly rarity?: number;
-}
-type ItemSnapshot = Readonly<ItemData> & {
-  readonly armor: boolean;
-  readonly banked: boolean;
-  readonly cape: boolean;
-  readonly classItem: boolean;
-  readonly helm: boolean;
-  readonly pet: boolean;
-  readonly weapon: boolean;
-};
-type ItemSelector = ItemQuery;
-interface Entity {
-  readonly alive: boolean;
-  readonly cell: string;
-  readonly dead: boolean;
-  readonly hp: number;
-  readonly hpPercent: number;
-  readonly idle: boolean;
-  readonly inCombat: boolean;
-  readonly maxHp: number;
-  readonly maxMp: number;
-  readonly mp: number;
-  readonly mpPercent: number;
-  readonly state: EntityState;
-  isInCell(cell: string): boolean;
-  toJSON(): EntitySnapshot;
-}
-interface OutfitColors {
-  readonly accessory: number | undefined;
-  readonly base: number | undefined;
-  readonly eye: number | undefined;
-  readonly hair: number | undefined;
-  readonly skin: number | undefined;
-  readonly trim: number | undefined;
-}
-interface OutfitEquipment {
-  readonly armorItemId: number | undefined;
-  readonly capeItemId: number | undefined;
-  readonly classItemId: number | undefined;
-  readonly helmItemId: number | undefined;
-  readonly itemId: number | undefined;
-  readonly miscItemId: number | undefined;
-  readonly petItemId: number | undefined;
-  readonly weaponItemId: number | undefined;
-}
-type OutfitSnapshot = Readonly<OutfitData>;
-type FlashPacketDirection = 'client' | 'server' | 'extension';
-type FlashPacketWireType = 'str' | 'json' | 'xml' | 'unknown';
-type QuestCadence = "daily" | "monthly" | "none" | "weekly";
-interface QuestItem {
-  readonly itemId: number;
-  readonly name: string;
-  readonly quantity: number;
-}
-interface QuestReward extends QuestItem {
-  readonly dropChance?: number;
-}
-type QuestSnapshot = Readonly<QuestData>;
-type ServerSnapshot = Readonly<ServerData> & {
-  readonly full: boolean;
-};
-interface Json { readonly [key: string]: unknown; }
 type ShopSnapshot = Readonly<Omit<ShopData, "items">> & {
   readonly items: readonly ItemSnapshot[];
 };
-type ShopItemSelector = ShopItemQuery;
-type MonsterTargetInfo = TargetBaseInfo & {
-  type: "monster";
-  monsterId: number;
-  monsterMapId: number;
-  level: number;
-  race: string;
-  name: string;
-};
-type PlayerTargetInfo = TargetBaseInfo & {
-  type: "player";
-  afk: boolean;
-  entityId: number;
-  entityType: string;
-  level: number;
-  mp: number;
-  maxMp: number;
-  sp: number;
-  pad: string;
-  username: string;
-  name: string;
-};
+type MonsterSelector = ObjectSelector<MonsterSelectorShape>;
+interface PacketContract { readonly [key: string]: unknown; }
+type PacketDirection = 'server' | 'client' | 'extension';
+type PacketWireType = 'str' | 'json';
+type ScriptGenerator<A = unknown> = Generator<
+  Effect<any, any, never>,
+  A,
+  any
+>;
+type ShopItemSelector = ObjectSelector<ShopItemSelectorShape>;
 interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
 }
-interface AuraData {
-  category?: string;
-  duration: number;
-  icon?: string;
-  kind: AuraKind;
-  name: string;
-  stack: number;
-  value?: number;
-}
 type AutoReloginLifecycleStep = "connect" | "login" | "ready";
-type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
-interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | "messageTriggers">> {
-  readonly steps: readonly CombatProfileStepDefinition[];
-  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
+interface State {
+  attemptsRemaining: number | undefined;
+  delayMs: number;
+  enabled: boolean;
+  generation: number;
+  lastError: string | undefined;
+  password: string | undefined;
+  phase: ReloginPhase;
+  server: string | undefined;
+  username: string | undefined;
 }
-interface FactionData {
-  id: number;
-  name: string;
-  rank: number;
-  reputation: number;
-}
-type UnknownRecord = Record<string, unknown>;
-interface MapInfo {
-  readonly id: number;
-  readonly name: string;
-  readonly roomNumber: number;
-}
-type EntityState = EntityState;
-interface ItemData {
-  category: string;
-  charItemId?: number;
-  coins: boolean;
-  context: ItemContext;
-  cost: number;
-  description: string;
-  enhancement?: Enhancement;
-  equipped: boolean;
-  equipmentSlot: string;
-  file: string;
-  houseItem: boolean;
-  itemId: number;
-  link: string;
-  meta: string;
-  name: string;
-  quantity: number;
-  shopItemId?: number;
-  temporaryItem: boolean;
-}
-type EntitySnapshot = Readonly<EntityData> & {
-  readonly alive: boolean;
-  readonly dead: boolean;
-  readonly hpPercent: number;
-  readonly idle: boolean;
-  readonly inCombat: boolean;
-  readonly mpPercent: number;
-};
-interface OutfitData {
-  colors: OutfitColors;
-  equipment: OutfitEquipment;
-  name: string;
-}
-interface QuestData {
-  cadence: QuestCadence;
-  id: number;
-  name: string;
-  once: boolean;
-  requirements: readonly QuestItem[];
-  rewards: readonly QuestReward[];
-}
-interface ServerData {
-  chat: number;
-  count: number;
-  language: string;
-  max: number;
-  memberOnly: boolean;
-  name: string;
-  online: boolean;
-}
-interface ShopData {
-  house: boolean;
-  id: number;
-  items: readonly Item[];
-  limited: boolean;
-  merge: boolean;
-  name: string;
-}
-type TargetBaseInfo = {
-  type: "monster" | "player";
-  hp: number;
-  maxHp: number;
-  state: EntityState;
-  cell: string;
-};
-interface ArmyConfigCore {
-  readonly items: Readonly<Record<string, string>>;
-  readonly players: readonly string[];
-  readonly room: string;
-  readonly sets: Readonly<Record<string, ArmySetConfig>>;
-}
-type ArmyConfigRaw = Record<string, unknown>;
-type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
-  readonly skill: number;
-};
-type CombatProfileMessageTriggerDefinition = Partial<CombatProfileMessageTrigger> & {
-  readonly messageIncludes: string;
-  readonly skill: number;
-};
 interface EntityData {
   cell: string;
   hp: number;
@@ -1077,12 +800,62 @@ interface EntityData {
   mp: number;
   state: EntityState;
 }
+interface AuraQueryOptions {
+  readonly kind?: AuraKind;
+}
+type EntitySnapshot = Readonly<EntityData> & {
+  readonly alive: boolean;
+  readonly auras: readonly AuraSnapshot[];
+  readonly dead: boolean;
+  readonly hpPercent: number;
+  readonly idle: boolean;
+  readonly inCombat: boolean;
+  readonly mpPercent: number;
+};
+type ObjectSelector<Shape extends Record<string, unknown>> = {
+  [Key in keyof Shape]: {
+    [SelectedKey in Key]: Shape[SelectedKey];
+  } & {
+    [OtherKey in Exclude<keyof Shape, Key>]?: never;
+  };
+}[keyof Shape];
+type MonsterSelectorShape = {
+  name: string;
+  monMapId: number;
+};
+type ShopItemSelectorShape = ItemSelectorShape & {
+  shopItemId: number;
+};
+interface ArmyConfigCore {
+  readonly items: Readonly<Record<string, string>>;
+  readonly players: readonly string[];
+  readonly room: string;
+  readonly sets: Readonly<Record<string, ArmySetConfig>>;
+}
+type ArmyConfigRaw = Record<string, unknown>;
+type ReloginPhase =
+  | { readonly tag: "armed" }
+  | { readonly tag: "awaiting-session" }
+  | { readonly tag: "awaiting-player-ready" }
+  | { readonly tag: "awaiting-server-select" }
+  | { readonly delayMs: number; readonly tag: "backoff" }
+  | { readonly tag: "failed" }
+  | { readonly tag: "logging-in" }
+  | { readonly tag: "selecting-server" }
+  | { readonly tag: "waiting-delay" }
+  | { readonly tag: "waiting-kick" };
+type AuraSnapshot = Readonly<AuraData>;
+interface Shape { readonly [key: string]: unknown; }
+interface SelectedKey { readonly [key: string]: unknown; }
+interface OtherKey { readonly [key: string]: unknown; }
+type ItemSelectorShape = {
+  name: string;
+  itemId: number;
+};
 interface ArmySetConfig {
   readonly default?: ArmyEquipSet;
   readonly players: Readonly<Record<string, ArmyEquipSet>>;
 }
-type CombatProfileStep = { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
-type CombatProfileMessageTrigger = { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
 interface ArmyEquipSet {
   readonly armor?: string;
   readonly cape?: string;

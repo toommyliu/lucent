@@ -13,3 +13,5 @@ tableOfContents:
 ```ts
 type AutoReloginLifecycleStep = "connect" | "login" | "ready"
 ```
+
+<p class="source-reference"><span class="source-reference__label">Source</span><code class="source-reference__path">app/src/renderer/game/automation/AutoRelogin.ts:49</code><a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L49" aria-label="Open source: app/src/renderer/game/automation/AutoRelogin.ts:49" title="Open source: app/src/renderer/game/automation/AutoRelogin.ts:49" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a></p>

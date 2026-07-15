@@ -16,7 +16,7 @@ tableOfContents:
 
 <a id="member-script-exit"></a>
 
-### `script.exit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L125" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:125" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.exit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L90" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:90" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect.Effect<never, ScriptStopSignal, never>
@@ -28,11 +28,11 @@ script.exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolea
 
 **Yields:** `never`
 
-**Errors:** `ScriptStopSignal`
+**Errors:** <a href="/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a>
 
 <a id="member-script-inputs-get"></a>
 
-### `script.inputs.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L99" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:99" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.inputs.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L64" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:64" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.inputs.get(key: string): Effect.Effect<string | number | boolean | undefined, never, never>
@@ -48,7 +48,7 @@ script.inputs.get(key: string): Effect.Effect<string | number | boolean | undefi
 
 <a id="member-script-inputs-getall"></a>
 
-### `script.inputs.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L100" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:100" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.inputs.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L65" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:65" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.inputs.getAll(): Effect.Effect<{ readonly [x: string]: string | number | boolean; }, never, never>
@@ -60,7 +60,7 @@ script.inputs.getAll(): Effect.Effect<{ readonly [x: string]: string | number | 
 
 <a id="member-script-log"></a>
 
-### `script.log()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L129" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:129" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.log()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L94" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:94" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.log(message: unknown): Effect.Effect<void, never, never>
@@ -76,7 +76,7 @@ script.log(message: unknown): Effect.Effect<void, never, never>
 
 <a id="member-script-options-getall"></a>
 
-### `script.options.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L109" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:109" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L74" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:74" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.getAll(): Effect.Effect<ScriptRuntimeOptions, never, never>
@@ -88,7 +88,7 @@ script.options.getAll(): Effect.Effect<ScriptRuntimeOptions, never, never>
 
 <a id="member-script-options-getsafestartstop"></a>
 
-### `script.options.getSafeStartStop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L110" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:110" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.getSafeStartStop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L75" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:75" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.getSafeStartStop(): Effect.Effect<boolean, never, never>
@@ -100,7 +100,7 @@ script.options.getSafeStartStop(): Effect.Effect<boolean, never, never>
 
 <a id="member-script-options-getuseprivaterooms"></a>
 
-### `script.options.getUsePrivateRooms()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L111" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:111" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.getUsePrivateRooms()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L76" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:76" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.getUsePrivateRooms(): Effect.Effect<boolean, never, never>
@@ -112,7 +112,7 @@ script.options.getUsePrivateRooms(): Effect.Effect<boolean, never, never>
 
 <a id="member-script-options-reset"></a>
 
-### `script.options.reset()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L112" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:112" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.reset()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L77" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:77" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.reset(): Effect.Effect<ScriptRuntimeOptions, never, never>
@@ -124,7 +124,7 @@ script.options.reset(): Effect.Effect<ScriptRuntimeOptions, never, never>
 
 <a id="member-script-options-setsafestartstop"></a>
 
-### `script.options.setSafeStartStop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L113" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:113" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.setSafeStartStop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L78" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:78" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.setSafeStartStop(enabled: boolean): Effect.Effect<ScriptRuntimeOptions, never, never>
@@ -140,7 +140,7 @@ script.options.setSafeStartStop(enabled: boolean): Effect.Effect<ScriptRuntimeOp
 
 <a id="member-script-options-setuseprivaterooms"></a>
 
-### `script.options.setUsePrivateRooms()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L116" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:116" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.options.setUsePrivateRooms()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L81" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:81" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.options.setUsePrivateRooms(enabled: boolean): Effect.Effect<ScriptRuntimeOptions, never, never>
@@ -156,7 +156,7 @@ script.options.setUsePrivateRooms(enabled: boolean): Effect.Effect<ScriptRuntime
 
 <a id="member-script-signal"></a>
 
-### `script.signal` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L122" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:122" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.signal` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L87" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:87" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.signal: AbortSignal
@@ -166,7 +166,7 @@ script.signal: AbortSignal
 
 <a id="member-script-sleep"></a>
 
-### `script.sleep()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L130" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:130" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.sleep()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L95" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:95" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.sleep(ms: number): Effect.Effect<void, ScriptExecutionError, never>
@@ -178,11 +178,11 @@ script.sleep(ms: number): Effect.Effect<void, ScriptExecutionError, never>
 
 **Yields:** `void`
 
-**Errors:** `ScriptExecutionError`
+**Errors:** <a href="/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a>
 
 <a id="member-script-stop"></a>
 
-### `script.stop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/dev/app/src/renderer/game/scripting/ScriptApi.ts#L131" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:131" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `script.stop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L96" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/scripting/ScriptApi.ts:96" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 script.stop(reason?: string): Effect.Effect<never, ScriptStopSignal, never>
@@ -194,4 +194,4 @@ script.stop(reason?: string): Effect.Effect<never, ScriptStopSignal, never>
 
 **Yields:** `never`
 
-**Errors:** `ScriptStopSignal`
+**Errors:** <a href="/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a>

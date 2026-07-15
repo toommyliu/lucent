@@ -30,6 +30,7 @@ tableOfContents:
 | [`api.player`](/scripting/api/player/) | Player APIs. |
 | [`api.players`](/scripting/api/players/) | Players APIs. |
 | [`api.quests`](/scripting/api/quests/) | Quests APIs. |
+| [`api.recipes`](/scripting/api/recipes/) | Recipes APIs. |
 | [`api.settings`](/scripting/api/settings/) | Settings APIs. |
 | [`api.shops`](/scripting/api/shops/) | Shops APIs. |
 | [`api.tempInventory`](/scripting/api/temp-inventory/) | Temp Inventory APIs. |
