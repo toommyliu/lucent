@@ -145,7 +145,7 @@
 .active-windows-menu__title {
   color: rgb(var(--foreground));
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -236,7 +236,7 @@
 
 .active-windows-menu__name {
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   color: rgb(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -253,7 +253,7 @@
 
 .active-windows-menu__item-script {
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 400;
   color: rgba(var(--foreground), 0.85);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -286,7 +286,7 @@
   border: 0 !important;
   border-radius: var(--radius-xl) !important;
   font-size: 11px !important;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
   height: auto !important;
   max-width: 10rem;
   min-width: unset !important;
@@ -395,7 +395,7 @@
   color: rgb(var(--foreground));
   display: flex;
   font-size: var(--text-base);
-  font-weight: 600;
+  font-weight: 500;
   gap: 0.375rem;
   line-height: 1;
   min-width: 0;
@@ -478,11 +478,12 @@
   display: flex;
   gap: 0.625rem;
   min-width: 0;
+  width: 100%;
 }
 
 .account-group-option__name {
   flex: 1 1 auto;
-  font-weight: 600;
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -493,12 +494,30 @@
   color: rgb(var(--muted-foreground));
   flex: 0 0 auto;
   font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.account-group-option__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 20rem;
+}
+
+.account-group-option__tooltip-title {
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
 }
 
 .account-manager__server-content .combobox__item-text,
 .account-manager__group-content .combobox__item-text {
   overflow-wrap: normal;
   white-space: nowrap;
+}
+
+.account-manager__server-content .combobox__item,
+.account-manager__group-content .combobox__item {
+  font-weight: 500;
 }
 
 .account-manager__launch-row {
@@ -592,13 +611,14 @@
 .account-manager__server-overlay-meta {
   color: rgb(var(--muted-foreground));
   flex: 0 0 auto;
-  font-weight: 600;
+  font-weight: 400;
   font-size: var(--text-xs);
 }
 
 .account-manager__server-overlay-ping {
   flex: 0 0 auto;
   font-size: var(--text-xs);
+  font-weight: 500;
 }
 
 .account-manager__server-input--settling {
@@ -616,7 +636,7 @@
   background: transparent;
   color: rgb(var(--muted-foreground));
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .account-manager__script-split-group {
@@ -855,7 +875,7 @@
 
 .account-server-option__name {
   flex: 0 1 auto;
-  font-weight: 600;
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -868,7 +888,6 @@
 
 .account-server-option--full .account-server-option__name {
   color: rgb(var(--warning));
-  font-weight: 800;
 }
 
 .account-server-option--offline .account-server-option__name {
@@ -879,6 +898,7 @@
   color: rgb(var(--muted-foreground));
   flex: 0 0 auto;
   font-size: var(--text-sm);
+  font-weight: 400;
 }
 
 .account-server-option__metrics {
@@ -892,7 +912,7 @@
 .account-server-option__ping {
   flex: 0 0 auto;
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .account-server-ping--good {
@@ -901,7 +921,6 @@
 
 .account-server-ping--pending {
   color: rgb(var(--muted-foreground));
-  font-weight: 600;
 }
 
 .account-server-ping--warning {
@@ -918,7 +937,6 @@
 
 .account-server-option--full .account-server-option__meta {
   color: rgb(var(--warning));
-  font-weight: 700;
 }
 
 .account-manager__selection-bar {
@@ -1123,7 +1141,7 @@
 .account-row__title {
   color: rgb(var(--foreground));
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1171,7 +1189,7 @@
 .account-row__launch-btn.button {
   height: var(--control-height-md);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   padding: 0 0.875rem;
   border-radius: 9999px;
   transition: all var(--duration-fast) ease;
@@ -1192,7 +1210,7 @@
   min-width: 0;
   height: var(--control-height-md);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   padding-left: 0.75rem;
   padding-right: 0.375rem;
 }
@@ -1234,7 +1252,6 @@
 
 
 .account-row__status-text {
-  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -1454,7 +1471,7 @@
 .account-group-dialog__member-name {
   color: rgb(var(--foreground));
   font-size: var(--text-base);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;

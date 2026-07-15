@@ -1548,9 +1548,8 @@ a.badge--destructive:hover {
 }
 
 .app-shell__header {
-  background: rgba(var(--card), 0.96);
-  box-shadow: var(--shadow-xs);
-  color: rgb(var(--card-foreground));
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
   flex: 0 0 auto;
   min-width: 0;
   z-index: 10;

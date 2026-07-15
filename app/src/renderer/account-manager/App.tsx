@@ -589,6 +589,12 @@ export function App(): JSX.Element {
   const accountUsernames = createMemo(
     () => new Set(accounts().map((account) => account.username)),
   );
+  const accountsByUsername = createMemo(
+    () =>
+      new Map(
+        accounts().map((account) => [account.username, account] as const),
+      ),
+  );
   const groups = createMemo(() => state().groups);
   const groupEntries = createMemo(() =>
     Object.entries(groups()).sort(([left], [right]) =>
@@ -740,6 +746,20 @@ export function App(): JSX.Element {
   const selectedGroupLabel = createMemo(
     () => selectedGroupName() || "Manual selection",
   );
+  const groupMemberSummary = (usernames: readonly string[]): string => {
+    const accountLookup = accountsByUsername();
+
+    return usernames
+      .map((username) => {
+        const account = accountLookup.get(username);
+        if (account === undefined || account.label === username) {
+          return username;
+        }
+
+        return `${account.label} (${username})`;
+      })
+      .join(", ");
+  };
   const newAccountHotkeyDisplay = createMemo(() =>
     formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, window.desktop.platform.os),
   );
@@ -2355,18 +2375,56 @@ export function App(): JSX.Element {
                             Manual selection
                           </ComboboxItem>
                           <For each={groupEntries()}>
-                            {([name, usernames]) => (
-                              <ComboboxItem value={name} label={name}>
-                                <span class="account-group-option">
-                                  <span class="account-group-option__name">
-                                    {name}
-                                  </span>
-                                  <span class="account-group-option__meta">
-                                    {usernames.length}
-                                  </span>
-                                </span>
-                              </ComboboxItem>
-                            )}
+                            {([name, usernames]) => {
+                              const members = () =>
+                                groupMemberSummary(usernames);
+                              const [tooltipOpen, setTooltipOpen] =
+                                createSignal(false);
+
+                              return (
+                                <ComboboxItem value={name} label={name}>
+                                  <Tooltip
+                                    closeDelay={0}
+                                    interactive={false}
+                                    open={tooltipOpen()}
+                                    openDelay={300}
+                                    unmountOnExit
+                                    positioning={{ placement: "right" }}
+                                    onOpenChange={(details) =>
+                                      setTooltipOpen(details.open)
+                                    }
+                                  >
+                                    <TooltipTrigger
+                                      asChild={(triggerProps) => (
+                                        <span
+                                          {...triggerProps({
+                                            class: "account-group-option",
+                                            onBlur: () => setTooltipOpen(false),
+                                            onPointerDown: () =>
+                                              setTooltipOpen(false),
+                                            onPointerLeave: () =>
+                                              setTooltipOpen(false),
+                                          })}
+                                        >
+                                          <span class="account-group-option__name">
+                                            {name}
+                                          </span>
+                                          <span class="account-group-option__meta">
+                                            {usernames.length}
+                                          </span>
+                                        </span>
+                                      )}
+                                    />
+                                    <TooltipContent class="account-group-option__tooltip">
+                                      <span class="account-group-option__tooltip-title">
+                                        Accounts
+                                      </span>
+                                      <span>{members() || "No accounts"}</span>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </ComboboxItem>
+                              );
+                            }}
                           </For>
                         </ComboboxList>
                       </ComboboxContent>

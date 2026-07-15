@@ -24,3 +24,8 @@ body {
   min-width: 0;
   width: 100%;
 }
+
+:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
