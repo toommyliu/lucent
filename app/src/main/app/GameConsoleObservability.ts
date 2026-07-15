@@ -6,7 +6,12 @@ import {
   type ServerResponse,
 } from "http";
 
-import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
+import {
+  BrowserWindow,
+  ipcMain,
+  type IpcMainEvent,
+  type WebContents,
+} from "electron";
 import { Context, Effect, Layer, Option, Schema, Scope } from "effect";
 
 import type { AccountManagerState } from "@lucent/core/accounts";
@@ -110,6 +115,40 @@ export interface GameConsoleStore {
     sessions: readonly GameConsoleSessionSnapshot[],
   ) => readonly GameConsoleWindowState[];
 }
+
+type ReloadWebContents = Pick<
+  WebContents,
+  "isDestroyed" | "on" | "removeListener"
+>;
+
+export const observeGameConsoleReloads = (
+  webContents: ReloadWebContents,
+  onReload: () => void,
+): (() => void) => {
+  let initialLoadStarted = false;
+  let observing = true;
+  const handleLoadStarted = (): void => {
+    if (!initialLoadStarted) {
+      initialLoadStarted = true;
+      return;
+    }
+
+    onReload();
+  };
+
+  webContents.on("did-start-loading", handleLoadStarted);
+
+  return () => {
+    if (!observing) {
+      return;
+    }
+
+    observing = false;
+    if (!webContents.isDestroyed()) {
+      webContents.removeListener("did-start-loading", handleLoadStarted);
+    }
+  };
+};
 
 interface GameConsoleSessionSnapshot {
   readonly gameWindowId: number;
@@ -1179,27 +1218,19 @@ const makeGameConsoleObservability = Effect.gen(function* () {
           return;
         }
 
-        let initialLoadStarted = false;
-        const handleLoadStarted = (): void => {
-          if (!initialLoadStarted) {
-            initialLoadStarted = true;
-            return;
-          }
-
-          const windowState = store.resetWindow(gameWindowId);
-          publish("window-reset", windowState);
-        };
-        window.webContents.on("did-start-loading", handleLoadStarted);
-        removeReloadListeners.set(gameWindowId, () => {
-          window.webContents.removeListener(
-            "did-start-loading",
-            handleLoadStarted,
-          );
-        });
+        const removeReloadListener = observeGameConsoleReloads(
+          window.webContents,
+          () => {
+            const windowState = store.resetWindow(gameWindowId);
+            publish("window-reset", windowState);
+          },
+        );
+        removeReloadListeners.set(gameWindowId, removeReloadListener);
       };
       const stopObservingReloads = (gameWindowId: number): void => {
-        removeReloadListeners.get(gameWindowId)?.();
+        const removeReloadListener = removeReloadListeners.get(gameWindowId);
         removeReloadListeners.delete(gameWindowId);
+        removeReloadListener?.();
       };
       const context = yield* Effect.context<never>();
       const runPromise = Effect.runPromiseWith(context);

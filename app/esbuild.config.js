@@ -20,7 +20,7 @@ const isProduction = process.env.NODE_ENV === "production";
 const isWatch = process.argv.includes("--watch") || process.argv.includes("-w");
 const skipInitialBuildNotify =
   process.env.LUCENT_DEV_BUILD_NOTIFY_SKIP_INITIAL === "1";
-const notifiedLabels = new Set();
+const notifiedBuilds = new Set();
 const staticAssetWatchIntervalMs = 100;
 
 const baseOptions = {
@@ -227,15 +227,17 @@ const notifyBuild = (label, options = {}) => {
     return;
   }
 
+  const initialBuildKey = options.initialBuildKey ?? label;
+
   if (
     options.skipInitial !== false &&
     skipInitialBuildNotify &&
-    !notifiedLabels.has(label)
+    !notifiedBuilds.has(initialBuildKey)
   ) {
-    notifiedLabels.add(label);
+    notifiedBuilds.add(initialBuildKey);
     return;
   }
-  notifiedLabels.add(label);
+  notifiedBuilds.add(initialBuildKey);
 
   mkdirSync(dirname(notifyPath), { recursive: true });
   appendFileSync(
@@ -325,7 +327,7 @@ const watch = async () => {
         setup(pluginBuild) {
           pluginBuild.onEnd((result) => {
             if (result.errors.length === 0) {
-              notifyBuild("main");
+              notifyBuild("main", { initialBuildKey: "main" });
             }
           });
         },
@@ -344,7 +346,9 @@ const watch = async () => {
               pluginBuild.onEnd((result) => {
                 if (result.errors.length === 0) {
                   copyRendererFiles();
-                  notifyBuild("renderer");
+                  notifyBuild("renderer", {
+                    initialBuildKey: `renderer:${rendererViews[index].id}`,
+                  });
                 }
               });
             },
@@ -361,7 +365,7 @@ const watch = async () => {
         setup(pluginBuild) {
           pluginBuild.onEnd((result) => {
             if (result.errors.length === 0) {
-              notifyBuild("main");
+              notifyBuild("main", { initialBuildKey: "script-file-worker" });
             }
           });
         },
@@ -376,7 +380,7 @@ const watch = async () => {
         setup(pluginBuild) {
           pluginBuild.onEnd((result) => {
             if (result.errors.length === 0) {
-              notifyBuild("renderer");
+              notifyBuild("renderer", { initialBuildKey: "preload" });
             }
           });
         },
@@ -391,7 +395,7 @@ const watch = async () => {
         setup(pluginBuild) {
           pluginBuild.onEnd((result) => {
             if (result.errors.length === 0) {
-              notifyBuild("renderer");
+              notifyBuild("renderer", { initialBuildKey: "shared-css" });
             }
           });
         },
