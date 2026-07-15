@@ -21,3 +21,8 @@ export interface ScriptRuntimeServices {
   readonly tempInventory: ApiService["tempInventory"];
   readonly wait: ApiService["wait"];
 }
+
+export const makeScriptRuntimeServices = (
+  api: ApiService,
+  army: ArmyApiShape,
+): ScriptRuntimeServices => ({ ...api, army });

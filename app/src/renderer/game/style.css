@@ -1117,8 +1117,23 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 
 .game-debug-eval__header-actions,
 .game-debug-eval__footer-actions {
+  align-items: center;
   display: flex;
   gap: 6px;
+}
+
+.game-debug-eval__mode {
+  gap: 0;
+}
+
+.game-debug-eval__mode .tabs__list {
+  gap: 0;
+}
+
+.game-debug-eval__mode .tabs__trigger {
+  height: 26px;
+  padding-inline: 7px;
+  font-size: 11px;
 }
 
 .game-debug-eval__footer-actions {

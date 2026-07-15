@@ -18,18 +18,19 @@ import { Automation } from "../automation/Automation";
 import { Api } from "../flash/api/Api";
 import { Bridge } from "../flash/bridge/Bridge";
 import type { Event as FlashEvent } from "../flash/contract/Event";
-import type {
-  ScriptMain,
-  ScriptRuntimeApi,
-  ScriptRuntimeOptions,
-} from "./ScriptApi";
+import type { ScriptMain, ScriptRuntimeOptions } from "./ScriptApi";
 import {
   makeScriptAsyncScope,
   type ScriptAsyncScope,
 } from "./scriptAsyncScope";
 import { loadScriptModule } from "./scriptLoader";
+import {
+  DEFAULT_SCRIPT_RUNTIME_OPTIONS,
+  makeScriptRuntimeApi,
+  snapshotScriptRuntimeOptions,
+} from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
-import type { ScriptRuntimeServices } from "./api/Services";
+import { makeScriptRuntimeServices } from "./api/Services";
 import {
   makeMoveToOwnHouse,
   runWithSafeStartStop as withSafeStartStop,
@@ -136,16 +137,7 @@ interface StartingScript {
   readonly path?: string;
 }
 
-const defaultOptions: ScriptRuntimeOptions = {
-  safeStartStop: true,
-  usePrivateRooms: true,
-};
-
 const nowIso = (): string => new Date().toISOString();
-
-const snapshotOptions = (
-  options: ScriptRuntimeOptions,
-): ScriptRuntimeOptions => ({ ...options });
 
 const snapshotStatus = (status: ScriptRunnerStatus): ScriptRunnerStatus => ({
   ...status,
@@ -237,47 +229,10 @@ export const layer = Layer.effect(
     const army = yield* ArmyApi;
     const automation = yield* Automation;
     const bridge = yield* Bridge;
-    const {
-      auth,
-      bank,
-      combat,
-      drops,
-      events,
-      house,
-      inventory,
-      map,
-      monsters,
-      packet,
-      player,
-      players,
-      quests,
-      settings,
-      shops,
-      tempInventory,
-      wait,
-    } = api;
+    const { auth, combat, events, packet, player, wait } = api;
     const { autoRelogin, autoZone } = automation;
 
-    const services: ScriptRuntimeServices = {
-      army,
-      auth,
-      bank,
-      combat,
-      drops,
-      events,
-      house,
-      inventory,
-      map,
-      monsters,
-      packet,
-      player,
-      players,
-      quests,
-      settings,
-      shops,
-      tempInventory,
-      wait,
-    };
+    const services = makeScriptRuntimeServices(api, army);
 
     const activeRef = yield* Ref.make<ActiveScript | null>(null);
     const lifecycleGate = yield* Semaphore.make(1);
@@ -287,8 +242,9 @@ export const layer = Layer.effect(
       null,
     );
     const startingRef = yield* Ref.make<StartingScript | null>(null);
-    const optionsRef =
-      yield* SubscriptionRef.make<ScriptRuntimeOptions>(defaultOptions);
+    const optionsRef = yield* SubscriptionRef.make<ScriptRuntimeOptions>(
+      DEFAULT_SCRIPT_RUNTIME_OPTIONS,
+    );
     const statusRef = yield* SubscriptionRef.make<ScriptRunnerStatus>({
       state: "idle",
     });
@@ -300,14 +256,16 @@ export const layer = Layer.effect(
       SubscriptionRef.set(statusRef, snapshotStatus(status));
 
     const getOptions = () =>
-      SubscriptionRef.get(optionsRef).pipe(Effect.map(snapshotOptions));
+      SubscriptionRef.get(optionsRef).pipe(
+        Effect.map(snapshotScriptRuntimeOptions),
+      );
 
     const setOptions = (
       update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
     ) =>
       SubscriptionRef.updateAndGet(optionsRef, (options) =>
-        snapshotOptions(update(options)),
-      ).pipe(Effect.map(snapshotOptions));
+        snapshotScriptRuntimeOptions(update(options)),
+      ).pipe(Effect.map(snapshotScriptRuntimeOptions));
 
     const observe = <A>(
       changes: Stream.Stream<A>,
@@ -551,74 +509,6 @@ export const layer = Layer.effect(
         moveToOwnHouse,
       );
 
-    const makeScriptApi = (
-      scope: ScriptAsyncScope,
-      inputValues: ScriptInputValues,
-    ): ScriptRuntimeApi => {
-      const script: ScriptRuntimeApi = {
-        exit: (options) =>
-          Effect.gen(function* () {
-            if (options?.logout === true) {
-              yield* auth.logout();
-            }
-
-            if (options?.closeWindow === true) {
-              yield* Effect.sync(() => {
-                window.close();
-              });
-            }
-
-            return yield* new ScriptStopSignal({
-              reason: "script requested exit",
-            });
-          }),
-        inputs: {
-          get: (key: string) => Effect.succeed(inputValues[key]),
-          getAll: () => Effect.succeed({ ...inputValues }),
-        },
-        log: (message) =>
-          Effect.sync(() => {
-            console.log("[script]", message);
-          }),
-        options: {
-          getAll: getOptions,
-          getSafeStartStop: () =>
-            SubscriptionRef.get(optionsRef).pipe(
-              Effect.map((options) => options.safeStartStop),
-            ),
-          getUsePrivateRooms: () =>
-            SubscriptionRef.get(optionsRef).pipe(
-              Effect.map((options) => options.usePrivateRooms),
-            ),
-          reset: () => setOptions(() => defaultOptions),
-          setSafeStartStop: (enabled: boolean) =>
-            setOptions((options) => ({
-              ...options,
-              safeStartStop: enabled,
-            })),
-          setUsePrivateRooms: (enabled: boolean) =>
-            setOptions((options) => ({
-              ...options,
-              usePrivateRooms: enabled,
-            })),
-        },
-        signal: scope.signal,
-        sleep: (ms) =>
-          Number.isFinite(ms) && ms >= 0
-            ? Effect.sleep(`${Math.trunc(ms)} millis`)
-            : Effect.fail(
-                new ScriptExecutionError({
-                  detail: "script.sleep requires a non-negative finite number.",
-                }),
-              ),
-        stop: (reason) =>
-          Effect.fail(
-            new ScriptStopSignal(reason === undefined ? {} : { reason }),
-          ),
-      };
-      return Object.freeze(script);
-    };
-
     const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>
       events
         .on({ type: "connection" }, (event) =>
@@ -743,7 +633,14 @@ export const layer = Layer.effect(
         yield* scriptScope.addCleanup(() =>
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
         );
-        const script = makeScriptApi(scriptScope, inputs);
+        const script = makeScriptRuntimeApi({
+          auth,
+          getOptions,
+          inputValues: inputs,
+          log: (message) => console.log("[script]", message),
+          scope: scriptScope,
+          setOptions,
+        });
         const lucent = makeScriptLucentStd({
           bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
@@ -982,10 +879,14 @@ export const layer = Layer.effect(
           ),
         ),
       onOptions: (listener) =>
-        observe(SubscriptionRef.changes(optionsRef), snapshotOptions, listener),
+        observe(
+          SubscriptionRef.changes(optionsRef),
+          snapshotScriptRuntimeOptions,
+          listener,
+        ),
       onStatus: (listener) =>
         observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
-      resetOptions: () => setOptions(() => defaultOptions),
+      resetOptions: () => setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS),
       setSafeStartStop: (enabled) =>
         setOptions((options) => ({ ...options, safeStartStop: enabled })),
       setUsePrivateRooms: (enabled) =>

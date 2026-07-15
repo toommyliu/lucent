@@ -30,6 +30,9 @@ import {
   Input,
   Label,
   Spinner,
+  Tabs,
+  TabsList,
+  TabsTrigger,
   Textarea,
   TooltipIconButton,
 } from "@lucent/ui";
@@ -96,6 +99,7 @@ import {
   ScriptRunner,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
+import { runScriptEval } from "./scripting/ScriptEvaluator";
 import {
   fatalScriptAlertFromError,
   fatalScriptAlertFromStatus,
@@ -128,6 +132,7 @@ type DebugPanelFrame = {
 type FlashRuntimeServices = Awaited<ReturnType<typeof collectFlashServices>>;
 
 type DebugEvalLogLevel = "debug" | "error" | "info" | "log" | "warn";
+type DebugEvalMode = "flash" | "script";
 
 interface DebugEvalLogEntry {
   readonly arguments: readonly unknown[];
@@ -146,7 +151,8 @@ const DEBUG_PANEL_MIN_HEIGHT_PX = 220;
 const DEBUG_PANEL_DEFAULT_WIDTH_PX = 432;
 const DEBUG_PANEL_DEFAULT_HEIGHT_PX = 360;
 
-const DEFAULT_INTERNAL_DEBUG_SOURCE = `return yield* services.player.getCell();`;
+const DEFAULT_FLASH_DEBUG_SOURCE = `return yield* services.player.getCell();`;
+const DEFAULT_SCRIPT_DEBUG_SOURCE = `return yield* api.player.getCell();`;
 const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
 const PLAYER_READY_RETRY_INTERVAL_MS = 250;
 const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
@@ -552,22 +558,30 @@ const createInitialPanelFrame = (): DebugPanelFrame => {
   });
 };
 
-const runInternalEval = (source: string): Promise<DebugEvalExecution> =>
+const makeDebugConsole = (logs: DebugEvalLogEntry[]): Console => {
+  const capture =
+    (level: DebugEvalLogLevel) =>
+    (...args: unknown[]) => {
+      logs.push({ arguments: args, level });
+      console[level](...args);
+    };
+
+  return Object.assign(Object.create(console) as Console, {
+    debug: capture("debug"),
+    error: capture("error"),
+    info: capture("info"),
+    log: capture("log"),
+    warn: capture("warn"),
+  });
+};
+
+const runFlashEval = (
+  source: string,
+  signal: AbortSignal,
+): Promise<DebugEvalExecution> =>
   collectFlashServices().then(async (services) => {
     const logs: DebugEvalLogEntry[] = [];
-    const capture =
-      (level: DebugEvalLogLevel) =>
-      (...args: unknown[]) => {
-        logs.push({ arguments: args, level });
-        console[level](...args);
-      };
-    const debugConsole = Object.assign(Object.create(console) as Console, {
-      debug: capture("debug"),
-      error: capture("error"),
-      info: capture("info"),
-      log: capture("log"),
-      warn: capture("warn"),
-    });
+    const debugConsole = makeDebugConsole(logs);
     const compileInternalEval = new EffectFunction(
       "services",
       "Effect",
@@ -580,9 +594,31 @@ ${source}
 
     const result = await runtime.runPromise(
       compileInternalEval(services, Effect, debugConsole),
+      { signal },
     );
     return { logs, result };
   });
+
+const runScriptDebugEval = async (
+  source: string,
+  signal: AbortSignal,
+): Promise<DebugEvalExecution> => {
+  const logs: DebugEvalLogEntry[] = [];
+  const result = await runtime.runPromise(
+    runScriptEval(source, makeDebugConsole(logs)),
+    { signal },
+  );
+  return { logs, result };
+};
+
+const runDebugEval = (
+  mode: DebugEvalMode,
+  source: string,
+  signal: AbortSignal,
+): Promise<DebugEvalExecution> =>
+  mode === "script"
+    ? runScriptDebugEval(source, signal)
+    : runFlashEval(source, signal);
 
 const readCachedTravelOptions = (): Promise<TravelOptions> =>
   runtime.runPromise(
@@ -634,14 +670,18 @@ const readPlayerReady = (): Promise<boolean> =>
 
 function DevDebugEvaluator(): JSX.Element {
   const [open, setOpen] = createSignal(false);
-  const [internalSource, setInternalSource] = createSignal(
-    DEFAULT_INTERNAL_DEBUG_SOURCE,
+  const [mode, setMode] = createSignal<DebugEvalMode>("script");
+  const [flashSource, setFlashSource] = createSignal(
+    DEFAULT_FLASH_DEBUG_SOURCE,
+  );
+  const [scriptSource, setScriptSource] = createSignal(
+    DEFAULT_SCRIPT_DEBUG_SOURCE,
   );
   const [status, setStatus] = createSignal("Idle");
   const [output, setOutput] = createSignal("");
   const [consoleOutput, setConsoleOutput] = createSignal("");
   const [resultOutput, setResultOutput] = createSignal("");
-  const [copyableOutput, setCopyableOutput] = createSignal("");
+  const [copyableOutput, setCopyableOutput] = createSignal<string | null>(null);
   const [outputCopied, setOutputCopied] = createSignal(false);
   const [running, setRunning] = createSignal(false);
   const [panelFrame, setPanelFrame] = createSignal<DebugPanelFrame>(
@@ -651,6 +691,29 @@ function DevDebugEvaluator(): JSX.Element {
   let panelResizeObserver: ResizeObserver | undefined;
   let cleanupPanelPointer: (() => void) | undefined;
   let outputCopiedTimer: number | undefined;
+  let evalController: AbortController | undefined;
+
+  const currentSource = createMemo(() =>
+    mode() === "script" ? scriptSource() : flashSource(),
+  );
+
+  const clearOutput = () => {
+    setOutput("");
+    setConsoleOutput("");
+    setResultOutput("");
+    setCopyableOutput(null);
+    setOutputCopied(false);
+  };
+
+  const selectMode = (nextMode: DebugEvalMode) => {
+    if (running() || nextMode === mode()) {
+      return;
+    }
+
+    setMode(nextMode);
+    setStatus("Idle");
+    clearOutput();
+  };
 
   onMount(() => {
     const handleResize = () => {
@@ -688,6 +751,7 @@ function DevDebugEvaluator(): JSX.Element {
       if (outputCopiedTimer !== undefined) {
         window.clearTimeout(outputCopiedTimer);
       }
+      evalController?.abort();
       panelResizeObserver?.disconnect();
       window.removeEventListener("resize", handleResize);
     });
@@ -720,13 +784,13 @@ function DevDebugEvaluator(): JSX.Element {
 
   const copyOutput = async () => {
     const value = copyableOutput();
-    if (value === "") {
+    if (value === null) {
       return;
     }
 
     try {
       await navigator.clipboard.writeText(value);
-      setStatus("Output copied");
+      setStatus("Result copied");
       markOutputCopied();
     } catch {
       setStatus("Copy failed");
@@ -738,25 +802,21 @@ function DevDebugEvaluator(): JSX.Element {
       return;
     }
 
-    const source = internalSource().trim();
+    const evalMode = mode();
+    const source = currentSource().trim();
     if (source === "") {
       setStatus("No code to evaluate");
-      setOutput("");
-      setConsoleOutput("");
-      setResultOutput("");
-      setCopyableOutput("");
+      clearOutput();
       return;
     }
 
+    const controller = new AbortController();
+    evalController = controller;
     setRunning(true);
-    setStatus("Running internal eval");
-    setOutput("");
-    setConsoleOutput("");
-    setResultOutput("");
-    setCopyableOutput("");
-    setOutputCopied(false);
+    setStatus(`Running ${evalMode} eval`);
+    clearOutput();
 
-    void runInternalEval(source)
+    void runDebugEval(evalMode, source, controller.signal)
       .then((execution) => {
         const formattedConsole = formatEvalConsole(execution.logs);
         const formattedResult = formatEvalValue(execution.result);
@@ -768,9 +828,15 @@ function DevDebugEvaluator(): JSX.Element {
         setOutput(truncateOutput(formattedValue));
         setConsoleOutput(truncateOutput(formattedConsole));
         setResultOutput(truncateOutput(formattedResult));
-        setCopyableOutput(formattedValue);
+        setCopyableOutput(formattedResult);
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          setStatus("Eval stopped");
+          clearOutput();
+          return;
+        }
+
         const formattedError = formatEvalError(error);
         setStatus("Eval failed");
         setOutput(truncateOutput(formattedError));
@@ -779,8 +845,21 @@ function DevDebugEvaluator(): JSX.Element {
         setCopyableOutput(formattedError);
       })
       .finally(() => {
-        setRunning(false);
+        if (evalController === controller) {
+          evalController = undefined;
+          setRunning(false);
+        }
       });
+  };
+
+  const stopEval = () => {
+    const controller = evalController;
+    if (controller === undefined || controller.signal.aborted) {
+      return;
+    }
+
+    setStatus("Stopping eval");
+    controller.abort();
   };
 
   const startPanelDrag: JSX.EventHandler<HTMLElement, PointerEvent> = (
@@ -878,6 +957,23 @@ function DevDebugEvaluator(): JSX.Element {
               class="game-debug-eval__header-actions"
               onPointerDown={(event) => event.stopPropagation()}
             >
+              <Tabs
+                aria-label="Debug evaluator mode"
+                class="game-debug-eval__mode"
+                onValueChange={(details) =>
+                  selectMode(details.value as DebugEvalMode)
+                }
+                value={mode()}
+              >
+                <TabsList>
+                  <TabsTrigger disabled={running()} value="script">
+                    Script
+                  </TabsTrigger>
+                  <TabsTrigger disabled={running()} value="flash">
+                    Flash
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Button
                 aria-label="Close debug evaluator"
                 class="game-debug-eval__close"
@@ -890,42 +986,53 @@ function DevDebugEvaluator(): JSX.Element {
             </div>
           </div>
           <Textarea
-            aria-label="Debug eval code"
+            aria-label={`${mode() === "script" ? "Script" : "Flash"} debug eval code`}
             class="game-debug-eval__source"
             fullWidth
             size="sm"
             spellcheck={false}
-            value={internalSource()}
-            onInput={(event) => setInternalSource(event.currentTarget.value)}
+            value={currentSource()}
+            onInput={(event) => {
+              const source = event.currentTarget.value;
+              if (mode() === "script") {
+                setScriptSource(source);
+              } else {
+                setFlashSource(source);
+              }
+            }}
           />
           <div class="game-debug-eval__footer-actions">
             <Button disabled={running()} onClick={runEval} size="sm">
               {running() ? "Running" : "Eval"}
             </Button>
+            <Show when={running()}>
+              <Button onClick={stopEval} size="sm" variant="outline">
+                Stop
+              </Button>
+            </Show>
+            <Button
+              aria-label={
+                outputCopied()
+                  ? "Debug eval result copied"
+                  : "Copy debug eval result"
+              }
+              class="game-debug-eval__copy-output"
+              disabled={copyableOutput() === null}
+              onClick={() => void copyOutput()}
+              size="sm"
+              title={outputCopied() ? "Copied" : "Copy result"}
+              variant="outline"
+            >
+              <Icon
+                icon={outputCopied() ? "check" : "copy"}
+                class="button__icon"
+              />
+              {outputCopied() ? "Copied" : "Copy"}
+            </Button>
           </div>
           <div class="game-debug-eval__output">
             <div class="game-debug-eval__status-row">
               <span>{status()}</span>
-              <Show when={output() !== ""}>
-                <Button
-                  aria-label={
-                    outputCopied()
-                      ? "Debug eval output copied"
-                      : "Copy debug eval output"
-                  }
-                  class="game-debug-eval__copy-output"
-                  onClick={() => void copyOutput()}
-                  size="sm"
-                  title={outputCopied() ? "Copied" : "Copy output"}
-                  variant="outline"
-                >
-                  <Icon
-                    icon={outputCopied() ? "check" : "copy"}
-                    class="button__icon"
-                  />
-                  {outputCopied() ? "Copied" : "Copy"}
-                </Button>
-              </Show>
             </div>
             <Show when={output() !== ""}>
               <Show when={consoleOutput() !== ""}>
