@@ -993,6 +993,7 @@ export function App(props: {
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
+  const [scriptStopInFlight, setScriptStopInFlight] = createSignal(false);
   const [fatalScriptAlert, setFatalScriptAlert] =
     createSignal<FatalScriptAlert | null>(null);
   const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
@@ -1040,7 +1041,6 @@ export function App(props: {
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
   let autoAttackToggleInFlight = false;
-  let scriptStopInFlight = false;
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
@@ -1053,6 +1053,14 @@ export function App(props: {
   const scriptRunning = createMemo(() => {
     const state = scriptRunnerStatus().state;
     return state === "running" || state === "starting" || state === "stopping";
+  });
+  const scriptTogglePending = createMemo(() => {
+    const state = scriptRunnerStatus().state;
+    return (
+      scriptStopInFlight() ||
+      state === "stopping" ||
+      (scriptBusy() && state !== "running" && state !== "starting")
+    );
   });
   const scriptInputsAvailable = createMemo(
     () =>
@@ -2387,11 +2395,11 @@ export function App(props: {
   const toggleScript = async () => {
     const wasRunning = scriptRunning();
     if (wasRunning) {
-      if (scriptStopInFlight) {
+      if (scriptStopInFlight()) {
         return;
       }
 
-      scriptStopInFlight = true;
+      setScriptStopInFlight(true);
       try {
         const status = await runtime.runPromise(
           Effect.gen(function* () {
@@ -2403,7 +2411,7 @@ export function App(props: {
       } catch (error) {
         console.error("[game:script]", "stop failed", error);
       } finally {
-        scriptStopInFlight = false;
+        setScriptStopInFlight(false);
       }
       return;
     }
@@ -3246,6 +3254,7 @@ export function App(props: {
         scriptLoaded={scriptLoaded}
         scriptRunning={scriptRunning}
         scriptStatus={scriptStatus}
+        scriptTogglePending={scriptTogglePending}
         scriptUsePrivateRooms={scriptUsePrivateRooms}
         scriptSafeStartStop={scriptSafeStartStop}
         scriptInputsAvailable={scriptInputsAvailable}

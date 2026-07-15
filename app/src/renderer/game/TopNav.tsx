@@ -117,6 +117,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptLoaded: Accessor<boolean>;
   readonly scriptRunning: Accessor<boolean>;
   readonly scriptStatus: Accessor<string>;
+  readonly scriptTogglePending: Accessor<boolean>;
   readonly scriptUsePrivateRooms: Accessor<boolean>;
   readonly scriptSafeStartStop: Accessor<boolean>;
   readonly scriptInputsAvailable: Accessor<boolean>;
@@ -448,6 +449,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const handleToggleScriptClick = (): void => {
     void props.toggleScript();
   };
+  const scriptToggleDisabled = (): boolean =>
+    !props.scriptLoaded() ||
+    props.scriptTogglePending() ||
+    (!props.scriptRunning() && !props.playerReady());
 
   const autoReloginNeedsAttention = (): boolean =>
     props.autoReloginLastError() !== "";
@@ -743,7 +748,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </MenuItem>
                 <MenuItem
                   class="game-menu__item"
-                  disabled={!props.scriptLoaded() || !props.playerReady()}
+                  disabled={scriptToggleDisabled()}
                   onClick={handleToggleScriptClick}
                   value="start-script"
                 >
@@ -1061,7 +1066,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 !props.scriptRunning() &&
                 "game-topnav__button--success",
             )}
-            disabled={!props.scriptLoaded() || !props.playerReady()}
+            disabled={scriptToggleDisabled()}
             onClick={handleToggleScriptClick}
             size="sm"
             variant="ghost"

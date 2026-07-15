@@ -5,9 +5,7 @@ import {
   Effect,
   Fiber,
   Layer,
-  Option,
   Ref,
-  Schema,
   Semaphore,
   Stream,
   SubscriptionRef,
@@ -34,6 +32,10 @@ import {
   makeScriptLucentStd,
   type ScriptRuntimeServices,
 } from "./ScriptRuntimeStd";
+import {
+  makeMoveToOwnHouse,
+  runWithSafeStartStop as withSafeStartStop,
+} from "./safeStartStop";
 import {
   ScriptExecutionError,
   ScriptNotReadyError,
@@ -526,129 +528,30 @@ export const layer = Layer.effect(
       },
     );
 
-    const warnSafeStartStopFailure = (phase: "after" | "before") =>
-      Effect.catchCause((cause: Cause.Cause<unknown>) =>
-        Effect.logWarning({
-          cause,
-          message: `script safeStartStop ${phase}-run house move failed`,
-        }),
-      );
-
-    const returnInfoPath = "world.returnInfo";
-    const setReturnInfo = (value: unknown) =>
-      bridge
-        .invoke("flash.setGameObject", [returnInfoPath, value], Schema.Void)
-        .pipe(Effect.map(Option.isSome));
-
-    const moveToOwnHouse = (phase: "after" | "before") =>
-      Effect.gen(function* () {
-        const username = (yield* auth.getUsername()).trim();
-        if (username === "") {
-          yield* Effect.logWarning({
-            message: `script safeStartStop ${phase}-run skipped; username is unavailable`,
-          });
-          return;
-        }
-
-        if (!(yield* player.isAlive())) {
-          yield* Effect.logInfo({
-            message: `script safeStartStop ${phase}-run waiting for automatic respawn`,
-          });
-          yield* wait.until(player.isAlive());
-        }
-
-        if (!(yield* combat.exit())) {
-          yield* Effect.logWarning({
-            message: `script safeStartStop ${phase}-run skipped; combat could not be exited`,
-          });
-          return;
-        }
-
-        yield* Effect.sleep("1 second");
-
-        const move = Effect.gen(function* () {
-          yield* packet.sendServer(`%xt%zm%house%1%${username}%`);
-          const moved = yield* wait.until(
-            Effect.gen(function* () {
-              const [mapName, ready] = yield* Effect.all([
-                map.getName(),
-                player.isReady(),
-              ]);
-              return mapName.toLowerCase() === "house" && ready;
-            }),
-            { timeout: "5 seconds" },
-          );
-
-          if (!moved) {
-            yield* Effect.logWarning({
-              message: `script safeStartStop ${phase}-run house move timed out`,
-            });
-          }
-        });
-
-        // Clear (potentially) stale returnInfo for clean transfer.
-        const returnInfoIsNull = yield* bridge.invoke(
-          "flash.isNull",
-          [returnInfoPath],
-          Schema.Boolean,
-        );
-        if (Option.getOrElse(returnInfoIsNull, () => false)) return yield* move;
-
-        const returnInfo = yield* bridge.invokeJson(
-          "flash.getGameObject",
-          [returnInfoPath],
-          Schema.Unknown,
-        );
-        if (Option.isNone(returnInfo) || !(yield* setReturnInfo(null))) {
-          yield* Effect.logWarning({
-            message: `script safeStartStop ${phase}-run skipped; world.returnInfo could not be cleared`,
-          });
-          return;
-        }
-
-        yield* move.pipe(
-          Effect.ensuring(setReturnInfo(returnInfo.value).pipe(Effect.asVoid)),
-        );
-      }).pipe(warnSafeStartStopFailure(phase));
+    const moveToOwnHouse = makeMoveToOwnHouse({
+      auth,
+      bridge,
+      combat,
+      packet,
+      player,
+      wait,
+    });
 
     const runWithSafeStartStop = (main: ScriptMain) =>
-      Effect.gen(function* () {
-        const options = yield* SubscriptionRef.get(optionsRef);
-        if (options.safeStartStop) {
-          yield* moveToOwnHouse("before");
-        }
-
-        const runMain = Effect.gen(function* () {
+      withSafeStartStop(
+        Effect.gen(function* () {
           const iterator = main() as Generator<
             Effect.Effect<any, any, never>,
             unknown,
             any
           >;
           return yield* iterator;
-        }).pipe(Effect.asVoid);
-
-        return yield* runMain.pipe(
-          Effect.matchCauseEffect({
-            onFailure: (cause) =>
-              SubscriptionRef.get(optionsRef).pipe(
-                Effect.flatMap((currentOptions) =>
-                  currentOptions.safeStartStop
-                    ? moveToOwnHouse("after")
-                    : Effect.void,
-                ),
-                Effect.andThen(Effect.failCause(cause)),
-              ),
-            onSuccess: () =>
-              SubscriptionRef.get(optionsRef).pipe(
-                Effect.flatMap((currentOptions) =>
-                  currentOptions.safeStartStop
-                    ? moveToOwnHouse("after")
-                    : Effect.void,
-                ),
-              ),
-          }),
-        );
-      });
+        }).pipe(Effect.asVoid),
+        SubscriptionRef.get(optionsRef).pipe(
+          Effect.map((options) => options.safeStartStop),
+        ),
+        moveToOwnHouse,
+      );
 
     const makeScriptApi = (
       scope: ScriptAsyncScope,
