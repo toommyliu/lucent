@@ -743,7 +743,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </MenuItem>
                 <MenuItem
                   class="game-menu__item"
-                  disabled={!props.scriptLoaded()}
+                  disabled={!props.scriptLoaded() || !props.playerReady()}
                   onClick={handleToggleScriptClick}
                   value="start-script"
                 >
@@ -1061,7 +1061,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 !props.scriptRunning() &&
                 "game-topnav__button--success",
             )}
-            disabled={!props.scriptLoaded()}
+            disabled={!props.scriptLoaded() || !props.playerReady()}
             onClick={handleToggleScriptClick}
             size="sm"
             variant="ghost"
