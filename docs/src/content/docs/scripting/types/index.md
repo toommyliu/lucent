@@ -90,6 +90,9 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
 | <a href="/scripting/types/packet-wire-type/" data-script-type="packet-wire-type"><code>PacketWireType</code></a> | type alias |  |
 | <a href="/scripting/types/player-data/" data-script-type="player-data"><code>PlayerData</code></a> | interface |  |
+| <a href="/scripting/types/player-query/" data-script-type="player-query"><code>PlayerQuery</code></a> | type alias |  |
+| <a href="/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | type alias | Alias of PlayerSelectorByUsername. |
+| <a href="/scripting/types/player-selector-by-username/" data-script-type="player-selector-by-username"><code>PlayerSelectorByUsername</code></a> | interface |  |
 | <a href="/scripting/types/player-snapshot/" data-script-type="player-snapshot"><code>PlayerSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
 | <a href="/scripting/types/projection-event/" data-script-type="projection-event"><code>ProjectionEvent</code></a> | type alias |  |

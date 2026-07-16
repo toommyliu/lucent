@@ -44,8 +44,11 @@ export const makeScriptLucentStd = (
     options.script,
   );
   const settings = makeScriptSettingsApi(options.services.settings);
+  const recipes = makeScriptRecipesApi(
+    { ...options.services, player },
+    options.bridge,
+  );
   const services = { ...options.services, player, players };
-  const recipes = makeScriptRecipesApi(services, options.bridge);
 
   return Object.freeze({
     api: Object.freeze({

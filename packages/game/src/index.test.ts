@@ -9,6 +9,7 @@ import {
   orderMonstersByPriority,
   toItemSelector,
   toMonsterSelector,
+  toPlayerSelector,
 } from "./index";
 
 describe("game domain models", () => {
@@ -39,6 +40,10 @@ describe("game domain models", () => {
     player.update({ hp: 0, state: EntityState.Dead });
     expect(player.dead).toBe(true);
     expect(player.toJSON()).toMatchObject({ alive: false, hp: 0 });
+    expect(toPlayerSelector(" Hero ")).toEqual({ username: "Hero" });
+    expect(toPlayerSelector({ username: " Hero " })).toEqual({
+      username: "Hero",
+    });
   });
 
   it("interprets item context, equipment type, and selectors", () => {

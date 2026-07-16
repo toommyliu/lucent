@@ -5,6 +5,17 @@ import {
   type EntitySnapshot,
 } from "./entity";
 
+export interface PlayerSelectorByUsername {
+  readonly username: string;
+}
+
+export type PlayerSelector = PlayerSelectorByUsername;
+export type PlayerQuery = PlayerSelector | string;
+
+export const toPlayerSelector = (query: PlayerQuery): PlayerSelector => ({
+  username: typeof query === "string" ? query.trim() : query.username.trim(),
+});
+
 export type BoostType = "classPoints" | "exp" | "gold" | "rep";
 
 export interface Position {

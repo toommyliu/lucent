@@ -176,7 +176,7 @@ interface ScriptApi {
     readonly monsters: { get: (selector: MonsterQuery) => Effect<LiveMonster | null, never, never>; getAll: () => Effect<LiveMonster[], never, never>; getAvailable: () => Effect<LiveMonster[], never, never>; isAvailable: (selector: MonsterQuery) => Effect<boolean, never, never>; };
     readonly packet: ScriptPacketApi;
     readonly player: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; factions: { get: (selector: string | number) => Effect<LiveFaction | null, never, never>; getAll: () => Effect<LiveFaction[], never, never>; }; get: () => Effect<LivePlayer | null, never, never>; getCell: () => Effect<string, never, never>; getClassName: () => Effect<string, never, never>; getGender: () => Effect<string, never, never>; getGold: () => Effect<number, never, never>; getHp: () => Effect<number, never, never>; getLevel: () => Effect<number, never, never>; getMaxHp: () => Effect<number, never, never>; getMaxMp: () => Effect<number, never, never>; getMp: () => Effect<number, never, never>; getPad: () => Effect<string, never, never>; getPosition: () => Effect<{ x: number; y: number; }, never, never>; getState: () => Effect<EntityState, never, never>; goToPlayer: (name: string) => Effect<void, never, never>; hasActiveBoost: (boostType: BoostType) => Effect<boolean, never, never>; isAfk: () => Effect<boolean, never, never>; isAlive: () => Effect<boolean, never, never>; isMember: () => Effect<boolean, never, never>; isReady: () => Effect<boolean, never, never>; joinMap: (target: string, cell?: string, pad?: string) => Effect<boolean, never, never>; jumpToCell: (cell: string, pad?: string) => Effect<boolean, never, never>; outfits: { equip: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; get: (name: string) => Effect<LiveOutfit | null, never, never>; getAll: () => Effect<LiveOutfit[], never, never>; wear: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; }; rest: (full?: boolean) => Effect<void, never, never>; useBoost: (selector: ItemQuery) => Effect<boolean, never, never>; walkTo: (x: number, y: number, speed?: number) => Effect<boolean, never, never>; };
-    readonly players: { get: (selector: string | number) => Effect<LivePlayer | null, never, never>; getAll: () => Effect<LivePlayer[], never, never>; getMe: () => Effect<LivePlayer | null, never, never>; };
+    readonly players: ScriptPlayersApi;
     readonly quests: { abandon: (questId: number) => Effect<boolean, never, never>; accept: (questId: number, silent?: boolean) => Effect<boolean, never, never>; acceptBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; canComplete: (questId: number) => Effect<boolean, never, never>; complete: (questId: number, requestedTurnIns?: number, itemId?: number, special?: boolean) => Effect<boolean, never, never>; get: (questId: number) => Effect<LiveQuest | null, never, never>; getAccepted: () => Effect<LiveQuest[], never, never>; getAll: () => Effect<LiveQuest[], never, never>; getMaxTurnIns: (questId: number) => Effect<number, never, never>; isAvailable: (questId: number) => Effect<boolean, never, never>; isInProgress: (questId: number) => Effect<boolean, never, never>; load: (questId: number, silent?: boolean) => Effect<boolean, never, never>; loadBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; };
     readonly recipes: ScriptRecipesApi;
     readonly settings: ScriptSettingsApi;
@@ -234,6 +234,11 @@ interface ScriptPacketApi {
     readonly sendClient: (packet: string, type?: 'str' | 'json') => Effect<boolean, never, never>;
     readonly sendServer: (packet: string, type?: 'String' | 'Json') => Effect<boolean, never, never>;
     readonly stream: (selector?: PacketSelector) => Stream<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; }, never, never>;
+}
+interface ScriptPlayersApi {
+    get(selector: PlayerQuery): Effect<LivePlayer | null, never>;
+    getAll(): Effect<LivePlayer[], never>;
+    getMe(): Effect<LivePlayer | null, never>;
 }
 interface ScriptRecipesApi {
     doWheelOfDoom(toBank?: boolean): Effect<boolean, never>;
@@ -456,6 +461,7 @@ interface PacketSelector {
   readonly predicate?: (packet: Packet) => boolean;
   readonly wireType?: PacketWireType;
 }
+type PlayerQuery = PlayerSelector | string;
 interface R { readonly [key: string]: unknown; }
 interface Scope { readonly [key: string]: unknown; }
 type ScriptCallbackResult<A = unknown> =
@@ -774,6 +780,7 @@ type MonsterSelector = ObjectSelector<MonsterSelectorShape>;
 interface PacketContract { readonly [key: string]: unknown; }
 type PacketDirection = 'server' | 'client' | 'extension';
 type PacketWireType = 'str' | 'json';
+type PlayerSelector = PlayerSelectorByUsername;
 type ScriptGenerator<A = unknown> = Generator<
   Effect<any, any, never>,
   A,
@@ -835,6 +842,9 @@ type MonsterSelectorShape = {
   name: string;
   monMapId: number;
 };
+interface PlayerSelectorByUsername {
+  readonly username: string;
+}
 type ShopItemSelectorShape = ItemSelectorShape & {
   shopItemId: number;
 };

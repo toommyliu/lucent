@@ -1019,8 +1019,8 @@
       "definition": "type BoostType = \"classPoints\" | \"exp\" | \"gold\" | \"rep\"",
       "keys": [],
       "source": {
-        "path": "packages/game/src/player.ts:8",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L8"
+        "path": "packages/game/src/player.ts:19",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L19"
       }
     },
     "combat-kill-options": {
@@ -2959,8 +2959,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/player.ts:39",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L39"
+        "path": "packages/game/src/player.ts:50",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L50"
       }
     },
     "live-quest": {
@@ -3696,8 +3696,61 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/player.ts:26",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L26"
+        "path": "packages/game/src/player.ts:37",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L37"
+      }
+    },
+    "player-query": {
+      "name": "PlayerQuery",
+      "slug": "player-query",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type PlayerQuery = PlayerSelector | string",
+      "keys": [],
+      "source": {
+        "path": "packages/game/src/player.ts:13",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L13"
+      }
+    },
+    "player-selector": {
+      "name": "PlayerSelector",
+      "slug": "player-selector",
+      "kind": "type alias",
+      "summary": "Alias of PlayerSelectorByUsername.",
+      "aliasOf": "PlayerSelectorByUsername",
+      "definition": "type PlayerSelector = PlayerSelectorByUsername",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "username",
+          "signature": "readonly username: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/player.ts:12",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L12"
+      }
+    },
+    "player-selector-by-username": {
+      "name": "PlayerSelectorByUsername",
+      "slug": "player-selector-by-username",
+      "kind": "interface",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "interface PlayerSelectorByUsername",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "username",
+          "signature": "readonly username: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/game/src/player.ts:8",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L8"
       }
     },
     "player-snapshot": {
@@ -3709,8 +3762,8 @@
       "definition": "type PlayerSnapshot = Readonly<PlayerData> & EntitySnapshot",
       "keys": [],
       "source": {
-        "path": "packages/game/src/player.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L37"
+        "path": "packages/game/src/player.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L48"
       }
     },
     "position": {
@@ -3735,8 +3788,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/player.ts:10",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L10"
+        "path": "packages/game/src/player.ts:21",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L21"
       }
     },
     "projection-event": {
@@ -4240,8 +4293,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptApi.ts:68",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L68"
+        "path": "app/src/renderer/game/scripting/ScriptApi.ts:70",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L70"
       }
     },
     "script-stop-signal": {

@@ -11,6 +11,7 @@ import type { ApiService } from "../flash/api/Api";
 import type { ScriptCallbackResult, ScriptGenerator } from "./api/Callbacks";
 import type { ScriptEventsApi } from "./api/Events";
 import type { ScriptPacketApi } from "./api/Packet";
+import type { ScriptPlayersApi } from "./api/Players";
 import type { ScriptRecipesApi } from "./api/Recipes";
 import type { ScriptSettingsApi } from "./api/Settings";
 import type {
@@ -21,6 +22,7 @@ import type {
 export type ScriptEffect<A = unknown, E = unknown> = Effect.Effect<A, E>;
 
 export type { ScriptCallbackResult, ScriptGenerator };
+export type { ScriptPlayersApi } from "./api/Players";
 export type { ScriptEnhanceItemOptions, ScriptRecipesApi } from "./api/Recipes";
 
 export type ScriptInputType = "string" | "number" | "boolean" | "select";
@@ -51,7 +53,7 @@ export interface ScriptApi {
   readonly monsters: ApiService["monsters"];
   readonly packet: ScriptPacketApi;
   readonly player: ApiService["player"];
-  readonly players: ApiService["players"];
+  readonly players: ScriptPlayersApi;
   readonly quests: ApiService["quests"];
   readonly recipes: ScriptRecipesApi;
   readonly settings: ScriptSettingsApi;

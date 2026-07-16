@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import type { ApiService } from "../../flash/api/Api";
 import { privateRoom, randomPrivateRoom } from "../../flash/domain/MapTarget";
 import type { ScriptRuntimeApi } from "../ScriptApi";
+import { makeScriptPlayersApi } from "./Players";
 
 type ScriptPrivateRoomContext = {
   readonly options: Pick<ScriptRuntimeApi["options"], "getUsePrivateRooms">;
@@ -30,7 +31,7 @@ const makeScriptPlayerJoinMap = (
 
 export const makeScriptPlayerApis = <
   PlayerSource extends Pick<ApiService["player"], "get" | "joinMap">,
-  PlayersSource extends Pick<ApiService["players"], "getMe">,
+  PlayersSource extends Pick<ApiService["players"], "get" | "getAll" | "getMe">,
 >(
   player: PlayerSource,
   players: PlayersSource,
@@ -46,9 +47,6 @@ export const makeScriptPlayerApis = <
 
   return {
     player: playerApi,
-    players: {
-      ...players,
-      getMe: playerApi.get,
-    },
+    players: makeScriptPlayersApi(players, playerApi.get),
   };
 };
