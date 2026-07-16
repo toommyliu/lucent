@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
-import type { ApiService } from "../flash/api/Api";
 import type { ScriptRuntimeOptions } from "./ScriptApi";
 import {
   makeScriptRuntimeApi,
@@ -19,9 +18,6 @@ describe("ScriptRuntime", () => {
         usePrivateRooms: true,
       };
       const script = makeScriptRuntimeApi({
-        auth: {
-          logout: () => Effect.void,
-        } as ApiService["auth"],
         getOptions: () => Effect.succeed(snapshotScriptRuntimeOptions(options)),
         inputValues: { item: "Weapon" },
         log: () => undefined,

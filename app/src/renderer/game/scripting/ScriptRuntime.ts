@@ -1,11 +1,15 @@
 import { Effect } from "effect";
 
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
-import type { ApiService } from "../flash/api/Api";
 import type { ScriptRuntimeApi, ScriptRuntimeOptions } from "./ScriptApi";
 import { playBeep } from "./beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
-import { ScriptExecutionError, ScriptStopSignal } from "./ScriptRunnerErrors";
+import {
+  makeScriptExitSignal,
+  ScriptExecutionError,
+  ScriptStopSignal,
+  type ScriptExitRequest,
+} from "./ScriptRunnerErrors";
 
 export const DEFAULT_SCRIPT_RUNTIME_OPTIONS: ScriptRuntimeOptions = {
   safeStartStop: true,
@@ -21,7 +25,6 @@ export type ScriptRuntimeOptionsUpdate = (
 ) => ScriptRuntimeOptions;
 
 export interface ScriptRuntimeApiOptions {
-  readonly auth: ApiService["auth"];
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly inputValues: ScriptInputValues;
   readonly log: (message: unknown) => void;
@@ -30,6 +33,28 @@ export interface ScriptRuntimeApiOptions {
     update: ScriptRuntimeOptionsUpdate,
   ) => Effect.Effect<ScriptRuntimeOptions>;
 }
+
+export interface ScriptExitActions {
+  readonly closeWindow: () => void;
+  readonly logout: () => Effect.Effect<void>;
+}
+
+export const runScriptExitActions = Effect.fn(
+  "ScriptRuntime.runScriptExitActions",
+)(function* (
+  request: ScriptExitRequest | undefined,
+  actions: ScriptExitActions,
+) {
+  if (request?.logout === true) {
+    yield* actions.logout();
+  }
+  if (request?.logout === true && request.closeWindow === true) {
+    yield* Effect.sleep("1 second");
+  }
+  if (request?.closeWindow === true) {
+    yield* Effect.sync(actions.closeWindow);
+  }
+});
 
 export const makeScriptRuntimeApi = (
   options: ScriptRuntimeApiOptions,
@@ -44,22 +69,7 @@ export const makeScriptRuntimeApi = (
               detail: "script.beep requires a finite number of repetitions.",
             }),
           ),
-    exit: (exitOptions) =>
-      Effect.gen(function* () {
-        if (exitOptions?.logout === true) {
-          yield* options.auth.logout();
-        }
-
-        if (exitOptions?.closeWindow === true) {
-          yield* Effect.sync(() => {
-            window.close();
-          });
-        }
-
-        return yield* new ScriptStopSignal({
-          reason: "script requested exit",
-        });
-      }),
+    exit: (exitOptions) => Effect.fail(makeScriptExitSignal(exitOptions)),
     inputs: {
       get: (key: string) => Effect.succeed(inputValues[key]),
       getAll: () => Effect.succeed({ ...inputValues }),

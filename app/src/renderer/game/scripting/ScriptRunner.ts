@@ -27,6 +27,7 @@ import { loadScriptModule } from "./scriptLoader";
 import {
   DEFAULT_SCRIPT_RUNTIME_OPTIONS,
   makeScriptRuntimeApi,
+  runScriptExitActions,
   snapshotScriptRuntimeOptions,
 } from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
@@ -37,8 +38,10 @@ import {
 } from "./safeStartStop";
 import {
   ScriptExecutionError,
+  getScriptExitRequest,
   ScriptNotReadyError,
   ScriptStopSignal,
+  type ScriptExitRequest,
 } from "./ScriptRunnerErrors";
 
 export type ScriptRunnerStatus =
@@ -153,11 +156,17 @@ const activeStatusFields = (active: Pick<ActiveScript, "name" | "path">) => ({
 
 type ScriptTermination =
   | { readonly kind: "failed" }
-  | { readonly kind: "stopped"; readonly reason?: string };
+  | {
+      readonly exitRequest?: ScriptExitRequest;
+      readonly kind: "stopped";
+      readonly reason?: string;
+    };
 
-const classifyScriptTermination = (
+export const classifyScriptTermination = (
   cause: Cause.Cause<unknown>,
 ): ScriptTermination => {
+  let closeWindow = false;
+  let logout = false;
   let stopReason: string | undefined;
   let sawStopSignal = false;
 
@@ -172,6 +181,9 @@ const classifyScriptTermination = (
     ) {
       sawStopSignal = true;
       stopReason ??= reason.error.reason;
+      const exitRequest = getScriptExitRequest(reason.error);
+      closeWindow ||= exitRequest?.closeWindow === true;
+      logout ||= exitRequest?.logout === true;
       continue;
     }
 
@@ -180,6 +192,9 @@ const classifyScriptTermination = (
 
   return sawStopSignal || Cause.hasInterruptsOnly(cause)
     ? {
+        ...(closeWindow || logout
+          ? { exitRequest: { closeWindow, logout } }
+          : {}),
         kind: "stopped",
         ...(stopReason === undefined ? {} : { reason: stopReason }),
       }
@@ -299,6 +314,7 @@ export const layer = Layer.effect(
     interface FinalizationOptions {
       readonly active: ActiveScript;
       readonly awaitFiber: boolean;
+      readonly beforeComplete?: Effect.Effect<void>;
       readonly cause?: Cause.Cause<unknown>;
       readonly done: PendingFinalization["done"];
       readonly terminalStatus: () => ScriptRunnerStatus;
@@ -336,6 +352,9 @@ export const layer = Layer.effect(
       if (options.cause !== undefined) {
         yield* logScriptFailureCause(options.cause);
       }
+      if (options.beforeComplete !== undefined) {
+        yield* options.beforeComplete;
+      }
       yield* completeFinalization(
         options.active.id,
         options.done,
@@ -348,6 +367,7 @@ export const layer = Layer.effect(
         active: ActiveScript,
         options: {
           readonly awaitFiber: boolean;
+          readonly beforeComplete?: Effect.Effect<void>;
           readonly cause?: Cause.Cause<unknown>;
           readonly intermediateStatus?: ScriptRunnerStatus;
           readonly interrupt: boolean;
@@ -371,6 +391,9 @@ export const layer = Layer.effect(
             yield* finalize({
               active,
               awaitFiber: options.awaitFiber,
+              ...(options.beforeComplete === undefined
+                ? {}
+                : { beforeComplete: options.beforeComplete }),
               ...(options.cause === undefined ? {} : { cause: options.cause }),
               done,
               terminalStatus: options.terminalStatus,
@@ -431,6 +454,7 @@ export const layer = Layer.effect(
     const finishIfActive = Effect.fn("ScriptRunner.finishIfActive")(function* (
       id: number,
       terminalStatus: () => ScriptRunnerStatus,
+      beforeComplete: Effect.Effect<void> = Effect.void,
     ) {
       const done = yield* lifecycleGate.withPermit(
         Effect.gen(function* () {
@@ -441,6 +465,7 @@ export const layer = Layer.effect(
           return active?.id === id
             ? yield* beginFinalization(active, {
                 awaitFiber: false,
+                beforeComplete,
                 interrupt: false,
                 terminalStatus,
               })
@@ -449,6 +474,8 @@ export const layer = Layer.effect(
       );
       if (done !== null) {
         yield* awaitStatus(done);
+      } else {
+        yield* beforeComplete;
       }
     });
 
@@ -531,13 +558,20 @@ export const layer = Layer.effect(
           onFailure: (cause) => {
             const termination = classifyScriptTermination(cause);
             if (termination.kind === "stopped") {
-              return finishIfActive(id, () => ({
-                ...(termination.reason === undefined
-                  ? {}
-                  : { reason: termination.reason }),
-                state: "stopped",
-                stoppedAt: nowIso(),
-              }));
+              return finishIfActive(
+                id,
+                () => ({
+                  ...(termination.reason === undefined
+                    ? {}
+                    : { reason: termination.reason }),
+                  state: "stopped",
+                  stoppedAt: nowIso(),
+                }),
+                runScriptExitActions(termination.exitRequest, {
+                  closeWindow: () => window.close(),
+                  logout: auth.logout,
+                }),
+              ).pipe(Effect.uninterruptible);
             }
 
             const detailsText = causeDetailsText(cause);
@@ -634,7 +668,6 @@ export const layer = Layer.effect(
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
         );
         const script = makeScriptRuntimeApi({
-          auth,
           getOptions,
           inputValues: inputs,
           log: (message) => console.log("[script]", message),

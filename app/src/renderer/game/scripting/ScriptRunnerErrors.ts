@@ -33,3 +33,29 @@ export class ScriptStopSignal extends Schema.TaggedErrorClass<ScriptStopSignal>(
     return this.reason ?? "Script stopped.";
   }
 }
+
+export interface ScriptExitRequest {
+  readonly closeWindow: boolean;
+  readonly logout: boolean;
+}
+
+const scriptExitRequests = new WeakMap<ScriptStopSignal, ScriptExitRequest>();
+
+export const makeScriptExitSignal = (options?: {
+  readonly closeWindow?: boolean;
+  readonly logout?: boolean;
+}): ScriptStopSignal => {
+  const signal = new ScriptStopSignal({ reason: "script requested exit" });
+  const request: ScriptExitRequest = {
+    closeWindow: options?.closeWindow === true,
+    logout: options?.logout === true,
+  };
+  if (request.closeWindow || request.logout) {
+    scriptExitRequests.set(signal, request);
+  }
+  return signal;
+};
+
+export const getScriptExitRequest = (
+  signal: ScriptStopSignal,
+): ScriptExitRequest | undefined => scriptExitRequests.get(signal);

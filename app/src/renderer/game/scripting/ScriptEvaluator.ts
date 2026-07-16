@@ -13,11 +13,16 @@ import { scriptEffectStd } from "./ScriptEffectStd";
 import { ScriptRunner } from "./ScriptRunner";
 import {
   makeScriptRuntimeApi,
+  runScriptExitActions,
   snapshotScriptRuntimeOptions,
 } from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptAsyncScope } from "./scriptAsyncScope";
-import { ScriptExecutionError } from "./ScriptRunnerErrors";
+import {
+  getScriptExitRequest,
+  ScriptExecutionError,
+  ScriptStopSignal,
+} from "./ScriptRunnerErrors";
 import { makeScriptRuntimeServices } from "./api/Services";
 
 const ScriptEvalFunction = Function as unknown as new (
@@ -92,7 +97,6 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         ).pipe(Effect.map(snapshotScriptRuntimeOptions));
       const callbackFailure = yield* Deferred.make<never, unknown>();
       const script = makeScriptRuntimeApi({
-        auth: api.auth,
         getOptions,
         inputValues: {},
         log: (message) => debugConsole.log("[script]", message),
@@ -115,6 +119,15 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
       return yield* Effect.raceFirst(
         compileScriptEval(source, lucent, debugConsole),
         Deferred.await(callbackFailure),
+      ).pipe(
+        Effect.catch((error) =>
+          error instanceof ScriptStopSignal
+            ? runScriptExitActions(getScriptExitRequest(error), {
+                closeWindow: () => window.close(),
+                logout: api.auth.logout,
+              }).pipe(Effect.andThen(Effect.fail(error)))
+            : Effect.fail(error),
+        ),
       );
     }).pipe(Effect.ensuring(scope.close));
   },
