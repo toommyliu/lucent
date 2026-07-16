@@ -426,10 +426,6 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   width: min(17rem, calc(100vw - 0.5rem)) !important;
 }
 
-.game-menu--options {
-  width: min(24rem, calc(100vw - 0.5rem));
-}
-
 .game-menu--autozone {
   width: min(14rem, calc(100vw - 0.5rem)) !important;
 }

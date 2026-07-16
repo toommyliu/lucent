@@ -824,10 +824,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
             >
               Options
             </TopNavMenuTrigger>
-            <GameMenuContent
-              class="game-menu game-menu--options"
-              portalMount={menuPortalMount}
-            >
+            <GameMenuContent class="game-menu" portalMount={menuPortalMount}>
               <TopNavOptionsMenuContent {...props} />
             </GameMenuContent>
           </Menu>
