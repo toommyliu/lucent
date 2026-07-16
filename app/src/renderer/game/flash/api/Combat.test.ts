@@ -16,7 +16,6 @@ import { makeEvents } from "./Events";
 import { makeInventory } from "./Inventory";
 import { makeMap } from "./Map";
 import { makeMonsters } from "./Monsters";
-import { makePacket } from "./Packet";
 import { makePlayer } from "./Player";
 import { makePlayers } from "./Players";
 import { makeSettings } from "./Settings";
@@ -91,9 +90,8 @@ describe("Combat", () => {
           const store = yield* makeStore;
           const wait = makeWaitApi(bridge, gateway);
           const events = yield* makeEvents(gateway, wait);
-          const packet = yield* makePacket(gateway, store, wait);
           const auth = makeAuth(bridge, store, wait);
-          const inventory = makeInventory(bridge, store, packet, wait);
+          const inventory = makeInventory(bridge, store, wait);
           const map = makeMap(bridge, store, wait);
           const monsters = makeMonsters(bridge, store);
           const players = makePlayers(store);

@@ -79,6 +79,7 @@ export interface Item {
   readonly temporaryItem: boolean;
   readonly wearable: boolean;
   readonly weapon: boolean;
+  readonly worn: boolean;
   matches(selector: ItemQuery | ShopItemQuery): boolean;
   toJSON(): ItemSnapshot;
 }
@@ -104,6 +105,7 @@ export interface ItemData {
   shopItemId?: number;
   temporaryItem: boolean;
   wearable?: boolean;
+  worn?: boolean;
 }
 
 export type ItemSnapshot = Readonly<ItemData> & {
@@ -115,6 +117,7 @@ export type ItemSnapshot = Readonly<ItemData> & {
   readonly pet: boolean;
   readonly weapon: boolean;
   readonly wearable: boolean;
+  readonly worn: boolean;
 };
 
 export class LiveItem extends LiveModel<ItemData> implements Item {
@@ -199,6 +202,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   get wearable(): boolean {
     return this.modelData.wearable ?? false;
   }
+  get worn(): boolean {
+    return this.modelData.worn ?? false;
+  }
 
   matches(selector: ItemQuery | ShopItemQuery): boolean {
     if (typeof selector === "number") return this.itemId === selector;
@@ -227,6 +233,7 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
       pet: this.pet,
       wearable: this.wearable,
       weapon: this.weapon,
+      worn: this.worn,
     };
   }
 }

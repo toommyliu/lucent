@@ -47,6 +47,7 @@ const CharacterItemMutation = Schema.Struct({
 });
 const EquipmentMutation = Schema.Struct({
   ItemID: PositiveWireInt,
+  sES: Schema.optionalKey(Schema.String),
   success: Schema.optionalKey(WireBoolean),
   strES: Schema.optionalKey(Schema.String),
   uid: Schema.optionalKey(PositiveWireInt),
@@ -362,7 +363,8 @@ export const projectItems = (
       }
       case "equipItem":
       case "wearItem":
-      case "unequipItem": {
+      case "unequipItem":
+      case "unwearItem": {
         const decoded = decodeEquipmentMutation(data);
         if (Option.isNone(decoded)) {
           yield* diagnose(
@@ -381,23 +383,29 @@ export const projectItems = (
           return [];
         }
 
-        const containers = ["inventory", "temporary"] as const;
+        const isWearMutation =
+          packet.command === "wearItem" || packet.command === "unwearItem";
+        const activating =
+          packet.command === "equipItem" || packet.command === "wearItem";
+        const equipmentSlot = decoded.value.sES ?? decoded.value.strES;
+        const containers = isWearMutation
+          ? (["inventory"] as const)
+          : (["inventory", "temporary"] as const);
         for (const container of containers) {
           const item = yield* store.items.get(container, decoded.value.ItemID);
           if (item === null) continue;
 
-          if (
-            packet.command !== "unequipItem" &&
-            decoded.value.strES !== undefined
-          ) {
+          if (activating && equipmentSlot !== undefined) {
             const items = yield* store.items.getAll(container);
-            for (const equipped of items) {
-              if (equipped.equipmentSlot === decoded.value.strES) {
-                equipped.update({ equipped: false });
+            for (const current of items) {
+              if (current.equipmentSlot === equipmentSlot) {
+                if (isWearMutation) current.update({ worn: false });
+                else current.update({ equipped: false });
               }
             }
           }
-          item.update({ equipped: packet.command !== "unequipItem" });
+          if (isWearMutation) item.update({ worn: activating });
+          else item.update({ equipped: activating });
           break;
         }
         return [];

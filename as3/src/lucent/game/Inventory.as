@@ -58,7 +58,33 @@ package lucent.game {
         return true;
       }
 
-      game.world.sendEquipItemRequest({ItemID: itemObj.ItemID});
+      return game.world.sendEquipItemRequest({ItemID: itemObj.ItemID});
+    }
+
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
+    [BridgeExport]
+    public static function wear(selector:Object):Boolean {
+      var itemObj:Object = getItem(selector);
+      if (!itemObj || !itemObj.hasOwnProperty("bWear")) {
+        return false;
+      }
+
+      if (itemObj.bWear == 1) {
+        return true;
+      }
+
+      var game:Object = Main.Game;
+      if (!game.world.coolDown("wearItem")) {
+        return false;
+      }
+
+      game.sfc.sendXtMessage(
+        "zm",
+        "wearItem",
+        [itemObj.ItemID],
+        "str",
+        game.world.curRoom
+      );
       return true;
     }
 

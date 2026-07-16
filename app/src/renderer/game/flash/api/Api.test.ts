@@ -81,21 +81,37 @@ const makeTarget = () => {
       calls.withdrawals += 1;
       return true;
     },
-    "flash.callGameFunction": () => {
+    "house.getSlots": () => 1,
+    "inventory.equip": (selector: { itemId: number }) => {
+      calls.equips += 1;
+      emitExtension(target, {
+        ItemID: selector.itemId,
+        cmd: "equipItem",
+        strES: "Weapon",
+        uid: 1,
+      });
+      return true;
+    },
+    "inventory.wear": (selector: { itemId: number }) => {
       calls.wears += 1;
       emitExtension(target, {
-        ItemID: 52,
+        ItemID: selector.itemId,
         cmd: "wearItem",
+        sES: "Weapon",
         success: 1,
+        uid: 2,
       });
-      return "";
-    },
-    "house.getSlots": () => 1,
-    "inventory.equip": () => {
-      calls.equips += 1;
+      emitExtension(target, {
+        ItemID: selector.itemId,
+        cmd: "wearItem",
+        sES: "Weapon",
+        success: 1,
+        uid: 1,
+      });
       return true;
     },
     "inventory.getSlots": () => 4,
+    "player.getUserId": () => 1,
     "player.isMember": () => false,
     "shops.isOpen": (shopId = 0) =>
       openShopId !== 0 && (shopId === 0 || shopId === openShopId),
@@ -231,8 +247,25 @@ describe("Api", () => {
                 items: [
                   { ItemID: 50, sName: "Normal Item" },
                   { ItemID: 51, bCoins: 1, sName: "Coin Item" },
-                  { ItemID: 52, bWear: 0, sName: "Wearable Item" },
-                  { ItemID: 53, bUpg: 1, sName: "Member Item" },
+                  {
+                    ItemID: 52,
+                    bWear: 0,
+                    sES: "Weapon",
+                    sName: "Wearable Item",
+                  },
+                  {
+                    ItemID: 53,
+                    bUpg: 1,
+                    bWear: 0,
+                    sES: "ba",
+                    sName: "Member Item",
+                  },
+                  {
+                    ItemID: 54,
+                    bWear: 0,
+                    sES: "Weapon",
+                    sName: "Cosmetic Item",
+                  },
                 ],
               });
               return true;
@@ -261,9 +294,54 @@ describe("Api", () => {
         expect(yield* api.bank.contains(50)).toBe(true);
         expect(yield* api.inventory.contains(42)).toBe(true);
 
-        expect(yield* api.inventory.equip(52)).toBe(true);
+        const playerLoad = yield* api.wait.forPacket(
+          {
+            command: "initUserDatas",
+            direction: "extension",
+            wireType: "json",
+          },
+          {
+            timeout: "1 second",
+            trigger: Effect.sync(() => {
+              emitExtension(target, {
+                a: [
+                  {
+                    data: { strUsername: "Hero" },
+                    uid: 1,
+                  },
+                ],
+                cmd: "initUserDatas",
+              });
+              return true;
+            }),
+          },
+        );
+        expect(playerLoad).not.toBeNull();
+
+        expect(yield* api.inventory.wear(54)).toBe(true);
+        expect(calls.wears).toBe(1);
+        const cosmetic = yield* api.inventory.get(54);
+        expect(cosmetic).not.toBeNull();
+        expect(cosmetic?.worn).toBe(true);
+        expect(cosmetic?.equipped).toBe(false);
+
+        expect(yield* api.inventory.equip(52, { wear: false })).toBe(true);
+        expect(calls.equips).toBe(1);
         expect(calls.wears).toBe(1);
         expect((yield* api.inventory.get(52))?.equipped).toBe(true);
+        expect((yield* api.inventory.get(52))?.worn).toBe(false);
+        expect((yield* api.inventory.get(54))?.worn).toBe(true);
+
+        expect(yield* api.inventory.equip(52)).toBe(true);
+        expect(calls.equips).toBe(1);
+        expect(calls.wears).toBe(2);
+        expect((yield* api.inventory.get(52))?.worn).toBe(true);
+        expect((yield* api.inventory.get(54))?.worn).toBe(false);
+
+        expect(yield* api.inventory.wear(52)).toBe(true);
+        expect(yield* api.inventory.wear(50)).toBe(false);
+        expect(yield* api.inventory.wear(53)).toBe(false);
+        expect(calls.wears).toBe(2);
 
         expect(yield* api.inventory.equip(53)).toBe(false);
         expect(calls.equips).toBe(1);

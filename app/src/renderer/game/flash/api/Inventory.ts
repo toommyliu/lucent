@@ -6,19 +6,28 @@ import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import type { Store } from "../state/Store";
-import type { Packet } from "./Packet";
 import type { Wait } from "./Wait";
 
 const WearResponse = Schema.Struct({
   ItemID: PositiveWireInt,
   success: WireBoolean,
+  uid: PositiveWireInt,
+});
+const EquipResponse = Schema.Struct({
+  ItemID: PositiveWireInt,
+  uid: PositiveWireInt,
 });
 const decodeWearResponse = Schema.decodeUnknownOption(WearResponse);
+const decodeEquipResponse = Schema.decodeUnknownOption(EquipResponse);
+
+export interface EquipOptions {
+  /** Whether to wear wearable equipment after equipping it. Defaults to true. */
+  readonly wear?: boolean;
+}
 
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
-  packet: Packet,
   wait: Wait,
 ) => {
   const getAll = () => store.items.getAll("inventory");
@@ -41,64 +50,130 @@ export const makeInventory = (
       ),
     );
 
-  const equip = (selector: ItemQuery) =>
-    Effect.gen(function* () {
-      const item = yield* get(selector);
-      if (item === null) return false;
-      if (item.equipped) return true;
+  const canUseMemberItem = Effect.fn("Inventory.canUseMemberItem")(function* (
+    memberOnly: boolean,
+  ) {
+    if (!memberOnly) return true;
+    return yield* bridge
+      .invoke("player.isMember", undefined, Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+  });
 
-      if (item.memberOnly) {
-        const member = yield* bridge
-          .invoke("player.isMember", undefined, Schema.Boolean)
-          .pipe(Effect.map(Option.getOrElse(() => false)));
-        if (!member) return false;
-      }
+  const getLocalUserId = Effect.fn("Inventory.getLocalUserId")(function* () {
+    const cached = yield* store.world.getSelfEntityId;
+    return cached === null
+      ? yield* bridge.invoke("player.getUserId", undefined, PositiveWireInt)
+      : Option.some(cached);
+  });
 
+  const wearItem = Effect.fn("Inventory.wearItem")(function* (itemId: number) {
+    const userId = yield* getLocalUserId();
+    if (Option.isNone(userId)) return false;
+    if (!(yield* wait.forGameAction("wearItem"))) return false;
+
+    let response: typeof WearResponse.Type | undefined;
+    const wearPacket = yield* wait.forPacket(
+      {
+        command: "wearItem",
+        direction: "extension",
+        predicate: (candidate) => {
+          const decoded = decodeWearResponse(packetData(candidate));
+          if (
+            Option.isNone(decoded) ||
+            decoded.value.ItemID !== itemId ||
+            decoded.value.uid !== userId.value
+          ) {
+            return false;
+          }
+          response = decoded.value;
+          return true;
+        },
+        wireType: "json",
+      },
+      {
+        timeout: "5 seconds",
+        trigger: bridge
+          .invoke("inventory.wear", [{ itemId }], Schema.Boolean)
+          .pipe(Effect.map(Option.getOrElse(() => false))),
+      },
+    );
+    return wearPacket !== null && response?.success === true;
+  });
+
+  const wearEffect = Effect.fn("Inventory.wear")(function* (
+    selector: ItemQuery,
+  ) {
+    const item = yield* get(selector);
+    if (item === null || !item.wearable) return false;
+    if (item.worn) return true;
+    if (!(yield* canUseMemberItem(item.memberOnly))) return false;
+    return yield* wearItem(item.itemId);
+  });
+  const wear = (selector: ItemQuery) => wearEffect(selector);
+
+  const equipEffect = Effect.fn("Inventory.equip")(function* (
+    selector: ItemQuery,
+    options?: EquipOptions,
+  ) {
+    const item = yield* get(selector);
+    if (item === null) return false;
+
+    const needsEquip = !item.equipped;
+    const needsWear = (options?.wear ?? true) && item.wearable && !item.worn;
+    if (!needsEquip && !needsWear) return true;
+    if (!(yield* canUseMemberItem(item.memberOnly))) return false;
+
+    if (needsEquip) {
       if (!(yield* wait.forGameAction("equipItem"))) return false;
-      const sent = yield* bridge
-        .invoke("inventory.equip", [{ itemId: item.itemId }], Schema.Boolean)
-        .pipe(Effect.map(Option.getOrElse(() => false)));
-      if (!sent) return false;
+      if (item.category === "Item") {
+        const sent = yield* bridge
+          .invoke("inventory.equip", [{ itemId: item.itemId }], Schema.Boolean)
+          .pipe(Effect.map(Option.getOrElse(() => false)));
+        if (!sent) return false;
 
-      if (!item.wearable) {
-        return yield* wait.until(
+        const equipped = yield* wait.until(
           get(item.itemId).pipe(
             Effect.map((current) => current?.equipped === true),
           ),
           { timeout: "5 seconds" },
         );
-      }
-
-      if (!(yield* wait.forGameAction("wearItem"))) return false;
-      const map = yield* store.world.getMap;
-      let response: typeof WearResponse.Type | undefined;
-      const wearPacket = yield* wait.forPacket(
-        {
-          command: "wearItem",
-          direction: "extension",
-          predicate: (candidate) => {
-            const decoded = decodeWearResponse(packetData(candidate));
-            if (
-              Option.isNone(decoded) ||
-              decoded.value.ItemID !== item.itemId
-            ) {
-              return false;
-            }
-            response = decoded.value;
-            return true;
+        if (!equipped) return false;
+      } else {
+        const userId = yield* getLocalUserId();
+        if (Option.isNone(userId)) return false;
+        const equipPacket = yield* wait.forPacket(
+          {
+            command: "equipItem",
+            direction: "extension",
+            predicate: (candidate) => {
+              const decoded = decodeEquipResponse(packetData(candidate));
+              return (
+                Option.isSome(decoded) &&
+                decoded.value.ItemID === item.itemId &&
+                decoded.value.uid === userId.value
+              );
+            },
+            wireType: "json",
           },
-          wireType: "json",
-        },
-        {
-          timeout: "5 seconds",
-          trigger: packet.sendServer(
-            `%xt%zm%wearItem%${map.id}%${item.itemId}%`,
-            "String",
-          ),
-        },
-      );
-      return wearPacket !== null && response?.success === true;
-    });
+          {
+            timeout: "5 seconds",
+            trigger: bridge
+              .invoke(
+                "inventory.equip",
+                [{ itemId: item.itemId }],
+                Schema.Boolean,
+              )
+              .pipe(Effect.map(Option.getOrElse(() => false))),
+          },
+        );
+        if (equipPacket === null) return false;
+      }
+    }
+
+    return needsWear ? yield* wearItem(item.itemId) : true;
+  });
+  const equip = (selector: ItemQuery, options?: EquipOptions) =>
+    equipEffect(selector, options);
 
   const getAvailableSlots = () =>
     Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
@@ -153,6 +228,7 @@ export const makeInventory = (
     getSlots,
     getUsedSlots,
     unequipConsumable,
+    wear,
   };
 };
 

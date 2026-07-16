@@ -132,6 +132,7 @@ export const toItem = (
         : { shopItemId: defaults.shopItemId }
       : { shopItemId: payload.ShopItemID }),
     temporaryItem,
-    wearable: payload.bWear !== undefined,
+    wearable: payload.bWear !== undefined || (defaults.wearable ?? false),
+    worn: payload.bWear ?? defaults.worn ?? false,
   });
 };
