@@ -14,12 +14,19 @@ Referenced types are generated from the types directly linked by the documented 
 
 | Type | Kind | Summary |
 | --- | --- | --- |
+| <a href="/scripting/types/api-service/" data-script-type="api-service"><code>ApiService</code></a> | type alias |  |
 | <a href="/scripting/types/army-config-core/" data-script-type="army-config-core"><code>ArmyConfigCore</code></a> | interface |  |
 | <a href="/scripting/types/army-config-payload/" data-script-type="army-config-payload"><code>ArmyConfigPayload</code></a> | interface |  |
 | <a href="/scripting/types/army-config-raw/" data-script-type="army-config-raw"><code>ArmyConfigRaw</code></a> | type alias |  |
 | <a href="/scripting/types/army-equip-set/" data-script-type="army-equip-set"><code>ArmyEquipSet</code></a> | interface |  |
 | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
+| <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface |  |
+| <a href="/scripting/types/army-loop-taunt-options/" data-script-type="army-loop-taunt-options"><code>ArmyLoopTauntOptions</code></a> | interface |  |
+| <a href="/scripting/types/army-loop-taunt-player-ref/" data-script-type="army-loop-taunt-player-ref"><code>ArmyLoopTauntPlayerRef</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-should-taunt/" data-script-type="army-loop-taunt-should-taunt"><code>ArmyLoopTauntShouldTaunt</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-trigger/" data-script-type="army-loop-taunt-trigger"><code>ArmyLoopTauntTrigger</code></a> | type alias |  |
+| <a href="/scripting/types/army-loop-taunt-turn-context/" data-script-type="army-loop-taunt-turn-context"><code>ArmyLoopTauntTurnContext</code></a> | interface |  |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
 | <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
@@ -102,6 +109,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/quest-item/" data-script-type="quest-item"><code>QuestItem</code></a> | interface |  |
 | <a href="/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | interface |  |
 | <a href="/scripting/types/quest-snapshot/" data-script-type="quest-snapshot"><code>QuestSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/resolved-army-loop-taunt-participant/" data-script-type="resolved-army-loop-taunt-participant"><code>ResolvedArmyLoopTauntParticipant</code></a> | interface |  |
 | <a href="/scripting/types/runtime-event/" data-script-type="runtime-event"><code>RuntimeEvent</code></a> | type alias |  |
 | <a href="/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | type alias |  |
 | <a href="/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a> | class |  |

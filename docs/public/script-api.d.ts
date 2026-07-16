@@ -211,6 +211,9 @@ interface ScriptArmyApi {
     leave(): Effect<void, never>;
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
+    startLoopTaunt(options: ArmyLoopTauntOptions): Effect<ArmyLoopTauntHandle, ArmyError>;
+    stopAllLoopTaunts(): Effect<void, never>;
+    stopLoopTaunt(id: string): Effect<boolean, ArmyError>;
     sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
     waitForAllInMap(): Effect<void, ArmyError>;
 }
@@ -281,6 +284,19 @@ interface ArmyEquipSetOptions {
 }
 interface ArmyError extends Error {
   _tag: unknown;
+}
+interface ArmyLoopTauntHandle {
+  readonly id: string;
+  readonly stop: () => Effect<boolean, ArmyError>;
+}
+interface ArmyLoopTauntOptions {
+  readonly participants: readonly [
+    ArmyLoopTauntPlayerRef,
+    ...ArmyLoopTauntPlayerRef[],
+  ];
+  readonly shouldTaunt?: ArmyLoopTauntShouldTaunt;
+  readonly target: MonsterQuery;
+  readonly trigger: ArmyLoopTauntTrigger;
 }
 interface ArmyRunStepOptions {
   readonly timeoutMs?: number;
@@ -488,6 +504,16 @@ interface WaitOptions {
   readonly timeout?: DurationInput;
 }
 interface _tag { readonly [key: string]: unknown; }
+type ArmyLoopTauntPlayerRef = number | string;
+type ArmyLoopTauntShouldTaunt = (
+  context: ArmyLoopTauntTurnContext,
+) => boolean | Effect<boolean, unknown>;
+type ArmyLoopTauntTrigger = {
+  readonly type: "focus";
+} | {
+  readonly message: string;
+  readonly type: "message";
+};
 interface ArmySessionPayload extends ArmyConfigPayload {
   readonly playerName: string;
   readonly playerNumber: number;
@@ -787,6 +813,24 @@ type ScriptGenerator<A = unknown> = Generator<
   any
 >;
 type ShopItemSelector = ObjectSelector<ShopItemSelectorShape>;
+interface ArmyLoopTauntTurnContext {
+  readonly id: string;
+  readonly localPlayer: ResolvedArmyLoopTauntParticipant;
+  readonly participants: readonly ResolvedArmyLoopTauntParticipant[];
+  readonly target: {
+    readonly monsterMapId: number;
+    readonly query: MonsterQuery;
+  };
+  readonly trigger: ArmyLoopTauntTrigger;
+  readonly turn: {
+    readonly attempt: number;
+    readonly epoch: number;
+  };
+  readonly world: {
+    readonly monsters: Pick<ApiService["monsters"], "get" | "getAll">;
+    readonly players: Pick<ApiService["players"], "get" | "getAll" | "getMe">;
+  };
+}
 interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
@@ -848,6 +892,11 @@ interface PlayerSelectorByUsername {
 type ShopItemSelectorShape = ItemSelectorShape & {
   shopItemId: number;
 };
+interface ResolvedArmyLoopTauntParticipant {
+  readonly name: string;
+  readonly number: number;
+}
+type ApiService = { auth: { connectTo: (server: string) => Effect<ConnectOutcome>; getPassword: () => Effect<string, never, never>; getServers: () => Effect<LiveServer[], never, never>; getUsername: () => Effect<string, never, never>; isLoggedIn: () => Effect<boolean, never, never>; isServerSelectReady: () => Effect<boolean, never, never>; isTemporarilyKicked: () => Effect<boolean, never, never>; login: (username: string, password: string) => Effect<boolean, never, never>; logout: () => Effect<void, never, never>; }; bank: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; deposit: (selector: ItemQuery) => Effect<boolean, never, never>; depositBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; isOpen: () => Effect<boolean, never, never>; load: (force?: boolean) => Effect<boolean, never, never>; open: (force?: boolean) => Effect<boolean, never, never>; swap: (inventorySelector: ItemQuery, bankSelector: ItemQuery) => Effect<boolean, never, never>; withdraw: (selector: ItemQuery) => Effect<boolean, never, never>; withdrawBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; }; combat: { attackMonster: (selector: MonsterQuery) => Effect<boolean, never, never>; cancelAutoAttack: () => Effect<void, never, never>; cancelTarget: () => Effect<void, never, never>; canUseSkill: (skill: Skill) => Effect<boolean, never, never>; exit: () => Effect<boolean, never, never>; getConsumableSkillItem: () => Effect<{ itemId: number; } | null, never, never>; hunt: (selector: MonsterQuery, options?: HuntOptions) => Effect<LiveMonster | null, never, never>; kill: (selector: MonsterQuery, options?: CombatKillOptions) => Effect<boolean, never, never>; killForItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; killForTempItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; target: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; get: () => Effect<{ readonly cell: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly monsterId: number; readonly monsterMapId: number; readonly name: string; readonly race: string; readonly state: number; readonly type: 'monster'; } | { readonly afk: boolean; readonly cell: string; readonly entityId: number; readonly entityType: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly maxMp: number; readonly mp: number; readonly name: string; readonly pad: string; readonly sp: number; readonly state: number; readonly type: 'player'; readonly username: string; } | null, never, never>; }; useSkill: (skill: Skill, options?: SkillUseOptions) => Effect<boolean, never, never>; }; drops: { accept: (selector: ItemQuery) => Effect<boolean, never, never>; contains: (selector: ItemQuery) => Effect<boolean, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; isCustomUiEnabled: () => Effect<boolean, never, never>; reject: (selector: ItemQuery) => Effect<boolean, never, never>; toggleUi: () => Effect<void, never, never>; }; events: { on: <E>(selector: EventSelector | undefined, handler: (event: Event) => Effect<void, E>) => Effect<() => void, never, never>; once: <E = never, R = never>(selector?: EventSelector, options?: TriggeredWaitOptions<E, R>) => Effect<Event | null, E, Exclude<R, Scope>>; stream: (selector?: EventSelector) => Stream<Event, never, never>; }; house: { get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; }; inventory: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; equip: (selector: ItemQuery) => Effect<boolean, never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; unequipConsumable: (selector: ItemQuery) => Effect<boolean, never, never>; }; map: { getCellPads: () => Effect<readonly string[], never, never>; getCells: () => Effect<readonly string[], never, never>; getId: () => Effect<number, never, never>; getMapItem: (itemId: number) => Effect<void, never, never>; getName: () => Effect<string, never, never>; getRoomNumber: () => Effect<number, never, never>; isLoaded: () => Effect<boolean, never, never>; loadSwf: (swf: string) => Effect<void, never, never>; reload: () => Effect<void, never, never>; setSpawnPoint: (cell?: string, pad?: string) => Effect<void, never, never>; }; monsters: { get: (selector: MonsterQuery) => Effect<LiveMonster | null, never, never>; getAll: () => Effect<LiveMonster[], never, never>; getAvailable: () => Effect<LiveMonster[], never, never>; isAvailable: (selector: MonsterQuery) => Effect<boolean, never, never>; }; packet: { on: <E>(selector: PacketSelector | undefined, handler: (packet: Packet) => Effect<void, E>) => Effect<() => void, never, never>; once: <E = never, R = never>(selector?: PacketSelector, options?: TriggeredWaitOptions<E, R>) => Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope>>; sendClient: (packet: string, type?: 'str' | 'json') => Effect<boolean, never, never>; sendServer: (packet: string, type?: 'String' | 'Json') => Effect<boolean, never, never>; stream: (selector?: PacketSelector) => Stream<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; }, never, never>; }; player: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; factions: { get: (selector: string | number) => Effect<LiveFaction | null, never, never>; getAll: () => Effect<LiveFaction[], never, never>; }; get: () => Effect<LivePlayer | null, never, never>; getCell: () => Effect<string, never, never>; getClassName: () => Effect<string, never, never>; getGender: () => Effect<string, never, never>; getGold: () => Effect<number, never, never>; getHp: () => Effect<number, never, never>; getLevel: () => Effect<number, never, never>; getMaxHp: () => Effect<number, never, never>; getMaxMp: () => Effect<number, never, never>; getMp: () => Effect<number, never, never>; getPad: () => Effect<string, never, never>; getPosition: () => Effect<{ x: number; y: number; }, never, never>; getState: () => Effect<EntityState, never, never>; goToPlayer: (name: string) => Effect<void, never, never>; hasActiveBoost: (boostType: BoostType) => Effect<boolean, never, never>; isAfk: () => Effect<boolean, never, never>; isAlive: () => Effect<boolean, never, never>; isMember: () => Effect<boolean, never, never>; isReady: () => Effect<boolean, never, never>; joinMap: (target: string, cell?: string, pad?: string) => Effect<boolean, never, never>; jumpToCell: (cell: string, pad?: string) => Effect<boolean, never, never>; outfits: { equip: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; get: (name: string) => Effect<LiveOutfit | null, never, never>; getAll: () => Effect<LiveOutfit[], never, never>; wear: (name: string, keepColors?: boolean) => Effect<boolean, never, never>; }; rest: (full?: boolean) => Effect<void, never, never>; useBoost: (selector: ItemQuery) => Effect<boolean, never, never>; walkTo: (x: number, y: number, speed?: number) => Effect<boolean, never, never>; }; players: { get: (selector: string | number) => Effect<LivePlayer | null, never, never>; getAll: () => Effect<LivePlayer[], never, never>; getMe: () => Effect<LivePlayer | null, never, never>; }; quests: { abandon: (questId: number) => Effect<boolean, never, never>; accept: (questId: number, silent?: boolean) => Effect<boolean, never, never>; acceptBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; canComplete: (questId: number) => Effect<boolean, never, never>; complete: (questId: number, requestedTurnIns?: number, itemId?: number, special?: boolean) => Effect<boolean, never, never>; get: (questId: number) => Effect<LiveQuest | null, never, never>; getAccepted: () => Effect<LiveQuest[], never, never>; getAll: () => Effect<LiveQuest[], never, never>; getMaxTurnIns: (questId: number) => Effect<number, never, never>; isAvailable: (questId: number) => Effect<boolean, never, never>; isInProgress: (questId: number) => Effect<boolean, never, never>; load: (questId: number, silent?: boolean) => Effect<boolean, never, never>; loadBatch: (questIds: readonly number[], silent?: boolean) => Effect<boolean[], never, never>; }; settings: { apply: (input: SettingsPatch) => Effect<void, never, never>; changes: Stream<SettingsState, never, never>; enemyMagnet: () => Effect<void, never, never>; get: () => Effect<SettingsState, never, never>; infiniteRange: () => Effect<void, never, never>; isAntiCounterEnabled: () => Effect<boolean, never, never>; onState: (listener: (state: SettingsState) => void) => Effect<() => void, never, never>; provokeCell: () => Effect<void, never, never>; reapply: () => Effect<void, never, never>; reapplyActions: () => Effect<void, never, never>; setAnimationsEnabled: (value: boolean | undefined) => Effect<void, never, never>; setAntiCounterEnabled: (value: boolean | undefined) => Effect<void, never, never>; setCollisionsEnabled: (value: boolean | undefined) => Effect<void, never, never>; setCustomGuild: (value: string | undefined) => Effect<void, never, never>; setCustomName: (value: string | undefined) => Effect<void, never, never>; setDeathAdsVisible: (value: boolean | undefined) => Effect<void, never, never>; setEnemyMagnetEnabled: (value: boolean | undefined) => Effect<void, never, never>; setFrameRate: (value: number | undefined) => Effect<void, never, never>; setInfiniteRangeEnabled: (value: boolean | undefined) => Effect<void, never, never>; setLagKillerEnabled: (value: boolean | undefined) => Effect<void, never, never>; setOtherPlayersVisible: (value: boolean | undefined) => Effect<void, never, never>; setProvokeCellEnabled: (value: boolean | undefined) => Effect<void, never, never>; setSkipCutscenesEnabled: (value: boolean | undefined) => Effect<void, never, never>; setWalkSpeed: (value: number | undefined) => Effect<void, never, never>; skipCutscenes: () => Effect<void, never, never>; }; shops: { buy: (selector: ShopItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; canBuy: (selector: ShopItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; close: (shopId?: number) => Effect<boolean, never, never>; get: (selector: ShopItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getInfo: () => Effect<LiveShop | null, never, never>; getMaxBuyQuantity: (selector: ShopItemQuery) => Effect<number, never, never>; isMergeShop: () => Effect<boolean, never, never>; isOpen: (shopId?: number) => Effect<boolean, never, never>; load: (shopId: number) => Effect<boolean, never, never>; loadArmorCustomize: () => Effect<void, never, never>; loadHairShop: (shopId: number) => Effect<void, never, never>; sell: (selector: ItemQuery, options?: { quantity?: number; }) => Effect<boolean, never, never>; }; tempInventory: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; }; wait: { forGameAction: (action: GameAction, options?: WaitOptions | Input) => Effect<boolean, never, never>; isGameActionAvailable: (action: GameAction) => Effect<boolean, never, never>; forEvent: <E = never, R = never>(selector?: EventSelector, options?: TriggeredWaitOptions<E, R>) => Effect<Event | null, E, Exclude<R, Scope>>; forPacket: <E = never, R = never>(selector?: PacketSelector, options?: TriggeredWaitOptions<E, R>) => Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope>>; until: (condition: Effect<boolean>, options?: WaitOptions) => Effect<boolean>; untilSome: <A>(condition: Effect<Option<A>>, options?: WaitOptions) => Effect<A | null>; }; };
 interface ArmyConfigCore {
   readonly items: Readonly<Record<string, string>>;
   readonly players: readonly string[];
@@ -876,10 +925,31 @@ type ItemSelectorShape = {
   name: string;
   itemId: number;
 };
+type SettingsPatch = { readonly animationsEnabled?: boolean; readonly antiCounterEnabled?: boolean; readonly collisionsEnabled?: boolean; readonly customGuild?: string; readonly customName?: string; readonly deathAdsVisible?: boolean; readonly enemyMagnetEnabled?: boolean; readonly frameRate?: number; readonly infiniteRangeEnabled?: boolean; readonly lagKillerEnabled?: boolean; readonly otherPlayersVisible?: boolean; readonly provokeCellEnabled?: boolean; readonly skipCutscenesEnabled?: boolean; readonly walkSpeed?: number; };
+interface SettingsState {
+  animationsEnabled: boolean;
+  antiCounterEnabled: boolean;
+  collisionsEnabled: boolean;
+  customGuild: string;
+  customGuildConfigured: boolean;
+  customName: string;
+  customNameConfigured: boolean;
+  deathAdsVisible: boolean;
+  enemyMagnetEnabled: boolean;
+  frameRate: number;
+  infiniteRangeEnabled: boolean;
+  lagKillerEnabled: boolean;
+  otherPlayersVisible: boolean;
+  provokeCellEnabled: boolean;
+  skipCutscenesEnabled: boolean;
+  walkSpeed: number;
+}
+type Input = Electron.Input;
 interface ArmySetConfig {
   readonly default?: ArmyEquipSet;
   readonly players: Readonly<Record<string, ArmyEquipSet>>;
 }
+interface Electron { readonly [key: string]: unknown; }
 interface ArmyEquipSet {
   readonly armor?: string;
   readonly cape?: string;
