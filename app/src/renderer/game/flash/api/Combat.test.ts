@@ -1,4 +1,4 @@
-import type { CombatProfile } from "@lucent/core/combatProfiles";
+import type { CombatProfileDefinition } from "@lucent/core/combatProfiles";
 import { EntityState, LiveMonster, LivePlayer } from "@lucent/game";
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Fiber } from "effect";
@@ -23,14 +23,11 @@ import { makeSettings } from "./Settings";
 import { makeTempInventory } from "./TempInventory";
 import { makeWaitApi } from "./Wait";
 
-const profile: CombatProfile = {
+const profile: CombatProfileDefinition = {
   cooldownMode: "use-if-ready",
   delayMs: 0,
-  id: "kill-profile",
-  label: "Kill Profile",
   resetSkillIndexOnMonsterDeath: true,
-  role: "Test",
-  steps: [{ conditions: [], id: "skill-1", skill: 1 }],
+  steps: [{ conditions: [], skill: 1 }],
 };
 
 describe("Combat", () => {

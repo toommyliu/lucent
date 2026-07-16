@@ -538,7 +538,6 @@ export function App(): JSX.Element {
       delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
       cooldownMode: "use-if-ready",
       steps: [1, 2, 3, 4].map((skill) => ({
-        id: createRandomId("step"),
         skill,
         conditions: [],
       })),
@@ -563,10 +562,8 @@ export function App(): JSX.Element {
       return;
     }
 
-    const duplicate = duplicateCombatProfile(
-      profile,
-      library().profiles,
-      createRandomId,
+    const duplicate = duplicateCombatProfile(profile, library().profiles, () =>
+      createRandomId("profile"),
     );
     const nextLibrary = await runUpdate(
       combatProfilesBridge().saveProfile(duplicate),
@@ -615,11 +612,9 @@ export function App(): JSX.Element {
   };
 
   const addStep = (): void => {
-    const id = createRandomId("step");
     setDraftSteps((steps) => [
       ...steps,
       {
-        id,
         skill: 1,
         conditions: [],
       },
@@ -708,7 +703,6 @@ export function App(): JSX.Element {
     setDraftMessageTriggers((triggers) => [
       ...triggers,
       {
-        id: createRandomId("trigger"),
         messageIncludes: "",
         skill: 5,
         source: "any",

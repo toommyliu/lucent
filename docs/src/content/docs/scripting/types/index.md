@@ -39,6 +39,11 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
 | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
 | <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
+| <a href="/scripting/types/combat-profile-message-trigger/" data-script-type="combat-profile-message-trigger"><code>CombatProfileMessageTrigger</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-message-trigger-definition/" data-script-type="combat-profile-message-trigger-definition"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | type alias |  |
+| <a href="/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
 | <a href="/scripting/types/connect-outcome/" data-script-type="connect-outcome"><code>ConnectOutcome</code></a> | interface |  |
 | <a href="/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
 | <a href="/scripting/types/entity-data/" data-script-type="entity-data"><code>EntityData</code></a> | interface |  |

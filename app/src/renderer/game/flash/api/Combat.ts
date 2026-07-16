@@ -4,7 +4,11 @@ import {
   toMonsterSelector,
 } from "@lucent/game";
 import type { ItemQuery, Monster, MonsterQuery } from "@lucent/game";
-import type { CombatProfile } from "@lucent/core/combatProfiles";
+import {
+  normalizeCombatProfile,
+  type CombatProfile,
+  type CombatProfileDefinition,
+} from "@lucent/core/combatProfiles";
 import { Effect, Option, Schema } from "effect";
 import type { Duration } from "effect";
 
@@ -47,7 +51,7 @@ export interface SkillUseOptions {
 
 export interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
-  readonly profile?: CombatProfile;
+  readonly profile?: CombatProfileDefinition;
   readonly skillDelay?: number;
   readonly skillSet?: readonly Skill[];
 }
@@ -279,11 +283,14 @@ export const makeCombat = (
     );
   };
 
-  const makeKillProfileRuntime = (profile: CombatProfile | undefined) => {
-    if (profile === undefined) {
+  const makeKillProfileRuntime = (
+    definition: CombatProfileDefinition | undefined,
+  ) => {
+    if (definition === undefined) {
       return Effect.succeed<KillProfileRuntime | null>(null);
     }
 
+    const profile = normalizeCombatProfile(definition);
     const dependencies = makeCombatProfileRuntimeDeps(
       { attackMonster, canUseSkill, target, useSkill },
       player,

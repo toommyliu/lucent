@@ -59,7 +59,6 @@ export const CombatProfileConditionSchema = Schema.Union([
 export type CombatProfileCondition = typeof CombatProfileConditionSchema.Type;
 
 export const CombatProfileStepSchema = Schema.Struct({
-  id: TrimmedNonEmptyString,
   skill: boundedInt(0, 5),
   conditions: Schema.Array(CombatProfileConditionSchema),
   cooldownMode: Schema.optionalKey(CombatProfileCooldownModeSchema),
@@ -76,7 +75,6 @@ export type CombatProfileMessageTriggerSource =
   typeof CombatProfileMessageTriggerSourceSchema.Type;
 
 export const CombatProfileMessageTriggerSchema = Schema.Struct({
-  id: TrimmedNonEmptyString,
   messageIncludes: TrimmedNonEmptyString,
   skill: boundedInt(0, 5),
   source: CombatProfileMessageTriggerSourceSchema,
@@ -115,11 +113,6 @@ export type CombatProfileMessageTriggerDefinition =
     readonly messageIncludes: string;
     readonly skill: number;
   };
-
-export type CombatProfileDuplicateIdPrefix = "profile" | "step" | "trigger";
-export type CombatProfileDuplicateIdFactory = (
-  prefix: CombatProfileDuplicateIdPrefix,
-) => string;
 
 export interface CombatProfileDefinition extends Partial<
   Omit<CombatProfile, "steps" | "messageTriggers">
@@ -254,7 +247,6 @@ const genericProfile = (): CombatProfile => ({
   delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
   cooldownMode: "use-if-ready",
   steps: [1, 2, 3, 4].map((skill) => ({
-    id: `generic-${skill}`,
     skill,
     conditions: [],
   })),
@@ -300,10 +292,7 @@ const normalizeCondition = (
       };
 };
 
-const normalizeStep = (
-  value: unknown,
-  index: number,
-): CombatProfileStep | undefined => {
+const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
   const record = asRecord(value);
   if (record === undefined) {
     return undefined;
@@ -325,7 +314,6 @@ const normalizeStep = (
   const waitMs = clampInt(record["waitMs"], 0, 0, MAX_WAIT_MS);
 
   return {
-    id: trimString(record["id"], MAX_ID_LENGTH) ?? `step-${index + 1}`,
     skill,
     conditions: normalizeArray(record["conditions"], normalizeCondition),
     ...(cooldownMode === undefined
@@ -339,7 +327,6 @@ const normalizeStep = (
 
 const normalizeMessageTrigger = (
   value: unknown,
-  index: number,
 ): CombatProfileMessageTrigger | undefined => {
   const record = asRecord(value);
   if (record === undefined) {
@@ -357,7 +344,6 @@ const normalizeMessageTrigger = (
 
   const cooldownMs = clampInt(record["cooldownMs"], 0, 0, MAX_WAIT_MS);
   return {
-    id: trimString(record["id"], MAX_ID_LENGTH) ?? `trigger-${index + 1}`,
     messageIncludes,
     skill,
     source:
@@ -388,14 +374,12 @@ const normalizeProfile = (
     normalizeMessageTrigger,
   );
   const steps = normalizeArray(record["steps"], normalizeStep);
-  const normalizedSteps = ensureUniqueIds(
+  const normalizedSteps =
     steps.length === 0
       ? (structuredClone(
           genericProfile().steps,
         ) as readonly CombatProfileStep[])
-      : steps,
-  );
-  const normalizedMessageTriggers = ensureUniqueIds(messageTriggers);
+      : steps;
 
   return {
     id,
@@ -417,9 +401,7 @@ const normalizeProfile = (
       ? { resetSkillIndexOnMonsterDeath: true }
       : {}),
     steps: normalizedSteps,
-    ...(normalizedMessageTriggers.length === 0
-      ? {}
-      : { messageTriggers: normalizedMessageTriggers }),
+    ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };
 
@@ -508,14 +490,13 @@ const getDuplicateCombatProfileLabel = (
 export const duplicateCombatProfile = (
   profile: CombatProfile,
   profiles: readonly CombatProfile[],
-  createId: CombatProfileDuplicateIdFactory,
+  createId: () => string,
 ): CombatProfile => ({
   ...profile,
-  id: createId("profile"),
+  id: createId(),
   label: getDuplicateCombatProfileLabel(profile.label, profiles),
   steps: profile.steps.map((step) => ({
     ...step,
-    id: createId("step"),
     conditions: step.conditions.map((condition) => ({ ...condition })),
   })),
   ...(profile.messageTriggers === undefined
@@ -523,7 +504,6 @@ export const duplicateCombatProfile = (
     : {
         messageTriggers: profile.messageTriggers.map((trigger) => ({
           ...trigger,
-          id: createId("trigger"),
         })),
       }),
 });

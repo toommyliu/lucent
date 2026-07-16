@@ -314,7 +314,7 @@ type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkca
 type BoostType = "classPoints" | "exp" | "gold" | "rep";
 interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
-  readonly profile?: CombatProfile;
+  readonly profile?: CombatProfileDefinition;
   readonly skillDelay?: number;
   readonly skillSet?: readonly Skill[];
 }
@@ -493,7 +493,10 @@ interface AutoReloginLifecycleEvent {
   readonly message?: string;
   readonly step: AutoReloginLifecycleStep;
 }
-type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | "messageTriggers">> {
+  readonly steps: readonly CombatProfileStepDefinition[];
+  readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
+}
 type RuntimeEvent =
   | { readonly type: "connection"; readonly status: string }
   | { readonly type: "debug"; readonly message: string };
@@ -782,6 +785,14 @@ interface ArmyConfigPayload extends ArmyConfigCore {
   readonly raw: ArmyConfigRaw;
 }
 type AutoReloginLifecycleStep = "connect" | "login" | "ready";
+type CombatProfile = { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
+  readonly skill: number;
+};
+type CombatProfileMessageTriggerDefinition = Partial<CombatProfileMessageTrigger> & {
+  readonly messageIncludes: string;
+  readonly skill: number;
+};
 interface State {
   attemptsRemaining: number | undefined;
   delayMs: number;
@@ -834,6 +845,8 @@ interface ArmyConfigCore {
   readonly sets: Readonly<Record<string, ArmySetConfig>>;
 }
 type ArmyConfigRaw = Record<string, unknown>;
+type CombatProfileStep = { readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
+type CombatProfileMessageTrigger = { readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
 type ReloginPhase =
   | { readonly tag: "armed" }
   | { readonly tag: "awaiting-session" }

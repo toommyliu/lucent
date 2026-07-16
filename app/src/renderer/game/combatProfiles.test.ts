@@ -23,8 +23,8 @@ const profile: CombatProfile = {
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [
-    { id: "first", skill: 1, conditions: [] },
-    { id: "second", skill: 2, conditions: [] },
+    { skill: 1, conditions: [] },
+    { skill: 2, conditions: [] },
   ],
 };
 
@@ -167,7 +167,6 @@ describe("combat profile runtime", () => {
         },
       };
       const step: CombatProfileStep = {
-        id: "conditions",
         skill: 1,
         conditions: [
           { type: "self-hp", op: "<=", value: 40, unit: "percent" },
@@ -198,7 +197,6 @@ describe("combat profile runtime", () => {
     expect(
       matchesCombatProfileMessageTrigger(
         {
-          id: "trigger",
           messageIncludes: "WARDEN  prepares",
           skill: 5,
           source: "animation",
@@ -212,7 +210,6 @@ describe("combat profile runtime", () => {
     expect(
       matchesCombatProfileMessageTrigger(
         {
-          id: "trigger",
           messageIncludes: "Warden prepares",
           skill: 5,
           source: "aura",
@@ -243,7 +240,6 @@ describe("combat profile runtime", () => {
           }),
       });
       const trigger = {
-        id: "trigger",
         cooldownMs: 1_000,
         messageIncludes: "enrage",
         skill: 5,
@@ -258,8 +254,8 @@ describe("combat profile runtime", () => {
       expect(
         yield* castCombatProfileMessageTrigger(
           deps,
-          profile,
           trigger,
+          0,
           event,
           state,
           100,
@@ -268,8 +264,8 @@ describe("combat profile runtime", () => {
       expect(
         yield* castCombatProfileMessageTrigger(
           deps,
-          profile,
           trigger,
+          0,
           event,
           state,
           500,
@@ -278,16 +274,30 @@ describe("combat profile runtime", () => {
       expect(
         yield* castCombatProfileMessageTrigger(
           deps,
-          profile,
           trigger,
+          1,
+          event,
+          state,
+          500,
+        ),
+      ).toBe(true);
+      expect(
+        yield* castCombatProfileMessageTrigger(
+          deps,
+          trigger,
+          0,
           event,
           state,
           1_200,
         ),
       ).toBe(true);
 
-      expect(targets).toEqual([{ monMapId: 7 }, { monMapId: 7 }]);
-      expect(skills).toEqual([5, 5]);
+      expect(targets).toEqual([
+        { monMapId: 7 },
+        { monMapId: 7 },
+        { monMapId: 7 },
+      ]);
+      expect(skills).toEqual([5, 5, 5]);
     }),
   );
 
@@ -312,7 +322,6 @@ describe("combat profile runtime", () => {
           }),
       });
       const trigger = {
-        id: "trigger",
         cooldownMs: 1_000,
         messageIncludes: "enrage",
         skill: 5,
@@ -325,8 +334,8 @@ describe("combat profile runtime", () => {
 
       const firstFiber = yield* castCombatProfileMessageTrigger(
         deps,
-        profile,
         trigger,
+        0,
         event,
         state,
         100,
@@ -335,8 +344,8 @@ describe("combat profile runtime", () => {
 
       const secondFiber = yield* castCombatProfileMessageTrigger(
         deps,
-        profile,
         trigger,
+        0,
         event,
         state,
         100,

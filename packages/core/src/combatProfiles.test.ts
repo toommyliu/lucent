@@ -22,7 +22,6 @@ const genericProfile = {
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [1, 2, 3, 4].map((skill) => ({
-    id: `generic-${skill}`,
     skill,
     conditions: [],
   })),
@@ -41,7 +40,6 @@ const canonicalLibrary = {
       cooldownMode: "use-if-ready",
       steps: [
         {
-          id: "farm-1",
           skill: 1,
           conditions: [
             {
@@ -55,7 +53,6 @@ const canonicalLibrary = {
       ],
       messageTriggers: [
         {
-          id: "trigger-1",
           messageIncludes: "enrage",
           skill: 5,
           source: "animation",
@@ -100,21 +97,17 @@ describe("combatProfiles", () => {
     expect(normalized.profiles[0]?.label).toBe("Generic Custom");
   });
 
-  it("recovers colliding ids deterministically without dropping definitions", () => {
+  it("recovers colliding profile ids without dropping definitions", () => {
     const normalized = normalizeCombatProfileLibrary({
       profiles: [
         {
           id: "dupe",
           label: "First",
-          steps: [
-            { id: "step", skill: 1 },
-            { id: "step", skill: 2 },
-            { id: "step-2", skill: 3 },
-          ],
+          steps: [{ skill: 1 }, { skill: 2 }, { skill: 3 }],
           messageTriggers: [
-            { id: "trigger", messageIncludes: "first", skill: 1 },
-            { id: "trigger", messageIncludes: "second", skill: 2 },
-            { id: "trigger-2", messageIncludes: "third", skill: 3 },
+            { messageIncludes: "first", skill: 1 },
+            { messageIncludes: "second", skill: 2 },
+            { messageIncludes: "third", skill: 3 },
           ],
         },
         { id: "dupe", label: "Second", steps: [{ skill: 4 }] },
@@ -134,17 +127,9 @@ describe("combatProfiles", () => {
       "Second",
       "Reserved",
     ]);
-    expect(normalized.profiles[1]?.steps.map((step) => step.id)).toEqual([
-      "step",
-      "step-3",
-      "step-2",
-    ]);
     expect(normalized.profiles[1]?.steps.map((step) => step.skill)).toEqual([
       1, 2, 3,
     ]);
-    expect(
-      normalized.profiles[1]?.messageTriggers?.map((trigger) => trigger.id),
-    ).toEqual(["trigger", "trigger-3", "trigger-2"]);
     expect(
       normalized.profiles[1]?.messageTriggers?.map((trigger) => trigger.skill),
     ).toEqual([1, 2, 3]);
@@ -157,13 +142,10 @@ describe("combatProfiles", () => {
         {
           id: unicodeId,
           label: "Unicode First",
-          steps: [
-            { id: unicodeId, skill: 1 },
-            { id: unicodeId, skill: 2 },
-          ],
+          steps: [{ skill: 1 }, { skill: 2 }],
           messageTriggers: [
-            { id: unicodeId, messageIncludes: "first", skill: 1 },
-            { id: unicodeId, messageIncludes: "second", skill: 2 },
+            { messageIncludes: "first", skill: 1 },
+            { messageIncludes: "second", skill: 2 },
           ],
         },
         { id: unicodeId, label: "Unicode Second", steps: [{ skill: 3 }] },
@@ -174,14 +156,6 @@ describe("combatProfiles", () => {
       unicodeId,
       suffixedUnicodeId,
     ]);
-    expect(unicodeNormalized.profiles[1]?.steps.map((step) => step.id)).toEqual(
-      [unicodeId, suffixedUnicodeId],
-    );
-    expect(
-      unicodeNormalized.profiles[1]?.messageTriggers?.map(
-        (trigger) => trigger.id,
-      ),
-    ).toEqual([unicodeId, suffixedUnicodeId]);
   });
 
   it("rejects future library versions", () => {
@@ -215,7 +189,6 @@ describe("combatProfiles", () => {
       cooldownMode: "use-if-ready",
       steps: [
         {
-          id: "step-1",
           skill: 1,
           conditions: [],
           cooldownMode: "use-if-ready",
@@ -234,13 +207,8 @@ describe("combatProfiles", () => {
     );
   });
 
-  it("duplicates profiles with fresh nested ids and a unique label", () => {
+  it("duplicates profiles with a fresh id and a unique label", () => {
     const source = normalizeCombatProfile(canonicalLibrary.profiles[1]!);
-    const idCounts = {
-      profile: 0,
-      step: 0,
-      trigger: 0,
-    };
     const duplicate = duplicateCombatProfile(
       source,
       [
@@ -248,25 +216,19 @@ describe("combatProfiles", () => {
         { ...source, id: "copy-1", label: "Farm Rotation Copy" },
         { ...source, id: "copy-2", label: "Farm Rotation Copy 2" },
       ],
-      (prefix) => {
-        idCounts[prefix] += 1;
-        return `copy-${prefix}-${idCounts[prefix]}`;
-      },
+      () => "copy-profile-1",
     );
 
     expect(duplicate).toMatchObject({
       id: "copy-profile-1",
       label: "Farm Rotation Copy 3",
       className: "ArchPaladin",
-      steps: [{ id: "copy-step-1", skill: 1 }],
-      messageTriggers: [{ id: "copy-trigger-1", messageIncludes: "enrage" }],
+      steps: [{ skill: 1 }],
+      messageTriggers: [{ messageIncludes: "enrage" }],
     });
     expect(duplicate.steps[0]).not.toBe(source.steps[0]);
     expect(duplicate.steps[0]?.conditions[0]).not.toBe(
       source.steps[0]?.conditions[0],
-    );
-    expect(duplicate.messageTriggers?.[0]?.id).not.toBe(
-      source.messageTriggers?.[0]?.id,
     );
     expect(duplicate.messageTriggers?.[0]).not.toBe(
       source.messageTriggers?.[0],

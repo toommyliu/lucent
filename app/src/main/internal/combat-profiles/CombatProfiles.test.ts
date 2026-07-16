@@ -71,7 +71,7 @@ const testProfile: CombatProfile = {
   role: "Farm",
   delayMs: 150,
   cooldownMode: "use-if-ready",
-  steps: [{ id: "farm-1", skill: 1, conditions: [] }],
+  steps: [{ skill: 1, conditions: [] }],
   messageTriggers: [],
 };
 
@@ -143,7 +143,6 @@ describe("CombatProfiles", () => {
         cooldownMode: "use-if-ready",
         messageTriggers: [
           {
-            id: "trigger-1",
             messageIncludes: "Enrage",
             skill: 5,
             source: "any",

@@ -1040,7 +1040,7 @@
         {
           "kind": "property",
           "name": "profile",
-          "signature": "readonly profile?: { className?: string; cooldownMode: \"use-if-ready\" | \"wait-for-cooldown\"; delayMs: number; id: string; label: string; messageTriggers?: readonly { cooldownMs?: number; id: string; messageIncludes: string; skill: number; source: \"any\" | \"animation\" | \"aura\" }[]; resetSkillIndexOnMonsterDeath?: boolean; role: string; steps: readonly { conditions: readonly ({ op: \"<=\" | \">=\"; type: \"self-hp\" | \"self-mp\" | \"ally-hp\"; unit: \"percent\" | \"value\"; value: number } | { auraName: string; op: \"<=\" | \">=\"; type: \"self-aura\" | \"target-aura\"; value: number })[]; cooldownMode?: \"use-if-ready\" | \"wait-for-cooldown\"; id: string; skill: number; waitMs?: number }[] }",
+          "signature": "readonly profile?: CombatProfileDefinition",
           "description": ""
         },
         {
@@ -1057,8 +1057,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:48",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L48"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:52",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L52"
       }
     },
     "combat-profile": {
@@ -1070,8 +1070,128 @@
       "definition": "type CombatProfile = typeof CombatProfileSchema.Type",
       "keys": [],
       "source": {
-        "path": "packages/core/src/combatProfiles.ts:101",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L101"
+        "path": "packages/core/src/combatProfiles.ts:99",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L99"
+      }
+    },
+    "combat-profile-definition": {
+      "name": "CombatProfileDefinition",
+      "slug": "combat-profile-definition",
+      "kind": "interface",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "interface CombatProfileDefinition",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "className",
+          "signature": "readonly className?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cooldownMode",
+          "signature": "readonly cooldownMode?: \"use-if-ready\" | \"wait-for-cooldown\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "delayMs",
+          "signature": "readonly delayMs?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "id",
+          "signature": "readonly id?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "label",
+          "signature": "readonly label?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "messageTriggers",
+          "signature": "readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "resetSkillIndexOnMonsterDeath",
+          "signature": "readonly resetSkillIndexOnMonsterDeath?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "role",
+          "signature": "readonly role?: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "steps",
+          "signature": "readonly steps: readonly CombatProfileStepDefinition[]",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/core/src/combatProfiles.ts:117",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L117"
+      }
+    },
+    "combat-profile-message-trigger": {
+      "name": "CombatProfileMessageTrigger",
+      "slug": "combat-profile-message-trigger",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type CombatProfileMessageTrigger = typeof CombatProfileMessageTriggerSchema.Type",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/combatProfiles.ts:83",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L83"
+      }
+    },
+    "combat-profile-message-trigger-definition": {
+      "name": "CombatProfileMessageTriggerDefinition",
+      "slug": "combat-profile-message-trigger-definition",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type CombatProfileMessageTriggerDefinition = Partial<CombatProfileMessageTrigger> & {\n    readonly messageIncludes: string;\n    readonly skill: number;\n  }",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/combatProfiles.ts:111",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L111"
+      }
+    },
+    "combat-profile-step": {
+      "name": "CombatProfileStep",
+      "slug": "combat-profile-step",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type CombatProfileStep = typeof CombatProfileStepSchema.Type",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/combatProfiles.ts:67",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L67"
+      }
+    },
+    "combat-profile-step-definition": {
+      "name": "CombatProfileStepDefinition",
+      "slug": "combat-profile-step-definition",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type CombatProfileStepDefinition = Partial<CombatProfileStep> & {\n  readonly skill: number;\n}",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/combatProfiles.ts:107",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L107"
       }
     },
     "connect-outcome": {
@@ -1369,8 +1489,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:39",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L39"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:43",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L43"
       }
     },
     "input": {
@@ -4565,8 +4685,8 @@
       "definition": "type Skill = number",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L37"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:41",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L41"
       }
     },
     "skill-use-options": {
@@ -4591,8 +4711,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:43",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L43"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:47",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L47"
       }
     },
     "state": {
@@ -4618,7 +4738,7 @@
         {
           "kind": "property",
           "name": "profile",
-          "signature": "readonly profile: { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly id: string; readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly id: string; readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; } | undefined",
+          "signature": "readonly profile: { readonly id: string; readonly label: string; readonly role: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly skill: number; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'percent' | 'value'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly className?: string; readonly resetSkillIndexOnMonsterDeath?: boolean; readonly messageTriggers?: readonly { readonly messageIncludes: string; readonly skill: number; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; } | undefined",
           "description": ""
         }
       ],

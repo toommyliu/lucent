@@ -17,7 +17,7 @@ export interface CombatProfileCursor {
 
 export interface CombatProfileMessageTriggerState {
   readonly semaphore: Semaphore.Semaphore;
-  readonly state: Ref.Ref<ReadonlyMap<string, number>>;
+  readonly state: Ref.Ref<ReadonlyMap<number, number>>;
 }
 
 export interface CombatProfileMessageTriggerEvent {
@@ -67,7 +67,7 @@ export const resetCombatProfileCursor = (
 export const makeCombatProfileMessageTriggerState =
   (): Effect.Effect<CombatProfileMessageTriggerState> =>
     Effect.gen(function* () {
-      const state = yield* Ref.make<ReadonlyMap<string, number>>(new Map());
+      const state = yield* Ref.make<ReadonlyMap<number, number>>(new Map());
       const semaphore = yield* Semaphore.make(1);
       return {
         semaphore,
@@ -284,8 +284,8 @@ export const matchesCombatProfileMessageTrigger = (
 
 export const castCombatProfileMessageTrigger = (
   deps: CombatProfileRuntimeDeps,
-  profile: CombatProfile,
   trigger: CombatProfileMessageTrigger,
+  triggerIndex: number,
   event: CombatProfileMessageTriggerEvent,
   state: CombatProfileMessageTriggerState,
   now = Date.now(),
@@ -293,8 +293,7 @@ export const castCombatProfileMessageTrigger = (
   state.semaphore.withPermits(1)(
     Effect.gen(function* () {
       const cooldownMs = trigger.cooldownMs ?? 0;
-      const castKey = `${profile.id}:${trigger.id}:${trigger.skill}`;
-      const lastCast = (yield* Ref.get(state.state)).get(castKey);
+      const lastCast = (yield* Ref.get(state.state)).get(triggerIndex);
       if (lastCast !== undefined && now - lastCast < cooldownMs) {
         return false;
       }
@@ -318,7 +317,7 @@ export const castCombatProfileMessageTrigger = (
 
       yield* Ref.update(state.state, (previous) => {
         const next = new Map(previous);
-        next.set(castKey, now);
+        next.set(triggerIndex, now);
         return next;
       });
       return true;
@@ -332,12 +331,14 @@ export const castCombatProfileMessageTriggers = (
   state: CombatProfileMessageTriggerState,
 ) =>
   Effect.gen(function* () {
-    for (const trigger of profile.messageTriggers ?? []) {
+    for (const [triggerIndex, trigger] of (
+      profile.messageTriggers ?? []
+    ).entries()) {
       if (!matchesCombatProfileMessageTrigger(trigger, event)) continue;
       yield* castCombatProfileMessageTrigger(
         deps,
-        profile,
         trigger,
+        triggerIndex,
         event,
         state,
       );
