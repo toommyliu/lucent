@@ -418,14 +418,23 @@ describe("Projection", () => {
       Effect.gen(function* () {
         const store = yield* makeStore;
         let userIdReads = 0;
+        let locationReads = 0;
+        let worldLoaded = false;
         const bridge = yield* makeBridge(
           bridgeTarget({
-            "player.getCell": () => "Boss",
-            "player.getPad": () => "Right",
+            "player.getCell": () => {
+              locationReads += 1;
+              return "Boss";
+            },
+            "player.getPad": () => {
+              locationReads += 1;
+              return "Right";
+            },
             "player.getUserId": () => {
               userIdReads += 1;
               return 10;
             },
+            "world.isLoaded": () => worldLoaded,
           }),
         );
         const events: Event[] = [];
@@ -530,8 +539,21 @@ describe("Projection", () => {
           raw: "",
           wireType: "str",
         });
+        expect((yield* store.world.getMe)?.cell).toBe("Battle");
+        expect((yield* store.world.getMe)?.pad).toBe("Left");
+        expect(locationReads).toBe(0);
+
+        worldLoaded = true;
+        yield* pipeline.packet({
+          command: "mtcid",
+          data: ["mtcid", "4"],
+          direction: "extension",
+          raw: "",
+          wireType: "str",
+        });
         expect((yield* store.world.getMe)?.cell).toBe("Boss");
         expect((yield* store.world.getMe)?.pad).toBe("Right");
+        expect(locationReads).toBe(2);
 
         yield* pipeline.packet(
           extension("cb", {

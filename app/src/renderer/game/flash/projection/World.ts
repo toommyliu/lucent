@@ -335,14 +335,18 @@ const projectMoveArea = (
     yield* store.world.setMap(map);
     yield* store.world.setMonsters(monsters);
     yield* store.world.setPlayers(players);
-    const userId = yield* localUserId(store, bridge);
-    const self = players.find(
+    let self = players.find(
       (player) =>
-        (Option.isSome(userId) && player.entityId === userId.value) ||
         player.username.localeCompare(previousAuth.username, undefined, {
           sensitivity: "accent",
         }) === 0,
     );
+    if (self === undefined) {
+      const userId = yield* localUserId(store, bridge);
+      if (Option.isSome(userId)) {
+        self = players.find((player) => player.entityId === userId.value);
+      }
+    }
     if (self !== undefined) yield* store.world.setSelf(self.username);
     return [{ type: "join-map", map }] satisfies readonly Event[];
   });
@@ -545,6 +549,13 @@ export const projectExtensionWorld = (
       case "mtcid": {
         yield* Effect.log("[world] mtcid packet received", { packet });
         if (bridge === undefined) return [];
+        const loaded = yield* bridge.invoke(
+          "world.isLoaded",
+          undefined,
+          Schema.Boolean,
+        );
+        if (Option.isNone(loaded) || !loaded.value) return [];
+
         const current = yield* getOrHydrateSelf(store, bridge, diagnose);
         if (current === null) {
           yield* diagnose(
@@ -559,7 +570,13 @@ export const projectExtensionWorld = (
           bridge.invoke("player.getCell", undefined, Schema.String),
           bridge.invoke("player.getPad", undefined, Schema.String),
         ]);
-        if (Option.isNone(cell) || Option.isNone(pad)) return [];
+        if (
+          Option.isNone(cell) ||
+          Option.isNone(pad) ||
+          cell.value === "" ||
+          pad.value === ""
+        )
+          return [];
 
         yield* store.world.patchPlayer(current.username, {
           cell: cell.value,

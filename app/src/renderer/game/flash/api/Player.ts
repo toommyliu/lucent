@@ -99,6 +99,19 @@ export const makePlayer = (
       .invoke(method, undefined, schema)
       .pipe(Effect.map(Option.getOrElse(() => fallback)));
   const get = () => store.world.getMe;
+  const readLocation = (
+    projected: string,
+    method: "player.getCell" | "player.getPad",
+  ) =>
+    projected !== ""
+      ? Effect.succeed(projected)
+      : map
+          .isLoaded()
+          .pipe(
+            Effect.flatMap((loaded) =>
+              loaded ? read(method, Schema.String, "") : Effect.succeed(""),
+            ),
+          );
   const getAuras = (options?: { kind?: "active" | "passive" }) =>
     get().pipe(
       Effect.flatMap((player) =>
@@ -220,9 +233,7 @@ export const makePlayer = (
   const getCell = () =>
     get().pipe(
       Effect.flatMap((current) =>
-        current !== null && current.cell !== ""
-          ? Effect.succeed(current.cell)
-          : read("player.getCell", Schema.String, ""),
+        readLocation(current?.cell ?? "", "player.getCell"),
       ),
     );
   const getClassName = () => read("player.getClassName", Schema.String, "");
@@ -239,9 +250,7 @@ export const makePlayer = (
   const getPad = () =>
     get().pipe(
       Effect.flatMap((current) =>
-        current !== null && current.pad !== ""
-          ? Effect.succeed(current.pad)
-          : read("player.getPad", Schema.String, ""),
+        readLocation(current?.pad ?? "", "player.getPad"),
       ),
     );
   const getState = () =>

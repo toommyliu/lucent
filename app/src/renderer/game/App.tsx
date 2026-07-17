@@ -1678,12 +1678,12 @@ export function App(props: {
         return;
       }
 
-      void refreshPlayerReady().then(() => {
+      void refreshPlayerReady().then((ready) => {
         if (token !== playerReadyRetryToken || !gameLoaded()) {
           return;
         }
 
-        if (playerReady()) {
+        if (ready) {
           onReady?.();
           return;
         }
@@ -2774,12 +2774,13 @@ export function App(props: {
         Effect.gen(function* () {
           const { events } = yield* Api;
           yield* events.on({ type: "join-map" }, () =>
-            Effect.sync(() =>
+            Effect.sync(() => {
+              resetTravelOptions();
               schedulePlayerReadyRefresh({
                 onReady: syncTravelOptionsFromState,
                 retry: true,
-              }),
-            ),
+              });
+            }),
           );
           yield* events.on({ type: "connection" }, (event) =>
             Effect.sync(() => {

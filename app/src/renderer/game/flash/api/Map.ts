@@ -7,24 +7,42 @@ import type { Wait } from "./Wait";
 const Strings = Schema.Array(Schema.String);
 
 export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
+  const isLoaded = () =>
+    bridge
+      .invoke("world.isLoaded", undefined, Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+
   const getCellPads = () =>
-    bridge.invoke("world.getCellPads", undefined, Strings).pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () => store.world.getCellPads,
-          onSome: (cellPads) =>
-            store.world.setCellPads(cellPads).pipe(Effect.as(cellPads)),
-        }),
+    isLoaded().pipe(
+      Effect.flatMap((loaded) =>
+        loaded
+          ? bridge.invoke("world.getCellPads", undefined, Strings).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => store.world.getCellPads,
+                  onSome: (cellPads) =>
+                    store.world.setCellPads(cellPads).pipe(Effect.as(cellPads)),
+                }),
+              ),
+            )
+          : store.world.getCellPads,
       ),
     );
 
   const getCells = () =>
-    bridge.invoke("world.getCells", undefined, Strings).pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () => store.world.getCells,
-          onSome: (cells) => store.world.setCells(cells).pipe(Effect.as(cells)),
-        }),
+    isLoaded().pipe(
+      Effect.flatMap((loaded) =>
+        loaded
+          ? bridge.invoke("world.getCells", undefined, Strings).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => store.world.getCells,
+                  onSome: (cells) =>
+                    store.world.setCells(cells).pipe(Effect.as(cells)),
+                }),
+              ),
+            )
+          : store.world.getCells,
       ),
     );
 
@@ -46,11 +64,6 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
 
   const getRoomNumber = () =>
     store.world.getMap.pipe(Effect.map((map) => map.roomNumber));
-
-  const isLoaded = () =>
-    bridge
-      .invoke("world.isLoaded", undefined, Schema.Boolean)
-      .pipe(Effect.map(Option.getOrElse(() => false)));
 
   const loadSwf = (swf: string) =>
     bridge.invoke("world.loadSwf", [swf], Schema.Void).pipe(Effect.asVoid);

@@ -35,13 +35,18 @@ public class World
     {
       var game:Object = Main.Game;
       var world:Object = game ? game.world : null;
-      if (!world || world.mapLoadInProgress)
+      if (!world || world.mapLoadInProgress || !world.map)
       {
         return false;
       }
 
       try
       {
+        if (!world.map.currentScene || !world.map.currentScene.labels)
+        {
+          return false;
+        }
+
         return game.numChildren > 0 && game.getChildAt((game.numChildren - 1)) != game.mcConnDetail;
       }
       catch (e:Error)
