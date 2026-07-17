@@ -115,8 +115,6 @@ import {
   windowCommandIds,
 } from "./TopNav";
 
-declare const LUCENT_DEV: boolean;
-
 interface GameLoadState {
   readonly loaded: boolean;
   readonly progress: number;
@@ -3424,7 +3422,7 @@ export function App(props: {
         <div class="game-visual-cover" aria-hidden="true" />
       </section>
 
-      <Show when={LUCENT_DEV}>
+      <Show when={window.desktop.debug}>
         <DevDebugEvaluator />
       </Show>
     </main>

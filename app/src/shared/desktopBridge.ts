@@ -175,6 +175,7 @@ export interface DesktopBridge {
   readonly accounts?: DesktopAccountsBridge;
   readonly army?: DesktopArmyBridge;
   readonly combatProfiles?: DesktopCombatProfilesBridge;
+  readonly debug: boolean;
   readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly platform: {

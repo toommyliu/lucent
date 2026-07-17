@@ -10,6 +10,7 @@ export interface ObservabilityCliOptions {
 }
 
 export interface CliOptions {
+  readonly debug?: boolean;
   readonly flashPluginPath?: string;
   readonly flashVersion?: string;
   readonly launchMode?: AppLaunchMode;
@@ -86,6 +87,7 @@ export const parseCliOptions = (
 ): CliOptions => {
   const cwd = options.cwd ?? process.cwd();
   const output: {
+    debug?: boolean;
     flashPluginPath?: string;
     flashVersion?: string;
     launchMode?: AppLaunchMode;
@@ -95,6 +97,11 @@ export const parseCliOptions = (
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === undefined || !arg.startsWith("--")) {
+      continue;
+    }
+
+    if (arg === "--debug") {
+      output.debug = true;
       continue;
     }
 

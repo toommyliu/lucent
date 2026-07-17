@@ -159,10 +159,12 @@ const openProjectionLogs = (): void => {
   renderProjectionLogs();
 };
 
-(window as any).openProjectionLogs = openProjectionLogs;
-(window as any).closeProjectionLogs = closeProjectionLogs;
-(window as any).copyProjectionLogs = () =>
-  navigator.clipboard.writeText(formatLogValue(diagnosticLogs));
+if (window.desktop.debug) {
+  (window as any).openProjectionLogs = openProjectionLogs;
+  (window as any).closeProjectionLogs = closeProjectionLogs;
+  (window as any).copyProjectionLogs = () =>
+    navigator.clipboard.writeText(formatLogValue(diagnosticLogs));
+}
 
 void flashRuntime.context().catch((cause) => {
   console.warn("[flash] runtime initialization failed", cause);
@@ -174,12 +176,15 @@ flashRuntime.runFork(
     const consumeDiagnostics = gateway.diagnostics.pipe(
       Stream.runForEach((diagnostic) =>
         Effect.sync(() => {
-          diagnosticLogs.push(diagnostic);
           if (diagnostic.phase === "projection-trace") {
-            renderProjectionLogs();
-            console.debug("[flash:projection]", diagnostic);
+            if (window.desktop.debug) {
+              diagnosticLogs.push(diagnostic);
+              renderProjectionLogs();
+              console.debug("[flash:projection]", diagnostic);
+            }
             return;
           }
+          diagnosticLogs.push(diagnostic);
           console.warn("[flash:diagnostic]", diagnostic);
         }),
       ),

@@ -8,7 +8,10 @@ import {
   readAppearanceSnapshotArgument,
   readSettingsSnapshotArgument,
 } from "../shared/appearance";
-import { readGameConsoleObservabilityArgument } from "../shared/rendererBootstrapArguments";
+import {
+  readDebugModeArgument,
+  readGameConsoleObservabilityArgument,
+} from "../shared/rendererBootstrapArguments";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
 import {
   AccountsIpc,
@@ -35,6 +38,7 @@ applyBootstrapAppearance();
 
 const initialSettings = readSettingsSnapshotArgument(process.argv);
 const bridgeView = readDesktopViewArgument(process.argv);
+const debug = readDebugModeArgument(process.argv);
 const gameConsoleObservabilityEnabled = readGameConsoleObservabilityArgument(
   process.argv,
 );
@@ -132,6 +136,7 @@ const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
 };
 
 const bridge: DesktopBridge = {
+  debug,
   platform: {
     os: platform,
   },

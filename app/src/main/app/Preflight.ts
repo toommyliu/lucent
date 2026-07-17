@@ -78,6 +78,7 @@ const resolveEnvironmentConfig = (
   return {
     appDataDir: app.getPath("userData"),
     assetsDir: join(app.getAppPath(), "..", "assets"),
+    debug: cliOptions.debug === true,
     ...(cliOptions.flashPluginPath === undefined
       ? {}
       : { flashPluginPathOverride: cliOptions.flashPluginPath }),

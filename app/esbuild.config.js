@@ -25,9 +25,6 @@ const staticAssetWatchIntervalMs = 100;
 
 const baseOptions = {
   bundle: true,
-  define: {
-    LUCENT_DEV: JSON.stringify(!isProduction),
-  },
   logLevel: "info",
   minify: isProduction,
   sourcemap: !isProduction,

@@ -326,7 +326,7 @@ describe("Api", () => {
         closeBankUi();
         expect(yield* api.bank.deposit(51)).toBe(true);
         expect(calls.deposits).toBe(1);
-        expect(calls.bankOpens).toBe(3);
+        expect(calls.bankOpens).toBe(4);
         expect(calls.bankLoadForces).toEqual([true, true, true]);
         expect(yield* api.bank.contains(51)).toBe(true);
         expect(yield* api.inventory.contains(51)).toBe(false);

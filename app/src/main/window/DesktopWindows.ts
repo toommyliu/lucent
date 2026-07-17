@@ -12,7 +12,10 @@ import {
   serializeAppearanceSnapshotArgument,
   serializeSettingsSnapshotArgument,
 } from "../../shared/appearance";
-import { serializeGameConsoleObservabilityArgument } from "../../shared/rendererBootstrapArguments";
+import {
+  serializeDebugModeArgument,
+  serializeGameConsoleObservabilityArgument,
+} from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
@@ -224,6 +227,7 @@ const createWindowOptions = (
         serializeDesktopViewArgument(definition.kind),
         serializeAppearanceSnapshotArgument(snapshot),
         serializeSettingsSnapshotArgument(settings),
+        ...(env.debug === true ? [serializeDebugModeArgument()] : []),
         ...(definition.kind === "game" && env.observeGameConsole === true
           ? [serializeGameConsoleObservabilityArgument()]
           : []),
@@ -654,6 +658,25 @@ const makeDesktopWindows = Effect.gen(function* () {
         }
 
         yield* electronWindow.loadFile(window, viewHtmlPath(definition.kind));
+        if (env.debug === true) {
+          yield* Effect.try({
+            try: () => webContents.openDevTools({ mode: "right" }),
+            catch: (cause) =>
+              new DesktopWindowError({
+                id,
+                detail: `Failed to open DevTools for desktop window: ${id}`,
+                cause,
+              }),
+          }).pipe(
+            Effect.catch((cause) =>
+              observability.warn("window", "Failed to open DevTools", {
+                cause,
+                id,
+                kind,
+              }),
+            ),
+          );
+        }
         yield* electronWindow.reveal(window);
         yield* observability.info("window", "Desktop window opened", {
           id,

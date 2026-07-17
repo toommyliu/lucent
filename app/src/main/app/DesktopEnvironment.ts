@@ -8,6 +8,7 @@ import appBranding from "../../../appBranding.json";
 export interface DesktopEnvironmentConfig {
   readonly appDataDir: string;
   readonly assetsDir: string;
+  readonly debug?: boolean;
   readonly flashPluginPathOverride?: string;
   readonly isDev: boolean;
   readonly observeGameConsole?: boolean;

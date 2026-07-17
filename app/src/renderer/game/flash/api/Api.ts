@@ -42,6 +42,7 @@ export const makeApi = Effect.gen(function* () {
   const settings = yield* makeSettings(bridge, store);
   const shops = makeShops(bridge, store, inventory, wait);
   const tempInventory = makeTempInventory(store);
+  const debug = typeof window !== "undefined" && window.desktop.debug;
   const combat = makeCombat(
     bridge,
     store,
@@ -56,7 +57,17 @@ export const makeApi = Effect.gen(function* () {
     tempInventory,
     wait,
   );
-  const pipeline = makePipeline(store, gateway, bridge);
+  const pipeline = makePipeline(
+    store,
+    {
+      publishEvent: gateway.publishEvent,
+      reportDiagnostic: gateway.reportDiagnostic,
+      ...(debug
+        ? { reportProjectionTrace: gateway.reportProjectionTrace }
+        : {}),
+    },
+    bridge,
+  );
 
   yield* gateway.start(pipeline.packet, pipeline.runtime);
 
