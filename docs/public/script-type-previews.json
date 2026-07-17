@@ -1,18 +1,5 @@
 {
   "types": {
-    "api-service": {
-      "name": "ApiService",
-      "slug": "api-service",
-      "kind": "type alias",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "type ApiService = Effect.Success<typeof makeApi>",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/flash/api/Api.ts:84",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Api.ts#L84"
-      }
-    },
     "army-config-core": {
       "name": "ArmyConfigCore",
       "slug": "army-config-core",
@@ -47,8 +34,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:24",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L24"
+        "path": "packages/core/src/army.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L23"
       }
     },
     "army-config-payload": {
@@ -97,8 +84,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:31",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L31"
+        "path": "packages/core/src/army.ts:30",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L30"
       }
     },
     "army-config-raw": {
@@ -110,8 +97,8 @@
       "definition": "type ArmyConfigRaw = Record<string, unknown>",
       "keys": [],
       "source": {
-        "path": "packages/core/src/army.ts:4",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L4"
+        "path": "packages/core/src/army.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L3"
       }
     },
     "army-equip-set": {
@@ -184,8 +171,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:6",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L6"
+        "path": "packages/core/src/army.ts:5",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L5"
       }
     },
     "army-equip-set-options": {
@@ -204,8 +191,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:42",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L42"
+        "path": "app/src/renderer/game/army/Army.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L40"
       }
     },
     "army-error": {
@@ -278,167 +265,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L21"
-      }
-    },
-    "army-loop-taunt-handle": {
-      "name": "ArmyLoopTauntHandle",
-      "slug": "army-loop-taunt-handle",
-      "kind": "interface",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "interface ArmyLoopTauntHandle",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "id",
-          "signature": "readonly id: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "stop",
-          "signature": "readonly stop: () => Effect<boolean, ArmyError>",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:54",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L54"
-      }
-    },
-    "army-loop-taunt-options": {
-      "name": "ArmyLoopTauntOptions",
-      "slug": "army-loop-taunt-options",
-      "kind": "interface",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "interface ArmyLoopTauntOptions",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "participants",
-          "signature": "readonly participants: readonly [ArmyLoopTauntPlayerRef, ArmyLoopTauntPlayerRef]",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "shouldTaunt",
-          "signature": "readonly shouldTaunt?: ArmyLoopTauntShouldTaunt",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "target",
-          "signature": "readonly target: MonsterQuery",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "trigger",
-          "signature": "readonly trigger: ArmyLoopTauntTrigger",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:44",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L44"
-      }
-    },
-    "army-loop-taunt-player-ref": {
-      "name": "ArmyLoopTauntPlayerRef",
-      "slug": "army-loop-taunt-player-ref",
-      "kind": "type alias",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "type ArmyLoopTauntPlayerRef = number | string",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:14",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L14"
-      }
-    },
-    "army-loop-taunt-should-taunt": {
-      "name": "ArmyLoopTauntShouldTaunt",
-      "slug": "army-loop-taunt-should-taunt",
-      "kind": "type alias",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "type ArmyLoopTauntShouldTaunt = (\n  context: ArmyLoopTauntTurnContext,\n) => boolean | Effect.Effect<boolean, unknown>",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:40",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L40"
-      }
-    },
-    "army-loop-taunt-trigger": {
-      "name": "ArmyLoopTauntTrigger",
-      "slug": "army-loop-taunt-trigger",
-      "kind": "type alias",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "type ArmyLoopTauntTrigger = | { readonly type: \"focus\" }\n  | { readonly message: string; readonly type: \"message\" }",
-      "keys": [],
-      "source": {
-        "path": "packages/core/src/army.ts:86",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L86"
-      }
-    },
-    "army-loop-taunt-turn-context": {
-      "name": "ArmyLoopTauntTurnContext",
-      "slug": "army-loop-taunt-turn-context",
-      "kind": "interface",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "interface ArmyLoopTauntTurnContext",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "id",
-          "signature": "readonly id: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "localPlayer",
-          "signature": "readonly localPlayer: ResolvedArmyLoopTauntParticipant",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "participants",
-          "signature": "readonly participants: readonly ResolvedArmyLoopTauntParticipant[]",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "target",
-          "signature": "readonly target: { monsterMapId: number; query: MonsterQuery }",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "trigger",
-          "signature": "readonly trigger: ArmyLoopTauntTrigger",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "turn",
-          "signature": "readonly turn: { attempt: number; epoch: number }",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "world",
-          "signature": "readonly world: { monsters: Pick<ApiService[\"monsters\"], \"get\" | \"getAll\">; players: Pick<ApiService[\"players\"], \"get\" | \"getAll\" | \"getMe\"> }",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L21"
+        "path": "app/src/renderer/game/army/Army.ts:19",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L19"
       }
     },
     "army-run-step-options": {
@@ -457,8 +285,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:38",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L38"
+        "path": "app/src/renderer/game/army/Army.ts:36",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L36"
       }
     },
     "army-session": {
@@ -531,8 +359,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:46",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L46"
+        "path": "app/src/renderer/game/army/Army.ts:44",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L44"
       }
     },
     "army-session-payload": {
@@ -605,8 +433,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:36",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L36"
+        "path": "packages/core/src/army.ts:35",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L35"
       }
     },
     "army-set-config": {
@@ -631,8 +459,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:19",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L19"
+        "path": "packages/core/src/army.ts:18",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L18"
       }
     },
     "aura-data": {
@@ -1182,6 +1010,45 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L21"
       }
     },
+    "bank-open-options": {
+      "name": "BankOpenOptions",
+      "slug": "bank-open-options",
+      "kind": "interface",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "interface BankOpenOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "force",
+          "signature": "readonly force?: boolean",
+          "description": "Whether to reload bank items before opening the view."
+        },
+        {
+          "kind": "property",
+          "name": "view",
+          "signature": "readonly view?: BankView",
+          "description": "The bank view to open. Defaults to the regular bank."
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/flash/api/Bank.ts:18",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Bank.ts#L18"
+      }
+    },
+    "bank-view": {
+      "name": "BankView",
+      "slug": "bank-view",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type BankView = \"house\" | \"regular\"",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/Types.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/Types.ts#L3"
+      }
+    },
     "boost-type": {
       "name": "BoostType",
       "slug": "boost-type",
@@ -1534,6 +1401,26 @@
       "source": {
         "path": "packages/game/src/entity.ts:14",
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/entity.ts#L14"
+      }
+    },
+    "equip-options": {
+      "name": "EquipOptions",
+      "slug": "equip-options",
+      "kind": "interface",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "interface EquipOptions",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "wear",
+          "signature": "readonly wear?: boolean",
+          "description": "Whether to wear wearable equipment after equipping it. Defaults to true."
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/flash/api/Inventory.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Inventory.ts#L23"
       }
     },
     "event": {
@@ -1904,6 +1791,12 @@
           "description": ""
         },
         {
+          "kind": "property",
+          "name": "worn",
+          "signature": "readonly worn: boolean",
+          "description": ""
+        },
+        {
           "kind": "method",
           "name": "matches()",
           "signature": "matches(selector: string | number | ItemSelectorById | ItemSelectorByName | ShopItemSelectorById): boolean",
@@ -2061,11 +1954,17 @@
           "name": "wearable",
           "signature": "wearable?: boolean",
           "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "worn",
+          "signature": "worn?: boolean",
+          "description": ""
         }
       ],
       "source": {
-        "path": "packages/game/src/item.ts:86",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L86"
+        "path": "packages/game/src/item.ts:87",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L87"
       }
     },
     "item-query": {
@@ -2152,11 +2051,11 @@
       "kind": "type alias",
       "summary": "",
       "aliasOf": null,
-      "definition": "type ItemSnapshot = Readonly<ItemData> & {\n  readonly armor: boolean;\n  readonly banked: boolean;\n  readonly cape: boolean;\n  readonly classItem: boolean;\n  readonly helm: boolean;\n  readonly pet: boolean;\n  readonly weapon: boolean;\n  readonly wearable: boolean;\n}",
+      "definition": "type ItemSnapshot = Readonly<ItemData> & {\n  readonly armor: boolean;\n  readonly banked: boolean;\n  readonly cape: boolean;\n  readonly classItem: boolean;\n  readonly helm: boolean;\n  readonly pet: boolean;\n  readonly weapon: boolean;\n  readonly wearable: boolean;\n  readonly worn: boolean;\n}",
       "keys": [],
       "source": {
-        "path": "packages/game/src/item.ts:109",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L109"
+        "path": "packages/game/src/item.ts:111",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L111"
       }
     },
     "live-aura": {
@@ -2624,6 +2523,12 @@
           "description": ""
         },
         {
+          "kind": "property",
+          "name": "worn",
+          "signature": "readonly worn: boolean",
+          "description": ""
+        },
+        {
           "kind": "method",
           "name": "matches()",
           "signature": "matches(selector: string | number | ItemSelectorById | ItemSelectorByName | ShopItemSelectorById): boolean",
@@ -2655,8 +2560,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/item.ts:120",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L120"
+        "path": "packages/game/src/item.ts:123",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L123"
       }
     },
     "live-model": {
@@ -4134,32 +4039,6 @@
       "source": {
         "path": "packages/game/src/quest.ts:34",
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L34"
-      }
-    },
-    "resolved-army-loop-taunt-participant": {
-      "name": "ResolvedArmyLoopTauntParticipant",
-      "slug": "resolved-army-loop-taunt-participant",
-      "kind": "interface",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "interface ResolvedArmyLoopTauntParticipant",
-      "keys": [
-        {
-          "kind": "property",
-          "name": "name",
-          "signature": "readonly name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
-          "name": "number",
-          "signature": "readonly number: number",
-          "description": ""
-        }
-      ],
-      "source": {
-        "path": "app/src/renderer/game/army/LoopTaunt.ts:16",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/LoopTaunt.ts#L16"
       }
     },
     "runtime-event": {
