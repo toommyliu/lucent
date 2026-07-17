@@ -8,7 +8,7 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
-import { packetData, type Packet } from "../contract/Packet";
+import type { ClientPacket, ExtensionPacket } from "../contract/Packet";
 import {
   EntityPatchPayload,
   MonsterPayload,
@@ -133,8 +133,8 @@ const decodeInitializedPlayer = (value: unknown) =>
     }),
   );
 
-const decodeStringMonsterUpdate = (packet: Packet) => {
-  const data = packetData(packet);
+const decodeStringMonsterUpdate = (packet: ExtensionPacket) => {
+  const data = packet.data;
   if (!Array.isArray(data)) return Option.none<typeof MonsterUpdate.Type>();
   const patch = data[3];
   return typeof patch === "string"
@@ -142,8 +142,8 @@ const decodeStringMonsterUpdate = (packet: Packet) => {
     : Option.none();
 };
 
-const decodeStringPlayerUpdate = (packet: Packet) => {
-  const data = packetData(packet);
+const decodeStringPlayerUpdate = (packet: ExtensionPacket) => {
+  const data = packet.data;
   if (!Array.isArray(data)) return Option.none<typeof PlayerUpdate.Type>();
   const username = data[2];
   const patch = data[3];
@@ -209,17 +209,17 @@ const monsterPatch = (patch: EntityPatch) => ({
 
 const projectMoveArea = (
   store: Store,
-  packet: Packet,
+  packet: ExtensionPacket,
   diagnose: DiagnosticReporter,
   bridge: BridgeService | undefined,
 ) =>
   Effect.gen(function* () {
-    const decoded = decodeMoveArea(packetData(packet));
+    const decoded = decodeMoveArea(packet.data);
     if (Option.isNone(decoded)) {
       yield* diagnose(
         "world:moveToArea",
         new Error("Malformed area baseline"),
-        [packetData(packet)],
+        [packet.data],
       );
       return [];
     }
@@ -347,9 +347,70 @@ const projectMoveArea = (
     return [{ type: "join-map", map }] satisfies readonly Event[];
   });
 
-export const projectWorld = (
+export const projectClientWorld = Effect.fn("projectClientWorld")(function* (
   store: Store,
-  packet: Packet,
+  packet: ClientPacket,
+  diagnose: DiagnosticReporter = ignoreDiagnostic,
+  bridge?: BridgeService,
+): Effect.fn.Return<readonly Event[]> {
+  switch (packet.command) {
+    case "moveToCell": {
+      const current = yield* getOrHydrateSelf(store, bridge, diagnose);
+      if (current === null) {
+        yield* diagnose(
+          "world:client-movement-without-self",
+          new Error("Cannot project cell movement without a local player"),
+          [packet.params],
+        );
+        return [];
+      }
+      const cell = packet.params[4];
+      const pad = packet.params[5];
+      if (cell === undefined) return [];
+      yield* store.world.patchPlayer(current.username, {
+        cell,
+        ...(pad === undefined ? {} : { pad }),
+      });
+      return [
+        {
+          type: "player-location",
+          entityId: current.entityId,
+          username: current.username,
+        },
+      ];
+    }
+    case "mv": {
+      const current = yield* getOrHydrateSelf(store, bridge, diagnose);
+      const x = decodeInt(packet.params[4]);
+      const y = decodeInt(packet.params[5]);
+      if (current === null) {
+        yield* diagnose(
+          "world:client-movement-without-self",
+          new Error("Cannot project position movement without a local player"),
+          [packet.params],
+        );
+        return [];
+      }
+      if (Option.isNone(x) || Option.isNone(y)) return [];
+      yield* store.world.patchPlayer(current.username, {
+        position: { x: x.value, y: y.value },
+      });
+      return [
+        {
+          type: "player-location",
+          entityId: current.entityId,
+          username: current.username,
+        },
+      ];
+    }
+    default:
+      return [];
+  }
+});
+
+export const projectExtensionWorld = (
+  store: Store,
+  packet: ExtensionPacket,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
   bridge?: BridgeService,
 ): Effect.Effect<readonly Event[]> =>
@@ -359,7 +420,7 @@ export const projectWorld = (
         return yield* projectMoveArea(store, packet, diagnose, bridge);
       case "initUserData":
       case "initUserDatas": {
-        const data = packetData(packet);
+        const data = packet.data;
         const baselines =
           packet.command === "initUserData"
             ? Option.some([data] as readonly unknown[])
@@ -398,7 +459,7 @@ export const projectWorld = (
         return [];
       }
       case "exitArea": {
-        const data = packetData(packet);
+        const data = packet.data;
         const username = Array.isArray(data)
           ? decodeString(data[3])
           : Option.none();
@@ -411,10 +472,10 @@ export const projectWorld = (
         const decoded =
           packet.wireType === "str"
             ? decodeStringPlayerUpdate(packet)
-            : decodePlayerUpdate(packetData(packet));
+            : decodePlayerUpdate(packet.data);
         if (Option.isNone(decoded)) {
           yield* diagnose("world:uotls", new Error("Malformed player update"), [
-            packetData(packet),
+            packet.data,
           ]);
           return [];
         }
@@ -423,7 +484,7 @@ export const projectWorld = (
           yield* diagnose(
             "world:unknown-player-update",
             new Error("Ignored update for unknown player"),
-            [decoded.value.unm, packetData(packet)],
+            [decoded.value.unm, packet.data],
           );
           return [];
         }
@@ -458,10 +519,10 @@ export const projectWorld = (
         const decoded =
           packet.wireType === "str"
             ? decodeStringMonsterUpdate(packet)
-            : decodeMonsterUpdate(packetData(packet));
+            : decodeMonsterUpdate(packet.data);
         if (Option.isNone(decoded)) {
           yield* diagnose("world:mtls", new Error("Malformed monster update"), [
-            packetData(packet),
+            packet.data,
           ]);
           return [];
         }
@@ -473,7 +534,7 @@ export const projectWorld = (
           yield* diagnose(
             "world:unknown-monster-update",
             new Error("Ignored update for unknown monster"),
-            [decoded.value.id, packetData(packet)],
+            [decoded.value.id, packet.data],
           );
           return [];
         }
@@ -481,41 +542,15 @@ export const projectWorld = (
           ? [{ type: "monster-death", monsterMapId: decoded.value.id }]
           : [];
       }
-      case "moveToCell": {
-        if (packet.direction !== "client") return [];
-        const current = yield* getOrHydrateSelf(store, bridge, diagnose);
-        if (current === null) {
-          yield* diagnose(
-            "world:client-movement-without-self",
-            new Error("Cannot project cell movement without a local player"),
-            [packetData(packet)],
-          );
-          return [];
-        }
-        const cell = packet.params[4];
-        const pad = packet.params[5];
-        if (cell === undefined) return [];
-        yield* store.world.patchPlayer(current.username, {
-          cell,
-          ...(pad === undefined ? {} : { pad }),
-        });
-        return [
-          {
-            type: "player-location",
-            entityId: current.entityId,
-            username: current.username,
-          },
-        ];
-      }
       case "mtcid": {
         yield* Effect.log("[world] mtcid packet received", { packet });
-        if (packet.direction !== "extension" || bridge === undefined) return [];
+        if (bridge === undefined) return [];
         const current = yield* getOrHydrateSelf(store, bridge, diagnose);
         if (current === null) {
           yield* diagnose(
             "world:client-movement-without-self",
             new Error("Cannot project cell transition without a local player"),
-            [packetData(packet)],
+            [packet.data],
           );
           return [];
         }
@@ -538,33 +573,6 @@ export const projectWorld = (
           },
         ];
       }
-      case "mv": {
-        if (packet.direction !== "client") return [];
-        const current = yield* getOrHydrateSelf(store, bridge, diagnose);
-        const x = decodeInt(packet.params[4]);
-        const y = decodeInt(packet.params[5]);
-        if (current === null) {
-          yield* diagnose(
-            "world:client-movement-without-self",
-            new Error(
-              "Cannot project position movement without a local player",
-            ),
-            [packetData(packet)],
-          );
-          return [];
-        }
-        if (Option.isNone(x) || Option.isNone(y)) return [];
-        yield* store.world.patchPlayer(current.username, {
-          position: { x: x.value, y: y.value },
-        });
-        return [
-          {
-            type: "player-location",
-            entityId: current.entityId,
-            username: current.username,
-          },
-        ];
-      }
       case "clearAuras": {
         const current = yield* store.world.getMe;
         if (current !== null)
@@ -572,7 +580,7 @@ export const projectWorld = (
         return [];
       }
       case "event": {
-        const decoded = decodeZone(packetData(packet));
+        const decoded = decodeZone(packet.data);
         if (Option.isNone(decoded)) return [];
         const map = yield* store.world.getMap;
         return [
@@ -584,7 +592,7 @@ export const projectWorld = (
         ];
       }
       case "respawnMon": {
-        const data = packetData(packet);
+        const data = packet.data;
         const ids =
           Array.isArray(data) && typeof data[2] === "string"
             ? data[2].split(",").flatMap((value) => {
@@ -613,7 +621,7 @@ export const projectWorld = (
         return events;
       }
       case "addGoldExp": {
-        const decoded = decodeGoldExperience(packetData(packet));
+        const decoded = decodeGoldExperience(packet.data);
         if (Option.isNone(decoded) || decoded.value.typ !== "m") return [];
         const result = yield* store.world.patchMonster(decoded.value.id, {
           hp: 0,

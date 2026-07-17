@@ -6,10 +6,13 @@ import type { DiagnosticReporter } from "../contract/Diagnostic";
 import type { Packet } from "../contract/Packet";
 import { projectAuth } from "../projection/Auth";
 import { projectCombat } from "../projection/Combat";
-import { projectItems } from "../projection/Items";
+import {
+  projectExtensionItems,
+  projectHouseEquipRequest,
+} from "../projection/Items";
 import { projectQuests } from "../projection/Quests";
 import { projectShops } from "../projection/Shops";
-import { projectWorld } from "../projection/World";
+import { projectClientWorld, projectExtensionWorld } from "../projection/World";
 import type { Store, StoreSnapshot } from "../state/Store";
 
 export interface ProjectionDifference {
@@ -60,7 +63,7 @@ const stateDiff = (
   return differences;
 };
 
-const itemCommands = new Set([
+const extensionItemCommands = new Set([
   "loadInventoryBig",
   "initInventory",
   "loadHouseInventory",
@@ -83,8 +86,7 @@ const itemCommands = new Set([
   "enhanceItemShop",
   "Wheel",
 ]);
-const questCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
-const clientItemCommands = new Set(["equipItem"]);
+const extensionQuestCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
 const clientWorldCommands = new Set(["moveToCell", "mv"]);
 const extensionWorldCommands = new Set([
   "moveToArea",
@@ -141,42 +143,37 @@ export const makePipeline = (
   const projectionFor = (
     packet: Packet,
   ): Effect.Effect<readonly Event[]> | undefined => {
-    if (packet.direction === "server") {
-      return packet.command === "ct"
-        ? projectCombat(store, packet, diagnose)
-        : undefined;
+    switch (packet.direction) {
+      case "server":
+        return packet.command === "ct"
+          ? projectCombat(store, packet, diagnose)
+          : undefined;
+      case "client":
+        if (packet.command === "equipItem") {
+          return projectHouseEquipRequest(store, packet, diagnose);
+        }
+        if (clientWorldCommands.has(packet.command)) {
+          return projectClientWorld(store, packet, diagnose, bridge);
+        }
+        return undefined;
+      case "extension":
+        if (packet.command === "cb") {
+          return projectCombat(store, packet, diagnose);
+        }
+        if (extensionItemCommands.has(packet.command)) {
+          return projectExtensionItems(store, packet, diagnose);
+        }
+        if (extensionQuestCommands.has(packet.command)) {
+          return projectQuests(store, packet, diagnose);
+        }
+        if (packet.command === "loadShop") {
+          return projectShops(store, packet, diagnose);
+        }
+        if (extensionWorldCommands.has(packet.command)) {
+          return projectExtensionWorld(store, packet, diagnose, bridge);
+        }
+        return undefined;
     }
-
-    if ("__log" in window) {
-      console.log(packet);
-    }
-
-    if (packet.direction === "client") {
-      if (clientItemCommands.has(packet.command)) {
-        return projectItems(store, packet, diagnose);
-      }
-      if (clientWorldCommands.has(packet.command)) {
-        return projectWorld(store, packet, diagnose, bridge);
-      }
-      return undefined;
-    }
-
-    if (packet.command === "cb") {
-      return projectCombat(store, packet, diagnose);
-    }
-    if (itemCommands.has(packet.command)) {
-      return projectItems(store, packet, diagnose);
-    }
-    if (questCommands.has(packet.command)) {
-      return projectQuests(store, packet, diagnose);
-    }
-    if (packet.command === "loadShop") {
-      return projectShops(store, packet, diagnose);
-    }
-    if (extensionWorldCommands.has(packet.command)) {
-      return projectWorld(store, packet, diagnose, bridge);
-    }
-    return undefined;
   };
 
   return {

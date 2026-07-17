@@ -13,7 +13,7 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
-import { packetData, type Packet } from "../contract/Packet";
+import type { ClientPacket, ExtensionPacket } from "../contract/Packet";
 import { ItemPayload, toItem } from "../contract/payload/Items";
 import type { ItemContainer } from "../state/Items";
 import type { Store } from "../state/Store";
@@ -186,6 +186,29 @@ const equipHouse = Effect.fn("equipHouse")(function* (
   return true;
 });
 
+export const projectHouseEquipRequest = Effect.fn("projectHouseEquipRequest")(
+  function* (
+    store: Store,
+    packet: ClientPacket,
+    diagnose: DiagnosticReporter = ignoreDiagnostic,
+  ) {
+    if (packet.command !== "equipItem") return [];
+
+    const itemId = decodePositiveInt(packet.params[4]);
+    if (Option.isNone(itemId)) {
+      yield* diagnose(
+        "items:equipItem",
+        new Error("Malformed client equipment payload"),
+        [packet.params],
+      );
+      return [];
+    }
+
+    yield* equipHouse(store, itemId.value);
+    return [];
+  },
+);
+
 const projectPurchase = Effect.fn("projectPurchase")(function* (
   store: Store,
   value: unknown,
@@ -348,13 +371,13 @@ const upsertWheelReward = (
     return true;
   });
 
-export const projectItems = (
+export const projectExtensionItems = (
   store: Store,
-  packet: Packet,
+  packet: ExtensionPacket,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
-    const data = packetData(packet);
+    const data = packet.data;
     switch (packet.command) {
       case "loadInventoryBig":
       case "initInventory":
@@ -452,20 +475,6 @@ export const projectItems = (
       case "wearItem":
       case "unequipItem":
       case "unwearItem": {
-        if (packet.direction === "client") {
-          const itemId = decodePositiveInt(packet.params[4]);
-          if (Option.isNone(itemId)) {
-            yield* diagnose(
-              "items:equipItem",
-              new Error("Malformed client equipment payload"),
-              [data],
-            );
-            return [];
-          }
-          yield* equipHouse(store, itemId.value);
-          return [];
-        }
-
         const decoded = decodeEquipmentMutation(data);
         if (Option.isNone(decoded)) {
           yield* diagnose(

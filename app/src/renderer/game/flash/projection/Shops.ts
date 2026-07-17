@@ -6,7 +6,7 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
-import { packetData, type Packet } from "../contract/Packet";
+import type { ExtensionPacket } from "../contract/Packet";
 import { ShopPayload, toShop } from "../contract/payload/Shops";
 import { ItemPayload, toItem } from "../contract/payload/Items";
 import type { Store } from "../state/Store";
@@ -19,15 +19,15 @@ const decodeItem = Schema.decodeUnknownOption(ItemPayload);
 
 export const projectShops = (
   store: Store,
-  packet: Packet,
+  packet: ExtensionPacket,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
     if (packet.command !== "loadShop") return [];
-    const decoded = decodeShop(packetData(packet));
+    const decoded = decodeShop(packet.data);
     if (Option.isNone(decoded)) {
       yield* diagnose("shops:loadShop", new Error("Malformed shop payload"), [
-        packetData(packet),
+        packet.data,
       ]);
       return [];
     }

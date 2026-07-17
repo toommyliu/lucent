@@ -5,7 +5,7 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
-import { packetData, type Packet } from "../contract/Packet";
+import type { ExtensionPacket, ServerPacket } from "../contract/Packet";
 import { AuraPayload, toAura } from "../contract/payload/Combat";
 import {
   EntityPatchPayload,
@@ -86,17 +86,17 @@ const entityPatch = (patch: EntityPatch) => ({
 
 export const projectCombat = (
   store: Store,
-  packet: Packet,
+  packet: ExtensionPacket | ServerPacket,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
     if (packet.command !== "ct" && packet.command !== "cb") return [];
-    const decoded = decodeCombat(packetData(packet));
+    const decoded = decodeCombat(packet.data);
     if (Option.isNone(decoded)) {
       yield* diagnose(
         `combat:${packet.command}`,
         new Error("Malformed combat payload"),
-        [packetData(packet)],
+        [packet.data],
       );
       return [];
     }
@@ -117,7 +117,7 @@ export const projectCombat = (
         yield* diagnose(
           "combat:unknown-player-update",
           new Error("Ignored update for unknown player"),
-          [username, packetData(packet)],
+          [username, packet.data],
         );
         continue;
       }
@@ -168,7 +168,7 @@ export const projectCombat = (
         yield* diagnose(
           "combat:unknown-monster-update",
           new Error("Ignored update for unknown monster"),
-          [id, packetData(packet)],
+          [id, packet.data],
         );
         continue;
       }

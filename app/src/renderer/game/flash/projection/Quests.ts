@@ -10,7 +10,7 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
-import { packetData, type Packet } from "../contract/Packet";
+import type { ExtensionPacket } from "../contract/Packet";
 import { QuestPayload, toQuest } from "../contract/payload/Quests";
 import type { Store } from "../state/Store";
 
@@ -25,17 +25,17 @@ const decodeComplete = Schema.decodeUnknownOption(QuestComplete);
 
 export const projectQuests = (
   store: Store,
-  packet: Packet,
+  packet: ExtensionPacket,
   diagnose: DiagnosticReporter = ignoreDiagnostic,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
     if (packet.command === "getQuests" || packet.command === "getQuests2") {
-      const list = decodeQuestList(packetData(packet));
+      const list = decodeQuestList(packet.data);
       if (Option.isNone(list)) {
         yield* diagnose(
           `quests:${packet.command}`,
           new Error("Malformed quest payload"),
-          [packetData(packet)],
+          [packet.data],
         );
         return [];
       }
@@ -60,12 +60,12 @@ export const projectQuests = (
     }
 
     if (packet.command !== "ccqr") return [];
-    const complete = decodeComplete(packetData(packet));
+    const complete = decodeComplete(packet.data);
     if (Option.isNone(complete)) {
       yield* diagnose(
         "quests:ccqr",
         new Error("Malformed quest completion payload"),
-        [packetData(packet)],
+        [packet.data],
       );
     }
     return Option.isSome(complete) && complete.value.bSuccess
