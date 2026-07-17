@@ -64,6 +64,7 @@ const itemCommands = new Set([
   "loadInventoryBig",
   "initInventory",
   "loadHouseInventory",
+  "buyItem",
   "bankFromInv",
   "bankToInv",
   "bankSwapInv",
@@ -83,6 +84,7 @@ const itemCommands = new Set([
   "Wheel",
 ]);
 const questCommands = new Set(["getQuests", "getQuests2", "ccqr"]);
+const clientItemCommands = new Set(["equipItem"]);
 const clientWorldCommands = new Set(["moveToCell", "mv"]);
 const extensionWorldCommands = new Set([
   "moveToArea",
@@ -145,10 +147,18 @@ export const makePipeline = (
         : undefined;
     }
 
+    if ("__log" in window) {
+      console.log(packet);
+    }
+
     if (packet.direction === "client") {
-      return clientWorldCommands.has(packet.command)
-        ? projectWorld(store, packet, diagnose, bridge)
-        : undefined;
+      if (clientItemCommands.has(packet.command)) {
+        return projectItems(store, packet, diagnose);
+      }
+      if (clientWorldCommands.has(packet.command)) {
+        return projectWorld(store, packet, diagnose, bridge);
+      }
+      return undefined;
     }
 
     if (packet.command === "cb") {

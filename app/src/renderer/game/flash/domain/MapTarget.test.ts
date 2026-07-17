@@ -2,7 +2,9 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Random } from "effect";
 
 import {
+  applyPrivateRoom,
   hasFixedRoom,
+  isPrivateRoom,
   maximumRoom,
   minimumPrivateRoom,
   parseMapTarget,
@@ -98,4 +100,21 @@ describe("MapTarget", () => {
     expect(privateRoom(" battleon ", 12_345)).toBe("battleon-12345");
     expect(privateRoom("battleon-1200", 12_345)).toBe("battleon-1200");
   });
+
+  it.effect("shares private-room policy across map callers", () =>
+    Effect.gen(function* () {
+      expect(yield* applyPrivateRoom(" battleon ", false)).toBe(" battleon ");
+      expect(
+        yield* withRandomValue(applyPrivateRoom(" battleon ", true), 0),
+      ).toBe(`battleon-${minimumPrivateRoom}`);
+      expect(yield* applyPrivateRoom("battleon-1200", true)).toBe(
+        "battleon-1200",
+      );
+
+      expect(isPrivateRoom(minimumPrivateRoom)).toBe(true);
+      expect(isPrivateRoom(maximumRoom)).toBe(true);
+      expect(isPrivateRoom(minimumPrivateRoom - 1)).toBe(false);
+      expect(isPrivateRoom(maximumRoom + 1)).toBe(false);
+    }),
+  );
 });

@@ -2,8 +2,9 @@ import { Cause, Data, Effect, Option, Schedule, Schema } from "effect";
 
 import type { ApiService } from "../flash/api/Api";
 import type { BridgeService } from "../flash/bridge/Bridge";
+import { applyPrivateRoom, isPrivateRoom } from "../flash/domain/MapTarget";
 
-const maximumHouseMoveAttempts = 3;
+const maximumSafeMoveAttempts = 3;
 const respawnTimeout = "15 seconds";
 const returnInfoPath = "world.returnInfo";
 
@@ -13,27 +14,30 @@ export interface SafeStartStopServices {
   readonly auth: ApiService["auth"];
   readonly bridge: BridgeService;
   readonly combat: ApiService["combat"];
+  readonly house: ApiService["house"];
+  readonly map: ApiService["map"];
   readonly packet: ApiService["packet"];
   readonly player: ApiService["player"];
+  readonly usePrivateRooms: Effect.Effect<boolean>;
   readonly wait: ApiService["wait"];
 }
 
-class HouseMoveTimeout extends Data.TaggedError("HouseMoveTimeout") {}
+class SafeMoveTimeout extends Data.TaggedError("SafeMoveTimeout") {}
 
-export type HouseMoveAttemptResult = "aborted" | "moved" | "retry";
-export type HouseMoveResult =
-  | Exclude<HouseMoveAttemptResult, "retry">
+export type SafeMoveAttemptResult = "aborted" | "moved" | "retry";
+export type SafeMoveResult =
+  | Exclude<SafeMoveAttemptResult, "retry">
   | "timed-out";
 
-const houseMoveRetrySchedule = Schedule.exponential("1 second").pipe(
-  Schedule.take(maximumHouseMoveAttempts - 1),
+const safeMoveRetrySchedule = Schedule.exponential("1 second").pipe(
+  Schedule.take(maximumSafeMoveAttempts - 1),
 );
 
 const warnFailure = (phase: SafeStartStopPhase) =>
   Effect.catchCause((cause: Cause.Cause<unknown>) =>
     Effect.logWarning({
       cause,
-      message: `script safeStartStop ${phase}-run house move failed`,
+      message: `script safeStartStop ${phase}-run safe move failed`,
     }),
   );
 
@@ -42,32 +46,32 @@ const abortDisconnected = (phase: SafeStartStopPhase) =>
     message: `script safeStartStop ${phase}-run aborted; connection is unavailable`,
   });
 
-export const retryHouseMove = <R>(
-  attempt: Effect.Effect<HouseMoveAttemptResult, never, R>,
-): Effect.Effect<HouseMoveResult, never, R> =>
+export const retrySafeMove = <R>(
+  attempt: Effect.Effect<SafeMoveAttemptResult, never, R>,
+): Effect.Effect<SafeMoveResult, never, R> =>
   attempt.pipe(
     Effect.flatMap((result) =>
       result === "retry"
-        ? Effect.fail(new HouseMoveTimeout())
-        : Effect.succeed<HouseMoveResult>(result),
+        ? Effect.fail(new SafeMoveTimeout())
+        : Effect.succeed<SafeMoveResult>(result),
     ),
-    Effect.retry(houseMoveRetrySchedule),
-    Effect.catchTag("HouseMoveTimeout", () =>
-      Effect.succeed<HouseMoveResult>("timed-out"),
+    Effect.retry(safeMoveRetrySchedule),
+    Effect.catchTag("SafeMoveTimeout", () =>
+      Effect.succeed<SafeMoveResult>("timed-out"),
     ),
   );
 
 export const runWithSafeStartStop = <A, E, R, OptionsR, MoveR>(
   main: Effect.Effect<A, E, R>,
   isEnabled: Effect.Effect<boolean, never, OptionsR>,
-  moveToOwnHouse: (
+  moveToSafeDestination: (
     phase: SafeStartStopPhase,
   ) => Effect.Effect<void, never, MoveR>,
 ): Effect.Effect<A, E, R | OptionsR | MoveR> => {
   const moveIfEnabled = (phase: SafeStartStopPhase) =>
     isEnabled.pipe(
       Effect.flatMap((enabled) =>
-        enabled ? moveToOwnHouse(phase) : Effect.void,
+        enabled ? moveToSafeDestination(phase) : Effect.void,
       ),
     );
 
@@ -77,8 +81,22 @@ export const runWithSafeStartStop = <A, E, R, OptionsR, MoveR>(
   }).pipe(Effect.ensuring(moveIfEnabled("after")));
 };
 
-export const makeMoveToOwnHouse = (services: SafeStartStopServices) => {
-  const { auth, bridge, combat, packet, player, wait } = services;
+type SafeDestination =
+  | { readonly kind: "house" }
+  | { readonly kind: "buyhouse"; readonly target: string };
+
+export const makeMoveToSafeDestination = (services: SafeStartStopServices) => {
+  const {
+    auth,
+    bridge,
+    combat,
+    house,
+    map,
+    packet,
+    player,
+    usePrivateRooms,
+    wait,
+  } = services;
 
   const isInOwnHouse = bridge
     .invokeJson("flash.callGameFunction0", ["world.isMyHouse"], Schema.Boolean)
@@ -89,135 +107,181 @@ export const makeMoveToOwnHouse = (services: SafeStartStopServices) => {
       .invoke("flash.setGameObject", [returnInfoPath, value], Schema.Void)
       .pipe(Effect.map(Option.isSome));
 
-  const moveToOwnHouse = Effect.fn("ScriptRunner.moveToOwnHouse")(function* (
-    phase: SafeStartStopPhase,
-  ) {
-    if (!(yield* auth.isLoggedIn())) {
-      return yield* abortDisconnected(phase);
-    }
-
-    const username = (yield* auth.getUsername()).trim();
-    if (username === "") {
-      yield* Effect.logWarning({
-        message: `script safeStartStop ${phase}-run skipped; username is unavailable`,
-      });
-      return;
-    }
-
-    const inOwnHouse = yield* isInOwnHouse;
-    if (!(yield* auth.isLoggedIn())) {
-      return yield* abortDisconnected(phase);
-    }
-    if (inOwnHouse) return;
-
-    const alive = yield* player.isAlive();
-    if (!(yield* auth.isLoggedIn())) {
-      return yield* abortDisconnected(phase);
-    }
-    if (!alive) {
-      yield* Effect.logInfo({
-        message: `script safeStartStop ${phase}-run waiting for automatic respawn`,
-      });
-      const respawn = yield* wait.untilSome(
-        Effect.all([auth.isLoggedIn(), player.isAlive()]).pipe(
-          Effect.map(([loggedIn, alive]) =>
-            !loggedIn
-              ? Option.some<"aborted" | "ready">("aborted")
-              : alive
-                ? Option.some<"aborted" | "ready">("ready")
-                : Option.none(),
-          ),
-        ),
-        { timeout: respawnTimeout },
-      );
-      if (respawn === "aborted") {
+  const moveToSafeDestination = Effect.fn("ScriptRunner.moveToSafeDestination")(
+    function* (phase: SafeStartStopPhase) {
+      if (!(yield* auth.isLoggedIn())) {
         return yield* abortDisconnected(phase);
       }
-      if (respawn !== "ready") {
+
+      const username = (yield* auth.getUsername()).trim();
+      if (username === "") {
         yield* Effect.logWarning({
-          message: `script safeStartStop ${phase}-run skipped; automatic respawn timed out`,
+          message: `script safeStartStop ${phase}-run skipped; username is unavailable`,
         });
         return;
       }
-    }
 
-    const exitedCombat = yield* combat.exit();
-    if (!(yield* auth.isLoggedIn())) {
-      return yield* abortDisconnected(phase);
-    }
-    if (!exitedCombat) {
-      yield* Effect.logWarning({
-        message: `script safeStartStop ${phase}-run skipped; failed to exit combat`,
-      });
-      return;
-    }
-
-    yield* Effect.sleep("1 second");
-    if (!(yield* auth.isLoggedIn())) {
-      return yield* abortDisconnected(phase);
-    }
-
-    const move = Effect.gen(function* () {
-      const result = yield* retryHouseMove(
-        Effect.gen(function* () {
-          if (!(yield* auth.isLoggedIn())) return "aborted";
-          if (!(yield* packet.sendServer(`%xt%zm%house%1%${username}%`))) {
-            return "retry";
-          }
-          const outcome = yield* wait.untilSome(
-            Effect.all([
-              auth.isLoggedIn(),
-              isInOwnHouse,
-              player.isReady(),
-            ]).pipe(
-              Effect.map(([loggedIn, ownHouse, ready]) =>
-                !loggedIn
-                  ? Option.some<HouseMoveAttemptResult>("aborted")
-                  : ownHouse && ready
-                    ? Option.some<HouseMoveAttemptResult>("moved")
-                    : Option.none(),
-              ),
-            ),
-            { timeout: "5 seconds" },
-          );
-          return outcome ?? "retry";
-        }),
+      const hasEquippedHouse = (yield* house.getAll()).some(
+        (item) => item.category === "House" && item.equipped,
       );
-
-      if (result === "aborted") {
-        yield* abortDisconnected(phase);
-      } else if (result === "timed-out") {
-        yield* Effect.logWarning({
-          message: `script safeStartStop ${phase}-run house move timed out`,
-        });
+      let destination: SafeDestination;
+      if (hasEquippedHouse) {
+        const inOwnHouse = yield* isInOwnHouse;
+        if (!(yield* auth.isLoggedIn())) {
+          return yield* abortDisconnected(phase);
+        }
+        if (inOwnHouse) return;
+        destination = { kind: "house" };
+      } else {
+        const privateRoomsEnabled = yield* usePrivateRooms;
+        const [mapName, roomNumber] = yield* Effect.all([
+          map.getName(),
+          map.getRoomNumber(),
+        ]);
+        const inBuyhouse =
+          mapName.localeCompare("buyhouse", undefined, {
+            sensitivity: "accent",
+          }) === 0;
+        if (inBuyhouse && (!privateRoomsEnabled || isPrivateRoom(roomNumber))) {
+          return;
+        }
+        destination = {
+          kind: "buyhouse",
+          target: yield* applyPrivateRoom("buyhouse", privateRoomsEnabled),
+        };
       }
-    });
 
-    // Clear (potentially) stale returnInfo for clean transfer.
-    const returnInfoIsNull = yield* bridge.invoke(
-      "flash.isNull",
-      [returnInfoPath],
-      Schema.Boolean,
-    );
-    if (Option.getOrElse(returnInfoIsNull, () => false)) return yield* move;
+      const alive = yield* player.isAlive();
+      if (!(yield* auth.isLoggedIn())) {
+        return yield* abortDisconnected(phase);
+      }
+      if (!alive) {
+        yield* Effect.logInfo({
+          message: `script safeStartStop ${phase}-run waiting for automatic respawn`,
+        });
+        const respawn = yield* wait.untilSome(
+          Effect.all([auth.isLoggedIn(), player.isAlive()]).pipe(
+            Effect.map(([loggedIn, alive]) =>
+              !loggedIn
+                ? Option.some<"aborted" | "ready">("aborted")
+                : alive
+                  ? Option.some<"aborted" | "ready">("ready")
+                  : Option.none(),
+            ),
+          ),
+          { timeout: respawnTimeout },
+        );
+        if (respawn === "aborted") {
+          return yield* abortDisconnected(phase);
+        }
+        if (respawn !== "ready") {
+          yield* Effect.logWarning({
+            message: `script safeStartStop ${phase}-run skipped; automatic respawn timed out`,
+          });
+          return;
+        }
+      }
 
-    const returnInfo = yield* bridge.invokeJson(
-      "flash.getGameObject",
-      [returnInfoPath],
-      Schema.Unknown,
-    );
-    if (Option.isNone(returnInfo) || !(yield* setReturnInfo(null))) {
-      yield* Effect.logWarning({
-        message: `script safeStartStop ${phase}-run skipped; world.returnInfo could not be cleared`,
+      const exitedCombat = yield* combat.exit();
+      if (!(yield* auth.isLoggedIn())) {
+        return yield* abortDisconnected(phase);
+      }
+      if (!exitedCombat) {
+        yield* Effect.logWarning({
+          message: `script safeStartStop ${phase}-run skipped; failed to exit combat`,
+        });
+        return;
+      }
+
+      yield* Effect.sleep("1 second");
+      if (!(yield* auth.isLoggedIn())) {
+        return yield* abortDisconnected(phase);
+      }
+
+      const move = Effect.gen(function* () {
+        const result = yield* retrySafeMove(
+          destination.kind === "house"
+            ? Effect.gen(function* () {
+                if (!(yield* auth.isLoggedIn())) return "aborted";
+                if (
+                  !(yield* packet.sendServer(`%xt%zm%house%1%${username}%`))
+                ) {
+                  return "retry";
+                }
+                const outcome = yield* wait.untilSome(
+                  Effect.all([
+                    auth.isLoggedIn(),
+                    isInOwnHouse,
+                    player.isReady(),
+                  ]).pipe(
+                    Effect.map(([loggedIn, ownHouse, ready]) =>
+                      !loggedIn
+                        ? Option.some<SafeMoveAttemptResult>("aborted")
+                        : ownHouse && ready
+                          ? Option.some<SafeMoveAttemptResult>("moved")
+                          : Option.none(),
+                    ),
+                  ),
+                  { timeout: "5 seconds" },
+                );
+                return outcome ?? "retry";
+              })
+            : Effect.gen(function* () {
+                if (!(yield* auth.isLoggedIn())) return "aborted";
+                const joined = yield* player.joinMap(destination.target);
+                if (!(yield* auth.isLoggedIn())) return "aborted";
+                if (!joined) return "retry";
+                const outcome = yield* wait.untilSome(
+                  Effect.all([auth.isLoggedIn(), player.isReady()]).pipe(
+                    Effect.map(([loggedIn, ready]) =>
+                      !loggedIn
+                        ? Option.some<SafeMoveAttemptResult>("aborted")
+                        : ready
+                          ? Option.some<SafeMoveAttemptResult>("moved")
+                          : Option.none(),
+                    ),
+                  ),
+                  { timeout: "5 seconds" },
+                );
+                return outcome ?? "retry";
+              }),
+        );
+
+        if (result === "aborted") {
+          yield* abortDisconnected(phase);
+        } else if (result === "timed-out") {
+          yield* Effect.logWarning({
+            message: `script safeStartStop ${phase}-run ${destination.kind} move timed out`,
+          });
+        }
       });
-      return;
-    }
 
-    yield* move.pipe(
-      Effect.ensuring(setReturnInfo(returnInfo.value).pipe(Effect.asVoid)),
-    );
-  });
+      // Clear (potentially) stale returnInfo for clean transfer.
+      const returnInfoIsNull = yield* bridge.invoke(
+        "flash.isNull",
+        [returnInfoPath],
+        Schema.Boolean,
+      );
+      if (Option.getOrElse(returnInfoIsNull, () => false)) return yield* move;
+
+      const returnInfo = yield* bridge.invokeJson(
+        "flash.getGameObject",
+        [returnInfoPath],
+        Schema.Unknown,
+      );
+      if (Option.isNone(returnInfo) || !(yield* setReturnInfo(null))) {
+        yield* Effect.logWarning({
+          message: `script safeStartStop ${phase}-run skipped; world.returnInfo could not be cleared`,
+        });
+        return;
+      }
+
+      yield* move.pipe(
+        Effect.ensuring(setReturnInfo(returnInfo.value).pipe(Effect.asVoid)),
+      );
+    },
+  );
 
   return (phase: SafeStartStopPhase) =>
-    moveToOwnHouse(phase).pipe(warnFailure(phase));
+    moveToSafeDestination(phase).pipe(warnFailure(phase));
 };

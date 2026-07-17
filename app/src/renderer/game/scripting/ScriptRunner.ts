@@ -33,7 +33,7 @@ import {
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptRuntimeServices } from "./api/Services";
 import {
-  makeMoveToOwnHouse,
+  makeMoveToSafeDestination,
   runWithSafeStartStop as withSafeStartStop,
 } from "./safeStartStop";
 import {
@@ -244,7 +244,7 @@ export const layer = Layer.effect(
     const army = yield* ArmyApi;
     const automation = yield* Automation;
     const bridge = yield* Bridge;
-    const { auth, combat, events, packet, player, wait } = api;
+    const { auth, combat, events, house, map, packet, player, wait } = api;
     const { autoRelogin, autoZone } = automation;
 
     const services = makeScriptRuntimeServices(api, army);
@@ -511,12 +511,17 @@ export const layer = Layer.effect(
       },
     );
 
-    const moveToOwnHouse = makeMoveToOwnHouse({
+    const moveToSafeMap = makeMoveToSafeDestination({
       auth,
       bridge,
       combat,
+      house,
+      map,
       packet,
       player,
+      usePrivateRooms: SubscriptionRef.get(optionsRef).pipe(
+        Effect.map((options) => options.usePrivateRooms),
+      ),
       wait,
     });
 
@@ -533,7 +538,7 @@ export const layer = Layer.effect(
         SubscriptionRef.get(optionsRef).pipe(
           Effect.map((options) => options.safeStartStop),
         ),
-        moveToOwnHouse,
+        moveToSafeMap,
       );
 
     const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>

@@ -52,6 +52,15 @@ const EquipmentMutation = Schema.Struct({
   strES: Schema.optionalKey(Schema.String),
   uid: Schema.optionalKey(PositiveWireInt),
 });
+const PurchaseResult = Schema.Struct({
+  bitSuccess: WireBoolean,
+});
+const SuccessfulPurchaseMutation = Schema.Struct({
+  CharItemID: PositiveWireInt,
+  ItemID: PositiveWireInt,
+  bBank: WireBoolean,
+  iQty: PositiveWireInt,
+});
 const QuestTurnIn = Schema.Struct({
   sItems: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
@@ -82,11 +91,16 @@ const decodeCharacterItemMutation = Schema.decodeUnknownOption(
   CharacterItemMutation,
 );
 const decodeEquipmentMutation = Schema.decodeUnknownOption(EquipmentMutation);
+const decodePurchaseResult = Schema.decodeUnknownOption(PurchaseResult);
+const decodeSuccessfulPurchaseMutation = Schema.decodeUnknownOption(
+  SuccessfulPurchaseMutation,
+);
 const decodeQuestTurnIn = Schema.decodeUnknownOption(QuestTurnIn);
 const decodeEnhancementMutation =
   Schema.decodeUnknownOption(EnhancementMutation);
 const decodeWheelRewards = Schema.decodeUnknownOption(WheelRewards);
 const decodeItem = Schema.decodeUnknownOption(ItemPayload);
+const decodePositiveInt = Schema.decodeUnknownOption(PositiveWireInt);
 
 const WHEEL_TREASURE_POTION_ID = 18_927; // Treasure Potion
 const WHEEL_SECONDARY_REWARD_ID = 19_189; // Daily XP Boost! (1 hr)
@@ -155,6 +169,75 @@ const decodeContainerItems = (
 
     return items;
   });
+
+const equipHouse = Effect.fn("equipHouse")(function* (
+  store: Store,
+  itemId: number,
+) {
+  const selected = yield* store.items.get("house", itemId);
+  if (selected?.category !== "House") return false;
+
+  const items = yield* store.items.getAll("house");
+  for (const item of items) {
+    if (item.category === "House") {
+      item.update({ equipped: item.itemId === selected.itemId });
+    }
+  }
+  return true;
+});
+
+const projectPurchase = Effect.fn("projectPurchase")(function* (
+  store: Store,
+  value: unknown,
+  diagnose: DiagnosticReporter,
+) {
+  const result = decodePurchaseResult(value);
+  if (Option.isNone(result)) {
+    yield* diagnose("items:buyItem", new Error("Malformed purchase payload"), [
+      value,
+    ]);
+    return;
+  }
+  if (result.value.bitSuccess === false) return;
+
+  const decoded = decodeSuccessfulPurchaseMutation(value);
+  if (Option.isNone(decoded)) {
+    yield* diagnose(
+      "items:buyItem",
+      new Error("Malformed successful purchase payload"),
+      [value],
+    );
+    return;
+  }
+  const purchase = decoded.value;
+
+  const shopItem = yield* store.items.get("shop", {
+    itemId: purchase.ItemID,
+  });
+  if (shopItem === null) return;
+
+  const container: ItemContainer = purchase.bBank
+    ? "bank"
+    : shopItem.houseItem
+      ? "house"
+      : "inventory";
+  const current = yield* store.items.get(container, purchase.ItemID);
+  const autoEquip =
+    container === "house" &&
+    shopItem.category === "House" &&
+    !(yield* store.items.getAll("house")).some(
+      (item) => item.category === "House" && item.equipped,
+    );
+  const item = new LiveItem({
+    ...shopItem.snapshot(),
+    charItemId: purchase.CharItemID,
+    context: container,
+    equipped: current?.equipped ?? autoEquip,
+    quantity: (current?.quantity ?? 0) + purchase.iQty,
+    worn: current?.worn ?? false,
+  });
+  yield* store.items.upsert(container, item);
+});
 
 const deposit = (store: Store, itemId: number) =>
   Effect.gen(function* () {
@@ -361,10 +444,28 @@ export const projectItems = (
         }
         return [];
       }
+      case "buyItem": {
+        yield* projectPurchase(store, data, diagnose);
+        return [];
+      }
       case "equipItem":
       case "wearItem":
       case "unequipItem":
       case "unwearItem": {
+        if (packet.direction === "client") {
+          const itemId = decodePositiveInt(packet.params[4]);
+          if (Option.isNone(itemId)) {
+            yield* diagnose(
+              "items:equipItem",
+              new Error("Malformed client equipment payload"),
+              [data],
+            );
+            return [];
+          }
+          yield* equipHouse(store, itemId.value);
+          return [];
+        }
+
         const decoded = decodeEquipmentMutation(data);
         if (Option.isNone(decoded)) {
           yield* diagnose(
@@ -390,7 +491,7 @@ export const projectItems = (
         const equipmentSlot = decoded.value.sES ?? decoded.value.strES;
         const containers = isWearMutation
           ? (["inventory"] as const)
-          : (["inventory", "temporary"] as const);
+          : (["inventory", "temporary", "house"] as const);
         for (const container of containers) {
           const item = yield* store.items.get(container, decoded.value.ItemID);
           if (item === null) continue;

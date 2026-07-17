@@ -43,6 +43,11 @@ export const randomPrivateRoom = Random.nextIntBetween(
   maximumRoom,
 );
 
+export const isPrivateRoom = (room: number): boolean =>
+  Number.isSafeInteger(room) &&
+  room >= minimumPrivateRoom &&
+  room <= maximumRoom;
+
 export const hasFixedRoom = (map: string): boolean => {
   const roomToken = splitRoom(map).roomToken;
   return roomToken !== undefined && parseRoom(roomToken) !== undefined;
@@ -58,6 +63,15 @@ export const privateRoom = (map: string, room: number): string => {
   }
   return `${target.name}-${Math.max(1, Math.trunc(room))}`;
 };
+
+export const applyPrivateRoom = Effect.fn("applyPrivateRoom")(function* (
+  map: string,
+  enabled: boolean,
+) {
+  const trimmed = map.trim();
+  if (trimmed === "" || !enabled) return map;
+  return privateRoom(trimmed, yield* randomPrivateRoom);
+});
 
 export const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
   Effect.gen(function* () {

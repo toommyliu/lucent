@@ -8,6 +8,11 @@ import { makeBridge } from "../bridge/Bridge";
 import { makePipeline, type ProjectionTrace } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
 
+Object.defineProperty(globalThis, "window", {
+  configurable: true,
+  value: {},
+});
+
 const extension = (command: string, data: unknown): Packet => ({
   command,
   data,
@@ -138,6 +143,189 @@ describe("Projection", () => {
           packet: { command: "loadInventoryBig" },
         });
       }),
+  );
+
+  it.effect(
+    "projects house inventory and House-specific equipment changes",
+    () =>
+      Effect.gen(function* () {
+        const store = yield* makeStore;
+        const pipeline = makePipeline(store, {
+          publishEvent: () => Effect.void,
+        });
+
+        yield* pipeline.packet(
+          extension("loadInventoryBig", { hitems: [], items: [] }),
+        );
+        expect(yield* store.items.getAll("house")).toEqual([]);
+
+        yield* pipeline.packet(
+          extension("loadInventoryBig", {
+            hitems: [
+              {
+                CharItemID: 1_001,
+                ItemID: 101,
+                bEquip: 1,
+                bHouse: 1,
+                sES: "ho",
+                sName: "First House",
+                sType: "House",
+              },
+              {
+                CharItemID: 1_002,
+                ItemID: 102,
+                bEquip: 0,
+                bHouse: 1,
+                sES: "ho",
+                sName: "Second House",
+                sType: "House",
+              },
+              {
+                CharItemID: 1_003,
+                ItemID: 103,
+                bEquip: 1,
+                bHouse: 1,
+                sES: "hi",
+                sName: "Placed Chair",
+                sType: "Floor Item",
+              },
+            ],
+            items: [],
+          }),
+        );
+
+        yield* pipeline.packet(
+          client("equipItem", ["xt", "zm", "equipItem", "1", "102"]),
+        );
+        expect((yield* store.items.get("house", 101))?.equipped).toBe(false);
+        expect((yield* store.items.get("house", 102))?.equipped).toBe(true);
+        expect((yield* store.items.get("house", 103))?.equipped).toBe(true);
+
+        yield* pipeline.packet(
+          extension("equipItem", { ItemID: 101, strES: "ho" }),
+        );
+        expect((yield* store.items.get("house", 101))?.equipped).toBe(true);
+        expect((yield* store.items.get("house", 102))?.equipped).toBe(false);
+
+        yield* pipeline.packet(
+          client("equipItem", ["xt", "zm", "equipItem", "1", "103"]),
+        );
+        expect((yield* store.items.get("house", 101))?.equipped).toBe(true);
+        expect((yield* store.items.get("house", 103))?.equipped).toBe(true);
+      }),
+  );
+
+  it.effect("projects successful purchases from current shop metadata", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const diagnostics: string[] = [];
+      const pipeline = makePipeline(store, {
+        publishEvent: () => Effect.void,
+        reportDiagnostic: (operation) =>
+          Effect.sync(() => {
+            diagnostics.push(operation);
+          }),
+      });
+
+      yield* store.items.replace(
+        "shop",
+        [
+          {
+            ItemID: 201,
+            ShopItemID: 2_001,
+            bHouse: true,
+            sES: "ho",
+            sName: "First Purchased House",
+            sType: "House",
+          },
+          {
+            ItemID: 202,
+            ShopItemID: 2_002,
+            bHouse: true,
+            sES: "ho",
+            sName: "Additional House",
+            sType: "House",
+          },
+          {
+            ItemID: 203,
+            ShopItemID: 2_003,
+            bHouse: true,
+            sES: "hi",
+            sName: "Purchased Chair",
+            sType: "Floor Item",
+          },
+          {
+            ItemID: 204,
+            ShopItemID: 2_004,
+            bHouse: true,
+            sES: "ho",
+            sName: "Banked House",
+            sType: "House",
+          },
+        ].map((payload) => toItem(payload, { context: "shop" })),
+      );
+
+      yield* pipeline.packet(
+        extension("buyItem", {
+          CharItemID: 3_001,
+          ItemID: 201,
+          bBank: 0,
+          bitSuccess: 1,
+          iQty: 1,
+        }),
+      );
+      expect((yield* store.items.get("house", 201))?.charItemId).toBe(3_001);
+      expect((yield* store.items.get("house", 201))?.equipped).toBe(true);
+
+      yield* pipeline.packet(
+        extension("buyItem", {
+          CharItemID: 3_002,
+          ItemID: 202,
+          bBank: 0,
+          bitSuccess: 1,
+          iQty: 1,
+        }),
+      );
+      expect((yield* store.items.get("house", 202))?.equipped).toBe(false);
+
+      yield* pipeline.packet(
+        extension("buyItem", {
+          CharItemID: 3_003,
+          ItemID: 203,
+          bBank: 0,
+          bitSuccess: 1,
+          iQty: 2,
+        }),
+      );
+      expect((yield* store.items.get("house", 203))?.quantity).toBe(2);
+      expect((yield* store.items.get("house", 203))?.equipped).toBe(false);
+
+      yield* pipeline.packet(
+        extension("buyItem", {
+          CharItemID: 3_004,
+          ItemID: 204,
+          bBank: 1,
+          bitSuccess: 1,
+          iQty: 1,
+        }),
+      );
+      expect((yield* store.items.get("bank", 204))?.context).toBe("bank");
+      expect(yield* store.items.get("house", 204)).toBeNull();
+
+      yield* pipeline.packet(extension("buyItem", { bitSuccess: 0 }));
+      expect(yield* store.items.get("house", 205)).toBeNull();
+      expect(diagnostics).toEqual([]);
+
+      yield* pipeline.packet(
+        extension("buyItem", {
+          CharItemID: 3_005,
+          bBank: 0,
+          bitSuccess: 1,
+          iQty: 1,
+        }),
+      );
+      expect(diagnostics).toEqual(["items:buyItem"]);
+    }),
   );
 
   it.effect("consumes temporary requirements on quest turn-in", () =>
