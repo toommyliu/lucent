@@ -25,9 +25,9 @@ declare global {
       "bank.getSlots": () => number;
       "bank.getUsedSlots": () => number;
       "bank.isLoaded": () => boolean;
-      "bank.isOpen": () => boolean;
+      "bank.isOpen": (view?: FlashTypes.BankView) => boolean;
       "bank.loadItems": (force?: boolean) => void;
-      "bank.open": () => void;
+      "bank.open": (view?: FlashTypes.BankView) => void;
       "bank.swap": (
         inventorySelector: FlashTypes.InventoryItemSelector,
         bankSelector: FlashTypes.InventoryItemSelector,

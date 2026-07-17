@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
+import type { BankView } from "../../Types";
 import { Bridge, makeBridge } from "../bridge/Bridge";
 import { Gateway, makeGateway } from "../bridge/Gateway";
 import { makeApi } from "./Api";
@@ -13,6 +14,7 @@ const makeTarget = () => {
   const calls = {
     actions: [] as string[],
     bankOpens: 0,
+    bankOpenViews: [] as BankView[],
     bankLoadForces: [] as boolean[],
     deposits: 0,
     equips: 0,
@@ -21,10 +23,11 @@ const makeTarget = () => {
     swaps: 0,
     wears: 0,
     withdrawals: 0,
+    withdrawalViews: [] as (BankView | null)[],
   };
   let failBankLoad = false;
   let bankLoaded = false;
-  let bankOpen = false;
+  let bankView: BankView | null = null;
   let bankItems: readonly unknown[] = [];
   let cachedShopId = 0;
   let openShopId = 0;
@@ -63,10 +66,12 @@ const makeTarget = () => {
       ];
       bankLoaded = true;
     },
-    "bank.isOpen": () => bankOpen,
-    "bank.open": () => {
+    "bank.isOpen": (view?: BankView) =>
+      view === undefined ? bankView !== null : bankView === view,
+    "bank.open": (view: BankView = "regular") => {
       calls.bankOpens += 1;
-      bankOpen = !bankOpen;
+      calls.bankOpenViews.push(view);
+      bankView = view;
     },
     "bank.swap": () => {
       calls.swaps += 1;
@@ -79,7 +84,8 @@ const makeTarget = () => {
     },
     "bank.withdraw": () => {
       calls.withdrawals += 1;
-      return true;
+      calls.withdrawalViews.push(bankView);
+      return false;
     },
     "house.getSlots": () => 1,
     "inventory.equip": (selector: { itemId: number }) => {
@@ -139,7 +145,7 @@ const makeTarget = () => {
   return {
     calls,
     closeBankUi: () => {
-      bankOpen = false;
+      bankView = null;
     },
     closeShopUi: () => {
       openShopId = 0;
@@ -150,7 +156,7 @@ const makeTarget = () => {
     resetBankSession: () => {
       bankItems = [];
       bankLoaded = false;
-      bankOpen = false;
+      bankView = null;
       failBankLoad = false;
     },
     target,
@@ -158,6 +164,42 @@ const makeTarget = () => {
 };
 
 describe("Api", () => {
+  it.effect("opens the requested bank view for house withdrawals", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { calls, target } = makeTarget();
+        const bridge = yield* makeBridge(target);
+        const gateway = yield* makeGateway(target).pipe(
+          Effect.provideService(Bridge, bridge),
+        );
+        const api = yield* makeApi.pipe(
+          Effect.provideService(Bridge, bridge),
+          Effect.provideService(Gateway, gateway),
+        );
+
+        expect(yield* api.bank.isOpen()).toBe(false);
+        expect(yield* api.bank.open({ view: "house" })).toBe(true);
+        expect(yield* api.bank.isOpen()).toBe(true);
+        expect(yield* api.bank.isOpen("house")).toBe(true);
+        expect(yield* api.bank.isOpen("regular")).toBe(false);
+        expect(calls.bankOpenViews).toEqual(["house"]);
+
+        expect(yield* api.bank.open({ view: "house" })).toBe(true);
+        expect(calls.bankOpenViews).toEqual(["house"]);
+
+        expect(yield* api.bank.open({ force: true })).toBe(true);
+        expect(calls.bankLoadForces).toEqual([true, true]);
+        expect(calls.bankOpenViews).toEqual(["house", "regular"]);
+
+        expect(yield* api.bank.withdraw(43)).toBe(false);
+        expect(calls.withdrawalViews).toEqual(["house"]);
+        expect(calls.bankOpenViews).toEqual(["house", "regular", "house"]);
+        expect((yield* api.bank.get(43))?.context).toBe("bank");
+        expect(yield* api.house.get(43)).toBeNull();
+      }),
+    ),
+  );
+
   it.effect("protects container commands and action-locked workflows", () =>
     Effect.scoped(
       Effect.gen(function* () {

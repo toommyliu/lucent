@@ -2,6 +2,7 @@ import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
 import type { ItemQuery, LiveItem } from "@lucent/game";
 import { Effect, Option, Schema, Semaphore } from "effect";
 
+import type { BankView } from "../../Types";
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
@@ -11,6 +12,15 @@ import type { Auth } from "./Auth";
 import type { House } from "./House";
 import type { Inventory } from "./Inventory";
 import type { Wait } from "./Wait";
+
+export type { BankView } from "../../Types";
+
+export interface BankOpenOptions {
+  /** Whether to reload bank items before opening the view. */
+  readonly force?: boolean;
+  /** The bank view to open. Defaults to the regular bank. */
+  readonly view?: BankView;
+}
 
 const TransferResponse = Schema.Struct({
   ItemID: PositiveWireInt,
@@ -46,10 +56,15 @@ export const makeBank = Effect.fnUntraced(function* (
   wait: Wait,
 ) {
   const loads = yield* Semaphore.make(1);
+  const opens = yield* Semaphore.make(1);
 
-  const isOpen = () =>
+  const isOpen = (view?: BankView) =>
     bridge
-      .invoke("bank.isOpen", undefined, Schema.Boolean)
+      .invoke(
+        "bank.isOpen",
+        view === undefined ? undefined : [view],
+        Schema.Boolean,
+      )
       .pipe(Effect.map(Option.getOrElse(() => false)));
 
   const getAll = () =>
@@ -122,23 +137,28 @@ export const makeBank = Effect.fnUntraced(function* (
     );
   };
 
-  const open = (force = false) =>
-    Effect.gen(function* () {
-      if (!(yield* auth.isLoggedIn())) return false;
+  const openView = Effect.fn("Bank.openView")(function* (
+    view: BankView,
+    force: boolean,
+  ) {
+    if (!(yield* auth.isLoggedIn())) return false;
 
-      if (!(yield* load(force))) return false;
+    if (!(yield* load(force))) return false;
 
-      const opened = yield* isOpen();
-      if (opened) return true;
+    const opened = yield* isOpen(view);
+    if (opened) return true;
 
-      if (
-        Option.isNone(yield* bridge.invoke("bank.open", undefined, Schema.Void))
-      ) {
-        return false;
-      }
+    if (Option.isNone(yield* bridge.invoke("bank.open", [view], Schema.Void))) {
+      return false;
+    }
 
-      return yield* wait.until(isOpen(), { timeout: "3 seconds" });
-    });
+    return yield* wait.until(isOpen(view), { timeout: "3 seconds" });
+  });
+
+  const open = (options: BankOpenOptions = {}) =>
+    opens.withPermits(1)(
+      openView(options.view ?? "regular", options.force ?? false),
+    );
 
   const contains = (selector: ItemQuery, requested?: number) =>
     get(selector).pipe(
@@ -199,9 +219,12 @@ export const makeBank = Effect.fnUntraced(function* (
 
   const withdraw = (selector: ItemQuery) => {
     return Effect.gen(function* () {
-      if (!(yield* open())) return false;
+      if (!(yield* load())) return false;
       const bankItem = yield* get(selector);
       if (bankItem === null) return false;
+      if (!(yield* open({ view: bankItem.houseItem ? "house" : "regular" }))) {
+        return false;
+      }
       const destination = bankItem.houseItem ? house : inventory;
       if (!(yield* destinationCanAccept(bankItem.itemId, destination))) {
         return false;

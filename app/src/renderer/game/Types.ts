@@ -1,5 +1,7 @@
 import type { EntityState } from "@lucent/game";
 
+export type BankView = "house" | "regular";
+
 export type ConnectToSelectionFailureReason =
   | "chat-restricted"
   | "email-unconfirmed"

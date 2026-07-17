@@ -1,7 +1,6 @@
 package lucent.game
 {
   import lucent.Main;
-  import flash.display.MovieClip;
   import flash.events.Event;
   import flash.events.IOErrorEvent;
 
@@ -11,6 +10,11 @@ package lucent.game
     private static var items:Array = [];
     private static var loaded:Boolean = false;
     private static var loading:Boolean = false;
+
+    private static function labelForView(view:String):String
+    {
+      return view == "house" ? "HouseBank" : "Bank";
+    }
 
     private static function failLoad(message:String):void
     {
@@ -183,28 +187,30 @@ package lucent.game
       return true;
     }
 
+    [BridgeTsParamType("view: FlashTypes.BankView")]
     [BridgeExport]
-    public static function open():void
+    public static function open(view:String = "regular"):void
     {
       var game:Object = Main.Game;
-      if (!game.world.uiLock)
+      var label:String = labelForView(view);
+      if (!game.world.uiLock && game.ui.mcPopup.currentLabel != label)
       {
-        if (game.ui.mcPopup.currentLabel == "Bank")
-        {
-          MovieClip(game.ui.mcPopup.getChildByName("mcBank")).fClose();
-        }
-        else
-        {
-          game.ui.mcPopup.fOpen("Bank");
-        }
+        game.ui.mcPopup.fOpen(label);
       }
     }
 
+    [BridgeTsParamType("view: FlashTypes.BankView")]
     [BridgeExport]
-    public static function isOpen():Boolean
+    public static function isOpen(view:String = null):Boolean
     {
       var game:Object = Main.Game;
-      return game.ui.mcPopup.currentLabel === "Bank";
+      var currentLabel:String = game.ui.mcPopup.currentLabel;
+      if (view == null)
+      {
+        return currentLabel == "Bank" || currentLabel == "HouseBank";
+      }
+
+      return currentLabel == labelForView(view);
     }
 
     [BridgeIgnore]
