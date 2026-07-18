@@ -1,5 +1,7 @@
 import { Option, Schema } from "effect";
 
+import { NonNegativeInt } from "./baseSchemas";
+
 export type ArmyConfigRaw = Record<string, unknown>;
 
 export interface ArmyEquipSet {
@@ -77,6 +79,140 @@ export interface ArmySessionEndedPayload {
   readonly sessionId: string;
 }
 
+/** Selects the encounter event that starts each taunt attempt. */
+export type ArmyLoopTauntStrategy =
+  | {
+      /** Cast after the target's Focus aura disappears. */
+      readonly type: "focus";
+    }
+  | {
+      /** Case-insensitive text contained in the target's animation or aura message. */
+      readonly message: string;
+      readonly type: "message";
+    };
+
+export interface ArmyLoopTauntResolvedTarget {
+  readonly focusActive: boolean;
+  readonly lifeRevision: number;
+  readonly monsterMapId: number;
+  readonly state: "alive" | "dead";
+}
+
+export interface ArmyLoopTauntRegistrationAssignment {
+  readonly assignmentId: number;
+  readonly players: readonly number[];
+  readonly strategy: ArmyLoopTauntStrategy;
+  readonly target: ArmyLoopTauntResolvedTarget;
+}
+
+export interface ArmyLoopTauntMapIdentity {
+  readonly id: number;
+  readonly name: string;
+  readonly roomNumber: number;
+}
+
+export interface ArmyLoopTauntRegisterPayload {
+  readonly assignments: readonly ArmyLoopTauntRegistrationAssignment[];
+  readonly map: ArmyLoopTauntMapIdentity;
+  readonly sessionId: string;
+}
+
+export interface ArmyLoopTauntRegisterResult {
+  readonly runId: string;
+}
+
+export interface ArmyLoopTauntRunPayload {
+  readonly runId: string;
+  readonly sessionId: string;
+}
+
+export interface ArmyLoopTauntLeavePayload extends ArmyLoopTauntRunPayload {
+  readonly reason?: string;
+}
+
+export type ArmyLoopTauntTerminalResult =
+  | {
+      readonly status: "completed";
+    }
+  | {
+      readonly reason: string;
+      readonly status: "failed";
+    };
+
+export type ArmyLoopTauntReport =
+  | {
+      readonly alive: boolean;
+      readonly cooldownMs: number;
+      readonly reason?: string;
+      readonly type: "participant-state";
+      readonly usable: boolean;
+    }
+  | {
+      readonly assignmentId: number;
+      readonly focusActive?: boolean;
+      readonly lifeRevision: number;
+      readonly monsterMapId: number;
+      readonly state: "alive" | "dead";
+      readonly type: "target-state";
+    }
+  | {
+      readonly active: boolean;
+      readonly assignmentId: number;
+      readonly lifeRevision: number;
+      readonly monsterMapId: number;
+      readonly type: "focus-state";
+    }
+  | {
+      readonly assignmentId: number;
+      readonly lifeRevision: number;
+      readonly message: string;
+      readonly monsterMapId: number;
+      readonly source: "animation" | "aura";
+      readonly type: "message";
+    }
+  | {
+      readonly commandId: number;
+      readonly cooldownMs?: number;
+      readonly outcome:
+        | "confirmed"
+        | "target-unavailable"
+        | "cast-failed"
+        | "not-ready";
+      readonly reason?: string;
+      readonly type: "command-result";
+    }
+  | {
+      readonly reason: string;
+      readonly type: "failed";
+    };
+
+export interface ArmyLoopTauntReportPayload extends ArmyLoopTauntRunPayload {
+  readonly report: ArmyLoopTauntReport;
+}
+
+export type ArmyLoopTauntCommand =
+  | {
+      readonly assignmentId: number;
+      readonly lifeRevision: number;
+      readonly monsterMapId: number;
+      readonly type: "taunt";
+    }
+  | {
+      readonly type: "probe";
+    }
+  | {
+      readonly assignmentId: number;
+      readonly code: "degraded";
+      readonly level: "warning";
+      readonly message: string;
+      readonly type: "diagnostic";
+    };
+
+export interface ArmyLoopTauntCommandPayload extends ArmyLoopTauntRunPayload {
+  readonly command: ArmyLoopTauntCommand;
+  readonly commandId: number;
+}
+
 export const ArmyConfigRawSchema = Schema.Record(Schema.String, Schema.Unknown);
 
 export const ArmyEquipSetSchema = Schema.Struct({
@@ -118,6 +254,152 @@ export const ArmySessionPayloadSchema = Schema.Struct({
 
 export const ArmySessionEndedPayloadSchema = Schema.Struct({
   reason: Schema.String,
+  sessionId: Schema.String,
+});
+
+export const ArmyLoopTauntStrategySchema = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("focus"),
+  }),
+  Schema.Struct({
+    message: Schema.String,
+    type: Schema.Literal("message"),
+  }),
+]);
+
+export const ArmyLoopTauntResolvedTargetSchema = Schema.Struct({
+  focusActive: Schema.Boolean,
+  lifeRevision: NonNegativeInt,
+  monsterMapId: Schema.Int,
+  state: Schema.Literals(["alive", "dead"]),
+});
+
+export const ArmyLoopTauntRegistrationAssignmentSchema = Schema.Struct({
+  assignmentId: NonNegativeInt,
+  players: Schema.Array(Schema.Int),
+  strategy: ArmyLoopTauntStrategySchema,
+  target: ArmyLoopTauntResolvedTargetSchema,
+});
+
+export const ArmyLoopTauntMapIdentitySchema = Schema.Struct({
+  id: Schema.Int,
+  name: Schema.String,
+  roomNumber: Schema.Int,
+});
+
+const NonNegativeFiniteNumber = Schema.Finite.check(
+  Schema.isGreaterThanOrEqualTo(0),
+);
+
+export const ArmyLoopTauntRegisterPayloadSchema = Schema.Struct({
+  assignments: Schema.Array(ArmyLoopTauntRegistrationAssignmentSchema),
+  map: ArmyLoopTauntMapIdentitySchema,
+  sessionId: Schema.String,
+});
+
+export const ArmyLoopTauntRegisterResultSchema = Schema.Struct({
+  runId: Schema.String,
+});
+
+export const ArmyLoopTauntRunPayloadSchema = Schema.Struct({
+  runId: Schema.String,
+  sessionId: Schema.String,
+});
+
+export const ArmyLoopTauntLeavePayloadSchema = Schema.Struct({
+  reason: Schema.optionalKey(Schema.String),
+  runId: Schema.String,
+  sessionId: Schema.String,
+});
+
+export const ArmyLoopTauntTerminalResultSchema = Schema.Union([
+  Schema.Struct({
+    status: Schema.Literal("completed"),
+  }),
+  Schema.Struct({
+    reason: Schema.String,
+    status: Schema.Literal("failed"),
+  }),
+]);
+
+export const ArmyLoopTauntReportSchema = Schema.Union([
+  Schema.Struct({
+    alive: Schema.Boolean,
+    cooldownMs: NonNegativeFiniteNumber,
+    reason: Schema.optionalKey(Schema.String),
+    type: Schema.Literal("participant-state"),
+    usable: Schema.Boolean,
+  }),
+  Schema.Struct({
+    assignmentId: NonNegativeInt,
+    focusActive: Schema.optionalKey(Schema.Boolean),
+    lifeRevision: NonNegativeInt,
+    monsterMapId: Schema.Int,
+    state: Schema.Literals(["alive", "dead"]),
+    type: Schema.Literal("target-state"),
+  }),
+  Schema.Struct({
+    active: Schema.Boolean,
+    assignmentId: NonNegativeInt,
+    lifeRevision: NonNegativeInt,
+    monsterMapId: Schema.Int,
+    type: Schema.Literal("focus-state"),
+  }),
+  Schema.Struct({
+    assignmentId: NonNegativeInt,
+    lifeRevision: NonNegativeInt,
+    message: Schema.String,
+    monsterMapId: Schema.Int,
+    source: Schema.Literals(["animation", "aura"]),
+    type: Schema.Literal("message"),
+  }),
+  Schema.Struct({
+    commandId: Schema.Int,
+    cooldownMs: Schema.optionalKey(NonNegativeFiniteNumber),
+    outcome: Schema.Literals([
+      "confirmed",
+      "target-unavailable",
+      "cast-failed",
+      "not-ready",
+    ]),
+    reason: Schema.optionalKey(Schema.String),
+    type: Schema.Literal("command-result"),
+  }),
+  Schema.Struct({
+    reason: Schema.String,
+    type: Schema.Literal("failed"),
+  }),
+]);
+
+export const ArmyLoopTauntReportPayloadSchema = Schema.Struct({
+  report: ArmyLoopTauntReportSchema,
+  runId: Schema.String,
+  sessionId: Schema.String,
+});
+
+export const ArmyLoopTauntCommandSchema = Schema.Union([
+  Schema.Struct({
+    assignmentId: NonNegativeInt,
+    lifeRevision: NonNegativeInt,
+    monsterMapId: Schema.Int,
+    type: Schema.Literal("taunt"),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("probe"),
+  }),
+  Schema.Struct({
+    assignmentId: NonNegativeInt,
+    code: Schema.Literal("degraded"),
+    level: Schema.Literal("warning"),
+    message: Schema.String,
+    type: Schema.Literal("diagnostic"),
+  }),
+]);
+
+export const ArmyLoopTauntCommandPayloadSchema = Schema.Struct({
+  command: ArmyLoopTauntCommandSchema,
+  commandId: Schema.Int,
+  runId: Schema.String,
   sessionId: Schema.String,
 });
 

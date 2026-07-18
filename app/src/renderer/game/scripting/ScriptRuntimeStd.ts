@@ -2,6 +2,7 @@ import { Cause, Effect } from "effect";
 
 import type { AutomationService } from "../automation/Automation";
 import type { BridgeService } from "../flash/bridge/Bridge";
+import { makeScriptArmyApi } from "./api/Army";
 import { makeScriptEventsApi } from "./api/Events";
 import { makeScriptPacketApi } from "./api/Packet";
 import { makeScriptPlayerApis } from "./api/Player";
@@ -28,6 +29,11 @@ export interface ScriptRuntimeStdOptions {
 export const makeScriptLucentStd = (
   options: ScriptRuntimeStdOptions,
 ): ScriptLucentStd => {
+  const army = makeScriptArmyApi(
+    options.services.army,
+    options.scope,
+    options.failCause,
+  );
   const events = makeScriptEventsApi(
     options.services.events,
     options.scope,
@@ -48,7 +54,7 @@ export const makeScriptLucentStd = (
     { ...options.services, player },
     options.bridge,
   );
-  const services = { ...options.services, player, players };
+  const services = { ...options.services, army, player, players };
 
   return Object.freeze({
     api: Object.freeze({

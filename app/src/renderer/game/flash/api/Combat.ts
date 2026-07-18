@@ -3,13 +3,13 @@ import {
   orderMonstersByPriority,
   toMonsterSelector,
 } from "@lucent/game";
-import type { ItemQuery, Monster, MonsterQuery } from "@lucent/game";
+import type { ItemQuery, MonsterQuery } from "@lucent/game";
 import {
   normalizeCombatProfile,
   type CombatProfile,
   type CombatProfileDefinition,
 } from "@lucent/core/combatProfiles";
-import { Effect, Option, Schema } from "effect";
+import { Effect, Option, Schema, Semaphore } from "effect";
 import type { Duration } from "effect";
 
 import {
@@ -24,7 +24,12 @@ import {
   type CombatProfileRuntimeDeps,
 } from "../../combatProfiles";
 import type { BridgeService } from "../bridge/Bridge";
-import { WireBoolean, WireInt } from "../contract/Coercion";
+import {
+  NonNegativeWireInt,
+  PositiveWireInt,
+  WireBoolean,
+  WireInt,
+} from "../contract/Coercion";
 import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
@@ -60,6 +65,13 @@ const Consumable = Schema.NullOr(
   Schema.Struct({
     itemId: Schema.optionalKey(WireInt),
     ItemID: Schema.optionalKey(WireInt),
+  }),
+);
+const ConsumableCastDispatch = Schema.NullOr(
+  Schema.Struct({
+    actionId: NonNegativeWireInt,
+    itemId: PositiveWireInt,
+    monsterMapId: PositiveWireInt,
   }),
 );
 const EntityStatePayload = WireInt.check(
@@ -140,6 +152,7 @@ export const makeCombat = (
   temporary: TempInventory,
   wait: Wait,
 ) => {
+  const consumableCasts = Semaphore.makeUnsafe(1);
   const targetValue = bridge
     .invoke("combat.getTarget", undefined, TargetPayload)
     .pipe(Effect.map(Option.getOrNull));
@@ -161,6 +174,79 @@ export const makeCombat = (
           onSome: (remaining) => Math.max(0, Math.trunc(remaining)),
         }),
       ),
+    );
+
+  const castConsumableOnMonster = (
+    selector: MonsterQuery,
+    expectedItemId: number,
+  ) =>
+    consumableCasts.withPermit(
+      Effect.gen(function* () {
+        if (!Number.isInteger(expectedItemId) || expectedItemId <= 0) {
+          return null;
+        }
+
+        let actionId: number | undefined;
+        let dispatchedMonsterMapId: number | undefined;
+        const projectedSourceId = yield* store.world.getSelfEntityId;
+        const sourceId =
+          projectedSourceId ??
+          (yield* bridge
+            .invoke("player.getUserId", undefined, PositiveWireInt)
+            .pipe(Effect.map(Option.getOrNull)));
+        if (sourceId === null) return null;
+        const eventSelector: {
+          actionId?: number;
+          sourceId: number;
+          sourceType: "player";
+          type: "combat-action-result";
+        } = {
+          sourceId,
+          sourceType: "player",
+          type: "combat-action-result",
+        };
+
+        const event = yield* events.once(eventSelector, {
+          timeout: "5 seconds",
+          trigger: bridge
+            .invoke(
+              "combat.castConsumableOnMonster",
+              [toMonsterSelector(selector), expectedItemId],
+              ConsumableCastDispatch,
+            )
+            .pipe(
+              Effect.map(
+                Option.match({
+                  onNone: () => false,
+                  onSome: (result) => {
+                    if (result === null || result.itemId !== expectedItemId) {
+                      return false;
+                    }
+                    actionId = result.actionId;
+                    dispatchedMonsterMapId = result.monsterMapId;
+                    eventSelector.actionId = result.actionId;
+                    return true;
+                  },
+                }),
+              ),
+            ),
+        });
+
+        if (
+          actionId === undefined ||
+          dispatchedMonsterMapId === undefined ||
+          event?.type !== "combat-action-result" ||
+          event.actionId !== actionId ||
+          (event.monsterMapId !== undefined &&
+            event.monsterMapId !== dispatchedMonsterMapId)
+        ) {
+          return null;
+        }
+        return {
+          ...event,
+          monsterMapId: dispatchedMonsterMapId,
+        };
+      }),
     );
 
   const canUseSkill = (skill: Skill) => {
@@ -312,16 +398,13 @@ export const makeCombat = (
   };
 
   const fight = (
-    monster: Monster,
+    selector: MonsterQuery,
     options: CombatKillOptions | undefined,
     runtime: KillProfileRuntime | null,
   ) => {
     const skills = normalizeSkillSet(options?.skillSet);
     const skillDelay = normalizeSkillDelay(options?.skillDelay);
-    const attackOrder = [
-      ...(options?.killPriority ?? []),
-      monster.monsterMapId,
-    ];
+    const attackOrder = [...(options?.killPriority ?? []), selector];
 
     const selectTarget = Effect.gen(function* () {
       const available = yield* monsters.getAvailable();
@@ -379,9 +462,10 @@ export const makeCombat = (
     runtime: KillProfileRuntime | null,
   ) =>
     Effect.gen(function* () {
-      const monster = (yield* monsters.getAvailable()).find((candidate) =>
-        candidate.matches(selector),
-      );
+      const available = yield* monsters.getAvailable();
+      const monster =
+        available.find((candidate) => candidate.matches(selector)) ??
+        orderMonstersByPriority(available, options?.killPriority ?? [])[0];
       if (monster === undefined) return false;
 
       const death = yield* wait.forEvent(
@@ -390,7 +474,7 @@ export const makeCombat = (
           type: "monster-death",
         },
         {
-          trigger: Effect.forkScoped(fight(monster, options, runtime)).pipe(
+          trigger: Effect.forkScoped(fight(selector, options, runtime)).pipe(
             Effect.as(true),
           ),
         },
@@ -610,8 +694,10 @@ export const makeCombat = (
     cancelAutoAttack,
     cancelTarget,
     canUseSkill,
+    castConsumableOnMonster,
     exit,
     getConsumableSkillItem,
+    getSkillCooldownRemaining,
     hunt,
     kill,
     killForItem,

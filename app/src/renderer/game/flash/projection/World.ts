@@ -633,6 +633,7 @@ export const projectExtensionWorld = (
             mp: monster.maxMp,
             state: EntityState.Idle,
           });
+          yield* store.world.clearAuras("monster", id);
           events.push({ type: "monster-respawn", monsterMapId: id });
         }
         return events;

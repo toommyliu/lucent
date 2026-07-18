@@ -6,6 +6,7 @@ import * as DesktopObservability from "./DesktopObservability";
 import * as GameConsoleObservability from "./GameConsoleObservability";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
+import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
 import * as AccountRepository from "../internal/accounts/AccountRepository";
 import * as Accounts from "../internal/accounts/Accounts";
 import * as AccountServers from "../internal/accounts/AccountServers";
@@ -144,8 +145,11 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const armyCoordinatorLayer = ArmyCoordinator.layer;
   const armyLayer = Layer.mergeAll(
-    ArmyCoordinator.layer,
+    ArmyLoopTauntOrchestrator.layer.pipe(
+      Layer.provideMerge(armyCoordinatorLayer),
+    ),
     ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
   );
 

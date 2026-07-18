@@ -20,8 +20,8 @@ import type { Store } from "../state/Store";
 
 const InventoryLoad = Schema.Struct({
   bitSuccess: Schema.optionalKey(WireBoolean),
-  hitems: Schema.optionalKey(Schema.Array(Schema.Unknown)),
-  items: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+  hitems: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  items: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
 });
 const ItemMutation = Schema.Struct({
   ItemID: PositiveWireInt,
@@ -405,7 +405,7 @@ export const projectExtensionItems = (
         }
         if (decoded.value.hitems !== undefined) {
           const items = yield* decodeContainerItems(
-            decoded.value.hitems,
+            decoded.value.hitems ?? [],
             "house",
             `items:${packet.command}:house-entries`,
             diagnose,

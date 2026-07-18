@@ -36,6 +36,10 @@ declare global {
       "combat.attackMonster": (selector: FlashTypes.MonsterSelector) => boolean;
       "combat.cancelAutoAttack": () => void;
       "combat.cancelTarget": () => void;
+      "combat.castConsumableOnMonster": (
+        selector: FlashTypes.MonsterSelector,
+        expectedItemId: number,
+      ) => FlashTypes.ConsumableCastDispatch | null;
       "combat.forceUseSkill": (index: string) => boolean;
       "combat.getConsumableSkillItem": () => FlashTypes.ConsumableSkillItem | null;
       "combat.getSkillCooldownRemaining": (index: number) => number;

@@ -42,6 +42,12 @@ export type ConsumableSkillItem = {
   itemId: number;
 };
 
+export type ConsumableCastDispatch = {
+  actionId: number;
+  itemId: number;
+  monsterMapId: number;
+};
+
 export type ObjectSelector<Shape extends Record<string, unknown>> = {
   [Key in keyof Shape]: {
     [SelectedKey in Key]: Shape[SelectedKey];

@@ -95,6 +95,13 @@ export interface ArmySessionEndedEvent {
   readonly sessionId: string;
 }
 
+export interface ArmyAuthenticatedParticipant {
+  readonly playerCount: number;
+  readonly playerName: string;
+  readonly playerNumber: number;
+  readonly sessionId: string;
+}
+
 interface Participant {
   readonly playerName: string;
   readonly id: ArmyParticipantId;
@@ -184,6 +191,10 @@ export interface ArmyCoordinatorShape {
       readonly timeoutMs?: number;
     },
   ) => Effect.Effect<ArmyProgressResult, ArmyCoordinatorError>;
+  readonly requireParticipant: (
+    sessionId: string,
+    participantId: ArmyParticipantId,
+  ) => Effect.Effect<ArmyAuthenticatedParticipant, ArmyCoordinatorError>;
   readonly sync: (
     sessionId: string,
     participantId: ArmyParticipantId,
@@ -441,7 +452,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
         ),
       );
 
-    const requireParticipant = (
+    const authenticateParticipant = (
       sessionId: string,
       participantId: ArmyParticipantId,
     ): Effect.Effect<
@@ -474,6 +485,19 @@ export const makeArmyCoordinator = (): Effect.Effect<
         }
         return [session, participant[0]] as const;
       });
+
+    const requireParticipant: ArmyCoordinatorShape["requireParticipant"] = (
+      sessionId,
+      participantId,
+    ) =>
+      authenticateParticipant(sessionId, participantId).pipe(
+        Effect.map(([session, playerKey]) => ({
+          playerCount: session.players.length,
+          playerName: canonicalPlayerName(session, playerKey),
+          playerNumber: playerNumber(session, playerKey),
+          sessionId,
+        })),
+      );
 
     const awaitWithTimeout = <A>(args: {
       readonly effect: Effect.Effect<A, ArmyCoordinatorError>;
@@ -954,7 +978,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
             payload.label,
           );
         }
-        const [, playerKey] = yield* requireParticipant(
+        const [, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1003,7 +1027,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
             payload.label,
           );
         }
-        const [, playerKey] = yield* requireParticipant(
+        const [, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1042,7 +1066,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
 
     const leave: ArmyCoordinatorShape["leave"] = (sessionId, participantId) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* requireParticipant(
+        const [, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1059,7 +1083,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
       reason,
     ) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* requireParticipant(
+        const [, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1087,6 +1111,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
       leave,
       onSessionEnded,
       progress,
+      requireParticipant,
       sync,
     };
 

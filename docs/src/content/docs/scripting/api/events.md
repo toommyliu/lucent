@@ -24,8 +24,9 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 
 | Event | Payload |
 | --- | --- |
-| `aura-added` | <code>{ name: string; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
-| `aura-removed` | <code>{ name: string; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
+| `aura-added` | <code>{ duration?: number; icon?: string; name: string; sourceId?: number; sourceType?: &quot;monster&quot; &#124; &quot;player&quot;; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
+| `aura-removed` | <code>{ duration?: number; icon?: string; name: string; sourceId?: number; sourceType?: &quot;monster&quot; &#124; &quot;player&quot;; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
+| `combat-action-result` | <code>{ actionId: number; iRes: number; monsterMapId?: number; sourceId: number; sourceType: &quot;monster&quot; &#124; &quot;player&quot;; success: boolean; targetId?: number; targetType?: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
 | `connection` | <code>{ status: string }</code> |
 | `debug` | <code>{ message: string }</code> |
 | `join-map` | <code>{ map: { readonly id: number; readonly name: string; readonly roomNumber: number; } }</code> |

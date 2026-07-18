@@ -34,8 +34,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:23",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L23"
+        "path": "packages/core/src/army.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L25"
       }
     },
     "army-config-payload": {
@@ -84,8 +84,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:30",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L30"
+        "path": "packages/core/src/army.ts:32",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L32"
       }
     },
     "army-config-raw": {
@@ -97,8 +97,8 @@
       "definition": "type ArmyConfigRaw = Record<string, unknown>",
       "keys": [],
       "source": {
-        "path": "packages/core/src/army.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L3"
+        "path": "packages/core/src/army.ts:5",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L5"
       }
     },
     "army-equip-set": {
@@ -171,8 +171,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:5",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L5"
+        "path": "packages/core/src/army.ts:7",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L7"
       }
     },
     "army-equip-set-options": {
@@ -191,8 +191,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:40",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L40"
+        "path": "app/src/renderer/game/army/Army.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L46"
       }
     },
     "army-error": {
@@ -265,8 +265,147 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:19",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L19"
+        "path": "app/src/renderer/game/army/Army.ts:25",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L25"
+      }
+    },
+    "army-loop-taunt-assignment": {
+      "name": "ArmyLoopTauntAssignment",
+      "slug": "army-loop-taunt-assignment",
+      "kind": "interface",
+      "summary": "Assigns one target to the Army players allowed to keep it taunted.",
+      "aliasOf": null,
+      "definition": "interface ArmyLoopTauntAssignment",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "players",
+          "signature": "readonly players: readonly number[]",
+          "description": "One-based player numbers from the active Army roster."
+        },
+        {
+          "kind": "property",
+          "name": "strategy",
+          "signature": "readonly strategy: ArmyLoopTauntStrategy",
+          "description": "The event that starts each taunt attempt."
+        },
+        {
+          "kind": "property",
+          "name": "target",
+          "signature": "readonly target: MonsterQuery",
+          "description": "The monster this assignment may taunt."
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:34",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L34"
+      }
+    },
+    "army-loop-taunt-error": {
+      "name": "ArmyLoopTauntError",
+      "slug": "army-loop-taunt-error",
+      "kind": "class",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "class ArmyLoopTauntError extends Error",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "_tag",
+          "signature": "readonly _tag: \"ArmyLoopTauntError\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/attributes",
+          "signature": "readonly ~effect/ErrorReporter/attributes?: ReadonlyRecord<string, unknown>",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/ignore",
+          "signature": "readonly ~effect/ErrorReporter/ignore?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/ErrorReporter/severity",
+          "signature": "readonly ~effect/ErrorReporter/severity?: Severity",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorExitCode",
+          "signature": "readonly ~effect/Runtime/errorExitCode?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "~effect/Runtime/errorReported",
+          "signature": "readonly ~effect/Runtime/errorReported?: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "cause",
+          "signature": "cause?: unknown",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "message",
+          "signature": "message: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "name",
+          "signature": "name: string",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "stack",
+          "signature": "stack?: string",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:49",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L49"
+      }
+    },
+    "army-loop-taunt-handle": {
+      "name": "ArmyLoopTauntHandle",
+      "slug": "army-loop-taunt-handle",
+      "kind": "interface",
+      "summary": "Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically.",
+      "aliasOf": null,
+      "definition": "interface ArmyLoopTauntHandle",
+      "keys": [
+        {
+          "kind": "method",
+          "name": "stop()",
+          "signature": "stop(): Effect<void>",
+          "description": "Stops this run. Repeated calls are safe."
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:44",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L44"
+      }
+    },
+    "army-loop-taunt-strategy": {
+      "name": "ArmyLoopTauntStrategy",
+      "slug": "army-loop-taunt-strategy",
+      "kind": "type alias",
+      "summary": "Selects the encounter event that starts each taunt attempt.",
+      "aliasOf": null,
+      "definition": "type ArmyLoopTauntStrategy = | {\n      /** Cast after the target's Focus aura disappears. */\n      readonly type: \"focus\";\n    }\n  | {\n      /** Case-insensitive text contained in the target's animation or aura message. */\n      readonly message: string;\n      readonly type: \"message\";\n    }",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/army.ts:83",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L83"
       }
     },
     "army-run-step-options": {
@@ -285,8 +424,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:36",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L36"
+        "path": "app/src/renderer/game/army/Army.ts:42",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L42"
       }
     },
     "army-session": {
@@ -359,8 +498,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:44",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L44"
+        "path": "app/src/renderer/game/army/Army.ts:50",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L50"
       }
     },
     "army-session-payload": {
@@ -433,8 +572,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:35",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L35"
+        "path": "packages/core/src/army.ts:37",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L37"
       }
     },
     "army-set-config": {
@@ -459,8 +598,8 @@
         }
       ],
       "source": {
-        "path": "packages/core/src/army.ts:18",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L18"
+        "path": "packages/core/src/army.ts:20",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L20"
       }
     },
     "aura-data": {
@@ -1096,8 +1235,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:52",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L52"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:57",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L57"
       }
     },
     "combat-profile": {
@@ -1432,8 +1571,8 @@
       "definition": "type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:57",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L57"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:76",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L76"
       }
     },
     "event-selector": {
@@ -1444,6 +1583,12 @@
       "aliasOf": null,
       "definition": "interface EventSelector",
       "keys": [
+        {
+          "kind": "property",
+          "name": "actionId",
+          "signature": "readonly actionId?: number",
+          "description": ""
+        },
         {
           "kind": "property",
           "name": "monsterMapId",
@@ -1458,14 +1603,26 @@
         },
         {
           "kind": "property",
+          "name": "sourceId",
+          "signature": "readonly sourceId?: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "sourceType",
+          "signature": "readonly sourceType?: \"monster\" | \"player\"",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "type",
-          "signature": "readonly type?: \"connection\" | \"debug\" | \"packet\" | \"packet-decode-failed\" | \"join-map\" | \"quest-complete\" | \"monster-death\" | \"monster-respawn\" | \"player-death\" | \"aura-added\" | \"aura-removed\" | \"player-location\" | \"update-message\" | \"zone\"",
+          "signature": "readonly type?: \"connection\" | \"debug\" | \"packet\" | \"packet-decode-failed\" | \"join-map\" | \"quest-complete\" | \"monster-death\" | \"monster-respawn\" | \"player-death\" | \"aura-added\" | \"aura-removed\" | \"combat-action-result\" | \"player-location\" | \"update-message\" | \"zone\"",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:59",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L59"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:78",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L78"
       }
     },
     "faction-data": {
@@ -1548,8 +1705,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:43",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L43"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L48"
       }
     },
     "input": {
@@ -3875,7 +4032,7 @@
       "kind": "type alias",
       "summary": "",
       "aliasOf": null,
-      "definition": "type ProjectionEvent = | {\n      readonly type: \"join-map\";\n      readonly map: {\n        readonly id: number;\n        readonly name: string;\n        readonly roomNumber: number;\n      };\n    }\n  | { readonly type: \"quest-complete\"; readonly questId: number }\n  | { readonly type: \"monster-death\"; readonly monsterMapId: number }\n  | { readonly type: \"monster-respawn\"; readonly monsterMapId: number }\n  | {\n      readonly type: \"player-death\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"aura-added\";\n      readonly name: string;\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"aura-removed\";\n      readonly name: string;\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"player-location\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"update-message\";\n      readonly message: string;\n      readonly monsterMapId?: number;\n      readonly source: \"animation\" | \"aura\";\n    }\n  | { readonly type: \"zone\"; readonly map: string; readonly zone: string }",
+      "definition": "type ProjectionEvent = | {\n      readonly type: \"join-map\";\n      readonly map: {\n        readonly id: number;\n        readonly name: string;\n        readonly roomNumber: number;\n      };\n    }\n  | { readonly type: \"quest-complete\"; readonly questId: number }\n  | { readonly type: \"monster-death\"; readonly monsterMapId: number }\n  | { readonly type: \"monster-respawn\"; readonly monsterMapId: number }\n  | {\n      readonly type: \"player-death\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"aura-added\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"aura-removed\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"combat-action-result\";\n      readonly actionId: number;\n      readonly iRes: number;\n      readonly monsterMapId?: number;\n      readonly sourceId: number;\n      readonly sourceType: \"monster\" | \"player\";\n      readonly success: boolean;\n      readonly targetId?: number;\n      readonly targetType?: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"player-location\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"update-message\";\n      readonly message: string;\n      readonly monsterMapId?: number;\n      readonly source: \"animation\" | \"aura\";\n    }\n  | { readonly type: \"zone\"; readonly map: string; readonly zone: string }",
       "keys": [],
       "source": {
         "path": "app/src/renderer/game/flash/contract/Event.ts:15",
@@ -4815,8 +4972,8 @@
       "definition": "type Skill = number",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:41",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L41"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L46"
       }
     },
     "skill-use-options": {
@@ -4841,8 +4998,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:47",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L47"
+        "path": "app/src/renderer/game/flash/api/Combat.ts:52",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L52"
       }
     },
     "state": {

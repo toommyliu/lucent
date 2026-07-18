@@ -233,6 +233,7 @@ describe("Api", () => {
           "packet",
           "player",
           "players",
+          "projectionReadiness",
           "quests",
           "settings",
           "shops",

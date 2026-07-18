@@ -2,6 +2,13 @@ import { Schema } from "effect";
 
 import {
   ArmyConfigPayloadSchema,
+  ArmyLoopTauntCommandPayloadSchema,
+  ArmyLoopTauntLeavePayloadSchema,
+  ArmyLoopTauntRegisterPayloadSchema,
+  ArmyLoopTauntRegisterResultSchema,
+  ArmyLoopTauntReportPayloadSchema,
+  ArmyLoopTauntRunPayloadSchema,
+  ArmyLoopTauntTerminalResultSchema,
   ArmySessionEndedPayloadSchema,
   ArmySessionPayloadSchema,
   type ArmyProgressResult,
@@ -77,10 +84,45 @@ export const ArmyIpc = {
     }),
     result: Schema.Void,
   }),
+  loopTauntRegister: defineInvoke({
+    channel: `${namespace}:loop-taunt-register`,
+    name: "army.loopTauntRegister",
+    payload: ArmyLoopTauntRegisterPayloadSchema,
+    result: ArmyLoopTauntRegisterResultSchema,
+  }),
+  loopTauntReady: defineInvoke({
+    channel: `${namespace}:loop-taunt-ready`,
+    name: "army.loopTauntReady",
+    payload: ArmyLoopTauntRunPayloadSchema,
+    result: Schema.Void,
+  }),
+  loopTauntAwait: defineInvoke({
+    channel: `${namespace}:loop-taunt-await`,
+    name: "army.loopTauntAwait",
+    payload: ArmyLoopTauntRunPayloadSchema,
+    result: ArmyLoopTauntTerminalResultSchema,
+  }),
+  loopTauntReport: defineInvoke({
+    channel: `${namespace}:loop-taunt-report`,
+    name: "army.loopTauntReport",
+    payload: ArmyLoopTauntReportPayloadSchema,
+    result: Schema.Void,
+  }),
+  loopTauntLeave: defineInvoke({
+    channel: `${namespace}:loop-taunt-leave`,
+    name: "army.loopTauntLeave",
+    payload: ArmyLoopTauntLeavePayloadSchema,
+    result: Schema.Void,
+  }),
   ended: defineEvent({
     channel: `${namespace}:ended`,
     name: "army.ended",
     payload: ArmySessionEndedPayloadSchema,
+  }),
+  loopTauntCommand: defineEvent({
+    channel: `${namespace}:loop-taunt-command`,
+    name: "army.loopTauntCommand",
+    payload: ArmyLoopTauntCommandPayloadSchema,
   }),
 } as const;
 

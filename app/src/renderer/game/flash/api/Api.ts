@@ -16,6 +16,7 @@ import { makeMonsters } from "./Monsters";
 import { makePacket } from "./Packet";
 import { makePlayer } from "./Player";
 import { makePlayers } from "./Players";
+import { makeProjectionReadiness } from "./ProjectionReadiness";
 import { makeQuests } from "./Quests";
 import { makeSettings } from "./Settings";
 import { makeShops } from "./Shops";
@@ -38,6 +39,7 @@ export const makeApi = Effect.gen(function* () {
   const monsters = makeMonsters(bridge, store);
   const players = makePlayers(store);
   const player = makePlayer(bridge, store, auth, inventory, map, wait);
+  const projectionReadiness = makeProjectionReadiness(store);
   const quests = makeQuests(bridge, store, wait);
   const settings = yield* makeSettings(bridge, store);
   const shops = makeShops(bridge, store, inventory, wait);
@@ -84,6 +86,7 @@ export const makeApi = Effect.gen(function* () {
     packet,
     player,
     players,
+    projectionReadiness,
     quests,
     settings,
     shops,

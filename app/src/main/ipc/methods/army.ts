@@ -1,10 +1,24 @@
 import { Effect } from "effect";
 
 import { ArmyIpc } from "../../../shared/ipc";
-import { ArmyConfigRepository } from "../../internal/army/ArmyConfigRepository";
-import { ArmyCoordinator } from "../../internal/army/ArmyCoordinator";
+import {
+  ArmyConfigRepository,
+  type ArmyConfigRepositoryError,
+} from "../../internal/army/ArmyConfigRepository";
+import {
+  ArmyCoordinator,
+  type ArmyCoordinatorError,
+} from "../../internal/army/ArmyCoordinator";
+import {
+  ArmyLoopTauntOrchestrator,
+  type ArmyLoopTauntOrchestratorError,
+} from "../../internal/army/ArmyLoopTauntOrchestrator";
 import { DesktopWindows } from "../../window/DesktopWindows";
-import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
+import {
+  DesktopIpc,
+  type DesktopIpcMethodRegistration,
+  makeDesktopIpcMethod,
+} from "../DesktopIpc";
 
 const gameSenders = ["game"] as const;
 
@@ -80,20 +94,99 @@ export const fail = makeDesktopIpcMethod({
   }),
 });
 
-export const methods = [
+export const loopTauntRegister = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.loopTauntRegister,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.loopTauntRegister")(
+    function* (payload, sender) {
+      const orchestrator = yield* ArmyLoopTauntOrchestrator;
+      return yield* orchestrator.register(payload, sender.browserWindowId);
+    },
+  ),
+});
+
+export const loopTauntAwait = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.loopTauntAwait,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.loopTauntAwait")(
+    function* (payload, sender) {
+      const orchestrator = yield* ArmyLoopTauntOrchestrator;
+      return yield* orchestrator.await(payload, sender.browserWindowId);
+    },
+  ),
+});
+
+export const loopTauntReady = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.loopTauntReady,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.loopTauntReady")(
+    function* (payload, sender) {
+      const orchestrator = yield* ArmyLoopTauntOrchestrator;
+      return yield* orchestrator.ready(payload, sender.browserWindowId);
+    },
+  ),
+});
+
+export const loopTauntReport = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.loopTauntReport,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.loopTauntReport")(
+    function* (payload, sender) {
+      const orchestrator = yield* ArmyLoopTauntOrchestrator;
+      return yield* orchestrator.report(payload, sender.browserWindowId);
+    },
+  ),
+});
+
+export const loopTauntLeave = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.loopTauntLeave,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.loopTauntLeave")(
+    function* (payload, sender) {
+      const orchestrator = yield* ArmyLoopTauntOrchestrator;
+      return yield* orchestrator.leave(payload, sender.browserWindowId);
+    },
+  ),
+});
+
+type ArmyIpcMethod = DesktopIpcMethodRegistration<
+  | ArmyConfigRepositoryError
+  | ArmyCoordinatorError
+  | ArmyLoopTauntOrchestratorError,
+  ArmyConfigRepository | ArmyCoordinator | ArmyLoopTauntOrchestrator
+>;
+
+export const methods: readonly ArmyIpcMethod[] = [
   loadConfig,
   start,
   leave,
   sync,
   progress,
   fail,
-] as const;
+  loopTauntRegister,
+  loopTauntReady,
+  loopTauntAwait,
+  loopTauntReport,
+  loopTauntLeave,
+];
 
 export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
   function* () {
     const coordinator = yield* ArmyCoordinator;
+    const loopTauntOrchestrator = yield* ArmyLoopTauntOrchestrator;
     const ipc = yield* DesktopIpc;
     const windows = yield* DesktopWindows;
+
+    yield* Effect.acquireRelease(
+      loopTauntOrchestrator.onCommand((event) =>
+        ipc.sendToBrowserWindowIds(
+          event.participantIds,
+          ArmyIpc.loopTauntCommand,
+          event.command,
+        ),
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
 
     yield* Effect.acquireRelease(
       coordinator.onSessionEnded((event) =>

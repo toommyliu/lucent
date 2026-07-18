@@ -115,6 +115,36 @@ describe("ArmyCoordinator", () => {
     ),
   );
 
+  it.effect("returns the authenticated canonical roster identity", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
+        const [alice] = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              " alice ",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "BOB", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        );
+
+        expect(
+          yield* coordinator.requireParticipant(alice.sessionId, aliceWindow),
+        ).toEqual({
+          playerCount: 2,
+          playerName: "Alice",
+          playerNumber: 1,
+          sessionId: alice.sessionId,
+        });
+      }),
+    ),
+  );
+
   it.effect("aborts a collecting session when roster startup times out", () =>
     Effect.scoped(
       Effect.gen(function* () {

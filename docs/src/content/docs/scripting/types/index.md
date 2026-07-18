@@ -20,6 +20,10 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-equip-set/" data-script-type="army-equip-set"><code>ArmyEquipSet</code></a> | interface |  |
 | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
+| <a href="/scripting/types/army-loop-taunt-assignment/" data-script-type="army-loop-taunt-assignment"><code>ArmyLoopTauntAssignment</code></a> | interface | Assigns one target to the Army players allowed to keep it taunted. |
+| <a href="/scripting/types/army-loop-taunt-error/" data-script-type="army-loop-taunt-error"><code>ArmyLoopTauntError</code></a> | class |  |
+| <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface | Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically. |
+| <a href="/scripting/types/army-loop-taunt-strategy/" data-script-type="army-loop-taunt-strategy"><code>ArmyLoopTauntStrategy</code></a> | type alias | Selects the encounter event that starts each taunt attempt. |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
 | <a href="/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |

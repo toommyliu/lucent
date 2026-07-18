@@ -235,6 +235,8 @@ const isConnectionLoss = (event: FlashEvent): boolean =>
   (event.status === "OnConnectionLost" ||
     event.status === "OnConnectionFailed");
 
+const projectionReadinessTimeout = "5 seconds";
+
 export const layer = Layer.effect(
   ScriptRunner,
   Effect.gen(function* () {
@@ -244,7 +246,17 @@ export const layer = Layer.effect(
     const army = yield* ArmyApi;
     const automation = yield* Automation;
     const bridge = yield* Bridge;
-    const { auth, combat, events, house, map, packet, player, wait } = api;
+    const {
+      auth,
+      combat,
+      events,
+      house,
+      map,
+      packet,
+      player,
+      projectionReadiness,
+      wait,
+    } = api;
     const { autoRelogin, autoZone } = automation;
 
     const services = makeScriptRuntimeServices(api, army);
@@ -666,6 +678,17 @@ export const layer = Layer.effect(
         if (!loggedIn || !ready) {
           return yield* new ScriptNotReadyError({
             detail: "Scripts can only start after login and player readiness.",
+          });
+        }
+
+        const projectionsReady = yield* wait.until(
+          projectionReadiness.isReady(),
+          { timeout: projectionReadinessTimeout },
+        );
+        if (!projectionsReady) {
+          return yield* new ScriptNotReadyError({
+            detail:
+              "Scripts can only start after initial game state projection.",
           });
         }
 

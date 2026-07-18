@@ -148,7 +148,16 @@ const bridge: DesktopBridge = {
           leave: (payload) => invoke(ArmyIpc.leave, payload),
           loadConfig: (configName) =>
             invoke(ArmyIpc.loadConfig, { configName }),
+          loopTauntAwait: (payload) => invoke(ArmyIpc.loopTauntAwait, payload),
+          loopTauntLeave: (payload) => invoke(ArmyIpc.loopTauntLeave, payload),
+          loopTauntRegister: (payload) =>
+            invoke(ArmyIpc.loopTauntRegister, payload),
+          loopTauntReport: (payload) =>
+            invoke(ArmyIpc.loopTauntReport, payload),
+          loopTauntReady: (payload) => invoke(ArmyIpc.loopTauntReady, payload),
           onEnded: (listener) => subscribe(ArmyIpc.ended, listener),
+          onLoopTauntCommand: (listener) =>
+            subscribe(ArmyIpc.loopTauntCommand, listener),
           progress: (payload) => invoke(ArmyIpc.progress, payload),
           start: (payload) => invoke(ArmyIpc.start, payload),
           sync: (payload) => invoke(ArmyIpc.sync, payload),

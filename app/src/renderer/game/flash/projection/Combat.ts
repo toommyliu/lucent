@@ -6,6 +6,7 @@ import {
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
 import type { ExtensionPacket, ServerPacket } from "../contract/Packet";
+import { NonNegativeWireInt, WireInt } from "../contract/Coercion";
 import { AuraPayload, toAura } from "../contract/payload/Combat";
 import {
   EntityPatchPayload,
@@ -33,6 +34,19 @@ const Animation = Schema.Struct({
   msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   tInf: Schema.optionalKey(Schema.String),
 });
+const ActionEntity = Schema.Struct({
+  actID: Schema.optionalKey(NonNegativeWireInt),
+  cInf: Schema.optionalKey(Schema.String),
+  tInf: Schema.optionalKey(Schema.String),
+});
+const ActionResult = Schema.Struct({
+  a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  actionResult: Schema.optionalKey(Schema.NullOr(Schema.Unknown)),
+  actID: Schema.optionalKey(NonNegativeWireInt),
+  cInf: Schema.optionalKey(Schema.String),
+  iRes: WireInt,
+  tInf: Schema.optionalKey(Schema.String),
+});
 const CombatPayload = Schema.Struct({
   a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
   anims: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
@@ -42,10 +56,14 @@ const CombatPayload = Schema.Struct({
   p: Schema.optionalKey(
     Schema.NullOr(Schema.Record(Schema.String, Schema.Unknown)),
   ),
+  sara: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  sarsa: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
 });
 const decodeCombat = Schema.decodeUnknownOption(CombatPayload);
 const decodeAnimation = Schema.decodeUnknownOption(Animation);
 const decodeAuraChange = Schema.decodeUnknownOption(AuraChange);
+const decodeActionEntity = Schema.decodeUnknownOption(ActionEntity);
+const decodeActionResult = Schema.decodeUnknownOption(ActionResult);
 const decodeEntityPatch = Schema.decodeUnknownOption(EntityPatchPayload);
 
 const targets = (value: string) =>
@@ -177,6 +195,69 @@ export const projectCombat = (
       }
     }
 
+    if (packet.direction === "server" && packet.command === "ct") {
+      for (const [shape, values] of [
+        ["sara", decoded.value.sara ?? []],
+        ["sarsa", decoded.value.sarsa ?? []],
+      ] as const) {
+        for (const value of values) {
+          const action = decodeActionResult(value);
+          if (Option.isNone(action)) {
+            yield* diagnose(
+              "combat:malformed-action-result",
+              new Error(`Ignored malformed ${shape} action result`),
+              [value],
+            );
+            continue;
+          }
+
+          const nested =
+            action.value.actionResult == null
+              ? Option.none<typeof ActionEntity.Type>()
+              : decodeActionEntity(action.value.actionResult);
+          const details = Option.getOrUndefined(nested);
+          const actionId = action.value.actID ?? details?.actID;
+          const source = targets(action.value.cInf ?? details?.cInf ?? "")[0];
+          const targetCandidates = [
+            ...(details?.tInf === undefined ? [] : targets(details.tInf)),
+            ...(action.value.tInf === undefined
+              ? []
+              : targets(action.value.tInf)),
+            ...(action.value.a ?? []).flatMap((hit) =>
+              Option.match(decodeActionEntity(hit), {
+                onNone: () => [],
+                onSome: (entity) =>
+                  entity.tInf === undefined ? [] : targets(entity.tInf),
+              }),
+            ),
+          ];
+          const target = targetCandidates[0];
+
+          if (actionId === undefined || source === undefined) {
+            yield* diagnose(
+              "combat:incomplete-action-result",
+              new Error(`Ignored incomplete ${shape} action result`),
+              [value],
+            );
+            continue;
+          }
+
+          events.push({
+            type: "combat-action-result",
+            actionId,
+            iRes: action.value.iRes,
+            ...(target?.type === "monster" ? { monsterMapId: target.id } : {}),
+            sourceId: source.id,
+            sourceType: source.type,
+            success: action.value.iRes === 1,
+            ...(target === undefined
+              ? {}
+              : { targetId: target.id, targetType: target.type }),
+          });
+        }
+      }
+    }
+
     for (const value of decoded.value.a ?? []) {
       const change = decodeAuraChange(value);
       if (Option.isNone(change)) {
@@ -192,8 +273,19 @@ export const projectCombat = (
       const payloads =
         change.value.auras ??
         (change.value.aura === undefined ? [] : [change.value.aura]);
+      const source =
+        change.value.cInf === undefined
+          ? undefined
+          : targets(change.value.cInf)[0];
       for (const target of targets(change.value.tInf)) {
         for (const payload of payloads) {
+          const eventDetails = {
+            ...(payload.dur === undefined ? {} : { duration: payload.dur }),
+            ...(payload.icon === undefined ? {} : { icon: payload.icon }),
+            ...(source === undefined
+              ? {}
+              : { sourceId: source.id, sourceType: source.type }),
+          };
           if (operation === "add") {
             const auraOperation =
               change.value.cmd === "aura++" ||
@@ -209,6 +301,7 @@ export const projectCombat = (
             );
             events.push({
               type: "aura-added",
+              ...eventDetails,
               name: payload.nam,
               targetId: target.id,
               targetType: target.type,
@@ -217,6 +310,7 @@ export const projectCombat = (
             yield* store.world.removeAura(target.type, target.id, payload.nam);
             events.push({
               type: "aura-removed",
+              ...eventDetails,
               name: payload.nam,
               targetId: target.id,
               targetType: target.type,

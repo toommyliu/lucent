@@ -1,8 +1,8 @@
-import type { ArmyApiShape } from "../../army/Army";
+import type { ArmyApiRuntimeShape } from "../../army/Army";
 import type { ApiService } from "../../flash/api/Api";
 
 export interface ScriptRuntimeServices {
-  readonly army: ArmyApiShape;
+  readonly army: ArmyApiRuntimeShape;
   readonly auth: ApiService["auth"];
   readonly bank: ApiService["bank"];
   readonly combat: ApiService["combat"];
@@ -24,5 +24,5 @@ export interface ScriptRuntimeServices {
 
 export const makeScriptRuntimeServices = (
   api: ApiService,
-  army: ArmyApiShape,
+  army: ArmyApiRuntimeShape,
 ): ScriptRuntimeServices => ({ ...api, army });

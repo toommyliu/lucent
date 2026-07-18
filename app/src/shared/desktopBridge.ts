@@ -12,6 +12,13 @@ import type {
   ArmyConfigPayload,
   ArmyFailPayload,
   ArmyLeavePayload,
+  ArmyLoopTauntCommandPayload,
+  ArmyLoopTauntLeavePayload,
+  ArmyLoopTauntRegisterPayload,
+  ArmyLoopTauntRegisterResult,
+  ArmyLoopTauntReportPayload,
+  ArmyLoopTauntRunPayload,
+  ArmyLoopTauntTerminalResult,
   ArmyProgressPayload,
   ArmyProgressResult,
   ArmySessionEndedPayload,
@@ -161,8 +168,24 @@ export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
   readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
   readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;
+  readonly loopTauntAwait: (
+    payload: ArmyLoopTauntRunPayload,
+  ) => Promise<ArmyLoopTauntTerminalResult>;
+  readonly loopTauntLeave: (
+    payload: ArmyLoopTauntLeavePayload,
+  ) => Promise<void>;
+  readonly loopTauntRegister: (
+    payload: ArmyLoopTauntRegisterPayload,
+  ) => Promise<ArmyLoopTauntRegisterResult>;
+  readonly loopTauntReport: (
+    payload: ArmyLoopTauntReportPayload,
+  ) => Promise<void>;
+  readonly loopTauntReady: (payload: ArmyLoopTauntRunPayload) => Promise<void>;
   readonly onEnded: (
     listener: (payload: ArmySessionEndedPayload) => void,
+  ) => () => void;
+  readonly onLoopTauntCommand: (
+    listener: (payload: ArmyLoopTauntCommandPayload) => void,
   ) => () => void;
   readonly progress: (
     payload: ArmyProgressPayload,

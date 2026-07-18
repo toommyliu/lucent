@@ -579,6 +579,47 @@ describe("Projection", () => {
           extension("cb", {
             a: [
               {
+                auras: [
+                  {
+                    dur: "6",
+                    icon: "scroll-enrage",
+                    nam: "Focus",
+                  },
+                ],
+                cInf: "p:10",
+                cmd: "aura+",
+                tInf: "m:1",
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMonster(1))?.auras[0]?.name).toBe(
+          "Focus",
+        );
+        expect(
+          events.find(
+            (event) => event.type === "aura-added" && event.name === "Focus",
+          ),
+        ).toEqual({
+          type: "aura-added",
+          duration: 6,
+          icon: "scroll-enrage",
+          name: "Focus",
+          sourceId: 10,
+          sourceType: "player",
+          targetId: 1,
+          targetType: "monster",
+        });
+
+        yield* pipeline.packet(
+          extension("respawnMon", ["respawnMon", "", "1"]),
+        );
+        expect((yield* store.world.getMonster(1))?.auras).toEqual([]);
+
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
                 auras: [{ nam: "Empowered", dur: 10 }],
                 cmd: "aura++",
                 tInf: "p:10",
@@ -614,5 +655,83 @@ describe("Projection", () => {
         expect(userIdReads).toBe(1);
       }),
     ),
+  );
+
+  it.effect("projects server-confirmed single and multi action results", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const events: Event[] = [];
+      const pipeline = makePipeline(store, {
+        publishEvent: (event) =>
+          Effect.sync(() => {
+            events.push(event);
+          }),
+      });
+
+      yield* pipeline.packet(
+        server("ct", {
+          sara: [
+            {
+              actionResult: {
+                actID: "41",
+                cInf: "p:10",
+                tInf: "m:7",
+              },
+              iRes: "1",
+            },
+            {
+              actID: 42,
+              actionResult: {
+                cInf: "p:10",
+              },
+              iRes: 0,
+            },
+          ],
+          sarsa: [
+            {
+              a: [{ tInf: "m:8" }, { tInf: "m:9" }],
+              actID: 43,
+              cInf: "p:10",
+              iRes: 1,
+            },
+          ],
+        }),
+      );
+
+      expect(
+        events.filter((event) => event.type === "combat-action-result"),
+      ).toEqual([
+        {
+          type: "combat-action-result",
+          actionId: 41,
+          iRes: 1,
+          monsterMapId: 7,
+          sourceId: 10,
+          sourceType: "player",
+          success: true,
+          targetId: 7,
+          targetType: "monster",
+        },
+        {
+          type: "combat-action-result",
+          actionId: 42,
+          iRes: 0,
+          sourceId: 10,
+          sourceType: "player",
+          success: false,
+        },
+        {
+          type: "combat-action-result",
+          actionId: 43,
+          iRes: 1,
+          monsterMapId: 8,
+          sourceId: 10,
+          sourceType: "player",
+          success: true,
+          targetId: 8,
+          targetType: "monster",
+        },
+      ]);
+    }),
   );
 });

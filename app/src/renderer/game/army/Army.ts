@@ -12,6 +12,12 @@ import type { ItemQuery, MonsterQuery } from "@lucent/game";
 import type { DesktopArmyBridge } from "../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
 import type { CombatKillOptions } from "../flash/api/Combat";
+import {
+  type ArmyLoopTauntAssignment,
+  ArmyLoopTauntError,
+  type ArmyLoopTauntHandle,
+  makeArmyLoopTauntRuntime,
+} from "./ArmyLoopTaunt";
 
 type ItemSelector = ItemQuery;
 type MonsterSelector = MonsterQuery;
@@ -92,6 +98,14 @@ export interface ArmyApiShape {
     options?: ArmyRunStepOptions,
   ) => Effect.Effect<A, E | ArmyError>;
   readonly start: (configName: string) => Effect.Effect<ArmySession, ArmyError>;
+  /**
+   * Starts the same assignment plan across the full Army roster.
+   *
+   * @param assignments The ordered assignment list every participant runs.
+   */
+  readonly startLoopTaunt: (
+    assignments: readonly ArmyLoopTauntAssignment[],
+  ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
   readonly sync: (
     label?: string,
     options?: ArmyRunStepOptions,
@@ -99,7 +113,17 @@ export interface ArmyApiShape {
   readonly waitForAllInMap: () => Effect.Effect<void, ArmyError>;
 }
 
-export class ArmyApi extends Context.Service<ArmyApi, ArmyApiShape>()(
+export interface ArmyApiRuntimeShape extends Omit<
+  ArmyApiShape,
+  "startLoopTaunt"
+> {
+  readonly startLoopTauntForScript: (
+    assignments: readonly ArmyLoopTauntAssignment[],
+    onFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
+  ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
+}
+
+export class ArmyApi extends Context.Service<ArmyApi, ArmyApiRuntimeShape>()(
   "lucent/game/army/ArmyApi",
 ) {}
 
@@ -258,6 +282,7 @@ const makeArmyApi = (
           state.session === null ? null : cloneSession(state.session),
         ),
       );
+    const loopTaunts = yield* makeArmyLoopTauntRuntime(api, bridge, getSession);
 
     const assertStarted = Effect.gen(function* () {
       const state = yield* getState;
@@ -291,6 +316,21 @@ const makeArmyApi = (
           Effect.ensuring(SynchronizedRef.set(coordinationRef, false)),
         );
       });
+
+    const startLoopTauntForScript: ArmyApiRuntimeShape["startLoopTauntForScript"] =
+      (assignments, onFailure) =>
+        withCoordination(
+          loopTaunts.startLoopTaunt(assignments, onFailure),
+        ).pipe(
+          Effect.mapError((error) =>
+            error instanceof ArmyLoopTauntError
+              ? error
+              : new ArmyLoopTauntError(
+                  "Failed to coordinate Loop Taunt startup",
+                  error,
+                ),
+          ),
+        );
 
     const failSession = (
       session: ArmySession,
@@ -413,6 +453,7 @@ const makeArmyApi = (
 
     const leave: ArmyApiShape["leave"] = () =>
       Effect.gen(function* () {
+        yield* loopTaunts.stopActive("Army session is leaving");
         const state = yield* getState;
         if (state.session === null) {
           return;
@@ -751,8 +792,16 @@ const makeArmyApi = (
 
     const disposeEnded = bridge?.onEnded((payload) => {
       runFork(
-        SynchronizedRef.update(stateRef, (state) =>
-          state.session?.sessionId === payload.sessionId ? defaultState : state,
+        Effect.all(
+          [
+            SynchronizedRef.update(stateRef, (state) =>
+              state.session?.sessionId === payload.sessionId
+                ? defaultState
+                : state,
+            ),
+            loopTaunts.notifySessionEnded(payload),
+          ],
+          { discard: true },
         ),
       );
     });
@@ -777,6 +826,7 @@ const makeArmyApi = (
       leave,
       runStep,
       start,
+      startLoopTauntForScript,
       sync,
       waitForAllInMap,
     });
@@ -786,3 +836,10 @@ export const layer = Layer.effect(
   ArmyApi,
   Effect.flatMap(Api, (api) => makeArmyApi(api)),
 );
+
+export { ArmyLoopTauntError } from "./ArmyLoopTaunt";
+export type {
+  ArmyLoopTauntAssignment,
+  ArmyLoopTauntHandle,
+  ArmyLoopTauntStrategy,
+} from "./ArmyLoopTaunt";

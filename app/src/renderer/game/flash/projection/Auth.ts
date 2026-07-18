@@ -4,13 +4,17 @@ import type { RuntimeEvent } from "../contract/Event";
 import type { Store } from "../state/Store";
 
 const lostConnections = new Set(["OnConnectionLost", "OnConnectionFailed"]);
+const resetConnections = new Set([...lostConnections, "OnConnection"]);
 
 export const projectAuth = (store: Store, event: RuntimeEvent) =>
-  event.type === "connection" && lostConnections.has(event.status)
+  event.type === "connection" && resetConnections.has(event.status)
     ? Effect.all(
         [
-          store.auth.setLoggedIn(false),
+          ...(lostConnections.has(event.status)
+            ? [store.auth.setLoggedIn(false)]
+            : []),
           store.items.clear,
+          store.world.clearArea,
           store.world.clearSelf,
         ],
         { discard: true },

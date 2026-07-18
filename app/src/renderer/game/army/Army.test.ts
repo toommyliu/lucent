@@ -6,7 +6,7 @@ import { afterEach, vi } from "vitest";
 import type { ArmySessionPayload } from "@lucent/core/army";
 import type { DesktopArmyBridge } from "../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
-import { ArmyApi, type ArmyApiShape, layer as armyLayer } from "./Army";
+import { ArmyApi, type ArmyApiRuntimeShape, layer as armyLayer } from "./Army";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -36,12 +36,18 @@ const makeBridge = (overrides: Partial<DesktopArmyBridge> = {}) => {
     fail: async () => undefined,
     leave: async () => undefined,
     loadConfig: async () => makeSession(),
+    loopTauntAwait: async () => ({ status: "completed" }),
+    loopTauntLeave: async () => undefined,
+    loopTauntRegister: async () => ({ runId: "loop-1" }),
+    loopTauntReport: async () => undefined,
+    loopTauntReady: async () => undefined,
     onEnded: (listener) => {
       endedListener = listener;
       return () => {
         endedListener = undefined;
       };
     },
+    onLoopTauntCommand: () => () => undefined,
     progress: async () => ({
       complete: true,
       completedPlayers: ["Alice"],
@@ -91,7 +97,7 @@ const makeApi = (overrides: Record<string, unknown> = {}): ApiService =>
 const withArmy = <A, E, R>(
   api: ApiService,
   bridge: DesktopArmyBridge,
-  use: (army: ArmyApiShape) => Effect.Effect<A, E, R>,
+  use: (army: ArmyApiRuntimeShape) => Effect.Effect<A, E, R>,
 ) =>
   Effect.gen(function* () {
     vi.stubGlobal("window", { desktop: { army: bridge } });

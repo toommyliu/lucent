@@ -176,6 +176,101 @@ package lucent.game {
       return getSkillCooldownRemainingValue(skill);
     }
 
+    [BridgeTsParamType("selector: FlashTypes.MonsterSelector")]
+    [BridgeTsReturnType("FlashTypes.ConsumableCastDispatch | null")]
+    [BridgeExport]
+    public static function castConsumableOnMonster(selector:Object, expectedItemId:int):Object {
+      // TODO: this is probably a little too defensive.
+      if (!selector || expectedItemId <= 0) {
+        return null;
+      }
+
+      var game:Object = Main.Game;
+      var world:Object = game ? game.world : null;
+      var player:Object = world ? world.myAvatar : null;
+      if (
+        !world ||
+        !player ||
+        !player.dataLeaf ||
+        !world.actions ||
+        !world.actions.active
+      ) {
+        return null;
+      }
+
+      var playerState:Number = Number(player.dataLeaf.intState);
+      var playerHp:Number = Number(player.dataLeaf.intHP);
+      if (
+        isNaN(playerState) ||
+        playerState <= 0 ||
+        isNaN(playerHp) ||
+        playerHp <= 0
+      ) {
+        return null;
+      }
+
+      var skill:Object = world.actions.active[CONSUMABLE_SKILL_INDEX];
+      if (
+        !skill ||
+        skill.ref != "i1" ||
+        skill.sArg1 == null ||
+        !skill.isOK ||
+        skill.skillLock ||
+        skill.lock ||
+        world.lockdownPots
+      ) {
+        return null;
+      }
+
+      var itemId:Number = Number(skill.sArg1);
+      if (
+        isNaN(itemId) ||
+        itemId <= 0 ||
+        itemId != expectedItemId ||
+        getSkillCooldownRemainingValue(skill) > 0
+      ) {
+        return null;
+      }
+
+      var monster:Object = World.getMonster(selector);
+      if (
+        !isMonsterAttackable(monster) ||
+        monster.npcType != "monster" ||
+        !monster.pMC ||
+        !monster.pMC.visible
+      ) {
+        return null;
+      }
+
+      var monsterMapId:Number = Number(monster.dataLeaf.MonMapID);
+      if (isNaN(monsterMapId) || monsterMapId <= 0) {
+        return null;
+      }
+
+      world.setTarget(monster);
+      if (world.myAvatar.target !== monster) {
+        return null;
+      }
+
+      var previousActionId:* = skill.actID;
+      var previousTimestamp:* = skill.ts;
+      world.testAction(skill);
+      if (
+        !skill.lock ||
+        skill.actID == null ||
+        Number(skill.actID) < 0 ||
+        (skill.actID === previousActionId && skill.ts === previousTimestamp)
+      ) {
+        return null;
+      }
+
+      return {
+        actionId: Number(skill.actID),
+        itemId: itemId,
+        monsterMapId: monsterMapId
+      };
+    }
+
     [BridgeExport]
     public static function cancelAutoAttack():void {
       var game:Object = Main.Game;

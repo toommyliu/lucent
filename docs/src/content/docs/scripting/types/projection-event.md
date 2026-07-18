@@ -29,15 +29,34 @@ type ProjectionEvent = | {
     }
   | {
       readonly type: "aura-added";
+      readonly duration?: number;
+      readonly icon?: string;
       readonly name: string;
+      readonly sourceId?: number;
+      readonly sourceType?: "monster" | "player";
       readonly targetId: number;
       readonly targetType: "monster" | "player";
     }
   | {
       readonly type: "aura-removed";
+      readonly duration?: number;
+      readonly icon?: string;
       readonly name: string;
+      readonly sourceId?: number;
+      readonly sourceType?: "monster" | "player";
       readonly targetId: number;
       readonly targetType: "monster" | "player";
+    }
+  | {
+      readonly type: "combat-action-result";
+      readonly actionId: number;
+      readonly iRes: number;
+      readonly monsterMapId?: number;
+      readonly sourceId: number;
+      readonly sourceType: "monster" | "player";
+      readonly success: boolean;
+      readonly targetId?: number;
+      readonly targetType?: "monster" | "player";
     }
   | {
       readonly type: "player-location";
