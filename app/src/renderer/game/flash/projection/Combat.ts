@@ -63,16 +63,17 @@ const messageText = (
   return message === "" ? undefined : message;
 };
 
-const entityPatch = (patch: EntityPatch) => ({
-  ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
-  ...(patch.intHPMax === undefined ? {} : { maxHp: patch.intHPMax }),
-  ...(patch.intMP === undefined ? {} : { mp: patch.intMP }),
-  ...(patch.intMPMax === undefined ? {} : { maxMp: patch.intMPMax }),
-  ...(patch.strFrame === undefined ? {} : { cell: patch.strFrame }),
-  ...(entityState(patch.intState) === undefined
-    ? {}
-    : { state: entityState(patch.intState)! }),
-});
+const entityPatch = (patch: EntityPatch) => {
+  const state = entityState(patch.intState);
+  return {
+    ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
+    ...(patch.intHPMax === undefined ? {} : { maxHp: patch.intHPMax }),
+    ...(patch.intMP === undefined ? {} : { mp: patch.intMP }),
+    ...(patch.intMPMax === undefined ? {} : { maxMp: patch.intMPMax }),
+    ...(patch.strFrame === undefined ? {} : { cell: patch.strFrame }),
+    ...(state === undefined ? {} : { state }),
+  };
+};
 
 export const projectCombat = (
   store: Store,
@@ -209,6 +210,8 @@ export const projectCombat = (
               : { sourceId: source.id, sourceType: source.type }),
           };
           if (operation === "add") {
+            // Forced/passive forms may omit isNew; ordinary aura+ relies on it
+            // to distinguish a new stack from a refresh.
             const auraOperation =
               change.value.cmd === "aura++" ||
               change.value.cmd === "aura+p" ||
@@ -269,11 +272,8 @@ export const projectCombat = (
     for (const value of decoded.value.anims ?? []) {
       const animation = decodeAnimation(value);
       if (Option.isNone(animation)) continue;
-      const message =
-        typeof animation.value.msg === "string"
-          ? animation.value.msg.trim()
-          : animation.value.msg.join(" ").trim();
-      if (message === "") continue;
+      const message = messageText(animation.value.msg);
+      if (message === undefined) continue;
       const source =
         animation.value.cInf === undefined
           ? []

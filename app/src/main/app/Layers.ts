@@ -145,6 +145,8 @@ export const makeDesktopLayer = (
     ),
   );
 
+  // IPC authentication and Loop Taunt cleanup must observe the same Army
+  // session state machine, so both services share one coordinator layer.
   const armyCoordinatorLayer = ArmyCoordinator.layer;
   const armyLayer = Layer.mergeAll(
     ArmyLoopTauntOrchestrator.layer.pipe(

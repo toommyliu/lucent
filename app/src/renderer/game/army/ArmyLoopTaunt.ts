@@ -33,6 +33,8 @@ const LOOP_TAUNT_STATUS_INTERVAL_MS = 250;
 const LOOP_TAUNT_TARGET_INTERVAL_MS = 500;
 const LOOP_TAUNT_SKIP_TIMEOUT_MS = 1_000;
 const LOOP_TAUNT_COMMAND_REPORT_MARGIN_MS = 250;
+// Reserve Combat's acknowledgement window so a coordinator lease cannot expire
+// after the cast has already been dispatched.
 const LOOP_TAUNT_CAST_LEASE_MS =
   CONSUMABLE_CAST_CONFIRMATION_TIMEOUT_MS + LOOP_TAUNT_COMMAND_REPORT_MARGIN_MS;
 const LOOP_TAUNT_FOCUS_AURA_NAME = "focus";
@@ -170,13 +172,14 @@ interface LoopTauntRun {
 interface ActiveLoopTaunt {
   readonly done: Deferred.Deferred<void>;
   readonly ended: Deferred.Deferred<never, ArmyLoopTauntError>;
-  readonly handle: ArmyLoopTauntHandle;
   readonly sessionId: string;
   readonly started: Ref.Ref<boolean>;
   readonly stopRequested: Deferred.Deferred<string>;
   readonly token: number;
 }
 
+// Commands can arrive after renderer state advances. Keep only the same target
+// life while its priority is still selected and Focus remains uncovered.
 const matchesTauntCommand = (
   targets: ReadonlyMap<number, LocalLoopTauntTarget>,
   command: Extract<
@@ -447,7 +450,6 @@ export const makeArmyLoopTauntRuntime = (
           const active: ActiveLoopTaunt = {
             done,
             ended,
-            handle,
             sessionId: session.sessionId,
             started: startedRef,
             stopRequested,
@@ -505,14 +507,10 @@ export const makeArmyLoopTauntRuntime = (
                         ),
                   ),
                 );
-                const duplicateTarget = resolvedTargets.find(
-                  (target, index) =>
-                    resolvedTargets.findIndex(
-                      (candidate) =>
-                        candidate.monsterMapId === target.monsterMapId,
-                    ) !== index,
+                const uniqueMonsterMapIds = new Set(
+                  resolvedTargets.map((target) => target.monsterMapId),
                 );
-                if (duplicateTarget !== undefined) {
+                if (uniqueMonsterMapIds.size !== resolvedTargets.length) {
                   return yield* Effect.fail(
                     new ArmyLoopTauntError(
                       "Loop Taunt assignments must resolve to different monsters",
@@ -520,19 +518,21 @@ export const makeArmyLoopTauntRuntime = (
                   );
                 }
 
+                const resolvedTargetsByAssignmentId = new Map(
+                  resolvedTargets.map((target) => [
+                    target.assignmentId,
+                    target,
+                  ]),
+                );
                 const targetsRef = yield* SynchronizedRef.make(
-                  new Map(
-                    resolvedTargets.map((target) => [
-                      target.assignmentId,
-                      target,
-                    ]),
-                  ),
+                  resolvedTargetsByAssignmentId,
                 );
                 const commandQueue =
                   yield* Queue.unbounded<ArmyLoopTauntCommandPayload>();
-                const castPermit = yield* Semaphore.make(1);
                 let registeredRun: LoopTauntRun | undefined;
 
+                // The last registration can synchronously activate the run, so
+                // subscribe before crossing IPC and fence queued commands later.
                 const disposeCommands = bridge.onLoopTauntCommand((command) => {
                   if (
                     command.sessionId === session.sessionId &&
@@ -550,12 +550,6 @@ export const makeArmyLoopTauntRuntime = (
                   }),
                 );
 
-                const resolvedTargetsByAssignmentId = new Map(
-                  resolvedTargets.map((target) => [
-                    target.assignmentId,
-                    target,
-                  ]),
-                );
                 const registration = yield* fromDesktop(
                   "Failed to register Loop Taunt",
                   () =>
@@ -654,10 +648,7 @@ export const makeArmyLoopTauntRuntime = (
                     ),
                   );
 
-                const refreshTarget = (
-                  assignmentId: number,
-                  reportUnchanged = false,
-                ) =>
+                const refreshTarget = (assignmentId: number) =>
                   Effect.gen(function* () {
                     const current = (yield* SynchronizedRef.get(
                       targetsRef,
@@ -672,10 +663,7 @@ export const makeArmyLoopTauntRuntime = (
                           return [undefined, targets] as const;
                         }
                         if (monster === null) {
-                          return [
-                            reportUnchanged ? target : undefined,
-                            targets,
-                          ] as const;
+                          return [target, targets] as const;
                         }
 
                         const alive = monster.alive;
@@ -686,21 +674,19 @@ export const makeArmyLoopTauntRuntime = (
                           target.focusActive === focusActive &&
                           target.monsterMapId === monsterMapId
                         ) {
-                          return [
-                            reportUnchanged ? target : undefined,
-                            targets,
-                          ] as const;
+                          return [target, targets] as const;
                         }
+                        const startedNewLife =
+                          target.monsterMapId !== monsterMapId ||
+                          (!target.alive && alive);
                         const next: LocalLoopTauntTarget = {
                           ...target,
                           alive,
                           focusActive,
+                          // A life revision fences commands issued before a
+                          // respawn or target-identity rebound.
                           lifeRevision:
-                            target.lifeRevision +
-                            (target.monsterMapId !== monsterMapId ||
-                            (!target.alive && alive)
-                              ? 1
-                              : 0),
+                            target.lifeRevision + (startedNewLife ? 1 : 0),
                           monsterMapId,
                         };
                         return [
@@ -732,21 +718,24 @@ export const makeArmyLoopTauntRuntime = (
                         const target = targets.get(assignmentId);
                         if (
                           target === undefined ||
-                          target.monsterMapId !== monsterMapId ||
-                          (target.alive === alive &&
-                            (alive || target.focusActive === false))
+                          target.monsterMapId !== monsterMapId
                         ) {
                           return [undefined, targets] as const;
                         }
+                        const stateAlreadyCurrent =
+                          target.alive === alive &&
+                          (alive || !target.focusActive);
+                        if (stateAlreadyCurrent) {
+                          return [undefined, targets] as const;
+                        }
+                        const respawned = alive && !target.alive;
+                        const resetFocus = !alive || respawned;
                         const next: LocalLoopTauntTarget = {
                           ...target,
                           alive,
                           lifeRevision:
-                            target.lifeRevision +
-                            (alive && !target.alive ? 1 : 0),
-                          ...(!alive || !target.alive
-                            ? { focusActive: false }
-                            : {}),
+                            target.lifeRevision + (respawned ? 1 : 0),
+                          ...(resetFocus ? { focusActive: false } : {}),
                         };
                         return [
                           next,
@@ -902,10 +891,10 @@ export const makeArmyLoopTauntRuntime = (
                   }),
                 );
 
+                const assigned = normalizedAssignments.some((assignment) =>
+                  assignment.players.includes(session.playerNumber),
+                );
                 const participantState = Effect.gen(function* () {
-                  const assigned = normalizedAssignments.some((assignment) =>
-                    assignment.players.includes(session.playerNumber),
-                  );
                   const [alive, item, cooldownMs] = yield* Effect.all([
                     api.player.isAlive(),
                     api.combat.getConsumableSkillItem(),
@@ -915,18 +904,15 @@ export const makeArmyLoopTauntRuntime = (
                   ]);
                   const scrollEquipped =
                     item?.itemId === LOOP_TAUNT_SCROLL_ITEM_ID;
+                  let reason: string | undefined;
+                  if (!assigned) reason = "not-assigned";
+                  else if (!alive) reason = "dead";
+                  else if (!scrollEquipped) reason = "scroll-not-equipped";
+                  else if (cooldownMs > 0) reason = "cooldown";
                   return {
                     alive,
                     cooldownMs,
-                    reason: !assigned
-                      ? "not-assigned"
-                      : !alive
-                        ? "dead"
-                        : !scrollEquipped
-                          ? "scroll-not-equipped"
-                          : cooldownMs > 0
-                            ? "cooldown"
-                            : undefined,
+                    reason,
                     usable: assigned && alive && scrollEquipped,
                   };
                 }).pipe(
@@ -976,6 +962,19 @@ export const makeArmyLoopTauntRuntime = (
                       : { reason: details.reason }),
                     type: "command-result",
                   });
+                const reportNotReady = (
+                  commandId: number,
+                  readiness: {
+                    readonly cooldownMs: number;
+                    readonly reason: string | undefined;
+                  },
+                ) =>
+                  reportCommandResult(commandId, "not-ready", {
+                    cooldownMs: readiness.cooldownMs,
+                    ...(readiness.reason === undefined
+                      ? {}
+                      : { reason: readiness.reason }),
+                  });
 
                 const executeCommand = (payload: ArmyLoopTauntCommandPayload) =>
                   Effect.gen(function* () {
@@ -1003,167 +1002,79 @@ export const makeArmyLoopTauntRuntime = (
                         });
                         return;
                       case "taunt":
-                        yield* castPermit.withPermits(1)(
-                          Effect.gen(function* () {
-                            const target = matchesTauntCommand(
-                              yield* SynchronizedRef.get(targetsRef),
-                              command,
-                              session.playerNumber,
+                        yield* Effect.gen(function* () {
+                          const target = matchesTauntCommand(
+                            yield* SynchronizedRef.get(targetsRef),
+                            command,
+                            session.playerNumber,
+                          );
+                          if (target === undefined) {
+                            yield* reportCommandResult(
+                              payload.commandId,
+                              "target-unavailable",
                             );
-                            if (target === undefined) {
-                              yield* reportCommandResult(
-                                payload.commandId,
-                                "target-unavailable",
-                              );
-                              return;
-                            }
+                            return;
+                          }
 
-                            const readiness = yield* participantState;
-                            if (!readiness.usable || readiness.cooldownMs > 0) {
+                          const readiness = yield* participantState;
+                          if (!readiness.usable || readiness.cooldownMs > 0) {
+                            yield* reportNotReady(payload.commandId, readiness);
+                            return;
+                          }
+
+                          if (target.skipWhen !== undefined) {
+                            const participantSnapshots = yield* Effect.forEach(
+                              target.players,
+                              (playerNumber) =>
+                                api.players
+                                  .get(session.players[playerNumber - 1]!)
+                                  .pipe(
+                                    Effect.map((player) =>
+                                      player === null
+                                        ? null
+                                        : {
+                                            player: player.toJSON(),
+                                            playerNumber,
+                                          },
+                                    ),
+                                  ),
+                              { concurrency: "unbounded" },
+                            );
+                            const unavailablePlayerNumbers =
+                              target.players.filter(
+                                (_, index) =>
+                                  participantSnapshots[index] === null,
+                              );
+                            if (unavailablePlayerNumbers.length > 0) {
                               yield* reportCommandResult(
                                 payload.commandId,
                                 "not-ready",
                                 {
-                                  cooldownMs: readiness.cooldownMs,
-                                  ...(readiness.reason === undefined
-                                    ? {}
-                                    : { reason: readiness.reason }),
+                                  reason: `Army player snapshots unavailable: ${unavailablePlayerNumbers.join(", ")}`,
                                 },
                               );
                               return;
                             }
 
-                            let validatedTarget = target;
-                            if (target.skipWhen !== undefined) {
-                              const participantSnapshots =
-                                yield* Effect.forEach(
-                                  target.players,
-                                  (playerNumber) =>
-                                    api.players
-                                      .get(session.players[playerNumber - 1]!)
-                                      .pipe(
-                                        Effect.map((player) =>
-                                          player === null
-                                            ? null
-                                            : {
-                                                player: player.toJSON(),
-                                                playerNumber,
-                                              },
-                                        ),
-                                      ),
-                                  { concurrency: "unbounded" },
-                                );
-                              const unavailablePlayerNumbers =
-                                target.players.filter(
-                                  (_, index) =>
-                                    participantSnapshots[index] === null,
-                                );
-                              if (unavailablePlayerNumbers.length > 0) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "not-ready",
-                                  {
-                                    reason: `Army player snapshots unavailable: ${unavailablePlayerNumbers.join(", ")}`,
-                                  },
-                                );
-                                return;
-                              }
-
-                              const snapshots = participantSnapshots.filter(
-                                (
-                                  participant,
-                                ): participant is ArmyLoopTauntParticipantSnapshot =>
-                                  participant !== null,
-                              );
-                              const self = snapshots.find(
-                                ({ playerNumber }) =>
-                                  playerNumber === session.playerNumber,
-                              )!;
-                              const callbackBudgetMs = Math.min(
-                                LOOP_TAUNT_SKIP_TIMEOUT_MS,
-                                command.expiresAt -
-                                  (yield* Clock.currentTimeMillis) -
-                                  LOOP_TAUNT_COMMAND_REPORT_MARGIN_MS,
-                              );
-                              if (callbackBudgetMs <= 0) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "not-ready",
-                                  {
-                                    reason: "Loop Taunt command lease expired",
-                                  },
-                                );
-                                return;
-                              }
-                              const leaseLimitedCallback =
-                                callbackBudgetMs < LOOP_TAUNT_SKIP_TIMEOUT_MS;
-                              const skip = yield* target
-                                .skipWhen({
-                                  participants: snapshots,
-                                  self,
-                                })
-                                .pipe(
-                                  Effect.timeoutOption(
-                                    `${callbackBudgetMs} millis`,
-                                  ),
-                                );
-                              if (Option.isNone(skip)) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "not-ready",
-                                  {
-                                    reason: leaseLimitedCallback
-                                      ? "Loop Taunt command lease expired"
-                                      : "Loop Taunt skip callback timed out",
-                                  },
-                                );
-                                return;
-                              }
-                              if (skip.value) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "skipped",
-                                );
-                                return;
-                              }
-
-                              const refreshedTarget = matchesTauntCommand(
-                                yield* SynchronizedRef.get(targetsRef),
-                                command,
-                                session.playerNumber,
-                              );
-                              if (refreshedTarget === undefined) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "target-unavailable",
-                                );
-                                return;
-                              }
-                              const currentReadiness = yield* participantState;
-                              if (
-                                !currentReadiness.usable ||
-                                currentReadiness.cooldownMs > 0
-                              ) {
-                                yield* reportCommandResult(
-                                  payload.commandId,
-                                  "not-ready",
-                                  {
-                                    cooldownMs: currentReadiness.cooldownMs,
-                                    ...(currentReadiness.reason === undefined
-                                      ? {}
-                                      : { reason: currentReadiness.reason }),
-                                  },
-                                );
-                                return;
-                              }
-                              validatedTarget = refreshedTarget;
-                            }
-
-                            if (
+                            const snapshots = participantSnapshots.filter(
+                              (
+                                participant,
+                              ): participant is ArmyLoopTauntParticipantSnapshot =>
+                                participant !== null,
+                            );
+                            const self = snapshots.find(
+                              ({ playerNumber }) =>
+                                playerNumber === session.playerNumber,
+                            )!;
+                            // Don't let user code consume the time needed to
+                            // return a coordinator result.
+                            const callbackBudgetMs = Math.min(
+                              LOOP_TAUNT_SKIP_TIMEOUT_MS,
                               command.expiresAt -
-                                (yield* Clock.currentTimeMillis) <
-                              LOOP_TAUNT_CAST_LEASE_MS
-                            ) {
+                                (yield* Clock.currentTimeMillis) -
+                                LOOP_TAUNT_COMMAND_REPORT_MARGIN_MS,
+                            );
+                            if (callbackBudgetMs <= 0) {
                               yield* reportCommandResult(
                                 payload.commandId,
                                 "not-ready",
@@ -1173,69 +1084,137 @@ export const makeArmyLoopTauntRuntime = (
                               );
                               return;
                             }
+                            const leaseLimitedCallback =
+                              callbackBudgetMs < LOOP_TAUNT_SKIP_TIMEOUT_MS;
+                            const skip = yield* target
+                              .skipWhen({
+                                participants: snapshots,
+                                self,
+                              })
+                              .pipe(
+                                Effect.timeoutOption(
+                                  `${callbackBudgetMs} millis`,
+                                ),
+                              );
+                            if (Option.isNone(skip)) {
+                              yield* reportCommandResult(
+                                payload.commandId,
+                                "not-ready",
+                                {
+                                  reason: leaseLimitedCallback
+                                    ? "Loop Taunt command lease expired"
+                                    : "Loop Taunt skip callback timed out",
+                                },
+                              );
+                              return;
+                            }
+                            if (skip.value) {
+                              yield* reportCommandResult(
+                                payload.commandId,
+                                "skipped",
+                              );
+                              return;
+                            }
 
-                            const dispatchTarget = matchesTauntCommand(
+                            const refreshedTarget = matchesTauntCommand(
                               yield* SynchronizedRef.get(targetsRef),
                               command,
                               session.playerNumber,
                             );
-                            if (dispatchTarget === undefined) {
+                            if (refreshedTarget === undefined) {
                               yield* reportCommandResult(
                                 payload.commandId,
                                 "target-unavailable",
                               );
                               return;
                             }
-                            validatedTarget = dispatchTarget;
+                            const currentReadiness = yield* participantState;
+                            if (
+                              !currentReadiness.usable ||
+                              currentReadiness.cooldownMs > 0
+                            ) {
+                              yield* reportNotReady(
+                                payload.commandId,
+                                currentReadiness,
+                              );
+                              return;
+                            }
+                          }
 
-                            const previousTarget =
-                              yield* api.combat.target.get();
-                            const result = yield* api.combat
-                              .castConsumableOnMonster(
-                                validatedTarget.monsterMapId,
-                                LOOP_TAUNT_SCROLL_ITEM_ID,
-                              )
-                              .pipe(
-                                Effect.provideService(
-                                  ConsumableCastDispatchDeadline,
-                                  command.expiresAt - LOOP_TAUNT_CAST_LEASE_MS,
-                                ),
-                                Effect.catchCause(() => Effect.succeed(null)),
-                              );
-                            const cooldownMs =
-                              yield* api.combat.getSkillCooldownRemaining(
-                                LOOP_TAUNT_SCROLL_SKILL,
-                              );
-                            const confirmed =
-                              result?.success === true &&
-                              result.monsterMapId ===
-                                validatedTarget.monsterMapId;
+                          if (
+                            command.expiresAt -
+                              (yield* Clock.currentTimeMillis) <
+                            LOOP_TAUNT_CAST_LEASE_MS
+                          ) {
                             yield* reportCommandResult(
                               payload.commandId,
-                              confirmed ? "confirmed" : "cast-failed",
-                              { cooldownMs },
+                              "not-ready",
+                              {
+                                reason: "Loop Taunt command lease expired",
+                              },
                             );
+                            return;
+                          }
 
-                            const currentTarget =
-                              yield* api.combat.target.get();
-                            if (
-                              previousTarget?.type === "monster" &&
-                              previousTarget.monsterMapId !==
-                                validatedTarget.monsterMapId &&
-                              currentTarget?.type === "monster" &&
-                              currentTarget.monsterMapId ===
-                                validatedTarget.monsterMapId
-                            ) {
-                              yield* api.combat
-                                .attackMonster(previousTarget.monsterMapId)
-                                .pipe(
-                                  Effect.catchCause(() =>
-                                    Effect.succeed(false),
-                                  ),
-                                );
-                            }
-                          }),
-                        );
+                          // Readiness and skipWhen yield; target life and
+                          // priority must be checked at dispatch.
+                          const dispatchTarget = matchesTauntCommand(
+                            yield* SynchronizedRef.get(targetsRef),
+                            command,
+                            session.playerNumber,
+                          );
+                          if (dispatchTarget === undefined) {
+                            yield* reportCommandResult(
+                              payload.commandId,
+                              "target-unavailable",
+                            );
+                            return;
+                          }
+
+                          const previousTarget = yield* api.combat.target.get();
+                          const result = yield* api.combat
+                            .castConsumableOnMonster(
+                              dispatchTarget.monsterMapId,
+                              LOOP_TAUNT_SCROLL_ITEM_ID,
+                            )
+                            .pipe(
+                              Effect.provideService(
+                                ConsumableCastDispatchDeadline,
+                                command.expiresAt - LOOP_TAUNT_CAST_LEASE_MS,
+                              ),
+                              Effect.catchCause(() => Effect.succeed(null)),
+                            );
+                          const cooldownMs =
+                            yield* api.combat.getSkillCooldownRemaining(
+                              LOOP_TAUNT_SCROLL_SKILL,
+                            );
+                          const confirmed =
+                            result?.success === true &&
+                            result.monsterMapId === dispatchTarget.monsterMapId;
+                          yield* reportCommandResult(
+                            payload.commandId,
+                            confirmed ? "confirmed" : "cast-failed",
+                            { cooldownMs },
+                          );
+
+                          const currentTarget = yield* api.combat.target.get();
+                          // Restore only while selection still points at the
+                          // cast target; a later target change wins.
+                          if (
+                            previousTarget?.type === "monster" &&
+                            previousTarget.monsterMapId !==
+                              dispatchTarget.monsterMapId &&
+                            currentTarget?.type === "monster" &&
+                            currentTarget.monsterMapId ===
+                              dispatchTarget.monsterMapId
+                          ) {
+                            yield* api.combat
+                              .attackMonster(previousTarget.monsterMapId)
+                              .pipe(
+                                Effect.catchCause(() => Effect.succeed(false)),
+                              );
+                          }
+                        });
                         return;
                     }
                   });
@@ -1250,6 +1229,8 @@ export const makeArmyLoopTauntRuntime = (
                 ).pipe(Effect.forkScoped);
 
                 yield* Effect.forever(
+                  // Equipment and consumable cooldown changes have no reliable
+                  // event source, so readiness must be sampled while active.
                   reportParticipantState.pipe(
                     Effect.catchCause((cause) =>
                       Effect.logWarning({
@@ -1263,11 +1244,12 @@ export const makeArmyLoopTauntRuntime = (
                   ),
                 ).pipe(Effect.forkScoped);
 
+                // Events provide prompt transitions; polling repairs projection
+                // updates missed during combat or reconnect churn.
                 yield* Effect.forever(
                   Effect.forEach(
                     normalizedAssignments,
-                    (assignment) =>
-                      refreshTarget(assignment.assignmentId, true),
+                    (assignment) => refreshTarget(assignment.assignmentId),
                     {
                       concurrency: "unbounded",
                       discard: true,
@@ -1288,6 +1270,8 @@ export const makeArmyLoopTauntRuntime = (
                 return loopRun;
               });
 
+              // Arm map exit before setup so a transition during target
+              // resolution or registration cannot expose a stale run handle.
               const mapWatcher = api.events
                 .once(
                   { type: "join-map" },
@@ -1324,6 +1308,7 @@ export const makeArmyLoopTauntRuntime = (
               yield* mapWatcher;
 
               const loopRun = yield* Deferred.await(startup);
+              // Let an exit published with startup win before exposing the run.
               yield* Effect.yieldNow;
               if (yield* Deferred.isDone(mapExited)) {
                 return yield* Effect.fail(

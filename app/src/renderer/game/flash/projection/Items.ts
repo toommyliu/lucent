@@ -392,6 +392,8 @@ export const projectExtensionItems = (
           return [];
         }
         if (decoded.value.bitSuccess === false) return [];
+        // Treating omission as empty would erase a projection this packet did
+        // not carry; null is the server's explicit empty snapshot.
         if (decoded.value.items !== undefined) {
           const context =
             packet.command === "loadHouseInventory" ? "house" : "inventory";

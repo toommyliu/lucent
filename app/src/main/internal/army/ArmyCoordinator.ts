@@ -501,8 +501,9 @@ export const makeArmyCoordinator = (): Effect.Effect<
 
     const awaitWithTimeout = <A>(args: {
       readonly effect: Effect.Effect<A, ArmyCoordinatorError>;
-      readonly onInterrupt: string;
+      readonly interruptReason: string;
       readonly onTimeout: () => Effect.Effect<A, ArmyCoordinatorError>;
+      readonly sessionId: string;
       readonly timeoutMs: number;
     }): Effect.Effect<A, ArmyCoordinatorError> =>
       args.effect.pipe(
@@ -510,11 +511,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           duration: args.timeoutMs,
           orElse: args.onTimeout,
         }),
+        // A canceled waiter makes a roster-wide checkpoint impossible to
+        // complete, so interruption releases every peer by ending the session.
         Effect.onInterrupt(() =>
-          abortSession(
-            args.onInterrupt.split("\u0000", 1)[0]!,
-            args.onInterrupt.slice(args.onInterrupt.indexOf("\u0000") + 1),
-          ),
+          abortSession(args.sessionId, args.interruptReason),
         ),
       );
 
@@ -651,8 +651,9 @@ export const makeArmyCoordinator = (): Effect.Effect<
         );
         yield* awaitWithTimeout({
           effect: Deferred.await(outcome.session.startGate),
+          interruptReason: "Army start interrupted",
+          sessionId: outcome.session.sessionId,
           timeoutMs: ARMY_START_TIMEOUT_MS,
-          onInterrupt: `${outcome.session.sessionId}\u0000Army start interrupted`,
           onTimeout: () =>
             abortSession(outcome.session.sessionId, startTimeout.message).pipe(
               Effect.andThen(Effect.fail(startTimeout)),
@@ -1000,8 +1001,9 @@ export const makeArmyCoordinator = (): Effect.Effect<
         if (outcome.complete) yield* Deferred.succeed(outcome.gate, undefined);
         yield* awaitWithTimeout({
           effect: Deferred.await(outcome.gate),
+          interruptReason: "Army sync interrupted",
+          sessionId,
           timeoutMs: signature.timeoutMs,
-          onInterrupt: `${sessionId}\u0000Army sync interrupted`,
           onTimeout: () =>
             checkpointTimeout<void>(
               sessionId,
@@ -1052,8 +1054,9 @@ export const makeArmyCoordinator = (): Effect.Effect<
         }
         return yield* awaitWithTimeout({
           effect: Deferred.await(outcome.gate),
+          interruptReason: "Army progress interrupted",
+          sessionId,
           timeoutMs: signature.timeoutMs,
-          onInterrupt: `${sessionId}\u0000Army progress interrupted`,
           onTimeout: () =>
             checkpointTimeout<ArmyProgressResult>(
               sessionId,
@@ -1066,14 +1069,11 @@ export const makeArmyCoordinator = (): Effect.Effect<
 
     const leave: ArmyCoordinatorShape["leave"] = (sessionId, participantId) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* authenticateParticipant(
+        const [session, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
-        const playerName = canonicalPlayerName(
-          (yield* getSession(sessionId))!,
-          playerKey,
-        );
+        const playerName = canonicalPlayerName(session, playerKey);
         yield* abortSession(sessionId, `Army player left: ${playerName}`);
       });
 
@@ -1083,14 +1083,11 @@ export const makeArmyCoordinator = (): Effect.Effect<
       reason,
     ) =>
       Effect.gen(function* () {
-        const [, playerKey] = yield* authenticateParticipant(
+        const [session, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
-        const playerName = canonicalPlayerName(
-          (yield* getSession(sessionId))!,
-          playerKey,
-        );
+        const playerName = canonicalPlayerName(session, playerKey);
         yield* abortSession(
           sessionId,
           `Army failed for ${playerName}: ${reason}`,

@@ -180,7 +180,8 @@ package lucent.game {
     [BridgeTsReturnType("FlashTypes.ConsumableCastDispatch | null")]
     [BridgeExport]
     public static function castConsumableOnMonster(selector:Object, expectedItemId:int):Object {
-      // TODO: this is probably a little too defensive.
+      // Queued requests can outlive the equipped item or target, and testAction
+      // may silently decline; only a new action identity proves dispatch.
       if (!selector || expectedItemId <= 0) {
         return null;
       }
@@ -279,9 +280,11 @@ package lucent.game {
 
     [BridgeExport]
     public static function cancelTarget():void {
+      // cancelTarget returns after stopping active auto-attack, so another call
+      // is needed to clear the selected target.
       var game:Object = Main.Game;
-      game.world.cancelTarget(); // cancel auto attack
-      game.world.cancelTarget(); // cancel target
+      game.world.cancelTarget();
+      game.world.cancelTarget();
     }
 
     [BridgeTsParamType("selector: FlashTypes.MonsterSelector")]

@@ -72,14 +72,15 @@ export const parseCombatEntityReferences = (
     const entity = token.slice(token.lastIndexOf(">") + 1).trim();
     const [type, rawId] = entity.split(":");
     const id = Number(rawId);
-    return (type === "m" || type === "p") && Number.isInteger(id) && id > 0
-      ? [
-          {
-            id,
-            type: type === "m" ? ("monster" as const) : ("player" as const),
-          },
-        ]
-      : [];
+    if ((type !== "m" && type !== "p") || !Number.isInteger(id) || id <= 0) {
+      return [];
+    }
+    return [
+      {
+        id,
+        type: type === "m" ? ("monster" as const) : ("player" as const),
+      },
+    ];
   });
 
 const outcome = (value: number): 0 | 1 | undefined =>
@@ -95,6 +96,8 @@ const singleActionAcknowledgement = (
   const acknowledgedOutcome = outcome(decoded.value.iRes);
   if (result == null || acknowledgedOutcome === undefined) return undefined;
 
+  // Rejections omit target data and leave the authoritative action ID on the
+  // outer sara record.
   const actionId =
     acknowledgedOutcome === 1 ? result.actID : decoded.value.actID;
   const source = parseCombatEntityReferences(result.cInf ?? "")[0];

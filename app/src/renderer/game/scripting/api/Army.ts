@@ -85,6 +85,8 @@ export const makeScriptArmyApi = (
               ),
       }).pipe(
         Effect.flatMap((normalized) => loopTaunt(normalized, failCause)),
+        // addCleanup runs immediately after cancellation, closing the race
+        // between handle acquisition and an already-closed script scope.
         Effect.tap((handle) => scope.addCleanup(handle.stop)),
       ),
   };

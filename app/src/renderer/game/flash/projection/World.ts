@@ -633,6 +633,8 @@ export const projectExtensionWorld = (
             mp: monster.maxMp,
             state: EntityState.Idle,
           });
+          // Aura removals need not accompany respawnMon; a new life must not
+          // inherit projected effects from the previous one.
           yield* store.world.clearAuras("monster", id);
           events.push({ type: "monster-respawn", monsterMapId: id });
         }

@@ -151,16 +151,15 @@ interface PendingMessage {
 
 interface AssignmentState {
   readonly active: boolean;
-  readonly alive: boolean;
   readonly assignmentId: number;
-  readonly cursorStart: number;
   readonly degradationRevision: number;
   readonly degraded?: DegradedState | undefined;
   readonly focusActive: boolean;
-  readonly focusTurnConsumed: boolean;
+  readonly focusLossHandled: boolean;
   readonly lastMessageAt?: number | undefined;
   readonly lifeRevision: number;
   readonly monsterMapId: number;
+  readonly nextPlayerOffset: number;
   readonly nextTurnId: number;
   readonly pendingLifeRevision?: number | undefined;
   readonly pendingMessage?: PendingMessage | undefined;
@@ -396,6 +395,8 @@ const registrationMatches = (
   run: RunState,
   payload: ArmyLoopTauntRegisterPayload,
 ): string | undefined => {
+  // Registrations must agree on the plan and target identity. Liveness and
+  // Focus remain observer snapshots that are reconciled after activation.
   if (!sameMap(run.map, payload.map)) {
     return "Loop taunt map identity must match across the Army roster";
   }
@@ -468,6 +469,8 @@ const priorityDecision = (
   readonly selectedGroupIndex?: number | undefined;
   readonly unresolvedAssignmentIds: ReadonlySet<number>;
 } => {
+  // Every renderer must agree that a higher-priority group is dead before
+  // lower-priority assignments may issue casts.
   for (const [groupIndex, assignmentIds] of run.priorityGroups.entries()) {
     const unresolvedAssignmentIds = assignmentIds.filter(
       (assignmentId) =>
@@ -512,7 +515,7 @@ const refreshPriorityGroup = (run: RunState): RunState => {
     let updated: AssignmentState = {
       ...assignment,
       active,
-      focusTurnConsumed: active ? false : assignment.focusTurnConsumed,
+      focusLossHandled: active ? false : assignment.focusLossHandled,
       turn: undefined,
     };
     const pendingMessage = updated.pendingMessage;
@@ -569,10 +572,10 @@ const orderedFromCursor = (
 ): readonly RunParticipant[] =>
   ring.toSorted((left, right) => {
     const leftOffset =
-      (left.playerNumber - 1 - assignment.cursorStart + run.playerCount) %
+      (left.playerNumber - 1 - assignment.nextPlayerOffset + run.playerCount) %
       run.playerCount;
     const rightOffset =
-      (right.playerNumber - 1 - assignment.cursorStart + run.playerCount) %
+      (right.playerNumber - 1 - assignment.nextPlayerOffset + run.playerCount) %
       run.playerCount;
     return leftOffset - rightOffset;
   });
@@ -596,25 +599,24 @@ const startTurn = (assignment: AssignmentState): AssignmentState => {
   };
 };
 
-const recoverAssignment = (assignment: AssignmentState): AssignmentState => ({
-  ...assignment,
-  degraded: undefined,
-  turn:
-    assignment.turn === undefined
-      ? undefined
-      : {
-          ...assignment.turn,
-          attempted:
-            assignment.turn.pending === undefined
-              ? new Set()
-              : assignment.turn.attempted,
-          failedSweeps: 0,
-          hadFailure:
-            assignment.turn.pending === undefined
-              ? false
-              : assignment.turn.hadFailure,
-        },
-});
+const recoverAssignment = (assignment: AssignmentState): AssignmentState => {
+  const turn = assignment.turn;
+  if (turn === undefined) {
+    return { ...assignment, degraded: undefined };
+  }
+
+  const awaitingResult = turn.pending !== undefined;
+  return {
+    ...assignment,
+    degraded: undefined,
+    turn: {
+      ...turn,
+      attempted: awaitingResult ? turn.attempted : new Set(),
+      failedSweeps: 0,
+      hadFailure: awaitingResult && turn.hadFailure,
+    },
+  };
+};
 
 const attemptAssignment = (
   inputRun: RunState,
@@ -632,6 +634,7 @@ const attemptAssignment = (
   ) {
     return { ...effects, run: inputRun };
   }
+  const turn = assignment.turn;
 
   const ring = orderedFromCursor(
     inputRun,
@@ -644,8 +647,7 @@ const attemptAssignment = (
   const participant = hasInitialReadiness
     ? ring.find(
         (candidate) =>
-          !assignment.turn!.attempted.has(candidate.id) &&
-          isReady(candidate, now),
+          !turn.attempted.has(candidate.id) && isReady(candidate, now),
       )
     : undefined;
 
@@ -662,8 +664,8 @@ const attemptAssignment = (
     const updatedAssignment: AssignmentState = {
       ...assignment,
       turn: {
-        ...assignment.turn,
-        attempted: new Set(assignment.turn.attempted).add(participant.id),
+        ...turn,
+        attempted: new Set(turn.attempted).add(participant.id),
         pending: {
           commandId: command.command.commandId,
           participantId: participant.id,
@@ -702,9 +704,9 @@ const attemptAssignment = (
     const updatedAssignment: AssignmentState = {
       ...assignment,
       turn: {
-        ...assignment.turn,
+        ...turn,
         attempted: new Set(
-          [...assignment.turn.attempted].filter(
+          [...turn.attempted].filter(
             (participantId) => !coolingIds.has(participantId),
           ),
         ),
@@ -719,26 +721,24 @@ const attemptAssignment = (
         {
           assignmentId,
           delayMs: Math.max(1, readyAt - now),
-          failedSweeps: assignment.turn.failedSweeps,
+          failedSweeps: turn.failedSweeps,
           runId: inputRun.runId,
-          turnId: assignment.turn.id,
+          turnId: turn.id,
           type: "retry",
         },
       ],
     };
   }
 
-  const failedSweeps = assignment.turn.failedSweeps + 1;
+  const failedSweeps = turn.failedSweeps + 1;
   const allSkipped =
-    ring.length > 0 &&
-    assignment.turn.attempted.size === ring.length &&
-    !assignment.turn.hadFailure;
+    ring.length > 0 && turn.attempted.size === ring.length && !turn.hadFailure;
   if (allSkipped) {
     const updatedAssignment: AssignmentState = {
       ...assignment,
       degraded: undefined,
       turn: {
-        ...assignment.turn,
+        ...turn,
         attempted: new Set(),
         failedSweeps: 0,
         hadFailure: false,
@@ -756,7 +756,7 @@ const attemptAssignment = (
           delayMs: SWEEP_RETRY_MS,
           failedSweeps: 0,
           runId: inputRun.runId,
-          turnId: assignment.turn.id,
+          turnId: turn.id,
           type: "retry",
         },
       ],
@@ -781,7 +781,7 @@ const attemptAssignment = (
     degradationRevision,
     degraded,
     turn: {
-      ...assignment.turn,
+      ...turn,
       attempted: new Set(),
       failedSweeps,
       hadFailure: false,
@@ -819,7 +819,7 @@ const attemptAssignment = (
       delayMs: SWEEP_RETRY_MS,
       failedSweeps,
       runId: run.runId,
-      turnId: updatedAssignment.turn!.id,
+      turnId: turn.id,
       type: "retry",
     },
   ];
@@ -855,14 +855,17 @@ const refreshAssignmentFromTargets = (
         target.monsterMapId === candidate.monsterMapId &&
         target.lifeRevision === candidate.lifeRevision,
     );
-  const targetState: AssignmentState["targetState"] = !hasIdentityConsensus
-    ? "unresolved"
-    : targets.every((target) => target.state === "alive")
-      ? "alive"
-      : targets.every((target) => target.state === "dead")
-        ? "dead"
-        : "unresolved";
+  let targetState: AssignmentState["targetState"] = "unresolved";
+  if (
+    hasIdentityConsensus &&
+    candidate !== undefined &&
+    targets.every((target) => target.state === candidate.state)
+  ) {
+    targetState = candidate.state;
+  }
   const alive = targetState === "alive";
+  // One positive Focus observation suppresses another cast while projections
+  // converge; duplicate taunts are more dangerous than a brief delay.
   const focusActive = alive && targets.some((target) => target.focusActive);
   const canonicalChanged =
     hasIdentityConsensus &&
@@ -883,18 +886,18 @@ const refreshAssignmentFromTargets = (
   const resetRevision = hasIdentityConsensus
     ? candidate.lifeRevision
     : observedLifeRevision;
+  // Reset on the first new-life observation so delayed consensus cannot carry
+  // the previous life's rotation into a respawn.
   const resetLife =
     (canonicalChanged || observedNewLife) &&
     current.pendingLifeRevision !== resetRevision;
-  const aliveChanged = alive !== current.alive;
+  const aliveChanged = alive !== (current.targetState === "alive");
   let assignment: AssignmentState = {
     ...current,
-    alive,
-    cursorStart: resetLife ? 0 : current.cursorStart,
     degraded: resetLife ? undefined : current.degraded,
     focusActive,
-    focusTurnConsumed:
-      aliveChanged || resetLife ? false : current.focusTurnConsumed,
+    focusLossHandled:
+      aliveChanged || resetLife ? false : current.focusLossHandled,
     lastMessageAt: resetLife ? undefined : current.lastMessageAt,
     lifeRevision: hasIdentityConsensus
       ? candidate.lifeRevision
@@ -902,6 +905,7 @@ const refreshAssignmentFromTargets = (
     monsterMapId: hasIdentityConsensus
       ? candidate.monsterMapId
       : current.monsterMapId,
+    nextPlayerOffset: resetLife ? 0 : current.nextPlayerOffset,
     pendingLifeRevision: hasIdentityConsensus
       ? undefined
       : observedNewLife
@@ -1019,17 +1023,19 @@ const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
       assignment.active &&
       assignment.strategy.type === "focus" &&
       !assignment.focusActive &&
-      !assignment.focusTurnConsumed &&
+      !assignment.focusLossHandled &&
       assignment.turn === undefined
     ) {
       assignment = {
         ...startTurn(assignment),
-        focusTurnConsumed: true,
+        focusLossHandled: true,
       };
     }
 
-    const required = assignment.active && assignment.turn !== undefined;
-    if (!required) {
+    const turn = assignment.turn;
+    if (!assignment.active || turn === undefined) {
+      // Preemption and active Focus pause degradation; time without a required
+      // taunt must not consume the assignment's recovery budget.
       let degraded = assignment.degraded;
       let degradationRevision = assignment.degradationRevision;
       if (degraded?.activeSince !== undefined) {
@@ -1078,17 +1084,17 @@ const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
       });
     }
 
-    const pendingParticipantId = assignment.turn?.pending?.participantId;
+    const pendingParticipantId = turn.pending?.participantId;
     if (
       pendingParticipantId !== undefined &&
       !ring.some((participant) => participant.id === pendingParticipantId)
     ) {
-      const attempted = new Set(assignment.turn!.attempted);
+      const attempted = new Set(turn.attempted);
       attempted.delete(pendingParticipantId);
       assignment = {
         ...assignment,
         turn: {
-          ...assignment.turn!,
+          ...turn,
           attempted,
           hadFailure: true,
           pending: undefined,
@@ -1365,8 +1371,7 @@ const applyTargetState = (
   });
   run = refreshAssignmentFromTargets(run, report.assignmentId);
   run = refreshPriorityGroup(run);
-  const reconciled = reconcileTopology(run, now);
-  return { ...reconciled, run: reconciled.run };
+  return reconcileTopology(run, now);
 };
 
 const applyFocusState = (
@@ -1379,7 +1384,7 @@ const applyFocusState = (
   if (invalid !== undefined) return invalid;
   const current = inputRun.assignments.get(report.assignmentId)!;
   if (
-    !current.alive ||
+    current.targetState !== "alive" ||
     current.monsterMapId !== report.monsterMapId ||
     current.lifeRevision !== report.lifeRevision
   ) {
@@ -1405,13 +1410,13 @@ const applyFocusState = (
   if (assignment.focusActive) {
     assignment = {
       ...recoverAssignment(assignment),
-      focusTurnConsumed: false,
+      focusLossHandled: false,
       turn: undefined,
     };
-  } else if (assignment.active && !assignment.focusTurnConsumed) {
+  } else if (assignment.active && !assignment.focusLossHandled) {
     assignment = {
       ...startTurn(assignment),
-      focusTurnConsumed: true,
+      focusLossHandled: true,
     };
   }
   run = setAssignment(run, assignment);
@@ -1445,6 +1450,8 @@ const applyMessage = (
     if (senderTarget.state !== "alive") {
       return { ...noEffects(), run: inputRun };
     }
+    // Encounter messages can arrive before target-life consensus. Retain one
+    // trigger for the life that may become active.
     const pending = current.pendingMessage;
     const shouldReplacePending =
       pending === undefined ||
@@ -1513,6 +1520,8 @@ const applyCommandResult = (
 
   if (report.outcome === "confirmed") {
     if (current.strategy.type === "focus") {
+      // A confirmed cast is authoritative before aura projections converge,
+      // preventing another participant from receiving a duplicate command.
       for (const currentParticipant of run.participants.values()) {
         const target = currentParticipant.targets.get(assignmentId);
         if (target === undefined) continue;
@@ -1527,12 +1536,12 @@ const applyCommandResult = (
     }
     const assignment: AssignmentState = {
       ...current,
-      cursorStart: participant.playerNumber % inputRun.playerCount,
       degraded: undefined,
       focusActive:
         current.strategy.type === "focus" ? true : current.focusActive,
-      focusTurnConsumed:
-        current.strategy.type === "focus" ? false : current.focusTurnConsumed,
+      focusLossHandled:
+        current.strategy.type === "focus" ? false : current.focusLossHandled,
+      nextPlayerOffset: participant.playerNumber % inputRun.playerCount,
       turn: undefined,
     };
     run = setAssignment(run, assignment);
@@ -1747,6 +1756,8 @@ const onDegradedTimeout = (
       state,
     ];
   }
+  // Sustained degradation stops this background capability without failing
+  // the shared Army session or its script.
   const mutation = terminalize(run, { status: "completed" });
   return [mutation, storeRun(state, mutation.run)];
 };
@@ -1802,14 +1813,13 @@ const makeCollectingRun = Effect.fn(
       assignment.assignmentId,
       {
         active: false,
-        alive: assignment.target.state === "alive",
         assignmentId: assignment.assignmentId,
-        cursorStart: 0,
         degradationRevision: 0,
         focusActive: assignment.target.focusActive,
-        focusTurnConsumed: false,
+        focusLossHandled: false,
         lifeRevision: assignment.target.lifeRevision,
         monsterMapId: assignment.target.monsterMapId,
+        nextPlayerOffset: 0,
         nextTurnId: 0,
         players: [...assignment.players],
         strategy:
@@ -1864,6 +1874,8 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
         };
       });
 
+    // State mutations publish effects after releasing stateRef. A newer report
+    // or teardown can stale an effect before it crosses IPC.
     const currentCommand = (
       event: ArmyLoopTauntCommandEvent,
     ): Effect.Effect<ArmyLoopTauntCommandEvent | undefined> =>
@@ -1941,12 +1953,17 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
       });
 
     const scheduleTimer = (timer: ScheduledTimer) => {
-      const delayMs =
-        timer.type === "command-timeout"
-          ? COMMAND_CONFIRMATION_TIMEOUT_MS
-          : timer.type === "registration-timeout"
-            ? REGISTRATION_TIMEOUT_MS
-            : timer.delayMs;
+      let delayMs: number;
+      switch (timer.type) {
+        case "command-timeout":
+          delayMs = COMMAND_CONFIRMATION_TIMEOUT_MS;
+          break;
+        case "registration-timeout":
+          delayMs = REGISTRATION_TIMEOUT_MS;
+          break;
+        default:
+          delayMs = timer.delayMs;
+      }
       return Effect.sleep(`${delayMs} millis`).pipe(
         Effect.andThen(onTimer(timer)),
         Effect.forkIn(scope),
@@ -2125,6 +2142,8 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
           }),
         );
         if (outcome.type === "reject") return yield* outcome.error;
+        // Coordinator teardown and orchestrator registration commit under
+        // separate locks, so authenticate again before publishing activation.
         const reauthenticated = yield* coordinator
           .requireParticipant(payload.sessionId, senderId)
           .pipe(Effect.result);

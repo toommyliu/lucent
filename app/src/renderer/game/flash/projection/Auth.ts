@@ -3,6 +3,8 @@ import { Effect } from "effect";
 import type { RuntimeEvent } from "../contract/Event";
 import type { Store } from "../state/Store";
 
+// A new connection begins a projection epoch, but only loss or failure proves
+// that an authenticated session ended.
 const lostConnections = new Set(["OnConnectionLost", "OnConnectionFailed"]);
 const resetConnections = new Set([...lostConnections, "OnConnection"]);
 

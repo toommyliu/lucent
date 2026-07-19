@@ -70,7 +70,7 @@ export interface CombatKillOptions {
   readonly skillSet?: readonly Skill[];
 }
 
-/** The server acknowledgement for a dispatched consumable cast. */
+/** Retains local dispatch identity because rejected acknowledgements omit their target. */
 export interface ConsumableCastResult {
   readonly actionId: number;
   readonly monsterMapId: number;
@@ -168,6 +168,8 @@ export const makeCombat = (
   temporary: TempInventory,
   wait: Wait,
 ) => {
+  // Overlap would race AQW's single consumable slot; the deadline also keeps
+  // queue delay from producing a late cast.
   const consumableCasts = Semaphore.makeUnsafe(1);
   const targetValue = bridge
     .invoke("combat.getTarget", undefined, TargetPayload)
@@ -214,6 +216,8 @@ export const makeCombat = (
             .pipe(Effect.map(Option.getOrNull)));
         if (sourceId === null) return null;
 
+        // The waiter must exist first because AQW can acknowledge in the same
+        // frame as dispatch.
         yield* wait.forPacket(
           {
             command: "ct",
@@ -249,29 +253,18 @@ export const makeCombat = (
               ) {
                 return false;
               }
-              return yield* bridge
+              const result = yield* bridge
                 .invoke(
                   "combat.castConsumableOnMonster",
                   [toMonsterSelector(selector), expectedItemId],
                   ConsumableCastDispatch,
                 )
-                .pipe(
-                  Effect.map(
-                    Option.match({
-                      onNone: () => false,
-                      onSome: (result) => {
-                        if (
-                          result === null ||
-                          result.itemId !== expectedItemId
-                        ) {
-                          return false;
-                        }
-                        dispatch = result;
-                        return true;
-                      },
-                    }),
-                  ),
-                );
+                .pipe(Effect.map(Option.getOrNull));
+              if (result === null || result.itemId !== expectedItemId) {
+                return false;
+              }
+              dispatch = result;
+              return true;
             }),
           },
         );

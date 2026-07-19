@@ -9,6 +9,8 @@ export interface ProjectionReadinessState {
   readonly player: boolean;
 }
 
+// These projections use absence as real game state after hydration, so scripts
+// must not observe their initial empty stores as authoritative data.
 export const makeProjectionReadiness = (store: Store) => {
   const get = Effect.fn("ProjectionReadiness.get")(function* () {
     const state = yield* Effect.all({
