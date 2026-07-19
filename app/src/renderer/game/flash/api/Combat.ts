@@ -9,7 +9,7 @@ import {
   type CombatProfile,
   type CombatProfileDefinition,
 } from "@lucent/core/combatProfiles";
-import { Effect, Option, Schema, Semaphore } from "effect";
+import { Clock, Context, Effect, Option, Schema, Semaphore } from "effect";
 import type { Duration } from "effect";
 
 import {
@@ -30,6 +30,8 @@ import {
   WireBoolean,
   WireInt,
 } from "../contract/Coercion";
+import { packetData } from "../contract/Packet";
+import { decodeCombatActionAcknowledgements } from "../contract/payload/Combat";
 import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
 import type { Inventory } from "./Inventory";
@@ -45,6 +47,13 @@ import type { Wait } from "./Wait";
 
 export type Skill = number;
 
+export const CONSUMABLE_CAST_CONFIRMATION_TIMEOUT_MS = 5_000;
+export const ConsumableCastDispatchDeadline = Context.Reference<
+  number | undefined
+>("lucent/game/combat/ConsumableCastDispatchDeadline", {
+  defaultValue: () => undefined,
+});
+
 export interface HuntOptions {
   readonly findMost?: boolean;
 }
@@ -59,6 +68,13 @@ export interface CombatKillOptions {
   readonly profile?: CombatProfileDefinition;
   readonly skillDelay?: number;
   readonly skillSet?: readonly Skill[];
+}
+
+/** The server acknowledgement for a dispatched consumable cast. */
+export interface ConsumableCastResult {
+  readonly actionId: number;
+  readonly monsterMapId: number;
+  readonly success: boolean;
 }
 
 const Consumable = Schema.NullOr(
@@ -179,15 +195,17 @@ export const makeCombat = (
   const castConsumableOnMonster = (
     selector: MonsterQuery,
     expectedItemId: number,
-  ) =>
+  ): Effect.Effect<ConsumableCastResult | null> =>
     consumableCasts.withPermit(
       Effect.gen(function* () {
         if (!Number.isInteger(expectedItemId) || expectedItemId <= 0) {
           return null;
         }
 
-        let actionId: number | undefined;
-        let dispatchedMonsterMapId: number | undefined;
+        let dispatch:
+          | Exclude<typeof ConsumableCastDispatch.Type, null>
+          | undefined;
+        let confirmation: ConsumableCastResult | null = null;
         const projectedSourceId = yield* store.world.getSelfEntityId;
         const sourceId =
           projectedSourceId ??
@@ -195,57 +213,70 @@ export const makeCombat = (
             .invoke("player.getUserId", undefined, PositiveWireInt)
             .pipe(Effect.map(Option.getOrNull)));
         if (sourceId === null) return null;
-        const eventSelector: {
-          actionId?: number;
-          sourceId: number;
-          sourceType: "player";
-          type: "combat-action-result";
-        } = {
-          sourceId,
-          sourceType: "player",
-          type: "combat-action-result",
-        };
 
-        const event = yield* events.once(eventSelector, {
-          timeout: "5 seconds",
-          trigger: bridge
-            .invoke(
-              "combat.castConsumableOnMonster",
-              [toMonsterSelector(selector), expectedItemId],
-              ConsumableCastDispatch,
-            )
-            .pipe(
-              Effect.map(
-                Option.match({
-                  onNone: () => false,
-                  onSome: (result) => {
-                    if (result === null || result.itemId !== expectedItemId) {
-                      return false;
-                    }
-                    actionId = result.actionId;
-                    dispatchedMonsterMapId = result.monsterMapId;
-                    eventSelector.actionId = result.actionId;
-                    return true;
-                  },
-                }),
-              ),
-            ),
-        });
+        yield* wait.forPacket(
+          {
+            command: "ct",
+            direction: "server",
+            predicate: (candidate) => {
+              if (dispatch === undefined) return false;
+              const expectedActionId = dispatch.actionId;
+              const matched = decodeCombatActionAcknowledgements(
+                packetData(candidate),
+              ).acknowledgements.find(
+                (candidate) =>
+                  candidate.actionId === expectedActionId &&
+                  candidate.source.type === "player" &&
+                  candidate.source.id === sourceId,
+              );
+              if (matched === undefined) return false;
+              confirmation = {
+                actionId: dispatch.actionId,
+                monsterMapId: dispatch.monsterMapId,
+                success: matched.outcome === 1,
+              };
+              return true;
+            },
+            wireType: "json",
+          },
+          {
+            timeout: `${CONSUMABLE_CAST_CONFIRMATION_TIMEOUT_MS} millis`,
+            trigger: Effect.gen(function* () {
+              const dispatchDeadline = yield* ConsumableCastDispatchDeadline;
+              if (
+                dispatchDeadline !== undefined &&
+                (yield* Clock.currentTimeMillis) > dispatchDeadline
+              ) {
+                return false;
+              }
+              return yield* bridge
+                .invoke(
+                  "combat.castConsumableOnMonster",
+                  [toMonsterSelector(selector), expectedItemId],
+                  ConsumableCastDispatch,
+                )
+                .pipe(
+                  Effect.map(
+                    Option.match({
+                      onNone: () => false,
+                      onSome: (result) => {
+                        if (
+                          result === null ||
+                          result.itemId !== expectedItemId
+                        ) {
+                          return false;
+                        }
+                        dispatch = result;
+                        return true;
+                      },
+                    }),
+                  ),
+                );
+            }),
+          },
+        );
 
-        if (
-          actionId === undefined ||
-          dispatchedMonsterMapId === undefined ||
-          event?.type !== "combat-action-result" ||
-          event.actionId !== actionId ||
-          (event.monsterMapId !== undefined &&
-            event.monsterMapId !== dispatchedMonsterMapId)
-        ) {
-          return null;
-        }
-        return {
-          ...event,
-          monsterMapId: dispatchedMonsterMapId,
-        };
+        return confirmation;
       }),
     );
 

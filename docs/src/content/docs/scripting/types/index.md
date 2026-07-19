@@ -23,6 +23,9 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/army-loop-taunt-assignment/" data-script-type="army-loop-taunt-assignment"><code>ArmyLoopTauntAssignment</code></a> | interface | Assigns one target to the Army players allowed to keep it taunted. |
 | <a href="/scripting/types/army-loop-taunt-error/" data-script-type="army-loop-taunt-error"><code>ArmyLoopTauntError</code></a> | class |  |
 | <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface | Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically. |
+| <a href="/scripting/types/army-loop-taunt-participant-snapshot/" data-script-type="army-loop-taunt-participant-snapshot"><code>ArmyLoopTauntParticipantSnapshot</code></a> | interface | Identifies an assigned Army player and its point-in-time projected state. |
+| <a href="/scripting/types/army-loop-taunt-skip-context/" data-script-type="army-loop-taunt-skip-context"><code>ArmyLoopTauntSkipContext</code></a> | interface | Projected state available when deciding whether to yield a taunt attempt. |
+| <a href="/scripting/types/army-loop-taunt-skip-when/" data-script-type="army-loop-taunt-skip-when"><code>ArmyLoopTauntSkipWhen</code></a> | type alias | Returns true when the selected player should yield to the next participant. |
 | <a href="/scripting/types/army-loop-taunt-strategy/" data-script-type="army-loop-taunt-strategy"><code>ArmyLoopTauntStrategy</code></a> | type alias | Selects the encounter event that starts each taunt attempt. |
 | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
 | <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
@@ -51,13 +54,14 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
 | <a href="/scripting/types/connect-outcome/" data-script-type="connect-outcome"><code>ConnectOutcome</code></a> | interface |  |
+| <a href="/scripting/types/consumable-cast-result/" data-script-type="consumable-cast-result"><code>ConsumableCastResult</code></a> | interface | The server acknowledgement for a dispatched consumable cast. |
 | <a href="/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
 | <a href="/scripting/types/entity-data/" data-script-type="entity-data"><code>EntityData</code></a> | interface |  |
 | <a href="/scripting/types/entity-snapshot/" data-script-type="entity-snapshot"><code>EntitySnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | type alias |  |
 | <a href="/scripting/types/equip-options/" data-script-type="equip-options"><code>EquipOptions</code></a> | interface |  |
 | <a href="/scripting/types/event/" data-script-type="event"><code>Event</code></a> | type alias |  |
-| <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | interface |  |
+| <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
 | <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | interface |  |
 | <a href="/scripting/types/faction-snapshot/" data-script-type="faction-snapshot"><code>FactionSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |

@@ -182,11 +182,6 @@ export const makeGateway = (target?: Window) =>
         const packet = parsePacket(input.direction, input.raw);
         if (Option.isNone(packet)) {
           if (isUnsupportedPacketEnvelope(input.raw)) return;
-          const failure: Event = {
-            type: "packet-decode-failed",
-            direction: input.direction,
-            raw: input.raw,
-          };
           yield* PubSub.publish(
             diagnostics,
             makeDiagnostic(
@@ -196,7 +191,6 @@ export const makeGateway = (target?: Window) =>
               [input.raw],
             ),
           );
-          yield* publishEvent(failure);
           return;
         }
 

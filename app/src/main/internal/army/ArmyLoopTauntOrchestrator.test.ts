@@ -381,7 +381,58 @@ describe("ArmyLoopTauntOrchestrator", () => {
   );
 
   it.effect(
-    "fails over a static assignment and ignores a result from the wrong sender",
+    "waits for every assigned participant before selecting in configured order",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const harness = yield* makeHarness(["Alice", "Bob", "Carol"]);
+          const { runId } = yield* registerAll(
+            harness,
+            makeRegistration(harness.sessionId, [
+              assignment({
+                players: [1, 2, 3],
+                target: {
+                  focusActive: false,
+                  lifeRevision: 0,
+                  monsterMapId: 42,
+                  state: "alive",
+                },
+              }),
+            ]),
+          );
+          const [alice, bob, carol] = harness.ids;
+
+          yield* report(harness, runId, carol!, {
+            alive: true,
+            cooldownMs: 0,
+            type: "participant-state",
+            usable: true,
+          });
+          expect(tauntEvents(harness.events)).toHaveLength(0);
+
+          yield* report(harness, runId, bob!, {
+            alive: true,
+            cooldownMs: 0,
+            type: "participant-state",
+            usable: true,
+          });
+          expect(tauntEvents(harness.events)).toHaveLength(0);
+
+          yield* report(harness, runId, alice!, {
+            alive: true,
+            cooldownMs: 0,
+            type: "participant-state",
+            usable: true,
+          });
+
+          const first = requireTaunt(tauntEvents(harness.events)[0]);
+          expect(first.participantIds).toEqual([alice]);
+        }),
+      ),
+  );
+
+  it.effect(
+    "fails over a skipped attempt while ignoring the wrong sender",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
@@ -399,21 +450,27 @@ describe("ArmyLoopTauntOrchestrator", () => {
           const { runId } = yield* registerAll(harness, registration);
           const [alice, bob] = harness.ids;
 
-          yield* report(harness, runId, alice!, {
-            alive: true,
-            cooldownMs: 0,
-            type: "participant-state",
-            usable: true,
-          });
+          yield* Effect.forEach(
+            [alice!, bob!],
+            (participantId) =>
+              report(harness, runId, participantId, {
+                alive: true,
+                cooldownMs: 0,
+                type: "participant-state",
+                usable: true,
+              }),
+            { discard: true },
+          );
           const first = requireTaunt(tauntEvents(harness.events)[0]);
           expect(first.participantIds).toEqual([alice]);
-
-          yield* report(harness, runId, bob!, {
-            alive: true,
-            cooldownMs: 0,
-            type: "participant-state",
-            usable: true,
+          expect(first.command.command).toEqual({
+            assignmentId: 7,
+            expiresAt: 7_000,
+            lifeRevision: 0,
+            monsterMapId: 42,
+            type: "taunt",
           });
+
           yield* report(harness, runId, bob!, {
             commandId: first.command.commandId,
             outcome: "confirmed",
@@ -423,7 +480,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
 
           yield* report(harness, runId, alice!, {
             commandId: first.command.commandId,
-            outcome: "cast-failed",
+            outcome: "skipped",
             type: "command-result",
           });
           const second = requireTaunt(tauntEvents(harness.events)[1]);
@@ -433,6 +490,68 @@ describe("ArmyLoopTauntOrchestrator", () => {
             lifeRevision: 0,
             monsterMapId: 42,
           });
+        }),
+      ),
+  );
+
+  it.effect(
+    "retries an all-skipped rotation without degrading the assignment",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const harness = yield* makeHarness(["Alice", "Bob"]);
+          const { runId } = yield* registerAll(
+            harness,
+            makeRegistration(harness.sessionId, [
+              assignment({
+                target: {
+                  focusActive: false,
+                  lifeRevision: 0,
+                  monsterMapId: 42,
+                  state: "alive",
+                },
+              }),
+            ]),
+          );
+          const [alice, bob] = harness.ids;
+
+          yield* Effect.forEach(
+            [alice!, bob!],
+            (participantId) =>
+              report(harness, runId, participantId, {
+                alive: true,
+                cooldownMs: 0,
+                type: "participant-state",
+                usable: true,
+              }),
+            { discard: true },
+          );
+
+          for (let sweep = 0; sweep < 2; sweep += 1) {
+            const first = requireTaunt(tauntEvents(harness.events)[sweep * 2]);
+            expect(first.participantIds).toEqual([alice]);
+            yield* report(harness, runId, alice!, {
+              commandId: first.command.commandId,
+              outcome: "skipped",
+              type: "command-result",
+            });
+
+            const second = requireTaunt(
+              tauntEvents(harness.events)[sweep * 2 + 1],
+            );
+            expect(second.participantIds).toEqual([bob]);
+            yield* report(harness, runId, bob!, {
+              commandId: second.command.commandId,
+              outcome: "skipped",
+              type: "command-result",
+            });
+
+            expect(diagnosticEvents(harness.events)).toHaveLength(0);
+            expect(tauntEvents(harness.events)).toHaveLength((sweep + 1) * 2);
+            if (sweep === 0) {
+              yield* advance("1 second");
+            }
+          }
         }),
       ),
   );
@@ -458,6 +577,14 @@ describe("ArmyLoopTauntOrchestrator", () => {
           );
           const [alice, bob] = harness.ids;
 
+          yield* report(harness, runId, bob!, {
+            alive: true,
+            cooldownMs: 0,
+            type: "participant-state",
+            usable: true,
+          });
+          expect(tauntEvents(harness.events)).toHaveLength(0);
+
           yield* report(harness, runId, alice!, {
             alive: true,
             cooldownMs: 0,
@@ -467,12 +594,6 @@ describe("ArmyLoopTauntOrchestrator", () => {
           const first = requireTaunt(tauntEvents(harness.events)[0]);
           expect(first.participantIds).toEqual([alice]);
 
-          yield* report(harness, runId, bob!, {
-            alive: true,
-            cooldownMs: 0,
-            type: "participant-state",
-            usable: true,
-          });
           yield* report(harness, runId, alice!, {
             alive: false,
             cooldownMs: 0,
@@ -582,7 +703,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
 
           const retained = requireTaunt(tauntEvents(harness.events)[0]);
           expect(retained.participantIds).toEqual([harness.ids[0]]);
-          expect(retained.command.command).toEqual({
+          expect(retained.command.command).toMatchObject({
             assignmentId: 7,
             lifeRevision: 1,
             monsterMapId: 99,
@@ -941,7 +1062,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
             });
           }
           const nextLife = requireTaunt(tauntEvents(harness.events)[1]);
-          expect(nextLife.command.command).toEqual({
+          expect(nextLife.command.command).toMatchObject({
             assignmentId: 7,
             lifeRevision: 1,
             monsterMapId: 99,

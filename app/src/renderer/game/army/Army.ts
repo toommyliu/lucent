@@ -16,6 +16,7 @@ import {
   type ArmyLoopTauntAssignment,
   ArmyLoopTauntError,
   type ArmyLoopTauntHandle,
+  type ArmyLoopTauntRuntimeAssignment,
   makeArmyLoopTauntRuntime,
 } from "./ArmyLoopTaunt";
 
@@ -118,7 +119,7 @@ export interface ArmyApiRuntimeShape extends Omit<
   "startLoopTaunt"
 > {
   readonly startLoopTauntForScript: (
-    assignments: readonly ArmyLoopTauntAssignment[],
+    assignments: readonly ArmyLoopTauntRuntimeAssignment[],
     onFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
 }

@@ -177,7 +177,8 @@ export type ArmyLoopTauntReport =
         | "confirmed"
         | "target-unavailable"
         | "cast-failed"
-        | "not-ready";
+        | "not-ready"
+        | "skipped";
       readonly reason?: string;
       readonly type: "command-result";
     }
@@ -193,6 +194,7 @@ export interface ArmyLoopTauntReportPayload extends ArmyLoopTauntRunPayload {
 export type ArmyLoopTauntCommand =
   | {
       readonly assignmentId: number;
+      readonly expiresAt: number;
       readonly lifeRevision: number;
       readonly monsterMapId: number;
       readonly type: "taunt";
@@ -361,6 +363,7 @@ export const ArmyLoopTauntReportSchema = Schema.Union([
       "target-unavailable",
       "cast-failed",
       "not-ready",
+      "skipped",
     ]),
     reason: Schema.optionalKey(Schema.String),
     type: Schema.Literal("command-result"),
@@ -380,6 +383,7 @@ export const ArmyLoopTauntReportPayloadSchema = Schema.Struct({
 export const ArmyLoopTauntCommandSchema = Schema.Union([
   Schema.Struct({
     assignmentId: NonNegativeInt,
+    expiresAt: NonNegativeFiniteNumber,
     lifeRevision: NonNegativeInt,
     monsterMapId: Schema.Int,
     type: Schema.Literal("taunt"),

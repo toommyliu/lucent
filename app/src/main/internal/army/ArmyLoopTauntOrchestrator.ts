@@ -31,7 +31,7 @@ import {
   type ArmyParticipantId,
 } from "./ArmyCoordinator";
 
-const COMMAND_CONFIRMATION_TIMEOUT_MS = 6_000;
+const COMMAND_CONFIRMATION_TIMEOUT_MS = 7_000;
 const DEGRADED_AFTER_SWEEPS = 3;
 const DEGRADED_TIMEOUT_MS = 30_000;
 const MESSAGE_DEDUPE_MS = 500;
@@ -130,6 +130,7 @@ interface PendingTaunt {
 interface TurnState {
   readonly attempted: ReadonlySet<ArmyParticipantId>;
   readonly failedSweeps: number;
+  readonly hadFailure: boolean;
   readonly id: number;
   readonly pending?: PendingTaunt | undefined;
 }
@@ -473,6 +474,7 @@ const startTurn = (assignment: AssignmentState): AssignmentState => {
     turn: {
       attempted: new Set(),
       failedSweeps: 0,
+      hadFailure: false,
       id: assignment.nextTurnId,
     },
   };
@@ -491,6 +493,10 @@ const recoverAssignment = (assignment: AssignmentState): AssignmentState => ({
               ? new Set()
               : assignment.turn.attempted,
           failedSweeps: 0,
+          hadFailure:
+            assignment.turn.pending === undefined
+              ? false
+              : assignment.turn.hadFailure,
         },
 });
 
@@ -516,16 +522,23 @@ const attemptAssignment = (
     assignment,
     assignmentRing(inputRun, assignment),
   );
-  const participant = ring.find(
-    (candidate) =>
-      !assignment.turn!.attempted.has(candidate.id) && isReady(candidate, now),
+  const hasInitialReadiness = ring.every(
+    (participant) => participant.readiness !== undefined,
   );
+  const participant = hasInitialReadiness
+    ? ring.find(
+        (candidate) =>
+          !assignment.turn!.attempted.has(candidate.id) &&
+          isReady(candidate, now),
+      )
+    : undefined;
 
   if (participant !== undefined) {
     const target = participant.targets.get(assignmentId);
     if (target === undefined) return { ...effects, run: inputRun };
     const [commandRun, command] = issueCommand(inputRun, [participant.id], {
       assignmentId,
+      expiresAt: now + COMMAND_CONFIRMATION_TIMEOUT_MS,
       lifeRevision: assignment.lifeRevision,
       monsterMapId: target.monsterMapId,
       type: "taunt",
@@ -557,12 +570,14 @@ const attemptAssignment = (
     };
   }
 
-  const cooling = ring.filter(
-    (candidate) =>
-      candidate.readiness?.alive === true &&
-      candidate.readiness.usable &&
-      candidate.readiness.readyAt > now,
-  );
+  const cooling = hasInitialReadiness
+    ? ring.filter(
+        (candidate) =>
+          candidate.readiness?.alive === true &&
+          candidate.readiness.usable &&
+          candidate.readiness.readyAt > now,
+      )
+    : [];
   if (cooling.length > 0) {
     const readyAt = Math.min(
       ...cooling.map((candidate) => candidate.readiness!.readyAt),
@@ -598,6 +613,40 @@ const attemptAssignment = (
   }
 
   const failedSweeps = assignment.turn.failedSweeps + 1;
+  const allSkipped =
+    ring.length > 0 &&
+    assignment.turn.attempted.size === ring.length &&
+    !assignment.turn.hadFailure;
+  if (allSkipped) {
+    const updatedAssignment: AssignmentState = {
+      ...assignment,
+      degraded: undefined,
+      turn: {
+        ...assignment.turn,
+        attempted: new Set(),
+        failedSweeps: 0,
+        hadFailure: false,
+        pending: undefined,
+      },
+    };
+    return {
+      commands: [],
+      readiness: [],
+      run: setAssignment(inputRun, updatedAssignment),
+      terminals: [],
+      timers: [
+        {
+          assignmentId,
+          delayMs: SWEEP_RETRY_MS,
+          failedSweeps: 0,
+          runId: inputRun.runId,
+          turnId: assignment.turn.id,
+          type: "retry",
+        },
+      ],
+    };
+  }
+
   const enteringDegraded =
     failedSweeps >= DEGRADED_AFTER_SWEEPS && assignment.degraded === undefined;
   const degraded: DegradedState | undefined = enteringDegraded
@@ -614,6 +663,7 @@ const attemptAssignment = (
       ...assignment.turn,
       attempted: new Set(),
       failedSweeps,
+      hadFailure: false,
       pending: undefined,
     },
   };
@@ -833,6 +883,7 @@ const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
         turn: {
           ...assignment.turn!,
           attempted,
+          hadFailure: true,
           pending: undefined,
         },
       };
@@ -977,13 +1028,14 @@ const applyParticipantState = (
   let run = setParticipant(inputRun, updatedParticipant);
   let effects: MutationEffects = noEffects();
   const previousReadiness = current.readiness;
-  let shouldAttempt =
+  const readinessImproved =
+    previousReadiness !== undefined &&
     report.alive &&
     report.usable &&
-    (previousReadiness === undefined ||
-      !previousReadiness.alive ||
+    (!previousReadiness.alive ||
       !previousReadiness.usable ||
       updatedParticipant.readiness!.readyAt < previousReadiness.readyAt);
+  const assignmentsToAttempt = new Set<number>();
 
   const assignments = new Map(run.assignments);
   for (const [assignmentId, assignment] of assignments) {
@@ -1001,14 +1053,15 @@ const applyParticipantState = (
         ...assignment,
         turn: {
           ...assignment.turn,
+          hadFailure: true,
           pending: undefined,
         },
       });
-      shouldAttempt = true;
+      assignmentsToAttempt.add(assignmentId);
       continue;
     }
     if (
-      shouldAttempt &&
+      readinessImproved &&
       isReady(updatedParticipant, now) &&
       assignment.turn.pending === undefined
     ) {
@@ -1021,16 +1074,28 @@ const applyParticipantState = (
           attempted,
         },
       });
+      assignmentsToAttempt.add(assignmentId);
     }
   }
   run = { ...run, assignments };
-
-  if (shouldAttempt) {
-    for (const assignmentId of run.assignments.keys()) {
-      const attempted = attemptAssignment(run, assignmentId, now);
-      run = attempted.run;
-      effects = mergeMutationEffects(effects, attempted);
+  if (previousReadiness === undefined) {
+    for (const [assignmentId, assignment] of run.assignments) {
+      if (
+        assignment.turn !== undefined &&
+        assignment.players.includes(current.playerNumber) &&
+        assignmentRing(run, assignment).every(
+          (participant) => participant.readiness !== undefined,
+        )
+      ) {
+        assignmentsToAttempt.add(assignmentId);
+      }
     }
+  }
+
+  for (const assignmentId of assignmentsToAttempt) {
+    const attempted = attemptAssignment(run, assignmentId, now);
+    run = attempted.run;
+    effects = mergeMutationEffects(effects, attempted);
   }
   return { ...effects, run };
 };
@@ -1266,6 +1331,7 @@ const applyCommandResult = (
     ...current,
     turn: {
       ...current.turn!,
+      hadFailure: report.outcome !== "skipped" || current.turn!.hadFailure,
       pending: undefined,
     },
   };
@@ -1362,6 +1428,7 @@ const onCommandTimeout = (
     ...assignment,
     turn: {
       ...assignment.turn,
+      hadFailure: true,
       pending: undefined,
     },
   });

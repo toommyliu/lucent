@@ -2,6 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { Cause, Effect, Ref } from "effect";
 
 import type { ArmyApiRuntimeShape } from "../../army/Army";
+import type {
+  ArmyLoopTauntRuntimeAssignment,
+  ArmyLoopTauntSkipContext,
+} from "../../army/ArmyLoopTaunt";
 import { makeScriptAsyncScope } from "../scriptAsyncScope";
 import { makeScriptArmyApi } from "./Army";
 
@@ -10,11 +14,15 @@ const makeArmy = (
   captureFailure: (
     notify: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   ) => void = () => undefined,
+  captureAssignments: (
+    assignments: readonly ArmyLoopTauntRuntimeAssignment[],
+  ) => void = () => undefined,
 ): ArmyApiRuntimeShape => {
   const startLoopTauntForScript: ArmyApiRuntimeShape["startLoopTauntForScript"] =
-    (_assignments, notifyFailure) =>
+    (assignments, notifyFailure) =>
       Effect.sync(() => {
         captureFailure(notifyFailure);
+        captureAssignments(assignments);
         let stopped = false;
         return {
           stop: () =>
@@ -32,6 +40,56 @@ const makeArmy = (
 };
 
 describe("script Army API", () => {
+  it.effect(
+    "normalizes plain, Effect, and generator skip callbacks to trusted Effects",
+    () =>
+      Effect.gen(function* () {
+        const stops = yield* Ref.make(0);
+        const captured: ArmyLoopTauntRuntimeAssignment[] = [];
+        const army = makeScriptArmyApi(
+          makeArmy(stops, undefined, (assignments) => {
+            captured.push(...assignments);
+          }),
+          makeScriptAsyncScope(),
+          () => Effect.void,
+        );
+        const assignment = {
+          players: [1],
+          strategy: { type: "focus" as const },
+          target: 1,
+        };
+
+        yield* army.startLoopTaunt([
+          {
+            ...assignment,
+            skipWhen: () => true,
+          },
+          {
+            ...assignment,
+            skipWhen: () => Effect.succeed(false),
+          },
+          {
+            ...assignment,
+            skipWhen: function* () {
+              yield* Effect.void;
+              return true;
+            },
+          },
+        ]);
+
+        const context = {
+          participants: [],
+          self: { playerNumber: 1 },
+        } as unknown as ArmyLoopTauntSkipContext;
+        if (captured.some(({ skipWhen }) => skipWhen === undefined)) {
+          return yield* Effect.die("skipWhen was not normalized");
+        }
+        const normalized = captured.map(({ skipWhen }) => skipWhen!(context));
+        expect(normalized.every(Effect.isEffect)).toBe(true);
+        expect(yield* Effect.all(normalized)).toEqual([true, false, true]);
+      }),
+  );
+
   it.effect("automatically stops Loop Taunt when the script scope closes", () =>
     Effect.gen(function* () {
       const stops = yield* Ref.make(0);
@@ -71,8 +129,10 @@ describe("script Army API", () => {
       }
       yield* notifyFailure(Cause.fail(new Error("degraded")));
 
-      expect(Cause.squash(failures[0]!)).toBeInstanceOf(Error);
-      expect((Cause.squash(failures[0]!) as Error).message).toBe("degraded");
+      expect(failures).toHaveLength(1);
+      expect(Cause.squash(failures[0]!)).toMatchObject({
+        message: "degraded",
+      });
       yield* scope.close;
     }),
   );

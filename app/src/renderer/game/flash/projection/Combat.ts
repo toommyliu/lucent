@@ -6,8 +6,12 @@ import {
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
 import type { ExtensionPacket, ServerPacket } from "../contract/Packet";
-import { NonNegativeWireInt, WireInt } from "../contract/Coercion";
-import { AuraPayload, toAura } from "../contract/payload/Combat";
+import {
+  AuraPayload,
+  decodeCombatActionAcknowledgements,
+  parseCombatEntityReferences,
+  toAura,
+} from "../contract/payload/Combat";
 import {
   EntityPatchPayload,
   entityState,
@@ -34,19 +38,6 @@ const Animation = Schema.Struct({
   msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   tInf: Schema.optionalKey(Schema.String),
 });
-const ActionEntity = Schema.Struct({
-  actID: Schema.optionalKey(NonNegativeWireInt),
-  cInf: Schema.optionalKey(Schema.String),
-  tInf: Schema.optionalKey(Schema.String),
-});
-const ActionResult = Schema.Struct({
-  a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
-  actionResult: Schema.optionalKey(Schema.NullOr(Schema.Unknown)),
-  actID: Schema.optionalKey(NonNegativeWireInt),
-  cInf: Schema.optionalKey(Schema.String),
-  iRes: WireInt,
-  tInf: Schema.optionalKey(Schema.String),
-});
 const CombatPayload = Schema.Struct({
   a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
   anims: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
@@ -56,30 +47,11 @@ const CombatPayload = Schema.Struct({
   p: Schema.optionalKey(
     Schema.NullOr(Schema.Record(Schema.String, Schema.Unknown)),
   ),
-  sara: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
-  sarsa: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
 });
 const decodeCombat = Schema.decodeUnknownOption(CombatPayload);
 const decodeAnimation = Schema.decodeUnknownOption(Animation);
 const decodeAuraChange = Schema.decodeUnknownOption(AuraChange);
-const decodeActionEntity = Schema.decodeUnknownOption(ActionEntity);
-const decodeActionResult = Schema.decodeUnknownOption(ActionResult);
 const decodeEntityPatch = Schema.decodeUnknownOption(EntityPatchPayload);
-
-const targets = (value: string) =>
-  value.split(",").flatMap((token) => {
-    const target = token.slice(token.lastIndexOf(">") + 1).trim();
-    const [type, rawId] = target.split(":");
-    const id = Number(rawId);
-    return (type === "m" || type === "p") && Number.isInteger(id) && id > 0
-      ? [
-          {
-            id,
-            type: type === "m" ? ("monster" as const) : ("player" as const),
-          },
-        ]
-      : [];
-  });
 
 const messageText = (
   value: string | readonly string[] | undefined,
@@ -119,6 +91,19 @@ export const projectCombat = (
       return [];
     }
     const events: Event[] = [];
+    if (packet.direction === "server" && packet.command === "ct") {
+      const { rejected } = decodeCombatActionAcknowledgements(packet.data);
+      yield* Effect.forEach(
+        rejected,
+        ({ shape, value }) =>
+          diagnose(
+            "combat:malformed-action-acknowledgement",
+            new Error(`Ignored malformed ${shape} action acknowledgement`),
+            [value],
+          ),
+        { discard: true },
+      );
+    }
 
     for (const [username, value] of Object.entries(decoded.value.p ?? {})) {
       const patch = decodeEntityPatch(value);
@@ -195,69 +180,6 @@ export const projectCombat = (
       }
     }
 
-    if (packet.direction === "server" && packet.command === "ct") {
-      for (const [shape, values] of [
-        ["sara", decoded.value.sara ?? []],
-        ["sarsa", decoded.value.sarsa ?? []],
-      ] as const) {
-        for (const value of values) {
-          const action = decodeActionResult(value);
-          if (Option.isNone(action)) {
-            yield* diagnose(
-              "combat:malformed-action-result",
-              new Error(`Ignored malformed ${shape} action result`),
-              [value],
-            );
-            continue;
-          }
-
-          const nested =
-            action.value.actionResult == null
-              ? Option.none<typeof ActionEntity.Type>()
-              : decodeActionEntity(action.value.actionResult);
-          const details = Option.getOrUndefined(nested);
-          const actionId = action.value.actID ?? details?.actID;
-          const source = targets(action.value.cInf ?? details?.cInf ?? "")[0];
-          const targetCandidates = [
-            ...(details?.tInf === undefined ? [] : targets(details.tInf)),
-            ...(action.value.tInf === undefined
-              ? []
-              : targets(action.value.tInf)),
-            ...(action.value.a ?? []).flatMap((hit) =>
-              Option.match(decodeActionEntity(hit), {
-                onNone: () => [],
-                onSome: (entity) =>
-                  entity.tInf === undefined ? [] : targets(entity.tInf),
-              }),
-            ),
-          ];
-          const target = targetCandidates[0];
-
-          if (actionId === undefined || source === undefined) {
-            yield* diagnose(
-              "combat:incomplete-action-result",
-              new Error(`Ignored incomplete ${shape} action result`),
-              [value],
-            );
-            continue;
-          }
-
-          events.push({
-            type: "combat-action-result",
-            actionId,
-            iRes: action.value.iRes,
-            ...(target?.type === "monster" ? { monsterMapId: target.id } : {}),
-            sourceId: source.id,
-            sourceType: source.type,
-            success: action.value.iRes === 1,
-            ...(target === undefined
-              ? {}
-              : { targetId: target.id, targetType: target.type }),
-          });
-        }
-      }
-    }
-
     for (const value of decoded.value.a ?? []) {
       const change = decodeAuraChange(value);
       if (Option.isNone(change)) {
@@ -276,8 +198,8 @@ export const projectCombat = (
       const source =
         change.value.cInf === undefined
           ? undefined
-          : targets(change.value.cInf)[0];
-      for (const target of targets(change.value.tInf)) {
+          : parseCombatEntityReferences(change.value.cInf)[0];
+      for (const target of parseCombatEntityReferences(change.value.tInf)) {
         for (const payload of payloads) {
           const eventDetails = {
             ...(payload.dur === undefined ? {} : { duration: payload.dur }),
@@ -353,9 +275,13 @@ export const projectCombat = (
           : animation.value.msg.join(" ").trim();
       if (message === "") continue;
       const source =
-        animation.value.cInf === undefined ? [] : targets(animation.value.cInf);
+        animation.value.cInf === undefined
+          ? []
+          : parseCombatEntityReferences(animation.value.cInf);
       const target =
-        animation.value.tInf === undefined ? [] : targets(animation.value.tInf);
+        animation.value.tInf === undefined
+          ? []
+          : parseCombatEntityReferences(animation.value.tInf);
       const monsterMapId = [...source, ...target].find(
         (entity) => entity.type === "monster",
       )?.id;

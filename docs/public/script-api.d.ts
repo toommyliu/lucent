@@ -167,7 +167,7 @@ interface ScriptApi {
     readonly army: ScriptArmyApi;
     readonly auth: { connectTo: (server: string) => Effect<ConnectOutcome>; getPassword: () => Effect<string, never, never>; getServers: () => Effect<LiveServer[], never, never>; getUsername: () => Effect<string, never, never>; isLoggedIn: () => Effect<boolean, never, never>; isServerSelectReady: () => Effect<boolean, never, never>; isTemporarilyKicked: () => Effect<boolean, never, never>; login: (username: string, password: string) => Effect<boolean, never, never>; logout: () => Effect<void, never, never>; };
     readonly bank: { contains: (selector: ItemQuery, requested?: number) => Effect<boolean, never, never>; deposit: (selector: ItemQuery) => Effect<boolean, never, never>; depositBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; isOpen: (view?: BankView) => Effect<boolean, never, never>; load: (force?: boolean) => Effect<boolean, never, never>; open: (options?: BankOpenOptions) => Effect<boolean, never, never>; swap: (inventorySelector: ItemQuery, bankSelector: ItemQuery) => Effect<boolean, never, never>; withdraw: (selector: ItemQuery) => Effect<boolean, never, never>; withdrawBatch: (selectors: readonly ItemQuery[]) => Effect<boolean[], never, never>; };
-    readonly combat: { attackMonster: (selector: MonsterQuery) => Effect<boolean, never, never>; cancelAutoAttack: () => Effect<void, never, never>; cancelTarget: () => Effect<void, never, never>; canUseSkill: (skill: Skill) => Effect<boolean, never, never>; castConsumableOnMonster: (selector: MonsterQuery, expectedItemId: number) => Effect<{ monsterMapId: number; type: 'combat-action-result'; actionId: number; iRes: number; sourceId: number; sourceType: 'monster' | 'player'; success: boolean; targetId?: number; targetType?: 'monster' | 'player'; } | null, never, never>; exit: () => Effect<boolean, never, never>; getConsumableSkillItem: () => Effect<{ itemId: number; } | null, never, never>; getSkillCooldownRemaining: (index: number) => Effect<number, never, never>; hunt: (selector: MonsterQuery, options?: HuntOptions) => Effect<LiveMonster | null, never, never>; kill: (selector: MonsterQuery, options?: CombatKillOptions) => Effect<boolean, never, never>; killForItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; killForTempItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; target: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; get: () => Effect<{ readonly cell: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly monsterId: number; readonly monsterMapId: number; readonly name: string; readonly race: string; readonly state: number; readonly type: 'monster'; } | { readonly afk: boolean; readonly cell: string; readonly entityId: number; readonly entityType: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly maxMp: number; readonly mp: number; readonly name: string; readonly pad: string; readonly sp: number; readonly state: number; readonly type: 'player'; readonly username: string; } | null, never, never>; }; useSkill: (skill: Skill, options?: SkillUseOptions) => Effect<boolean, never, never>; };
+    readonly combat: { attackMonster: (selector: MonsterQuery) => Effect<boolean, never, never>; cancelAutoAttack: () => Effect<void, never, never>; cancelTarget: () => Effect<void, never, never>; canUseSkill: (skill: Skill) => Effect<boolean, never, never>; castConsumableOnMonster: (selector: MonsterQuery, expectedItemId: number) => Effect<ConsumableCastResult | null>; exit: () => Effect<boolean, never, never>; getConsumableSkillItem: () => Effect<{ itemId: number; } | null, never, never>; getSkillCooldownRemaining: (index: number) => Effect<number, never, never>; hunt: (selector: MonsterQuery, options?: HuntOptions) => Effect<LiveMonster | null, never, never>; kill: (selector: MonsterQuery, options?: CombatKillOptions) => Effect<boolean, never, never>; killForItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; killForTempItem: (selector: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions) => Effect<boolean, never, never>; target: { auras: { get: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura | null, never, never>; getAll: (options?: { kind?: 'active' | 'passive'; }) => Effect<LiveAura[], never, never>; has: (name: string, options?: { kind?: 'active' | 'passive'; }) => Effect<boolean, never, never>; }; get: () => Effect<{ readonly cell: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly monsterId: number; readonly monsterMapId: number; readonly name: string; readonly race: string; readonly state: number; readonly type: 'monster'; } | { readonly afk: boolean; readonly cell: string; readonly entityId: number; readonly entityType: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly maxMp: number; readonly mp: number; readonly name: string; readonly pad: string; readonly sp: number; readonly state: number; readonly type: 'player'; readonly username: string; } | null, never, never>; }; useSkill: (skill: Skill, options?: SkillUseOptions) => Effect<boolean, never, never>; };
     readonly drops: { accept: (selector: ItemQuery) => Effect<boolean, never, never>; contains: (selector: ItemQuery) => Effect<boolean, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; isCustomUiEnabled: () => Effect<boolean, never, never>; reject: (selector: ItemQuery) => Effect<boolean, never, never>; toggleUi: () => Effect<void, never, never>; };
     readonly events: ScriptEventsApi;
     readonly house: { get: (selector: ItemQuery) => Effect<LiveItem | null, never, never>; getAll: () => Effect<readonly LiveItem[], never, never>; getAvailableSlots: () => Effect<number, never, never>; getSlots: () => Effect<number, never, never>; getUsedSlots: () => Effect<number, never, never>; };
@@ -287,6 +287,8 @@ interface ArmyError extends Error {
 interface ArmyLoopTauntAssignment {
   /** One-based player numbers from the active Army roster. */
   readonly players: readonly number[];
+  /** Skips the selected player's attempt when the callback returns true. */
+  readonly skipWhen?: ArmyLoopTauntSkipWhen;
   /** The event that starts each taunt attempt. */
   readonly strategy: ArmyLoopTauntStrategy;
   /** The monster this assignment may taunt. */
@@ -361,20 +363,66 @@ interface ConnectOutcome {
     | "not-ready"
     | "timeout";
 }
+interface ConsumableCastResult {
+  readonly actionId: number;
+  readonly monsterMapId: number;
+  readonly success: boolean;
+}
 type EntityState = EntityState;
 interface EquipOptions {
   /** Whether to wear wearable equipment after equipping it. Defaults to true. */
   readonly wear?: boolean;
 }
 type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
-interface EventSelector {
-  readonly actionId?: number;
-  readonly monsterMapId?: number;
-  readonly questId?: number;
-  readonly sourceId?: number;
-  readonly sourceType?: "monster" | "player";
-  readonly type?: Event["type"];
-}
+type EventSelector =
+  | {
+      readonly status?: string;
+      readonly type: "connection";
+    }
+  | {
+      readonly message?: string;
+      readonly type: "debug";
+    }
+  | {
+      readonly type: "packet";
+    }
+  | {
+      readonly type: "join-map";
+    }
+  | {
+      readonly questId?: number;
+      readonly type: "quest-complete";
+    }
+  | {
+      readonly monsterMapId?: number;
+      readonly type: "monster-death" | "monster-respawn";
+    }
+  | {
+      readonly entityId?: number;
+      readonly type: "player-death" | "player-location";
+      readonly username?: string;
+    }
+  | {
+      readonly duration?: number;
+      readonly icon?: string;
+      readonly name?: string;
+      readonly sourceId?: number;
+      readonly sourceType?: "monster" | "player";
+      readonly targetId?: number;
+      readonly targetType?: "monster" | "player";
+      readonly type: "aura-added" | "aura-removed";
+    }
+  | {
+      readonly message?: string;
+      readonly monsterMapId?: number;
+      readonly source?: "animation" | "aura";
+      readonly type: "update-message";
+    }
+  | {
+      readonly map?: string;
+      readonly type: "zone";
+      readonly zone?: string;
+    };
 type GameAction = GameAction;
 interface HuntOptions {
   readonly findMost?: boolean;
@@ -520,6 +568,12 @@ interface WaitOptions {
   readonly timeout?: DurationInput;
 }
 interface _tag { readonly [key: string]: unknown; }
+type ArmyLoopTauntSkipWhen = (
+  context: ArmyLoopTauntSkipContext,
+) =>
+  | boolean
+  | Effect<boolean, unknown>
+  | Generator<Effect<any, any, never>, boolean, any>;
 type ArmyLoopTauntStrategy = {
   /** Cast after the target's Focus aura disappears. */readonly type: "focus";
 } | {
@@ -544,13 +598,10 @@ interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | 
 type RuntimeEvent =
   | { readonly type: "connection"; readonly status: string }
   | { readonly type: "debug"; readonly message: string };
-type ProtocolEvent =
-  | { readonly type: "packet"; readonly packet: Packet }
-  | {
-      readonly type: "packet-decode-failed";
-      readonly direction: PacketDirection;
-      readonly raw: string;
-    };
+type ProtocolEvent = {
+  readonly type: "packet";
+  readonly packet: Packet;
+};
 type ProjectionEvent =
   | {
       readonly type: "join-map";
@@ -587,17 +638,6 @@ type ProjectionEvent =
       readonly sourceType?: "monster" | "player";
       readonly targetId: number;
       readonly targetType: "monster" | "player";
-    }
-  | {
-      readonly type: "combat-action-result";
-      readonly actionId: number;
-      readonly iRes: number;
-      readonly monsterMapId?: number;
-      readonly sourceId: number;
-      readonly sourceType: "monster" | "player";
-      readonly success: boolean;
-      readonly targetId?: number;
-      readonly targetType?: "monster" | "player";
     }
   | {
       readonly type: "player-location";
@@ -847,6 +887,12 @@ type ScriptGenerator<A = unknown> = Generator<
   any
 >;
 type ShopItemSelector = ObjectSelector<ShopItemSelectorShape>;
+interface ArmyLoopTauntSkipContext {
+  /** Snapshots for the players assigned to this target. */
+  readonly participants: readonly ArmyLoopTauntParticipantSnapshot[];
+  /** The assigned participant selected for this attempt. */
+  readonly self: ArmyLoopTauntParticipantSnapshot;
+}
 interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
@@ -904,6 +950,12 @@ type ObjectSelector<Shape extends Record<string, unknown>> = {
 type ShopItemSelectorShape = ItemSelectorShape & {
   shopItemId: number;
 };
+interface ArmyLoopTauntParticipantSnapshot {
+  /** One-based position in the active Army roster. */
+  readonly playerNumber: number;
+  /** Point-in-time player state captured immediately before this attempt. */
+  readonly player: PlayerSnapshot;
+}
 interface ArmyConfigCore {
   readonly items: Readonly<Record<string, string>>;
   readonly players: readonly string[];

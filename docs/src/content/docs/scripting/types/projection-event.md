@@ -48,17 +48,6 @@ type ProjectionEvent = | {
       readonly targetType: "monster" | "player";
     }
   | {
-      readonly type: "combat-action-result";
-      readonly actionId: number;
-      readonly iRes: number;
-      readonly monsterMapId?: number;
-      readonly sourceId: number;
-      readonly sourceType: "monster" | "player";
-      readonly success: boolean;
-      readonly targetId?: number;
-      readonly targetType?: "monster" | "player";
-    }
-  | {
       readonly type: "player-location";
       readonly entityId: number;
       readonly username: string;
@@ -72,4 +61,4 @@ type ProjectionEvent = | {
   | { readonly type: "zone"; readonly map: string; readonly zone: string }
 ```
 
-<p class="source-reference"><span class="source-reference__label">Source</span><code class="source-reference__path">app/src/renderer/game/flash/contract/Event.ts:15</code><a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L15" aria-label="Open source: app/src/renderer/game/flash/contract/Event.ts:15" title="Open source: app/src/renderer/game/flash/contract/Event.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a></p>
+<p class="source-reference"><span class="source-reference__label">Source</span><code class="source-reference__path">app/src/renderer/game/flash/contract/Event.ts:12</code><a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L12" aria-label="Open source: app/src/renderer/game/flash/contract/Event.ts:12" title="Open source: app/src/renderer/game/flash/contract/Event.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a></p>

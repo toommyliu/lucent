@@ -26,14 +26,12 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 | --- | --- |
 | `aura-added` | <code>{ duration?: number; icon?: string; name: string; sourceId?: number; sourceType?: &quot;monster&quot; &#124; &quot;player&quot;; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
 | `aura-removed` | <code>{ duration?: number; icon?: string; name: string; sourceId?: number; sourceType?: &quot;monster&quot; &#124; &quot;player&quot;; targetId: number; targetType: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
-| `combat-action-result` | <code>{ actionId: number; iRes: number; monsterMapId?: number; sourceId: number; sourceType: &quot;monster&quot; &#124; &quot;player&quot;; success: boolean; targetId?: number; targetType?: &quot;monster&quot; &#124; &quot;player&quot; }</code> |
 | `connection` | <code>{ status: string }</code> |
 | `debug` | <code>{ message: string }</code> |
 | `join-map` | <code>{ map: { readonly id: number; readonly name: string; readonly roomNumber: number; } }</code> |
 | `monster-death` | <code>{ monsterMapId: number }</code> |
 | `monster-respawn` | <code>{ monsterMapId: number }</code> |
 | `packet` | <code>{ packet: Packet }</code> |
-| `packet-decode-failed` | <code>{ direction: PacketDirection; raw: string }</code> |
 | `player-death` | <code>{ entityId: number; username: string }</code> |
 | `player-location` | <code>{ entityId: number; username: string }</code> |
 | `quest-complete` | <code>{ questId: number }</code> |
