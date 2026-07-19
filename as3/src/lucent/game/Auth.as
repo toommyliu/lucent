@@ -1,11 +1,72 @@
 package lucent.game
 {
   import lucent.Main;
+  import flash.events.Event;
+  import flash.events.IOErrorEvent;
   import flash.events.MouseEvent;
+  import flash.events.ProgressEvent;
 
   [BridgeNamespace("auth")]
   public class Auth
   {
+
+    private static function removeLoaderListener(loader:*, eventType:String, handler:*):void
+    {
+      if (handler is Function)
+      {
+        loader.contentLoaderInfo.removeEventListener(eventType, handler as Function);
+      }
+    }
+
+    private static function clearCharacterSelect(game:Object):void
+    {
+      // The client loads character select outside its timeline, so cancel the loader
+      // before it can attach the screen again during an automated transition.
+      var loader:* = Main.resolvePath(game, ["csLoader"], true);
+      if (loader != null)
+      {
+        removeLoaderListener(
+          loader,
+          Event.COMPLETE,
+          Main.resolvePath(game, ["onCSComplete"], true)
+        );
+        removeLoaderListener(
+          loader,
+          ProgressEvent.PROGRESS,
+          Main.resolvePath(game, ["onCSProgress"], true)
+        );
+        removeLoaderListener(
+          loader,
+          IOErrorEvent.IO_ERROR,
+          Main.resolvePath(game, ["onCSError"], true)
+        );
+
+        try
+        {
+          loader.close();
+        }
+        catch (closeError:Error)
+        {
+        }
+
+        try
+        {
+          loader.unloadAndStop(true);
+        }
+        catch (unloadError:Error)
+        {
+        }
+
+        game.csLoader = null;
+      }
+
+      var characterSelect:* = Main.resolvePath(game, ["mcCharSelect"], true);
+      if (characterSelect != null && characterSelect.parent != null)
+      {
+        characterSelect.parent.removeChild(characterSelect);
+      }
+      game.mcCharSelect = null;
+    }
 
     [BridgeExport]
     public static function isLoggedIn():Boolean
@@ -28,6 +89,7 @@ package lucent.game
     public static function login(username:String, password:String):void
     {
       var game:Object = Main.Game;
+      clearCharacterSelect(game);
       if (game.mcLogin == null || game.mcLogin.btnLogin == null)
       {
         game.removeAllChildren();
@@ -44,6 +106,7 @@ package lucent.game
       {
         game.sfc.disconnect();
       }
+      clearCharacterSelect(game);
       game.removeAllChildren();
       game.gotoAndPlay("Login");
     }
