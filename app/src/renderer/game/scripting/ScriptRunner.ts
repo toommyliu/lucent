@@ -37,7 +37,6 @@ import {
   runWithSafeStartStop as withSafeStartStop,
 } from "./safeStartStop";
 import {
-  ScriptExecutionError,
   getScriptExitRequest,
   ScriptNotReadyError,
   ScriptStopSignal,
@@ -463,6 +462,37 @@ export const layer = Layer.effect(
         : yield* awaitStatus(result.done);
     });
 
+    const stopActiveIfMatching = Effect.fn("ScriptRunner.stopActiveIfMatching")(
+      function* (id: number) {
+        const done = yield* lifecycleGate.withPermit(
+          Effect.gen(function* () {
+            if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
+              return null;
+            }
+
+            const active = yield* Ref.get(activeRef);
+            return active?.id === id
+              ? yield* beginFinalization(active, {
+                  awaitFiber: true,
+                  intermediateStatus: {
+                    ...activeStatusFields(active),
+                    state: "stopping",
+                  },
+                  interrupt: true,
+                  terminalStatus: () => ({
+                    state: "stopped",
+                    stoppedAt: nowIso(),
+                  }),
+                })
+              : null;
+          }),
+        );
+        if (done !== null) {
+          yield* awaitStatus(done);
+        }
+      },
+    );
+
     const finishIfActive = Effect.fn("ScriptRunner.finishIfActive")(function* (
       id: number,
       terminalStatus: () => ScriptRunnerStatus,
@@ -556,16 +586,7 @@ export const layer = Layer.effect(
     const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>
       events
         .on({ type: "connection" }, (event) =>
-          isConnectionLoss(event)
-            ? failActiveCause(
-                id,
-                Cause.fail(
-                  new ScriptExecutionError({
-                    detail: "Script stopped because game readiness was lost.",
-                  }),
-                ),
-              )
-            : Effect.void,
+          isConnectionLoss(event) ? stopActiveIfMatching(id) : Effect.void,
         )
         .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
 
