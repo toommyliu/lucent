@@ -105,6 +105,10 @@ export interface ArmyLoopTauntRegistrationAssignment {
   readonly target: ArmyLoopTauntResolvedTarget;
 }
 
+export interface ArmyLoopTauntRegistrationPriorityGroup {
+  readonly assignments: readonly ArmyLoopTauntRegistrationAssignment[];
+}
+
 export interface ArmyLoopTauntMapIdentity {
   readonly id: number;
   readonly name: string;
@@ -112,8 +116,8 @@ export interface ArmyLoopTauntMapIdentity {
 }
 
 export interface ArmyLoopTauntRegisterPayload {
-  readonly assignments: readonly ArmyLoopTauntRegistrationAssignment[];
   readonly map: ArmyLoopTauntMapIdentity;
+  readonly priorityGroups: readonly ArmyLoopTauntRegistrationPriorityGroup[];
   readonly sessionId: string;
 }
 
@@ -283,6 +287,10 @@ export const ArmyLoopTauntRegistrationAssignmentSchema = Schema.Struct({
   target: ArmyLoopTauntResolvedTargetSchema,
 });
 
+export const ArmyLoopTauntRegistrationPriorityGroupSchema = Schema.Struct({
+  assignments: Schema.Array(ArmyLoopTauntRegistrationAssignmentSchema),
+});
+
 export const ArmyLoopTauntMapIdentitySchema = Schema.Struct({
   id: Schema.Int,
   name: Schema.String,
@@ -294,8 +302,8 @@ const NonNegativeFiniteNumber = Schema.Finite.check(
 );
 
 export const ArmyLoopTauntRegisterPayloadSchema = Schema.Struct({
-  assignments: Schema.Array(ArmyLoopTauntRegistrationAssignmentSchema),
   map: ArmyLoopTauntMapIdentitySchema,
+  priorityGroups: Schema.Array(ArmyLoopTauntRegistrationPriorityGroupSchema),
   sessionId: Schema.String,
 });
 

@@ -6,6 +6,7 @@ import {
   ArmyLoopTauntError,
   type ArmyLoopTauntAssignment,
   type ArmyLoopTauntRuntimeAssignment,
+  type ArmyLoopTauntRuntimePlan,
 } from "../../army/ArmyLoopTaunt";
 import { ScriptExecutionError } from "../ScriptRunnerErrors";
 import type { ScriptAsyncScope } from "../scriptAsyncScope";
@@ -46,42 +47,44 @@ export const makeScriptArmyApi = (
   scope: ScriptAsyncScope,
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
 ): ArmyApiShape => {
-  const { startLoopTauntForScript, ...publicArmy } = army;
+  const { loopTaunt, ...publicArmy } = army;
 
   return {
     ...publicArmy,
-    startLoopTaunt: (assignments) =>
+    loopTaunt: (plan) =>
       Effect.try({
         try: () =>
-          assignments.map((assignment): ArmyLoopTauntRuntimeAssignment => {
-            if (assignment.skipWhen === undefined) {
-              return {
-                players: assignment.players,
-                strategy: assignment.strategy,
-                target: assignment.target,
-              };
-            }
-            if (typeof assignment.skipWhen !== "function") {
-              throw new ArmyLoopTauntError(
-                "Loop Taunt skipWhen must be a function",
-              );
-            }
-            return {
-              ...assignment,
-              skipWhen: normalizeSkipWhen(assignment.skipWhen),
-            };
-          }),
+          plan.map((priorityGroup): ArmyLoopTauntRuntimePlan[number] => ({
+            assignments: priorityGroup.assignments.map(
+              (assignment): ArmyLoopTauntRuntimeAssignment => {
+                if (assignment.skipWhen === undefined) {
+                  return {
+                    players: assignment.players,
+                    strategy: assignment.strategy,
+                    target: assignment.target,
+                  };
+                }
+                if (typeof assignment.skipWhen !== "function") {
+                  throw new ArmyLoopTauntError(
+                    "Loop Taunt skipWhen must be a function",
+                  );
+                }
+                return {
+                  ...assignment,
+                  skipWhen: normalizeSkipWhen(assignment.skipWhen),
+                };
+              },
+            ),
+          })),
         catch: (cause) =>
           cause instanceof ArmyLoopTauntError
             ? cause
             : new ArmyLoopTauntError(
-                "Failed to normalize Loop Taunt assignments",
+                "Failed to normalize Loop Taunt plan",
                 cause,
               ),
       }).pipe(
-        Effect.flatMap((normalized) =>
-          startLoopTauntForScript(normalized, failCause),
-        ),
+        Effect.flatMap((normalized) => loopTaunt(normalized, failCause)),
         Effect.tap((handle) => scope.addCleanup(handle.stop)),
       ),
   };

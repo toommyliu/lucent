@@ -211,8 +211,8 @@ interface ScriptArmyApi {
     leave(): Effect<void, never>;
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
-  /** Starts the same assignment plan across the full Army roster. */
-    startLoopTaunt(assignments: readonly ArmyLoopTauntAssignment[]): Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
+  /** Starts a map-scoped Loop Taunt plan across the full Army roster. */
+    loopTaunt(plan: ArmyLoopTauntPlan): Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
     sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
     waitForAllInMap(): Effect<void, ArmyError>;
 }
@@ -284,16 +284,6 @@ interface ArmyEquipSetOptions {
 interface ArmyError extends Error {
   _tag: unknown;
 }
-interface ArmyLoopTauntAssignment {
-  /** One-based player numbers from the active Army roster. */
-  readonly players: readonly number[];
-  /** Skips the selected player's attempt when the callback returns true. */
-  readonly skipWhen?: ArmyLoopTauntSkipWhen;
-  /** The event that starts each taunt attempt. */
-  readonly strategy: ArmyLoopTauntStrategy;
-  /** The monster this assignment may taunt. */
-  readonly target: MonsterQuery;
-}
 interface ArmyLoopTauntError extends Error {
   _tag: unknown;
 }
@@ -301,6 +291,7 @@ interface ArmyLoopTauntHandle {
   /** Stops this run. Repeated calls are safe. */
   stop(): Effect<void>;
 }
+type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[];
 interface ArmyRunStepOptions {
   readonly timeoutMs?: number;
 }
@@ -568,18 +559,10 @@ interface WaitOptions {
   readonly timeout?: DurationInput;
 }
 interface _tag { readonly [key: string]: unknown; }
-type ArmyLoopTauntSkipWhen = (
-  context: ArmyLoopTauntSkipContext,
-) =>
-  | boolean
-  | Effect<boolean, unknown>
-  | Generator<Effect<any, any, never>, boolean, any>;
-type ArmyLoopTauntStrategy = {
-  /** Cast after the target's Focus aura disappears. */readonly type: "focus";
-} | {
-  /** Case-insensitive text contained in the target's animation or aura message. */readonly message: string;
-  readonly type: "message";
-};
+interface ArmyLoopTauntPriorityGroup {
+  /** Target rotations that may run together while this group is selected. */
+  readonly assignments: readonly ArmyLoopTauntAssignment[];
+}
 interface ArmySessionPayload extends ArmyConfigPayload {
   readonly playerName: string;
   readonly playerNumber: number;
@@ -887,11 +870,15 @@ type ScriptGenerator<A = unknown> = Generator<
   any
 >;
 type ShopItemSelector = ObjectSelector<ShopItemSelectorShape>;
-interface ArmyLoopTauntSkipContext {
-  /** Snapshots for the players assigned to this target. */
-  readonly participants: readonly ArmyLoopTauntParticipantSnapshot[];
-  /** The assigned participant selected for this attempt. */
-  readonly self: ArmyLoopTauntParticipantSnapshot;
+interface ArmyLoopTauntAssignment {
+  /** One-based player numbers from the active Army roster. */
+  readonly players: readonly number[];
+  /** Skips the selected player's attempt when the callback returns true. */
+  readonly skipWhen?: ArmyLoopTauntSkipWhen;
+  /** The event that starts each taunt attempt. */
+  readonly strategy: ArmyLoopTauntStrategy;
+  /** The monster this assignment may taunt. */
+  readonly target: MonsterQuery;
 }
 interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
@@ -950,12 +937,18 @@ type ObjectSelector<Shape extends Record<string, unknown>> = {
 type ShopItemSelectorShape = ItemSelectorShape & {
   shopItemId: number;
 };
-interface ArmyLoopTauntParticipantSnapshot {
-  /** One-based position in the active Army roster. */
-  readonly playerNumber: number;
-  /** Point-in-time player state captured immediately before this attempt. */
-  readonly player: PlayerSnapshot;
-}
+type ArmyLoopTauntSkipWhen = (
+  context: ArmyLoopTauntSkipContext,
+) =>
+  | boolean
+  | Effect<boolean, unknown>
+  | Generator<Effect<any, any, never>, boolean, any>;
+type ArmyLoopTauntStrategy = {
+  /** Cast after the target's Focus aura disappears. */readonly type: "focus";
+} | {
+  /** Case-insensitive text contained in the target's animation or aura message. */readonly message: string;
+  readonly type: "message";
+};
 interface ArmyConfigCore {
   readonly items: Readonly<Record<string, string>>;
   readonly players: readonly string[];
@@ -984,9 +977,21 @@ type ItemSelectorShape = {
   name: string;
   itemId: number;
 };
+interface ArmyLoopTauntSkipContext {
+  /** Snapshots for the players assigned to this target. */
+  readonly participants: readonly ArmyLoopTauntParticipantSnapshot[];
+  /** The assigned participant selected for this attempt. */
+  readonly self: ArmyLoopTauntParticipantSnapshot;
+}
 interface ArmySetConfig {
   readonly default?: ArmyEquipSet;
   readonly players: Readonly<Record<string, ArmyEquipSet>>;
+}
+interface ArmyLoopTauntParticipantSnapshot {
+  /** One-based position in the active Army roster. */
+  readonly playerNumber: number;
+  /** Point-in-time player state captured immediately before this attempt. */
+  readonly player: PlayerSnapshot;
 }
 interface ArmyEquipSet {
   readonly armor?: string;

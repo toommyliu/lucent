@@ -89,12 +89,25 @@ const makeRegistration = (
   sessionId: string,
   assignments: readonly ArmyLoopTauntRegistrationAssignment[] = [assignment()],
 ): ArmyLoopTauntRegisterPayload => ({
-  assignments,
   map: {
     id: 100,
     name: "templeshrine",
     roomNumber: 1234,
   },
+  priorityGroups: [{ assignments }],
+  sessionId,
+});
+
+const makePriorityRegistration = (
+  sessionId: string,
+  priorityGroups: ArmyLoopTauntRegisterPayload["priorityGroups"],
+): ArmyLoopTauntRegisterPayload => ({
+  map: {
+    id: 100,
+    name: "templeshrine",
+    roomNumber: 1234,
+  },
+  priorityGroups,
   sessionId,
 });
 
@@ -328,12 +341,17 @@ describe("ArmyLoopTauntOrchestrator", () => {
       ),
   );
 
-  it.effect("validates assignments and rejects roster registration drift", () =>
+  it.effect("validates priority groups and rejects roster plan drift", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const harness = yield* makeHarness(["Alice", "Bob"]);
-        const invalid = makeRegistration(harness.sessionId, [
-          assignment({ players: [1, 1] }),
+        const invalid = makePriorityRegistration(harness.sessionId, [
+          {
+            assignments: [
+              assignment({ players: [1] }),
+              assignment({ assignmentId: 8, players: [1] }),
+            ],
+          },
         ]);
         const invalidError = yield* harness.orchestrator
           .register(invalid, harness.ids[0]!)
@@ -341,22 +359,39 @@ describe("ArmyLoopTauntOrchestrator", () => {
         expect(invalidError).toMatchObject({
           reason: "invalid-registration",
         });
-        expect(invalidError.message).toContain("must contain unique players");
+        expect(invalidError.message).toContain("same priority group");
 
-        const registration = makeRegistration(harness.sessionId);
+        const left = assignment({ players: [1] });
+        const right = assignment({
+          assignmentId: 8,
+          players: [2],
+          target: {
+            focusActive: true,
+            lifeRevision: 0,
+            monsterMapId: 43,
+            state: "alive",
+          },
+        });
+        const boss = assignment({
+          assignmentId: 9,
+          target: {
+            focusActive: true,
+            lifeRevision: 0,
+            monsterMapId: 44,
+            state: "alive",
+          },
+        });
+        const registration = makePriorityRegistration(harness.sessionId, [
+          { assignments: [left, right] },
+          { assignments: [boss] },
+        ]);
         const alice = yield* harness.orchestrator.register(
           registration,
           harness.ids[0]!,
         );
-        const mismatch = makeRegistration(harness.sessionId, [
-          assignment({
-            target: {
-              focusActive: true,
-              lifeRevision: 1,
-              monsterMapId: 99,
-              state: "alive",
-            },
-          }),
+        const mismatch = makePriorityRegistration(harness.sessionId, [
+          { assignments: [boss] },
+          { assignments: [left, right] },
         ]);
         const mismatchError = yield* harness.orchestrator
           .register(mismatch, harness.ids[1]!)
@@ -365,9 +400,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
         expect(mismatchError).toMatchObject({
           reason: "registration-mismatch",
         });
-        expect(mismatchError.message).toContain(
-          "same monster map IDs and life revisions",
-        );
+        expect(mismatchError.message).toContain("priority group boundaries");
 
         yield* harness.orchestrator.leave(
           {
@@ -918,7 +951,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
   );
 
   it.effect(
-    "degrades an assignment with no remaining assigned participants and fails after grace",
+    "reports sustained target disagreement and stops Loop Taunt nonfatally",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
@@ -947,24 +980,25 @@ describe("ArmyLoopTauntOrchestrator", () => {
             )
             .pipe(Effect.forkScoped);
 
-          yield* harness.orchestrator.leave(
-            {
-              runId,
-              sessionId: harness.sessionId,
-            },
-            harness.ids[0]!,
-          );
-          yield* advance("1 second");
+          yield* report(harness, runId, harness.ids[0]!, {
+            assignmentId: 7,
+            lifeRevision: 0,
+            monsterMapId: 42,
+            state: "dead",
+            type: "target-state",
+          });
+          yield* advance("2999 millis");
+          expect(diagnosticEvents(harness.events)).toHaveLength(0);
+
+          yield* advance("1 millis");
           expect(diagnosticEvents(harness.events)).toHaveLength(1);
 
-          yield* advance("29999 millis");
+          yield* advance("26999 millis");
           expect(waiting.pollUnsafe()).toBeUndefined();
 
           yield* advance("1 millis");
           expect(yield* Fiber.join(waiting)).toEqual({
-            reason:
-              "Loop taunt remained degraded for assignment 7 for 30 seconds",
-            status: "failed",
+            status: "completed",
           });
         }),
       ),
@@ -1011,22 +1045,45 @@ describe("ArmyLoopTauntOrchestrator", () => {
   );
 
   it.effect(
-    "cancels a dead target turn and starts fresh for its next life",
+    "runs the first living priority group and resets its cursor on respawn",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
-          const harness = yield* makeHarness(["Alice", "Bob"]);
+          const harness = yield* makeHarness(["Alice", "Bob", "Carol", "Dave"]);
+          const left = assignment({
+            players: [1, 2],
+            target: {
+              focusActive: false,
+              lifeRevision: 0,
+              monsterMapId: 42,
+              state: "alive",
+            },
+          });
+          const right = assignment({
+            assignmentId: 8,
+            players: [3, 4],
+            target: {
+              focusActive: false,
+              lifeRevision: 0,
+              monsterMapId: 43,
+              state: "alive",
+            },
+          });
+          const boss = assignment({
+            assignmentId: 9,
+            players: [1, 2, 3, 4],
+            target: {
+              focusActive: false,
+              lifeRevision: 0,
+              monsterMapId: 44,
+              state: "alive",
+            },
+          });
           const { runId } = yield* registerAll(
             harness,
-            makeRegistration(harness.sessionId, [
-              assignment({
-                target: {
-                  focusActive: false,
-                  lifeRevision: 0,
-                  monsterMapId: 42,
-                  state: "alive",
-                },
-              }),
+            makePriorityRegistration(harness.sessionId, [
+              { assignments: [left, right] },
+              { assignments: [boss] },
             ]),
           );
           for (const senderId of harness.ids) {
@@ -1037,7 +1094,35 @@ describe("ArmyLoopTauntOrchestrator", () => {
               usable: true,
             });
           }
-          expect(tauntEvents(harness.events)).toHaveLength(1);
+          const initial = tauntEvents(harness.events);
+          expect(initial).toHaveLength(2);
+          const leftFirst = requireTaunt(
+            initial.find(
+              (event) =>
+                event.command.command.type === "taunt" &&
+                event.command.command.assignmentId === 7,
+            ),
+          );
+          const rightFirst = requireTaunt(
+            initial.find(
+              (event) =>
+                event.command.command.type === "taunt" &&
+                event.command.command.assignmentId === 8,
+            ),
+          );
+          expect(leftFirst.participantIds).toEqual([harness.ids[0]]);
+          expect(rightFirst.participantIds).toEqual([harness.ids[2]]);
+
+          yield* report(harness, runId, harness.ids[0]!, {
+            commandId: leftFirst.command.commandId,
+            outcome: "confirmed",
+            type: "command-result",
+          });
+          yield* report(harness, runId, harness.ids[2]!, {
+            commandId: rightFirst.command.commandId,
+            outcome: "confirmed",
+            type: "command-result",
+          });
 
           for (const senderId of harness.ids) {
             yield* report(harness, runId, senderId, {
@@ -1048,35 +1133,83 @@ describe("ArmyLoopTauntOrchestrator", () => {
               type: "target-state",
             });
           }
-          yield* advance("6 seconds");
-          expect(tauntEvents(harness.events)).toHaveLength(1);
-
-          for (const senderId of harness.ids) {
+          for (const senderId of harness.ids.slice(0, -1)) {
             yield* report(harness, runId, senderId, {
-              assignmentId: 7,
-              focusActive: false,
-              lifeRevision: 1,
-              monsterMapId: 99,
-              state: "alive",
+              assignmentId: 8,
+              lifeRevision: 0,
+              monsterMapId: 43,
+              state: "dead",
               type: "target-state",
             });
           }
-          const nextLife = requireTaunt(tauntEvents(harness.events)[1]);
-          expect(nextLife.command.command).toMatchObject({
-            assignmentId: 7,
-            lifeRevision: 1,
-            monsterMapId: 99,
+          expect(tauntEvents(harness.events)).toHaveLength(2);
+
+          yield* report(harness, runId, harness.ids[3]!, {
+            assignmentId: 8,
+            lifeRevision: 0,
+            monsterMapId: 43,
+            state: "dead",
+            type: "target-state",
+          });
+          const bossFirst = requireTaunt(tauntEvents(harness.events)[2]);
+          expect(bossFirst.participantIds).toEqual([harness.ids[0]]);
+          expect(bossFirst.command.command).toMatchObject({
+            assignmentId: 9,
+            lifeRevision: 0,
+            monsterMapId: 44,
             type: "taunt",
           });
 
           yield* report(harness, runId, harness.ids[0]!, {
+            commandId: bossFirst.command.commandId,
+            outcome: "confirmed",
+            type: "command-result",
+          });
+          for (const senderId of harness.ids) {
+            yield* report(harness, runId, senderId, {
+              active: false,
+              assignmentId: 9,
+              lifeRevision: 0,
+              monsterMapId: 44,
+              type: "focus-state",
+            });
+          }
+          const bossSecond = requireTaunt(tauntEvents(harness.events)[3]);
+          expect(bossSecond.participantIds).toEqual([harness.ids[1]]);
+
+          yield* report(harness, runId, harness.ids[0]!, {
             assignmentId: 7,
-            lifeRevision: 0,
-            monsterMapId: 42,
+            focusActive: false,
+            lifeRevision: 1,
+            monsterMapId: 52,
             state: "alive",
             type: "target-state",
           });
-          expect(tauntEvents(harness.events)).toHaveLength(2);
+          yield* report(harness, runId, harness.ids[1]!, {
+            commandId: bossSecond.command.commandId,
+            outcome: "confirmed",
+            type: "command-result",
+          });
+          expect(tauntEvents(harness.events)).toHaveLength(4);
+
+          for (const senderId of harness.ids.slice(1)) {
+            yield* report(harness, runId, senderId, {
+              assignmentId: 7,
+              focusActive: false,
+              lifeRevision: 1,
+              monsterMapId: 52,
+              state: "alive",
+              type: "target-state",
+            });
+          }
+          const respawnedLeft = requireTaunt(tauntEvents(harness.events)[4]);
+          expect(respawnedLeft.participantIds).toEqual([harness.ids[0]]);
+          expect(respawnedLeft.command.command).toMatchObject({
+            assignmentId: 7,
+            lifeRevision: 1,
+            monsterMapId: 52,
+            type: "taunt",
+          });
         }),
       ),
   );

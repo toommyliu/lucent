@@ -377,8 +377,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:96",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L96"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:122",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L122"
       }
     },
     "army-loop-taunt-handle": {
@@ -397,8 +397,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:91",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L91"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:117",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L117"
       }
     },
     "army-loop-taunt-participant-snapshot": {
@@ -425,6 +425,39 @@
       "source": {
         "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:44",
         "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L44"
+      }
+    },
+    "army-loop-taunt-plan": {
+      "name": "ArmyLoopTauntPlan",
+      "slug": "army-loop-taunt-plan",
+      "kind": "type alias",
+      "summary": "Ordered target priorities shared by every participant in the Army.\n\nThe first group with a living target is selected. When all of its targets\ndie, the next eligible group takes over; a respawn preempts lower groups and\nrestarts that target's rotation from its first assigned player.",
+      "aliasOf": null,
+      "definition": "type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[]",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:100",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L100"
+      }
+    },
+    "army-loop-taunt-priority-group": {
+      "name": "ArmyLoopTauntPriorityGroup",
+      "slug": "army-loop-taunt-priority-group",
+      "kind": "interface",
+      "summary": "A set of target assignments evaluated at the same priority.\n\nLiving assignments in the selected group run concurrently.",
+      "aliasOf": null,
+      "definition": "interface ArmyLoopTauntPriorityGroup",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "assignments",
+          "signature": "readonly assignments: readonly ArmyLoopTauntAssignment[]",
+          "description": "Target rotations that may run together while this group is selected."
+        }
+      ],
+      "source": {
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:88",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L88"
       }
     },
     "army-loop-taunt-skip-context": {

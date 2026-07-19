@@ -34,6 +34,7 @@ import {
 const COMMAND_CONFIRMATION_TIMEOUT_MS = 7_000;
 const DEGRADED_AFTER_SWEEPS = 3;
 const DEGRADED_TIMEOUT_MS = 30_000;
+const DEGRADED_WARNING_MS = 3_000;
 const MESSAGE_DEDUPE_MS = 500;
 const REGISTRATION_TIMEOUT_MS = 30_000;
 const SWEEP_RETRY_MS = 1_000;
@@ -138,6 +139,7 @@ interface TurnState {
 interface DegradedState {
   readonly accumulatedMs: number;
   readonly activeSince?: number | undefined;
+  readonly reason: "readiness" | "target-consensus";
   readonly revision: number;
 }
 
@@ -148,9 +150,11 @@ interface PendingMessage {
 }
 
 interface AssignmentState {
+  readonly active: boolean;
   readonly alive: boolean;
   readonly assignmentId: number;
   readonly cursorStart: number;
+  readonly degradationRevision: number;
   readonly degraded?: DegradedState | undefined;
   readonly focusActive: boolean;
   readonly focusTurnConsumed: boolean;
@@ -158,9 +162,11 @@ interface AssignmentState {
   readonly lifeRevision: number;
   readonly monsterMapId: number;
   readonly nextTurnId: number;
+  readonly pendingLifeRevision?: number | undefined;
   readonly pendingMessage?: PendingMessage | undefined;
   readonly players: readonly number[];
   readonly strategy: ArmyLoopTauntStrategy;
+  readonly targetState: "alive" | "dead" | "unresolved";
   readonly turn?: TurnState | undefined;
 }
 
@@ -170,6 +176,7 @@ interface RunState {
   readonly nextCommandId: number;
   readonly participants: ReadonlyMap<ArmyParticipantId, RunParticipant>;
   readonly playerCount: number;
+  readonly priorityGroups: readonly (readonly number[])[];
   readonly readinessGate: Deferred.Deferred<
     ArmyLoopTauntRegisterResult,
     ArmyLoopTauntError
@@ -218,6 +225,13 @@ type ScheduledTimer =
       readonly revision: number;
       readonly runId: string;
       readonly type: "degraded-timeout";
+    }
+  | {
+      readonly assignmentId: number;
+      readonly delayMs: number;
+      readonly revision: number;
+      readonly runId: string;
+      readonly type: "degraded-warning";
     };
 
 type ReadinessEffect =
@@ -305,6 +319,9 @@ const sameMap = (
   left.name === right.name &&
   left.roomNumber === right.roomNumber;
 
+const registrationAssignments = (payload: ArmyLoopTauntRegisterPayload) =>
+  payload.priorityGroups.flatMap((group) => group.assignments);
+
 const validateRegistration = (
   payload: ArmyLoopTauntRegisterPayload,
   playerCount: number,
@@ -312,10 +329,14 @@ const validateRegistration = (
   if (payload.map.name.trim() === "") {
     return "Loop taunt map name must be non-empty";
   }
-  if (payload.assignments.length === 0) {
-    return "Loop taunt requires at least one assignment";
+  if (payload.priorityGroups.length === 0) {
+    return "Loop taunt requires at least one priority group";
   }
-  const assignmentIds = payload.assignments.map(
+  if (payload.priorityGroups.some((group) => group.assignments.length === 0)) {
+    return "Loop taunt priority groups must contain at least one assignment";
+  }
+  const assignments = registrationAssignments(payload);
+  const assignmentIds = assignments.map(
     (assignment) => assignment.assignmentId,
   );
   if (
@@ -328,29 +349,34 @@ const validateRegistration = (
   if (!uniqueNumbers(assignmentIds)) {
     return "Loop taunt assignment IDs must be unique";
   }
-  const assignedPlayers = new Set<number>();
-  for (const assignment of payload.assignments) {
-    if (assignment.players.length === 0 || !uniqueNumbers(assignment.players)) {
-      return `Loop taunt assignment ${assignment.assignmentId} must contain unique players`;
-    }
-    for (const playerNumber of assignment.players) {
+  for (const group of payload.priorityGroups) {
+    const assignedPlayers = new Set<number>();
+    for (const assignment of group.assignments) {
       if (
-        !Number.isSafeInteger(playerNumber) ||
-        playerNumber < 1 ||
-        playerNumber > playerCount
+        assignment.players.length === 0 ||
+        !uniqueNumbers(assignment.players)
       ) {
-        return `Loop taunt assignment ${assignment.assignmentId} references player ${playerNumber} outside the Army roster`;
+        return `Loop taunt assignment ${assignment.assignmentId} must contain unique players`;
       }
-      if (assignedPlayers.has(playerNumber)) {
-        return `Loop taunt player ${playerNumber} appears in more than one assignment`;
+      for (const playerNumber of assignment.players) {
+        if (
+          !Number.isSafeInteger(playerNumber) ||
+          playerNumber < 1 ||
+          playerNumber > playerCount
+        ) {
+          return `Loop taunt assignment ${assignment.assignmentId} references player ${playerNumber} outside the Army roster`;
+        }
+        if (assignedPlayers.has(playerNumber)) {
+          return `Loop taunt player ${playerNumber} appears in more than one assignment in the same priority group`;
+        }
+        assignedPlayers.add(playerNumber);
       }
-      assignedPlayers.add(playerNumber);
-    }
-    if (
-      assignment.strategy.type === "message" &&
-      assignment.strategy.message.trim() === ""
-    ) {
-      return `Loop taunt assignment ${assignment.assignmentId} requires a non-empty message`;
+      if (
+        assignment.strategy.type === "message" &&
+        assignment.strategy.message.trim() === ""
+      ) {
+        return `Loop taunt assignment ${assignment.assignmentId} requires a non-empty message`;
+      }
     }
   }
   return undefined;
@@ -360,7 +386,7 @@ const targetsByAssignment = (
   payload: ArmyLoopTauntRegisterPayload,
 ): ReadonlyMap<number, ArmyLoopTauntResolvedTarget> =>
   new Map(
-    payload.assignments.map((assignment) => [
+    registrationAssignments(payload).map((assignment) => [
       assignment.assignmentId,
       assignment.target,
     ]),
@@ -373,28 +399,45 @@ const registrationMatches = (
   if (!sameMap(run.map, payload.map)) {
     return "Loop taunt map identity must match across the Army roster";
   }
-  if (run.assignments.size !== payload.assignments.length) {
-    return "Loop taunt assignments must match across the Army roster";
+  if (run.priorityGroups.length !== payload.priorityGroups.length) {
+    return "Loop taunt priority groups must match across the Army roster";
   }
   const referenceParticipant = run.participants.values().next().value;
-  for (const incoming of payload.assignments) {
-    const assignment = run.assignments.get(incoming.assignmentId);
+  for (const [groupIndex, incomingGroup] of payload.priorityGroups.entries()) {
+    const assignmentIds = run.priorityGroups[groupIndex];
     if (
-      assignment === undefined ||
-      !sameNumbers(assignment.players, incoming.players) ||
-      !sameStrategy(assignment.strategy, incoming.strategy)
+      assignmentIds === undefined ||
+      assignmentIds.length !== incomingGroup.assignments.length
     ) {
-      return "Loop taunt assignments must match across the Army roster";
+      return "Loop taunt assignments and priority group boundaries must match across the Army roster";
     }
-    const referenceTarget = referenceParticipant?.targets.get(
-      incoming.assignmentId,
-    );
-    if (
-      referenceTarget !== undefined &&
-      (referenceTarget.monsterMapId !== incoming.target.monsterMapId ||
-        referenceTarget.lifeRevision !== incoming.target.lifeRevision)
-    ) {
-      return "Loop taunt resolved targets must use the same monster map IDs and life revisions across the Army roster";
+    for (const [
+      assignmentIndex,
+      incoming,
+    ] of incomingGroup.assignments.entries()) {
+      const assignmentId = assignmentIds[assignmentIndex];
+      const assignment =
+        assignmentId === undefined
+          ? undefined
+          : run.assignments.get(assignmentId);
+      if (
+        assignment === undefined ||
+        assignment.assignmentId !== incoming.assignmentId ||
+        !sameNumbers(assignment.players, incoming.players) ||
+        !sameStrategy(assignment.strategy, incoming.strategy)
+      ) {
+        return "Loop taunt assignments and priority group boundaries must match across the Army roster";
+      }
+      const referenceTarget = referenceParticipant?.targets.get(
+        incoming.assignmentId,
+      );
+      if (
+        referenceTarget !== undefined &&
+        (referenceTarget.monsterMapId !== incoming.target.monsterMapId ||
+          referenceTarget.lifeRevision !== incoming.target.lifeRevision)
+      ) {
+        return "Loop taunt resolved targets must use the same monster map IDs and life revisions across the Army roster";
+      }
     }
   }
   return undefined;
@@ -418,6 +461,79 @@ const setParticipant = (
   ...run,
   participants: new Map(run.participants).set(participant.id, participant),
 });
+
+const priorityDecision = (
+  run: RunState,
+): {
+  readonly selectedGroupIndex?: number | undefined;
+  readonly unresolvedAssignmentIds: ReadonlySet<number>;
+} => {
+  for (const [groupIndex, assignmentIds] of run.priorityGroups.entries()) {
+    const unresolvedAssignmentIds = assignmentIds.filter(
+      (assignmentId) =>
+        run.assignments.get(assignmentId)!.targetState === "unresolved",
+    );
+    if (
+      assignmentIds.some(
+        (assignmentId) =>
+          run.assignments.get(assignmentId)!.targetState === "alive",
+      )
+    ) {
+      return {
+        selectedGroupIndex: groupIndex,
+        unresolvedAssignmentIds: new Set(unresolvedAssignmentIds),
+      };
+    }
+    if (unresolvedAssignmentIds.length > 0) {
+      return {
+        unresolvedAssignmentIds: new Set(unresolvedAssignmentIds),
+      };
+    }
+  }
+  return { unresolvedAssignmentIds: new Set() };
+};
+
+const refreshPriorityGroup = (run: RunState): RunState => {
+  const { selectedGroupIndex } = priorityDecision(run);
+  const activeAssignmentIds =
+    selectedGroupIndex === undefined
+      ? new Set<number>()
+      : new Set(run.priorityGroups[selectedGroupIndex]);
+  const assignments = new Map<number, AssignmentState>();
+
+  for (const [assignmentId, assignment] of run.assignments) {
+    const active =
+      activeAssignmentIds.has(assignmentId) &&
+      assignment.targetState === "alive";
+    if (active === assignment.active) {
+      assignments.set(assignmentId, assignment);
+      continue;
+    }
+    let updated: AssignmentState = {
+      ...assignment,
+      active,
+      focusTurnConsumed: active ? false : assignment.focusTurnConsumed,
+      turn: undefined,
+    };
+    const pendingMessage = updated.pendingMessage;
+    if (
+      active &&
+      updated.strategy.type === "message" &&
+      pendingMessage !== undefined &&
+      pendingMessage.monsterMapId === updated.monsterMapId &&
+      pendingMessage.lifeRevision === updated.lifeRevision
+    ) {
+      updated = startTurn({
+        ...updated,
+        lastMessageAt: pendingMessage.observedAt,
+        pendingMessage: undefined,
+      });
+    }
+    assignments.set(assignmentId, updated);
+  }
+
+  return { ...run, assignments };
+};
 
 const issueCommand = (
   run: RunState,
@@ -467,7 +583,7 @@ const isReady = (participant: RunParticipant, now: number): boolean =>
   participant.readiness.readyAt <= now;
 
 const startTurn = (assignment: AssignmentState): AssignmentState => {
-  if (!assignment.alive || assignment.turn !== undefined) return assignment;
+  if (!assignment.active || assignment.turn !== undefined) return assignment;
   return {
     ...assignment,
     nextTurnId: assignment.nextTurnId + 1,
@@ -510,7 +626,7 @@ const attemptAssignment = (
   if (
     inputRun.status !== "active" ||
     assignment === undefined ||
-    !assignment.alive ||
+    !assignment.active ||
     assignment.turn === undefined ||
     assignment.turn.pending !== undefined
   ) {
@@ -649,15 +765,20 @@ const attemptAssignment = (
 
   const enteringDegraded =
     failedSweeps >= DEGRADED_AFTER_SWEEPS && assignment.degraded === undefined;
+  const degradationRevision = enteringDegraded
+    ? assignment.degradationRevision + 1
+    : assignment.degradationRevision;
   const degraded: DegradedState | undefined = enteringDegraded
     ? {
         accumulatedMs: 0,
         activeSince: now,
-        revision: 0,
+        reason: "readiness",
+        revision: degradationRevision,
       }
     : assignment.degraded;
   const updatedAssignment: AssignmentState = {
     ...assignment,
+    degradationRevision,
     degraded,
     turn: {
       ...assignment.turn,
@@ -725,63 +846,93 @@ const refreshAssignmentFromTargets = (
     .filter(
       (target): target is ArmyLoopTauntResolvedTarget => target !== undefined,
     );
-  if (targets.length === 0) {
-    return setAssignment(run, {
-      ...current,
-      alive: false,
-      focusActive: false,
-      focusTurnConsumed: false,
-      turn: undefined,
-    });
-  }
-  const candidate = targets[0]!;
-  const hasConsensus = targets.every(
-    (target) =>
-      target.monsterMapId === candidate.monsterMapId &&
-      target.lifeRevision === candidate.lifeRevision,
-  );
-  const alive =
-    hasConsensus && targets.every((target) => target.state === "alive");
+  const candidate = targets[0];
+  const hasIdentityConsensus =
+    candidate !== undefined &&
+    targets.length === run.participants.size &&
+    targets.every(
+      (target) =>
+        target.monsterMapId === candidate.monsterMapId &&
+        target.lifeRevision === candidate.lifeRevision,
+    );
+  const targetState: AssignmentState["targetState"] = !hasIdentityConsensus
+    ? "unresolved"
+    : targets.every((target) => target.state === "alive")
+      ? "alive"
+      : targets.every((target) => target.state === "dead")
+        ? "dead"
+        : "unresolved";
+  const alive = targetState === "alive";
   const focusActive = alive && targets.some((target) => target.focusActive);
   const canonicalChanged =
-    hasConsensus &&
+    hasIdentityConsensus &&
     (candidate.monsterMapId !== current.monsterMapId ||
       candidate.lifeRevision !== current.lifeRevision);
+  const observedLifeRevision = targets.reduce(
+    (revision, target) => Math.max(revision, target.lifeRevision),
+    current.lifeRevision,
+  );
+  const observedNewLife = targets.some(
+    (target) =>
+      target.lifeRevision > current.lifeRevision ||
+      (current.targetState === "dead" &&
+        target.monsterMapId === current.monsterMapId &&
+        target.lifeRevision === current.lifeRevision &&
+        target.state === "alive"),
+  );
+  const resetRevision = hasIdentityConsensus
+    ? candidate.lifeRevision
+    : observedLifeRevision;
+  const resetLife =
+    (canonicalChanged || observedNewLife) &&
+    current.pendingLifeRevision !== resetRevision;
   const aliveChanged = alive !== current.alive;
   let assignment: AssignmentState = {
     ...current,
     alive,
+    cursorStart: resetLife ? 0 : current.cursorStart,
+    degraded: resetLife ? undefined : current.degraded,
     focusActive,
     focusTurnConsumed:
-      aliveChanged || canonicalChanged ? false : current.focusTurnConsumed,
-    lastMessageAt: canonicalChanged ? undefined : current.lastMessageAt,
-    lifeRevision: hasConsensus ? candidate.lifeRevision : current.lifeRevision,
-    monsterMapId: hasConsensus ? candidate.monsterMapId : current.monsterMapId,
-    turn: !alive || canonicalChanged ? undefined : current.turn,
+      aliveChanged || resetLife ? false : current.focusTurnConsumed,
+    lastMessageAt: resetLife ? undefined : current.lastMessageAt,
+    lifeRevision: hasIdentityConsensus
+      ? candidate.lifeRevision
+      : current.lifeRevision,
+    monsterMapId: hasIdentityConsensus
+      ? candidate.monsterMapId
+      : current.monsterMapId,
+    pendingLifeRevision: hasIdentityConsensus
+      ? undefined
+      : observedNewLife
+        ? resetRevision
+        : current.pendingLifeRevision,
+    pendingMessage: resetLife ? undefined : current.pendingMessage,
+    targetState,
+    turn: !alive || resetLife ? undefined : current.turn,
   };
   if (
     assignment.strategy.type === "message" &&
     assignment.pendingMessage !== undefined &&
-    hasConsensus
+    hasIdentityConsensus
   ) {
     const pendingMatches =
       alive &&
       assignment.pendingMessage.monsterMapId === candidate.monsterMapId &&
       assignment.pendingMessage.lifeRevision === candidate.lifeRevision;
-    if (pendingMatches) {
-      assignment = startTurn({
-        ...assignment,
-        lastMessageAt: assignment.pendingMessage.observedAt,
-        pendingMessage: undefined,
-      });
-    } else {
+    if (!pendingMatches) {
       assignment = {
         ...assignment,
         pendingMessage: undefined,
       };
     }
   }
-  if (assignment.strategy.type === "focus" && alive && focusActive) {
+  if (
+    assignment.strategy.type === "focus" &&
+    assignment.active &&
+    alive &&
+    focusActive
+  ) {
     assignment = {
       ...recoverAssignment(assignment),
       turn: undefined,
@@ -795,26 +946,77 @@ const refreshAllAssignments = (inputRun: RunState): RunState => {
   for (const assignmentId of run.assignments.keys()) {
     run = refreshAssignmentFromTargets(run, assignmentId);
   }
-  return run;
+  return refreshPriorityGroup(run);
 };
 
 const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
   let run = inputRun;
   let effects: MutationEffects = noEffects();
+  const { unresolvedAssignmentIds } = priorityDecision(run);
 
   for (const assignmentId of run.assignments.keys()) {
     let assignment = run.assignments.get(assignmentId)!;
     const ring = assignmentRing(run, assignment);
 
+    if (unresolvedAssignmentIds.has(assignmentId)) {
+      const enteringDegraded =
+        assignment.degraded?.reason !== "target-consensus";
+      const degradationRevision = enteringDegraded
+        ? assignment.degradationRevision + 1
+        : assignment.degradationRevision;
+      assignment = {
+        ...assignment,
+        degradationRevision,
+        degraded: enteringDegraded
+          ? {
+              accumulatedMs: 0,
+              activeSince: now,
+              reason: "target-consensus",
+              revision: degradationRevision,
+            }
+          : assignment.degraded,
+        turn: undefined,
+      };
+      run = setAssignment(run, assignment);
+      if (enteringDegraded) {
+        effects = mergeMutationEffects(effects, {
+          commands: [],
+          readiness: [],
+          terminals: [],
+          timers: [
+            {
+              assignmentId,
+              delayMs: DEGRADED_WARNING_MS,
+              revision: degradationRevision,
+              runId: run.runId,
+              type: "degraded-warning",
+            },
+            {
+              assignmentId,
+              delayMs: DEGRADED_TIMEOUT_MS,
+              revision: degradationRevision,
+              runId: run.runId,
+              type: "degraded-timeout",
+            },
+          ],
+        });
+      }
+      continue;
+    }
+
+    if (assignment.degraded?.reason === "target-consensus") {
+      assignment = { ...assignment, degraded: undefined };
+    }
+
     if (
-      assignment.alive &&
+      assignment.active &&
       ring.length === 0 &&
       assignment.turn === undefined
     ) {
       assignment = startTurn(assignment);
     }
     if (
-      assignment.alive &&
+      assignment.active &&
       assignment.strategy.type === "focus" &&
       !assignment.focusActive &&
       !assignment.focusTurnConsumed &&
@@ -826,18 +1028,22 @@ const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
       };
     }
 
-    const required = assignment.alive && assignment.turn !== undefined;
+    const required = assignment.active && assignment.turn !== undefined;
     if (!required) {
       let degraded = assignment.degraded;
+      let degradationRevision = assignment.degradationRevision;
       if (degraded?.activeSince !== undefined) {
+        degradationRevision += 1;
         degraded = {
           accumulatedMs:
             degraded.accumulatedMs + Math.max(0, now - degraded.activeSince),
-          revision: degraded.revision + 1,
+          reason: degraded.reason,
+          revision: degradationRevision,
         };
       }
       assignment = {
         ...assignment,
+        degradationRevision,
         degraded,
         turn: undefined,
       };
@@ -849,12 +1055,13 @@ const reconcileTopology = (inputRun: RunState, now: number): RunMutation => {
       assignment.degraded !== undefined &&
       assignment.degraded.activeSince === undefined
     ) {
+      const degradationRevision = assignment.degradationRevision + 1;
       const degraded: DegradedState = {
         ...assignment.degraded,
         activeSince: now,
-        revision: assignment.degraded.revision + 1,
+        revision: degradationRevision,
       };
-      assignment = { ...assignment, degraded };
+      assignment = { ...assignment, degradationRevision, degraded };
       effects = mergeMutationEffects(effects, {
         commands: [],
         readiness: [],
@@ -1157,6 +1364,7 @@ const applyTargetState = (
     }),
   });
   run = refreshAssignmentFromTargets(run, report.assignmentId);
+  run = refreshPriorityGroup(run);
   const reconciled = reconcileTopology(run, now);
   return { ...reconciled, run: reconciled.run };
 };
@@ -1189,6 +1397,7 @@ const applyFocusState = (
     }),
   });
   run = refreshAssignmentFromTargets(run, report.assignmentId);
+  run = refreshPriorityGroup(run);
   let assignment = run.assignments.get(report.assignmentId)!;
   if (assignment.strategy.type !== "focus") {
     return { ...noEffects(), run };
@@ -1199,7 +1408,7 @@ const applyFocusState = (
       focusTurnConsumed: false,
       turn: undefined,
     };
-  } else if (assignment.alive && !assignment.focusTurnConsumed) {
+  } else if (assignment.active && !assignment.focusTurnConsumed) {
     assignment = {
       ...startTurn(assignment),
       focusTurnConsumed: true,
@@ -1225,8 +1434,11 @@ const applyMessage = (
     return { ...noEffects(), run: inputRun };
   }
   const senderTarget = participant.targets.get(report.assignmentId)!;
+  if (!current.active && current.targetState === "alive") {
+    return { ...noEffects(), run: inputRun };
+  }
   if (
-    !current.alive ||
+    !current.active ||
     current.monsterMapId !== report.monsterMapId ||
     current.lifeRevision !== report.lifeRevision
   ) {
@@ -1457,6 +1669,38 @@ const onRetry = (
   return [mutation, storeRun(state, mutation.run)];
 };
 
+const onDegradedWarning = (
+  state: OrchestratorState,
+  timer: Extract<ScheduledTimer, { readonly type: "degraded-warning" }>,
+): readonly [MutationEffects, OrchestratorState] => {
+  const run = state.runs.get(timer.runId);
+  const assignment = run?.assignments.get(timer.assignmentId);
+  const degraded = assignment?.degraded;
+  const unresolved =
+    run === undefined
+      ? false
+      : priorityDecision(run).unresolvedAssignmentIds.has(timer.assignmentId);
+  if (
+    run === undefined ||
+    run.status !== "active" ||
+    assignment === undefined ||
+    degraded?.reason !== "target-consensus" ||
+    degraded.activeSince === undefined ||
+    degraded.revision !== timer.revision ||
+    !unresolved
+  ) {
+    return [noEffects(), state];
+  }
+  const [updated, command] = issueCommand(run, [...run.participants.keys()], {
+    assignmentId: timer.assignmentId,
+    code: "degraded",
+    level: "warning",
+    message: `Loop taunt target consensus is degraded for assignment ${timer.assignmentId}`,
+    type: "diagnostic",
+  });
+  return [{ ...noEffects(), commands: [command] }, storeRun(state, updated)];
+};
+
 const onDegradedTimeout = (
   state: OrchestratorState,
   timer: Extract<ScheduledTimer, { readonly type: "degraded-timeout" }>,
@@ -1465,11 +1709,18 @@ const onDegradedTimeout = (
   const run = state.runs.get(timer.runId);
   const assignment = run?.assignments.get(timer.assignmentId);
   const degraded = assignment?.degraded;
+  const stillRequired =
+    assignment !== undefined &&
+    degraded !== undefined &&
+    (degraded.reason === "target-consensus"
+      ? run !== undefined &&
+        priorityDecision(run).unresolvedAssignmentIds.has(timer.assignmentId)
+      : assignment.active);
   if (
     run === undefined ||
     run.status !== "active" ||
     assignment === undefined ||
-    !assignment.alive ||
+    !stillRequired ||
     degraded?.activeSince === undefined ||
     degraded.revision !== timer.revision
   ) {
@@ -1496,10 +1747,7 @@ const onDegradedTimeout = (
       state,
     ];
   }
-  const mutation = terminalize(run, {
-    reason: `Loop taunt remained degraded for assignment ${timer.assignmentId} for 30 seconds`,
-    status: "failed",
-  });
+  const mutation = terminalize(run, { status: "completed" });
   return [mutation, storeRun(state, mutation.run)];
 };
 
@@ -1548,13 +1796,16 @@ const makeCollectingRun = Effect.fn(
   playerCount: number,
 ): Effect.fn.Return<RunState> {
   const runId = `${payload.sessionId}:${state.nextRunId}`;
+  const registration = registrationAssignments(payload);
   const assignments = new Map<number, AssignmentState>(
-    payload.assignments.map((assignment) => [
+    registration.map((assignment) => [
       assignment.assignmentId,
       {
+        active: false,
         alive: assignment.target.state === "alive",
         assignmentId: assignment.assignmentId,
         cursorStart: 0,
+        degradationRevision: 0,
         focusActive: assignment.target.focusActive,
         focusTurnConsumed: false,
         lifeRevision: assignment.target.lifeRevision,
@@ -1568,6 +1819,7 @@ const makeCollectingRun = Effect.fn(
                 message: assignment.strategy.message,
                 type: "message",
               },
+        targetState: assignment.target.state,
       },
     ]),
   );
@@ -1577,6 +1829,9 @@ const makeCollectingRun = Effect.fn(
     nextCommandId: 0,
     participants: new Map(),
     playerCount,
+    priorityGroups: payload.priorityGroups.map((group) =>
+      group.assignments.map((assignment) => assignment.assignmentId),
+    ),
     readinessGate: yield* Deferred.make<
       ArmyLoopTauntRegisterResult,
       ArmyLoopTauntError
@@ -1677,6 +1932,8 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
                 return onRetry(state, timer, now);
               case "degraded-timeout":
                 return onDegradedTimeout(state, timer, now);
+              case "degraded-warning":
+                return onDegradedWarning(state, timer);
             }
           },
         );

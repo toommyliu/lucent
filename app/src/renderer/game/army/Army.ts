@@ -13,15 +13,12 @@ import type { DesktopArmyBridge } from "../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
 import type { CombatKillOptions } from "../flash/api/Combat";
 import {
-  type ArmyLoopTauntAssignment,
   ArmyLoopTauntError,
   type ArmyLoopTauntHandle,
-  type ArmyLoopTauntRuntimeAssignment,
+  type ArmyLoopTauntPlan,
+  type ArmyLoopTauntRuntimePlan,
   makeArmyLoopTauntRuntime,
 } from "./ArmyLoopTaunt";
-
-type ItemSelector = ItemQuery;
-type MonsterSelector = MonsterQuery;
 
 export class ArmyError extends Error {
   readonly _tag = "ArmyError";
@@ -77,18 +74,18 @@ export interface ArmyApiShape {
     pad?: string,
   ) => Effect.Effect<void, ArmyError>;
   readonly kill: (
-    target: MonsterSelector,
+    target: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
   readonly killForItem: (
-    target: MonsterSelector,
-    item: ItemSelector,
+    target: MonsterQuery,
+    item: ItemQuery,
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
   readonly killForTempItem: (
-    target: MonsterSelector,
-    item: ItemSelector,
+    target: MonsterQuery,
+    item: ItemQuery,
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
@@ -100,12 +97,12 @@ export interface ArmyApiShape {
   ) => Effect.Effect<A, E | ArmyError>;
   readonly start: (configName: string) => Effect.Effect<ArmySession, ArmyError>;
   /**
-   * Starts the same assignment plan across the full Army roster.
+   * Starts a map-scoped Loop Taunt plan across the full Army roster.
    *
-   * @param assignments The ordered assignment list every participant runs.
+   * @param plan The ordered target priority groups every participant runs.
    */
-  readonly startLoopTaunt: (
-    assignments: readonly ArmyLoopTauntAssignment[],
+  readonly loopTaunt: (
+    plan: ArmyLoopTauntPlan,
   ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
   readonly sync: (
     label?: string,
@@ -114,12 +111,9 @@ export interface ArmyApiShape {
   readonly waitForAllInMap: () => Effect.Effect<void, ArmyError>;
 }
 
-export interface ArmyApiRuntimeShape extends Omit<
-  ArmyApiShape,
-  "startLoopTaunt"
-> {
-  readonly startLoopTauntForScript: (
-    assignments: readonly ArmyLoopTauntRuntimeAssignment[],
+export interface ArmyApiRuntimeShape extends Omit<ArmyApiShape, "loopTaunt"> {
+  readonly loopTaunt: (
+    plan: ArmyLoopTauntRuntimePlan,
     onFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
 }
@@ -318,20 +312,17 @@ const makeArmyApi = (
         );
       });
 
-    const startLoopTauntForScript: ArmyApiRuntimeShape["startLoopTauntForScript"] =
-      (assignments, onFailure) =>
-        withCoordination(
-          loopTaunts.startLoopTaunt(assignments, onFailure),
-        ).pipe(
-          Effect.mapError((error) =>
-            error instanceof ArmyLoopTauntError
-              ? error
-              : new ArmyLoopTauntError(
-                  "Failed to coordinate Loop Taunt startup",
-                  error,
-                ),
-          ),
-        );
+    const loopTaunt: ArmyApiRuntimeShape["loopTaunt"] = (plan, onFailure) =>
+      withCoordination(loopTaunts.loopTaunt(plan, onFailure)).pipe(
+        Effect.mapError((error) =>
+          error instanceof ArmyLoopTauntError
+            ? error
+            : new ArmyLoopTauntError(
+                "Failed to coordinate Loop Taunt startup",
+                error,
+              ),
+        ),
+      );
 
     const failSession = (
       session: ArmySession,
@@ -825,9 +816,9 @@ const makeArmyApi = (
       killForItem,
       killForTempItem,
       leave,
+      loopTaunt,
       runStep,
       start,
-      startLoopTauntForScript,
       sync,
       waitForAllInMap,
     });
@@ -842,5 +833,7 @@ export { ArmyLoopTauntError } from "./ArmyLoopTaunt";
 export type {
   ArmyLoopTauntAssignment,
   ArmyLoopTauntHandle,
+  ArmyLoopTauntPlan,
+  ArmyLoopTauntPriorityGroup,
   ArmyLoopTauntStrategy,
 } from "./ArmyLoopTaunt";

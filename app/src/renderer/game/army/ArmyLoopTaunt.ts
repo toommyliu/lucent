@@ -80,12 +80,38 @@ export interface ArmyLoopTauntAssignment {
   readonly target: MonsterQuery;
 }
 
+/**
+ * A set of target assignments evaluated at the same priority.
+ *
+ * Living assignments in the selected group run concurrently.
+ */
+export interface ArmyLoopTauntPriorityGroup {
+  /** Target rotations that may run together while this group is selected. */
+  readonly assignments: readonly ArmyLoopTauntAssignment[];
+}
+
+/**
+ * Ordered target priorities shared by every participant in the Army.
+ *
+ * The first group with a living target is selected. When all of its targets
+ * die, the next eligible group takes over; a respawn preempts lower groups and
+ * restarts that target's rotation from its first assigned player.
+ */
+export type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[];
+
 export interface ArmyLoopTauntRuntimeAssignment extends Omit<
   ArmyLoopTauntAssignment,
   "skipWhen"
 > {
   readonly skipWhen?: ArmyLoopTauntRuntimeSkipWhen;
 }
+
+export interface ArmyLoopTauntRuntimePriorityGroup {
+  readonly assignments: readonly ArmyLoopTauntRuntimeAssignment[];
+}
+
+export type ArmyLoopTauntRuntimePlan =
+  readonly ArmyLoopTauntRuntimePriorityGroup[];
 
 /** Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically. */
 export interface ArmyLoopTauntHandle {
@@ -119,9 +145,14 @@ interface LoopTauntSession {
 interface NormalizedLoopTauntAssignment {
   readonly assignmentId: number;
   readonly players: readonly number[];
+  readonly priorityGroupIndex: number;
   readonly query: MonsterQuery;
   readonly skipWhen?: ArmyLoopTauntRuntimeSkipWhen;
   readonly strategy: ArmyLoopTauntStrategy;
+}
+
+interface NormalizedLoopTauntPriorityGroup {
+  readonly assignments: readonly NormalizedLoopTauntAssignment[];
 }
 
 interface LocalLoopTauntTarget extends NormalizedLoopTauntAssignment {
@@ -147,18 +178,31 @@ interface ActiveLoopTaunt {
 }
 
 const matchesTauntCommand = (
-  target: LocalLoopTauntTarget | undefined,
+  targets: ReadonlyMap<number, LocalLoopTauntTarget>,
   command: Extract<
     ArmyLoopTauntCommandPayload["command"],
     { readonly type: "taunt" }
   >,
   playerNumber: number,
-): target is LocalLoopTauntTarget =>
-  target?.alive === true &&
-  target.players.includes(playerNumber) &&
-  target.monsterMapId === command.monsterMapId &&
-  target.lifeRevision === command.lifeRevision &&
-  (target.strategy.type !== "focus" || !target.focusActive);
+): LocalLoopTauntTarget | undefined => {
+  const target = targets.get(command.assignmentId);
+  if (
+    target?.alive !== true ||
+    !target.players.includes(playerNumber) ||
+    target.monsterMapId !== command.monsterMapId ||
+    target.lifeRevision !== command.lifeRevision ||
+    (target.strategy.type === "focus" && target.focusActive)
+  ) {
+    return undefined;
+  }
+
+  const preempted = [...targets.values()].some(
+    (candidate) =>
+      candidate.priorityGroupIndex < target.priorityGroupIndex &&
+      candidate.alive,
+  );
+  return preempted ? undefined : target;
+};
 
 const stopRecord = (
   active: ActiveLoopTaunt,
@@ -195,66 +239,85 @@ const failValidation = (message: string): never => {
   throw new ArmyLoopTauntError(message);
 };
 
-const normalizeAssignments = (
-  assignments: readonly ArmyLoopTauntRuntimeAssignment[],
+const normalizePlan = (
+  plan: ArmyLoopTauntRuntimePlan,
   playerCount: number,
-): readonly NormalizedLoopTauntAssignment[] => {
-  if (assignments.length === 0) {
-    failValidation("Loop Taunt requires at least one assignment");
+): readonly NormalizedLoopTauntPriorityGroup[] => {
+  if (plan.length === 0) {
+    failValidation("Loop Taunt requires at least one priority group");
   }
 
-  const assignedPlayers = new Set<number>();
-  return assignments.map((assignment, assignmentId) => {
-    if (assignment.players.length === 0) {
+  let nextAssignmentId = 0;
+  return plan.map((priorityGroup, priorityGroupIndex) => {
+    if (priorityGroup.assignments.length === 0) {
       failValidation(
-        `Loop Taunt assignment ${assignmentId + 1} requires at least one player`,
+        `Loop Taunt priority group ${priorityGroupIndex + 1} requires at least one assignment`,
       );
     }
 
-    const players = [...assignment.players].toSorted(
-      (left, right) => left - right,
-    );
-    const localPlayers = new Set<number>();
-    for (const player of players) {
-      if (!Number.isSafeInteger(player) || player < 1 || player > playerCount) {
-        failValidation(
-          `Loop Taunt assignment ${assignmentId + 1} contains an invalid Army player number: ${player}`,
-        );
-      }
-      if (localPlayers.has(player)) {
-        failValidation(
-          `Loop Taunt assignment ${assignmentId + 1} contains player ${player} more than once`,
-        );
-      }
-      if (assignedPlayers.has(player)) {
-        failValidation(
-          `Loop Taunt player ${player} cannot be assigned to more than one target`,
-        );
-      }
-      localPlayers.add(player);
-      assignedPlayers.add(player);
-    }
-
-    const strategy: ArmyLoopTauntStrategy =
-      assignment.strategy.type === "focus"
-        ? { type: "focus" }
-        : {
-            message: assignment.strategy.message.trim(),
-            type: "message",
-          };
-    if (strategy.type === "message" && strategy.message === "") {
-      failValidation(
-        `Loop Taunt assignment ${assignmentId + 1} requires a non-empty message`,
-      );
-    }
+    const assignedPlayers = new Set<number>();
     return {
-      assignmentId,
-      players,
-      query: assignment.target,
-      ...(assignment.skipWhen === undefined
-        ? {}
-        : { skipWhen: assignment.skipWhen }),
-      strategy,
+      assignments: priorityGroup.assignments.map(
+        (assignment, assignmentIndex) => {
+          const assignmentId = nextAssignmentId++;
+          if (assignment.players.length === 0) {
+            failValidation(
+              `Loop Taunt priority group ${priorityGroupIndex + 1}, assignment ${assignmentIndex + 1} requires at least one player`,
+            );
+          }
+
+          const players = [...assignment.players].toSorted(
+            (left, right) => left - right,
+          );
+          const localPlayers = new Set<number>();
+          for (const player of players) {
+            if (
+              !Number.isSafeInteger(player) ||
+              player < 1 ||
+              player > playerCount
+            ) {
+              failValidation(
+                `Loop Taunt priority group ${priorityGroupIndex + 1}, assignment ${assignmentIndex + 1} contains an invalid Army player number: ${player}`,
+              );
+            }
+            if (localPlayers.has(player)) {
+              failValidation(
+                `Loop Taunt priority group ${priorityGroupIndex + 1}, assignment ${assignmentIndex + 1} contains player ${player} more than once`,
+              );
+            }
+            if (assignedPlayers.has(player)) {
+              failValidation(
+                `Loop Taunt player ${player} cannot be assigned more than once in priority group ${priorityGroupIndex + 1}`,
+              );
+            }
+            localPlayers.add(player);
+            assignedPlayers.add(player);
+          }
+
+          const strategy: ArmyLoopTauntStrategy =
+            assignment.strategy.type === "focus"
+              ? { type: "focus" }
+              : {
+                  message: assignment.strategy.message.trim(),
+                  type: "message",
+                };
+          if (strategy.type === "message" && strategy.message === "") {
+            failValidation(
+              `Loop Taunt priority group ${priorityGroupIndex + 1}, assignment ${assignmentIndex + 1} requires a non-empty message`,
+            );
+          }
+          return {
+            assignmentId,
+            players,
+            priorityGroupIndex,
+            query: assignment.target,
+            ...(assignment.skipWhen === undefined
+              ? {}
+              : { skipWhen: assignment.skipWhen }),
+            strategy,
+          };
+        },
+      ),
     };
   });
 };
@@ -293,8 +356,8 @@ export interface ArmyLoopTauntRuntime {
   readonly notifySessionEnded: (
     payload: ArmySessionEndedPayload,
   ) => Effect.Effect<void>;
-  readonly startLoopTaunt: (
-    assignments: readonly ArmyLoopTauntRuntimeAssignment[],
+  readonly loopTaunt: (
+    plan: ArmyLoopTauntRuntimePlan,
     onFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
   readonly stopActive: (reason?: string) => Effect.Effect<void>;
@@ -333,10 +396,7 @@ export const makeArmyLoopTauntRuntime = (
         ),
       );
 
-    const startLoopTaunt: ArmyLoopTauntRuntime["startLoopTaunt"] = (
-      assignments,
-      onFailure,
-    ) =>
+    const loopTaunt: ArmyLoopTauntRuntime["loopTaunt"] = (plan, onFailure) =>
       lifecycle.withPermits(1)(
         Effect.gen(function* () {
           if (bridge === undefined) {
@@ -352,17 +412,16 @@ export const makeArmyLoopTauntRuntime = (
             );
           }
 
-          const normalized = yield* Effect.try({
-            try: () =>
-              normalizeAssignments(assignments, session.players.length),
+          const normalizedPlan = yield* Effect.try({
+            try: () => normalizePlan(plan, session.players.length),
             catch: (cause) =>
               cause instanceof ArmyLoopTauntError
                 ? cause
-                : new ArmyLoopTauntError(
-                    "Invalid Loop Taunt assignments",
-                    cause,
-                  ),
+                : new ArmyLoopTauntError("Invalid Loop Taunt plan", cause),
           });
+          const normalizedAssignments = normalizedPlan.flatMap(
+            ({ assignments }) => assignments,
+          );
 
           const previous = yield* SynchronizedRef.get(activeRef);
           if (previous !== null) {
@@ -416,7 +475,7 @@ export const makeArmyLoopTauntRuntime = (
                 );
 
                 const resolvedTargets = yield* Effect.forEach(
-                  normalized,
+                  normalizedAssignments,
                   (assignment) =>
                     api.monsters.get(assignment.query).pipe(
                       Effect.flatMap((monster) =>
@@ -491,22 +550,37 @@ export const makeArmyLoopTauntRuntime = (
                   }),
                 );
 
+                const resolvedTargetsByAssignmentId = new Map(
+                  resolvedTargets.map((target) => [
+                    target.assignmentId,
+                    target,
+                  ]),
+                );
                 const registration = yield* fromDesktop(
                   "Failed to register Loop Taunt",
                   () =>
                     bridge.loopTauntRegister({
-                      assignments: resolvedTargets.map((assignment) => ({
-                        assignmentId: assignment.assignmentId,
-                        players: assignment.players,
-                        strategy: assignment.strategy,
-                        target: {
-                          focusActive: assignment.focusActive,
-                          lifeRevision: assignment.lifeRevision,
-                          monsterMapId: assignment.monsterMapId,
-                          state: assignment.alive ? "alive" : "dead",
-                        },
-                      })),
                       map: mapIdentity,
+                      priorityGroups: normalizedPlan.map((priorityGroup) => ({
+                        assignments: priorityGroup.assignments.map(
+                          (assignment) => {
+                            const resolved = resolvedTargetsByAssignmentId.get(
+                              assignment.assignmentId,
+                            )!;
+                            return {
+                              assignmentId: resolved.assignmentId,
+                              players: resolved.players,
+                              strategy: resolved.strategy,
+                              target: {
+                                focusActive: resolved.focusActive,
+                                lifeRevision: resolved.lifeRevision,
+                                monsterMapId: resolved.monsterMapId,
+                                state: resolved.alive ? "alive" : "dead",
+                              },
+                            };
+                          },
+                        ),
+                      })),
                       sessionId: session.sessionId,
                     }),
                 );
@@ -598,20 +672,9 @@ export const makeArmyLoopTauntRuntime = (
                           return [undefined, targets] as const;
                         }
                         if (monster === null) {
-                          if (!target.alive && !target.focusActive) {
-                            return [
-                              reportUnchanged ? target : undefined,
-                              targets,
-                            ] as const;
-                          }
-                          const unavailable: LocalLoopTauntTarget = {
-                            ...target,
-                            alive: false,
-                            focusActive: false,
-                          };
                           return [
-                            unavailable,
-                            new Map(targets).set(assignmentId, unavailable),
+                            reportUnchanged ? target : undefined,
+                            targets,
                           ] as const;
                         }
 
@@ -840,7 +903,7 @@ export const makeArmyLoopTauntRuntime = (
                 );
 
                 const participantState = Effect.gen(function* () {
-                  const assigned = normalized.some((assignment) =>
+                  const assigned = normalizedAssignments.some((assignment) =>
                     assignment.players.includes(session.playerNumber),
                   );
                   const [alive, item, cooldownMs] = yield* Effect.all([
@@ -942,16 +1005,12 @@ export const makeArmyLoopTauntRuntime = (
                       case "taunt":
                         yield* castPermit.withPermits(1)(
                           Effect.gen(function* () {
-                            const target = (yield* SynchronizedRef.get(
-                              targetsRef,
-                            )).get(command.assignmentId);
-                            if (
-                              !matchesTauntCommand(
-                                target,
-                                command,
-                                session.playerNumber,
-                              )
-                            ) {
+                            const target = matchesTauntCommand(
+                              yield* SynchronizedRef.get(targetsRef),
+                              command,
+                              session.playerNumber,
+                            );
+                            if (target === undefined) {
                               yield* reportCommandResult(
                                 payload.commandId,
                                 "target-unavailable",
@@ -1068,17 +1127,12 @@ export const makeArmyLoopTauntRuntime = (
                                 return;
                               }
 
-                              const refreshedTarget =
-                                (yield* SynchronizedRef.get(targetsRef)).get(
-                                  command.assignmentId,
-                                );
-                              if (
-                                !matchesTauntCommand(
-                                  refreshedTarget,
-                                  command,
-                                  session.playerNumber,
-                                )
-                              ) {
+                              const refreshedTarget = matchesTauntCommand(
+                                yield* SynchronizedRef.get(targetsRef),
+                                command,
+                                session.playerNumber,
+                              );
+                              if (refreshedTarget === undefined) {
                                 yield* reportCommandResult(
                                   payload.commandId,
                                   "target-unavailable",
@@ -1119,6 +1173,20 @@ export const makeArmyLoopTauntRuntime = (
                               );
                               return;
                             }
+
+                            const dispatchTarget = matchesTauntCommand(
+                              yield* SynchronizedRef.get(targetsRef),
+                              command,
+                              session.playerNumber,
+                            );
+                            if (dispatchTarget === undefined) {
+                              yield* reportCommandResult(
+                                payload.commandId,
+                                "target-unavailable",
+                              );
+                              return;
+                            }
+                            validatedTarget = dispatchTarget;
 
                             const previousTarget =
                               yield* api.combat.target.get();
@@ -1197,7 +1265,7 @@ export const makeArmyLoopTauntRuntime = (
 
                 yield* Effect.forever(
                   Effect.forEach(
-                    normalized,
+                    normalizedAssignments,
                     (assignment) =>
                       refreshTarget(assignment.assignmentId, true),
                     {
@@ -1358,8 +1426,8 @@ export const makeArmyLoopTauntRuntime = (
     );
 
     return {
+      loopTaunt,
       notifySessionEnded,
-      startLoopTaunt,
       stopActive,
     };
   });

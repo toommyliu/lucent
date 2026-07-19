@@ -3,7 +3,7 @@ import { Cause, Effect, Ref } from "effect";
 
 import type { ArmyApiRuntimeShape } from "../../army/Army";
 import type {
-  ArmyLoopTauntRuntimeAssignment,
+  ArmyLoopTauntRuntimePlan,
   ArmyLoopTauntSkipContext,
 } from "../../army/ArmyLoopTaunt";
 import { makeScriptAsyncScope } from "../scriptAsyncScope";
@@ -14,28 +14,25 @@ const makeArmy = (
   captureFailure: (
     notify: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   ) => void = () => undefined,
-  captureAssignments: (
-    assignments: readonly ArmyLoopTauntRuntimeAssignment[],
-  ) => void = () => undefined,
+  capturePlan: (plan: ArmyLoopTauntRuntimePlan) => void = () => undefined,
 ): ArmyApiRuntimeShape => {
-  const startLoopTauntForScript: ArmyApiRuntimeShape["startLoopTauntForScript"] =
-    (assignments, notifyFailure) =>
-      Effect.sync(() => {
-        captureFailure(notifyFailure);
-        captureAssignments(assignments);
-        let stopped = false;
-        return {
-          stop: () =>
-            Effect.suspend(() => {
-              if (stopped) return Effect.void;
-              stopped = true;
-              return Ref.update(stops, (count) => count + 1);
-            }),
-        };
-      });
+  const loopTaunt: ArmyApiRuntimeShape["loopTaunt"] = (plan, notifyFailure) =>
+    Effect.sync(() => {
+      captureFailure(notifyFailure);
+      capturePlan(plan);
+      let stopped = false;
+      return {
+        stop: () =>
+          Effect.suspend(() => {
+            if (stopped) return Effect.void;
+            stopped = true;
+            return Ref.update(stops, (count) => count + 1);
+          }),
+      };
+    });
 
   return {
-    startLoopTauntForScript,
+    loopTaunt,
   } as unknown as ArmyApiRuntimeShape;
 };
 
@@ -45,10 +42,10 @@ describe("script Army API", () => {
     () =>
       Effect.gen(function* () {
         const stops = yield* Ref.make(0);
-        const captured: ArmyLoopTauntRuntimeAssignment[] = [];
+        let captured: ArmyLoopTauntRuntimePlan = [];
         const army = makeScriptArmyApi(
-          makeArmy(stops, undefined, (assignments) => {
-            captured.push(...assignments);
+          makeArmy(stops, undefined, (plan) => {
+            captured = plan;
           }),
           makeScriptAsyncScope(),
           () => Effect.void,
@@ -59,21 +56,29 @@ describe("script Army API", () => {
           target: 1,
         };
 
-        yield* army.startLoopTaunt([
+        yield* army.loopTaunt([
           {
-            ...assignment,
-            skipWhen: () => true,
+            assignments: [
+              {
+                ...assignment,
+                skipWhen: () => true,
+              },
+              {
+                ...assignment,
+                skipWhen: () => Effect.succeed(false),
+              },
+            ],
           },
           {
-            ...assignment,
-            skipWhen: () => Effect.succeed(false),
-          },
-          {
-            ...assignment,
-            skipWhen: function* () {
-              yield* Effect.void;
-              return true;
-            },
+            assignments: [
+              {
+                ...assignment,
+                skipWhen: function* () {
+                  yield* Effect.void;
+                  return true;
+                },
+              },
+            ],
           },
         ]);
 
@@ -81,10 +86,18 @@ describe("script Army API", () => {
           participants: [],
           self: { playerNumber: 1 },
         } as unknown as ArmyLoopTauntSkipContext;
-        if (captured.some(({ skipWhen }) => skipWhen === undefined)) {
+        expect(captured.map(({ assignments }) => assignments.length)).toEqual([
+          2, 1,
+        ]);
+        const assignments = captured.flatMap(
+          (priorityGroup) => priorityGroup.assignments,
+        );
+        if (assignments.some(({ skipWhen }) => skipWhen === undefined)) {
           return yield* Effect.die("skipWhen was not normalized");
         }
-        const normalized = captured.map(({ skipWhen }) => skipWhen!(context));
+        const normalized = assignments.map(({ skipWhen }) =>
+          skipWhen!(context),
+        );
         expect(normalized.every(Effect.isEffect)).toBe(true);
         expect(yield* Effect.all(normalized)).toEqual([true, false, true]);
       }),
@@ -96,7 +109,7 @@ describe("script Army API", () => {
       const scope = makeScriptAsyncScope();
       const army = makeScriptArmyApi(makeArmy(stops), scope, () => Effect.void);
 
-      const handle = yield* army.startLoopTaunt([]);
+      const handle = yield* army.loopTaunt([]);
       yield* scope.close;
       yield* handle.stop();
 
@@ -123,7 +136,7 @@ describe("script Army API", () => {
           }),
       );
 
-      yield* army.startLoopTaunt([]);
+      yield* army.loopTaunt([]);
       if (notifyFailure === undefined) {
         return yield* Effect.die("Failure callback was not installed");
       }
@@ -150,7 +163,7 @@ describe("script Army API", () => {
           () => Effect.void,
         );
 
-        yield* army.startLoopTaunt([]);
+        yield* army.loopTaunt([]);
 
         expect(yield* Ref.get(stops)).toBe(1);
       }),

@@ -224,6 +224,24 @@ api.army.leave(): Effect.Effect<void, never, never>
 
 **Errors:** `never`
 
+<a id="member-api-army-looptaunt"></a>
+
+### `api.army.loopTaunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L107" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:107" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+Starts a map-scoped Loop Taunt plan across the full Army roster.
+
+```ts
+api.army.loopTaunt(plan: ArmyLoopTauntPlan): Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError, never>
+```
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `plan` | <a href="/scripting/types/army-loop-taunt-plan/" data-script-type="army-loop-taunt-plan"><code>ArmyLoopTauntPlan</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+
+**Yields:** <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a>
+
+**Errors:** <a href="/scripting/types/army-loop-taunt-error/" data-script-type="army-loop-taunt-error"><code>ArmyLoopTauntError</code></a>
+
 <a id="member-api-army-runstep"></a>
 
 ### `api.army.runStep()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L96" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:96" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
@@ -257,24 +275,6 @@ api.army.start(configName: string): Effect.Effect<ArmySessionPayload, ArmyError,
 **Yields:** <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a>
 
 **Errors:** <a href="/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a>
-
-<a id="member-api-army-startlooptaunt"></a>
-
-### `api.army.startLoopTaunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L107" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/game/army/Army.ts:107" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
-
-Starts the same assignment plan across the full Army roster.
-
-```ts
-api.army.startLoopTaunt(assignments: readonly ArmyLoopTauntAssignment[]): Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError, never>
-```
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `assignments` | `readonly` <a href="/scripting/types/army-loop-taunt-assignment/" data-script-type="army-loop-taunt-assignment"><code>ArmyLoopTauntAssignment</code></a>[] | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-
-**Yields:** <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a>
-
-**Errors:** <a href="/scripting/types/army-loop-taunt-error/" data-script-type="army-loop-taunt-error"><code>ArmyLoopTauntError</code></a>
 
 <a id="member-api-army-sync"></a>
 
