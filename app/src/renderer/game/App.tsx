@@ -356,6 +356,10 @@ const scriptStatusLabel = (
     return `Stopping ${status.name}`;
   }
 
+  if (status.state === "waiting-to-restart") {
+    return `Waiting to restart ${status.name}`;
+  }
+
   if (status.state === "failed") {
     return `Failed: ${status.message}`;
   }
@@ -1083,6 +1087,8 @@ export function App(props: {
   const [customGuild, setCustomGuild] = createSignal("");
   const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(true);
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
+  const [scriptRestartAfterReconnect, setScriptRestartAfterReconnect] =
+    createSignal(false);
   const [loadedScript, setLoadedScript] = createSignal<ScriptFile | null>(null);
   const [scriptInputValues, setScriptInputValues] =
     createSignal<ScriptInputValues>({});
@@ -1157,7 +1163,12 @@ export function App(props: {
   const scriptLoaded = createMemo(() => loadedScript() !== null);
   const scriptRunning = createMemo(() => {
     const state = scriptRunnerStatus().state;
-    return state === "running" || state === "starting" || state === "stopping";
+    return (
+      state === "running" ||
+      state === "starting" ||
+      state === "stopping" ||
+      state === "waiting-to-restart"
+    );
   });
   const scriptTogglePending = createMemo(() => {
     const state = scriptRunnerStatus().state;
@@ -2220,20 +2231,24 @@ export function App(props: {
     status:
       status.state === "starting"
         ? "starting"
-        : status.state === "running" || status.state === "stopping"
-          ? "running"
-          : status.state === "failed"
-            ? "failed"
-            : status.state === "idle"
-              ? "idle"
-              : "stopped",
+        : status.state === "waiting-to-restart"
+          ? "starting"
+          : status.state === "running" || status.state === "stopping"
+            ? "running"
+            : status.state === "failed"
+              ? "failed"
+              : status.state === "idle"
+                ? "idle"
+                : "stopped",
     ...(status.state === "failed"
       ? { message: status.message }
-      : status.state === "stopped"
-        ? { message: status.reason ?? "Stopped" }
-        : status.state === "completed"
-          ? { message: "Completed" }
-          : {}),
+      : status.state === "waiting-to-restart"
+        ? { message: "Waiting to restart" }
+        : status.state === "stopped"
+          ? { message: status.reason ?? "Stopped" }
+          : status.state === "completed"
+            ? { message: "Completed" }
+            : {}),
   });
 
   const publishAccountLaunchStatus = async (
@@ -2567,6 +2582,7 @@ export function App(props: {
         }),
       )
       .then((options) => {
+        setScriptRestartAfterReconnect(options.restartAfterReconnect);
         setScriptUsePrivateRooms(options.usePrivateRooms);
         setScriptSafeStartStop(options.safeStartStop);
       })
@@ -2586,6 +2602,7 @@ export function App(props: {
         }),
       )
       .then((options) => {
+        setScriptRestartAfterReconnect(options.restartAfterReconnect);
         setScriptUsePrivateRooms(options.usePrivateRooms);
         setScriptSafeStartStop(options.safeStartStop);
       })
@@ -2606,11 +2623,37 @@ export function App(props: {
         }),
       )
       .then((options) => {
+        setScriptRestartAfterReconnect(options.restartAfterReconnect);
         setScriptUsePrivateRooms(options.usePrivateRooms);
         setScriptSafeStartStop(options.safeStartStop);
       })
       .catch((error: unknown) => {
         console.error("[game:script]", "safe-start-stop toggle failed", error);
+        syncScriptOptions();
+      });
+  };
+
+  const handleToggleScriptRestartAfterReconnect = () => {
+    const enabled = !scriptRestartAfterReconnect();
+    setScriptRestartAfterReconnect(enabled);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.setRestartAfterReconnect(enabled);
+        }),
+      )
+      .then((options) => {
+        setScriptRestartAfterReconnect(options.restartAfterReconnect);
+        setScriptUsePrivateRooms(options.usePrivateRooms);
+        setScriptSafeStartStop(options.safeStartStop);
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[game:script]",
+          "restart-after-reconnect toggle failed",
+          error,
+        );
         syncScriptOptions();
       });
   };
@@ -2893,6 +2936,7 @@ export function App(props: {
             enqueueAccountScriptRunnerStatus(nextStatus);
           });
           const disposeOptions = yield* runner.onOptions((nextOptions) => {
+            setScriptRestartAfterReconnect(nextOptions.restartAfterReconnect);
             setScriptUsePrivateRooms(nextOptions.usePrivateRooms);
             setScriptSafeStartStop(nextOptions.safeStartStop);
           });
@@ -2901,6 +2945,7 @@ export function App(props: {
       )
       .then(({ dispose, disposeOptions, options, status }) => {
         applyScriptRunnerStatus(status);
+        setScriptRestartAfterReconnect(options.restartAfterReconnect);
         setScriptUsePrivateRooms(options.usePrivateRooms);
         setScriptSafeStartStop(options.safeStartStop);
 
@@ -3361,6 +3406,7 @@ export function App(props: {
         scriptRunning={scriptRunning}
         scriptStatus={scriptStatus}
         scriptTogglePending={scriptTogglePending}
+        scriptRestartAfterReconnect={scriptRestartAfterReconnect}
         scriptUsePrivateRooms={scriptUsePrivateRooms}
         scriptSafeStartStop={scriptSafeStartStop}
         scriptInputsAvailable={scriptInputsAvailable}
@@ -3368,6 +3414,9 @@ export function App(props: {
         toggleScript={toggleScript}
         openScriptInputs={openScriptInputs}
         handleToggleScriptPrivateRooms={handleToggleScriptPrivateRooms}
+        handleToggleScriptRestartAfterReconnect={
+          handleToggleScriptRestartAfterReconnect
+        }
         handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
         autoZoneEnabled={autoZoneEnabled}
         autoZoneMap={autoZoneMap}

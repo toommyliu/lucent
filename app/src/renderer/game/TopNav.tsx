@@ -118,6 +118,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptRunning: Accessor<boolean>;
   readonly scriptStatus: Accessor<string>;
   readonly scriptTogglePending: Accessor<boolean>;
+  readonly scriptRestartAfterReconnect: Accessor<boolean>;
   readonly scriptUsePrivateRooms: Accessor<boolean>;
   readonly scriptSafeStartStop: Accessor<boolean>;
   readonly scriptInputsAvailable: Accessor<boolean>;
@@ -125,6 +126,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly toggleScript: () => void | Promise<void>;
   readonly openScriptInputs: () => void;
   readonly handleToggleScriptPrivateRooms: () => void;
+  readonly handleToggleScriptRestartAfterReconnect: () => void;
   readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
   readonly autoZoneMap: Accessor<AutoZoneSupportedMap | undefined>;
@@ -780,6 +782,15 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       value="script-use-private-rooms"
                     >
                       Use Private Rooms
+                    </MenuCheckboxItem>
+                    <MenuCheckboxItem
+                      checked={props.scriptRestartAfterReconnect()}
+                      class="game-menu__item"
+                      closeOnSelect={false}
+                      onClick={props.handleToggleScriptRestartAfterReconnect}
+                      value="script-restart-after-reconnect"
+                    >
+                      Restart After Reconnect
                     </MenuCheckboxItem>
                     <Tooltip
                       closeDelay={0}

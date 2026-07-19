@@ -5,6 +5,7 @@ import {
   Effect,
   Fiber,
   Layer,
+  Option,
   Ref,
   Semaphore,
   Stream,
@@ -80,6 +81,12 @@ export type ScriptRunnerStatus =
       readonly name: string;
       readonly path?: string;
       readonly state: "stopping";
+    }
+  | {
+      readonly disconnectedAt: string;
+      readonly name: string;
+      readonly path?: string;
+      readonly state: "waiting-to-restart";
     };
 
 export type StateDisposer = () => void;
@@ -95,6 +102,9 @@ export interface ScriptRunnerShape {
     listener: (options: ScriptRuntimeOptions) => void,
   ) => Effect.Effect<StateDisposer>;
   readonly resetOptions: () => Effect.Effect<ScriptRuntimeOptions>;
+  readonly setRestartAfterReconnect: (
+    enabled: boolean,
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly setSafeStartStop: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;
@@ -114,16 +124,33 @@ export class ScriptRunner extends Context.Service<
 >()("lucent/game/scripting/ScriptRunner") {}
 
 interface ActiveScript {
+  readonly commandId: number;
   readonly fiber: Fiber.Fiber<void, unknown>;
+  readonly file: ScriptFile;
   readonly id: number;
+  readonly inputs: ScriptInputValues;
   readonly name: string;
   readonly path?: string;
   readonly scope: ScriptAsyncScope;
+  readonly username: string;
 }
 
 interface PendingFinalization {
   readonly done: Deferred.Deferred<ScriptRunnerStatus>;
   readonly id: number;
+}
+
+interface PendingRestart {
+  readonly cancel: Deferred.Deferred<StartingCancellation>;
+  readonly commandId: number;
+  readonly disconnectedAt: string;
+  readonly done: Deferred.Deferred<ScriptRunnerStatus>;
+  readonly file: ScriptFile;
+  readonly id: number;
+  readonly inputs: ScriptInputValues;
+  readonly name: string;
+  readonly path?: string;
+  readonly username: string;
 }
 
 interface StartingCancellation {
@@ -137,7 +164,13 @@ interface StartingScript {
   readonly id: number;
   readonly name: string;
   readonly path?: string;
+  readonly restart?: PendingRestart;
 }
+
+type RestartReadiness =
+  | { readonly kind: "account-changed" }
+  | { readonly kind: "disabled" }
+  | { readonly kind: "ready" };
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -148,10 +181,15 @@ const snapshotStatus = (status: ScriptRunnerStatus): ScriptRunnerStatus => ({
 const statusName = (file: Pick<ScriptFile, "name" | "path">) =>
   file.name.trim() === "" ? (file.path ?? "script") : file.name;
 
-const activeStatusFields = (active: Pick<ActiveScript, "name" | "path">) => ({
+const activeStatusFields = (
+  active: Pick<ActiveScript | PendingRestart | StartingScript, "name" | "path">,
+) => ({
   name: active.name,
   ...(active.path === undefined ? {} : { path: active.path }),
 });
+
+const normalizeUsername = (username: string): string =>
+  username.trim().toLowerCase();
 
 type ScriptTermination =
   | { readonly kind: "failed" }
@@ -198,6 +236,22 @@ export const classifyScriptTermination = (
         ...(stopReason === undefined ? {} : { reason: stopReason }),
       }
     : { kind: "failed" };
+};
+
+const isScriptNotReadyCause = (cause: Cause.Cause<unknown>): boolean => {
+  let sawNotReady = false;
+  for (const reason of cause.reasons) {
+    if (Cause.isInterruptReason(reason)) continue;
+    if (
+      Cause.isFailReason(reason) &&
+      reason.error instanceof ScriptNotReadyError
+    ) {
+      sawNotReady = true;
+      continue;
+    }
+    return false;
+  }
+  return sawNotReady;
 };
 
 const causeMessage = (cause: Cause.Cause<unknown>): string => {
@@ -267,6 +321,7 @@ export const layer = Layer.effect(
     const pendingFinalizationRef = yield* Ref.make<PendingFinalization | null>(
       null,
     );
+    const pendingRestartRef = yield* Ref.make<PendingRestart | null>(null);
     const startingRef = yield* Ref.make<StartingScript | null>(null);
     const optionsRef = yield* SubscriptionRef.make<ScriptRuntimeOptions>(
       DEFAULT_SCRIPT_RUNTIME_OPTIONS,
@@ -415,28 +470,51 @@ export const layer = Layer.effect(
       },
     );
 
+    const cancelPendingRestart = Effect.fn("ScriptRunner.cancelPendingRestart")(
+      function* (reason?: string) {
+        const pending = yield* Ref.get(pendingRestartRef);
+        if (pending !== null) {
+          yield* Deferred.succeed(
+            pending.cancel,
+            reason === undefined ? {} : { reason },
+          );
+        }
+        return pending;
+      },
+    );
+
     const stopActive = Effect.fn("ScriptRunner.stopActive")(function* (
       reason?: string,
     ) {
       yield* Ref.update(latestCommandIdRef, (value) => value + 1);
       const result = yield* lifecycleGate.withPermit(
         Effect.gen(function* () {
+          const restart = yield* cancelPendingRestart(reason);
           const starting = yield* Ref.get(startingRef);
           if (starting !== null) {
             yield* Deferred.succeed(
               starting.cancel,
               reason === undefined ? {} : { reason },
             );
-            return { done: starting.done, kind: "waiting" } as const;
+            return {
+              done: restart?.done ?? starting.done,
+              kind: "waiting",
+            } as const;
           }
 
           const pending = yield* Ref.get(pendingFinalizationRef);
           if (pending !== null) {
-            return { done: pending.done, kind: "waiting" } as const;
+            return {
+              done: restart?.done ?? pending.done,
+              kind: "waiting",
+            } as const;
           }
 
           const active = yield* Ref.get(activeRef);
           if (active === null) {
+            if (restart !== null) {
+              return { done: restart.done, kind: "waiting" } as const;
+            }
             return { kind: "status", status: yield* getStatus() } as const;
           }
 
@@ -461,37 +539,6 @@ export const layer = Layer.effect(
         ? result.status
         : yield* awaitStatus(result.done);
     });
-
-    const stopActiveIfMatching = Effect.fn("ScriptRunner.stopActiveIfMatching")(
-      function* (id: number) {
-        const done = yield* lifecycleGate.withPermit(
-          Effect.gen(function* () {
-            if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
-              return null;
-            }
-
-            const active = yield* Ref.get(activeRef);
-            return active?.id === id
-              ? yield* beginFinalization(active, {
-                  awaitFiber: true,
-                  intermediateStatus: {
-                    ...activeStatusFields(active),
-                    state: "stopping",
-                  },
-                  interrupt: true,
-                  terminalStatus: () => ({
-                    state: "stopped",
-                    stoppedAt: nowIso(),
-                  }),
-                })
-              : null;
-          }),
-        );
-        if (done !== null) {
-          yield* awaitStatus(done);
-        }
-      },
-    );
 
     const finishIfActive = Effect.fn("ScriptRunner.finishIfActive")(function* (
       id: number,
@@ -583,13 +630,6 @@ export const layer = Layer.effect(
         moveToSafeMap,
       );
 
-    const installReadinessWatcher = (id: number, scope: ScriptAsyncScope) =>
-      events
-        .on({ type: "connection" }, (event) =>
-          isConnectionLoss(event) ? stopActiveIfMatching(id) : Effect.void,
-        )
-        .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
-
     const runScript = (id: number, file: ScriptFile, main: ScriptMain) =>
       runWithSafeStartStop(main).pipe(
         Effect.matchCauseEffect({
@@ -669,7 +709,7 @@ export const layer = Layer.effect(
       starting: StartingScript,
       file: ScriptFile,
       inputs: ScriptInputValues,
-    ) {
+    ): Effect.fn.Return<void> {
       const scriptScope = makeScriptAsyncScope();
       let activated = false;
       let scriptFiber: Fiber.Fiber<void, unknown> | undefined;
@@ -712,6 +752,11 @@ export const layer = Layer.effect(
               "Scripts can only start after initial game state projection.",
           });
         }
+        const username = normalizeUsername(
+          yield* auth
+            .getUsername()
+            .pipe(Effect.catchCause(() => Effect.succeed(""))),
+        );
 
         yield* scriptScope.addCleanup(() =>
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
@@ -746,11 +791,15 @@ export const layer = Layer.effect(
         );
         scriptFiber = fiber;
         const active: ActiveScript = {
+          commandId: starting.commandId,
           fiber,
+          file: { ...file },
           id: starting.id,
+          inputs: { ...inputs },
           name: starting.name,
           ...(starting.path === undefined ? {} : { path: starting.path }),
           scope: scriptScope,
+          username,
         };
         const status: ScriptRunnerStatus = {
           ...activeStatusFields(active),
@@ -764,11 +813,18 @@ export const layer = Layer.effect(
               const current = yield* Ref.get(startingRef);
               const latestCommandId = yield* Ref.get(latestCommandIdRef);
               const cancelled = yield* Deferred.isDone(starting.cancel);
+              const restartCancelled =
+                starting.restart !== undefined &&
+                (yield* Deferred.isDone(starting.restart.cancel));
+              const currentRestart = yield* Ref.get(pendingRestartRef);
               if (
                 current?.id !== starting.id ||
                 current.done !== starting.done ||
                 latestCommandId !== starting.commandId ||
-                cancelled
+                cancelled ||
+                restartCancelled ||
+                (starting.restart !== undefined &&
+                  currentRestart !== starting.restart)
               ) {
                 return false;
               }
@@ -780,6 +836,13 @@ export const layer = Layer.effect(
               yield* Ref.set(activeRef, active);
               yield* setStatus(status);
               yield* Deferred.succeed(release, undefined);
+              if (starting.restart !== undefined) {
+                yield* Ref.set(pendingRestartRef, null);
+                yield* Deferred.succeed(
+                  starting.restart.done,
+                  snapshotStatus(status),
+                );
+              }
               return true;
             }),
           ),
@@ -816,6 +879,17 @@ export const layer = Layer.effect(
                 } as ScriptRunnerStatus;
               }
 
+              if (
+                starting.restart !== undefined &&
+                isScriptNotReadyCause(cause)
+              ) {
+                return {
+                  ...activeStatusFields(starting.restart),
+                  disconnectedAt: starting.restart.disconnectedAt,
+                  state: "waiting-to-restart",
+                } as ScriptRunnerStatus;
+              }
+
               yield* logScriptFailureCause(cause);
               const detailsText = causeDetailsText(cause);
               return {
@@ -847,7 +921,8 @@ export const layer = Layer.effect(
       commandId: number,
       file: ScriptFile,
       inputs: ScriptInputValues,
-    ) {
+      restart?: PendingRestart,
+    ): Effect.fn.Return<Deferred.Deferred<ScriptRunnerStatus>> {
       return yield* Effect.uninterruptible(
         Effect.gen(function* () {
           const id = yield* Ref.updateAndGet(nextIdRef, (value) => value + 1);
@@ -860,6 +935,7 @@ export const layer = Layer.effect(
             id,
             name: statusName(file),
             ...(file.path === undefined ? {} : { path: file.path }),
+            ...(restart === undefined ? {} : { restart }),
           };
           yield* Ref.set(startingRef, starting);
           yield* setStatus({
@@ -872,6 +948,237 @@ export const layer = Layer.effect(
         }),
       );
     });
+
+    const completePendingRestart = Effect.fn(
+      "ScriptRunner.completePendingRestart",
+    )(function* (pending: PendingRestart, status: ScriptRunnerStatus) {
+      yield* lifecycleGate.withPermit(
+        Effect.gen(function* () {
+          const current = yield* Ref.get(pendingRestartRef);
+          const authoritative =
+            current === pending ? status : yield* getStatus();
+          if (current === pending) {
+            yield* Ref.set(pendingRestartRef, null);
+            yield* setStatus(status);
+          }
+          yield* Deferred.succeed(pending.done, snapshotStatus(authoritative));
+        }),
+      );
+    });
+
+    const awaitRestartReadiness = Effect.fn(
+      "ScriptRunner.awaitRestartReadiness",
+    )(function* (pending: PendingRestart) {
+      return (
+        (yield* wait.untilSome(
+          Effect.gen(function* () {
+            const options = yield* SubscriptionRef.get(optionsRef);
+            if (!options.restartAfterReconnect) {
+              return Option.some<RestartReadiness>({ kind: "disabled" });
+            }
+
+            const loggedIn = yield* auth
+              .isLoggedIn()
+              .pipe(Effect.catchCause(() => Effect.succeed(false)));
+            if (!loggedIn) return Option.none<RestartReadiness>();
+
+            const ready = yield* player
+              .isReady()
+              .pipe(Effect.catchCause(() => Effect.succeed(false)));
+            if (!ready) return Option.none<RestartReadiness>();
+
+            const projectionsReady = yield* projectionReadiness
+              .isReady()
+              .pipe(Effect.catchCause(() => Effect.succeed(false)));
+            if (!projectionsReady) return Option.none<RestartReadiness>();
+
+            const username = normalizeUsername(
+              yield* auth
+                .getUsername()
+                .pipe(Effect.catchCause(() => Effect.succeed(""))),
+            );
+            return Option.some<RestartReadiness>({
+              kind: username === pending.username ? "ready" : "account-changed",
+            });
+          }),
+          { interval: "250 millis" },
+        )) ?? { kind: "disabled" }
+      );
+    });
+
+    const resumePendingRestart = Effect.fn("ScriptRunner.resumePendingRestart")(
+      function* (pending: PendingRestart): Effect.fn.Return<boolean> {
+        const result = yield* lifecycleGate.withPermit(
+          Effect.gen(function* () {
+            const current = yield* Ref.get(pendingRestartRef);
+            const latestCommandId = yield* Ref.get(latestCommandIdRef);
+            const options = yield* SubscriptionRef.get(optionsRef);
+            if (
+              current !== pending ||
+              latestCommandId !== pending.commandId ||
+              !options.restartAfterReconnect
+            ) {
+              const status = yield* getStatus();
+              if (current === pending) {
+                const stopped: ScriptRunnerStatus = {
+                  state: "stopped",
+                  stoppedAt: nowIso(),
+                };
+                yield* Ref.set(pendingRestartRef, null);
+                yield* setStatus(stopped);
+                return { kind: "settled", status: stopped } as const;
+              }
+              return { kind: "settled", status } as const;
+            }
+
+            return {
+              done: yield* beginStarting(
+                pending.commandId,
+                pending.file,
+                pending.inputs,
+                pending,
+              ),
+              kind: "starting",
+            } as const;
+          }),
+        );
+
+        const status =
+          result.kind === "starting"
+            ? yield* awaitStatus(result.done)
+            : result.status;
+        if (status.state === "waiting-to-restart") {
+          return true;
+        }
+        yield* completePendingRestart(pending, status);
+        return false;
+      },
+    );
+
+    const runPendingRestart = Effect.fn("ScriptRunner.runPendingRestart")(
+      function* (
+        pending: PendingRestart,
+        finalized: Deferred.Deferred<ScriptRunnerStatus>,
+      ): Effect.fn.Return<void> {
+        yield* awaitStatus(finalized);
+        while (true) {
+          const outcome = yield* Effect.raceFirst(
+            Deferred.await(pending.cancel).pipe(
+              Effect.map(
+                (cancellation) =>
+                  ({ cancellation, kind: "cancelled" }) as const,
+              ),
+            ),
+            awaitRestartReadiness(pending).pipe(
+              Effect.map(
+                (readiness) => ({ kind: "readiness", readiness }) as const,
+              ),
+            ),
+          );
+
+          if (
+            outcome.kind === "readiness" &&
+            outcome.readiness.kind === "ready"
+          ) {
+            if (yield* resumePendingRestart(pending)) continue;
+            return;
+          }
+
+          const reason =
+            outcome.kind === "cancelled"
+              ? outcome.cancellation.reason
+              : outcome.readiness.kind === "account-changed"
+                ? "account changed"
+                : undefined;
+          yield* completePendingRestart(pending, {
+            ...(reason === undefined ? {} : { reason }),
+            state: "stopped",
+            stoppedAt: nowIso(),
+          });
+          return;
+        }
+      },
+    );
+
+    const handleConnectionLoss = Effect.fn("ScriptRunner.handleConnectionLoss")(
+      function* (id: number): Effect.fn.Return<void> {
+        return yield* Effect.uninterruptible(
+          Effect.gen(function* () {
+            const result = yield* lifecycleGate.withPermit(
+              Effect.gen(function* () {
+                if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
+                  return null;
+                }
+
+                const active = yield* Ref.get(activeRef);
+                if (active?.id !== id) return null;
+
+                const options = yield* SubscriptionRef.get(optionsRef);
+                const shouldRestart =
+                  options.restartAfterReconnect && active.username !== "";
+                const disconnectedAt = nowIso();
+                const restart = shouldRestart
+                  ? {
+                      cancel: yield* Deferred.make<StartingCancellation>(),
+                      commandId: active.commandId,
+                      disconnectedAt,
+                      done: yield* Deferred.make<ScriptRunnerStatus>(),
+                      file: { ...active.file },
+                      id: active.id,
+                      inputs: { ...active.inputs },
+                      name: active.name,
+                      ...(active.path === undefined
+                        ? {}
+                        : { path: active.path }),
+                      username: active.username,
+                    }
+                  : null;
+                if (restart !== null) {
+                  yield* Ref.set(pendingRestartRef, restart);
+                }
+
+                const finalized = yield* beginFinalization(active, {
+                  awaitFiber: true,
+                  intermediateStatus: {
+                    ...activeStatusFields(active),
+                    state: "stopping",
+                  },
+                  interrupt: true,
+                  terminalStatus: () =>
+                    restart === null
+                      ? {
+                          state: "stopped",
+                          stoppedAt: nowIso(),
+                        }
+                      : {
+                          ...activeStatusFields(restart),
+                          disconnectedAt: restart.disconnectedAt,
+                          state: "waiting-to-restart",
+                        },
+                });
+                return restart === null ? null : { finalized, restart };
+              }),
+            );
+
+            if (result !== null) {
+              yield* runPendingRestart(result.restart, result.finalized).pipe(
+                Effect.forkDetach,
+              );
+            }
+          }),
+        );
+      },
+    );
+
+    const installReadinessWatcher = (
+      id: number,
+      scope: ScriptAsyncScope,
+    ): Effect.Effect<StateDisposer> =>
+      events
+        .on({ type: "connection" }, (event) =>
+          isConnectionLoss(event) ? handleConnectionLoss(id) : Effect.void,
+        )
+        .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
 
     const start: ScriptRunnerShape["start"] = (file, inputs) => {
       const fileSnapshot = { ...file };
@@ -891,17 +1198,24 @@ export const layer = Layer.effect(
                 } as const;
               }
 
+              const restart = yield* cancelPendingRestart("replaced");
               const starting = yield* Ref.get(startingRef);
               if (starting !== null) {
                 yield* Deferred.succeed(starting.cancel, {
                   reason: "replaced",
                 });
-                return { done: starting.done, kind: "waiting" } as const;
+                return {
+                  done: restart?.done ?? starting.done,
+                  kind: "waiting",
+                } as const;
               }
 
               const pending = yield* Ref.get(pendingFinalizationRef);
               if (pending !== null) {
-                return { done: pending.done, kind: "waiting" } as const;
+                return {
+                  done: restart?.done ?? pending.done,
+                  kind: "waiting",
+                } as const;
               }
 
               const active = yield* Ref.get(activeRef);
@@ -920,6 +1234,9 @@ export const layer = Layer.effect(
                   }),
                 });
                 return { done, kind: "waiting" } as const;
+              }
+              if (restart !== null) {
+                return { done: restart.done, kind: "waiting" } as const;
               }
 
               return {
@@ -945,6 +1262,30 @@ export const layer = Layer.effect(
     };
 
     const stop: ScriptRunnerShape["stop"] = (reason) => stopActive(reason);
+    const setRestartAfterReconnect: ScriptRunnerShape["setRestartAfterReconnect"] =
+      (enabled) =>
+        lifecycleGate.withPermit(
+          Effect.gen(function* () {
+            const options = yield* setOptions((current) => ({
+              ...current,
+              restartAfterReconnect: enabled,
+            }));
+            if (!enabled) {
+              yield* cancelPendingRestart();
+            }
+            return options;
+          }),
+        );
+    const resetOptions = () =>
+      lifecycleGate.withPermit(
+        Effect.gen(function* () {
+          const options = yield* setOptions(
+            () => DEFAULT_SCRIPT_RUNTIME_OPTIONS,
+          );
+          yield* cancelPendingRestart();
+          return options;
+        }),
+      );
 
     yield* Effect.addFinalizer(() => stop("shutdown").pipe(Effect.asVoid));
 
@@ -957,7 +1298,8 @@ export const layer = Layer.effect(
             (status) =>
               status.state === "running" ||
               status.state === "starting" ||
-              status.state === "stopping",
+              status.state === "stopping" ||
+              status.state === "waiting-to-restart",
           ),
         ),
       onOptions: (listener) =>
@@ -968,7 +1310,8 @@ export const layer = Layer.effect(
         ),
       onStatus: (listener) =>
         observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
-      resetOptions: () => setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS),
+      resetOptions,
+      setRestartAfterReconnect,
       setSafeStartStop: (enabled) =>
         setOptions((options) => ({ ...options, safeStartStop: enabled })),
       setUsePrivateRooms: (enabled) =>

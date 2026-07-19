@@ -12,6 +12,7 @@ import {
 } from "./ScriptRunnerErrors";
 
 export const DEFAULT_SCRIPT_RUNTIME_OPTIONS: ScriptRuntimeOptions = {
+  restartAfterReconnect: false,
   safeStartStop: true,
   usePrivateRooms: true,
 };
@@ -77,6 +78,14 @@ export const makeScriptRuntimeApi = (
     log: (message) => Effect.sync(() => options.log(message)),
     options: {
       getAll: options.getOptions,
+      getRestartAfterReconnect: () =>
+        options
+          .getOptions()
+          .pipe(
+            Effect.map(
+              (currentOptions) => currentOptions.restartAfterReconnect,
+            ),
+          ),
       getSafeStartStop: () =>
         options
           .getOptions()
@@ -86,6 +95,11 @@ export const makeScriptRuntimeApi = (
           .getOptions()
           .pipe(Effect.map((currentOptions) => currentOptions.usePrivateRooms)),
       reset: () => options.setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS),
+      setRestartAfterReconnect: (enabled: boolean) =>
+        options.setOptions((currentOptions) => ({
+          ...currentOptions,
+          restartAfterReconnect: enabled,
+        })),
       setSafeStartStop: (enabled: boolean) =>
         options.setOptions((currentOptions) => ({
           ...currentOptions,

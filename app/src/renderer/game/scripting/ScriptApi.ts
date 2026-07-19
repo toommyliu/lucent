@@ -68,15 +68,20 @@ export interface ScriptInputsApi {
 }
 
 export interface ScriptRuntimeOptions {
+  readonly restartAfterReconnect: boolean;
   readonly safeStartStop: boolean;
   readonly usePrivateRooms: boolean;
 }
 
 export interface ScriptOptionsApi {
   readonly getAll: () => Effect.Effect<ScriptRuntimeOptions>;
+  readonly getRestartAfterReconnect: () => Effect.Effect<boolean>;
   readonly getSafeStartStop: () => Effect.Effect<boolean>;
   readonly getUsePrivateRooms: () => Effect.Effect<boolean>;
   readonly reset: () => Effect.Effect<ScriptRuntimeOptions>;
+  readonly setRestartAfterReconnect: (
+    enabled: boolean,
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly setSafeStartStop: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;

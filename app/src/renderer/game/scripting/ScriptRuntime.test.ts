@@ -14,6 +14,7 @@ describe("ScriptRuntime", () => {
     Effect.gen(function* () {
       const scope = makeScriptAsyncScope();
       let options: ScriptRuntimeOptions = {
+        restartAfterReconnect: false,
         safeStartStop: true,
         usePrivateRooms: true,
       };
@@ -30,7 +31,9 @@ describe("ScriptRuntime", () => {
       });
 
       expect(yield* script.inputs.get("item")).toBe("Weapon");
+      yield* script.options.setRestartAfterReconnect(true);
       yield* script.options.setUsePrivateRooms(false);
+      expect(options.restartAfterReconnect).toBe(true);
       expect(options.usePrivateRooms).toBe(false);
       expect(script.signal.aborted).toBe(false);
 
