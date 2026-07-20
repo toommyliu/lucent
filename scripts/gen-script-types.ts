@@ -23,9 +23,11 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Array",
   "Boolean",
   "Date",
+  "D",
   "E",
   "Error",
   "Exclude",
+  "Extract",
   "Function",
   "Generator",
   "InitialValue",
@@ -47,11 +49,14 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Required",
   "Requirements",
   "ResultValue",
+  "R",
+  "S",
   "Set",
   "String",
   "Symbol",
   "TemplateStringsArray",
   "This",
+  "T",
   "Value",
   "any",
   "bigint",
@@ -88,6 +93,7 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptNotReadyError",
   "ScriptOptionModule",
   "ScriptPipe",
+  "Scope",
   "Skill",
 ]);
 
@@ -170,6 +176,10 @@ interface Effect<
   Requirements = never,
 > {
   [Symbol.iterator](): Generator<EffectYieldable<Value, Error>, Value, any>;
+}
+
+interface Scope {
+  readonly [key: string]: unknown;
 }
 
 interface ScriptExecutionError extends Error {
@@ -371,6 +381,7 @@ const transformTypeText = (type: string): string => {
   output = output.replace(/\bEffect\.Yieldable\s*</g, "EffectYieldable<");
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
   output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
+  output = output.replace(/\bScope\.Scope\b/g, "Scope");
   output = output.replace(/\bReadonlyArray\s*</g, "readonly ");
   output = output.replace(
     /\bBridgeTypes\.InventoryItemSelector\b/g,
@@ -586,6 +597,18 @@ const renderMethodSignature = (
   return `${name}${typeParameters}(${parameters}): ${returnTypeText(checker, node.type)};`;
 };
 
+const renderCallSignature = (
+  checker: ts.TypeChecker,
+  node: ts.CallSignatureDeclaration,
+): string => {
+  const sourceFile = node.getSourceFile();
+  const typeParameters = typeParameterText(sourceFile, node.typeParameters);
+  const parameters = node.parameters
+    .map((parameter) => parameterText(checker, parameter))
+    .join(", ");
+  return `${typeParameters}(${parameters}): ${returnTypeText(checker, node.type)};`;
+};
+
 type RenderState = {
   readonly checker: ts.TypeChecker;
   readonly declarations: ReadonlyMap<string, Declaration>;
@@ -601,6 +624,13 @@ const renderInterfaceFromDeclaration = (
   const lines: string[] = [`interface ${outputName} {`];
 
   for (const member of declaration.members) {
+    if (ts.isCallSignatureDeclaration(member)) {
+      const signature = renderCallSignature(state.checker, member);
+      collectTypeNames(signature, state.referencedTypes);
+      lines.push(`${getJsDocComment(member)}    ${signature}`);
+      continue;
+    }
+
     if (ts.isMethodSignature(member)) {
       const name = getPropertyName(member.name);
       if (name === null) {
@@ -944,6 +974,58 @@ const renderScriptTypes = (
     .trimEnd()}\n`;
 };
 
+const validateGeneratedTypes = (content: string): void => {
+  const sourceFile = ts.createSourceFile(
+    "script-api.d.ts",
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const interfaces = new Map<string, ts.InterfaceDeclaration>();
+  const typeAliases = new Map<string, ts.TypeAliasDeclaration>();
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isInterfaceDeclaration(statement)) {
+      interfaces.set(statement.name.text, statement);
+    } else if (ts.isTypeAliasDeclaration(statement)) {
+      typeAliases.set(statement.name.text, statement);
+    }
+  }
+
+  for (const name of [
+    "ScriptEventsOnApi",
+    "ScriptPacketOnApi",
+    "WaitForEvent",
+    "WaitForPacket",
+  ]) {
+    const declaration = interfaces.get(name);
+    if (
+      declaration === undefined ||
+      !declaration.members.some(ts.isCallSignatureDeclaration)
+    ) {
+      fail(`Generated ${name} must retain at least one call signature`);
+    }
+  }
+
+  const packetForDirection = typeAliases.get("PacketForDirection");
+  if (
+    packetForDirection === undefined ||
+    !packetForDirection.type
+      .getText(sourceFile)
+      .replace(/\s+/gu, " ")
+      .includes("Extract< FlashPacket,")
+  ) {
+    fail("Generated PacketForDirection must extract from FlashPacket");
+  }
+  if (content.includes("Scope.Scope")) {
+    fail("Generated scripting types must normalize Scope.Scope to Scope");
+  }
+  if (/\binterface\s+Extract\b/u.test(content)) {
+    fail("Generated scripting types must use the built-in Extract type");
+  }
+};
+
 const main = async (options: CliOptions): Promise<void> => {
   const program = createProgram(options.repoRoot);
   if (!program.getSourceFile(options.sourceFile)) {
@@ -952,6 +1034,7 @@ const main = async (options: CliOptions): Promise<void> => {
 
   const declarations = buildDeclarationMap(program);
   const content = renderScriptTypes(program, declarations);
+  validateGeneratedTypes(content);
 
   await fs.mkdir(dirname(options.outputFile), { recursive: true });
   const current = await fs

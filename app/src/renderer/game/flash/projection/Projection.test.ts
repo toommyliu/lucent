@@ -135,7 +135,17 @@ describe("Projection", () => {
         expect(
           (yield* store.items.get("shop", { itemId: 7 }))?.shopItemId,
         ).toBe(70);
-        expect(events).toEqual([]);
+        expect(events).toEqual([
+          {
+            item: expect.objectContaining({
+              context: "drop",
+              itemId: 9,
+              name: "Dropped Item",
+              quantity: 2,
+            }),
+            type: "item-drop",
+          },
+        ]);
         expect(traces).toHaveLength(6);
         expect(traces[0]).toMatchObject({
           before: expect.any(Object),

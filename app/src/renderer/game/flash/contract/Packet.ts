@@ -43,12 +43,13 @@ export const Packet = Schema.Union([
   ServerPacket,
   ExtensionPacket,
 ]);
-export type Packet = typeof Packet.Type;
+export type FlashPacket = ClientPacket | ServerPacket | ExtensionPacket;
+export type Packet = FlashPacket;
 
 export interface PacketSelector {
   readonly command?: string;
   readonly direction?: PacketDirection;
-  readonly predicate?: (packet: Packet) => boolean;
+  readonly predicate?: (packet: FlashPacket) => boolean;
   readonly wireType?: PacketWireType;
 }
 
@@ -57,13 +58,25 @@ export interface WaitOptions {
   readonly timeout?: Duration.Input;
 }
 
-export const packetData = (packet: Packet): unknown =>
+export type PacketForDirection<D extends PacketDirection> = Extract<
+  FlashPacket,
+  { readonly direction: D }
+>;
+
+export type PacketForSelector<S extends PacketSelector | undefined> =
+  S extends {
+    readonly direction: infer Direction extends PacketDirection;
+  }
+    ? PacketForDirection<Direction>
+    : FlashPacket;
+
+export const packetData = (packet: FlashPacket): unknown =>
   packet.direction === "client" ? packet.params : packet.data;
 
-export const matchesPacket = (
-  packet: Packet,
-  selector: PacketSelector | undefined,
-): boolean =>
+export const matchesPacket = <S extends PacketSelector | undefined>(
+  packet: FlashPacket,
+  selector: S,
+): packet is PacketForSelector<S> =>
   (selector?.command === undefined || selector.command === packet.command) &&
   (selector?.direction === undefined ||
     selector.direction === packet.direction) &&

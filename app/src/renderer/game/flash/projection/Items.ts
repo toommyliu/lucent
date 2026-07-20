@@ -464,10 +464,15 @@ export const projectExtensionItems = (
           "items:dropItem:entries",
           diagnose,
         );
+        const events: Event[] = [];
         for (const drop of drops) {
           yield* store.items.upsert("drop", drop);
+          events.push({
+            item: drop.toJSON(),
+            type: "item-drop",
+          });
         }
-        return [];
+        return events;
       }
       case "buyItem": {
         yield* projectPurchase(store, data, diagnose);

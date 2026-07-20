@@ -1,10 +1,27 @@
 import { Effect, Fiber, Stream } from "effect";
 
 import type { GatewayService } from "../bridge/Gateway";
-import { matchesPacket, type PacketSelector } from "../contract/Packet";
-import type { Packet as PacketContract } from "../contract/Packet";
+import {
+  matchesPacket,
+  type Packet as PacketContract,
+  type PacketDirection,
+  type PacketForDirection,
+  type PacketForSelector,
+  type PacketSelector,
+} from "../contract/Packet";
 import type { Store } from "../state/Store";
 import type { Wait } from "./Wait";
+
+interface OnPacket {
+  <const D extends PacketDirection, E>(
+    selector: PacketSelector & { readonly direction: D },
+    handler: (packet: PacketForDirection<D>) => Effect.Effect<void, E>,
+  ): Effect.Effect<() => void>;
+  <E>(
+    selector: PacketSelector | undefined,
+    handler: (packet: PacketContract) => Effect.Effect<void, E>,
+  ): Effect.Effect<() => void>;
+}
 
 const placeholders = [
   "MAP_ID",
@@ -20,9 +37,15 @@ export const makePacket = Effect.fnUntraced(function* (
 ) {
   const scope = yield* Effect.scope;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
-  const stream = (selector?: PacketSelector) =>
+  const stream = <
+    const S extends PacketSelector | undefined = PacketSelector | undefined,
+  >(
+    selector?: S,
+  ) =>
     gateway.packets.pipe(
-      Stream.filter((packet) => matchesPacket(packet, selector)),
+      Stream.filter((packet): packet is PacketForSelector<S> =>
+        matchesPacket(packet, selector),
+      ),
     );
   const resolve = (packet: string) =>
     Effect.gen(function* () {
@@ -38,9 +61,9 @@ export const makePacket = Effect.fnUntraced(function* (
         .replaceAll("{PLAYER_NAME}", player?.username ?? "");
     });
 
-  const on = <E>(
+  const on = ((
     selector: PacketSelector | undefined,
-    handler: (packet: PacketContract) => Effect.Effect<void, E>,
+    handler: (packet: PacketContract) => Effect.Effect<void, unknown>,
   ) =>
     stream(selector).pipe(
       Stream.runForEach(handler),
@@ -48,7 +71,7 @@ export const makePacket = Effect.fnUntraced(function* (
       Effect.map((fiber) => () => {
         runFork(Fiber.interrupt(fiber));
       }),
-    );
+    )) as OnPacket;
 
   const once = wait.forPacket;
 

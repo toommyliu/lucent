@@ -4,11 +4,16 @@ import type { Duration } from "effect";
 import {
   matchesEvent,
   type Event,
+  type EventForType,
   type EventSelector,
+  type EventSelectorForType,
+  type EventType,
 } from "../contract/Event";
 import {
   matchesPacket,
-  type Packet,
+  type FlashPacket,
+  type PacketDirection,
+  type PacketForDirection,
   type PacketSelector,
   type WaitOptions,
 } from "../contract/Packet";
@@ -20,7 +25,7 @@ interface WaitSource {
     Scope.Scope
   >;
   readonly subscribePackets: Effect.Effect<
-    PubSub.Subscription<Packet>,
+    PubSub.Subscription<FlashPacket>,
     never,
     Scope.Scope
   >;
@@ -38,10 +43,32 @@ export interface TriggeredWaitOptions<E = never, R = never> extends Pick<
   readonly trigger?: Effect.Effect<boolean, E, R>;
 }
 
-const takeMatching = <A>(
+interface WaitForEvent {
+  <const T extends EventType, E = never, R = never>(
+    selector: EventSelectorForType<T>,
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<EventForType<T> | null, E, Exclude<R, Scope.Scope>>;
+  <E = never, R = never>(
+    selector?: EventSelector,
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<Event | null, E, Exclude<R, Scope.Scope>>;
+}
+
+interface WaitForPacket {
+  <const D extends PacketDirection, E = never, R = never>(
+    selector: PacketSelector & { readonly direction: D },
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<PacketForDirection<D> | null, E, Exclude<R, Scope.Scope>>;
+  <E = never, R = never>(
+    selector?: PacketSelector,
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<FlashPacket | null, E, Exclude<R, Scope.Scope>>;
+}
+
+const takeMatching = <A, B extends A>(
   subscription: PubSub.Subscription<A>,
-  matches: (value: A) => boolean,
-): Effect.Effect<A> =>
+  matches: (value: A) => value is B,
+): Effect.Effect<B> =>
   Effect.gen(function* () {
     while (true) {
       const value = yield* PubSub.take(subscription);
@@ -58,7 +85,7 @@ const withTimeout = <A, E, R>(
     : effect.pipe(Effect.timeoutOption(timeout), Effect.map(Option.getOrNull));
 
 export const makeWait = (source: WaitSource) => ({
-  forEvent: <E = never, R = never>(
+  forEvent: (<E = never, R = never>(
     selector?: EventSelector,
     options?: TriggeredWaitOptions<E, R>,
   ) =>
@@ -70,12 +97,14 @@ export const makeWait = (source: WaitSource) => ({
           if (!responseExpected) return null;
         }
         return yield* withTimeout(
-          takeMatching(subscription, (event) => matchesEvent(event, selector)),
+          takeMatching(subscription, (event): event is Event =>
+            matchesEvent(event, selector),
+          ),
           options?.timeout,
         );
       }),
-    ),
-  forPacket: <E = never, R = never>(
+    )) as WaitForEvent,
+  forPacket: (<E = never, R = never>(
     selector?: PacketSelector,
     options?: TriggeredWaitOptions<E, R>,
   ) =>
@@ -87,13 +116,13 @@ export const makeWait = (source: WaitSource) => ({
           if (!responseExpected) return null;
         }
         return yield* withTimeout(
-          takeMatching(subscription, (packet) =>
+          takeMatching(subscription, (packet): packet is FlashPacket =>
             matchesPacket(packet, selector),
           ),
           options?.timeout,
         );
       }),
-    ),
+    )) as WaitForPacket,
   until: (
     condition: Effect.Effect<boolean>,
     options?: WaitOptions,

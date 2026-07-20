@@ -1,4 +1,6 @@
-import type { Packet } from "./Packet";
+import type { ItemSnapshot } from "@lucent/game";
+
+import type { FlashPacket } from "./Packet";
 
 export type RuntimeEvent =
   | { readonly type: "connection"; readonly status: string }
@@ -6,7 +8,7 @@ export type RuntimeEvent =
 
 export type ProtocolEvent = {
   readonly type: "packet";
-  readonly packet: Packet;
+  readonly packet: FlashPacket;
 };
 
 export type ProjectionEvent =
@@ -17,6 +19,10 @@ export type ProjectionEvent =
         readonly name: string;
         readonly roomNumber: number;
       };
+    }
+  | {
+      readonly type: "item-drop";
+      readonly item: ItemSnapshot;
     }
   | { readonly type: "quest-complete"; readonly questId: number }
   | { readonly type: "monster-death"; readonly monsterMapId: number }
@@ -60,6 +66,7 @@ export type ProjectionEvent =
   | { readonly type: "zone"; readonly map: string; readonly zone: string };
 
 export type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
+export type EventType = Event["type"];
 
 /**
  * An event-shaped partial selector. `type` chooses the event variant, and every
@@ -84,6 +91,9 @@ export type EventSelector =
     }
   | {
       readonly type: "join-map";
+    }
+  | {
+      readonly type: "item-drop";
     }
   | {
       readonly questId?: number;
@@ -120,6 +130,21 @@ export type EventSelector =
       readonly zone?: string;
     };
 
+export type EventForSelector<S extends EventSelector | undefined> = S extends {
+  readonly type: infer T extends EventType;
+}
+  ? EventForType<T>
+  : Event;
+
+export type EventForType<T extends EventType> = Extract<
+  Event,
+  { readonly type: T }
+>;
+
+export type EventSelectorForType<T extends EventType> = EventSelector & {
+  readonly type: T;
+};
+
 type Scalar = boolean | number | string;
 
 const isScalar = (value: unknown): value is Scalar =>
@@ -127,10 +152,10 @@ const isScalar = (value: unknown): value is Scalar =>
   typeof value === "number" ||
   typeof value === "string";
 
-export const matchesEvent = (
+export const matchesEvent = <S extends EventSelector | undefined>(
   event: Event,
-  selector: EventSelector | undefined,
-): boolean => {
+  selector: S,
+): event is EventForSelector<S> => {
   if (selector === undefined) return true;
   if (
     selector === null ||
