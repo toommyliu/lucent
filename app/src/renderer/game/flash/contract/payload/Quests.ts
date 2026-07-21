@@ -17,6 +17,7 @@ export const QuestItemPayload = Schema.Struct({
   iQty: Schema.optionalKey(WireInt),
   iRate: Schema.optionalKey(WireNumber),
   sName: Schema.optionalKey(Schema.String),
+  bTemp: Schema.optionalKey(WireBoolean),
 });
 export type QuestItemPayload = typeof QuestItemPayload.Type;
 
@@ -58,7 +59,10 @@ const indexedItems = (
 ): ReadonlyMap<number, QuestItemPayload> => {
   const items = new Map<number, QuestItemPayload>();
   for (const value of values.flatMap(collectQuestItems)) {
-    items.set(value.ItemID, value);
+    items.set(value.ItemID, {
+      ...items.get(value.ItemID),
+      ...value,
+    });
   }
   return items;
 };
@@ -83,6 +87,7 @@ const toQuestItem = (
   itemId: payload.ItemID,
   name: payload.sName ?? `Item ${payload.ItemID}`,
   quantity: Math.max(1, quantityOverride ?? payload.iQty ?? 1),
+  ...(payload.bTemp === undefined ? {} : { temporaryItem: payload.bTemp }),
 });
 
 const toReward = (
@@ -113,7 +118,13 @@ export const toQuest = (id: number, payload: QuestPayload): LiveQuest => {
     name: payload.sName ?? `Quest ${id}`,
     once: payload.bOnce ?? false,
     requirements: Array.from(requirements.values()).map((item) =>
-      toQuestItem(item, turnIn.get(item.ItemID)?.iQty),
+      toQuestItem(
+        {
+          ...turnIn.get(item.ItemID),
+          ...item,
+        },
+        turnIn.get(item.ItemID)?.iQty,
+      ),
     ),
     rewards: Array.from(rewards.values()).map((item) =>
       toReward(item, rewardRates.get(item.ItemID)?.iRate),

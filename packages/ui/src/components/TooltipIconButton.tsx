@@ -21,6 +21,7 @@ export interface TooltipIconButtonProps {
   readonly positioning?: TooltipProps["positioning"];
   readonly size?: IconButtonSize;
   readonly tooltip: JSX.Element;
+  readonly type?: IconButtonProps["type"];
   readonly variant?: IconButtonProps["variant"];
   readonly onClick?: JSX.EventHandler<HTMLButtonElement, MouseEvent>;
 }
@@ -43,7 +44,7 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
               disabled: props.disabled,
               onClick: props.onClick,
               size: props.size ?? "icon-sm",
-              type: "button",
+              type: props.type ?? "button",
               variant: props.variant ?? "ghost",
             } as IconButtonProps) as IconButtonProps)}
           />

@@ -16,6 +16,7 @@ import type { ScriptFile } from "../../../shared/ipc/scripting";
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
+import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
 import { Bridge } from "../flash/bridge/Bridge";
 import type { Event as FlashEvent } from "../flash/contract/Event";
@@ -298,6 +299,7 @@ export const layer = Layer.effect(
     const api = yield* Api;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
+    const environment = yield* Environment;
     const bridge = yield* Bridge;
     const {
       auth,
@@ -312,7 +314,7 @@ export const layer = Layer.effect(
     } = api;
     const { autoRelogin, autoZone } = automation;
 
-    const services = makeScriptRuntimeServices(api, army);
+    const services = makeScriptRuntimeServices(api, army, environment);
 
     const activeRef = yield* Ref.make<ActiveScript | null>(null);
     const lifecycleGate = yield* Semaphore.make(1);

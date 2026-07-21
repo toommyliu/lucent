@@ -28,6 +28,7 @@ export interface ElectronWindowHandle {
   readonly id: number;
   readonly webContents: ElectronWindowWebContents;
   readonly close: () => void;
+  readonly destroy: () => void;
   readonly focus: () => void;
   readonly hide: () => void;
   readonly isDestroyed: () => boolean;

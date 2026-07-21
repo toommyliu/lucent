@@ -15,6 +15,7 @@ export const DESKTOP_VIEW_ARGUMENT = "--lucent__view";
 const DesktopBridgeViewSchema = Schema.Literals([
   "account-manager",
   "combat-profiles",
+  "environment",
   "game",
   "settings",
 ]);

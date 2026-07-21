@@ -17,6 +17,7 @@ import {
   AccountsIpc,
   ArmyIpc,
   CombatProfilesIpc,
+  EnvironmentIpc,
   ScriptingIpc,
   SettingsIpc,
   UpdatesIpc,
@@ -135,6 +136,72 @@ const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
 
+const environmentBridge: NonNullable<DesktopBridge["environment"]> = {
+  addBoost: (name) => invoke(EnvironmentIpc.addBoost, { name }),
+  addBoosts: (names) => invoke(EnvironmentIpc.addBoosts, { names }),
+  addItem: (name) => invoke(EnvironmentIpc.addItem, { name }),
+  addItems: (names) => invoke(EnvironmentIpc.addItems, { names }),
+  addQuest: (questId, rewardItemId) =>
+    invoke(EnvironmentIpc.addQuest, {
+      questId,
+      ...(rewardItemId === undefined ? {} : { rewardItemId }),
+    }),
+  addQuests: (quests) => invoke(EnvironmentIpc.addQuests, { quests }),
+  clear: () => invoke(EnvironmentIpc.clear, undefined),
+  clearBoosts: () => invoke(EnvironmentIpc.clearBoosts, undefined),
+  clearItems: () => invoke(EnvironmentIpc.clearItems, undefined),
+  clearQuestReward: (questId) =>
+    invoke(EnvironmentIpc.clearQuestReward, { questId }),
+  clearQuests: () => invoke(EnvironmentIpc.clearQuests, undefined),
+  fetchBoosts: () => invoke(EnvironmentIpc.fetchBoosts, undefined),
+  getState: () => invoke(EnvironmentIpc.getState, undefined),
+  onChanged: (listener) => subscribe(EnvironmentIpc.changed, listener),
+  onFetchBoostsRequest: (listener) =>
+    subscribe(EnvironmentIpc.fetchBoostsRequest, ({ requestId }) => {
+      void Promise.resolve()
+        .then(listener)
+        .catch(() => ({ bank: [], bankLoaded: false, inventory: [] }))
+        .then((discovery) =>
+          invoke(EnvironmentIpc.fetchBoostsResponse, {
+            discovery,
+            requestId,
+          }),
+        )
+        .catch(() => undefined);
+    }),
+  onWithdrawBoostsRequest: (listener) =>
+    subscribe(
+      EnvironmentIpc.withdrawBoostsRequest,
+      ({ itemIds, requestId }) => {
+        void Promise.resolve()
+          .then(() => listener(itemIds))
+          .catch(() => [])
+          .then((withdrawnItemIds) =>
+            invoke(EnvironmentIpc.withdrawBoostsResponse, {
+              itemIds: withdrawnItemIds,
+              requestId,
+            }),
+          )
+          .catch(() => undefined);
+      },
+    ),
+  removeBoost: (name) => invoke(EnvironmentIpc.removeBoost, { name }),
+  removeItem: (name) => invoke(EnvironmentIpc.removeItem, { name }),
+  removeQuest: (questId) => invoke(EnvironmentIpc.removeQuest, { questId }),
+  setAutomationEnabled: (capability, enabled) =>
+    invoke(EnvironmentIpc.setAutomationEnabled, { capability, enabled }),
+  setItemNotification: (name, enabled) =>
+    invoke(EnvironmentIpc.setItemNotification, { enabled, name }),
+  setItemRules: (rules) => invoke(EnvironmentIpc.setItemRules, rules),
+  setQuestAutoRegister: (options) =>
+    invoke(EnvironmentIpc.setQuestAutoRegister, options),
+  setQuestReward: (questId, rewardItemId) =>
+    invoke(EnvironmentIpc.setQuestReward, { questId, rewardItemId }),
+  syncToAll: () => invoke(EnvironmentIpc.syncToAll, undefined),
+  withdrawBoosts: (itemIds) =>
+    invoke(EnvironmentIpc.withdrawBoosts, { itemIds }),
+};
+
 const bridge: DesktopBridge = {
   debug,
   platform: {
@@ -163,6 +230,7 @@ const bridge: DesktopBridge = {
           sync: (payload) => invoke(ArmyIpc.sync, payload),
         },
         combatProfiles: combatProfilesBridge,
+        environment: environmentBridge,
         gameAccounts: gameAccountsBridge,
         ...(gameConsoleObservabilityEnabled
           ? { gameConsoleObservability: gameConsoleObservabilityBridge }
@@ -179,6 +247,11 @@ const bridge: DesktopBridge = {
             invoke(ScriptingIpc.saveInputValues, { definition, values }),
         },
         windows: windowsBridge,
+      }
+    : {}),
+  ...(bridgeView === "environment"
+    ? {
+        environment: environmentBridge,
       }
     : {}),
   ...(bridgeView === "account-manager"

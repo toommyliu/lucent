@@ -4,6 +4,7 @@ import { DesktopIpc } from "./DesktopIpc";
 import * as AccountsIpcMethods from "./methods/accounts";
 import * as ArmyIpcMethods from "./methods/army";
 import * as CombatProfilesIpcMethods from "./methods/combatProfiles";
+import * as EnvironmentIpcMethods from "./methods/environment";
 import * as ScriptingIpcMethods from "./methods/scripting";
 import * as SettingsIpcMethods from "./methods/settings";
 import * as UpdatesIpcMethods from "./methods/updates";
@@ -32,6 +33,9 @@ export const installDesktopIpcHandlers = Effect.fn(
   for (const method of CombatProfilesIpcMethods.methods) {
     yield* ipc.handle(method);
   }
+  for (const method of EnvironmentIpcMethods.methods) {
+    yield* ipc.handle(method);
+  }
   for (const method of SettingsIpcMethods.methods) {
     yield* ipc.handle(method);
   }
@@ -52,6 +56,7 @@ export const desktopIpcMethods = [
   ...AccountsIpcMethods.methods,
   ...ArmyIpcMethods.methods,
   ...CombatProfilesIpcMethods.methods,
+  ...EnvironmentIpcMethods.methods,
   ...SettingsIpcMethods.methods,
   ...ScriptingIpcMethods.methods,
   ...UpdatesIpcMethods.methods,

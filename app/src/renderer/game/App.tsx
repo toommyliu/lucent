@@ -83,6 +83,7 @@ import type {
   SettingsPatch as FlashSettingsPatch,
 } from "./flash/contract/Settings";
 import { Automation } from "./automation/Automation";
+import { Environment } from "./environment/Environment";
 import {
   parseAutoAttackTargetPriority,
   type AutoAttackState,
@@ -280,9 +281,11 @@ const collectFlashServices = () =>
   runtime.runPromise(
     Effect.gen(function* () {
       const api = yield* Api;
+      const environment = yield* Environment;
 
       return {
         ...api,
+        environment,
         outfits: api.player.outfits,
       };
     }),
@@ -1961,7 +1964,11 @@ export function App(props: {
 
   const handleOpenWindow = (id: WindowId) => {
     setOpenMenu(null);
-    if (id !== "combat-profiles" && id !== "account-manager") {
+    if (
+      id !== "combat-profiles" &&
+      id !== "account-manager" &&
+      id !== "environment"
+    ) {
       return;
     }
 

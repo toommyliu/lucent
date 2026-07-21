@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import type { ScriptRuntimeApi, ScriptRuntimeOptions } from "./ScriptApi";
-import { playBeep } from "./beep";
+import { playBeep } from "../audio/beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import {
   makeScriptExitSignal,

@@ -6,7 +6,7 @@ import { compileScriptEval } from "./ScriptEvaluator";
 import { ScriptExecutionError } from "./ScriptRunnerErrors";
 
 const lucent = {
-  api: { marker: "api" },
+  api: { environment: { marker: "environment" }, marker: "api" },
   features: { marker: "features" },
   script: { marker: "script" },
 } as unknown as ScriptLucentStd;
@@ -22,12 +22,12 @@ describe("ScriptEvaluator", () => {
       } as unknown as Console;
       const result = yield* compileScriptEval(
         `console.log(script.marker, features.marker);
-return yield* Effect.succeed(api.marker);`,
+return yield* Effect.succeed([api.marker, api.environment.marker]);`,
         lucent,
         debugConsole,
       );
 
-      expect(result).toBe("api");
+      expect(result).toEqual(["api", "environment"]);
       expect(logs).toEqual([["script", "features"]]);
     }),
   );

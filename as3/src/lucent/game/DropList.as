@@ -72,21 +72,27 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function rejectDrop(itemId:int):void {
+    public static function rejectDrop(itemId:int):Boolean {
       if (isUsingCustomDrops()) {
-        if (!isCustomDropsUiOpen())
-          toggleUi();
-
         var entry:* = getCustomDropEntry(itemId);
-        if (entry)
-          entry.btNo.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+        if (!entry && !isCustomDropsUiOpen()) {
+          toggleUi();
+          entry = getCustomDropEntry(itemId);
+        }
 
-        return;
+        if (!entry || !entry.itemObj)
+          return false;
+
+        Main.Game.cDropsUI.onBtNo(entry.itemObj);
+        return getCustomDropEntry(itemId) == null;
       }
 
       var frame:* = getDefaultDropFrame(itemId);
-      if (frame)
-        frame.cnt.nbtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      if (!frame)
+        return false;
+
+      frame.cnt.nbtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      return !frame.mouseChildren;
     }
 
     [BridgeExport]

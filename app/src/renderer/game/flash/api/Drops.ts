@@ -97,11 +97,12 @@ export const makeDrops = Effect.fnUntraced(function* (
       if (!(yield* auth.isLoggedIn())) return false;
       const drop = yield* store.items.get("drop", selector);
       if (drop === null) return false;
-      if (
-        Option.isNone(
-          yield* bridge.invoke("drops.rejectDrop", [drop.itemId], Schema.Void),
-        )
-      ) {
+      const rejected = yield* bridge.invoke(
+        "drops.rejectDrop",
+        [drop.itemId],
+        Schema.Boolean,
+      );
+      if (Option.isNone(rejected) || !rejected.value) {
         return false;
       }
       yield* store.items.remove("drop", drop.itemId);

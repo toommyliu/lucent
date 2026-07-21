@@ -4,6 +4,7 @@ import type { AutomationService } from "../automation/Automation";
 import type { BridgeService } from "../flash/bridge/Bridge";
 import { makeScriptArmyApi } from "./api/Army";
 import { makeScriptEventsApi } from "./api/Events";
+import { makeScriptEnvironmentApi } from "./api/Environment";
 import { makeScriptPacketApi } from "./api/Packet";
 import { makeScriptPlayerApis } from "./api/Player";
 import { makeScriptRecipesApi } from "./api/Recipes";
@@ -39,6 +40,7 @@ export const makeScriptLucentStd = (
     options.scope,
     options.failCause,
   );
+  const environment = makeScriptEnvironmentApi(options.services.environment);
   const packet = makeScriptPacketApi(
     options.services.packet,
     options.scope,
@@ -59,6 +61,7 @@ export const makeScriptLucentStd = (
   return Object.freeze({
     api: Object.freeze({
       ...services,
+      environment,
       events,
       packet,
       recipes,

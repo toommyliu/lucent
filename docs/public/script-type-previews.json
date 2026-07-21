@@ -191,8 +191,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:47",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L47"
+        "path": "app/src/renderer/game/army/Army.ts:44",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L44"
       }
     },
     "army-error": {
@@ -265,8 +265,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:26",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L26"
+        "path": "app/src/renderer/game/army/Army.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L23"
       }
     },
     "army-loop-taunt-assignment": {
@@ -303,8 +303,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:72",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L72"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:74",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L74"
       }
     },
     "army-loop-taunt-error": {
@@ -377,8 +377,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:122",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L122"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:124",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L124"
       }
     },
     "army-loop-taunt-handle": {
@@ -397,8 +397,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:117",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L117"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:119",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L119"
       }
     },
     "army-loop-taunt-participant-snapshot": {
@@ -423,8 +423,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:44",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L44"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L46"
       }
     },
     "army-loop-taunt-plan": {
@@ -436,8 +436,8 @@
       "definition": "type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[]",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:100",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L100"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:102",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L102"
       }
     },
     "army-loop-taunt-priority-group": {
@@ -456,8 +456,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:88",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L88"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:90",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L90"
       }
     },
     "army-loop-taunt-skip-context": {
@@ -482,8 +482,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:52",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L52"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:54",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L54"
       }
     },
     "army-loop-taunt-skip-when": {
@@ -495,8 +495,8 @@
       "definition": "type ArmyLoopTauntSkipWhen = (\n  context: ArmyLoopTauntSkipContext,\n) =>\n  | boolean\n  | Effect.Effect<boolean, unknown>\n  | Generator<Effect.Effect<any, any, never>, boolean, any>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:60",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L60"
+        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:62",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L62"
       }
     },
     "army-loop-taunt-strategy": {
@@ -528,8 +528,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:43",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L43"
+        "path": "app/src/renderer/game/army/Army.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L40"
       }
     },
     "army-session": {
@@ -602,8 +602,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:51",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L51"
+        "path": "app/src/renderer/game/army/Army.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L48"
       }
     },
     "army-session-payload": {
@@ -1305,6 +1305,19 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L19"
       }
     },
+    "client-packet": {
+      "name": "ClientPacket",
+      "slug": "client-packet",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type ClientPacket = typeof ClientPacket.Type",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:21",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L21"
+      }
+    },
     "combat-kill-options": {
       "name": "CombatKillOptions",
       "slug": "combat-kill-options",
@@ -1518,7 +1531,7 @@
       "name": "ConsumableCastResult",
       "slug": "consumable-cast-result",
       "kind": "interface",
-      "summary": "The server acknowledgement for a dispatched consumable cast.",
+      "summary": "Retains local dispatch identity because rejected acknowledgements omit their target.",
       "aliasOf": null,
       "definition": "interface ConsumableCastResult",
       "keys": [
@@ -1678,6 +1691,112 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/entity.ts#L14"
       }
     },
+    "environment-drop-policy": {
+      "name": "EnvironmentDropPolicy",
+      "slug": "environment-drop-policy",
+      "kind": "type alias",
+      "summary": "Handling options for drops that are not registered by name.",
+      "aliasOf": null,
+      "definition": "type EnvironmentDropPolicy = typeof EnvironmentDropPolicySchema.Type",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "acceptAcMemberOnlyDrops",
+          "signature": "readonly acceptAcMemberOnlyDrops: boolean",
+          "description": "Accept member-only AC-tagged items."
+        },
+        {
+          "kind": "property",
+          "name": "acceptAcNonMemberDrops",
+          "signature": "readonly acceptAcNonMemberDrops: boolean",
+          "description": "Accept non-member AC-tagged items."
+        },
+        {
+          "kind": "property",
+          "name": "acceptNonAcMemberOnlyDrops",
+          "signature": "readonly acceptNonAcMemberOnlyDrops: boolean",
+          "description": "Accept member-only non-AC items."
+        },
+        {
+          "kind": "property",
+          "name": "acceptNonAcNonMemberDrops",
+          "signature": "readonly acceptNonAcNonMemberDrops: boolean",
+          "description": "Accept non-member non-AC items."
+        },
+        {
+          "kind": "property",
+          "name": "rejectUnregisteredDrops",
+          "signature": "readonly rejectUnregisteredDrops: boolean",
+          "description": "Reject any unregistered drop that is not accepted by this policy."
+        }
+      ],
+      "source": {
+        "path": "packages/core/src/environment.ts:74",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/environment.ts#L74"
+      }
+    },
+    "environment-state": {
+      "name": "EnvironmentState",
+      "slug": "environment-state",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type EnvironmentState = typeof EnvironmentStateSchema.Type",
+      "keys": [
+        {
+          "kind": "property",
+          "name": "automation",
+          "signature": "readonly automation: { readonly boosts: boolean; readonly drops: boolean; readonly quests: boolean; }",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "boosts",
+          "signature": "readonly boosts: readonly string[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemNames",
+          "signature": "readonly itemNames: readonly string[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemNotificationNames",
+          "signature": "readonly itemNotificationNames: readonly string[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "itemRules",
+          "signature": "readonly itemRules: { readonly buckets: readonly ('ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member')[]; readonly rejectElse: boolean; }",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "questAutoRegister",
+          "signature": "readonly questAutoRegister: { readonly requirements: boolean; readonly rewards: boolean; }",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "questIds",
+          "signature": "readonly questIds: readonly number[]",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "questRewards",
+          "signature": "readonly questRewards: { readonly [x: number]: number; }",
+          "description": ""
+        }
+      ],
+      "source": {
+        "path": "packages/core/src/environment.ts:94",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/environment.ts#L94"
+      }
+    },
     "equip-options": {
       "name": "EquipOptions",
       "slug": "equip-options",
@@ -1707,8 +1826,34 @@
       "definition": "type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:62",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L62"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:68",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L68"
+      }
+    },
+    "event-for-selector": {
+      "name": "EventForSelector",
+      "slug": "event-for-selector",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type EventForSelector<S> = S extends {\n  readonly type: infer T extends EventType;\n}\n  ? EventForType<T>\n  : Event",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Event.ts:133",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L133"
+      }
+    },
+    "event-for-type": {
+      "name": "EventForType",
+      "slug": "event-for-type",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type EventForType<T> = Extract<\n  Event,\n  { readonly type: T }\n>",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Event.ts:139",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L139"
       }
     },
     "event-selector": {
@@ -1717,11 +1862,50 @@
       "kind": "type alias",
       "summary": "An event-shaped partial selector. `type` chooses the event variant, and every\nother field is an exact-match constraint on a scalar field of that variant.\n\nOmitting a field leaves it unconstrained. With exact optional property types,\nexplicitly passing `undefined` is invalid; untyped callers that do so safely\nfail to match instead of selecting events where the field happens to be\nabsent.",
       "aliasOf": null,
-      "definition": "type EventSelector = | {\n      readonly status?: string;\n      readonly type: \"connection\";\n    }\n  | {\n      readonly message?: string;\n      readonly type: \"debug\";\n    }\n  | {\n      readonly type: \"packet\";\n    }\n  | {\n      readonly type: \"join-map\";\n    }\n  | {\n      readonly questId?: number;\n      readonly type: \"quest-complete\";\n    }\n  | {\n      readonly monsterMapId?: number;\n      readonly type: \"monster-death\" | \"monster-respawn\";\n    }\n  | {\n      readonly entityId?: number;\n      readonly type: \"player-death\" | \"player-location\";\n      readonly username?: string;\n    }\n  | {\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name?: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId?: number;\n      readonly targetType?: \"monster\" | \"player\";\n      readonly type: \"aura-added\" | \"aura-removed\";\n    }\n  | {\n      readonly message?: string;\n      readonly monsterMapId?: number;\n      readonly source?: \"animation\" | \"aura\";\n      readonly type: \"update-message\";\n    }\n  | {\n      readonly map?: string;\n      readonly type: \"zone\";\n      readonly zone?: string;\n    }",
+      "definition": "type EventSelector = | {\n      readonly status?: string;\n      readonly type: \"connection\";\n    }\n  | {\n      readonly message?: string;\n      readonly type: \"debug\";\n    }\n  | {\n      readonly type: \"packet\";\n    }\n  | {\n      readonly type: \"join-map\";\n    }\n  | {\n      readonly type: \"item-drop\";\n    }\n  | {\n      readonly questId?: number;\n      readonly type: \"quest-complete\";\n    }\n  | {\n      readonly monsterMapId?: number;\n      readonly type: \"monster-death\" | \"monster-respawn\";\n    }\n  | {\n      readonly entityId?: number;\n      readonly type: \"player-death\" | \"player-location\";\n      readonly username?: string;\n    }\n  | {\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name?: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId?: number;\n      readonly targetType?: \"monster\" | \"player\";\n      readonly type: \"aura-added\" | \"aura-removed\";\n    }\n  | {\n      readonly message?: string;\n      readonly monsterMapId?: number;\n      readonly source?: \"animation\" | \"aura\";\n      readonly type: \"update-message\";\n    }\n  | {\n      readonly map?: string;\n      readonly type: \"zone\";\n      readonly zone?: string;\n    }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:73",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L73"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:80",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L80"
+      }
+    },
+    "event-selector-for-type": {
+      "name": "EventSelectorForType",
+      "slug": "event-selector-for-type",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type EventSelectorForType<T> = EventSelector & {\n  readonly type: T;\n}",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Event.ts:144",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L144"
+      }
+    },
+    "event-type": {
+      "name": "EventType",
+      "slug": "event-type",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type EventType = Event[\"type\"]",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Event.ts:69",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L69"
+      }
+    },
+    "extension-packet": {
+      "name": "ExtensionPacket",
+      "slug": "extension-packet",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type ExtensionPacket = typeof ExtensionPacket.Type",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:39",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L39"
       }
     },
     "faction-data": {
@@ -1773,6 +1957,19 @@
       "source": {
         "path": "packages/game/src/faction.ts:18",
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/faction.ts#L18"
+      }
+    },
+    "flash-packet": {
+      "name": "FlashPacket",
+      "slug": "flash-packet",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type FlashPacket = ClientPacket | ServerPacket | ExtensionPacket",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L46"
       }
     },
     "game-action": {
@@ -3308,7 +3505,7 @@
           "kind": "property",
           "name": "cadence",
           "signature": "readonly cadence: QuestCadence",
-          "description": ""
+          "description": "How often the quest can be completed."
         },
         {
           "kind": "property",
@@ -3366,8 +3563,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/quest.ts:36",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L36"
+        "path": "packages/game/src/quest.ts:37",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L37"
       }
     },
     "live-server": {
@@ -3858,19 +4055,6 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/outfit.ts#L36"
       }
     },
-    "packet": {
-      "name": "Packet",
-      "slug": "packet",
-      "kind": "type alias",
-      "summary": "",
-      "aliasOf": null,
-      "definition": "type Packet = typeof Packet.Type",
-      "keys": [],
-      "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:46",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L46"
-      }
-    },
     "packet-direction": {
       "name": "PacketDirection",
       "slug": "packet-direction",
@@ -3882,6 +4066,32 @@
       "source": {
         "path": "app/src/renderer/game/flash/contract/Packet.ts:9",
         "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L9"
+      }
+    },
+    "packet-for-direction": {
+      "name": "PacketForDirection",
+      "slug": "packet-for-direction",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type PacketForDirection<D> = Extract<\n  FlashPacket,\n  { readonly direction: D }\n>",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:61",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L61"
+      }
+    },
+    "packet-for-selector": {
+      "name": "PacketForSelector",
+      "slug": "packet-for-selector",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type PacketForSelector<S> = S extends {\n    readonly direction: infer Direction extends PacketDirection;\n  }\n    ? PacketForDirection<Direction>\n    : FlashPacket",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:66",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L66"
       }
     },
     "packet-selector": {
@@ -3907,7 +4117,7 @@
         {
           "kind": "property",
           "name": "predicate",
-          "signature": "readonly predicate?: (packet: { command: string; direction: \"client\"; params: readonly string[]; raw: string; wireType: \"str\" | \"json\" } | { command: string; data: unknown; direction: \"server\"; raw: string; wireType: \"str\" | \"json\" } | { command: string; data: unknown; direction: \"extension\"; raw: string; wireType: \"str\" | \"json\" }) => boolean",
+          "signature": "readonly predicate?: (packet: FlashPacket) => boolean",
           "description": ""
         },
         {
@@ -3918,8 +4128,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:48",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L48"
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:49",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L49"
       }
     },
     "packet-wire-type": {
@@ -4131,11 +4341,11 @@
       "kind": "type alias",
       "summary": "",
       "aliasOf": null,
-      "definition": "type ProjectionEvent = | {\n      readonly type: \"join-map\";\n      readonly map: {\n        readonly id: number;\n        readonly name: string;\n        readonly roomNumber: number;\n      };\n    }\n  | { readonly type: \"quest-complete\"; readonly questId: number }\n  | { readonly type: \"monster-death\"; readonly monsterMapId: number }\n  | { readonly type: \"monster-respawn\"; readonly monsterMapId: number }\n  | {\n      readonly type: \"player-death\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"aura-added\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"aura-removed\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"player-location\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"update-message\";\n      readonly message: string;\n      readonly monsterMapId?: number;\n      readonly source: \"animation\" | \"aura\";\n    }\n  | { readonly type: \"zone\"; readonly map: string; readonly zone: string }",
+      "definition": "type ProjectionEvent = | {\n      readonly type: \"join-map\";\n      readonly map: {\n        readonly id: number;\n        readonly name: string;\n        readonly roomNumber: number;\n      };\n    }\n  | {\n      readonly type: \"item-drop\";\n      readonly item: ItemSnapshot;\n    }\n  | { readonly type: \"quest-complete\"; readonly questId: number }\n  | { readonly type: \"monster-death\"; readonly monsterMapId: number }\n  | { readonly type: \"monster-respawn\"; readonly monsterMapId: number }\n  | {\n      readonly type: \"player-death\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"aura-added\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"aura-removed\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"player-location\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"update-message\";\n      readonly message: string;\n      readonly monsterMapId?: number;\n      readonly source: \"animation\" | \"aura\";\n    }\n  | { readonly type: \"zone\"; readonly map: string; readonly zone: string }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:12",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L12"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:14",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L14"
       }
     },
     "protocol-event": {
@@ -4144,11 +4354,11 @@
       "kind": "type alias",
       "summary": "",
       "aliasOf": null,
-      "definition": "type ProtocolEvent = {\n  readonly type: \"packet\";\n  readonly packet: Packet;\n}",
+      "definition": "type ProtocolEvent = {\n  readonly type: \"packet\";\n  readonly packet: FlashPacket;\n}",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:7",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L7"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:9",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L9"
       }
     },
     "quest-cadence": {
@@ -4160,8 +4370,8 @@
       "definition": "type QuestCadence = \"daily\" | \"monthly\" | \"none\" | \"weekly\"",
       "keys": [],
       "source": {
-        "path": "packages/game/src/quest.ts:13",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L13"
+        "path": "packages/game/src/quest.ts:14",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L14"
       }
     },
     "quest-data": {
@@ -4210,8 +4420,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/quest.ts:25",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L25"
+        "path": "packages/game/src/quest.ts:26",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L26"
       }
     },
     "quest-item": {
@@ -4238,6 +4448,12 @@
           "kind": "property",
           "name": "quantity",
           "signature": "readonly quantity: number",
+          "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "temporaryItem",
+          "signature": "readonly temporaryItem?: boolean",
           "description": ""
         }
       ],
@@ -4277,11 +4493,17 @@
           "name": "quantity",
           "signature": "readonly quantity: number",
           "description": ""
+        },
+        {
+          "kind": "property",
+          "name": "temporaryItem",
+          "signature": "readonly temporaryItem?: boolean",
+          "description": ""
         }
       ],
       "source": {
-        "path": "packages/game/src/quest.ts:9",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L9"
+        "path": "packages/game/src/quest.ts:10",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L10"
       }
     },
     "quest-snapshot": {
@@ -4293,8 +4515,8 @@
       "definition": "type QuestSnapshot = Readonly<QuestData>",
       "keys": [],
       "source": {
-        "path": "packages/game/src/quest.ts:34",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L34"
+        "path": "packages/game/src/quest.ts:35",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L35"
       }
     },
     "runtime-event": {
@@ -4306,8 +4528,8 @@
       "definition": "type RuntimeEvent = | { readonly type: \"connection\"; readonly status: string }\n  | { readonly type: \"debug\"; readonly message: string }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L3"
+        "path": "app/src/renderer/game/flash/contract/Event.ts:5",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L5"
       }
     },
     "script-callback-result": {
@@ -4614,6 +4836,12 @@
       "keys": [
         {
           "kind": "property",
+          "name": "restartAfterReconnect",
+          "signature": "readonly restartAfterReconnect: boolean",
+          "description": ""
+        },
+        {
+          "kind": "property",
           "name": "safeStartStop",
           "signature": "readonly safeStartStop: boolean",
           "description": ""
@@ -4626,8 +4854,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptApi.ts:70",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L70"
+        "path": "app/src/renderer/game/scripting/ScriptApi.ts:72",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L72"
       }
     },
     "script-stop-signal": {
@@ -4928,6 +5156,19 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/server.ts#L15"
       }
     },
+    "server-packet": {
+      "name": "ServerPacket",
+      "slug": "server-packet",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type ServerPacket = typeof ServerPacket.Type",
+      "keys": [],
+      "source": {
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:30",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L30"
+      }
+    },
     "server-snapshot": {
       "name": "ServerSnapshot",
       "slug": "server-snapshot",
@@ -5155,8 +5396,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/protocol/Wait.ts:34",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L34"
+        "path": "app/src/renderer/game/flash/protocol/Wait.ts:39",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L39"
       }
     },
     "wait-options": {
@@ -5181,8 +5422,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:55",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L55"
+        "path": "app/src/renderer/game/flash/contract/Packet.ts:56",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L56"
       }
     }
   }

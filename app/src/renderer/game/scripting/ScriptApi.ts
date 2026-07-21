@@ -10,6 +10,7 @@ import type { AutomationService } from "../automation/Automation";
 import type { ApiService } from "../flash/api/Api";
 import type { ScriptCallbackResult, ScriptGenerator } from "./api/Callbacks";
 import type { ScriptEventsApi } from "./api/Events";
+import type { ScriptEnvironmentApi } from "./api/Environment";
 import type { ScriptPacketApi } from "./api/Packet";
 import type { ScriptPlayersApi } from "./api/Players";
 import type { ScriptRecipesApi } from "./api/Recipes";
@@ -46,6 +47,7 @@ export interface ScriptApi {
   readonly bank: ApiService["bank"];
   readonly combat: ApiService["combat"];
   readonly drops: ApiService["drops"];
+  readonly environment: ScriptEnvironmentApi;
   readonly events: ScriptEventsApi;
   readonly house: ApiService["house"];
   readonly inventory: ApiService["inventory"];

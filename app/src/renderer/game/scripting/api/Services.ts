@@ -1,5 +1,6 @@
 import type { ArmyApiRuntimeShape } from "../../army/Army";
 import type { ApiService } from "../../flash/api/Api";
+import type { EnvironmentShape } from "../../environment/Environment";
 
 export interface ScriptRuntimeServices {
   readonly army: ArmyApiRuntimeShape;
@@ -7,6 +8,7 @@ export interface ScriptRuntimeServices {
   readonly bank: ApiService["bank"];
   readonly combat: ApiService["combat"];
   readonly drops: ApiService["drops"];
+  readonly environment: EnvironmentShape;
   readonly events: ApiService["events"];
   readonly house: ApiService["house"];
   readonly inventory: ApiService["inventory"];
@@ -25,4 +27,5 @@ export interface ScriptRuntimeServices {
 export const makeScriptRuntimeServices = (
   api: ApiService,
   army: ArmyApiRuntimeShape,
-): ScriptRuntimeServices => ({ ...api, army });
+  environment: EnvironmentShape,
+): ScriptRuntimeServices => ({ ...api, army, environment });

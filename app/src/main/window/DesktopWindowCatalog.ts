@@ -1,9 +1,11 @@
 export type DesktopWindowKind =
   | "account-manager"
   | "combat-profiles"
+  | "environment"
   | "game"
   | "settings";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
+export type DesktopWindowScope = "application" | "game" | "game-child";
 
 export interface DesktopWindowDefinition {
   readonly closeBehavior: DesktopWindowCloseBehavior;
@@ -12,6 +14,7 @@ export interface DesktopWindowDefinition {
   readonly minHeight?: number;
   readonly minWidth?: number;
   readonly requiresFlashPlugin: boolean;
+  readonly scope: DesktopWindowScope;
   readonly singleInstance: boolean;
   readonly width: number;
 }
@@ -28,6 +31,7 @@ const desktopWindowCatalog: ReadonlyMap<
       height: 768,
       closeBehavior: "destroy",
       requiresFlashPlugin: true,
+      scope: "game",
       singleInstance: false,
     },
   ],
@@ -36,11 +40,12 @@ const desktopWindowCatalog: ReadonlyMap<
     {
       kind: "settings",
       width: 651,
-      height: 654,
+       height: 654,
       minWidth: 560,
       minHeight: 520,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
+      scope: "application",
       singleInstance: true,
     },
   ],
@@ -54,6 +59,7 @@ const desktopWindowCatalog: ReadonlyMap<
       minHeight: 560,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
+      scope: "application",
       singleInstance: true,
     },
   ],
@@ -67,6 +73,19 @@ const desktopWindowCatalog: ReadonlyMap<
       minHeight: 460,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
+      scope: "application",
+      singleInstance: true,
+    },
+  ],
+  [
+    "environment",
+    {
+      kind: "environment",
+      width: 778,
+      height: 613,
+      closeBehavior: "hide",
+      requiresFlashPlugin: false,
+      scope: "game-child",
       singleInstance: true,
     },
   ],

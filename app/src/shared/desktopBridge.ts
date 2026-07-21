@@ -3,6 +3,13 @@ import type {
   AppearancePatch,
   PreferencesPatch,
 } from "@lucent/core/settings";
+import type {
+  EnvironmentAutomationCapability,
+  EnvironmentItemRules,
+  EnvironmentQuestAutoRegisterOptions,
+  EnvironmentQuestRegistration,
+  EnvironmentState,
+} from "@lucent/core/environment";
 import type { HotkeysPatch } from "@lucent/core/hotkeys";
 import type {
   CombatProfile,
@@ -32,6 +39,7 @@ import type {
   ScriptOpenFileResult,
   ScriptSelectFileResult,
 } from "./ipc/scripting";
+import type { EnvironmentBoostDiscovery } from "./ipc/environment";
 import type {
   ScriptInputsDefinition,
   ScriptInputValues,
@@ -56,11 +64,13 @@ export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
   | "account-manager"
   | "combat-profiles"
+  | "environment"
   | "game"
   | "settings";
 export type DesktopBridgeWindowKind =
   | "account-manager"
   | "combat-profiles"
+  | "environment"
   | "game"
   | "settings";
 
@@ -164,6 +174,67 @@ export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
 
+export interface DesktopEnvironmentBridge {
+  readonly addBoost: (name: string) => Promise<EnvironmentState>;
+  readonly addBoosts: (names: readonly string[]) => Promise<EnvironmentState>;
+  readonly addItem: (name: string) => Promise<EnvironmentState>;
+  readonly addItems: (names: readonly string[]) => Promise<EnvironmentState>;
+  readonly addQuest: (
+    questId: number | string,
+    rewardItemId?: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly addQuests: (
+    quests: readonly EnvironmentQuestRegistration[],
+  ) => Promise<EnvironmentState>;
+  readonly clear: () => Promise<EnvironmentState>;
+  readonly clearBoosts: () => Promise<EnvironmentState>;
+  readonly clearItems: () => Promise<EnvironmentState>;
+  readonly clearQuestReward: (
+    questId: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly clearQuests: () => Promise<EnvironmentState>;
+  readonly fetchBoosts: () => Promise<EnvironmentBoostDiscovery>;
+  readonly getState: () => Promise<EnvironmentState>;
+  readonly onChanged: (
+    listener: (state: EnvironmentState) => void,
+  ) => () => void;
+  readonly onFetchBoostsRequest: (
+    listener: () =>
+      | Promise<EnvironmentBoostDiscovery>
+      | EnvironmentBoostDiscovery,
+  ) => () => void;
+  readonly onWithdrawBoostsRequest: (
+    listener: (
+      itemIds: readonly number[],
+    ) => Promise<readonly number[]> | readonly number[],
+  ) => () => void;
+  readonly removeBoost: (name: string) => Promise<EnvironmentState>;
+  readonly removeItem: (name: string) => Promise<EnvironmentState>;
+  readonly removeQuest: (questId: number | string) => Promise<EnvironmentState>;
+  readonly setAutomationEnabled: (
+    capability: EnvironmentAutomationCapability,
+    enabled: boolean,
+  ) => Promise<EnvironmentState>;
+  readonly setItemNotification: (
+    name: string,
+    enabled: boolean,
+  ) => Promise<EnvironmentState>;
+  readonly setItemRules: (
+    rules: EnvironmentItemRules,
+  ) => Promise<EnvironmentState>;
+  readonly setQuestAutoRegister: (
+    options: EnvironmentQuestAutoRegisterOptions,
+  ) => Promise<EnvironmentState>;
+  readonly setQuestReward: (
+    questId: number | string,
+    rewardItemId: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly syncToAll: () => Promise<EnvironmentState>;
+  readonly withdrawBoosts: (
+    itemIds: readonly number[],
+  ) => Promise<readonly number[]>;
+}
+
 export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
   readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
@@ -199,6 +270,7 @@ export interface DesktopBridge {
   readonly army?: DesktopArmyBridge;
   readonly combatProfiles?: DesktopCombatProfilesBridge;
   readonly debug: boolean;
+  readonly environment?: DesktopEnvironmentBridge;
   readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly platform: {

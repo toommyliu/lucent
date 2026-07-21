@@ -2,6 +2,7 @@ import { Cause, Deferred, Effect, Ref } from "effect";
 
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
+import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
 import { Bridge } from "../flash/bridge/Bridge";
 import type {
@@ -79,6 +80,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
     const api = yield* Api;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
+    const environment = yield* Environment;
     const bridge = yield* Bridge;
     const runner = yield* ScriptRunner;
     const scope = makeScriptAsyncScope();
@@ -113,7 +115,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         },
         scope,
         script,
-        services: makeScriptRuntimeServices(api, army),
+        services: makeScriptRuntimeServices(api, army, environment),
       });
 
       return yield* Effect.raceFirst(

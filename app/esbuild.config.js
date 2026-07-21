@@ -96,6 +96,13 @@ const rendererViews = [
     ready: true,
     title: "Combat Profiles",
   },
+  {
+    contentSecurityPolicy: baseContentSecurityPolicy,
+    entryPoint: "src/renderer/environment/index.tsx",
+    id: "environment",
+    ready: true,
+    title: "Environment",
+  },
 ];
 
 const mainOptions = {

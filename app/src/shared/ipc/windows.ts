@@ -7,6 +7,7 @@ const namespace = "desktop:windows";
 export const DesktopWindowKindSchema = Schema.Literals([
   "account-manager",
   "combat-profiles",
+  "environment",
   "game",
   "settings",
 ]);

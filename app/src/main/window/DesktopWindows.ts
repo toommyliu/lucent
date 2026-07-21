@@ -65,6 +65,13 @@ export interface DesktopWindowsShape {
   readonly getBrowserWindowKind: (
     browserWindowId: number,
   ) => Effect.Effect<DesktopWindowKind | null, DesktopWindowError>;
+  readonly getOwnedBrowserWindowIds: (
+    ownerBrowserWindowId: number,
+    kind?: DesktopWindowKind,
+  ) => Effect.Effect<readonly number[], DesktopWindowError>;
+  readonly getOwnerBrowserWindowId: (
+    browserWindowId: number,
+  ) => Effect.Effect<number | null, DesktopWindowError>;
   readonly onClosed: (
     listener: (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
@@ -111,6 +118,7 @@ export interface DesktopWindowOpenOptions {
   readonly onCreated?: (
     event: DesktopWindowCreatedEvent,
   ) => Effect.Effect<void, unknown>;
+  readonly ownerBrowserWindowId?: number;
   readonly tile?: DesktopWindowTilePlacement;
 }
 
@@ -428,6 +436,63 @@ const makeDesktopWindows = Effect.gen(function* () {
       ),
     );
 
+  const getOwnerBrowserWindowId: DesktopWindowsShape["getOwnerBrowserWindowId"] =
+    (browserWindowId) =>
+      Effect.sync(() => {
+        const entry = findBrowserWindowEntry(browserWindowId);
+        if (entry === null) {
+          return null;
+        }
+
+        const ownerId = entry[1].ownerId;
+        if (ownerId === undefined) {
+          return null;
+        }
+
+        const owner = windows.get(ownerId);
+        return owner === undefined || !isElectronWindowUsable(owner.window)
+          ? null
+          : owner.browserWindowId;
+      }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new DesktopWindowError({
+              id: String(browserWindowId),
+              detail: `Failed to resolve Electron window owner: ${browserWindowId}`,
+              cause,
+            }),
+        ),
+      );
+
+  const getOwnedBrowserWindowIds: DesktopWindowsShape["getOwnedBrowserWindowIds"] =
+    (ownerBrowserWindowId, kind) =>
+      Effect.try({
+        try: () => {
+          const owner = findBrowserWindowEntry(ownerBrowserWindowId);
+          if (owner === null) {
+            throw new Error(
+              `Desktop window owner is not open: ${ownerBrowserWindowId}`,
+            );
+          }
+
+          const [ownerId] = owner;
+          return [...windows.values()]
+            .filter(
+              (record) =>
+                record.ownerId === ownerId &&
+                (kind === undefined || record.kind === kind) &&
+                isElectronWindowUsable(record.window),
+            )
+            .map((record) => record.browserWindowId);
+        },
+        catch: (cause) =>
+          new DesktopWindowError({
+            id: String(ownerBrowserWindowId),
+            detail: `Failed to resolve owned Electron windows: ${ownerBrowserWindowId}`,
+            cause,
+          }),
+      });
+
   const revealBrowserWindow: DesktopWindowsShape["revealBrowserWindow"] = (
     browserWindowId,
   ) =>
@@ -534,10 +599,15 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const findOpenInstance = (
     kind: DesktopWindowKind,
+    ownerId: DesktopWindowInstanceId | undefined,
   ): readonly [DesktopWindowInstanceId, DesktopWindowRecord] | null => {
     for (const entry of windows.entries()) {
       const [, record] = entry;
-      if (record.kind === kind && isElectronWindowUsable(record.window)) {
+      if (
+        record.kind === kind &&
+        record.ownerId === ownerId &&
+        isElectronWindowUsable(record.window)
+      ) {
         return entry;
       }
     }
@@ -561,8 +631,43 @@ const makeDesktopWindows = Effect.gen(function* () {
   const open: DesktopWindowsShape["open"] = (kind, options) =>
     Effect.gen(function* () {
       const definition = getDesktopWindowDefinition(kind);
+      const ownerId = yield* Effect.try({
+        try: () => {
+          if (definition.scope !== "game-child") {
+            if (options?.ownerBrowserWindowId !== undefined) {
+              throw new Error(
+                `${kind} does not accept a logical owner window.`,
+              );
+            }
+            return undefined;
+          }
+
+          if (options?.ownerBrowserWindowId === undefined) {
+            throw new Error(`${kind} requires an owning game window.`);
+          }
+
+          const owner = findBrowserWindowEntry(options.ownerBrowserWindowId);
+          if (
+            owner === null ||
+            owner[1].kind !== "game" ||
+            owner[1].ownerId !== undefined
+          ) {
+            throw new Error(
+              `The owning window must be an open root game: ${options.ownerBrowserWindowId}`,
+            );
+          }
+
+          return owner[0];
+        },
+        catch: (cause) =>
+          new DesktopWindowError({
+            id: kind,
+            detail: `Invalid logical owner for desktop window: ${kind}`,
+            cause,
+          }),
+      });
       if (definition.singleInstance) {
-        const existing = findOpenInstance(kind);
+        const existing = findOpenInstance(kind, ownerId);
         if (existing !== null) {
           const [id] = existing;
           yield* revealExisting(id);
@@ -598,6 +703,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         windows.set(id, {
           browserWindowId,
           kind,
+          ...(ownerId === undefined ? {} : { ownerId }),
           window,
         });
         const createdEvent: DesktopWindowCreatedEvent = {
@@ -637,6 +743,14 @@ const makeDesktopWindows = Effect.gen(function* () {
             kind,
           };
           windows.delete(id);
+          for (const record of windows.values()) {
+            if (
+              record.ownerId === id &&
+              isElectronWindowUsable(record.window)
+            ) {
+              record.window.destroy();
+            }
+          }
           for (const listener of closedListeners) {
             void runPromise(listener(closedEvent)).catch(() => undefined);
           }
@@ -702,6 +816,8 @@ const makeDesktopWindows = Effect.gen(function* () {
     getBrowserWindowIds,
     getBrowserWindowId,
     getBrowserWindowKind,
+    getOwnedBrowserWindowIds,
+    getOwnerBrowserWindowId,
     onClosed,
     onCreated,
     onRendererDestroyed,

@@ -208,6 +208,7 @@ export const layer = Layer.succeed(DesktopIpc, makeDesktopIpc(ipcMain));
 export const ALL_DESKTOP_WINDOW_KINDS = [
   "account-manager",
   "combat-profiles",
+  "environment",
   "game",
   "settings",
 ] as const satisfies readonly [DesktopWindowKind, ...DesktopWindowKind[]];

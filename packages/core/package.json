@@ -31,6 +31,10 @@
       "types": "./dist/combatProfiles.d.cts",
       "default": "./dist/combatProfiles.cjs"
     },
+    "./environment": {
+      "types": "./dist/environment.d.cts",
+      "default": "./dist/environment.cjs"
+    },
     "./hotkeys": {
       "types": "./dist/hotkeys.d.cts",
       "default": "./dist/hotkeys.cjs"
@@ -46,7 +50,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown --format cjs --dts --outDir dist src/index.ts src/accounts.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/hotkeys.ts src/scriptInputs.ts src/settings.ts",
+    "build": "tsdown --format cjs --dts --outDir dist src/index.ts src/accounts.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/hotkeys.ts src/scriptInputs.ts src/settings.ts",
     "postinstall": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -541,6 +541,44 @@ const getDeclaration = (
   name: string,
 ): Declaration | null => declarations.get(name) ?? null;
 
+const resolvesToInterface = (
+  declarations: ReadonlyMap<string, Declaration>,
+  name: string,
+  seen = new Set<string>(),
+): boolean => {
+  if (seen.has(name)) {
+    return false;
+  }
+
+  const declaration = declarations.get(name);
+  if (declaration === undefined) {
+    return false;
+  }
+  if (ts.isInterfaceDeclaration(declaration)) {
+    return true;
+  }
+  if (!ts.isTypeAliasDeclaration(declaration)) {
+    return false;
+  }
+
+  const reference = parseTypeReference(declaration.type);
+  if (reference === null) {
+    return false;
+  }
+
+  const target =
+    reference.unqualifiedName === "Omit"
+      ? parseTypeReference(reference.args[0])?.unqualifiedName
+      : reference.unqualifiedName;
+  if (target === undefined) {
+    return false;
+  }
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(name);
+  return resolvesToInterface(declarations, target, nextSeen);
+};
+
 const parseEffectValueShape = (
   node: ts.TypeNode | undefined,
 ): string | null => {
@@ -687,12 +725,19 @@ const renderInterfaceFromDeclaration = (
       reference === null
         ? null
         : getDeclaration(state.declarations, reference.unqualifiedName);
-    if (childDeclaration && ts.isInterfaceDeclaration(childDeclaration)) {
+    if (
+      reference !== null &&
+      childDeclaration &&
+      resolvesToInterface(
+        state.declarations,
+        reference.unqualifiedName,
+      )
+    ) {
       const childOutputName =
         outputName === "ScriptContext" || outputName === "ScriptLucentStd"
-          ? childDeclaration.name.text
+          ? reference.unqualifiedName
           : nestedInterfaceName(outputName, name);
-      renderApiInterface(state, childDeclaration.name.text, childOutputName);
+      renderApiInterface(state, reference.unqualifiedName, childOutputName);
       lines.push(`    readonly ${name}: ${childOutputName};`);
       continue;
     }

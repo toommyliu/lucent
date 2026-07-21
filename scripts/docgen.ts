@@ -44,6 +44,7 @@ const DOCGEN_COMPILER_PATHS: Record<string, string[]> = {
   "@lucent/core/appearance": ["packages/core/src/appearance.ts"],
   "@lucent/core/army": ["packages/core/src/army.ts"],
   "@lucent/core/combatProfiles": ["packages/core/src/combatProfiles.ts"],
+  "@lucent/core/environment": ["packages/core/src/environment.ts"],
   "@lucent/core/hotkeys": ["packages/core/src/hotkeys.ts"],
   "@lucent/core/scriptInputs": ["packages/core/src/scriptInputs.ts"],
   "@lucent/core/settings": ["packages/core/src/settings.ts"],
@@ -1098,6 +1099,9 @@ const getSignatureParameterDocs = (
       declaration !== null && ts.isParameter(declaration)
         ? declaration
         : null;
+    const description = ts
+      .displayPartsToString(parameter.getDocumentationComment(checker))
+      .trim();
 
     return {
       name: parameter.name,
@@ -1112,11 +1116,38 @@ const getSignatureParameterDocs = (
         parameterDeclaration?.initializer === undefined &&
         parameterDeclaration?.dotDotDotToken === undefined,
       rest: parameterDeclaration?.dotDotDotToken !== undefined,
-      description: ts
-        .displayPartsToString(parameter.getDocumentationComment(checker))
-        .trim(),
+      description,
     };
   });
+
+const collectTaggedTypeReferences = (
+  checker: ts.TypeChecker,
+  node: ts.Node,
+  references: Set<string>,
+): void => {
+  if (ts.isTypeReferenceNode(node)) {
+    const referenced = checker.getSymbolAtLocation(node.typeName);
+    const symbol =
+      referenced !== undefined &&
+      (referenced.flags & ts.SymbolFlags.Alias) !== 0
+        ? checker.getAliasedSymbol(referenced)
+        : referenced;
+    if (
+      symbol !== undefined &&
+      (symbol.declarations ?? []).some((declaration) =>
+        ts
+          .getJSDocTags(declaration)
+          .some((tag) => tag.tagName.text === "scriptingExpandSchema"),
+      )
+    ) {
+      references.add(symbol.name);
+    }
+  }
+
+  ts.forEachChild(node, (child) =>
+    collectTaggedTypeReferences(checker, child, references),
+  );
+};
 
 const collectMembersFromType = (
   checker: ts.TypeChecker,
@@ -1166,6 +1197,15 @@ const collectMembersFromType = (
 
       for (const parameter of parameters) {
         collectTypeNameTokens(parameter.type, typeReferences);
+      }
+      for (const parameter of signatureDeclaration?.parameters ?? []) {
+        if (parameter.type !== undefined) {
+          collectTaggedTypeReferences(
+            checker,
+            parameter.type,
+            typeReferences,
+          );
+        }
       }
       collectTypeNameTokens(rawReturn, typeReferences);
 
@@ -1748,6 +1788,48 @@ const buildAstReferencedTypeDoc = (
     if (targetDeclaration !== undefined) {
       aliasOf = targetDeclaration.name.text;
       inheritMembers(targetDeclaration, targetDeclaration.name.text);
+    } else if (
+      ts.isTypeQueryNode(declaration.type) &&
+      ts.isQualifiedName(declaration.type.exprName) &&
+      declaration.type.exprName.right.text === "Type" &&
+      ts
+        .getJSDocTags(declaration)
+        .some((tag) => tag.tagName.text === "scriptingExpandSchema")
+    ) {
+      const resolved = checker.getTypeAtLocation(declaration);
+      for (const symbol of checker.getPropertiesOfType(resolved)) {
+        const symbolDeclaration = getSymbolDeclaration(symbol);
+        if (
+          symbolDeclaration === null ||
+          !isInsideRepo(
+            options.repoRoot,
+            symbolDeclaration.getSourceFile().fileName,
+          ) ||
+          symbolDeclaration.getSourceFile().fileName.includes(
+            "/node_modules/",
+          )
+        ) {
+          continue;
+        }
+        const sourceNode = symbolDeclaration;
+        properties.push({
+          name: symbol.name,
+          type: formatResolvedType(
+            checker,
+            checker.getTypeOfSymbolAtLocation(symbol, sourceNode),
+            sourceNode,
+          ),
+          summary: getSymbolSummary(
+            checker,
+            symbol,
+            symbolDeclaration,
+          ),
+          readonly: true,
+          optional: (symbol.flags & ts.SymbolFlags.Optional) !== 0,
+          inheritedFrom: null,
+          ...getSourceInfo(options, git, sourceNode),
+        });
+      }
     }
   } else {
     for (const clause of declaration.heritageClauses ?? []) {
@@ -1867,6 +1949,14 @@ const collectReferencedTypeDocs = (
     const reflection = reflections.get(name);
     const declaration = declarations.get(name);
     if (reflection === undefined && declaration === undefined) {
+      continue;
+    }
+    if (
+      declaration !== undefined &&
+      ts
+        .getJSDocTags(declaration)
+        .some((tag) => tag.tagName.text === "internal")
+    ) {
       continue;
     }
 

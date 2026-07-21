@@ -4,6 +4,7 @@ export interface QuestItem {
   readonly itemId: number;
   readonly name: string;
   readonly quantity: number;
+  readonly temporaryItem?: boolean;
 }
 
 export interface QuestReward extends QuestItem {
@@ -34,6 +35,9 @@ export interface QuestData {
 export type QuestSnapshot = Readonly<QuestData>;
 
 export class LiveQuest extends LiveModel<QuestData> implements Quest {
+  /**
+   * How often the quest can be completed.
+   */
   get cadence(): QuestCadence {
     return this.modelData.cadence;
   }
