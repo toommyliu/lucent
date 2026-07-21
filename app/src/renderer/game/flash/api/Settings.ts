@@ -165,6 +165,24 @@ export const makeSettings = Effect.fnUntraced(function* (
   const setCollisionsEnabled = set("collisionsEnabled");
   const setCustomGuild = set("customGuild");
   const setCustomName = set("customName");
+  const resetCustomGuild = updates.withPermits(1)(
+    Effect.gen(function* () {
+      yield* command("settings.resetCustomGuild");
+      yield* store.settings.patch({
+        customGuild: "",
+        customGuildConfigured: false,
+      });
+    }),
+  );
+  const resetCustomName = updates.withPermits(1)(
+    Effect.gen(function* () {
+      yield* command("settings.resetCustomName");
+      yield* store.settings.patch({
+        customName: "",
+        customNameConfigured: false,
+      });
+    }),
+  );
   const setDeathAdsVisible = set("deathAdsVisible");
   const setEnemyMagnetEnabled = set("enemyMagnetEnabled");
   const setFrameRate = set("frameRate");
@@ -186,6 +204,8 @@ export const makeSettings = Effect.fnUntraced(function* (
     provokeCell,
     reapply,
     reapplyActions,
+    resetCustomGuild,
+    resetCustomName,
     setAnimationsEnabled,
     setAntiCounterEnabled,
     setCollisionsEnabled,

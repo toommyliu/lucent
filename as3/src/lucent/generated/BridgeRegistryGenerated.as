@@ -128,6 +128,8 @@ package lucent.generated
       external.externalize("settings.enemyMagnet", Settings.enemyMagnet);
       external.externalize("settings.infiniteRange", Settings.infiniteRange);
       external.externalize("settings.provokeCell", Settings.provokeCell);
+      external.externalize("settings.resetCustomGuild", Settings.resetCustomGuild);
+      external.externalize("settings.resetCustomName", Settings.resetCustomName);
       external.externalize("settings.setAnimationsEnabled", Settings.setAnimationsEnabled);
       external.externalize("settings.setCollisionsEnabled", Settings.setCollisionsEnabled);
       external.externalize("settings.setCustomGuild", Settings.setCustomGuild);

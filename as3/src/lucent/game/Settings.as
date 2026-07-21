@@ -69,6 +69,16 @@ package lucent.game {
     }
 
     [BridgeExport]
+    public static function resetCustomName():void {
+      CustomName.instance.resetName();
+    }
+
+    [BridgeExport]
+    public static function resetCustomGuild():void {
+      CustomName.instance.resetGuild();
+    }
+
+    [BridgeExport]
     public static function setWalkSpeed(speed:int):void {
       Main.Game.world.WALKSPEED = speed;
     }

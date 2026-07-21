@@ -1,5 +1,6 @@
 package lucent.module {
   import lucent.game.World;
+  import lucent.Main;
 
   public class CustomName extends Module {
 
@@ -12,6 +13,32 @@ package lucent.module {
     public var customName:* = null;
 
     public var customGuild:* = null;
+
+    public function resetName():void {
+      customName = null;
+      if (!World.isLoaded()) {
+        return;
+      }
+
+      var game:* = Main.Game;
+      var avatar:* = game.world.myAvatar;
+      avatar.objData.strUsername = avatar.pnm;
+      avatar.pMC.pAV.objData.strUsername = avatar.pnm;
+      avatar.pMC.updateName();
+      game.ui.mcPortrait.strName.text = avatar.pnm;
+    }
+
+    public function resetGuild():void {
+      customGuild = null;
+      if (!World.isLoaded()) {
+        return;
+      }
+
+      var avatar:* = Main.Game.world.myAvatar;
+      avatar.pMC.pname.tg.text = avatar.objData.guild == null
+        ? ""
+        : "< " + String(avatar.objData.guild.Name) + " >";
+    }
 
     override public function onToggle(game:*):void {
       if (!World.isLoaded()) {
@@ -26,13 +53,9 @@ package lucent.module {
       }
 
       if (customGuild !== null) {
-        if (game.world.myAvatar.objData.guild == null) {
-          game.world.myAvatar.objData.guild = new Object();
-        }
-
-        game.world.myAvatar.pMC.pname.tg.text = customGuild;
-        game.world.myAvatar.objData.guild.Name = customGuild;
-        game.world.myAvatar.pMC.pAV.objData.guild.Name = customGuild;
+        game.world.myAvatar.pMC.pname.tg.text = customGuild == ""
+          ? ""
+          : "< " + String(customGuild) + " >";
       }
     }
 

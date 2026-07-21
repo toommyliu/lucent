@@ -161,10 +161,12 @@ const DEFAULT_FLASH_SETTINGS: FlashSettingsSnapshot = {
   antiCounterEnabled: true,
   collisionsEnabled: true,
   customGuild: "",
+  customGuildConfigured: false,
   customName: "",
+  customNameConfigured: false,
   deathAdsVisible: true,
   enemyMagnetEnabled: false,
-  frameRate: 30,
+  frameRate: 24,
   infiniteRangeEnabled: false,
   lagKillerEnabled: false,
   otherPlayersVisible: true,
@@ -336,11 +338,6 @@ const formatDelaySeconds = (delayMs: number): string =>
 const parseDelayMs = (delaySeconds: string): number | null => {
   const seconds = Number.parseFloat(delaySeconds);
   return Number.isFinite(seconds) ? Math.max(0, seconds * 1_000) : null;
-};
-
-const parseFiniteNumber = (value: string): number | null => {
-  const number = Number.parseFloat(value);
-  return Number.isFinite(number) ? number : null;
 };
 
 const scriptStatusLabel = (
@@ -1218,7 +1215,7 @@ export function App(props: {
     setCustomGuild(state.customGuild);
   };
 
-  const patchFlashSettingsState = (patch: FlashSettingsPatch) => {
+  const patchFlashSettingsState = (patch: Partial<FlashSettingsSnapshot>) => {
     setFlashSettings((state) => ({
       ...state,
       ...patch,
@@ -1241,7 +1238,7 @@ export function App(props: {
 
   const runSettingsUpdate = (
     label: string,
-    optimisticPatch: FlashSettingsPatch,
+    optimisticPatch: Partial<FlashSettingsSnapshot>,
     update: (settings: ApiService["settings"]) => Effect.Effect<void>,
   ) => {
     patchFlashSettingsState(optimisticPatch);
@@ -1298,25 +1295,13 @@ export function App(props: {
     );
   };
 
-  const handleSetWalkSpeed = () => {
-    const speed = parseFiniteNumber(walkSpeed());
-    if (speed === null) {
-      refreshFlashSettings();
-      return;
-    }
-
+  const handleSetWalkSpeed = (speed: number) => {
     runSettingsUpdate("set walk speed", { walkSpeed: speed }, (settings) =>
       settings.setWalkSpeed(speed),
     );
   };
 
-  const handleSetFrameRate = () => {
-    const fps = parseFiniteNumber(frameRate());
-    if (fps === null) {
-      refreshFlashSettings();
-      return;
-    }
-
+  const handleSetFrameRate = (fps: number) => {
     runSettingsUpdate("set frame rate", { frameRate: fps }, (settings) =>
       settings.setFrameRate(fps),
     );
@@ -1333,6 +1318,22 @@ export function App(props: {
     const guild = customGuild();
     runSettingsUpdate("set custom guild", { customGuild: guild }, (settings) =>
       settings.setCustomGuild(guild),
+    );
+  };
+
+  const handleResetCustomName = () => {
+    runSettingsUpdate(
+      "reset custom name",
+      { customName: "", customNameConfigured: false },
+      (settings) => settings.resetCustomName,
+    );
+  };
+
+  const handleResetCustomGuild = () => {
+    runSettingsUpdate(
+      "reset custom guild",
+      { customGuild: "", customGuildConfigured: false },
+      (settings) => settings.resetCustomGuild,
     );
   };
 
@@ -3394,11 +3395,15 @@ export function App(props: {
         setFrameRate={setFrameRate}
         handleSetFrameRate={handleSetFrameRate}
         customName={customName}
+        customNameConfigured={() => flashSettings().customNameConfigured}
         setCustomName={setCustomName}
         handleSetCustomName={handleSetCustomName}
+        handleResetCustomName={handleResetCustomName}
         customGuild={customGuild}
+        customGuildConfigured={() => flashSettings().customGuildConfigured}
         setCustomGuild={setCustomGuild}
         handleSetCustomGuild={handleSetCustomGuild}
+        handleResetCustomGuild={handleResetCustomGuild}
         autoAttackEnabled={autoAttackEnabled}
         autoAttackProfileLabel={autoAttackProfileLabel}
         autoAttackConfiguredProfileLabel={autoAttackConfiguredProfileLabel}

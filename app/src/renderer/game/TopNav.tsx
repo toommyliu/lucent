@@ -2,6 +2,9 @@ import {
   Button,
   Icon,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   Kbd,
   Label,
   Menu,
@@ -17,6 +20,7 @@ import {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
+  Slider,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -89,16 +93,20 @@ export interface TopNavOptionsMenuContentProps {
   readonly optionItems: Accessor<readonly TopNavOptionItem[]>;
   readonly walkSpeed: Accessor<string>;
   readonly setWalkSpeed: Setter<string>;
-  readonly handleSetWalkSpeed: () => void;
+  readonly handleSetWalkSpeed: (walkSpeed: number) => void;
   readonly frameRate: Accessor<string>;
   readonly setFrameRate: Setter<string>;
-  readonly handleSetFrameRate: () => void;
+  readonly handleSetFrameRate: (frameRate: number) => void;
   readonly customName: Accessor<string>;
+  readonly customNameConfigured: Accessor<boolean>;
   readonly setCustomName: Setter<string>;
   readonly handleSetCustomName: () => void;
+  readonly handleResetCustomName: () => void;
   readonly customGuild: Accessor<string>;
+  readonly customGuildConfigured: Accessor<boolean>;
   readonly setCustomGuild: Setter<string>;
   readonly handleSetCustomGuild: () => void;
+  readonly handleResetCustomGuild: () => void;
 }
 
 export interface TopNavProps extends TopNavOptionsMenuContentProps {
@@ -256,6 +264,95 @@ const MenuAutofocusAnchor = (): JSX.Element => (
   />
 );
 
+function ResetCustomValueButton(props: {
+  readonly disabled: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+}): JSX.Element {
+  return (
+    <Button
+      aria-label={props.label}
+      class="game-menu__field-reset"
+      disabled={props.disabled}
+      size="icon-xs"
+      type="button"
+      variant="ghost"
+      onClick={props.onClick}
+      onPointerDown={(event) => event.preventDefault()}
+    >
+      <Icon icon="rotate_ccw" size="sm" />
+    </Button>
+  );
+}
+
+function MenuSliderField(props: {
+  readonly disabled: boolean;
+  readonly label: string;
+  readonly max: number;
+  readonly min: number;
+  readonly onCommit: (value: number) => void;
+  readonly resetValue: number;
+  readonly setValue: Setter<string>;
+  readonly value: Accessor<string>;
+}): JSX.Element {
+  const value = () => {
+    const parsed = Number(props.value());
+    return Number.isFinite(parsed)
+      ? Math.max(props.min, Math.min(props.max, parsed))
+      : props.resetValue;
+  };
+  const commit = (nextValue: number): void => {
+    props.setValue(String(nextValue));
+    props.onCommit(nextValue);
+  };
+
+  return (
+    <div
+      class="game-menu__field game-menu__slider-field"
+      data-disabled={props.disabled ? "" : undefined}
+    >
+      <span class="game-menu__field-heading">
+        <span class="game-menu__field-label">{props.label}</span>
+        <span class="game-menu__field-actions">
+          <span class="game-menu__slider-value">{value()}</span>
+          <Button
+            aria-label={`Reset ${props.label.toLowerCase()}`}
+            disabled={props.disabled || value() === props.resetValue}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+            onClick={() => commit(props.resetValue)}
+            onPointerDown={(event) => event.preventDefault()}
+          >
+            <Icon icon="rotate_ccw" size="sm" />
+          </Button>
+        </span>
+      </span>
+      <Slider
+        aria-label={[props.label]}
+        disabled={props.disabled}
+        max={props.max}
+        min={props.min}
+        step={1}
+        value={[value()]}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" && event.key !== "Tab") {
+            event.stopPropagation();
+          }
+        }}
+        onValueChange={(details) => {
+          const nextValue = details.value[0];
+          if (nextValue !== undefined) props.setValue(String(nextValue));
+        }}
+        onValueChangeEnd={(details) => {
+          const nextValue = details.value[0];
+          if (nextValue !== undefined) commit(nextValue);
+        }}
+      />
+    </div>
+  );
+}
+
 const stopMenuInputKeyPropagation: JSX.EventHandler<
   HTMLInputElement,
   KeyboardEvent
@@ -357,86 +454,114 @@ export function TopNavOptionsMenuContent(
   return (
     <>
       <MenuAutofocusAnchor />
-      <div class="game-options-grid">
-        <For each={props.optionItems()}>
-          {(option) => (
-            <MenuCheckboxItem
-              checked={option.checked}
-              class="game-menu__item"
-              closeOnSelect={false}
-              disabled={option.disabled}
-              onCheckedChange={option.onCheckedChange}
-              value={option.id}
-            >
-              <span class="game-menu__option-content">
-                <span class="game-menu__item-label">{option.label}</span>
-                <Show
-                  when={formatOptionalHotkeyDisplay(
-                    optionHotkey(props.hotkeyBindings(), option.id),
-                    props.hotkeyPlatform,
-                  )}
-                >
-                  {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                </Show>
-              </span>
-            </MenuCheckboxItem>
-          )}
-        </For>
-      </div>
-      <MenuSeparator />
-      <div class="game-menu__fields">
-        <Label class="game-menu__field game-menu__field--inline">
-          <span>Walk Speed</span>
-          <Input
-            class="game-menu__inline-input"
+      <div class="game-menu__options-content">
+        <div class="game-options-grid">
+          <For each={props.optionItems()}>
+            {(option) => (
+              <MenuCheckboxItem
+                checked={option.checked}
+                class="game-menu__item"
+                closeOnSelect={false}
+                disabled={option.disabled}
+                onCheckedChange={option.onCheckedChange}
+                value={option.id}
+              >
+                <span class="game-menu__option-content">
+                  <span class="game-menu__item-label">{option.label}</span>
+                  <Show
+                    when={formatOptionalHotkeyDisplay(
+                      optionHotkey(props.hotkeyBindings(), option.id),
+                      props.hotkeyPlatform,
+                    )}
+                  >
+                    {(shortcut) => <Kbd>{shortcut()}</Kbd>}
+                  </Show>
+                </span>
+              </MenuCheckboxItem>
+            )}
+          </For>
+        </div>
+        <MenuSeparator />
+        <div class="game-menu__fields">
+          <MenuSliderField
             disabled={gameInteractionDisabled()}
-            inputMode="decimal"
-            size="sm"
-            type="number"
-            value={props.walkSpeed()}
-            onBlur={props.handleSetWalkSpeed}
-            onKeyDown={commitMenuInputOnEnter(props.handleSetWalkSpeed)}
-            onInput={(event) => props.setWalkSpeed(event.currentTarget.value)}
+            label="Walk Speed"
+            max={99}
+            min={1}
+            onCommit={props.handleSetWalkSpeed}
+            resetValue={8}
+            setValue={props.setWalkSpeed}
+            value={props.walkSpeed}
           />
-        </Label>
-        <Label class="game-menu__field game-menu__field--inline">
-          <span>FPS</span>
-          <Input
-            class="game-menu__inline-input"
+          <MenuSliderField
             disabled={gameInteractionDisabled()}
-            inputMode="decimal"
-            size="sm"
-            type="number"
-            value={props.frameRate()}
-            onBlur={props.handleSetFrameRate}
-            onKeyDown={commitMenuInputOnEnter(props.handleSetFrameRate)}
-            onInput={(event) => props.setFrameRate(event.currentTarget.value)}
+            label="FPS"
+            max={60}
+            min={1}
+            onCommit={props.handleSetFrameRate}
+            resetValue={24}
+            setValue={props.setFrameRate}
+            value={props.frameRate}
           />
-        </Label>
-        <Label class="game-menu__field game-menu__field--wide game-menu__field--inline">
-          <span>Custom Name</span>
-          <Input
-            disabled={gameInteractionDisabled()}
-            placeholder="Keep current name"
-            size="sm"
-            value={props.customName()}
-            onBlur={props.handleSetCustomName}
-            onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
-            onInput={(event) => props.setCustomName(event.currentTarget.value)}
-          />
-        </Label>
-        <Label class="game-menu__field game-menu__field--wide game-menu__field--inline">
-          <span>Custom Guild</span>
-          <Input
-            disabled={gameInteractionDisabled()}
-            placeholder="Keep current guild"
-            size="sm"
-            value={props.customGuild()}
-            onBlur={props.handleSetCustomGuild}
-            onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
-            onInput={(event) => props.setCustomGuild(event.currentTarget.value)}
-          />
-        </Label>
+          <div
+            class="game-menu__field game-menu__identity-field"
+            data-disabled={gameInteractionDisabled() ? "" : undefined}
+          >
+            <Label class="game-menu__field-label" for="game-custom-name">
+              Custom Name
+            </Label>
+            <InputGroup size="sm">
+              <InputGroupInput
+                disabled={gameInteractionDisabled()}
+                id="game-custom-name"
+                value={props.customName()}
+                onBlur={props.handleSetCustomName}
+                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
+                onInput={(event) =>
+                  props.setCustomName(event.currentTarget.value)
+                }
+              />
+              <InputGroupAddon align="inline-end">
+                <ResetCustomValueButton
+                  disabled={
+                    gameInteractionDisabled() || !props.customNameConfigured()
+                  }
+                  label="Reset custom name"
+                  onClick={props.handleResetCustomName}
+                />
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
+          <div
+            class="game-menu__field game-menu__identity-field"
+            data-disabled={gameInteractionDisabled() ? "" : undefined}
+          >
+            <Label class="game-menu__field-label" for="game-custom-guild">
+              Custom Guild
+            </Label>
+            <InputGroup size="sm">
+              <InputGroupInput
+                disabled={gameInteractionDisabled()}
+                id="game-custom-guild"
+                value={props.customGuild()}
+                onBlur={props.handleSetCustomGuild}
+                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
+                onInput={(event) =>
+                  props.setCustomGuild(event.currentTarget.value)
+                }
+              />
+              <InputGroupAddon align="inline-end">
+                <ResetCustomValueButton
+                  disabled={
+                    gameInteractionDisabled() || !props.customGuildConfigured()
+                  }
+                  label="Reset custom guild"
+                  onClick={props.handleResetCustomGuild}
+                />
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -835,7 +960,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
             >
               Options
             </TopNavMenuTrigger>
-            <GameMenuContent class="game-menu" portalMount={menuPortalMount}>
+            <GameMenuContent
+              class="game-menu game-menu--options"
+              portalMount={menuPortalMount}
+            >
               <TopNavOptionsMenuContent {...props} />
             </GameMenuContent>
           </Menu>

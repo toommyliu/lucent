@@ -149,6 +149,8 @@ declare global {
       "settings.enemyMagnet": () => void;
       "settings.infiniteRange": () => void;
       "settings.provokeCell": () => void;
+      "settings.resetCustomGuild": () => void;
+      "settings.resetCustomName": () => void;
       "settings.setAnimationsEnabled": (enabled: boolean) => void;
       "settings.setCollisionsEnabled": (enabled: boolean) => void;
       "settings.setCustomGuild": (name: string) => void;

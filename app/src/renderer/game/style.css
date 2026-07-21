@@ -422,6 +422,11 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   width: min(15rem, calc(100vw - 0.5rem));
 }
 
+.game-menu--options {
+  width: min(26rem, calc(100vw - 0.5rem));
+  container: options-menu / inline-size;
+}
+
 .game-menu--relogin {
   width: min(17rem, calc(100vw - 0.5rem)) !important;
 }
@@ -698,10 +703,6 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   flex: 0 1 auto;
 }
 
-.game-menu__inline-input {
-  width: 4.5rem !important;
-}
-
 .game-menu--autozone-maps {
   width: max-content;
   min-width: min(10rem, calc(100vw - 0.5rem)) !important;
@@ -755,12 +756,31 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 }
 
 .game-options-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(
     auto-fit,
     minmax(min(10rem, 100%), 1fr)
   );
   gap: 2px;
+}
+
+.game-options-grid::after {
+  position: absolute;
+  z-index: 1;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 50%;
+  width: 1px;
+  background: rgb(var(--border));
+  content: "";
+  pointer-events: none;
+}
+
+@container options-menu (width < 20.625rem) {
+  .game-options-grid::after {
+    display: none;
+  }
 }
 
 .game-menu__fields {
@@ -781,7 +801,6 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   display: grid;
   gap: 4px;
   min-width: 0;
-  color: var(--color-muted-foreground);
   font-size: var(--text-xs);
 }
 
@@ -802,6 +821,51 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
+}
+
+.game-menu__field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-menu__field-label {
+  color: var(--color-foreground);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.game-menu__field[data-disabled] {
+  opacity: 0.64;
+}
+
+.game-menu__field[data-disabled] .slider[data-disabled],
+.game-menu__field[data-disabled] .input-group--disabled,
+.game-menu__field[data-disabled] .button:disabled {
+  opacity: 1;
+}
+
+.game-menu__field-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.game-menu__slider-field {
+  padding: 0 4px 4px;
+}
+
+.game-menu__slider-value {
+  min-width: 2ch;
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.game-menu__identity-field {
+  padding: 0 4px;
 }
 
 .game-menu__priority-input {
