@@ -11,7 +11,7 @@ let installed = false;
 type ConsoleMethod = (typeof consoleMethods)[number];
 type ConsoleMethodFn = (...args: readonly unknown[]) => void;
 
-export interface FormatGameConsoleArgumentsOptions {
+export interface FormatConsoleArgumentsOptions {
   readonly maxArrayItems?: number;
   readonly maxChars?: number;
   readonly maxDepth?: number;
@@ -48,7 +48,7 @@ const clampPositiveInteger = (value: number | undefined, fallback: number) =>
     : value;
 
 const normalizeOptions = (
-  options: FormatGameConsoleArgumentsOptions,
+  options: FormatConsoleArgumentsOptions,
 ): FormatOptions => ({
   maxArrayItems: clampPositiveInteger(
     options.maxArrayItems,
@@ -63,7 +63,7 @@ const normalizeOptions = (
 });
 
 const makeFormatState = (
-  options: FormatGameConsoleArgumentsOptions,
+  options: FormatConsoleArgumentsOptions,
 ): FormatState => {
   const normalized = normalizeOptions(options);
   return {
@@ -342,9 +342,9 @@ const appendArgument = (
   appendValue(state, value, depth);
 };
 
-export const formatGameConsoleArguments = (
+export const formatConsoleArguments = (
   args: readonly unknown[],
-  options: FormatGameConsoleArgumentsOptions = {},
+  options: FormatConsoleArgumentsOptions = {},
 ): string => {
   const state = makeFormatState(options);
 
@@ -366,7 +366,7 @@ export const formatGameConsoleArguments = (
   return state.parts.join("");
 };
 
-export const installGameConsoleForwarder = (
+export const installConsoleForwarder = (
   bridge: DesktopGameConsoleObservabilityBridge | undefined,
 ): void => {
   if (bridge === undefined || installed) {
@@ -378,7 +378,7 @@ export const installGameConsoleForwarder = (
     const original = console[method].bind(console) as ConsoleMethodFn;
     console[method] = ((...args: readonly unknown[]) => {
       try {
-        bridge.message(formatGameConsoleArguments(args));
+        bridge.message(formatConsoleArguments(args));
       } catch {}
 
       original(...args);

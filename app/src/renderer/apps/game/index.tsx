@@ -5,9 +5,9 @@ import { App } from "./App";
 import { flashRuntime } from "./flash";
 import { Gateway } from "./flash/bridge/Gateway";
 import { diagnosticTimestamp } from "./flash/contract/Diagnostic";
-import { installGameConsoleForwarder } from "./gameConsoleForwarder";
+import { installConsoleForwarder } from "./consoleForwarder";
 
-installGameConsoleForwarder(window.desktop.gameConsoleObservability);
+installConsoleForwarder(window.desktop.gameConsoleObservability);
 
 const diagnosticLogs: unknown[] = [];
 (window as any).logs = diagnosticLogs;

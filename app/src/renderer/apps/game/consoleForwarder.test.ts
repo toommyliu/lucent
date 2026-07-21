@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 import { LiveServer } from "@lucent/game";
 
-import { formatGameConsoleArguments } from "./gameConsoleForwarder";
+import { formatConsoleArguments } from "./consoleForwarder";
 
-describe("game console forwarder", () => {
+describe("console forwarder", () => {
   it("serializes object console arguments instead of flattening them", () => {
     expect(
-      formatGameConsoleArguments([
+      formatConsoleArguments([
         "payload",
         { item: "drop", meta: { quantity: 2 } },
       ]),
@@ -23,7 +23,7 @@ describe("game console forwarder", () => {
     circular.self = circular;
     const error = new Error("boom");
 
-    const message = formatGameConsoleArguments([circular, error]);
+    const message = formatConsoleArguments([circular, error]);
 
     expect(message).toContain('"self": "[Circular]"');
     expect(message).toContain("Error: boom");
@@ -40,17 +40,16 @@ describe("game console forwarder", () => {
       online: true,
     });
 
-    const message = formatGameConsoleArguments([server]);
+    const message = formatConsoleArguments([server]);
 
     expect(message).toContain('"name": "Artix"');
     expect(message).toContain('"full": true');
   });
 
   it("caps output length while formatting large object properties", () => {
-    const message = formatGameConsoleArguments(
-      [{ payload: "x".repeat(10_000) }],
-      { maxChars: 128 },
-    );
+    const message = formatConsoleArguments([{ payload: "x".repeat(10_000) }], {
+      maxChars: 128,
+    });
 
     expect(message.length).toBeLessThanOrEqual(128);
     expect(message).toContain("...[Truncated]");
@@ -69,7 +68,7 @@ describe("game console forwarder", () => {
       });
     }
 
-    const message = formatGameConsoleArguments([payload], {
+    const message = formatConsoleArguments([payload], {
       maxObjectKeys: 2,
     });
 
@@ -92,7 +91,7 @@ describe("game console forwarder", () => {
       });
     }
 
-    const message = formatGameConsoleArguments([payload], {
+    const message = formatConsoleArguments([payload], {
       maxArrayItems: 2,
     });
 
