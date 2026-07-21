@@ -109,7 +109,6 @@ const rendererViews = [
       '      id="swf"',
       '      src="../../../../assets/loader.swf"',
       '      type="application/x-shockwave-flash"',
-      '      wmode="opaque"',
       "    />",
     ].join("\n"),
   }),
