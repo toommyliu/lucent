@@ -28,7 +28,6 @@ export interface Player extends Entity {
   readonly entityId: number;
   readonly entityType: string;
   readonly level: number;
-  readonly name: string;
   readonly pad: string;
   readonly position: Position;
   readonly username: string;
@@ -39,7 +38,6 @@ export interface PlayerData extends EntityData {
   entityId: number;
   entityType: string;
   level: number;
-  name: string;
   pad: string;
   position: Position;
   username: string;
@@ -59,9 +57,6 @@ export class LivePlayer extends LiveEntity<PlayerData> implements Player {
   }
   get level(): number {
     return this.modelData.level;
-  }
-  get name(): string {
-    return this.modelData.name;
   }
   get pad(): string {
     return this.modelData.pad;

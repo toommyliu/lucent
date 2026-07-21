@@ -3399,12 +3399,6 @@
         },
         {
           "kind": "property",
-          "name": "name",
-          "signature": "readonly name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
           "name": "pad",
           "signature": "readonly pad: string",
           "description": ""
@@ -3489,8 +3483,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/player.ts:50",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L50"
+        "path": "packages/game/src/player.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L48"
       }
     },
     "live-quest": {
@@ -4209,12 +4203,6 @@
         },
         {
           "kind": "property",
-          "name": "name",
-          "signature": "name: string",
-          "description": ""
-        },
-        {
-          "kind": "property",
           "name": "pad",
           "signature": "pad: string",
           "description": ""
@@ -4239,8 +4227,8 @@
         }
       ],
       "source": {
-        "path": "packages/game/src/player.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L37"
+        "path": "packages/game/src/player.ts:36",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L36"
       }
     },
     "player-query": {
@@ -4305,8 +4293,8 @@
       "definition": "type PlayerSnapshot = Readonly<PlayerData> & EntitySnapshot",
       "keys": [],
       "source": {
-        "path": "packages/game/src/player.ts:48",
-        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L48"
+        "path": "packages/game/src/player.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/player.ts#L46"
       }
     },
     "position": {

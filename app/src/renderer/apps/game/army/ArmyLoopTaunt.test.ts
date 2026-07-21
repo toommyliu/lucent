@@ -19,7 +19,6 @@ const playerSnapshot = (name: string, playerNumber: number): PlayerSnapshot =>
   ({
     alive: true,
     entityId: playerNumber,
-    name,
     username: name,
   }) as PlayerSnapshot;
 

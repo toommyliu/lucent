@@ -489,7 +489,6 @@ interface LivePlayer extends LiveEntity<PlayerData> {
   readonly entityId: number;
   readonly entityType: string;
   readonly level: number;
-  readonly name: string;
   readonly pad: string;
   readonly position: Position;
   readonly username: string;
@@ -777,7 +776,6 @@ interface PlayerData extends EntityData {
   entityId: number;
   entityType: string;
   level: number;
-  name: string;
   pad: string;
   position: Position;
   username: string;

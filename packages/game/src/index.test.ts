@@ -24,7 +24,6 @@ describe("game domain models", () => {
       maxHp: 100,
       maxMp: 40,
       mp: 10,
-      name: "Hero",
       pad: "Spawn",
       position: { x: 1, y: 2 },
       state: EntityState.InCombat,

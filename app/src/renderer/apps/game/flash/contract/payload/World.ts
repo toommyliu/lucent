@@ -96,7 +96,6 @@ export const toPlayer = (payload: PlayerPayload): LivePlayer => {
     maxHp: payload.intHPMax ?? 0,
     maxMp: payload.intMPMax ?? 0,
     mp: payload.intMP ?? 0,
-    name: username,
     pad: payload.strPad ?? "",
     position: {
       x: payload.tx ?? 0,
