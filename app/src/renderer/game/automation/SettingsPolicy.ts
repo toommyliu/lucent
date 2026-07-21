@@ -8,18 +8,19 @@ export const layer = Layer.effectDiscard(
     const api = yield* Api;
     yield* Automation;
     const fibers = yield* FiberMap.make<string>();
+    const whenPlayerReady = (effect: Effect.Effect<void>) =>
+      api.player
+        .isReady()
+        .pipe(Effect.flatMap((ready) => (ready ? effect : Effect.void)));
     const reapply = Effect.forever(
-      api.player.isReady().pipe(
-        Effect.flatMap((ready) =>
-          ready ? api.settings.reapply() : Effect.void,
-        ),
+      whenPlayerReady(api.settings.reapply()).pipe(
         Effect.andThen(Effect.sleep("1 second")),
       ),
     );
     const actions = Effect.forever(
-      api.settings
-        .reapplyActions()
-        .pipe(Effect.andThen(Effect.sleep("500 millis"))),
+      whenPlayerReady(api.settings.reapplyActions()).pipe(
+        Effect.andThen(Effect.sleep("500 millis")),
+      ),
     );
     yield* FiberMap.run(fibers, "settings-reapply", reapply);
     yield* FiberMap.run(fibers, "settings-actions", actions);
