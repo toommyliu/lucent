@@ -30,81 +30,6 @@ const baseOptions = {
   sourcemap: !isProduction,
 };
 
-const rendererThemeBootstrapScript =
-  'document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";';
-const rendererThemeBootstrapHash = createHash("sha256")
-  .update(rendererThemeBootstrapScript)
-  .digest("base64");
-const rendererScriptSources = [
-  "'self'",
-  `'sha256-${rendererThemeBootstrapHash}'`,
-];
-
-const baseContentSecurityPolicyDirectives = {
-  "default-src": ["'self'"],
-  "script-src": rendererScriptSources,
-  "style-src": ["'self'", "'unsafe-inline'"],
-};
-
-const formatContentSecurityPolicy = (overrides = {}) =>
-  Object.entries({
-    ...baseContentSecurityPolicyDirectives,
-    ...overrides,
-  })
-    .map(([directive, values]) => `${directive} ${values.join(" ")}`)
-    .join("; ");
-
-const baseContentSecurityPolicy = formatContentSecurityPolicy();
-
-const rendererViews = [
-  {
-    contentSecurityPolicy: formatContentSecurityPolicy({
-      "default-src": ["'self'", "https://game.aq.com"],
-      "script-src": [...rendererScriptSources, "'unsafe-eval'"],
-      "plugin-types": ["application/x-shockwave-flash"],
-    }),
-    entryPoint: "src/renderer/apps/game/index.tsx",
-    id: "game",
-    title: "Lucent",
-    bodyPrefix: [
-      "    <embed",
-      '      id="swf"',
-      '      src="../../../../assets/loader.swf"',
-      '      type="application/x-shockwave-flash"',
-      '      wmode="opaque"',
-      "    />",
-    ].join("\n"),
-  },
-  {
-    contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/apps/settings/index.tsx",
-    id: "settings",
-    ready: true,
-    title: "Settings",
-  },
-  {
-    contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/apps/account-manager/index.tsx",
-    id: "account-manager",
-    ready: true,
-    title: "Account Manager",
-  },
-  {
-    contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/apps/combat-profiles/index.tsx",
-    id: "combat-profiles",
-    ready: true,
-    title: "Combat Profiles",
-  },
-  {
-    contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/apps/environment/index.tsx",
-    id: "environment",
-    ready: true,
-    title: "Environment",
-  },
-];
-
 const mainOptions = {
   ...baseOptions,
   entryPoints: ["src/main/index.ts"],
@@ -123,18 +48,6 @@ const scriptFileWorkerOptions = {
   platform: "node",
   target: "node12",
 };
-
-const rendererOptions = (view) => ({
-  ...baseOptions,
-  entryPoints: [view.entryPoint],
-  format: "esm",
-  outfile: `dist/renderer/${view.id}/index.js`,
-  platform: "browser",
-  plugins: [solidPlugin(), ...(view.plugins ?? [])],
-  target: "chrome87",
-});
-
-const rendererBuildOptions = rendererViews.map(rendererOptions);
 
 const sharedCssOptions = {
   ...baseOptions,
@@ -156,22 +69,88 @@ const preloadOptions = {
   target: "node12",
 };
 
-const rendererHtmlAttributes = (view) =>
-  ['lang="en"', view.ready === true ? 'data-ready="false"' : undefined]
-    .filter(Boolean)
-    .join(" ");
+const rendererThemeBootstrapScript =
+  'document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";';
+
+const contentSecurityPolicyHash = (source) =>
+  `'sha256-${createHash("sha256").update(source).digest("base64")}'`;
+
+const rendererScriptSources = [
+  "'self'",
+  contentSecurityPolicyHash(rendererThemeBootstrapScript),
+];
+
+const formatRendererContentSecurityPolicy = (overrides = {}) =>
+  Object.entries({
+    "default-src": ["'self'"],
+    "script-src": rendererScriptSources,
+    "style-src": ["'self'", "'unsafe-inline'"],
+    ...overrides,
+  })
+    .map(([directive, sources]) => `${directive} ${sources.join(" ")}`)
+    .join("; ");
+
+const createRendererView = (id, title, options = {}) => ({
+  entryPoint: `src/renderer/apps/${id}/index.tsx`,
+  id,
+  title,
+  ...options,
+});
+
+const rendererViews = [
+  createRendererView("game", "Lucent", {
+    contentSecurityPolicy: {
+      "default-src": ["'self'", "https://game.aq.com"],
+      "script-src": [...rendererScriptSources, "'unsafe-eval'"],
+      "plugin-types": ["application/x-shockwave-flash"],
+    },
+    bodyHtml: [
+      "    <embed",
+      '      id="swf"',
+      '      src="../../../../assets/loader.swf"',
+      '      type="application/x-shockwave-flash"',
+      '      wmode="opaque"',
+      "    />",
+    ].join("\n"),
+  }),
+  createRendererView("settings", "Settings", { startsPending: true }),
+  createRendererView("account-manager", "Account Manager", {
+    startsPending: true,
+  }),
+  createRendererView("combat-profiles", "Combat Profiles", {
+    startsPending: true,
+  }),
+  createRendererView("environment", "Environment", { startsPending: true }),
+];
+
+const rendererOptions = (view) => ({
+  ...baseOptions,
+  entryPoints: [view.entryPoint],
+  format: "esm",
+  outfile: `dist/renderer/${view.id}/index.js`,
+  platform: "browser",
+  plugins: [solidPlugin(), ...(view.plugins ?? [])],
+  target: "chrome87",
+});
+
+const rendererBuildOptions = rendererViews.map(rendererOptions);
 
 const rendererIndexHtml = (view) => {
-  const bodyPrefix =
-    typeof view.bodyPrefix === "string" ? `${view.bodyPrefix}\n` : "";
+  const startsPendingAttribute = view.startsPending
+    ? ' data-ready="false"'
+    : "";
+  const body = typeof view.bodyHtml === "string" ? `${view.bodyHtml}\n` : "";
+  const contentSecurityPolicy = formatRendererContentSecurityPolicy(
+    view.contentSecurityPolicy,
+  );
 
   return `<!doctype html>
-<html ${rendererHtmlAttributes(view)}>
+<html lang="en"${startsPendingAttribute}>
   <head>
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="${view.contentSecurityPolicy}"
+      content="${contentSecurityPolicy}"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${view.title}</title>
@@ -180,7 +159,7 @@ const rendererIndexHtml = (view) => {
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-${bodyPrefix}    <div id="root"></div>
+${body}    <div id="root"></div>
     <script type="module" src="./index.js"></script>
   </body>
 </html>
