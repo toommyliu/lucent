@@ -1,5 +1,3 @@
-import "./lib/polyfills";
-
 export {
   Accordion,
   AccordionContent,
