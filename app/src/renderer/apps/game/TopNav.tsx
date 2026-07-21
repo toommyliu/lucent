@@ -278,7 +278,6 @@ function ResetCustomValueButton(props: {
       type="button"
       variant="ghost"
       onClick={props.onClick}
-      onPointerDown={(event) => event.preventDefault()}
     >
       <Icon icon="rotate_ccw" size="sm" />
     </Button>
