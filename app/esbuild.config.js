@@ -63,7 +63,7 @@ const rendererViews = [
       "script-src": [...rendererScriptSources, "'unsafe-eval'"],
       "plugin-types": ["application/x-shockwave-flash"],
     }),
-    entryPoint: "src/renderer/game/index.tsx",
+    entryPoint: "src/renderer/apps/game/index.tsx",
     id: "game",
     title: "Lucent",
     bodyPrefix: [
@@ -77,28 +77,28 @@ const rendererViews = [
   },
   {
     contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/settings/index.tsx",
+    entryPoint: "src/renderer/apps/settings/index.tsx",
     id: "settings",
     ready: true,
     title: "Settings",
   },
   {
     contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/account-manager/index.tsx",
+    entryPoint: "src/renderer/apps/account-manager/index.tsx",
     id: "account-manager",
     ready: true,
     title: "Account Manager",
   },
   {
     contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/combat-profiles/index.tsx",
+    entryPoint: "src/renderer/apps/combat-profiles/index.tsx",
     id: "combat-profiles",
     ready: true,
     title: "Combat Profiles",
   },
   {
     contentSecurityPolicy: baseContentSecurityPolicy,
-    entryPoint: "src/renderer/environment/index.tsx",
+    entryPoint: "src/renderer/apps/environment/index.tsx",
     id: "environment",
     ready: true,
     title: "Environment",
@@ -189,7 +189,7 @@ ${bodyPrefix}    <div id="root"></div>
 
 const copyRendererFiles = () => {
   for (const view of rendererViews) {
-    const sourceDir = `src/renderer/${view.id}`;
+    const sourceDir = `src/renderer/apps/${view.id}`;
     const targetDir = `dist/renderer/${view.id}`;
     mkdirSync(targetDir, { recursive: true });
     writeFileSync(`${targetDir}/index.html`, rendererIndexHtml(view));
@@ -256,7 +256,7 @@ const notifyBuild = (label, options = {}) => {
 };
 
 const rendererStaticFilePaths = () =>
-  rendererViews.map((view) => `src/renderer/${view.id}/style.css`);
+  rendererViews.map((view) => `src/renderer/apps/${view.id}/style.css`);
 
 const fileChanged = (current, previous) =>
   current.mtimeMs !== previous.mtimeMs ||

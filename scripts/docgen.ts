@@ -27,7 +27,7 @@ const execFileAsync = promisify(execFile);
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
-const DEFAULT_SOURCE_FILE = "app/src/renderer/game/scripting/ScriptApi.ts";
+const DEFAULT_SOURCE_FILE = "app/src/renderer/apps/game/scripting/ScriptApi.ts";
 const DEFAULT_OUTPUT_DIR = "docs/src/content/docs/scripting";
 const LEGACY_OUTPUT_DIR = "docs/src/content/docs/script-commands";
 const SOURCE_LINKS_OUTPUT = "docs/src/generated/script-source-links.ts";
@@ -1522,7 +1522,7 @@ const isDocSourceReflection = (
   );
   return (
     relativePath.startsWith("app/src/shared/") ||
-    relativePath.startsWith("app/src/renderer/game/") ||
+    relativePath.startsWith("app/src/renderer/apps/game/") ||
     relativePath.startsWith("packages/core/src/") ||
     relativePath.startsWith("packages/game/src/")
   );
@@ -2027,7 +2027,7 @@ const typedocEntryPoints = (
     );
     if (
       relativePath.startsWith("app/src/shared/") ||
-      relativePath.startsWith("app/src/renderer/game/") ||
+      relativePath.startsWith("app/src/renderer/apps/game/") ||
       relativePath.startsWith("packages/core/src/") ||
       relativePath.startsWith("packages/game/src/")
     ) {

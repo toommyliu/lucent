@@ -191,8 +191,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:44",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L44"
+        "path": "app/src/renderer/apps/game/army/Army.ts:44",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L44"
       }
     },
     "army-error": {
@@ -265,8 +265,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:23",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L23"
+        "path": "app/src/renderer/apps/game/army/Army.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L23"
       }
     },
     "army-loop-taunt-assignment": {
@@ -303,8 +303,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:74",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L74"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:74",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L74"
       }
     },
     "army-loop-taunt-error": {
@@ -377,8 +377,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:124",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L124"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:124",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L124"
       }
     },
     "army-loop-taunt-handle": {
@@ -397,8 +397,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:119",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L119"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:119",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L119"
       }
     },
     "army-loop-taunt-participant-snapshot": {
@@ -423,8 +423,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:46",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L46"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L46"
       }
     },
     "army-loop-taunt-plan": {
@@ -436,8 +436,8 @@
       "definition": "type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[]",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:102",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L102"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:102",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L102"
       }
     },
     "army-loop-taunt-priority-group": {
@@ -456,8 +456,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:90",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L90"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:90",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L90"
       }
     },
     "army-loop-taunt-skip-context": {
@@ -482,8 +482,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:54",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L54"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:54",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L54"
       }
     },
     "army-loop-taunt-skip-when": {
@@ -495,8 +495,8 @@
       "definition": "type ArmyLoopTauntSkipWhen = (\n  context: ArmyLoopTauntSkipContext,\n) =>\n  | boolean\n  | Effect.Effect<boolean, unknown>\n  | Generator<Effect.Effect<any, any, never>, boolean, any>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/army/ArmyLoopTaunt.ts:62",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/ArmyLoopTaunt.ts#L62"
+        "path": "app/src/renderer/apps/game/army/ArmyLoopTaunt.ts:62",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/ArmyLoopTaunt.ts#L62"
       }
     },
     "army-loop-taunt-strategy": {
@@ -528,8 +528,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:40",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L40"
+        "path": "app/src/renderer/apps/game/army/Army.ts:40",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L40"
       }
     },
     "army-session": {
@@ -602,8 +602,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/army/Army.ts:48",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/army/Army.ts#L48"
+        "path": "app/src/renderer/apps/game/army/Army.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L48"
       }
     },
     "army-session-payload": {
@@ -836,8 +836,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:50",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L50"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:50",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L50"
       }
     },
     "auto-relogin-lifecycle-step": {
@@ -849,8 +849,8 @@
       "definition": "type AutoReloginLifecycleStep = \"connect\" | \"login\" | \"ready\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:49",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L49"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:49",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L49"
       }
     },
     "auto-relogin-login-error": {
@@ -1091,8 +1091,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:67",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L67"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:67",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L67"
       }
     },
     "auto-relogin-login-request": {
@@ -1129,8 +1129,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:55",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L55"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:55",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L55"
       }
     },
     "auto-relogin-login-result": {
@@ -1142,8 +1142,8 @@
       "definition": "type AutoReloginLoginResult = | { readonly status: \"ready\" }\n  | { readonly status: \"server-select\" }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:63",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L63"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:63",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L63"
       }
     },
     "auto-relogin-state": {
@@ -1210,8 +1210,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoRelogin.ts:37",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoRelogin.ts#L37"
+        "path": "app/src/renderer/apps/game/automation/AutoRelogin.ts:37",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoRelogin.ts#L37"
       }
     },
     "auto-zone-state": {
@@ -1236,8 +1236,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoZone.ts:33",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L33"
+        "path": "app/src/renderer/apps/game/automation/AutoZone.ts:33",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoZone.ts#L33"
       }
     },
     "auto-zone-supported-map": {
@@ -1249,8 +1249,8 @@
       "definition": "type AutoZoneSupportedMap = typeof AutoZoneSupportedMap.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoZone.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoZone.ts#L21"
+        "path": "app/src/renderer/apps/game/automation/AutoZone.ts:21",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoZone.ts#L21"
       }
     },
     "bank-open-options": {
@@ -1275,8 +1275,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Bank.ts:18",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Bank.ts#L18"
+        "path": "app/src/renderer/apps/game/flash/api/Bank.ts:18",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Bank.ts#L18"
       }
     },
     "bank-view": {
@@ -1288,8 +1288,8 @@
       "definition": "type BankView = \"house\" | \"regular\"",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/Types.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/Types.ts#L3"
+        "path": "app/src/renderer/apps/game/Types.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/Types.ts#L3"
       }
     },
     "boost-type": {
@@ -1314,8 +1314,8 @@
       "definition": "type ClientPacket = typeof ClientPacket.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:21",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L21"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:21",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L21"
       }
     },
     "combat-kill-options": {
@@ -1352,8 +1352,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:66",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L66"
+        "path": "app/src/renderer/apps/game/flash/api/Combat.ts:66",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L66"
       }
     },
     "combat-profile": {
@@ -1523,8 +1523,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Auth.ts:33",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Auth.ts#L33"
+        "path": "app/src/renderer/apps/game/flash/api/Auth.ts:33",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Auth.ts#L33"
       }
     },
     "consumable-cast-result": {
@@ -1555,8 +1555,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:74",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L74"
+        "path": "app/src/renderer/apps/game/flash/api/Combat.ts:74",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L74"
       }
     },
     "enhancement": {
@@ -1813,8 +1813,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Inventory.ts:23",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Inventory.ts#L23"
+        "path": "app/src/renderer/apps/game/flash/api/Inventory.ts:23",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Inventory.ts#L23"
       }
     },
     "event": {
@@ -1826,8 +1826,8 @@
       "definition": "type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:68",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L68"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:68",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L68"
       }
     },
     "event-for-selector": {
@@ -1839,8 +1839,8 @@
       "definition": "type EventForSelector<S> = S extends {\n  readonly type: infer T extends EventType;\n}\n  ? EventForType<T>\n  : Event",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:133",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L133"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:133",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L133"
       }
     },
     "event-for-type": {
@@ -1852,8 +1852,8 @@
       "definition": "type EventForType<T> = Extract<\n  Event,\n  { readonly type: T }\n>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:139",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L139"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:139",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L139"
       }
     },
     "event-selector": {
@@ -1865,8 +1865,8 @@
       "definition": "type EventSelector = | {\n      readonly status?: string;\n      readonly type: \"connection\";\n    }\n  | {\n      readonly message?: string;\n      readonly type: \"debug\";\n    }\n  | {\n      readonly type: \"packet\";\n    }\n  | {\n      readonly type: \"join-map\";\n    }\n  | {\n      readonly type: \"item-drop\";\n    }\n  | {\n      readonly questId?: number;\n      readonly type: \"quest-complete\";\n    }\n  | {\n      readonly monsterMapId?: number;\n      readonly type: \"monster-death\" | \"monster-respawn\";\n    }\n  | {\n      readonly entityId?: number;\n      readonly type: \"player-death\" | \"player-location\";\n      readonly username?: string;\n    }\n  | {\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name?: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId?: number;\n      readonly targetType?: \"monster\" | \"player\";\n      readonly type: \"aura-added\" | \"aura-removed\";\n    }\n  | {\n      readonly message?: string;\n      readonly monsterMapId?: number;\n      readonly source?: \"animation\" | \"aura\";\n      readonly type: \"update-message\";\n    }\n  | {\n      readonly map?: string;\n      readonly type: \"zone\";\n      readonly zone?: string;\n    }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:80",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L80"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:80",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L80"
       }
     },
     "event-selector-for-type": {
@@ -1878,8 +1878,8 @@
       "definition": "type EventSelectorForType<T> = EventSelector & {\n  readonly type: T;\n}",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:144",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L144"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:144",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L144"
       }
     },
     "event-type": {
@@ -1891,8 +1891,8 @@
       "definition": "type EventType = Event[\"type\"]",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:69",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L69"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:69",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L69"
       }
     },
     "extension-packet": {
@@ -1904,8 +1904,8 @@
       "definition": "type ExtensionPacket = typeof ExtensionPacket.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:39",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L39"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:39",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L39"
       }
     },
     "faction-data": {
@@ -1968,8 +1968,8 @@
       "definition": "type FlashPacket = ClientPacket | ServerPacket | ExtensionPacket",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:46",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L46"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:46",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L46"
       }
     },
     "game-action": {
@@ -1981,8 +1981,8 @@
       "definition": "type GameAction = (typeof GameAction)[keyof typeof GameAction]",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/GameAction.ts:19",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/GameAction.ts#L19"
+        "path": "app/src/renderer/apps/game/flash/contract/GameAction.ts:19",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/GameAction.ts#L19"
       }
     },
     "hunt-options": {
@@ -2001,8 +2001,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:57",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L57"
+        "path": "app/src/renderer/apps/game/flash/api/Combat.ts:57",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L57"
       }
     },
     "input": {
@@ -4064,8 +4064,8 @@
       "definition": "type PacketDirection = typeof PacketDirection.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:9",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L9"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:9",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L9"
       }
     },
     "packet-for-direction": {
@@ -4077,8 +4077,8 @@
       "definition": "type PacketForDirection<D> = Extract<\n  FlashPacket,\n  { readonly direction: D }\n>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:61",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L61"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:61",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L61"
       }
     },
     "packet-for-selector": {
@@ -4090,8 +4090,8 @@
       "definition": "type PacketForSelector<S> = S extends {\n    readonly direction: infer Direction extends PacketDirection;\n  }\n    ? PacketForDirection<Direction>\n    : FlashPacket",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:66",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L66"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:66",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L66"
       }
     },
     "packet-selector": {
@@ -4128,8 +4128,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:49",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L49"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:49",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L49"
       }
     },
     "packet-wire-type": {
@@ -4141,8 +4141,8 @@
       "definition": "type PacketWireType = typeof PacketWireType.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:12",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L12"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:12",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L12"
       }
     },
     "player-data": {
@@ -4344,8 +4344,8 @@
       "definition": "type ProjectionEvent = | {\n      readonly type: \"join-map\";\n      readonly map: {\n        readonly id: number;\n        readonly name: string;\n        readonly roomNumber: number;\n      };\n    }\n  | {\n      readonly type: \"item-drop\";\n      readonly item: ItemSnapshot;\n    }\n  | { readonly type: \"quest-complete\"; readonly questId: number }\n  | { readonly type: \"monster-death\"; readonly monsterMapId: number }\n  | { readonly type: \"monster-respawn\"; readonly monsterMapId: number }\n  | {\n      readonly type: \"player-death\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"aura-added\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"aura-removed\";\n      readonly duration?: number;\n      readonly icon?: string;\n      readonly name: string;\n      readonly sourceId?: number;\n      readonly sourceType?: \"monster\" | \"player\";\n      readonly targetId: number;\n      readonly targetType: \"monster\" | \"player\";\n    }\n  | {\n      readonly type: \"player-location\";\n      readonly entityId: number;\n      readonly username: string;\n    }\n  | {\n      readonly type: \"update-message\";\n      readonly message: string;\n      readonly monsterMapId?: number;\n      readonly source: \"animation\" | \"aura\";\n    }\n  | { readonly type: \"zone\"; readonly map: string; readonly zone: string }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:14",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L14"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:14",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L14"
       }
     },
     "protocol-event": {
@@ -4357,8 +4357,8 @@
       "definition": "type ProtocolEvent = {\n  readonly type: \"packet\";\n  readonly packet: FlashPacket;\n}",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:9",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L9"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:9",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L9"
       }
     },
     "quest-cadence": {
@@ -4528,8 +4528,8 @@
       "definition": "type RuntimeEvent = | { readonly type: \"connection\"; readonly status: string }\n  | { readonly type: \"debug\"; readonly message: string }",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Event.ts:5",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Event.ts#L5"
+        "path": "app/src/renderer/apps/game/flash/contract/Event.ts:5",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L5"
       }
     },
     "script-callback-result": {
@@ -4541,8 +4541,8 @@
       "definition": "type ScriptCallbackResult<A> = | Effect.Effect<A, unknown>\n  | ScriptGenerator<A>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/scripting/api/Callbacks.ts:11",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/api/Callbacks.ts#L11"
+        "path": "app/src/renderer/apps/game/scripting/api/Callbacks.ts:11",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Callbacks.ts#L11"
       }
     },
     "script-execution-error": {
@@ -4783,8 +4783,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptRunnerErrors.ts:3",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptRunnerErrors.ts#L3"
+        "path": "app/src/renderer/apps/game/scripting/ScriptRunnerErrors.ts:3",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptRunnerErrors.ts#L3"
       }
     },
     "script-generator": {
@@ -4796,8 +4796,8 @@
       "definition": "type ScriptGenerator<A> = Generator<\n  Effect.Effect<any, any, never>,\n  A,\n  any\n>",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/scripting/api/Callbacks.ts:5",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/api/Callbacks.ts#L5"
+        "path": "app/src/renderer/apps/game/scripting/api/Callbacks.ts:5",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Callbacks.ts#L5"
       }
     },
     "script-input-value": {
@@ -4854,8 +4854,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptApi.ts:72",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptApi.ts#L72"
+        "path": "app/src/renderer/apps/game/scripting/ScriptApi.ts:72",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L72"
       }
     },
     "script-stop-signal": {
@@ -5096,8 +5096,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/scripting/ScriptRunnerErrors.ts:26",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/scripting/ScriptRunnerErrors.ts#L26"
+        "path": "app/src/renderer/apps/game/scripting/ScriptRunnerErrors.ts:26",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptRunnerErrors.ts#L26"
       }
     },
     "server-data": {
@@ -5165,8 +5165,8 @@
       "definition": "type ServerPacket = typeof ServerPacket.Type",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:30",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L30"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:30",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L30"
       }
     },
     "server-snapshot": {
@@ -5312,8 +5312,8 @@
       "definition": "type Skill = number",
       "keys": [],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:48",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L48"
+        "path": "app/src/renderer/apps/game/flash/api/Combat.ts:48",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L48"
       }
     },
     "skill-use-options": {
@@ -5338,8 +5338,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/api/Combat.ts:61",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/api/Combat.ts#L61"
+        "path": "app/src/renderer/apps/game/flash/api/Combat.ts:61",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L61"
       }
     },
     "state": {
@@ -5370,8 +5370,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/automation/AutoAttack.ts:45",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/automation/AutoAttack.ts#L45"
+        "path": "app/src/renderer/apps/game/automation/AutoAttack.ts:45",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/automation/AutoAttack.ts#L45"
       }
     },
     "triggered-wait-options": {
@@ -5396,8 +5396,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/protocol/Wait.ts:39",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/protocol/Wait.ts#L39"
+        "path": "app/src/renderer/apps/game/flash/protocol/Wait.ts:39",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/protocol/Wait.ts#L39"
       }
     },
     "wait-options": {
@@ -5422,8 +5422,8 @@
         }
       ],
       "source": {
-        "path": "app/src/renderer/game/flash/contract/Packet.ts:56",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/game/flash/contract/Packet.ts#L56"
+        "path": "app/src/renderer/apps/game/flash/contract/Packet.ts:56",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L56"
       }
     }
   }

@@ -11,7 +11,7 @@ import {
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
-const DEFAULT_SOURCE_FILE = "app/src/renderer/game/scripting/ScriptApi.ts";
+const DEFAULT_SOURCE_FILE = "app/src/renderer/apps/game/scripting/ScriptApi.ts";
 const DEFAULT_OUTPUT_FILE = "docs/public/script-api.d.ts";
 const APP_TSCONFIG = "app/tsconfig.json";
 const GENERATED_HEADER =
