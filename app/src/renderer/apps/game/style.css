@@ -859,10 +859,42 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 }
 
 .game-menu__slider-value {
-  min-width: 2ch;
+  box-sizing: border-box;
+  width: 2.25rem;
   color: var(--color-foreground);
+  cursor: text;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.game-menu__slider-value:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 2px;
+}
+
+.game-menu__field[data-disabled] .game-menu__slider-value {
+  cursor: default;
+}
+
+.game-menu__slider-value-input {
+  box-sizing: border-box;
+  width: 2.25rem;
+  height: 1.25rem;
+  padding: 0 0.2rem;
+  background: rgb(var(--background));
+  border: 1px solid rgb(var(--input));
+  border-radius: var(--radius-sm);
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  outline: none;
+  text-align: right;
+}
+
+.game-menu__slider-value-input:focus {
+  border-color: rgb(var(--ring));
 }
 
 .game-menu__identity-field {

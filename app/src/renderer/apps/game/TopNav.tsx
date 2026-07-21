@@ -294,6 +294,10 @@ function MenuSliderField(props: {
   readonly setValue: Setter<string>;
   readonly value: Accessor<string>;
 }): JSX.Element {
+  const [editing, setEditing] = createSignal(false);
+  const [draftValue, setDraftValue] = createSignal("");
+  let valueInput: HTMLInputElement | undefined;
+
   const value = () => {
     const parsed = Number(props.value());
     return Number.isFinite(parsed)
@@ -304,6 +308,37 @@ function MenuSliderField(props: {
     props.setValue(String(nextValue));
     props.onCommit(nextValue);
   };
+  const beginEdit = (): void => {
+    if (props.disabled) return;
+
+    setDraftValue(String(value()));
+    setEditing(true);
+    queueMicrotask(() => {
+      valueInput?.focus();
+      valueInput?.select();
+    });
+  };
+  const cancelEdit = (): void => {
+    setEditing(false);
+    setDraftValue("");
+  };
+  const commitEdit = (): void => {
+    if (!editing()) return;
+
+    const parsed = Number(draftValue());
+    if (!Number.isFinite(parsed) || draftValue().trim() === "") {
+      cancelEdit();
+      return;
+    }
+
+    const nextValue = Math.max(
+      props.min,
+      Math.min(props.max, Math.round(parsed)),
+    );
+    setEditing(false);
+    setDraftValue("");
+    commit(nextValue);
+  };
 
   return (
     <div
@@ -313,7 +348,60 @@ function MenuSliderField(props: {
       <span class="game-menu__field-heading">
         <span class="game-menu__field-label">{props.label}</span>
         <span class="game-menu__field-actions">
-          <span class="game-menu__slider-value">{value()}</span>
+          <Show
+            when={editing()}
+            fallback={
+              <span
+                aria-disabled={props.disabled}
+                aria-label={`Edit ${props.label.toLowerCase()}`}
+                class="game-menu__slider-value"
+                role="button"
+                tabIndex={props.disabled ? -1 : 0}
+                title={`Double-click to edit ${props.label.toLowerCase()}`}
+                onDblClick={beginEdit}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  beginEdit();
+                }}
+              >
+                {value()}
+              </span>
+            }
+          >
+            <Input
+              ref={(element) => {
+                valueInput = element;
+              }}
+              aria-label={props.label}
+              class="game-menu__slider-value-input"
+              inputMode="numeric"
+              type="text"
+              unstyled
+              value={draftValue()}
+              onBlur={commitEdit}
+              onInput={(event) => setDraftValue(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  cancelEdit();
+                  return;
+                }
+
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  commitEdit();
+                  return;
+                }
+
+                if (event.key !== "Tab") event.stopPropagation();
+              }}
+            />
+          </Show>
           <Button
             aria-label={`Reset ${props.label.toLowerCase()}`}
             disabled={props.disabled || value() === props.resetValue}
@@ -333,6 +421,7 @@ function MenuSliderField(props: {
         max={props.max}
         min={props.min}
         step={1}
+        thumbAlignment="center"
         value={[value()]}
         onKeyDown={(event) => {
           if (event.key !== "Escape" && event.key !== "Tab") {
