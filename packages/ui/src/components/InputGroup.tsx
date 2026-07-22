@@ -82,6 +82,11 @@ export function InputGroup(props: InputGroupProps): JSX.Element {
         role="group"
       >
         {local.children}
+        <span
+          aria-hidden="true"
+          class="input-group__focus-ring"
+          data-slot="input-group-focus-ring"
+        />
       </div>
     </InputGroupContext.Provider>
   );

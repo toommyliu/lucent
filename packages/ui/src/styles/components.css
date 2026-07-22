@@ -829,10 +829,6 @@ body::-webkit-scrollbar-corner,
 }
 
 .input-group:focus-within {
-  border-color: rgba(var(--ring), 0.92);
-  box-shadow:
-    0 0 0 1px rgba(var(--ring), 0.56),
-    0 0 0 4px rgba(var(--ring), 0.18);
   z-index: 1;
 }
 
@@ -840,7 +836,25 @@ body::-webkit-scrollbar-corner,
   border-color: rgba(var(--destructive), 0.64);
 }
 
-.input-group--invalid:focus-within {
+.input-group__focus-ring {
+  border: 1px solid rgba(var(--ring), 0.92);
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px rgba(var(--ring), 0.56),
+    0 0 0 4px rgba(var(--ring), 0.18);
+  display: none;
+  inset: -1px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.input-group > .input--unstyled:focus ~ .input-group__focus-ring,
+.input-group > .textarea--unstyled:focus ~ .input-group__focus-ring {
+  display: block;
+}
+
+.input-group--invalid > .input--unstyled:focus ~ .input-group__focus-ring,
+.input-group--invalid > .textarea--unstyled:focus ~ .input-group__focus-ring {
   border-color: rgba(var(--destructive), 0.86);
   box-shadow:
     0 0 0 1px rgba(var(--destructive), 0.64),
@@ -936,6 +950,11 @@ body::-webkit-scrollbar-corner,
   opacity: 0.8;
   pointer-events: none;
   width: 1rem;
+}
+
+.input-group__addon .button:focus-visible {
+  border-color: rgba(var(--ring), 0.92);
+  box-shadow: none;
 }
 
 .input-group__addon--inline-start {
