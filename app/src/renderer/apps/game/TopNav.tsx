@@ -2,9 +2,6 @@ import {
   Button,
   Icon,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
   Kbd,
   Label,
   Menu,
@@ -595,21 +592,11 @@ export function TopNavOptionsMenuContent(
             class="game-menu__field game-menu__identity-field"
             data-disabled={gameInteractionDisabled() ? "" : undefined}
           >
-            <Label class="game-menu__field-label" for="game-custom-name">
-              Custom Name
-            </Label>
-            <InputGroup size="sm">
-              <InputGroupInput
-                disabled={gameInteractionDisabled()}
-                id="game-custom-name"
-                value={props.customName()}
-                onBlur={props.handleSetCustomName}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
-                onInput={(event) =>
-                  props.setCustomName(event.currentTarget.value)
-                }
-              />
-              <InputGroupAddon align="inline-end">
+            <span class="game-menu__field-heading">
+              <Label class="game-menu__field-label" for="game-custom-name">
+                Custom Name
+              </Label>
+              <span class="game-menu__field-actions">
                 <ResetCustomValueButton
                   disabled={
                     gameInteractionDisabled() || !props.customNameConfigured()
@@ -617,28 +604,30 @@ export function TopNavOptionsMenuContent(
                   label="Reset custom name"
                   onClick={props.handleResetCustomName}
                 />
-              </InputGroupAddon>
-            </InputGroup>
+              </span>
+            </span>
+            <Input
+              disabled={gameInteractionDisabled()}
+              fullWidth
+              id="game-custom-name"
+              size="sm"
+              value={props.customName()}
+              onBlur={props.handleSetCustomName}
+              onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
+              onInput={(event) =>
+                props.setCustomName(event.currentTarget.value)
+              }
+            />
           </div>
           <div
             class="game-menu__field game-menu__identity-field"
             data-disabled={gameInteractionDisabled() ? "" : undefined}
           >
-            <Label class="game-menu__field-label" for="game-custom-guild">
-              Custom Guild
-            </Label>
-            <InputGroup size="sm">
-              <InputGroupInput
-                disabled={gameInteractionDisabled()}
-                id="game-custom-guild"
-                value={props.customGuild()}
-                onBlur={props.handleSetCustomGuild}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
-                onInput={(event) =>
-                  props.setCustomGuild(event.currentTarget.value)
-                }
-              />
-              <InputGroupAddon align="inline-end">
+            <span class="game-menu__field-heading">
+              <Label class="game-menu__field-label" for="game-custom-guild">
+                Custom Guild
+              </Label>
+              <span class="game-menu__field-actions">
                 <ResetCustomValueButton
                   disabled={
                     gameInteractionDisabled() || !props.customGuildConfigured()
@@ -646,8 +635,20 @@ export function TopNavOptionsMenuContent(
                   label="Reset custom guild"
                   onClick={props.handleResetCustomGuild}
                 />
-              </InputGroupAddon>
-            </InputGroup>
+              </span>
+            </span>
+            <Input
+              disabled={gameInteractionDisabled()}
+              fullWidth
+              id="game-custom-guild"
+              size="sm"
+              value={props.customGuild()}
+              onBlur={props.handleSetCustomGuild}
+              onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
+              onInput={(event) =>
+                props.setCustomGuild(event.currentTarget.value)
+              }
+            />
           </div>
         </div>
       </div>

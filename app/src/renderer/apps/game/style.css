@@ -843,6 +843,7 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 }
 
 .game-menu__field[data-disabled] .slider[data-disabled],
+.game-menu__field[data-disabled] .input:disabled,
 .game-menu__field[data-disabled] .input-group--disabled,
 .game-menu__field[data-disabled] .button:disabled {
   opacity: 1;
@@ -859,18 +860,23 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 }
 
 .game-menu__slider-value {
+  align-items: center;
   box-sizing: border-box;
-  width: 2.25rem;
   color: var(--color-foreground);
   cursor: text;
+  display: inline-flex;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  height: var(--control-height-xs);
+  justify-content: center;
+  width: 1.875rem;
 }
 
 .game-menu__slider-value:focus-visible {
   border-radius: var(--radius-sm);
-  outline: 2px solid rgb(var(--ring));
-  outline-offset: 2px;
+  box-shadow:
+    0 0 0 1px rgb(var(--background)),
+    0 0 0 3px rgba(var(--ring), 0.42);
+  outline: none;
 }
 
 .game-menu__field[data-disabled] .game-menu__slider-value {
@@ -879,8 +885,8 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 
 .game-menu__slider-value-input {
   box-sizing: border-box;
-  width: 2.25rem;
-  height: 1.25rem;
+  width: 1.875rem;
+  height: var(--control-height-xs);
   padding: 0 0.2rem;
   background: rgb(var(--background));
   border: 1px solid rgb(var(--input));
@@ -890,7 +896,7 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   outline: none;
-  text-align: right;
+  text-align: center;
 }
 
 .game-menu__slider-value-input:focus {
