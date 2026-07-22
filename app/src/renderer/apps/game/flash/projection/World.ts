@@ -450,7 +450,16 @@ export const projectExtensionWorld = (
             );
             continue;
           }
-          const player = yield* store.world.putPlayer(toPlayer(decoded.value));
+          // AQW keeps this avatar metadata separate from its authoritative
+          // world-state leaf, so only use it when no world baseline exists.
+          const fallback = toPlayer(decoded.value);
+          let player = yield* store.world.getPlayer(fallback.entityId);
+          if (player === null) {
+            player = yield* store.world.getPlayer(fallback.username);
+          }
+          if (player === null) {
+            player = yield* store.world.putPlayer(fallback);
+          }
           if (
             (Option.isSome(userId) && player.entityId === userId.value) ||
             player.username.localeCompare(auth.username, undefined, {
