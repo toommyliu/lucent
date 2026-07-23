@@ -4,6 +4,7 @@ const GAME_WINDOW_OPEN_DOMAIN_ROOTS = [
   "https://account.aq.com",
   "http://aqwwiki.wikidot.com",
   "https://heromart.com",
+  "http://account.aqworlds.com/",
 ] as const;
 
 const GAME_WINDOW_OPEN_RULES = GAME_WINDOW_OPEN_DOMAIN_ROOTS.map(
