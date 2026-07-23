@@ -6,6 +6,25 @@ package lucent.game
   [BridgeNamespace("quests")]
   public class Quests
   {
+    private static function closeQuestFrame(game:Object):void
+    {
+      var questFrame:* = null;
+      try
+      {
+        questFrame = game.getInstanceFromModalStack("QFrameMC");
+        if (questFrame != null)
+        {
+          questFrame.fClose();
+        }
+      }
+      catch (error:Error)
+      {
+        if (questFrame != null && questFrame.parent != null)
+        {
+          questFrame.parent.removeChild(questFrame);
+        }
+      }
+    }
 
     [BridgeExport]
     public static function isInProgress(questId:int):Boolean
@@ -44,11 +63,7 @@ package lucent.game
 
       if (silent)
       {
-        var mcQFrame:* = game.getInstanceFromModalStack("QFrameMC");
-        if (mcQFrame != null)
-        {
-          game.world.toggleQuestLog();
-        }
+        closeQuestFrame(game);
       }
 
       game.world.acceptQuest(questId);
@@ -66,6 +81,7 @@ package lucent.game
     public static function load(questId:int):void
     {
       var game:Object = Main.Game;
+      closeQuestFrame(game);
       game.world.showQuests([questId], "q");
     }
 
@@ -73,6 +89,7 @@ package lucent.game
     public static function loadMultiple(questIds:String):void
     {
       var game:Object = Main.Game;
+      closeQuestFrame(game);
       game.world.showQuests(questIds.split(","), "q");
     }
 
