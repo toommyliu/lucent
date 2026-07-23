@@ -1,9 +1,16 @@
 import { Effect, Random } from "effect";
 
-export const minimumPrivateRoom = 10_000;
-export const maximumRoom = 99_999;
+import {
+  MAXIMUM_ROOM_NUMBER,
+  MINIMUM_PRIVATE_ROOM,
+  MINIMUM_RANDOM_PRIVATE_ROOM,
+  MINIMUM_ROOM_NUMBER,
+  type RoomPolicy,
+} from "@lucent/core/accountSettings";
 
-const minimumExactRoom = 1_001;
+export const minimumPrivateRoom = MINIMUM_PRIVATE_ROOM;
+export const minimumRandomPrivateRoom = MINIMUM_RANDOM_PRIVATE_ROOM;
+export const maximumRoom = MAXIMUM_ROOM_NUMBER;
 
 export interface MapTarget {
   readonly map: string;
@@ -39,7 +46,7 @@ const parseRoom = (value: string): number | undefined => {
 };
 
 export const randomPrivateRoom = Random.nextIntBetween(
-  minimumPrivateRoom,
+  minimumRandomPrivateRoom,
   maximumRoom,
 );
 
@@ -48,12 +55,17 @@ export const isPrivateRoom = (room: number): boolean =>
   room >= minimumPrivateRoom &&
   room <= maximumRoom;
 
+export const isRoomNumber = (room: number): boolean =>
+  Number.isSafeInteger(room) &&
+  room >= MINIMUM_ROOM_NUMBER &&
+  room <= maximumRoom;
+
 export const hasFixedRoom = (map: string): boolean => {
   const roomToken = splitRoom(map).roomToken;
   return roomToken !== undefined && parseRoom(roomToken) !== undefined;
 };
 
-export const privateRoom = (map: string, room: number): string => {
+export const withRoomNumber = (map: string, room: number): string => {
   const target = splitRoom(map);
   if (
     target.roomToken !== undefined &&
@@ -64,14 +76,25 @@ export const privateRoom = (map: string, room: number): string => {
   return `${target.name}-${Math.max(1, Math.trunc(room))}`;
 };
 
-export const applyPrivateRoom = Effect.fn("applyPrivateRoom")(function* (
+export const applyRoomPolicy = Effect.fn("applyRoomPolicy")(function* (
   map: string,
-  enabled: boolean,
+  policy: RoomPolicy,
 ) {
   const trimmed = map.trim();
-  if (trimmed === "" || !enabled) return map;
-  return privateRoom(trimmed, yield* randomPrivateRoom);
+  if (trimmed === "" || policy.kind === "public") return map;
+  const room =
+    policy.kind === "specific" ? policy.roomNumber : yield* randomPrivateRoom;
+  return withRoomNumber(trimmed, room);
 });
+
+export const roomPolicyAcceptsRoom = (
+  policy: RoomPolicy,
+  roomNumber: number,
+): boolean =>
+  policy.kind === "public" ||
+  (policy.kind === "random-private"
+    ? isPrivateRoom(roomNumber)
+    : roomNumber === policy.roomNumber);
 
 export const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
   Effect.gen(function* () {
@@ -88,7 +111,7 @@ export const parseMapTarget = (map: string): Effect.Effect<MapTarget> =>
     const roomNumber = fixedRoom ?? (yield* randomPrivateRoom);
     const requireExactRoom =
       fixedRoom === undefined ||
-      (fixedRoom >= minimumExactRoom && fixedRoom <= maximumRoom);
+      (fixedRoom >= minimumPrivateRoom && fixedRoom <= maximumRoom);
     return {
       map:
         fixedRoom === undefined ? `${target.name}-${roomNumber}` : target.map,

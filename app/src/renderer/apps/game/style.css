@@ -130,7 +130,8 @@ html[data-topnav-hidden] #swf {
 }
 
 body[data-inert] .game-topnav-container,
-body[data-inert] .game-topnav__menu-portal .menu__positioner {
+body[data-inert] .game-topnav__menu-portal .menu__positioner,
+body[data-inert] .game-topnav__menu-portal .select__positioner {
   pointer-events: none;
 }
 
@@ -141,7 +142,8 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
   pointer-events: none;
 }
 
-.game-topnav__menu-portal .menu__positioner {
+.game-topnav__menu-portal .menu__positioner,
+.game-topnav__menu-portal .select__positioner {
   pointer-events: auto;
 }
 
@@ -905,6 +907,81 @@ body[data-inert] .game-topnav__menu-portal .menu__positioner {
 
 .game-menu__identity-field {
   padding: 0 4px;
+}
+
+.game-menu--script-options {
+  width: min(17rem, calc(100vw - 0.5rem)) !important;
+}
+
+.game-menu__script-room-fields {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px 8px;
+}
+
+.game-menu__script-room-control {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-menu__script-room-label {
+  color: var(--color-foreground);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.game-menu__script-room-select {
+  display: block;
+  width: 100%;
+}
+
+.game-menu__script-room-select .select__trigger {
+  min-width: 0;
+}
+
+.game-menu__script-room-input {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-menu__script-room-feedback {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-menu__script-room-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-height: 1.25rem;
+  padding: 0 0.5rem;
+  color: rgb(var(--info-foreground));
+  background: rgba(var(--info), 0.14);
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.game-menu__script-room-badge[data-kind="private"] {
+  color: var(--color-success-foreground);
+  background: rgba(var(--success), 0.12);
+}
+
+.game-menu__script-room-message {
+  color: var(--color-muted-foreground);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+  min-height: 1.25em;
+}
+
+.game-menu__script-room-feedback[data-invalid]
+  .game-menu__script-room-message {
+  color: var(--color-destructive);
 }
 
 .game-menu__priority-input {

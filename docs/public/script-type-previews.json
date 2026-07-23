@@ -4507,6 +4507,19 @@
         "url": "https://github.com/toommyliu/lucent/blob/main/packages/game/src/quest.ts#L35"
       }
     },
+    "room-policy": {
+      "name": "RoomPolicy",
+      "slug": "room-policy",
+      "kind": "type alias",
+      "summary": "",
+      "aliasOf": null,
+      "definition": "type RoomPolicy = typeof RoomPolicySchema.Type",
+      "keys": [],
+      "source": {
+        "path": "packages/core/src/accountSettings.ts:26",
+        "url": "https://github.com/toommyliu/lucent/blob/main/packages/core/src/accountSettings.ts#L26"
+      }
+    },
     "runtime-event": {
       "name": "RuntimeEvent",
       "slug": "runtime-event",
@@ -4830,20 +4843,20 @@
         },
         {
           "kind": "property",
-          "name": "safeStartStop",
-          "signature": "readonly safeStartStop: boolean",
+          "name": "roomPolicy",
+          "signature": "readonly roomPolicy: { kind: \"public\" } | { kind: \"random-private\" } | { kind: \"specific\"; roomNumber: number }",
           "description": ""
         },
         {
           "kind": "property",
-          "name": "usePrivateRooms",
-          "signature": "readonly usePrivateRooms: boolean",
+          "name": "safeStartStop",
+          "signature": "readonly safeStartStop: boolean",
           "description": ""
         }
       ],
       "source": {
-        "path": "app/src/renderer/apps/game/scripting/ScriptApi.ts:72",
-        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L72"
+        "path": "app/src/renderer/apps/game/scripting/ScriptApi.ts:74",
+        "url": "https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L74"
       }
     },
     "script-stop-signal": {

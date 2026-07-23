@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AccountsIpc,
+  AccountSettingsIpc,
   ArmyIpc,
   CombatProfilesIpc,
   EnvironmentIpc,
@@ -23,6 +24,7 @@ const isInvokeDescriptor = (
 const expectedDescriptors = [
   ...Object.values(WindowsIpc),
   ...Object.values(AccountsIpc),
+  ...Object.values(AccountSettingsIpc),
   ...Object.values(ArmyIpc),
   ...Object.values(CombatProfilesIpc),
   ...Object.values(EnvironmentIpc),

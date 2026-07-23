@@ -1,8 +1,12 @@
 import { Cause, Data, Effect, Option, Schedule, Schema } from "effect";
 
+import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../flash/api/Api";
 import type { BridgeService } from "../flash/bridge/Bridge";
-import { applyPrivateRoom, isPrivateRoom } from "../flash/domain/MapTarget";
+import {
+  applyRoomPolicy,
+  roomPolicyAcceptsRoom,
+} from "../flash/domain/MapTarget";
 
 const maximumSafeMoveAttempts = 3;
 const respawnTimeout = "15 seconds";
@@ -18,7 +22,7 @@ export interface SafeStartStopServices {
   readonly map: ApiService["map"];
   readonly packet: ApiService["packet"];
   readonly player: ApiService["player"];
-  readonly usePrivateRooms: Effect.Effect<boolean>;
+  readonly roomPolicy: Effect.Effect<RoomPolicy>;
   readonly wait: ApiService["wait"];
 }
 
@@ -86,17 +90,8 @@ type SafeDestination =
   | { readonly kind: "buyhouse"; readonly target: string };
 
 export const makeMoveToSafeDestination = (services: SafeStartStopServices) => {
-  const {
-    auth,
-    bridge,
-    combat,
-    house,
-    map,
-    packet,
-    player,
-    usePrivateRooms,
-    wait,
-  } = services;
+  const { auth, bridge, combat, house, map, packet, player, roomPolicy, wait } =
+    services;
 
   const isInOwnHouse = bridge
     .invokeJson("flash.callGameFunction0", ["world.isMyHouse"], Schema.Boolean)
@@ -133,8 +128,8 @@ export const makeMoveToSafeDestination = (services: SafeStartStopServices) => {
         if (inOwnHouse) return;
         destination = { kind: "house" };
       } else {
-        const privateRoomsEnabled = yield* usePrivateRooms;
-        const [mapName, roomNumber] = yield* Effect.all([
+        const policy = yield* roomPolicy;
+        const [mapName, currentRoomNumber] = yield* Effect.all([
           map.getName(),
           map.getRoomNumber(),
         ]);
@@ -142,12 +137,12 @@ export const makeMoveToSafeDestination = (services: SafeStartStopServices) => {
           mapName.localeCompare("buyhouse", undefined, {
             sensitivity: "accent",
           }) === 0;
-        if (inBuyhouse && (!privateRoomsEnabled || isPrivateRoom(roomNumber))) {
+        if (inBuyhouse && roomPolicyAcceptsRoom(policy, currentRoomNumber)) {
           return;
         }
         destination = {
           kind: "buyhouse",
-          target: yield* applyPrivateRoom("buyhouse", privateRoomsEnabled),
+          target: yield* applyRoomPolicy("buyhouse", policy),
         };
       }
 

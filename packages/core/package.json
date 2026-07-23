@@ -23,6 +23,10 @@
       "types": "./dist/accounts.d.cts",
       "default": "./dist/accounts.cjs"
     },
+    "./accountSettings": {
+      "types": "./dist/accountSettings.d.cts",
+      "default": "./dist/accountSettings.cjs"
+    },
     "./army": {
       "types": "./dist/army.d.cts",
       "default": "./dist/army.cjs"
@@ -50,7 +54,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown --format cjs --dts --outDir dist src/index.ts src/accounts.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/hotkeys.ts src/scriptInputs.ts src/settings.ts",
+    "build": "tsdown --format cjs --dts --outDir dist src/index.ts src/accounts.ts src/accountSettings.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/hotkeys.ts src/scriptInputs.ts src/settings.ts",
     "postinstall": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

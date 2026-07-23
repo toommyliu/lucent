@@ -1,6 +1,7 @@
 import type { Duration, Effect, Option, pipe } from "effect";
 
 import type { ArmyApiShape } from "../army/Army";
+import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type {
   ScriptInputsDefinition,
   ScriptInputValue,
@@ -25,6 +26,7 @@ export type ScriptEffect<A = unknown, E = unknown> = Effect.Effect<A, E>;
 export type { ScriptCallbackResult, ScriptGenerator };
 export type { ScriptPlayersApi } from "./api/Players";
 export type { ScriptEnhanceItemOptions, ScriptRecipesApi } from "./api/Recipes";
+export type { RoomPolicy };
 
 export type ScriptInputType = "string" | "number" | "boolean" | "select";
 
@@ -71,23 +73,23 @@ export interface ScriptInputsApi {
 
 export interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
+  readonly roomPolicy: RoomPolicy;
   readonly safeStartStop: boolean;
-  readonly usePrivateRooms: boolean;
 }
 
 export interface ScriptOptionsApi {
   readonly getAll: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly getRestartAfterReconnect: () => Effect.Effect<boolean>;
+  readonly getRoomPolicy: () => Effect.Effect<RoomPolicy>;
   readonly getSafeStartStop: () => Effect.Effect<boolean>;
-  readonly getUsePrivateRooms: () => Effect.Effect<boolean>;
   readonly reset: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly setRestartAfterReconnect: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;
+  readonly setRoomPolicy: (
+    policy: RoomPolicy,
+  ) => Effect.Effect<ScriptRuntimeOptions, ScriptExecutionError>;
   readonly setSafeStartStop: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setUsePrivateRooms: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;
 }

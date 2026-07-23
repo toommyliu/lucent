@@ -1,25 +1,21 @@
 import { Effect } from "effect";
 
+import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../../flash/api/Api";
-import { applyPrivateRoom } from "../../flash/domain/MapTarget";
-import type { ScriptRuntimeApi } from "../ScriptApi";
+import { applyRoomPolicy } from "../../flash/domain/MapTarget";
 import { makeScriptPlayersApi } from "./Players";
 
-type ScriptPrivateRoomContext = {
-  readonly options: Pick<ScriptRuntimeApi["options"], "getUsePrivateRooms">;
+type ScriptRoomPolicyContext = {
+  readonly policy: Effect.Effect<RoomPolicy>;
 };
 
 const makeScriptPlayerJoinMap = (
   joinMap: ApiService["player"]["joinMap"],
-  script: ScriptPrivateRoomContext,
+  script: ScriptRoomPolicyContext,
 ): ApiService["player"]["joinMap"] =>
   Effect.fn("ScriptPlayer.joinMap")(function* (map, cell, pad) {
-    const usePrivateRooms = yield* script.options.getUsePrivateRooms();
-    return yield* joinMap(
-      yield* applyPrivateRoom(map, usePrivateRooms),
-      cell,
-      pad,
-    );
+    const policy = yield* script.policy;
+    return yield* joinMap(yield* applyRoomPolicy(map, policy), cell, pad);
   });
 
 export const makeScriptPlayerApis = <
@@ -28,7 +24,7 @@ export const makeScriptPlayerApis = <
 >(
   player: PlayerSource,
   players: PlayersSource,
-  script: ScriptPrivateRoomContext,
+  script: ScriptRoomPolicyContext,
 ) => {
   const playerApi = {
     ...player,

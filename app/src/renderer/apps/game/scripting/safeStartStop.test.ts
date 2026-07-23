@@ -2,6 +2,11 @@ import { describe, expect, it } from "@effect/vitest";
 import { Clock, Deferred, Effect, Fiber, Option, Random } from "effect";
 import * as TestClock from "effect/testing/TestClock";
 
+import {
+  PUBLIC_ROOM_POLICY,
+  RANDOM_PRIVATE_ROOM_POLICY,
+  type RoomPolicy,
+} from "@lucent/core/accountSettings";
 import { minimumPrivateRoom } from "../flash/domain/MapTarget";
 import {
   makeMoveToSafeDestination,
@@ -210,7 +215,7 @@ describe("safeStartStop", () => {
                   return true;
                 }),
             },
-            usePrivateRooms: Effect.succeed(false),
+            roomPolicy: Effect.succeed(PUBLIC_ROOM_POLICY),
             wait: {
               untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
                 condition.pipe(Effect.map(Option.getOrNull)),
@@ -270,7 +275,10 @@ describe("safeStartStop", () => {
                 return joinedMaps.length === 3;
               }),
           },
-          usePrivateRooms: Effect.succeed(true),
+          roomPolicy: Effect.succeed<RoomPolicy>({
+            kind: "specific",
+            roomNumber: minimumPrivateRoom,
+          }),
           wait: {
             untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
               condition.pipe(Effect.map(Option.getOrNull)),
@@ -307,48 +315,53 @@ describe("safeStartStop", () => {
     ),
   );
 
-  it.effect("accepts an existing private buyhouse room", () =>
+  it.effect("accepts an existing buyhouse room that satisfies the policy", () =>
     Effect.gen(function* () {
-      let combatExitCount = 0;
-      let joinCount = 0;
-      const services = {
-        auth: {
-          getUsername: () => Effect.succeed("Local Player"),
-          isLoggedIn: () => Effect.succeed(true),
-        },
-        bridge: {
-          invokeJson: () => Effect.succeed(Option.some(false)),
-        },
-        combat: {
-          exit: () =>
-            Effect.sync(() => {
-              combatExitCount += 1;
-              return true;
-            }),
-        },
-        house: {
-          getAll: () => Effect.succeed([]),
-        },
-        map: {
-          getName: () => Effect.succeed("buyhouse"),
-          getRoomNumber: () => Effect.succeed(minimumPrivateRoom),
-        },
-        packet: {},
-        player: {
-          joinMap: () =>
-            Effect.sync(() => {
-              joinCount += 1;
-              return true;
-            }),
-        },
-        usePrivateRooms: Effect.succeed(true),
-        wait: {},
-      } as unknown as SafeStartStopServices;
+      for (const [currentRoomNumber, roomPolicy] of [
+        [minimumPrivateRoom, RANDOM_PRIVATE_ROOM_POLICY],
+        [42, { kind: "specific", roomNumber: 42 }],
+      ] as const) {
+        let combatExitCount = 0;
+        let joinCount = 0;
+        const services = {
+          auth: {
+            getUsername: () => Effect.succeed("Local Player"),
+            isLoggedIn: () => Effect.succeed(true),
+          },
+          bridge: {
+            invokeJson: () => Effect.succeed(Option.some(false)),
+          },
+          combat: {
+            exit: () =>
+              Effect.sync(() => {
+                combatExitCount += 1;
+                return true;
+              }),
+          },
+          house: {
+            getAll: () => Effect.succeed([]),
+          },
+          map: {
+            getName: () => Effect.succeed("buyhouse"),
+            getRoomNumber: () => Effect.succeed(currentRoomNumber),
+          },
+          packet: {},
+          player: {
+            joinMap: () =>
+              Effect.sync(() => {
+                joinCount += 1;
+                return true;
+              }),
+          },
+          roomPolicy: Effect.succeed<RoomPolicy>(roomPolicy),
+          wait: {},
+        } as unknown as SafeStartStopServices;
 
-      yield* makeMoveToSafeDestination(services)("before");
+        yield* makeMoveToSafeDestination(services)("before");
 
-      expect(combatExitCount).toBe(0);
-      expect(joinCount).toBe(0);
+        expect(combatExitCount).toBe(0);
+        expect(joinCount).toBe(0);
+      }
     }),
   );
 

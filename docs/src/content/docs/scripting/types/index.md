@@ -115,6 +115,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/quest-item/" data-script-type="quest-item"><code>QuestItem</code></a> | interface |  |
 | <a href="/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | interface |  |
 | <a href="/scripting/types/quest-snapshot/" data-script-type="quest-snapshot"><code>QuestSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/room-policy/" data-script-type="room-policy"><code>RoomPolicy</code></a> | type alias |  |
 | <a href="/scripting/types/runtime-event/" data-script-type="runtime-event"><code>RuntimeEvent</code></a> | type alias |  |
 | <a href="/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | type alias |  |
 | <a href="/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a> | class |  |
