@@ -16,6 +16,7 @@ body {
 }
 
 .game-script-error-dialog.dialog__content {
+  max-height: min(32rem, calc(100vh - 2rem));
   max-width: min(42rem, calc(100vw - 2rem));
 }
 
@@ -38,6 +39,10 @@ body {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.5;
+  max-height: min(6rem, 16vh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
 }
 
 .game-script-error-dialog__open-source.button {
@@ -64,18 +69,20 @@ body {
 }
 
 .game-script-error-dialog__accordion .accordion__content-inner {
-  padding: 0;
+  background-color: rgba(var(--muted), 0.62);
+  border-top: 1px solid var(--color-border);
+  padding: 0.25rem;
 }
 
 .game-script-error-dialog__stack {
-  background-color: rgba(var(--muted), 0.62);
-  border-top: 1px solid var(--color-border);
+  background: transparent;
   color: var(--color-foreground);
   font-family: var(--font-mono);
   margin: 0;
-  max-height: min(18rem, 48vh);
+  max-height: min(14rem, 30vh);
   overflow: auto;
-  padding: 0.625rem;
+  padding: 0.375rem;
+  overscroll-behavior: contain;
   white-space: pre-wrap;
   word-break: break-word;
 }
