@@ -240,13 +240,11 @@ export const castNextCombatProfileStep = (
         wait: waitForCooldown,
       });
       const nextIndex = (stepIndex + 1) % steps.length;
-      if (cast) {
-        yield* Ref.update(cursor.state, (state) =>
-          state.resetVersion === resetVersionBeforeCast
-            ? { ...state, index: nextIndex }
-            : state,
-        );
-      }
+      yield* Ref.update(cursor.state, (state) =>
+        state.resetVersion === resetVersionBeforeCast
+          ? { ...state, index: nextIndex }
+          : state,
+      );
 
       if (cast && step.waitMs !== undefined && step.waitMs > 0) {
         yield* Effect.sleep(`${step.waitMs} millis`);

@@ -67,7 +67,7 @@ const makeDeps = (overrides?: {
 });
 
 describe("combat profile runtime", () => {
-  it.effect("does not advance the rotation cursor after a failed cast", () =>
+  it.effect("advances the rotation cursor after a failed cast", () =>
     Effect.gen(function* () {
       const casts: number[] = [];
       const cursor = yield* makeCombatProfileCursor();
@@ -85,7 +85,7 @@ describe("combat profile runtime", () => {
       expect(yield* castNextCombatProfileStep(deps, profile, cursor)).toBe(
         true,
       );
-      expect(casts).toEqual([1, 1]);
+      expect(casts).toEqual([1, 2]);
     }),
   );
 
