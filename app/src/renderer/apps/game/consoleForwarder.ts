@@ -39,8 +39,61 @@ interface OwnKeysResult {
   readonly keys: readonly string[];
 }
 
-const errorMessage = (error: Error): string =>
+const errorStack = (error: Error): string =>
   error.stack ?? `${error.name}: ${error.message}`;
+
+const stringifyErrorCause = (cause: unknown): string => {
+  if (typeof cause === "string") {
+    return cause;
+  }
+
+  try {
+    return String(cause);
+  } catch {
+    return "[Unprintable error cause]";
+  }
+};
+
+const readErrorCause = (error: Error): unknown => {
+  try {
+    return (error as Error & { readonly cause?: unknown }).cause;
+  } catch (cause) {
+    return `[Thrown while reading error cause: ${stringifyErrorCause(cause)}]`;
+  }
+};
+
+const errorMessage = (error: Error, maxDepth: number): string => {
+  const parts: string[] = [];
+  const seen = new Set<Error>();
+  let current: unknown = error;
+  let depth = 0;
+
+  while (current instanceof Error) {
+    if (seen.has(current)) {
+      parts.push("Caused by: [Circular error cause]");
+      return parts.join("\n");
+    }
+
+    seen.add(current);
+    parts.push(
+      depth === 0 ? errorStack(current) : `Caused by: ${errorStack(current)}`,
+    );
+    const cause = readErrorCause(current);
+    if (cause === undefined) {
+      return parts.join("\n");
+    }
+
+    depth += 1;
+    if (depth >= maxDepth) {
+      parts.push("Caused by: [MaxDepth]");
+      return parts.join("\n");
+    }
+    current = cause;
+  }
+
+  parts.push(`Caused by: ${stringifyErrorCause(current)}`);
+  return parts.join("\n");
+};
 
 const clampPositiveInteger = (value: number | undefined, fallback: number) =>
   value === undefined || !Number.isSafeInteger(value) || value <= 0
@@ -264,7 +317,7 @@ const appendValue = (
   }
 
   if (value instanceof Error) {
-    appendJsonString(state, errorMessage(value));
+    appendJsonString(state, errorMessage(value, state.options.maxDepth));
     return;
   }
 
@@ -335,7 +388,7 @@ const appendArgument = (
   }
 
   if (value instanceof Error) {
-    append(state, errorMessage(value));
+    append(state, errorMessage(value, state.options.maxDepth));
     return;
   }
 

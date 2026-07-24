@@ -89,7 +89,7 @@ describe("GameConsoleObservability store", () => {
     ]);
   });
 
-  it("resets only the reloaded window's messages and counters", () => {
+  it("starts a new generation without discarding prior logs", () => {
     const store = makeGameConsoleStore();
     store.openWindow(1, "2026-07-08T12:00:00.000Z");
     store.openWindow(2, "2026-07-08T12:00:00.000Z");
@@ -100,14 +100,20 @@ describe("GameConsoleObservability store", () => {
     store.appendMessage({ gameWindowId: 1, message: "old run" });
     store.appendMessage({ gameWindowId: 2, message: "other window" });
 
-    const reset = store.resetWindow(1);
+    const generationState = store.beginWindowGeneration(1);
 
     expect(store.queryMessages()).toEqual([
-      expect.objectContaining({ gameWindowId: 2, message: "other window" }),
-    ]);
-    expect(reset).toEqual(
       expect.objectContaining({
         gameWindowId: 1,
+        generation: 1,
+        message: "old run",
+      }),
+      expect.objectContaining({ gameWindowId: 2, message: "other window" }),
+    ]);
+    expect(generationState).toEqual(
+      expect.objectContaining({
+        gameWindowId: 1,
+        generation: 2,
         lastMessageAt: null,
         lastMessageId: null,
         messageCount: 0,
@@ -115,15 +121,31 @@ describe("GameConsoleObservability store", () => {
         username: "Alpha",
       }),
     );
-    expect(store.state().buffer.size).toBe(1);
+    expect(store.state().buffer.size).toBe(2);
 
     const nextRun = store.appendMessage({
       gameWindowId: 1,
       message: "new run",
     });
     expect(nextRun).toEqual(
-      expect.objectContaining({ id: 3, username: "Alpha" }),
+      expect.objectContaining({ generation: 2, id: 3, username: "Alpha" }),
     );
+    expect(store.state().buffer.size).toBe(3);
+    expect(
+      store
+        .queryMessages({ generation: 1 })
+        .map(({ gameWindowId }) => gameWindowId),
+    ).toEqual([1, 2]);
+    expect(
+      store
+        .queryMessages({ generation: 2 })
+        .map(({ gameWindowId }) => gameWindowId),
+    ).toEqual([1]);
+    expect(
+      store
+        .queryMessages({ generation: 1, windowId: 1 })
+        .map(({ message }) => message),
+    ).toEqual(["old run"]);
   });
 
   it("filters messages and serializes NDJSON", () => {

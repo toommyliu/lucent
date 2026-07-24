@@ -6,12 +6,7 @@ import {
   type ServerResponse,
 } from "http";
 
-import {
-  BrowserWindow,
-  ipcMain,
-  type IpcMainEvent,
-  type WebContents,
-} from "electron";
+import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
 import { Context, Effect, Layer, Option, Schema, Scope } from "effect";
 
 import type { AccountManagerState } from "@lucent/core/accounts";
@@ -21,6 +16,7 @@ import {
 } from "../../shared/ipc";
 import { Accounts } from "../internal/accounts/Accounts";
 import { DesktopWindows } from "../window/DesktopWindows";
+import { INITIAL_WINDOW_GENERATION } from "../window/WindowGeneration";
 import { DesktopObservability } from "./DesktopObservability";
 
 /**
@@ -29,6 +25,8 @@ import { DesktopObservability } from "./DesktopObservability";
  * Enable with `--obs` or `--obs=<port>`. When enabled, Lucent starts a
  * loopback-only HTTP/SSE server at `http://127.0.0.1:<port>` and captures only
  * console messages from windows registered as DesktopWindow kind `"game"`.
+ * Renderer reloads start a numbered generation; earlier generations remain
+ * available until the bounded message buffer evicts them.
  */
 export const DEFAULT_GAME_CONSOLE_MAX_ROWS = 5_000;
 export const DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES = 1024 * 1024;
@@ -58,6 +56,7 @@ export interface GameConsoleMessage {
   readonly id: number;
   readonly at: string;
   readonly gameWindowId: number;
+  readonly generation: number;
   readonly username: string | null;
   readonly message: string;
 }
@@ -65,6 +64,7 @@ export interface GameConsoleMessage {
 export interface GameConsoleWindowState {
   readonly closedAt: string | null;
   readonly gameWindowId: number;
+  readonly generation: number;
   readonly lastMessageAt: string | null;
   readonly lastMessageId: number | null;
   readonly messageCount: number;
@@ -85,6 +85,7 @@ export interface GameConsoleState {
 }
 
 export interface GameConsoleMessageQuery {
+  readonly generation?: number;
   readonly limit?: number;
   readonly q?: string;
   readonly sinceId?: number;
@@ -105,50 +106,20 @@ export interface GameConsoleStore {
   readonly openWindow: (
     gameWindowId: number,
     at?: string,
+    generation?: number,
   ) => GameConsoleWindowState;
   readonly queryMessages: (
     query?: GameConsoleMessageQuery,
   ) => readonly GameConsoleMessage[];
-  readonly resetWindow: (gameWindowId: number) => GameConsoleWindowState;
+  readonly beginWindowGeneration: (
+    gameWindowId: number,
+    generation?: number,
+  ) => GameConsoleWindowState;
   readonly state: () => GameConsoleState;
   readonly updateSessions: (
     sessions: readonly GameConsoleSessionSnapshot[],
   ) => readonly GameConsoleWindowState[];
 }
-
-type ReloadWebContents = Pick<
-  WebContents,
-  "isDestroyed" | "on" | "removeListener"
->;
-
-export const observeGameConsoleReloads = (
-  webContents: ReloadWebContents,
-  onReload: () => void,
-): (() => void) => {
-  let initialLoadStarted = false;
-  let observing = true;
-  const handleLoadStarted = (): void => {
-    if (!initialLoadStarted) {
-      initialLoadStarted = true;
-      return;
-    }
-
-    onReload();
-  };
-
-  webContents.on("did-start-loading", handleLoadStarted);
-
-  return () => {
-    if (!observing) {
-      return;
-    }
-
-    observing = false;
-    if (!webContents.isDestroyed()) {
-      webContents.removeListener("did-start-loading", handleLoadStarted);
-    }
-  };
-};
 
 interface GameConsoleSessionSnapshot {
   readonly gameWindowId: number;
@@ -211,11 +182,13 @@ export const makeGameConsoleStore = (
   const openWindow: GameConsoleStore["openWindow"] = (
     gameWindowId,
     at = nowIso(),
+    generation = INITIAL_WINDOW_GENERATION,
   ) => {
     const current = windows.get(gameWindowId);
     return setWindow({
       closedAt: null,
       gameWindowId,
+      generation: current?.generation ?? generation,
       lastMessageAt: current?.lastMessageAt ?? null,
       lastMessageId: current?.lastMessageId ?? null,
       messageCount: current?.messageCount ?? 0,
@@ -233,6 +206,7 @@ export const makeGameConsoleStore = (
     return setWindow({
       closedAt: at,
       gameWindowId,
+      generation: current?.generation ?? INITIAL_WINDOW_GENERATION,
       lastMessageAt: current?.lastMessageAt ?? null,
       lastMessageId: current?.lastMessageId ?? null,
       messageCount: current?.messageCount ?? 0,
@@ -251,6 +225,7 @@ export const makeGameConsoleStore = (
       id: nextId,
       at,
       gameWindowId: input.gameWindowId,
+      generation: state.generation,
       username: usernameFromState(state),
       message,
     };
@@ -292,16 +267,14 @@ export const makeGameConsoleStore = (
     return changed;
   };
 
-  const resetWindow: GameConsoleStore["resetWindow"] = (gameWindowId) => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      if (messages[index]?.gameWindowId === gameWindowId) {
-        messages.splice(index, 1);
-      }
-    }
-
+  const beginWindowGeneration: GameConsoleStore["beginWindowGeneration"] = (
+    gameWindowId,
+    generation,
+  ) => {
     const current = windows.get(gameWindowId) ?? openWindow(gameWindowId);
     return setWindow({
       ...current,
+      generation: generation ?? current.generation + 1,
       lastMessageAt: null,
       lastMessageId: null,
       messageCount: 0,
@@ -317,6 +290,13 @@ export const makeGameConsoleStore = (
       }
 
       if (query.windowId !== undefined && row.gameWindowId !== query.windowId) {
+        return false;
+      }
+
+      if (
+        query.generation !== undefined &&
+        row.generation !== query.generation
+      ) {
         return false;
       }
 
@@ -362,10 +342,10 @@ export const makeGameConsoleStore = (
 
   return {
     appendMessage,
+    beginWindowGeneration,
     closeWindow,
     openWindow,
     queryMessages,
-    resetWindow,
     state,
     updateSessions,
   };
@@ -401,18 +381,23 @@ const parsePositiveInteger = (value: string | null): number | undefined => {
 
 const parseMessageQuery = (url: URL): GameConsoleMessageQuery => {
   const query: {
+    generation?: number;
     limit?: number;
     q?: string;
     sinceId?: number;
     username?: string;
     windowId?: number;
   } = {};
+  const generation = parsePositiveInteger(url.searchParams.get("generation"));
   const sinceId = parsePositiveInteger(url.searchParams.get("sinceId"));
   const limit = parsePositiveInteger(url.searchParams.get("limit"));
   const windowId = parsePositiveInteger(url.searchParams.get("windowId"));
   const username = url.searchParams.get("username")?.trim();
   const q = url.searchParams.get("q")?.trim();
 
+  if (generation !== undefined) {
+    query.generation = generation;
+  }
   if (sinceId !== undefined) {
     query.sinceId = sinceId;
   }
@@ -474,7 +459,7 @@ const dashboardHtml = `<!doctype html>
         --text: #f5f5f5;
         --time-column: 7.5rem;
         --username-column: 9rem;
-        --window-column: 4.5rem;
+        --window-column: 7rem;
         --header-height: 22px;
         color-scheme: dark;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -549,6 +534,9 @@ const dashboardHtml = `<!doctype html>
       }
       .toolbar select#windowFilter {
         width: 110px;
+      }
+      .toolbar select#generationFilter {
+        width: 105px;
       }
       .status {
         color: var(--muted);
@@ -695,6 +683,9 @@ const dashboardHtml = `<!doctype html>
       <select id="windowFilter">
         <option value="">All windows</option>
       </select>
+      <select id="generationFilter" disabled>
+        <option value="">All generations</option>
+      </select>
       <input id="usernameFilter" placeholder="Username" />
       <button id="prevLog" title="Previous log entry">Prev</button>
       <button id="nextLog" title="Next log entry">Next</button>
@@ -707,7 +698,7 @@ const dashboardHtml = `<!doctype html>
         <div class="thead">
           <div class="row header-row">
             <div class="cell header-cell">Time</div>
-            <div class="cell header-cell">Window</div>
+            <div class="cell header-cell">Window · Gen</div>
             <div class="cell header-cell">Username</div>
             <div class="cell header-cell">Message</div>
           </div>
@@ -721,6 +712,7 @@ const dashboardHtml = `<!doctype html>
       const statusEl = document.getElementById("status");
       const queryEl = document.getElementById("query");
       const windowFilterEl = document.getElementById("windowFilter");
+      const generationFilterEl = document.getElementById("generationFilter");
       const usernameFilterEl = document.getElementById("usernameFilter");
       const prevLogEl = document.getElementById("prevLog");
       const nextLogEl = document.getElementById("nextLog");
@@ -735,6 +727,7 @@ const dashboardHtml = `<!doctype html>
       let reloadOnEventsReconnect = false;
       let rows = [];
       let selectedRowId = null;
+      let windowStates = [];
 
       const formatTime = (value) => {
         const date = new Date(value);
@@ -774,6 +767,9 @@ const dashboardHtml = `<!doctype html>
         const search = new URLSearchParams();
         if (queryEl.value.trim()) search.set("q", queryEl.value.trim());
         if (windowFilterEl.value) search.set("windowId", windowFilterEl.value);
+        if (windowFilterEl.value && generationFilterEl.value) {
+          search.set("generation", generationFilterEl.value);
+        }
         if (usernameFilterEl.value.trim()) search.set("username", usernameFilterEl.value.trim());
         return search.toString();
       };
@@ -782,7 +778,9 @@ const dashboardHtml = `<!doctype html>
         const query = queryEl.value.trim().toLowerCase();
         const username = usernameFilterEl.value.trim().toLowerCase();
         const windowId = windowFilterEl.value;
+        const generation = generationFilterEl.value;
         if (windowId && String(row.gameWindowId) !== windowId) return false;
+        if (windowId && generation && String(row.generation) !== generation) return false;
         if (username && (row.username ?? "").toLowerCase() !== username) return false;
         return !query || row.message.toLowerCase().includes(query);
       };
@@ -905,7 +903,12 @@ const dashboardHtml = `<!doctype html>
         };
 
         divRow.appendChild(createPinnedCell("time", formatTime(row.at), row.at));
-        divRow.appendChild(createPinnedCell("window", String(row.gameWindowId)));
+        divRow.appendChild(
+          createPinnedCell(
+            "window",
+            row.gameWindowId + " · g" + row.generation,
+          ),
+        );
         divRow.appendChild(createPinnedCell("username", row.username ?? ""));
 
         const messageCell = document.createElement("div");
@@ -963,8 +966,35 @@ const dashboardHtml = `<!doctype html>
         if (autoScroll) scrollToBottom();
       };
 
+      const refreshGenerationFilter = (reset = false) => {
+        const selected = reset ? "" : generationFilterEl.value;
+        const windowState = windowStates.find(
+          (state) => String(state.gameWindowId) === windowFilterEl.value,
+        );
+        generationFilterEl.textContent = "";
+        const all = document.createElement("option");
+        all.value = "";
+        all.textContent = "All generations";
+        generationFilterEl.appendChild(all);
+        generationFilterEl.disabled = windowState === undefined;
+        if (windowState === undefined) return;
+
+        for (
+          let generation = 1;
+          generation <= windowState.generation;
+          generation += 1
+        ) {
+          const option = document.createElement("option");
+          option.value = String(generation);
+          option.textContent = "Generation " + generation;
+          generationFilterEl.appendChild(option);
+        }
+        generationFilterEl.value = selected;
+      };
+
       const refreshWindows = async () => {
         const state = await fetch("/api/state").then((response) => response.json());
+        windowStates = state.windows;
         const selected = windowFilterEl.value;
         windowFilterEl.textContent = "";
         const all = document.createElement("option");
@@ -974,10 +1004,17 @@ const dashboardHtml = `<!doctype html>
         for (const windowState of state.windows) {
           const option = document.createElement("option");
           option.value = String(windowState.gameWindowId);
-          option.textContent = windowState.gameWindowId + " (" + windowState.state + ")";
+          option.textContent =
+            windowState.gameWindowId +
+            " · g" +
+            windowState.generation +
+            " (" +
+            windowState.state +
+            ")";
           windowFilterEl.appendChild(option);
         }
         windowFilterEl.value = selected;
+        refreshGenerationFilter();
         bufferMaxRows = state.buffer.maxRows;
         statusEl.textContent = state.activeGameWindowCount + " active window(s), " + state.buffer.size + " buffered message(s)";
       };
@@ -999,16 +1036,12 @@ const dashboardHtml = `<!doctype html>
         if (autoScroll) scrollToBottom();
       };
 
-      const resetWindowRows = (windowState) => {
-        rows = rows.filter(
-          (row) => row.gameWindowId !== windowState.gameWindowId,
-        );
-        renderRows();
-        refreshWindows();
-      };
-
       queryEl.addEventListener("input", refreshMessages);
-      windowFilterEl.addEventListener("change", refreshMessages);
+      windowFilterEl.addEventListener("change", () => {
+        refreshGenerationFilter(true);
+        refreshMessages();
+      });
+      generationFilterEl.addEventListener("change", refreshMessages);
       usernameFilterEl.addEventListener("input", refreshMessages);
       prevLogEl.addEventListener("click", () => {
         scrollToAdjacentLog("previous");
@@ -1047,9 +1080,7 @@ const dashboardHtml = `<!doctype html>
         });
         events.addEventListener("window-opened", refreshWindows);
         events.addEventListener("window-closed", refreshWindows);
-        events.addEventListener("window-reset", (event) => {
-          resetWindowRows(JSON.parse(event.data));
-        });
+        events.addEventListener("window-generation", refreshWindows);
         events.addEventListener("session-updated", refreshWindows);
         events.addEventListener("error", () => {
           if (hasConnectedEvents) {
@@ -1075,9 +1106,9 @@ const dashboardHtml = `<!doctype html>
  *
  * - `/` renders the live dashboard.
  * - `/api/messages` returns JSON console rows. Each row has only `id`, `at`,
- *   `gameWindowId`, `username`, and `message`; `at` is ISO-8601 with
- *   millisecond precision. Optional filters: `sinceId`, `limit`, `windowId`,
- *   `username`, and `q`.
+ *   `gameWindowId`, `generation`, `username`, and `message`; `at` is ISO-8601
+ *   with millisecond precision. Optional filters: `sinceId`, `limit`,
+ *   `windowId`, `generation`, `username`, and `q`.
  * - `/api/messages.ndjson` returns the same filtered rows as newline-delimited
  *   JSON for agents and shell tools.
  * - `/api/state` returns buffer stats and active/closed game-window state.
@@ -1211,27 +1242,6 @@ const makeGameConsoleObservability = Effect.gen(function* () {
           publish("session-updated", windowState);
         }
       };
-      const removeReloadListeners = new Map<number, () => void>();
-      const observeReloads = (gameWindowId: number): void => {
-        const window = BrowserWindow.fromId(gameWindowId);
-        if (window === null) {
-          return;
-        }
-
-        const removeReloadListener = observeGameConsoleReloads(
-          window.webContents,
-          () => {
-            const windowState = store.resetWindow(gameWindowId);
-            publish("window-reset", windowState);
-          },
-        );
-        removeReloadListeners.set(gameWindowId, removeReloadListener);
-      };
-      const stopObservingReloads = (gameWindowId: number): void => {
-        const removeReloadListener = removeReloadListeners.get(gameWindowId);
-        removeReloadListeners.delete(gameWindowId);
-        removeReloadListener?.();
-      };
       const context = yield* Effect.context<never>();
       const runPromise = Effect.runPromiseWith(context);
       const handleRendererMessage = (
@@ -1274,9 +1284,25 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          const windowState = store.openWindow(event.browserWindowId);
-          observeReloads(event.browserWindowId);
+          const windowState = store.openWindow(
+            event.browserWindowId,
+            undefined,
+            event.generation,
+          );
           publish("window-opened", windowState);
+        });
+      });
+      const unsubscribeReloaded = yield* windows.onRendererReloaded((event) => {
+        if (event.kind !== "game") {
+          return Effect.void;
+        }
+
+        return Effect.sync(() => {
+          const windowState = store.beginWindowGeneration(
+            event.browserWindowId,
+            event.generation,
+          );
+          publish("window-generation", windowState);
         });
       });
       const unsubscribeClosed = yield* windows.onClosed((event) => {
@@ -1285,7 +1311,6 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          stopObservingReloads(event.browserWindowId);
           const windowState = store.closeWindow(event.browserWindowId);
           publish("window-closed", windowState);
         });
@@ -1332,9 +1357,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         unsubscribeAccounts();
         unsubscribeClosed();
         unsubscribeCreated();
-        for (const gameWindowId of removeReloadListeners.keys()) {
-          stopObservingReloads(gameWindowId);
-        }
+        unsubscribeReloaded();
         for (const client of sseClients) {
           client.end();
         }

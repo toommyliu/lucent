@@ -149,4 +149,29 @@ describe("Accounts", () => {
       }),
     ),
   );
+
+  it.effect(
+    "tracks authenticated usernames for directly opened game windows",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const layer = yield* makeHarness();
+          const accounts = yield* Accounts.pipe(Effect.provide(layer));
+
+          yield* accounts.updateScriptStatus(42, {
+            currentUsername: "DirectPlayer",
+            message: "Logged in",
+            status: "stopped",
+          });
+
+          expect((yield* accounts.getState).sessions).toEqual([
+            expect.objectContaining({
+              currentUsername: "DirectPlayer",
+              gameWindowId: 42,
+              status: "stopped",
+            }),
+          ]);
+        }),
+      ),
+  );
 });

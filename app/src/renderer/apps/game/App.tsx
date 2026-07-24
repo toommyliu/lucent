@@ -1177,6 +1177,7 @@ export function App(props: {
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
   let accountScriptRunnerStatusPublishQueue = Promise.resolve();
   let activeAccountScriptMissing = false;
+  let lastPublishedDirectGameUsername: string | null = null;
   let scriptSettingsBindToken = 0;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
@@ -1668,7 +1669,9 @@ export function App(props: {
       if (version !== playerReadyRefreshVersion || !ready) return false;
 
       const settingsBound = await bindScriptSettingsForAuthenticatedAccount();
-      if (version !== playerReadyRefreshVersion || !settingsBound) return false;
+      if (version !== playerReadyRefreshVersion || !settingsBound) {
+        return false;
+      }
 
       setPlayerReady(true);
       return true;
@@ -2222,16 +2225,18 @@ export function App(props: {
 
   const publishAccountStatus = async (
     update: AccountScriptStatusUpdate,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const bridge = window.desktop.gameAccounts;
     if (bridge === undefined) {
-      return;
+      return false;
     }
 
     try {
       await bridge.updateScriptStatus(update);
+      return true;
     } catch (error) {
       console.error("[game:account-launch]", "status publish failed", error);
+      return false;
     }
   };
 
@@ -2278,6 +2283,8 @@ export function App(props: {
         return false;
       }
 
+      void publishDirectGameConnectionStatus(username);
+
       const normalized = username.toLowerCase();
       if (boundScriptSettingsUsername() === normalized) {
         return true;
@@ -2309,6 +2316,28 @@ export function App(props: {
         return false;
       }
     };
+
+  const publishDirectGameConnectionStatus = async (
+    currentUsername: string,
+  ): Promise<void> => {
+    if (activeAccountLaunchPayload !== null) {
+      return;
+    }
+
+    const normalized = currentUsername.trim().toLowerCase();
+    if (normalized === "" || normalized === lastPublishedDirectGameUsername) {
+      return;
+    }
+
+    const published = await publishAccountStatus({
+      currentUsername,
+      status: "stopped",
+      message: "Logged in",
+    });
+    if (published) {
+      lastPublishedDirectGameUsername = normalized;
+    }
+  };
 
   const accountScriptRunnerUpdate = (
     status: ScriptRunnerStatus,
@@ -2395,7 +2424,11 @@ export function App(props: {
   const publishAccountConnectionStatus = async (): Promise<void> => {
     const payload = activeAccountLaunchPayload;
     const currentUsername = await readAccountCurrentUsername();
-    if (payload === null || currentUsername === undefined) {
+    if (currentUsername === undefined) {
+      return;
+    }
+    if (payload === null) {
+      await publishDirectGameConnectionStatus(currentUsername);
       return;
     }
 
