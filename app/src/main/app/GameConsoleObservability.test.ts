@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
+  DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
   DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES,
   makeGameConsoleStore,
   messagesToNdjson,
@@ -205,5 +206,9 @@ describe("GameConsoleObservability store", () => {
 
   it("uses a 1 MiB default message cap", () => {
     expect(DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES).toBe(1024 * 1024);
+  });
+
+  it("uses the fixed debug observability port", () => {
+    expect(DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT).toBe(10_637);
   });
 });

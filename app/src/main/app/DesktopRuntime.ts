@@ -8,7 +8,10 @@ import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import { DesktopObservability } from "./DesktopObservability";
-import { GameConsoleObservability } from "./GameConsoleObservability";
+import {
+  DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
+  GameConsoleObservability,
+} from "./GameConsoleObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronTheme } from "../electron/ElectronTheme";
@@ -84,10 +87,10 @@ export const makeDesktopRuntime = (
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
-      if (cliOptions.obs !== undefined) {
+      if (cliOptions.debug === true) {
         yield* gameConsoleObservability
           .install({
-            port: cliOptions.obs.port,
+            port: DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
           })
           .pipe(
             Effect.catch((cause) =>
@@ -96,7 +99,7 @@ export const makeDesktopRuntime = (
                 "Failed to start game console observability",
                 cause,
                 {
-                  port: cliOptions.obs?.port,
+                  port: DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
                 },
               ),
             ),

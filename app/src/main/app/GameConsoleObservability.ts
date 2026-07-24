@@ -22,12 +22,13 @@ import { DesktopObservability } from "./DesktopObservability";
 /**
  * Game window console observability.
  *
- * Enable with `--obs` or `--obs=<port>`. When enabled, Lucent starts a
- * loopback-only HTTP/SSE server at `http://127.0.0.1:<port>` and captures only
+ * Enable with `--debug`. When enabled, Lucent starts a loopback-only HTTP/SSE
+ * server at `http://127.0.0.1:10637` and captures only
  * console messages from windows registered as DesktopWindow kind `"game"`.
  * Renderer reloads start a numbered generation; earlier generations remain
  * available until the bounded message buffer evicts them.
  */
+export const DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT = 10_637;
 export const DEFAULT_GAME_CONSOLE_MAX_ROWS = 5_000;
 export const DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES = 1024 * 1024;
 
@@ -1102,7 +1103,7 @@ const dashboardHtml = `<!doctype html>
 `;
 
 /**
- * Local observability routes served only on 127.0.0.1 when `--obs` is enabled.
+ * Local observability routes served only on 127.0.0.1 when `--debug` is enabled.
  *
  * - `/` renders the live dashboard.
  * - `/api/messages` returns JSON console rows. Each row has only `id`, `at`,

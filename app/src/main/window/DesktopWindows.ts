@@ -245,7 +245,7 @@ const createWindowOptions = (
         serializeAppearanceSnapshotArgument(snapshot),
         serializeSettingsSnapshotArgument(settings),
         ...(env.debug === true ? [serializeDebugModeArgument()] : []),
-        ...(definition.kind === "game" && env.observeGameConsole === true
+        ...(definition.kind === "game" && env.debug === true
           ? [serializeGameConsoleObservabilityArgument()]
           : []),
       ],
