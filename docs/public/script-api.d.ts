@@ -254,11 +254,13 @@ interface ScriptRuntimeInputsApi {
 }
 interface ScriptRuntimeOptionsApi {
     getAll(): Effect<ScriptRuntimeOptions, never>;
+    getRestartAfterReconnect(): Effect<boolean, never>;
+    getRoomPolicy(): Effect<RoomPolicy, never>;
     getSafeStartStop(): Effect<boolean, never>;
-    getUsePrivateRooms(): Effect<boolean, never>;
     reset(): Effect<ScriptRuntimeOptions, never>;
+    setRestartAfterReconnect(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
+    setRoomPolicy(policy: RoomPolicy): Effect<ScriptRuntimeOptions, ScriptExecutionError>;
     setSafeStartStop(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
-    setUsePrivateRooms(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
 }
 interface ScriptSettingsApi {
     isAntiCounterEnabled(): Effect<boolean, never>;
@@ -533,13 +535,15 @@ interface PacketSelector {
 }
 type PlayerQuery = PlayerSelector | string;
 interface R { readonly [key: string]: unknown; }
+type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
 interface Scope { readonly [key: string]: unknown; }
 type ScriptCallbackResult<A = unknown> =
   | Effect<A, unknown>
   | ScriptGenerator<A>;
 interface ScriptRuntimeOptions {
+  readonly restartAfterReconnect: boolean;
+  readonly roomPolicy: RoomPolicy;
   readonly safeStartStop: boolean;
-  readonly usePrivateRooms: boolean;
 }
 type ShopItemQuery = ShopItemSelector | number | string;
 interface SkillUseOptions {

@@ -5,17 +5,15 @@ import { Automation } from "../automation/Automation";
 import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
 import { Bridge } from "../flash/bridge/Bridge";
-import type {
-  ScriptEffectStd,
-  ScriptLucentStd,
-  ScriptRuntimeOptions,
-} from "./ScriptApi";
+import type { ScriptEffectStd, ScriptLucentStd } from "./ScriptApi";
 import { scriptEffectStd } from "./ScriptEffectStd";
 import { ScriptRunner } from "./ScriptRunner";
 import {
   makeScriptRuntimeApi,
   runScriptExitActions,
+  snapshotRoomPolicy,
   snapshotScriptRuntimeOptions,
+  type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptAsyncScope } from "./scriptAsyncScope";
@@ -86,14 +84,13 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
     const scope = makeScriptAsyncScope();
 
     return yield* Effect.gen(function* () {
-      const optionsRef = yield* Ref.make<ScriptRuntimeOptions>(
-        yield* runner.getOptions(),
+      const runnerOptions = yield* runner.getOptions();
+      const optionsRef = yield* Ref.make(
+        snapshotScriptRuntimeOptions(runnerOptions),
       );
       const getOptions = () =>
         Ref.get(optionsRef).pipe(Effect.map(snapshotScriptRuntimeOptions));
-      const setOptions = (
-        update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
-      ) =>
+      const setOptions = (update: ScriptRuntimeOptionsUpdate) =>
         Ref.updateAndGet(optionsRef, (options) =>
           snapshotScriptRuntimeOptions(update(options)),
         ).pipe(Effect.map(snapshotScriptRuntimeOptions));
@@ -113,6 +110,9 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
           autoRelogin: automation.autoRelogin,
           autoZone: automation.autoZone,
         },
+        roomPolicy: Ref.get(optionsRef).pipe(
+          Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
+        ),
         scope,
         script,
         services: makeScriptRuntimeServices(api, army, environment),

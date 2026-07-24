@@ -17,7 +17,7 @@ const { features, script, api } = require("lucent")
 
 module.exports = function* run() {
   yield* script.log("started")
-  yield* script.options.setUsePrivateRooms(true)
+  yield* script.options.setRoomPolicy({ kind: "random-private" })
   yield* api.player.joinMap("battleon")
   const me = yield* api.players.getMe()
   if (me !== null) yield* script.log(`Logged in as ${me.username}`)
@@ -51,7 +51,7 @@ Download the generated declaration file [`script-api.d.ts`](/script-api.d.ts) an
 const { features, script, api } = require("lucent")
 
 module.exports = function* run() {
-  yield* script.options.setUsePrivateRooms(true)
+  yield* script.options.setRoomPolicy({ kind: "random-private" })
   yield* api.player.joinMap("battleon")
   const me = yield* api.players.getMe()
   if (me !== null) yield* script.log(me.username)

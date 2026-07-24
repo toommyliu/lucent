@@ -49,6 +49,45 @@ describe("ArmyCoordinator", () => {
     ),
   );
 
+  it.effect(
+    "allows the same renderer window to start from step zero after its generation is aborted",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const coordinator = yield* makeArmyCoordinator();
+          const participantId = makeParticipant();
+          const config = makeConfig(["Alice"]);
+          const first = yield* coordinator.join(config, "Alice", participantId);
+          yield* coordinator.sync(first.sessionId, participantId, {
+            label: "first-run",
+            step: 0,
+          });
+
+          yield* coordinator.abortParticipant(
+            participantId,
+            "Renderer reloaded",
+          );
+
+          const second = yield* coordinator.join(
+            config,
+            "Alice",
+            participantId,
+          );
+          yield* coordinator.sync(second.sessionId, participantId, {
+            label: "second-run",
+            step: 0,
+          });
+
+          expect(second.sessionId).not.toBe(first.sessionId);
+          expect(
+            (yield* coordinator.getSessions()).map(
+              ({ sessionId }) => sessionId,
+            ),
+          ).toEqual([second.sessionId]);
+        }),
+      ),
+  );
+
   it.effect("starts only after the full configured roster joins", () =>
     Effect.scoped(
       Effect.gen(function* () {

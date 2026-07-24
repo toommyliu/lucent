@@ -55,6 +55,10 @@ import type {
   AccountScriptStatusUpdate,
 } from "@lucent/core/accounts";
 import {
+  DEFAULT_ACCOUNT_SETTINGS,
+  type RoomPolicy,
+} from "@lucent/core/accountSettings";
+import {
   DEFAULT_COMBAT_PROFILE_ID,
   DEFAULT_COMBAT_PROFILE_LIBRARY,
   getCombatProfileById,
@@ -100,6 +104,11 @@ import {
   ScriptRunner,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
+import type { ScriptRuntimeOptions } from "./scripting/ScriptApi";
+import {
+  formatRoomNumberInput,
+  parseRoomNumberInput,
+} from "./scripting/roomPolicyInput";
 import { runScriptEval } from "./scripting/ScriptEvaluator";
 import {
   fatalScriptAlertFromError,
@@ -1085,10 +1094,19 @@ export function App(props: {
   );
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
-  const [scriptUsePrivateRooms, setScriptUsePrivateRooms] = createSignal(true);
+  const [scriptRoomPolicy, setScriptRoomPolicy] = createSignal<RoomPolicy>(
+    DEFAULT_ACCOUNT_SETTINGS.scripts.roomPolicy,
+  );
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
   const [scriptRestartAfterReconnect, setScriptRestartAfterReconnect] =
     createSignal(false);
+  const [scriptRoomNumberDraft, setScriptRoomNumberDraft] = createSignal("");
+  const [scriptRoomNumberError, setScriptRoomNumberError] = createSignal("");
+  const [boundScriptSettingsUsername, setBoundScriptSettingsUsername] =
+    createSignal<string | null>(null);
+  const scriptSettingsReady = createMemo(
+    () => boundScriptSettingsUsername() !== null,
+  );
   const [loadedScript, setLoadedScript] = createSignal<ScriptFile | null>(null);
   const [scriptInputValues, setScriptInputValues] =
     createSignal<ScriptInputValues>({});
@@ -1151,6 +1169,7 @@ export function App(props: {
   const progress = createMemo(() => loadState().progress);
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
+  const scriptReady = createMemo(() => playerReady() && scriptSettingsReady());
   let autoAttackToggleInFlight = false;
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
@@ -1158,6 +1177,8 @@ export function App(props: {
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
   let accountScriptRunnerStatusPublishQueue = Promise.resolve();
   let activeAccountScriptMissing = false;
+  let lastPublishedDirectGameUsername: string | null = null;
+  let scriptSettingsBindToken = 0;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
   const scriptLoaded = createMemo(() => loadedScript() !== null);
@@ -1639,21 +1660,25 @@ export function App(props: {
       });
   };
 
-  const refreshPlayerReady = (): Promise<boolean> => {
+  const refreshPlayerReady = async (): Promise<boolean> => {
     const version = ++playerReadyRefreshVersion;
-    return readPlayerReady()
-      .then((ready) => {
-        // Once a session is ready, transient cell/map transition reads must not
-        // disable the controls. Explicit unload and disconnect events reset it.
-        if (version === playerReadyRefreshVersion && ready) {
-          setPlayerReady(true);
-        }
-        return ready;
-      })
-      .catch((error: unknown) => {
-        console.error("[game:player]", "readiness refresh failed", error);
+    try {
+      const ready = await readPlayerReady();
+      // Once a session is ready, transient cell/map transition reads must not
+      // disable the controls. Explicit unload and disconnect events reset it.
+      if (version !== playerReadyRefreshVersion || !ready) return false;
+
+      const settingsBound = await bindScriptSettingsForAuthenticatedAccount();
+      if (version !== playerReadyRefreshVersion || !settingsBound) {
         return false;
-      });
+      }
+
+      setPlayerReady(true);
+      return true;
+    } catch (error) {
+      console.error("[game:player]", "readiness refresh failed", error);
+      return false;
+    }
   };
 
   const clearPlayerReadyRetry = () => {
@@ -2200,16 +2225,18 @@ export function App(props: {
 
   const publishAccountStatus = async (
     update: AccountScriptStatusUpdate,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const bridge = window.desktop.gameAccounts;
     if (bridge === undefined) {
-      return;
+      return false;
     }
 
     try {
       await bridge.updateScriptStatus(update);
+      return true;
     } catch (error) {
       console.error("[game:account-launch]", "status publish failed", error);
+      return false;
     }
   };
 
@@ -2226,6 +2253,89 @@ export function App(props: {
     } catch (error) {
       console.error("[game:account-launch]", "username refresh failed", error);
       return undefined;
+    }
+  };
+
+  const applyScriptOptions = (options: ScriptRuntimeOptions): void => {
+    setScriptRestartAfterReconnect(options.restartAfterReconnect);
+    setScriptRoomPolicy({ ...options.roomPolicy });
+    setScriptSafeStartStop(options.safeStartStop);
+    setScriptRoomNumberDraft(
+      formatRoomNumberInput(
+        options.roomPolicy.kind === "specific"
+          ? options.roomPolicy.roomNumber
+          : null,
+      ),
+    );
+    setScriptRoomNumberError("");
+  };
+
+  const clearScriptSettingsBinding = (): void => {
+    scriptSettingsBindToken += 1;
+    setBoundScriptSettingsUsername(null);
+  };
+
+  const bindScriptSettingsForAuthenticatedAccount =
+    async (): Promise<boolean> => {
+      const username = await readAccountCurrentUsername();
+      if (username === undefined) {
+        clearScriptSettingsBinding();
+        return false;
+      }
+
+      void publishDirectGameConnectionStatus(username);
+
+      const normalized = username.toLowerCase();
+      if (boundScriptSettingsUsername() === normalized) {
+        return true;
+      }
+
+      const token = ++scriptSettingsBindToken;
+      setBoundScriptSettingsUsername(null);
+      try {
+        const options = await runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.bindAccount(username);
+          }),
+        );
+        if (token !== scriptSettingsBindToken) return false;
+
+        applyScriptOptions(options);
+        setBoundScriptSettingsUsername(normalized);
+        return true;
+      } catch (error) {
+        if (token === scriptSettingsBindToken) {
+          setBoundScriptSettingsUsername(null);
+        }
+        console.error(
+          "[game:script]",
+          "account settings binding failed",
+          error,
+        );
+        return false;
+      }
+    };
+
+  const publishDirectGameConnectionStatus = async (
+    currentUsername: string,
+  ): Promise<void> => {
+    if (activeAccountLaunchPayload !== null) {
+      return;
+    }
+
+    const normalized = currentUsername.trim().toLowerCase();
+    if (normalized === "" || normalized === lastPublishedDirectGameUsername) {
+      return;
+    }
+
+    const published = await publishAccountStatus({
+      currentUsername,
+      status: "stopped",
+      message: "Logged in",
+    });
+    if (published) {
+      lastPublishedDirectGameUsername = normalized;
     }
   };
 
@@ -2314,7 +2424,11 @@ export function App(props: {
   const publishAccountConnectionStatus = async (): Promise<void> => {
     const payload = activeAccountLaunchPayload;
     const currentUsername = await readAccountCurrentUsername();
-    if (payload === null || currentUsername === undefined) {
+    if (currentUsername === undefined) {
+      return;
+    }
+    if (payload === null) {
+      await publishDirectGameConnectionStatus(currentUsername);
       return;
     }
 
@@ -2385,7 +2499,7 @@ export function App(props: {
         return;
       }
 
-      schedulePlayerReadyRefresh({ retry: true });
+      await refreshPlayerReady();
       if (payload.script === undefined) {
         await publishAccountLaunchStatus("stopped", "Logged in");
         return;
@@ -2544,7 +2658,7 @@ export function App(props: {
       return;
     }
 
-    if (scriptBusy()) {
+    if (scriptBusy() || !scriptReady()) {
       return;
     }
 
@@ -2589,33 +2703,28 @@ export function App(props: {
           return yield* runner.getOptions();
         }),
       )
-      .then((options) => {
-        setScriptRestartAfterReconnect(options.restartAfterReconnect);
-        setScriptUsePrivateRooms(options.usePrivateRooms);
-        setScriptSafeStartStop(options.safeStartStop);
-      })
+      .then(applyScriptOptions)
       .catch((error: unknown) => {
         console.error("[game:script]", "option sync failed", error);
       });
   };
 
-  const handleToggleScriptPrivateRooms = () => {
-    const enabled = !scriptUsePrivateRooms();
-    setScriptUsePrivateRooms(enabled);
+  const handleSelectScriptRoomPolicy = (
+    policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
+  ) => {
+    setScriptRoomPolicy(policy);
+    setScriptRoomNumberDraft("");
+    setScriptRoomNumberError("");
     void runtime
       .runPromise(
         Effect.gen(function* () {
           const runner = yield* ScriptRunner;
-          return yield* runner.setUsePrivateRooms(enabled);
+          return yield* runner.setRoomPolicy(policy);
         }),
       )
-      .then((options) => {
-        setScriptRestartAfterReconnect(options.restartAfterReconnect);
-        setScriptUsePrivateRooms(options.usePrivateRooms);
-        setScriptSafeStartStop(options.safeStartStop);
-      })
+      .then(applyScriptOptions)
       .catch((error: unknown) => {
-        console.error("[game:script]", "private-room toggle failed", error);
+        console.error("[game:script]", "room mode update failed", error);
         syncScriptOptions();
       });
   };
@@ -2630,11 +2739,7 @@ export function App(props: {
           return yield* runner.setSafeStartStop(enabled);
         }),
       )
-      .then((options) => {
-        setScriptRestartAfterReconnect(options.restartAfterReconnect);
-        setScriptUsePrivateRooms(options.usePrivateRooms);
-        setScriptSafeStartStop(options.safeStartStop);
-      })
+      .then(applyScriptOptions)
       .catch((error: unknown) => {
         console.error("[game:script]", "safe-start-stop toggle failed", error);
         syncScriptOptions();
@@ -2651,15 +2756,42 @@ export function App(props: {
           return yield* runner.setRestartAfterReconnect(enabled);
         }),
       )
-      .then((options) => {
-        setScriptRestartAfterReconnect(options.restartAfterReconnect);
-        setScriptUsePrivateRooms(options.usePrivateRooms);
-        setScriptSafeStartStop(options.safeStartStop);
-      })
+      .then(applyScriptOptions)
       .catch((error: unknown) => {
         console.error(
           "[game:script]",
           "restart-after-reconnect toggle failed",
+          error,
+        );
+        syncScriptOptions();
+      });
+  };
+
+  const handleCommitScriptRoomNumber = () => {
+    const parsed = parseRoomNumberInput(scriptRoomNumberDraft());
+    if (parsed.status === "invalid") {
+      setScriptRoomNumberError("Enter a room from 1 to 99999.");
+      return;
+    }
+
+    setScriptRoomNumberError("");
+    const policy: RoomPolicy = {
+      kind: "specific",
+      roomNumber: parsed.value,
+    };
+    setScriptRoomPolicy(policy);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.setRoomPolicy(policy);
+        }),
+      )
+      .then(applyScriptOptions)
+      .catch((error: unknown) => {
+        console.error(
+          "[game:script]",
+          "specific-room number update failed",
           error,
         );
         syncScriptOptions();
@@ -2840,6 +2972,7 @@ export function App(props: {
               ) {
                 stopPlayerReadyRetry();
                 setPlayerReady(false);
+                clearScriptSettingsBinding();
                 resetTravelOptions();
               }
 
@@ -2944,18 +3077,14 @@ export function App(props: {
             enqueueAccountScriptRunnerStatus(nextStatus);
           });
           const disposeOptions = yield* runner.onOptions((nextOptions) => {
-            setScriptRestartAfterReconnect(nextOptions.restartAfterReconnect);
-            setScriptUsePrivateRooms(nextOptions.usePrivateRooms);
-            setScriptSafeStartStop(nextOptions.safeStartStop);
+            applyScriptOptions(nextOptions);
           });
           return { dispose, disposeOptions, options, status };
         }),
       )
       .then(({ dispose, disposeOptions, options, status }) => {
         applyScriptRunnerStatus(status);
-        setScriptRestartAfterReconnect(options.restartAfterReconnect);
-        setScriptUsePrivateRooms(options.usePrivateRooms);
-        setScriptSafeStartStop(options.safeStartStop);
+        applyScriptOptions(options);
 
         if (cleanedUp) {
           dispose();
@@ -3006,6 +3135,7 @@ export function App(props: {
     } else {
       stopPlayerReadyRetry();
       setPlayerReady(false);
+      clearScriptSettingsBinding();
     }
   });
 
@@ -3419,13 +3549,21 @@ export function App(props: {
         scriptStatus={scriptStatus}
         scriptTogglePending={scriptTogglePending}
         scriptRestartAfterReconnect={scriptRestartAfterReconnect}
-        scriptUsePrivateRooms={scriptUsePrivateRooms}
+        scriptRoomPolicy={scriptRoomPolicy}
         scriptSafeStartStop={scriptSafeStartStop}
+        scriptOptionsReady={scriptReady}
+        scriptRoomNumberDraft={scriptRoomNumberDraft}
+        setScriptRoomNumberDraft={(value) => {
+          setScriptRoomNumberDraft(value);
+          setScriptRoomNumberError("");
+        }}
+        scriptRoomNumberError={scriptRoomNumberError}
         scriptInputsAvailable={scriptInputsAvailable}
         loadScript={loadScript}
         toggleScript={toggleScript}
         openScriptInputs={openScriptInputs}
-        handleToggleScriptPrivateRooms={handleToggleScriptPrivateRooms}
+        handleSelectScriptRoomPolicy={handleSelectScriptRoomPolicy}
+        handleCommitScriptRoomNumber={handleCommitScriptRoomNumber}
         handleToggleScriptRestartAfterReconnect={
           handleToggleScriptRestartAfterReconnect
         }

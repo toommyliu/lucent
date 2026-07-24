@@ -59,6 +59,10 @@ import type {
   ManagedAccountGroupPatch,
   ManagedAccountPatch,
 } from "@lucent/core/accounts";
+import type {
+  AccountSettings,
+  AccountSettingsPatch,
+} from "@lucent/core/accountSettings";
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
@@ -166,6 +170,14 @@ export interface DesktopGameAccountsBridge {
   ) => Promise<void>;
 }
 
+export interface DesktopAccountSettingsBridge {
+  readonly get: (username: string) => Promise<AccountSettings>;
+  readonly update: (
+    username: string,
+    patch: AccountSettingsPatch,
+  ) => Promise<AccountSettings>;
+}
+
 export interface DesktopGameConsoleObservabilityBridge {
   readonly message: (message: string) => void;
 }
@@ -266,6 +278,7 @@ export interface DesktopArmyBridge {
 }
 
 export interface DesktopBridge {
+  readonly accountSettings?: DesktopAccountSettingsBridge;
   readonly accounts?: DesktopAccountsBridge;
   readonly army?: DesktopArmyBridge;
   readonly combatProfiles?: DesktopCombatProfilesBridge;

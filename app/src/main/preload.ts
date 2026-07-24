@@ -14,6 +14,7 @@ import {
 } from "../shared/rendererBootstrapArguments";
 import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
 import {
+  AccountSettingsIpc,
   AccountsIpc,
   ArmyIpc,
   CombatProfilesIpc,
@@ -124,6 +125,12 @@ const gameAccountsBridge: NonNullable<DesktopBridge["gameAccounts"]> = {
     invoke(AccountsIpc.updateScriptStatus, update),
 };
 
+const accountSettingsBridge: NonNullable<DesktopBridge["accountSettings"]> = {
+  get: (username) => invoke(AccountSettingsIpc.get, { username }),
+  update: (username, patch) =>
+    invoke(AccountSettingsIpc.update, { patch, username }),
+};
+
 const gameConsoleObservabilityBridge: NonNullable<
   DesktopBridge["gameConsoleObservability"]
 > = {
@@ -210,6 +217,7 @@ const bridge: DesktopBridge = {
   settings: settingsBridge,
   ...(bridgeView === "game"
     ? {
+        accountSettings: accountSettingsBridge,
         army: {
           fail: (payload) => invoke(ArmyIpc.fail, payload),
           leave: (payload) => invoke(ArmyIpc.leave, payload),

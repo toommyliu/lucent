@@ -1,4 +1,5 @@
 export * from "./accounts";
+export * from "./accountSettings";
 export * from "./appearance";
 export * from "./army";
 export * from "./baseSchemas";

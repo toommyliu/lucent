@@ -174,12 +174,14 @@ export interface SelectContentProps extends Omit<
   "class"
 > {
   readonly class?: string;
+  readonly portalMount?: Node | undefined;
 }
 
 export function SelectContent(props: SelectContentProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["children", "class"]);
+  const [local, rest] = splitProps(props, ["children", "class", "portalMount"]);
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
+  const portalMount = () => local.portalMount ?? dialogPortalMount();
   const positionerStyle = (): JSX.CSSProperties | undefined =>
     dialogFloatingZIndex === undefined
       ? undefined
@@ -203,11 +205,7 @@ export function SelectContent(props: SelectContentProps): JSX.Element {
   );
 
   return (
-    <Show
-      when={dialogPortalMount()}
-      keyed
-      fallback={<Portal>{content()}</Portal>}
-    >
+    <Show when={portalMount()} keyed fallback={<Portal>{content()}</Portal>}>
       {(mount) => <Portal mount={mount}>{content()}</Portal>}
     </Show>
   );

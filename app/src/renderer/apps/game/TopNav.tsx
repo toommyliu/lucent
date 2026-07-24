@@ -2,9 +2,6 @@ import {
   Button,
   Icon,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
   Kbd,
   Label,
   Menu,
@@ -12,7 +9,6 @@ import {
   MenuContent,
   MenuGroup,
   MenuItem,
-  MenuLabel,
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator,
@@ -20,6 +16,11 @@ import {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Slider,
   Tooltip,
   TooltipContent,
@@ -42,6 +43,7 @@ import {
 import { Portal } from "solid-js/web";
 
 import type { AppPlatform } from "../../../shared/desktopBridge";
+import type { RoomPolicy } from "@lucent/core/accountSettings";
 import {
   formatHotkeyDisplay,
   readHotkeyBinding,
@@ -52,6 +54,11 @@ import {
   AUTO_ZONE_MAP_OPTIONS,
   type AutoZoneSupportedMap,
 } from "./automation/AutoZone";
+import {
+  parseRoomNumberInput,
+  roomNumberKind,
+  type RoomPolicyMode,
+} from "./scripting/roomPolicyInput";
 
 export type GameTopNavMenu =
   | "windows"
@@ -75,6 +82,7 @@ export interface TopNavCombatProfile {
   readonly className?: string;
   readonly id: string;
   readonly label: string;
+  readonly role: string;
 }
 
 export interface TopNavOptionItem {
@@ -127,13 +135,20 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptStatus: Accessor<string>;
   readonly scriptTogglePending: Accessor<boolean>;
   readonly scriptRestartAfterReconnect: Accessor<boolean>;
-  readonly scriptUsePrivateRooms: Accessor<boolean>;
+  readonly scriptRoomPolicy: Accessor<RoomPolicy>;
   readonly scriptSafeStartStop: Accessor<boolean>;
+  readonly scriptOptionsReady: Accessor<boolean>;
+  readonly scriptRoomNumberDraft: Accessor<string>;
+  readonly setScriptRoomNumberDraft: (value: string) => void;
+  readonly scriptRoomNumberError: Accessor<string>;
   readonly scriptInputsAvailable: Accessor<boolean>;
   readonly loadScript: () => void | Promise<void>;
   readonly toggleScript: () => void | Promise<void>;
   readonly openScriptInputs: () => void;
-  readonly handleToggleScriptPrivateRooms: () => void;
+  readonly handleSelectScriptRoomPolicy: (
+    policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
+  ) => void;
+  readonly handleCommitScriptRoomNumber: () => void;
   readonly handleToggleScriptRestartAfterReconnect: () => void;
   readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
@@ -170,28 +185,15 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly handleOpenWindow: (id: WindowId) => void;
 }
 
-const gameWindowGroups: readonly {
-  readonly name: string;
-  readonly items: readonly {
-    readonly id: WindowId;
-    readonly label: string;
-  }[];
+const gameWindowItems: readonly {
+  readonly id: WindowId;
+  readonly label: string;
 }[] = [
-  {
-    name: "Automation",
-    items: [
-      { id: "environment", label: "Environment" },
-      { id: "follower", label: "Follower" },
-      { id: "packets", label: "Packets" },
-    ],
-  },
-  {
-    name: "Tools",
-    items: [
-      { id: "combat-profiles", label: "Combat Profiles" },
-      { id: "loader-grabber", label: "Loader/Grabber" },
-    ],
-  },
+  { id: "combat-profiles", label: "Combat Profiles" },
+  { id: "environment", label: "Environment" },
+  { id: "follower", label: "Follower" },
+  { id: "loader-grabber", label: "Loader/Grabber" },
+  { id: "packets", label: "Packets" },
 ];
 
 export const topNavOptionCommandIds: Partial<
@@ -463,8 +465,13 @@ const commitMenuInputOnEnter =
 const combatProfileClassName = (profile: TopNavCombatProfile): string =>
   profile.className?.trim() || "";
 
+const combatProfileRole = (profile: TopNavCombatProfile): string =>
+  profile.role.trim();
+
 const combatProfileTooltip = (profile: TopNavCombatProfile): string =>
-  `${profile.label} - ${combatProfileClassName(profile) || "Any class"}`;
+  `${profile.label} - ${combatProfileRole(profile)} role - ${
+    combatProfileClassName(profile) || "Any class"
+  }`;
 
 type TopNavMenuTriggerProps = Omit<ButtonProps, "as" | "size" | "type"> & {
   readonly expanded?: boolean;
@@ -595,21 +602,11 @@ export function TopNavOptionsMenuContent(
             class="game-menu__field game-menu__identity-field"
             data-disabled={gameInteractionDisabled() ? "" : undefined}
           >
-            <Label class="game-menu__field-label" for="game-custom-name">
-              Custom Name
-            </Label>
-            <InputGroup size="sm">
-              <InputGroupInput
-                disabled={gameInteractionDisabled()}
-                id="game-custom-name"
-                value={props.customName()}
-                onBlur={props.handleSetCustomName}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
-                onInput={(event) =>
-                  props.setCustomName(event.currentTarget.value)
-                }
-              />
-              <InputGroupAddon align="inline-end">
+            <span class="game-menu__field-heading">
+              <Label class="game-menu__field-label" for="game-custom-name">
+                Custom Name
+              </Label>
+              <span class="game-menu__field-actions">
                 <ResetCustomValueButton
                   disabled={
                     gameInteractionDisabled() || !props.customNameConfigured()
@@ -617,28 +614,30 @@ export function TopNavOptionsMenuContent(
                   label="Reset custom name"
                   onClick={props.handleResetCustomName}
                 />
-              </InputGroupAddon>
-            </InputGroup>
+              </span>
+            </span>
+            <Input
+              disabled={gameInteractionDisabled()}
+              fullWidth
+              id="game-custom-name"
+              size="sm"
+              value={props.customName()}
+              onBlur={props.handleSetCustomName}
+              onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
+              onInput={(event) =>
+                props.setCustomName(event.currentTarget.value)
+              }
+            />
           </div>
           <div
             class="game-menu__field game-menu__identity-field"
             data-disabled={gameInteractionDisabled() ? "" : undefined}
           >
-            <Label class="game-menu__field-label" for="game-custom-guild">
-              Custom Guild
-            </Label>
-            <InputGroup size="sm">
-              <InputGroupInput
-                disabled={gameInteractionDisabled()}
-                id="game-custom-guild"
-                value={props.customGuild()}
-                onBlur={props.handleSetCustomGuild}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
-                onInput={(event) =>
-                  props.setCustomGuild(event.currentTarget.value)
-                }
-              />
-              <InputGroupAddon align="inline-end">
+            <span class="game-menu__field-heading">
+              <Label class="game-menu__field-label" for="game-custom-guild">
+                Custom Guild
+              </Label>
+              <span class="game-menu__field-actions">
                 <ResetCustomValueButton
                   disabled={
                     gameInteractionDisabled() || !props.customGuildConfigured()
@@ -646,8 +645,20 @@ export function TopNavOptionsMenuContent(
                   label="Reset custom guild"
                   onClick={props.handleResetCustomGuild}
                 />
-              </InputGroupAddon>
-            </InputGroup>
+              </span>
+            </span>
+            <Input
+              disabled={gameInteractionDisabled()}
+              fullWidth
+              id="game-custom-guild"
+              size="sm"
+              value={props.customGuild()}
+              onBlur={props.handleSetCustomGuild}
+              onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
+              onInput={(event) =>
+                props.setCustomGuild(event.currentTarget.value)
+              }
+            />
           </div>
         </div>
       </div>
@@ -660,6 +671,8 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
+  const [scriptRoomEditingMode, setScriptRoomEditingMode] =
+    createSignal<RoomPolicyMode | null>(null);
 
   const handleToggleScriptClick = (): void => {
     void props.toggleScript();
@@ -667,7 +680,67 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const scriptToggleDisabled = (): boolean =>
     !props.scriptLoaded() ||
     props.scriptTogglePending() ||
-    (!props.scriptRunning() && !props.playerReady());
+    (!props.scriptRunning() && !props.scriptOptionsReady());
+  const scriptRoomMode = (): RoomPolicyMode => {
+    const editingMode = scriptRoomEditingMode();
+    if (editingMode !== null) return editingMode;
+    return props.scriptRoomPolicy().kind;
+  };
+
+  const beginScriptSpecificRoomEdit = (): void => {
+    if (scriptRoomEditingMode() === "specific") return;
+
+    setScriptRoomEditingMode("specific");
+    const policy = props.scriptRoomPolicy();
+    props.setScriptRoomNumberDraft(
+      policy.kind === "specific" ? String(policy.roomNumber) : "",
+    );
+  };
+
+  const handleScriptRoomModeChange = (details: {
+    value: readonly string[];
+  }): void => {
+    const value = details.value[0];
+    if (
+      value !== "public" &&
+      value !== "random-private" &&
+      value !== "specific"
+    ) {
+      return;
+    }
+
+    if (value === "specific") {
+      beginScriptSpecificRoomEdit();
+      return;
+    }
+
+    setScriptRoomEditingMode(null);
+    props.handleSelectScriptRoomPolicy({ kind: value });
+  };
+
+  const handleScriptOptionsMenuOpenChange = (details: {
+    readonly open: boolean;
+  }): void => {
+    if (details.open) return;
+
+    setScriptRoomEditingMode(null);
+    const policy = props.scriptRoomPolicy();
+    props.setScriptRoomNumberDraft(
+      policy.kind === "specific" ? String(policy.roomNumber) : "",
+    );
+  };
+
+  const scriptRoomNumberMessage = (): string => {
+    const parsed = parseRoomNumberInput(props.scriptRoomNumberDraft());
+    return parsed.status === "invalid"
+      ? props.scriptRoomNumberError() || "Enter a room from 1 to 99999."
+      : "";
+  };
+
+  const scriptRoomNumberDraftKind = (): "private" | "public" | undefined => {
+    const parsed = parseRoomNumberInput(props.scriptRoomNumberDraft());
+    return parsed.status === "valid" ? roomNumberKind(parsed.value) : undefined;
+  };
 
   const autoReloginNeedsAttention = (): boolean =>
     props.autoReloginLastError() !== "";
@@ -731,23 +804,35 @@ export function TopNav(props: TopNavProps): JSX.Element {
     return props.autoReloginLastError();
   };
 
+  const selectedAutoAttackProfile = (): TopNavCombatProfile | undefined =>
+    props
+      .combatProfiles()
+      .find((profile) => profile.id === props.selectedAutoAttackProfileId());
+
+  const autoAttackProfileRole = (): string =>
+    selectedAutoAttackProfile()?.role.trim() ?? "";
+
   const autoAttackTriggerLabel = (): string => {
     const profileLabel = autoAttackTriggerText();
     const error = props.autoAttackLastError();
+    let label: string;
 
     if (error !== "") {
-      return `Auto Attack failed: ${error}`;
+      label = `Auto Attack failed: ${error}`;
+    } else if (!props.autoAttackEnabled()) {
+      label =
+        profileLabel === ""
+          ? "Auto Attack disabled"
+          : `Auto Attack disabled: ${profileLabel}`;
+    } else {
+      label =
+        profileLabel === ""
+          ? "Auto Attack enabled"
+          : `Auto Attack enabled: ${profileLabel}`;
     }
 
-    if (!props.autoAttackEnabled()) {
-      return profileLabel === ""
-        ? "Auto Attack disabled"
-        : `Auto Attack disabled: ${profileLabel}`;
-    }
-
-    return profileLabel === ""
-      ? "Auto Attack enabled"
-      : `Auto Attack enabled: ${profileLabel}`;
+    const role = autoAttackProfileRole();
+    return role === "" ? label : `${label}; role: ${role}`;
   };
 
   const autoAttackTriggerText = (): string =>
@@ -879,39 +964,33 @@ export function TopNav(props: TopNavProps): JSX.Element {
               Windows
             </TopNavMenuTrigger>
             <GameMenuContent
-              class="game-menu game-menu--mega"
+              class="game-menu game-menu--windows"
               portalMount={menuPortalMount}
             >
-              <div class="game-menu__mega-grid">
-                <For each={gameWindowGroups}>
-                  {(group) => (
-                    <MenuGroup class="game-menu__group">
-                      <MenuLabel>{group.name}</MenuLabel>
-                      <For each={group.items}>
-                        {(item) => (
-                          <MenuItem
-                            class="game-menu__item"
-                            onSelect={() => props.handleOpenWindow(item.id)}
-                            value={item.id}
-                          >
-                            <span class="game-menu__item-label">
-                              {item.label}
-                            </span>
-                            <Show
-                              when={formatOptionalHotkeyDisplay(
-                                windowHotkey(props.hotkeyBindings(), item.id),
-                                props.hotkeyPlatform,
-                              )}
-                            >
-                              {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                            </Show>
-                          </MenuItem>
+              <For each={gameWindowItems}>
+                {(item, index) => (
+                  <>
+                    <Show when={index() === 1}>
+                      <MenuSeparator />
+                    </Show>
+                    <MenuItem
+                      class="game-menu__item"
+                      onSelect={() => props.handleOpenWindow(item.id)}
+                      value={item.id}
+                    >
+                      <span class="game-menu__item-label">{item.label}</span>
+                      <Show
+                        when={formatOptionalHotkeyDisplay(
+                          windowHotkey(props.hotkeyBindings(), item.id),
+                          props.hotkeyPlatform,
                         )}
-                      </For>
-                    </MenuGroup>
-                  )}
-                </For>
-              </div>
+                      >
+                        {(shortcut) => <Kbd>{shortcut()}</Kbd>}
+                      </Show>
+                    </MenuItem>
+                  </>
+                )}
+              </For>
             </GameMenuContent>
           </Menu>
 
@@ -979,32 +1058,17 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     {(shortcut) => <Kbd>{shortcut()}</Kbd>}
                   </Show>
                 </MenuItem>
-                <MenuSub closeOnSelect={false}>
+                <MenuSub
+                  closeOnSelect={false}
+                  onOpenChange={handleScriptOptionsMenuOpenChange}
+                >
                   <MenuSubTrigger class="game-menu__item">
                     <span class="game-menu__item-label">Options</span>
                   </MenuSubTrigger>
                   <GameMenuSubContent
-                    class="game-menu game-menu--compact"
+                    class="game-menu game-menu--compact game-menu--script-options"
                     portalMount={menuPortalMount}
                   >
-                    <MenuCheckboxItem
-                      checked={props.scriptUsePrivateRooms()}
-                      class="game-menu__item"
-                      closeOnSelect={false}
-                      onClick={props.handleToggleScriptPrivateRooms}
-                      value="script-use-private-rooms"
-                    >
-                      Use Private Rooms
-                    </MenuCheckboxItem>
-                    <MenuCheckboxItem
-                      checked={props.scriptRestartAfterReconnect()}
-                      class="game-menu__item"
-                      closeOnSelect={false}
-                      onClick={props.handleToggleScriptRestartAfterReconnect}
-                      value="script-restart-after-reconnect"
-                    >
-                      Restart After Reconnect
-                    </MenuCheckboxItem>
                     <Tooltip
                       closeDelay={0}
                       openDelay={400}
@@ -1019,6 +1083,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                               checked: props.scriptSafeStartStop(),
                               class: "game-menu__item",
                               closeOnSelect: false,
+                              disabled: !props.scriptOptionsReady(),
                               onClick: props.handleToggleScriptSafeStartStop,
                               value: "script-safe-start-stop",
                             } as unknown as ButtonProps) as unknown as MenuCheckboxItemProps)}
@@ -1032,6 +1097,124 @@ export function TopNav(props: TopNavProps): JSX.Element {
                         house.
                       </TooltipContent>
                     </Tooltip>
+                    <MenuCheckboxItem
+                      checked={props.scriptRestartAfterReconnect()}
+                      class="game-menu__item"
+                      closeOnSelect={false}
+                      disabled={!props.scriptOptionsReady()}
+                      onClick={props.handleToggleScriptRestartAfterReconnect}
+                      value="script-restart-after-reconnect"
+                    >
+                      Restart After Reconnect
+                    </MenuCheckboxItem>
+                    <MenuSeparator />
+                    <div class="game-menu__script-room-fields">
+                      <div class="game-menu__script-room-control">
+                        <span
+                          class="game-menu__script-room-label"
+                          id="script-room-policy-label"
+                        >
+                          Room policy
+                        </span>
+                        <Select
+                          class="game-menu__script-room-select"
+                          disabled={!props.scriptOptionsReady()}
+                          value={[scriptRoomMode()]}
+                          onValueChange={handleScriptRoomModeChange}
+                        >
+                          <SelectTrigger
+                            aria-labelledby="script-room-policy-label"
+                            size="sm"
+                            onKeyDown={(event) => {
+                              if (
+                                event.key !== "Escape" &&
+                                event.key !== "Tab"
+                              ) {
+                                event.stopPropagation();
+                              }
+                            }}
+                          >
+                            <SelectValue placeholder="Room policy" />
+                          </SelectTrigger>
+                          <SelectContent
+                            class="game-menu__script-room-select-content"
+                            portalMount={menuPortalMount()}
+                          >
+                            <SelectItem value="public">Public rooms</SelectItem>
+                            <SelectItem value="random-private">
+                              Random private
+                            </SelectItem>
+                            <SelectItem value="specific">
+                              Specific room
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Show when={scriptRoomMode() === "specific"}>
+                        <Label
+                          class="game-menu__script-room-control"
+                          for="script-room-number"
+                        >
+                          <span class="game-menu__script-room-label">
+                            Room number
+                          </span>
+                          <Input
+                            aria-describedby="script-room-number-message"
+                            class="game-menu__script-room-input"
+                            disabled={!props.scriptOptionsReady()}
+                            id="script-room-number"
+                            inputMode="numeric"
+                            invalid={props.scriptRoomNumberError() !== ""}
+                            maxLength={5}
+                            placeholder="1–99999"
+                            size="sm"
+                            title={scriptRoomNumberMessage()}
+                            type="text"
+                            value={props.scriptRoomNumberDraft()}
+                            onBlur={props.handleCommitScriptRoomNumber}
+                            onFocus={beginScriptSpecificRoomEdit}
+                            onInput={(event) =>
+                              props.setScriptRoomNumberDraft(
+                                event.currentTarget.value,
+                              )
+                            }
+                            onKeyDown={commitMenuInputOnEnter(
+                              props.handleCommitScriptRoomNumber,
+                            )}
+                          />
+                        </Label>
+                        <div
+                          aria-live="polite"
+                          class="game-menu__script-room-feedback"
+                          data-invalid={
+                            props.scriptRoomNumberError() !== ""
+                              ? ""
+                              : undefined
+                          }
+                          id="script-room-number-message"
+                        >
+                          <Show when={scriptRoomNumberDraftKind()} keyed>
+                            {(kind) => (
+                              <span
+                                class="game-menu__script-room-badge"
+                                data-kind={kind}
+                              >
+                                {kind === "public"
+                                  ? "Public room"
+                                  : "Private room"}
+                              </span>
+                            )}
+                          </Show>
+                          <Show when={scriptRoomNumberMessage()} keyed>
+                            {(message) => (
+                              <span class="game-menu__script-room-message">
+                                {message}
+                              </span>
+                            )}
+                          </Show>
+                        </div>
+                      </Show>
+                    </div>
                   </GameMenuSubContent>
                 </MenuSub>
               </MenuGroup>
@@ -1330,6 +1513,11 @@ export function TopNav(props: TopNavProps): JSX.Element {
               <span class="game-topnav__combat-label">
                 {autoAttackTriggerText()}
               </span>
+              <Show when={autoAttackProfileRole()}>
+                {(role) => (
+                  <span class="game-topnav__trigger-detail">{role()}</span>
+                )}
+              </Show>
               <Icon
                 icon="chevron_down"
                 aria-hidden="true"
@@ -1413,7 +1601,14 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       title={combatProfileTooltip(profile)}
                       value={profile.id}
                     >
-                      <span class="game-menu__item-label">{profile.label}</span>
+                      <span class="game-menu__item-label game-menu__profile-heading">
+                        <span class="game-menu__profile-label">
+                          {profile.label}
+                        </span>
+                        <span class="game-menu__profile-role">
+                          {combatProfileRole(profile)}
+                        </span>
+                      </span>
                       <span class="game-menu__item-value game-menu__profile-class">
                         {combatProfileClassName(profile) || "Any"}
                       </span>

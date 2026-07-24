@@ -199,6 +199,18 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     );
 
     yield* Effect.acquireRelease(
+      windows.onRendererReloaded((event) =>
+        event.kind === "game"
+          ? coordinator.abortParticipant(
+              event.browserWindowId,
+              `Army window reloaded into renderer generation ${event.generation}`,
+            )
+          : Effect.void,
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
+
+    yield* Effect.acquireRelease(
       windows.onRendererDestroyed((event) =>
         event.kind === "game"
           ? coordinator.abortParticipant(

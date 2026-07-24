@@ -6,7 +6,7 @@ import {
   makeScriptRuntimeApi,
   snapshotScriptRuntimeOptions,
 } from "./ScriptRuntime";
-import { ScriptStopSignal } from "./ScriptRunnerErrors";
+import { ScriptExecutionError, ScriptStopSignal } from "./ScriptRunnerErrors";
 import { makeScriptAsyncScope } from "./scriptAsyncScope";
 
 describe("ScriptRuntime", () => {
@@ -15,8 +15,8 @@ describe("ScriptRuntime", () => {
       const scope = makeScriptAsyncScope();
       let options: ScriptRuntimeOptions = {
         restartAfterReconnect: false,
+        roomPolicy: { kind: "random-private" },
         safeStartStop: true,
-        usePrivateRooms: true,
       };
       const script = makeScriptRuntimeApi({
         getOptions: () => Effect.succeed(snapshotScriptRuntimeOptions(options)),
@@ -32,9 +32,37 @@ describe("ScriptRuntime", () => {
 
       expect(yield* script.inputs.get("item")).toBe("Weapon");
       yield* script.options.setRestartAfterReconnect(true);
-      yield* script.options.setUsePrivateRooms(false);
+      yield* script.options.setRoomPolicy({
+        kind: "specific",
+        roomNumber: 42,
+      });
       expect(options.restartAfterReconnect).toBe(true);
-      expect(options.usePrivateRooms).toBe(false);
+      expect(yield* script.options.getRoomPolicy()).toEqual({
+        kind: "specific",
+        roomNumber: 42,
+      });
+      expect(options.roomPolicy).toEqual({
+        kind: "specific",
+        roomNumber: 42,
+      });
+
+      const invalidPolicy = yield* script.options
+        .setRoomPolicy({
+          kind: "specific",
+          roomNumber: 0,
+        })
+        .pipe(Effect.flip);
+      expect(invalidPolicy).toBeInstanceOf(ScriptExecutionError);
+      expect(options.roomPolicy).toEqual({
+        kind: "specific",
+        roomNumber: 42,
+      });
+
+      expect(yield* script.options.reset()).toEqual({
+        restartAfterReconnect: false,
+        roomPolicy: { kind: "random-private" },
+        safeStartStop: true,
+      });
       expect(script.signal.aborted).toBe(false);
 
       const stop = yield* script.stop("done").pipe(Effect.flip);

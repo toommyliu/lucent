@@ -3,7 +3,7 @@ import { join } from "path";
 
 import { describe, expect, it } from "@effect/vitest";
 
-import { DEFAULT_OBSERVABILITY_PORT, parseCliOptions } from "./cli";
+import { parseCliOptions } from "./cli";
 
 describe("main CLI", () => {
   it("parses supported options and ignores malformed values", () => {
@@ -16,15 +16,15 @@ describe("main CLI", () => {
         "32.0.0.371",
         "--launch-mode",
         "account-manager",
-        "--obs",
+        "--debug",
       ],
       { cwd },
     );
     expect(parsed).toEqual({
+      debug: true,
       flashPluginPath: join(cwd, "PepperFlashPlayer.plugin"),
       flashVersion: "32.0.0.371",
       launchMode: "account-manager",
-      obs: { port: DEFAULT_OBSERVABILITY_PORT },
     });
 
     expect(
@@ -38,25 +38,11 @@ describe("main CLI", () => {
     ).toEqual({});
   });
 
-  it("parses observability port overrides and falls back on invalid ports", () => {
-    expect(parseCliOptions(["--obs=12_345"])).toEqual({
-      obs: { port: DEFAULT_OBSERVABILITY_PORT },
-    });
-
-    expect(parseCliOptions(["--obs=12345"])).toEqual({
-      obs: { port: 12_345 },
-    });
-
-    expect(parseCliOptions(["--obs", "12346"])).toEqual({
-      obs: { port: 12_346 },
-    });
-
-    expect(parseCliOptions(["--obs=0"])).toEqual({
-      obs: { port: DEFAULT_OBSERVABILITY_PORT },
-    });
-
-    expect(parseCliOptions(["--obs=65536"])).toEqual({
-      obs: { port: DEFAULT_OBSERVABILITY_PORT },
-    });
+  it("only enables debug mode with the boolean debug flag", () => {
+    expect(parseCliOptions(["--debug"])).toEqual({ debug: true });
+    expect(parseCliOptions(["--debug=10637"])).toEqual({});
+    expect(parseCliOptions(["--obs"])).toEqual({});
+    expect(parseCliOptions(["--obs=10637"])).toEqual({});
+    expect(parseCliOptions(["--obs", "10637"])).toEqual({});
   });
 });

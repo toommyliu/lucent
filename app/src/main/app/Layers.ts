@@ -8,6 +8,7 @@ import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
 import * as AccountRepository from "../internal/accounts/AccountRepository";
+import * as AccountSettingsRepository from "../internal/account-settings/AccountSettingsRepository";
 import * as Accounts from "../internal/accounts/Accounts";
 import * as AccountServers from "../internal/accounts/AccountServers";
 import * as AccountSessions from "../internal/accounts/AccountSessions";
@@ -113,6 +114,9 @@ export const makeDesktopLayer = (
   const accountRepositoryLayer = AccountRepository.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );
+  const accountSettingsRepositoryLayer = AccountSettingsRepository.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
   const accountServersLayer = AccountServers.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(environmentLayer, observabilityLayer)),
   );
@@ -170,6 +174,7 @@ export const makeDesktopLayer = (
     electronLayer,
     environmentLayer,
     accountsLayer,
+    accountSettingsRepositoryLayer,
     combatProfilesLayer,
     gameConsoleObservabilityLayer,
     gameEnvironmentsLayer,

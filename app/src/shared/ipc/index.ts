@@ -1,5 +1,6 @@
 export * from "./army";
 export * from "./accounts";
+export * from "./accountSettings";
 export * from "./combatProfiles";
 export * from "./core";
 export * from "./environment";

@@ -1,6 +1,7 @@
 import {
   Cause,
   Context,
+  Data,
   Deferred,
   Effect,
   Fiber,
@@ -13,6 +14,11 @@ import {
 } from "effect";
 
 import type { ScriptFile } from "../../../../shared/ipc/scripting";
+import {
+  type AccountScriptSettingsPatch,
+  type AccountSettings,
+  type RoomPolicy,
+} from "@lucent/core/accountSettings";
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
@@ -30,7 +36,9 @@ import {
   DEFAULT_SCRIPT_RUNTIME_OPTIONS,
   makeScriptRuntimeApi,
   runScriptExitActions,
+  snapshotRoomPolicy,
   snapshotScriptRuntimeOptions,
+  type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptRuntimeServices } from "./api/Services";
@@ -92,7 +100,37 @@ export type ScriptRunnerStatus =
 
 export type StateDisposer = () => void;
 
+const runtimeOptionsFrom = (settings: AccountSettings): ScriptRuntimeOptions =>
+  snapshotScriptRuntimeOptions(settings.scripts);
+
+const roomPoliciesEqual = (left: RoomPolicy, right: RoomPolicy): boolean =>
+  left.kind === right.kind &&
+  (left.kind !== "specific" ||
+    (right.kind === "specific" && left.roomNumber === right.roomNumber));
+
+const accountSettingsPatch = (
+  current: ScriptRuntimeOptions,
+  next: ScriptRuntimeOptions,
+): AccountScriptSettingsPatch => ({
+  ...(current.restartAfterReconnect === next.restartAfterReconnect
+    ? {}
+    : { restartAfterReconnect: next.restartAfterReconnect }),
+  ...(roomPoliciesEqual(current.roomPolicy, next.roomPolicy)
+    ? {}
+    : { roomPolicy: snapshotRoomPolicy(next.roomPolicy) }),
+  ...(current.safeStartStop === next.safeStartStop
+    ? {}
+    : { safeStartStop: next.safeStartStop }),
+});
+
+class ScriptAccountSettingsBridgeError extends Data.TaggedError(
+  "ScriptAccountSettingsBridgeError",
+)<{ readonly cause: unknown }> {}
+
 export interface ScriptRunnerShape {
+  readonly bindAccount: (
+    username: string,
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly getStatus: () => Effect.Effect<ScriptRunnerStatus>;
   readonly isRunning: () => Effect.Effect<boolean>;
@@ -106,10 +144,10 @@ export interface ScriptRunnerShape {
   readonly setRestartAfterReconnect: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setSafeStartStop: (
-    enabled: boolean,
+  readonly setRoomPolicy: (
+    policy: RoomPolicy,
   ) => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setUsePrivateRooms: (
+  readonly setSafeStartStop: (
     enabled: boolean,
   ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly start: (
@@ -328,6 +366,8 @@ export const layer = Layer.effect(
     const optionsRef = yield* SubscriptionRef.make<ScriptRuntimeOptions>(
       DEFAULT_SCRIPT_RUNTIME_OPTIONS,
     );
+    const accountUsernameRef = yield* Ref.make<string | null>(null);
+    const accountSettingsGate = yield* Semaphore.make(1);
     const statusRef = yield* SubscriptionRef.make<ScriptRunnerStatus>({
       state: "idle",
     });
@@ -343,12 +383,96 @@ export const layer = Layer.effect(
         Effect.map(snapshotScriptRuntimeOptions),
       );
 
+    const loadPersistedOptions = Effect.fn("ScriptRunner.loadPersistedOptions")(
+      function* (username: string) {
+        const bridge = window.desktop.accountSettings;
+        if (bridge === undefined) {
+          yield* Effect.logWarning(
+            "Account settings bridge is unavailable; using script defaults.",
+          );
+          return DEFAULT_SCRIPT_RUNTIME_OPTIONS;
+        }
+
+        return yield* Effect.tryPromise({
+          try: () => bridge.get(username),
+          catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
+        }).pipe(
+          Effect.map(runtimeOptionsFrom),
+          Effect.catch((cause) =>
+            Effect.logWarning({
+              message:
+                "Failed to load account script settings; using defaults.",
+              username,
+              cause,
+            }).pipe(Effect.as(DEFAULT_SCRIPT_RUNTIME_OPTIONS)),
+          ),
+        );
+      },
+    );
+
+    const bindAccount: ScriptRunnerShape["bindAccount"] = (username) =>
+      accountSettingsGate.withPermits(1)(
+        Effect.gen(function* () {
+          const normalized = normalizeUsername(username);
+          const boundUsername = yield* Ref.get(accountUsernameRef);
+          if (normalized !== "" && boundUsername === normalized) {
+            return yield* getOptions();
+          }
+
+          const options =
+            normalized === ""
+              ? DEFAULT_SCRIPT_RUNTIME_OPTIONS
+              : yield* loadPersistedOptions(normalized);
+          yield* Ref.set(
+            accountUsernameRef,
+            normalized === "" ? null : normalized,
+          );
+          return yield* SubscriptionRef.updateAndGet(optionsRef, () =>
+            snapshotScriptRuntimeOptions(options),
+          ).pipe(Effect.map(snapshotScriptRuntimeOptions));
+        }),
+      );
+
     const setOptions = (
-      update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
-    ) =>
-      SubscriptionRef.updateAndGet(optionsRef, (options) =>
-        snapshotScriptRuntimeOptions(update(options)),
-      ).pipe(Effect.map(snapshotScriptRuntimeOptions));
+      update: ScriptRuntimeOptionsUpdate,
+    ): Effect.Effect<ScriptRuntimeOptions> =>
+      accountSettingsGate.withPermits(1)(
+        Effect.gen(function* () {
+          const current = yield* getOptions();
+          const next = snapshotScriptRuntimeOptions(update(current));
+          const patch = accountSettingsPatch(current, next);
+          if (Object.keys(patch).length === 0) return current;
+
+          const username = yield* Ref.get(accountUsernameRef);
+          const bridge = window.desktop.accountSettings;
+          if (username === null || bridge === undefined) {
+            return yield* SubscriptionRef.updateAndGet(
+              optionsRef,
+              () => next,
+            ).pipe(Effect.map(snapshotScriptRuntimeOptions));
+          }
+
+          const persisted = yield* Effect.tryPromise({
+            try: () => bridge.update(username, { scripts: patch }),
+            catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
+          }).pipe(
+            Effect.map(runtimeOptionsFrom),
+            Effect.catch((cause) =>
+              Effect.logWarning({
+                message:
+                  "Failed to persist account script settings; keeping the session value.",
+                username,
+                cause,
+              }).pipe(Effect.as(next)),
+            ),
+          );
+
+          return yield* SubscriptionRef.updateAndGet(
+            optionsRef,
+            () => persisted,
+          ).pipe(Effect.map(snapshotScriptRuntimeOptions));
+        }),
+      );
 
     const observe = <A>(
       changes: Stream.Stream<A>,
@@ -610,8 +734,8 @@ export const layer = Layer.effect(
       map,
       packet,
       player,
-      usePrivateRooms: SubscriptionRef.get(optionsRef).pipe(
-        Effect.map((options) => options.usePrivateRooms),
+      roomPolicy: SubscriptionRef.get(optionsRef).pipe(
+        Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
       ),
       wait,
     });
@@ -759,6 +883,12 @@ export const layer = Layer.effect(
             .getUsername()
             .pipe(Effect.catchCause(() => Effect.succeed(""))),
         );
+        if (username === "") {
+          return yield* new ScriptNotReadyError({
+            detail: "Scripts can only start after account settings are bound.",
+          });
+        }
+        yield* bindAccount(username);
 
         yield* scriptScope.addCleanup(() =>
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
@@ -774,6 +904,9 @@ export const layer = Layer.effect(
           bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
           features: { autoRelogin, autoZone },
+          roomPolicy: SubscriptionRef.get(optionsRef).pipe(
+            Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
+          ),
           scope: scriptScope,
           script,
           services,
@@ -1281,8 +1414,8 @@ export const layer = Layer.effect(
     const resetOptions = () =>
       lifecycleGate.withPermit(
         Effect.gen(function* () {
-          const options = yield* setOptions(
-            () => DEFAULT_SCRIPT_RUNTIME_OPTIONS,
+          const options = yield* setOptions(() =>
+            snapshotScriptRuntimeOptions(DEFAULT_SCRIPT_RUNTIME_OPTIONS),
           );
           yield* cancelPendingRestart();
           return options;
@@ -1292,6 +1425,7 @@ export const layer = Layer.effect(
     yield* Effect.addFinalizer(() => stop("shutdown").pipe(Effect.asVoid));
 
     return ScriptRunner.of({
+      bindAccount,
       getOptions,
       getStatus,
       isRunning: () =>
@@ -1313,11 +1447,14 @@ export const layer = Layer.effect(
       onStatus: (listener) =>
         observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
       resetOptions,
+      setRoomPolicy: (roomPolicy) =>
+        setOptions((options) => ({
+          ...options,
+          roomPolicy: snapshotRoomPolicy(roomPolicy),
+        })),
       setRestartAfterReconnect,
       setSafeStartStop: (enabled) =>
         setOptions((options) => ({ ...options, safeStartStop: enabled })),
-      setUsePrivateRooms: (enabled) =>
-        setOptions((options) => ({ ...options, usePrivateRooms: enabled })),
       start,
       stop,
     });

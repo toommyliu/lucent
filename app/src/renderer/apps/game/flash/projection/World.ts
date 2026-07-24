@@ -492,14 +492,23 @@ export const projectExtensionWorld = (
           ]);
           return [];
         }
-        const current = yield* store.world.getPlayer(decoded.value.unm);
+        let current = yield* store.world.getPlayer(decoded.value.unm);
         if (current === null) {
-          yield* diagnose(
-            "world:unknown-player-update",
-            new Error("Ignored update for unknown player"),
-            [decoded.value.unm, packet.data],
-          );
-          return [];
+          const baseline =
+            packet.wireType === "json"
+              ? Option.flatMap(decodeRecord(packet.data), (data) =>
+                  decodePlayer(data["o"]),
+                )
+              : Option.none();
+          if (Option.isNone(baseline)) {
+            yield* diagnose(
+              "world:unknown-player-update",
+              new Error("Ignored update for unknown player"),
+              [decoded.value.unm, packet.data],
+            );
+            return [];
+          }
+          current = yield* store.world.putPlayer(toPlayer(baseline.value));
         }
         const result = yield* store.world.patchPlayer(
           current.username,

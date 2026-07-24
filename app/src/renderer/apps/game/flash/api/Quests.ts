@@ -50,14 +50,14 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
   const accept = (questId: number, silent = false) => {
     if (!isQuestId(questId)) return Effect.succeed(false);
     return Effect.gen(function* () {
-      if (
-        (yield* store.quests.get(questId)) === null &&
-        !(yield* load(questId, silent))
-      ) {
-        return false;
+      let actionAvailable = false;
+      if ((yield* store.quests.get(questId)) === null) {
+        actionAvailable = yield* wait.forGameAction("acceptQuest");
+        if (!actionAvailable || !(yield* load(questId, silent))) return false;
       }
       if (yield* isInProgress(questId)) return true;
-      if (!(yield* wait.forGameAction("acceptQuest"))) return false;
+      if (!actionAvailable && !(yield* wait.forGameAction("acceptQuest")))
+        return false;
       const accepted = yield* bridge
         .invoke("quests.accept", [questId, silent], Schema.Boolean)
         .pipe(Effect.map(Option.getOrElse(() => false)));

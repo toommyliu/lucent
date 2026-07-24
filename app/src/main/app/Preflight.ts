@@ -83,7 +83,6 @@ const resolveEnvironmentConfig = (
       ? {}
       : { flashPluginPathOverride: cliOptions.flashPluginPath }),
     isDev,
-    ...(cliOptions.obs === undefined ? {} : { observeGameConsole: true }),
     platform,
     workspaceDir: resolveWorkspaceHome({
       documentsPath: app.getPath("documents"),

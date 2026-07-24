@@ -1,7 +1,15 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
+import {
+  DEFAULT_ACCOUNT_SETTINGS,
+  RoomPolicySchema,
+} from "@lucent/core/accountSettings";
 import type { ScriptInputValues } from "@lucent/core/scriptInputs";
-import type { ScriptRuntimeApi, ScriptRuntimeOptions } from "./ScriptApi";
+import type {
+  RoomPolicy,
+  ScriptRuntimeApi,
+  ScriptRuntimeOptions,
+} from "./ScriptApi";
 import { playBeep } from "../audio/beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import {
@@ -12,14 +20,23 @@ import {
 } from "./ScriptRunnerErrors";
 
 export const DEFAULT_SCRIPT_RUNTIME_OPTIONS: ScriptRuntimeOptions = {
-  restartAfterReconnect: false,
-  safeStartStop: true,
-  usePrivateRooms: true,
+  restartAfterReconnect: DEFAULT_ACCOUNT_SETTINGS.scripts.restartAfterReconnect,
+  roomPolicy: DEFAULT_ACCOUNT_SETTINGS.scripts.roomPolicy,
+  safeStartStop: DEFAULT_ACCOUNT_SETTINGS.scripts.safeStartStop,
 };
+
+export const snapshotRoomPolicy = (policy: RoomPolicy): RoomPolicy => ({
+  ...policy,
+});
+
+const decodeRoomPolicy = Schema.decodeUnknownEffect(RoomPolicySchema);
 
 export const snapshotScriptRuntimeOptions = (
   options: ScriptRuntimeOptions,
-): ScriptRuntimeOptions => ({ ...options });
+): ScriptRuntimeOptions => ({
+  ...options,
+  roomPolicy: snapshotRoomPolicy(options.roomPolicy),
+});
 
 export type ScriptRuntimeOptionsUpdate = (
   options: ScriptRuntimeOptions,
@@ -86,29 +103,45 @@ export const makeScriptRuntimeApi = (
               (currentOptions) => currentOptions.restartAfterReconnect,
             ),
           ),
+      getRoomPolicy: () =>
+        options
+          .getOptions()
+          .pipe(
+            Effect.map((currentOptions) =>
+              snapshotRoomPolicy(currentOptions.roomPolicy),
+            ),
+          ),
       getSafeStartStop: () =>
         options
           .getOptions()
           .pipe(Effect.map((currentOptions) => currentOptions.safeStartStop)),
-      getUsePrivateRooms: () =>
-        options
-          .getOptions()
-          .pipe(Effect.map((currentOptions) => currentOptions.usePrivateRooms)),
       reset: () => options.setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS),
       setRestartAfterReconnect: (enabled: boolean) =>
         options.setOptions((currentOptions) => ({
           ...currentOptions,
           restartAfterReconnect: enabled,
         })),
+      setRoomPolicy: (policy: RoomPolicy) =>
+        decodeRoomPolicy(policy).pipe(
+          Effect.mapError(
+            (cause) =>
+              new ScriptExecutionError({
+                cause,
+                detail:
+                  "script.options.setRoomPolicy requires a valid room policy.",
+              }),
+          ),
+          Effect.flatMap((roomPolicy) =>
+            options.setOptions((currentOptions) => ({
+              ...currentOptions,
+              roomPolicy: snapshotRoomPolicy(roomPolicy),
+            })),
+          ),
+        ),
       setSafeStartStop: (enabled: boolean) =>
         options.setOptions((currentOptions) => ({
           ...currentOptions,
           safeStartStop: enabled,
-        })),
-      setUsePrivateRooms: (enabled: boolean) =>
-        options.setOptions((currentOptions) => ({
-          ...currentOptions,
-          usePrivateRooms: enabled,
         })),
     },
     signal: options.scope.signal,
