@@ -80,6 +80,12 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     );
   };
 
+  const openWindow = (kind: "account-manager" | "game"): void => {
+    void runPromise(windows.open(kind)).catch((cause) =>
+      logMenuFailure(`open-${kind}`, cause),
+    );
+  };
+
   const checkForUpdates = (): void => {
     void runPromise(updates.checkNow({ force: true })).catch((cause) =>
       logMenuFailure("check-for-updates", cause),
@@ -202,9 +208,26 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
           clearData("Flash", removeDirectory(env.flashTrustRootPath)),
       },
     ];
+    const launchMenuItems: MenuItemConstructorOptions[] = [
+      {
+        label: "New Game Window",
+        accelerator: "CmdOrCtrl+N",
+        click: () => openWindow("game"),
+      },
+      {
+        label: "Open Account Manager",
+        click: () => openWindow("account-manager"),
+      },
+      { type: "separator" },
+    ];
     const fileSubmenu: MenuItemConstructorOptions[] = isDarwin
-      ? [{ role: "close" }]
-      : [settingsMenuItem, { type: "separator" }, { role: "quit" }];
+      ? [...launchMenuItems, { role: "close" }]
+      : [
+          ...launchMenuItems,
+          settingsMenuItem,
+          { type: "separator" },
+          { role: "quit" },
+        ];
     const helpUpdateItems: MenuItemConstructorOptions[] = isDarwin
       ? []
       : [checkForUpdatesMenuItem, { type: "separator" }];
