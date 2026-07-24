@@ -9,7 +9,6 @@ import {
   MenuContent,
   MenuGroup,
   MenuItem,
-  MenuLabel,
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator,
@@ -186,28 +185,15 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly handleOpenWindow: (id: WindowId) => void;
 }
 
-const gameWindowGroups: readonly {
-  readonly name: string;
-  readonly items: readonly {
-    readonly id: WindowId;
-    readonly label: string;
-  }[];
+const gameWindowItems: readonly {
+  readonly id: WindowId;
+  readonly label: string;
 }[] = [
-  {
-    name: "Automation",
-    items: [
-      { id: "environment", label: "Environment" },
-      { id: "follower", label: "Follower" },
-      { id: "packets", label: "Packets" },
-    ],
-  },
-  {
-    name: "Tools",
-    items: [
-      { id: "combat-profiles", label: "Combat Profiles" },
-      { id: "loader-grabber", label: "Loader/Grabber" },
-    ],
-  },
+  { id: "combat-profiles", label: "Combat Profiles" },
+  { id: "environment", label: "Environment" },
+  { id: "follower", label: "Follower" },
+  { id: "loader-grabber", label: "Loader/Grabber" },
+  { id: "packets", label: "Packets" },
 ];
 
 export const topNavOptionCommandIds: Partial<
@@ -978,39 +964,33 @@ export function TopNav(props: TopNavProps): JSX.Element {
               Windows
             </TopNavMenuTrigger>
             <GameMenuContent
-              class="game-menu game-menu--mega"
+              class="game-menu game-menu--windows"
               portalMount={menuPortalMount}
             >
-              <div class="game-menu__mega-grid">
-                <For each={gameWindowGroups}>
-                  {(group) => (
-                    <MenuGroup class="game-menu__group">
-                      <MenuLabel>{group.name}</MenuLabel>
-                      <For each={group.items}>
-                        {(item) => (
-                          <MenuItem
-                            class="game-menu__item"
-                            onSelect={() => props.handleOpenWindow(item.id)}
-                            value={item.id}
-                          >
-                            <span class="game-menu__item-label">
-                              {item.label}
-                            </span>
-                            <Show
-                              when={formatOptionalHotkeyDisplay(
-                                windowHotkey(props.hotkeyBindings(), item.id),
-                                props.hotkeyPlatform,
-                              )}
-                            >
-                              {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                            </Show>
-                          </MenuItem>
+              <For each={gameWindowItems}>
+                {(item, index) => (
+                  <>
+                    <Show when={index() === 1}>
+                      <MenuSeparator />
+                    </Show>
+                    <MenuItem
+                      class="game-menu__item"
+                      onSelect={() => props.handleOpenWindow(item.id)}
+                      value={item.id}
+                    >
+                      <span class="game-menu__item-label">{item.label}</span>
+                      <Show
+                        when={formatOptionalHotkeyDisplay(
+                          windowHotkey(props.hotkeyBindings(), item.id),
+                          props.hotkeyPlatform,
                         )}
-                      </For>
-                    </MenuGroup>
-                  )}
-                </For>
-              </div>
+                      >
+                        {(shortcut) => <Kbd>{shortcut()}</Kbd>}
+                      </Show>
+                    </MenuItem>
+                  </>
+                )}
+              </For>
             </GameMenuContent>
           </Menu>
 

@@ -429,8 +429,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   font-size: var(--text-sm);
 }
 
-.game-menu--mega {
-  width: min(42rem, calc(100vw - 0.5rem));
+.game-menu--windows {
+  width: min(16rem, calc(100vw - 0.5rem));
 }
 
 .game-menu--scripts {
@@ -494,15 +494,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   height: 1px;
   opacity: 0;
   pointer-events: none;
-}
-
-.game-menu__mega-grid {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(9rem, 100%), 1fr)
-  );
-  gap: 6px;
 }
 
 .game-menu__group,
