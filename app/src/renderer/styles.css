@@ -25,6 +25,53 @@ body {
   width: 100%;
 }
 
+.standalone-window {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.75rem clamp(0.75rem, 1.5vw, 1rem) clamp(0.75rem, 1.5vw, 1rem);
+  width: 100%;
+}
+
+.standalone-window__header {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0.125rem 0.25rem 0.375rem;
+}
+
+.standalone-window__header-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.standalone-window__content-frame {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.standalone-window__content {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
 :focus:not(:focus-visible) {
   outline: none;
   box-shadow: none;

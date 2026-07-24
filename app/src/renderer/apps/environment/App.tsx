@@ -418,12 +418,12 @@ export function App(): JSX.Element {
   });
 
   return (
-    <div class="environment-root">
-      <div class="environment-main-content-wrapper">
-        <div class="environment-main-content">
+    <div class="standalone-window environment-root">
+      <div class="standalone-window__content-frame">
+        <div class="standalone-window__content">
           <section class="environment-shell" aria-label="Environment controls">
-            <header class="environment-header">
-              <div class="environment-header-actions">
+            <header class="standalone-window__header">
+              <div class="standalone-window__header-actions">
                 <TooltipButton>
                   <TooltipButtonTrigger
                     variant="outline"

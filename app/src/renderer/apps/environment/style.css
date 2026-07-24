@@ -2,55 +2,10 @@
   --environment-gap: 0.75rem;
   --environment-panel-min: 15.5rem;
   --environment-compact-panel-min: 13rem;
-
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
-  display: flex;
-  flex-direction: column;
-  font-family: var(--font-sans);
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0.75rem clamp(0.75rem, 1.5vw, 1rem) clamp(0.75rem, 1.5vw, 1rem);
-  width: 100%;
-}
-
-.environment-header {
-  align-items: center;
-  display: flex;
-  flex: none;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  min-width: 0;
-  padding: 0.125rem 0.25rem 0.375rem;
-}
-
-.environment-header-actions {
-  align-items: center;
-  display: flex;
-  gap: 0.5rem;
 }
 
 .environment-sync-action.button {
   min-width: 5.75rem;
-}
-
-.environment-main-content-wrapper {
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  display: flex;
-  flex: 1 1 0%;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.environment-main-content {
-  display: flex;
-  flex: 1 1 0%;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
 }
 
 .environment-shell {
@@ -519,7 +474,7 @@
 }
 
 @media (max-width: 1060px) {
-  .environment-main-content-wrapper {
+  .environment-root .standalone-window__content-frame {
     overflow: hidden;
   }
 
@@ -543,7 +498,7 @@
 }
 
 @media (max-height: 580px) {
-  .environment-main-content {
+  .environment-root .standalone-window__content {
     display: block;
     overflow-x: hidden;
     overflow-y: auto;
@@ -569,7 +524,7 @@
 }
 
 @media (max-width: 760px) {
-  .environment-main-content {
+  .environment-root .standalone-window__content {
     display: block;
     overflow-x: hidden;
     overflow-y: auto;
@@ -644,7 +599,7 @@
 }
 
 @media (max-width: 520px) {
-  .environment-header,
+  .environment-root .standalone-window__header,
   .environment-boost-footer {
     justify-content: flex-start;
   }

@@ -1,67 +1,49 @@
-.combat-profiles-window {
-  background:
-    linear-gradient(180deg, rgba(var(--muted), 0.32), transparent 9rem),
-    var(--color-background);
-}
-
-.combat-profiles-header .app-shell__header-layout {
-  align-items: center;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-}
-
-.combat-profiles-header .app-shell__title {
-  text-wrap: balance;
-}
-
-.combat-profiles-header .app-shell__header-left {
-  flex: none;
-  min-width: 0;
-}
-
-.combat-profiles-header__actions {
-  justify-self: end;
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  white-space: nowrap;
-}
-
-.combat-profiles-header__actions::-webkit-scrollbar {
-  display: none;
-}
-
-.combat-profiles-header__actions .button {
-  flex: 0 0 auto;
-}
-
 .combat-profiles-body {
+  display: block;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  padding-bottom: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+.combat-profiles-toolbar {
   display: grid;
   gap: 0.75rem;
-  grid-template-rows: auto auto;
-  padding: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.combat-profiles-toolbar .standalone-window__header-actions {
+  justify-self: end;
 }
 
 .combat-profiles-profile-dropdown {
   align-items: center;
   display: inline-grid;
   gap: 0.375rem;
-  grid-template-columns: auto minmax(12rem, 18rem) auto;
+  grid-template-columns: auto clamp(12rem, 24vw, 16rem) auto;
   justify-self: start;
   min-width: 0;
+  width: max-content;
 }
 
 .combat-profiles-profile-dropdown > span:first-child {
   color: var(--color-muted-foreground);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: 500;
 }
 
 .combat-profiles-profile-dropdown__select {
   min-width: 0;
   width: 100%;
+}
+
+.combat-profiles-duplicate-profile.button {
+  padding-inline: 0.375rem;
+}
+
+.combat-profiles-new-profile__icon {
+  display: none;
 }
 
 .combat-profiles-editor {
@@ -72,21 +54,35 @@
   overflow: visible;
 }
 
+.combat-profiles-editor > .card-frame {
+  container-type: inline-size;
+}
+
 .combat-profiles-frame-header {
   align-items: center;
   padding: 0.375rem 0.375rem 0.375rem 0.75rem !important;
 }
 
 .combat-profiles-frame-header .card-frame__title {
+  align-items: center;
+  display: flex;
   font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: 0;
+  line-height: 1;
+  min-height: var(--control-height-sm);
+}
+
+.combat-profiles-frame-header .card-frame__action {
+  align-self: center;
+  grid-row: 1;
+  justify-self: end;
 }
 
 .combat-profiles-profile-actions {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   justify-content: flex-end;
 }
@@ -95,6 +91,11 @@
   transition:
     background-color var(--duration-fast) ease,
     color var(--duration-fast) ease;
+}
+
+.combat-profiles-copy-profile.button:not(:disabled):hover,
+.combat-profiles-copy-profile.button:not(:disabled):active {
+  background: rgba(var(--foreground), 0.1);
 }
 
 .combat-profiles-profile-delete.button {
@@ -165,21 +166,36 @@
 }
 
 .combat-profiles-trigger {
+  align-items: start;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-block: 0.375rem;
+}
+
+.combat-profiles-trigger + .combat-profiles-trigger {
+  border-top: 1px solid rgba(var(--border), 0.78);
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+}
+
+.combat-profiles-trigger__fields {
   align-items: end;
   display: grid;
   gap: 0.5rem;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9rem) minmax(5rem, 7rem) minmax(7rem, 9rem) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9rem) minmax(5rem, 7rem) minmax(7rem, 9rem);
+  min-width: 0;
 }
 
-.combat-profiles-trigger > label,
-.combat-profiles-trigger > .label {
+.combat-profiles-trigger__fields > label,
+.combat-profiles-trigger__fields > .label {
   display: grid;
   gap: 0.375rem;
   min-width: 0;
 }
 
-.combat-profiles-trigger > label > span,
-.combat-profiles-trigger > .label > span {
+.combat-profiles-trigger__fields > label > span,
+.combat-profiles-trigger__fields > .label > span {
   color: var(--color-muted-foreground);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -212,25 +228,30 @@
 }
 
 .combat-profiles-step {
-  border: 0;
-  border-radius: var(--radius-md);
   display: grid;
   gap: 0.625rem;
   padding: 0.625rem;
 }
 
+.combat-profiles-step + .combat-profiles-step {
+  border-top: 1px solid rgba(var(--border), 0.78);
+}
+
 .combat-profiles-step__header {
   align-items: center;
+  column-gap: 0.75rem;
   display: grid;
-  gap: 0.5rem;
   grid-template-columns:
     minmax(7rem, 8rem)
     minmax(14rem, 18rem)
-    auto
     minmax(0, 1fr);
+  row-gap: 0.5rem;
 }
 
-.combat-profiles-step__header > button:last-child {
+.combat-profiles-step__actions {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
   justify-self: end;
 }
 
@@ -258,20 +279,67 @@
 }
 
 .combat-profiles-rule {
-  align-items: center;
+  align-items: start;
+  border-left: 2px solid rgba(var(--border), 0.92);
   display: grid;
   gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.375rem 0 0.375rem 0.625rem;
+}
+
+.combat-profiles-rule + .combat-profiles-rule {
+  margin-top: 0.125rem;
+}
+
+.combat-profiles-rule__fields {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.combat-profiles-rule__fields--stat {
   grid-template-columns:
-    minmax(9rem, 1.1fr)
-    minmax(0, 1.3fr)
+    minmax(9rem, 1.2fr)
     minmax(5rem, 0.5fr)
     minmax(5.5rem, 0.6fr)
-    minmax(5.25rem, 0.5fr)
-    auto;
+    minmax(5.25rem, 0.5fr);
+}
+
+.combat-profiles-rule__fields--aura {
+  grid-template-columns:
+    minmax(9rem, 1.1fr)
+    minmax(9rem, 1.3fr)
+    minmax(5rem, 0.5fr)
+    minmax(5.5rem, 0.6fr);
+}
+
+.combat-profiles-rule-field,
+.combat-profiles-rule-field.label {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.combat-profiles-rule-field > span {
+  color: var(--color-muted-foreground);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .combat-profiles-rule .input {
   min-width: 0;
+}
+
+.combat-profiles-item-remove.button {
+  align-self: start;
+  color: var(--color-muted-foreground);
+}
+
+.combat-profiles-item-remove.button:not(:disabled):hover,
+.combat-profiles-item-remove.button:not(:disabled):active {
+  background: rgba(var(--destructive), 0.12);
+  color: var(--color-destructive-foreground);
 }
 
 .combat-profiles-select {
@@ -342,23 +410,71 @@
 }
 
 @media (max-width: 720px) {
-  .combat-profiles-profile-dropdown {
-    align-items: stretch;
-    grid-template-columns: 1fr;
-  }
-
   .combat-profiles-form {
     grid-template-columns: 1fr;
   }
 
-  .combat-profiles-step__header,
-  .combat-profiles-rule,
-  .combat-profiles-trigger {
+  .combat-profiles-step__header {
     grid-template-columns: 1fr;
   }
 
-  .combat-profiles-step__header > button:last-child,
-  .combat-profiles-trigger > button:last-child {
-    justify-self: stretch;
+  .combat-profiles-rule__fields,
+  .combat-profiles-trigger__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .combat-profiles-toolbar {
+    align-items: center;
+    column-gap: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 0.375rem;
+  }
+
+  .combat-profiles-profile-dropdown {
+    flex: 1 1 22rem;
+    grid-template-columns: auto minmax(7rem, 1fr) auto;
+    width: auto;
+  }
+
+  .combat-profiles-toolbar .standalone-window__header-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .combat-profiles-profile-dropdown {
+    grid-template-columns: auto minmax(5rem, 1fr) auto;
+  }
+
+  .combat-profiles-toolbar-action__label {
+    display: none;
+  }
+
+  .combat-profiles-new-profile__icon {
+    display: block;
+  }
+
+  .combat-profiles-duplicate-profile.button .button__icon,
+  .combat-profiles-toolbar-action.button .button__icon {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  .combat-profiles-toolbar-action.button {
+    padding-inline: 0.375rem;
+  }
+}
+
+@container (max-width: 28rem) {
+  .combat-profiles-frame-action__label {
+    display: none;
+  }
+
+  .combat-profiles-frame-action.button {
+    padding-inline: 0.375rem;
   }
 }

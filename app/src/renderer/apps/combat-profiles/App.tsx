@@ -11,7 +11,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-  AppShell,
   Button,
   type ButtonProps,
   Card,
@@ -28,6 +27,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  TooltipButton,
+  TooltipButtonContent,
+  TooltipButtonTrigger,
   TooltipIconButton,
 } from "@lucent/ui";
 import {
@@ -717,77 +719,85 @@ export function App(): JSX.Element {
   };
 
   return (
-    <AppShell class="combat-profiles-window">
-      <AppShell.Header class="combat-profiles-header">
-        <AppShell.HeaderLeft>
-          <AppShell.Title>Combat Profiles</AppShell.Title>
-        </AppShell.HeaderLeft>
-        <AppShell.HeaderRight class="combat-profiles-header__actions">
+    <div class="standalone-window">
+      <header class="standalone-window__header combat-profiles-toolbar">
+        <div class="combat-profiles-profile-dropdown">
+          <span>Profile</span>
+          <Select
+            class="combat-profiles-profile-dropdown__select"
+            value={[selectedId()]}
+            onValueChange={(details) => {
+              const id = details.value[0];
+              if (id) {
+                selectProfile(id);
+              }
+            }}
+          >
+            <SelectTrigger>
+              <span
+                class="select__value"
+                data-placeholder={
+                  selectedProfileLabel() === "" ? "" : undefined
+                }
+              >
+                {selectedProfileLabel() || "Profile"}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <For each={profileOptions()}>
+                {(profile) => (
+                  <SelectItem value={profile.id}>{profile.label}</SelectItem>
+                )}
+              </For>
+            </SelectContent>
+          </Select>
           <Button
+            aria-label="Duplicate selected profile"
+            class="combat-profiles-duplicate-profile"
+            disabled={saving() || selectedProfile() === undefined}
+            size="sm"
+            variant="outline"
+            onClick={() => void duplicateSelected()}
+          >
+            <Icon icon="files" class="button__icon" />
+            <span class="combat-profiles-toolbar-action__label">Duplicate</span>
+          </Button>
+        </div>
+
+        <div class="standalone-window__header-actions">
+          <Button
+            aria-label="Create new profile"
+            class="combat-profiles-toolbar-action"
             disabled={saving()}
             size="sm"
             variant="secondary"
             onClick={createProfile}
           >
-            New
+            <Icon
+              icon="plus"
+              class="button__icon combat-profiles-new-profile__icon"
+            />
+            <span class="combat-profiles-toolbar-action__label">New</span>
           </Button>
           <Button
+            aria-label="Save profile"
+            class="combat-profiles-toolbar-action"
             disabled={saving()}
             loading={saving()}
             size="sm"
             onClick={() => void saveSelected()}
           >
             <Icon icon="save" class="button__icon" />
-            Save
+            <span class="combat-profiles-toolbar-action__label">Save</span>
           </Button>
-        </AppShell.HeaderRight>
-      </AppShell.Header>
+        </div>
+      </header>
 
-      <AppShell.Body>
-        <div class="combat-profiles-body">
-          <div class="combat-profiles-profile-dropdown">
-            <span>Profile</span>
-            <Select
-              class="combat-profiles-profile-dropdown__select"
-              value={[selectedId()]}
-              onValueChange={(details) => {
-                const id = details.value[0];
-                if (id) {
-                  selectProfile(id);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <span
-                  class="select__value"
-                  data-placeholder={
-                    selectedProfileLabel() === "" ? "" : undefined
-                  }
-                >
-                  {selectedProfileLabel() || "Profile"}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <For each={profileOptions()}>
-                  {(profile) => (
-                    <SelectItem value={profile.id}>{profile.label}</SelectItem>
-                  )}
-                </For>
-              </SelectContent>
-            </Select>
-            <Button
-              aria-label="Duplicate selected profile"
-              class="combat-profiles-duplicate-profile"
-              disabled={saving() || selectedProfile() === undefined}
-              size="sm"
-              variant="outline"
-              onClick={() => void duplicateSelected()}
-            >
-              <Icon icon="files" class="button__icon" />
-              Duplicate
-            </Button>
-          </div>
-
+      <div class="standalone-window__content-frame">
+        <main
+          class="standalone-window__content combat-profiles-body"
+          aria-label="Combat profile controls"
+        >
           <section class="combat-profiles-editor">
             <Show when={error()}>
               {(message) => (
@@ -804,30 +814,39 @@ export function App(): JSX.Element {
               <CardFrameHeader class="combat-profiles-frame-header">
                 <CardFrameTitle>Details</CardFrameTitle>
                 <CardFrameAction class="combat-profiles-profile-actions">
-                  <Button
-                    aria-label={
-                      profileCopied()
-                        ? "Copied profile snippet"
-                        : "Copy profile snippet"
-                    }
-                    class="combat-profiles-copy-profile"
-                    disabled={selectedProfile() === undefined}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => void copySelectedProfile()}
-                  >
-                    <Icon
-                      icon={profileCopied() ? "check" : "copy"}
-                      class="button__icon"
-                    />
-                    {profileCopied() ? "Copied" : "Copy snippet"}
-                  </Button>
+                  <TooltipButton>
+                    <TooltipButtonTrigger
+                      aria-label={
+                        profileCopied()
+                          ? "Copied profile snippet"
+                          : "Copy profile snippet"
+                      }
+                      class="combat-profiles-copy-profile combat-profiles-frame-action"
+                      disabled={selectedProfile() === undefined}
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void copySelectedProfile()}
+                    >
+                      <Icon
+                        icon={profileCopied() ? "check" : "copy"}
+                        class="button__icon"
+                      />
+                      <span class="combat-profiles-frame-action__label">
+                        {profileCopied() ? "Copied" : "Copy snippet"}
+                      </span>
+                    </TooltipButtonTrigger>
+                    <TooltipButtonContent>
+                      For <code>combat.kill</code> and related kill APIs.
+                    </TooltipButtonContent>
+                  </TooltipButton>
                   <AlertDialog>
                     <AlertDialogTrigger
                       asChild={(triggerProps) => (
                         <Button
                           {...(triggerProps({
-                            class: "combat-profiles-profile-delete",
+                            "aria-label": "Delete profile",
+                            class:
+                              "combat-profiles-profile-delete combat-profiles-frame-action",
                             disabled:
                               saving() ||
                               selectedId() === DEFAULT_COMBAT_PROFILE_ID,
@@ -835,7 +854,10 @@ export function App(): JSX.Element {
                             variant: "ghost",
                           } as ButtonProps) as ButtonProps)}
                         >
-                          Delete profile
+                          <Icon icon="trash_2" class="button__icon" />
+                          <span class="combat-profiles-frame-action__label">
+                            Delete profile
+                          </span>
                         </Button>
                       )}
                     />
@@ -959,13 +981,16 @@ export function App(): JSX.Element {
                   />
                 </CardFrameTitle>
                 <Button
-                  class="combat-profiles-add-skill-button"
+                  aria-label="Add message trigger"
+                  class="combat-profiles-add-skill-button combat-profiles-frame-action"
                   size="sm"
                   variant="ghost"
                   onClick={addMessageTrigger}
                 >
                   <Icon icon="plus" class="button__icon" />
-                  Trigger
+                  <span class="combat-profiles-frame-action__label">
+                    Trigger
+                  </span>
                 </Button>
               </CardFrameHeader>
               <Card>
@@ -981,125 +1006,132 @@ export function App(): JSX.Element {
                     <Index each={draftMessageTriggers()}>
                       {(trigger, triggerIndex) => (
                         <div class="combat-profiles-trigger">
-                          <Label>
-                            <span>Message</span>
-                            <Input
-                              value={trigger().messageIncludes}
-                              placeholder="message text"
-                              onInput={(event) =>
-                                updateMessageTrigger(
-                                  triggerIndex,
-                                  (current) => ({
-                                    ...current,
-                                    messageIncludes: event.currentTarget.value,
-                                  }),
-                                )
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            <span>Source</span>
-                            <Select
-                              class="combat-profiles-select combat-profiles-select--source"
-                              value={[trigger().source]}
-                              onValueChange={(details) =>
-                                updateMessageTrigger(
-                                  triggerIndex,
-                                  (current) => {
-                                    const source = details.value[0];
-                                    return isMessageTriggerSource(source)
-                                      ? { ...current, source }
-                                      : current;
-                                  },
-                                )
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Source" />
-                              </SelectTrigger>
-                              <SelectContent class="combat-profiles-select-content--source">
-                                <For each={messageTriggerSourceOptions}>
-                                  {(option) => (
-                                    <SelectItem value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  )}
-                                </For>
-                              </SelectContent>
-                            </Select>
-                          </Label>
-                          <Label>
-                            <span>Skill</span>
-                            <Select
-                              class="combat-profiles-select combat-profiles-select--skill"
-                              value={[String(trigger().skill)]}
-                              onValueChange={(details) =>
-                                updateMessageTrigger(
-                                  triggerIndex,
-                                  (current) => ({
-                                    ...current,
-                                    skill: Number.parseInt(
-                                      details.value[0] ?? "5",
-                                      10,
-                                    ),
-                                  }),
-                                )
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Skill" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <For each={skillIndices}>
-                                  {(skill) => (
-                                    <SelectItem value={String(skill)}>
-                                      {skill}
-                                    </SelectItem>
-                                  )}
-                                </For>
-                              </SelectContent>
-                            </Select>
-                          </Label>
-                          <Label>
-                            <CombatProfilesLabelHelp
-                              label="Cooldown (ms)"
-                              tooltip="Minimum time before this trigger can cast again. Leave empty or 0 to allow every matching message."
-                            />
-                            <Input
-                              min="0"
-                              step="1"
-                              type="number"
-                              value={String(trigger().cooldownMs ?? "")}
-                              placeholder="0"
-                              onInput={(event) =>
-                                updateMessageTrigger(
-                                  triggerIndex,
-                                  (current) => {
-                                    const raw =
-                                      event.currentTarget.value.trim();
-                                    if (raw === "") {
-                                      const {
-                                        cooldownMs: _cooldownMs,
-                                        ...rest
-                                      } = current;
-                                      return rest;
-                                    }
+                          <div class="combat-profiles-trigger__fields">
+                            <Label>
+                              <span>Message</span>
+                              <Input
+                                value={trigger().messageIncludes}
+                                placeholder="message text"
+                                onInput={(event) =>
+                                  updateMessageTrigger(
+                                    triggerIndex,
+                                    (current) => ({
+                                      ...current,
+                                      messageIncludes:
+                                        event.currentTarget.value,
+                                    }),
+                                  )
+                                }
+                              />
+                            </Label>
+                            <Label>
+                              <span>Source</span>
+                              <Select
+                                class="combat-profiles-select combat-profiles-select--source"
+                                value={[trigger().source]}
+                                onValueChange={(details) =>
+                                  updateMessageTrigger(
+                                    triggerIndex,
+                                    (current) => {
+                                      const source = details.value[0];
+                                      return isMessageTriggerSource(source)
+                                        ? { ...current, source }
+                                        : current;
+                                    },
+                                  )
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Source" />
+                                </SelectTrigger>
+                                <SelectContent class="combat-profiles-select-content--source">
+                                  <For each={messageTriggerSourceOptions}>
+                                    {(option) => (
+                                      <SelectItem value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    )}
+                                  </For>
+                                </SelectContent>
+                              </Select>
+                            </Label>
+                            <Label>
+                              <span>Skill</span>
+                              <Select
+                                class="combat-profiles-select combat-profiles-select--skill"
+                                value={[String(trigger().skill)]}
+                                onValueChange={(details) =>
+                                  updateMessageTrigger(
+                                    triggerIndex,
+                                    (current) => ({
+                                      ...current,
+                                      skill: Number.parseInt(
+                                        details.value[0] ?? "5",
+                                        10,
+                                      ),
+                                    }),
+                                  )
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Skill" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <For each={skillIndices}>
+                                    {(skill) => (
+                                      <SelectItem value={String(skill)}>
+                                        {skill}
+                                      </SelectItem>
+                                    )}
+                                  </For>
+                                </SelectContent>
+                              </Select>
+                            </Label>
+                            <Label>
+                              <CombatProfilesLabelHelp
+                                label="Cooldown (ms)"
+                                tooltip="Minimum time before this trigger can cast again. Leave empty or 0 to allow every matching message."
+                              />
+                              <Input
+                                min="0"
+                                step="1"
+                                type="number"
+                                value={String(trigger().cooldownMs ?? "")}
+                                placeholder="0"
+                                onInput={(event) =>
+                                  updateMessageTrigger(
+                                    triggerIndex,
+                                    (current) => {
+                                      const raw =
+                                        event.currentTarget.value.trim();
+                                      if (raw === "") {
+                                        const {
+                                          cooldownMs: _cooldownMs,
+                                          ...rest
+                                        } = current;
+                                        return rest;
+                                      }
 
-                                    const parsed = Number.parseInt(raw, 10);
-                                    if (
-                                      Number.isFinite(parsed) &&
-                                      parsed >= 0
-                                    ) {
-                                      return { ...current, cooldownMs: parsed };
-                                    }
+                                      const parsed = Number.parseInt(raw, 10);
+                                      if (
+                                        Number.isFinite(parsed) &&
+                                        parsed >= 0
+                                      ) {
+                                        return {
+                                          ...current,
+                                          cooldownMs: parsed,
+                                        };
+                                      }
 
-                                    return current;
-                                  },
-                                )
-                              }
-                            />
-                          </Label>
+                                      return current;
+                                    },
+                                  )
+                                }
+                              />
+                            </Label>
+                          </div>
                           <Button
+                            class="combat-profiles-item-remove"
                             aria-label="Remove trigger"
                             size="icon-sm"
                             variant="ghost"
@@ -1119,13 +1151,14 @@ export function App(): JSX.Element {
               <CardFrameHeader class="combat-profiles-frame-header">
                 <CardFrameTitle>Rotation</CardFrameTitle>
                 <Button
-                  class="combat-profiles-add-skill-button"
+                  aria-label="Add rotation skill"
+                  class="combat-profiles-add-skill-button combat-profiles-frame-action"
                   size="sm"
                   variant="ghost"
                   onClick={addStep}
                 >
                   <Icon icon="plus" class="button__icon" />
-                  Skill
+                  <span class="combat-profiles-frame-action__label">Skill</span>
                 </Button>
               </CardFrameHeader>
               <Card>
@@ -1161,7 +1194,7 @@ export function App(): JSX.Element {
                             </Select>
                           </Label>
                           <Label class="combat-profiles-inline-field combat-profiles-inline-field--availability">
-                            <span>Availability</span>
+                            <span>Cooldown</span>
                             <Select
                               class="combat-profiles-select combat-profiles-select--availability"
                               value={[step().cooldownMode ?? "default"]}
@@ -1176,7 +1209,7 @@ export function App(): JSX.Element {
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Availability" />
+                                <SelectValue placeholder="Cooldown" />
                               </SelectTrigger>
                               <SelectContent>
                                 <For each={stepCooldownModeOptions}>
@@ -1189,22 +1222,25 @@ export function App(): JSX.Element {
                               </SelectContent>
                             </Select>
                           </Label>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => addCondition(stepIndex)}
-                          >
-                            <Icon icon="plus" class="button__icon" />
-                            Rule
-                          </Button>
-                          <Button
-                            aria-label={`Remove skill ${step().skill}`}
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => removeStep(stepIndex)}
-                          >
-                            <Icon icon="x" class="button__icon" />
-                          </Button>
+                          <div class="combat-profiles-step__actions">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => addCondition(stepIndex)}
+                            >
+                              <Icon icon="plus" class="button__icon" />
+                              Rule
+                            </Button>
+                            <Button
+                              class="combat-profiles-item-remove"
+                              aria-label={`Remove skill ${step().skill}`}
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => removeStep(stepIndex)}
+                            >
+                              <Icon icon="x" class="button__icon" />
+                            </Button>
+                          </div>
                         </div>
                         <div class="combat-profiles-rules">
                           <Show
@@ -1219,126 +1255,157 @@ export function App(): JSX.Element {
                             <Index each={step().conditions}>
                               {(condition, conditionIndex) => (
                                 <div class="combat-profiles-rule">
-                                  <Select
-                                    class="combat-profiles-select"
-                                    value={[condition().type]}
-                                    onValueChange={(details) =>
-                                      updateConditionType(
-                                        stepIndex,
-                                        conditionIndex,
-                                        (details.value[0] ??
-                                          "self-hp") as ConditionType,
-                                      )
+                                  <div
+                                    class={
+                                      isStatCondition(condition())
+                                        ? "combat-profiles-rule__fields combat-profiles-rule__fields--stat"
+                                        : "combat-profiles-rule__fields combat-profiles-rule__fields--aura"
                                     }
                                   >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Rule type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <For each={conditionTypes}>
-                                        {(option) => (
-                                          <SelectItem value={option.value}>
-                                            {option.label}
+                                    <Label class="combat-profiles-rule-field">
+                                      <span>Condition</span>
+                                      <Select
+                                        class="combat-profiles-select"
+                                        value={[condition().type]}
+                                        onValueChange={(details) =>
+                                          updateConditionType(
+                                            stepIndex,
+                                            conditionIndex,
+                                            (details.value[0] ??
+                                              "self-hp") as ConditionType,
+                                          )
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Rule type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <For each={conditionTypes}>
+                                            {(option) => (
+                                              <SelectItem value={option.value}>
+                                                {option.label}
+                                              </SelectItem>
+                                            )}
+                                          </For>
+                                        </SelectContent>
+                                      </Select>
+                                    </Label>
+                                    <Show when={!isStatCondition(condition())}>
+                                      <Label class="combat-profiles-rule-field">
+                                        <span>Aura</span>
+                                        <Input
+                                          placeholder="Aura name"
+                                          value={auraNameValue(condition())}
+                                          onInput={(event) =>
+                                            updateCondition(
+                                              stepIndex,
+                                              conditionIndex,
+                                              (current) =>
+                                                isStatCondition(current)
+                                                  ? current
+                                                  : {
+                                                      ...current,
+                                                      auraName:
+                                                        event.currentTarget
+                                                          .value,
+                                                    },
+                                            )
+                                          }
+                                        />
+                                      </Label>
+                                    </Show>
+                                    <Label class="combat-profiles-rule-field">
+                                      <span>Operator</span>
+                                      <Select
+                                        class="combat-profiles-select combat-profiles-select--op"
+                                        value={[condition().op]}
+                                        onValueChange={(details) =>
+                                          updateCondition(
+                                            stepIndex,
+                                            conditionIndex,
+                                            (current) => ({
+                                              ...current,
+                                              op: (details.value[0] ?? "<=") as
+                                                | "<="
+                                                | ">=",
+                                            }),
+                                          )
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Op" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="<=">
+                                            &lt;=
                                           </SelectItem>
-                                        )}
-                                      </For>
-                                    </SelectContent>
-                                  </Select>
-                                  <Show when={!isStatCondition(condition())}>
-                                    <Input
-                                      placeholder="Aura name"
-                                      value={auraNameValue(condition())}
-                                      onInput={(event) =>
-                                        updateCondition(
-                                          stepIndex,
-                                          conditionIndex,
-                                          (current) =>
-                                            isStatCondition(current)
-                                              ? current
-                                              : {
-                                                  ...current,
-                                                  auraName:
-                                                    event.currentTarget.value,
-                                                },
-                                        )
-                                      }
-                                    />
-                                  </Show>
-                                  <Select
-                                    class="combat-profiles-select combat-profiles-select--op"
-                                    value={[condition().op]}
-                                    onValueChange={(details) =>
-                                      updateCondition(
-                                        stepIndex,
-                                        conditionIndex,
-                                        (current) => ({
-                                          ...current,
-                                          op: (details.value[0] ?? "<=") as
-                                            | "<="
-                                            | ">=",
-                                        }),
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Op" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="<=">&lt;=</SelectItem>
-                                      <SelectItem value=">=">&gt;=</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <Input
-                                    inputMode="numeric"
-                                    value={String(condition().value)}
-                                    onInput={(event) =>
-                                      updateCondition(
-                                        stepIndex,
-                                        conditionIndex,
-                                        (current) => ({
-                                          ...current,
-                                          value: clampRuleValue(
-                                            event.currentTarget.value,
-                                          ),
-                                        }),
-                                      )
-                                    }
-                                  />
-                                  <Show when={isStatCondition(condition())}>
-                                    <Select
-                                      class="combat-profiles-select combat-profiles-select--unit"
-                                      value={[conditionUnitValue(condition())]}
-                                      onValueChange={(details) =>
-                                        updateCondition(
-                                          stepIndex,
-                                          conditionIndex,
-                                          (current) =>
-                                            isStatCondition(current)
-                                              ? {
-                                                  ...current,
-                                                  unit: (details.value[0] ??
-                                                    "percent") as
-                                                    | "percent"
-                                                    | "value",
-                                                }
-                                              : current,
-                                        )
-                                      }
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Unit" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="percent">
-                                          %
-                                        </SelectItem>
-                                        <SelectItem value="value">
-                                          Value
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </Show>
+                                          <SelectItem value=">=">
+                                            &gt;=
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </Label>
+                                    <Label class="combat-profiles-rule-field">
+                                      <span>Value</span>
+                                      <Input
+                                        inputMode="numeric"
+                                        value={String(condition().value)}
+                                        onInput={(event) =>
+                                          updateCondition(
+                                            stepIndex,
+                                            conditionIndex,
+                                            (current) => ({
+                                              ...current,
+                                              value: clampRuleValue(
+                                                event.currentTarget.value,
+                                              ),
+                                            }),
+                                          )
+                                        }
+                                      />
+                                    </Label>
+                                    <Show when={isStatCondition(condition())}>
+                                      <Label class="combat-profiles-rule-field">
+                                        <span>Unit</span>
+                                        <Select
+                                          class="combat-profiles-select combat-profiles-select--unit"
+                                          value={[
+                                            conditionUnitValue(condition()),
+                                          ]}
+                                          onValueChange={(details) =>
+                                            updateCondition(
+                                              stepIndex,
+                                              conditionIndex,
+                                              (current) =>
+                                                isStatCondition(current)
+                                                  ? {
+                                                      ...current,
+                                                      unit: (details.value[0] ??
+                                                        "percent") as
+                                                        | "percent"
+                                                        | "value",
+                                                    }
+                                                  : current,
+                                            )
+                                          }
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Unit" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="percent">
+                                              %
+                                            </SelectItem>
+                                            <SelectItem value="value">
+                                              Value
+                                            </SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </Label>
+                                    </Show>
+                                  </div>
                                   <Button
+                                    class="combat-profiles-item-remove"
                                     aria-label={`Remove rule ${conditionLabel(condition())}`}
                                     size="icon-sm"
                                     variant="ghost"
@@ -1360,8 +1427,8 @@ export function App(): JSX.Element {
               </Card>
             </CardFrame>
           </section>
-        </div>
-      </AppShell.Body>
-    </AppShell>
+        </main>
+      </div>
+    </div>
   );
 }
