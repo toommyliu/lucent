@@ -119,6 +119,7 @@ const createElectronEnv = (): NodeJS.ProcessEnv => ({
 const childOptions = (
   cwd: string,
   env: NodeJS.ProcessEnv,
+  options: Pick<ChildProcess.CommandOptions, "shell"> = {},
 ): ChildProcess.CommandOptions => ({
   cwd,
   env,
@@ -126,7 +127,7 @@ const childOptions = (
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
-  shell: process.platform === "win32",
+  ...options,
   // On POSIX, run each managed command as a process-group leader so cleanup
   // kills pnpm plus grandchildren such as tsx/esbuild and Electron. With
   // detached: false, restarts can kill only the pnpm wrapper and leave orphaned
@@ -139,7 +140,12 @@ const spawnPnpm = (
   args: ReadonlyArray<string>,
   cwd: string,
   env: NodeJS.ProcessEnv,
-) => ChildProcess.make("pnpm", args, childOptions(cwd, env));
+) =>
+  ChildProcess.make(
+    "pnpm",
+    args,
+    childOptions(cwd, env, { shell: process.platform === "win32" }),
+  );
 
 const spawnNode = (
   args: ReadonlyArray<string>,
