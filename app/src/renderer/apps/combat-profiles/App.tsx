@@ -627,6 +627,43 @@ export function App(): JSX.Element {
     setDraftSteps((steps) => steps.filter((_, index) => index !== stepIndex));
   };
 
+  const moveStep = (stepIndex: number, offset: -1 | 1): void => {
+    setDraftSteps((steps) => {
+      const destinationIndex = stepIndex + offset;
+      if (destinationIndex < 0 || destinationIndex >= steps.length) {
+        return steps;
+      }
+
+      const reorderedSteps = [...steps];
+      [reorderedSteps[stepIndex], reorderedSteps[destinationIndex]] = [
+        reorderedSteps[destinationIndex]!,
+        reorderedSteps[stepIndex]!,
+      ];
+      return reorderedSteps;
+    });
+  };
+
+  const duplicateStep = (stepIndex: number): void => {
+    setDraftSteps((steps) => {
+      const step = steps[stepIndex];
+      if (step === undefined) {
+        return steps;
+      }
+
+      const duplicate = {
+        ...step,
+        conditions: step.conditions.map((condition) =>
+          Object.assign({}, condition),
+        ),
+      };
+      return [
+        ...steps.slice(0, stepIndex + 1),
+        duplicate,
+        ...steps.slice(stepIndex + 1),
+      ];
+    });
+  };
+
   const updateStepSkill = (stepIndex: number, skill: number): void => {
     updateStep(stepIndex, (step) => ({
       ...step,
@@ -1223,6 +1260,32 @@ export function App(): JSX.Element {
                             </Select>
                           </Label>
                           <div class="combat-profiles-step__actions">
+                            <Button
+                              aria-label={`Move skill ${step().skill} up`}
+                              disabled={stepIndex === 0}
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => moveStep(stepIndex, -1)}
+                            >
+                              <Icon icon="arrow_up" class="button__icon" />
+                            </Button>
+                            <Button
+                              aria-label={`Move skill ${step().skill} down`}
+                              disabled={stepIndex === draftSteps().length - 1}
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => moveStep(stepIndex, 1)}
+                            >
+                              <Icon icon="arrow_down" class="button__icon" />
+                            </Button>
+                            <Button
+                              aria-label={`Duplicate skill ${step().skill}`}
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => duplicateStep(stepIndex)}
+                            >
+                              <Icon icon="copy" class="button__icon" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
