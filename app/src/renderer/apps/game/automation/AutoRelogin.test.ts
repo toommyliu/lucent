@@ -24,6 +24,7 @@ const apiWith = (overrides: ApiOverrides = {}): AutoReloginApi => ({
       ((server) =>
         Effect.die(new Error(`Unexpected server selection: ${server}`))),
     getPassword: overrides.auth?.getPassword ?? (() => Effect.succeed("pw")),
+    getServers: overrides.auth?.getServers ?? (() => Effect.succeed([])),
     getUsername: overrides.auth?.getUsername ?? (() => Effect.succeed("Hero")),
     isLoggedIn: overrides.auth?.isLoggedIn ?? (() => Effect.succeed(false)),
     isServerSelectReady:

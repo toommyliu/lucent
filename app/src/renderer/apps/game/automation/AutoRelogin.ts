@@ -23,6 +23,7 @@ export interface AutoReloginApi {
     ApiService["auth"],
     | "connectTo"
     | "getPassword"
+    | "getServers"
     | "getUsername"
     | "isLoggedIn"
     | "isServerSelectReady"
@@ -136,6 +137,22 @@ export const normalizeAutoReloginDelay = (delayMs: number): number =>
   Number.isFinite(delayMs)
     ? EffectNumber.clamp({ minimum: 0, maximum: 300_000 })(delayMs)
     : defaultDelay;
+
+const normalizeAutoReloginServer = (
+  server: string,
+  servers: readonly { readonly name: string }[],
+): string | undefined => {
+  const requested = server.trim();
+  if (requested === "") return undefined;
+
+  return (
+    servers.find(
+      ({ name }) =>
+        name.localeCompare(requested, undefined, { sensitivity: "accent" }) ===
+        0,
+    )?.name ?? requested
+  );
+};
 
 const attemptingPhases = new Set<ReloginPhase["tag"]>([
   "awaiting-player-ready",
@@ -850,7 +867,8 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
   const setEnabled = (enabled: boolean) => (enabled ? start() : stop());
   const setServer = (server: string) =>
     Effect.gen(function* () {
-      const nextServer = server.trim() || undefined;
+      const servers = server.trim() === "" ? [] : yield* api.auth.getServers();
+      const nextServer = normalizeAutoReloginServer(server, servers);
       const shouldRetry = yield* SubscriptionRef.modify(state, (current) => {
         const changed = current.server !== nextServer;
         // A different target after failure is fresh user intent, so retry now.
