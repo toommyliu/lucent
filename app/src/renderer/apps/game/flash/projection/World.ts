@@ -150,13 +150,8 @@ const decodeStringPlayerUpdate = (packet: ExtensionPacket) => {
   if (typeof username !== "string" || typeof patch !== "string") {
     return Option.none<typeof PlayerUpdate.Type>();
   }
-  const parsed = parseCsv(patch);
   return decodePlayerUpdate({
-    o: {
-      ...parsed,
-      ...(parsed["px"] === undefined ? {} : { tx: parsed["px"] }),
-      ...(parsed["py"] === undefined ? {} : { ty: parsed["py"] }),
-    },
+    o: parseCsv(patch),
     unm: username,
   });
 };
@@ -173,28 +168,39 @@ const parseMap = (area: string | undefined) => {
 const playerPatch = (
   patch: EntityPatch,
   currentPosition: { readonly x: number; readonly y: number },
-) => ({
-  ...(patch.afk === undefined ? {} : { afk: patch.afk }),
-  ...(patch.entID === undefined ? {} : { entityId: patch.entID }),
-  ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
-  ...(patch.intHPMax === undefined ? {} : { maxHp: patch.intHPMax }),
-  ...(patch.intLevel === undefined ? {} : { level: patch.intLevel }),
-  ...(patch.intMP === undefined ? {} : { mp: patch.intMP }),
-  ...(patch.intMPMax === undefined ? {} : { maxMp: patch.intMPMax }),
-  ...(entityState(patch.intState) === undefined
-    ? {}
-    : { state: entityState(patch.intState)! }),
-  ...(patch.strFrame === undefined ? {} : { cell: patch.strFrame }),
-  ...(patch.strPad === undefined ? {} : { pad: patch.strPad }),
-  ...(patch.tx === undefined && patch.ty === undefined
-    ? {}
-    : {
-        position: {
-          x: patch.tx ?? currentPosition.x,
-          y: patch.ty ?? currentPosition.y,
-        },
-      }),
-});
+) => {
+  const position =
+    patch.px === undefined &&
+    patch.py === undefined &&
+    patch.tx === undefined &&
+    patch.ty === undefined
+      ? undefined
+      : {
+          x: patch.px ?? patch.tx ?? currentPosition.x,
+          y: patch.py ?? patch.ty ?? currentPosition.y,
+        };
+
+  return {
+    ...(patch.afk === undefined ? {} : { afk: patch.afk }),
+    ...(patch.entID === undefined ? {} : { entityId: patch.entID }),
+    ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
+    ...(patch.intHPMax === undefined ? {} : { maxHp: patch.intHPMax }),
+    ...(patch.intLevel === undefined ? {} : { level: patch.intLevel }),
+    ...(patch.intMP === undefined ? {} : { mp: patch.intMP }),
+    ...(patch.intMPMax === undefined ? {} : { maxMp: patch.intMPMax }),
+    ...(entityState(patch.intState) === undefined
+      ? {}
+      : { state: entityState(patch.intState)! }),
+    ...(patch.strFrame === undefined ? {} : { cell: patch.strFrame }),
+    ...(patch.strPad === undefined ? {} : { pad: patch.strPad }),
+    ...(position === undefined ? {} : { position }),
+  };
+};
+
+const playerMovementDestination = (patch: EntityPatch) =>
+  patch.tx === undefined || patch.ty === undefined
+    ? undefined
+    : { x: patch.tx, y: patch.ty };
 
 const monsterPatch = (patch: EntityPatch) => ({
   ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
@@ -348,7 +354,10 @@ const projectMoveArea = (
       }
     }
     if (self !== undefined) yield* store.world.setSelf(self.username);
-    return [{ type: "join-map", map }] satisfies readonly Event[];
+    return [
+      { type: "join-map", map },
+      { type: "players-changed" },
+    ] satisfies readonly Event[];
   });
 
 export const projectClientWorld = Effect.fn("projectClientWorld")(function* (
@@ -440,6 +449,7 @@ export const projectExtensionWorld = (
 
         const auth = yield* store.auth.get;
         const userId = yield* localUserId(store, bridge);
+        let playersChanged = false;
         for (const baseline of baselines.value) {
           const decoded = decodeInitializedPlayer(baseline);
           if (Option.isNone(decoded)) {
@@ -459,6 +469,7 @@ export const projectExtensionWorld = (
           }
           if (player === null) {
             player = yield* store.world.putPlayer(fallback);
+            playersChanged = true;
           }
           if (
             (Option.isSome(userId) && player.entityId === userId.value) ||
@@ -469,7 +480,9 @@ export const projectExtensionWorld = (
             yield* store.world.setSelf(player.username);
           }
         }
-        return [];
+        return playersChanged
+          ? ([{ type: "players-changed" }] satisfies readonly Event[])
+          : [];
       }
       case "exitArea": {
         const data = packet.data;
@@ -477,7 +490,10 @@ export const projectExtensionWorld = (
           ? decodeString(data[3])
           : Option.none();
         if (Option.isSome(username)) {
-          yield* store.world.removePlayer(username.value);
+          const removed = yield* store.world.removePlayer(username.value);
+          return removed === null
+            ? []
+            : ([{ type: "players-changed" }] satisfies readonly Event[]);
         }
         return [];
       }
@@ -493,6 +509,7 @@ export const projectExtensionWorld = (
           return [];
         }
         let current = yield* store.world.getPlayer(decoded.value.unm);
+        let playersChanged = false;
         if (current === null) {
           const baseline =
             packet.wireType === "json"
@@ -509,20 +526,25 @@ export const projectExtensionWorld = (
             return [];
           }
           current = yield* store.world.putPlayer(toPlayer(baseline.value));
+          playersChanged = true;
         }
         const result = yield* store.world.patchPlayer(
           current.username,
           playerPatch(decoded.value.o, current.position),
         );
         if (result === null) return [];
-        const events: Event[] = [];
+        const events: Event[] = playersChanged
+          ? [{ type: "players-changed" }]
+          : [];
         if (
           decoded.value.o.strFrame !== undefined ||
           decoded.value.o.strPad !== undefined ||
           decoded.value.o.tx !== undefined ||
           decoded.value.o.ty !== undefined
         ) {
+          const destination = playerMovementDestination(decoded.value.o);
           events.push({
+            ...(destination === undefined ? {} : { destination }),
             type: "player-location",
             entityId: result.player.entityId,
             username: result.player.username,

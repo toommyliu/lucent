@@ -4,11 +4,12 @@ import { CombatProfilesIpc } from "../../../shared/ipc";
 import { CombatProfiles } from "../../internal/combat-profiles/CombatProfiles";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 
-const combatProfileSenders = ["combat-profiles", "game"] as const;
+const combatProfileReaders = ["combat-profiles", "follower", "game"] as const;
+const combatProfileWriters = ["combat-profiles", "game"] as const;
 
 export const getState = makeDesktopIpcMethod({
   descriptor: CombatProfilesIpc.getState,
-  allowedSenders: combatProfileSenders,
+  allowedSenders: combatProfileReaders,
   handler: Effect.fn("desktop.ipc.combatProfiles.getState")(function* () {
     const combatProfiles = yield* CombatProfiles;
     return yield* combatProfiles.get;
@@ -17,7 +18,7 @@ export const getState = makeDesktopIpcMethod({
 
 export const saveProfile = makeDesktopIpcMethod({
   descriptor: CombatProfilesIpc.saveProfile,
-  allowedSenders: combatProfileSenders,
+  allowedSenders: combatProfileWriters,
   handler: Effect.fn("desktop.ipc.combatProfiles.saveProfile")(
     function* (profile) {
       const combatProfiles = yield* CombatProfiles;
@@ -28,7 +29,7 @@ export const saveProfile = makeDesktopIpcMethod({
 
 export const deleteProfile = makeDesktopIpcMethod({
   descriptor: CombatProfilesIpc.deleteProfile,
-  allowedSenders: combatProfileSenders,
+  allowedSenders: combatProfileWriters,
   handler: Effect.fn("desktop.ipc.combatProfiles.deleteProfile")(
     function* (payload) {
       const combatProfiles = yield* CombatProfiles;

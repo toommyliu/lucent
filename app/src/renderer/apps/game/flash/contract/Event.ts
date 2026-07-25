@@ -32,6 +32,7 @@ export type ProjectionEvent =
       readonly entityId: number;
       readonly username: string;
     }
+  | { readonly type: "players-changed" }
   | {
       readonly type: "aura-added";
       readonly duration?: number;
@@ -53,6 +54,10 @@ export type ProjectionEvent =
       readonly targetType: "monster" | "player";
     }
   | {
+      readonly destination?: {
+        readonly x: number;
+        readonly y: number;
+      };
       readonly type: "player-location";
       readonly entityId: number;
       readonly username: string;
@@ -107,6 +112,9 @@ export type EventSelector =
       readonly entityId?: number;
       readonly type: "player-death" | "player-location";
       readonly username?: string;
+    }
+  | {
+      readonly type: "players-changed";
     }
   | {
       readonly duration?: number;

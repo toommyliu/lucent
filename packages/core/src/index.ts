@@ -5,6 +5,7 @@ export * from "./army";
 export * from "./baseSchemas";
 export * from "./combatProfiles";
 export * from "./environment";
+export * from "./follower";
 export * from "./hotkeys";
 export * from "./scriptInputs";
 export * from "./settings";

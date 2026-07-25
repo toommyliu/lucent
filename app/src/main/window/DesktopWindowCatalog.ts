@@ -2,6 +2,7 @@ export type DesktopWindowKind =
   | "account-manager"
   | "combat-profiles"
   | "environment"
+  | "follower"
   | "game"
   | "settings";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
@@ -83,6 +84,20 @@ const desktopWindowCatalog: ReadonlyMap<
       kind: "environment",
       width: 778,
       height: 613,
+      closeBehavior: "hide",
+      requiresFlashPlugin: false,
+      scope: "game-child",
+      singleInstance: true,
+    },
+  ],
+  [
+    "follower",
+    {
+      kind: "follower",
+      width: 648,
+      height: 496,
+      minWidth: 1,
+      minHeight: 1,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
       scope: "game-child",

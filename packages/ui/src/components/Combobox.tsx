@@ -90,7 +90,9 @@ export function Combobox(props: ComboboxProps): JSX.Element {
     ...(local.items ?? []),
   ]);
   const collection = createMemo(() =>
-    createListCollection<ComboboxOption>({ items: registeredItems() }),
+    createListCollection<ComboboxOption>({
+      items: local.items ?? registeredItems(),
+    }),
   );
   const context: ComboboxContextValue = {
     registerItem(item) {

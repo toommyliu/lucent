@@ -3,30 +3,20 @@ import type {
   CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { getCombatProfileById } from "@lucent/core/combatProfiles";
-import {
-  EntityState,
-  orderMonstersByPriority,
-  parseMonsterMapId,
-} from "@lucent/game";
-import type { Monster, MonsterQuery } from "@lucent/game";
+import { parseMonsterMapId } from "@lucent/game";
+import type { MonsterQuery } from "@lucent/game";
 import {
   Cause,
   Effect,
   FiberMap,
-  Ref,
+  Queue,
   Stream,
   SubscriptionRef,
   type FiberMap as FiberMapType,
 } from "effect";
 
 import type { ApiService } from "../flash/api/Api";
-import {
-  castCombatProfileMessageTriggers,
-  castNextCombatProfileStep,
-  makeCombatProfileMessageTriggerState,
-  makeCombatProfileCursor,
-  makeCombatProfileRuntimeDeps,
-} from "../combatProfiles";
+import { makeCombatProfileRunner } from "./combat/CombatProfileRunner";
 
 export interface AutoAttackStartOptions {
   readonly library: CombatProfileLibrary;
@@ -46,6 +36,7 @@ interface State {
   readonly enabled: boolean;
   readonly lastError: string | undefined;
   readonly profile: CombatProfile | undefined;
+  readonly runId: number;
 }
 
 const key = "auto-attack";
@@ -62,17 +53,6 @@ export const parseAutoAttackTargetPriority = (
       const monsterMapId = parseMonsterMapId(token);
       return monsterMapId ?? token;
     });
-
-const selectTarget = (
-  monsters: readonly Monster[],
-  priorities: readonly MonsterQuery[],
-) => {
-  const available = monsters.filter(
-    (monster) => monster.hp > 0 && monster.state !== EntityState.Dead,
-  );
-  const prioritized = orderMonstersByPriority(available, priorities);
-  return prioritized[0] ?? available[0];
-};
 
 const publicState = (state: State, running: boolean): AutoAttackState => ({
   enabled: state.enabled,
@@ -91,8 +71,9 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
     enabled: false,
     lastError: undefined,
     profile: undefined,
+    runId: 0,
   });
-  const messageState = yield* makeCombatProfileMessageTriggerState();
+  const wakeups = yield* Queue.sliding<void>(1);
   const getState = () =>
     Effect.all({
       running: FiberMap.has(fibers, key),
@@ -107,46 +88,62 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
     ),
   );
 
-  const loop = (profile: CombatProfile, priorities: readonly MonsterQuery[]) =>
-    Effect.gen(function* () {
-      const cursor = yield* makeCombatProfileCursor();
-      const deps = makeCombatProfileRuntimeDeps(
-        api.combat,
-        api.player,
-        api.players,
-      );
-      while ((yield* SubscriptionRef.get(state)).enabled) {
-        if (!(yield* api.player.isAlive())) {
-          yield* Effect.sleep("250 millis");
-          continue;
+  const failRun = (runId: number, lastError: string) =>
+    SubscriptionRef.modify(state, (current): readonly [boolean, State] =>
+      current.runId === runId
+        ? [
+            true,
+            {
+              ...current,
+              enabled: false,
+              lastError,
+              profile: undefined,
+            },
+          ]
+        : [false, current],
+    ).pipe(
+      Effect.flatMap((failed) =>
+        failed ? Queue.offer(wakeups, undefined) : Effect.void,
+      ),
+    );
+
+  const loop = (
+    runId: number,
+    profile: CombatProfile,
+    priorities: readonly MonsterQuery[],
+  ) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const runner = yield* makeCombatProfileRunner(api, {
+          onAsyncFailure: (failure) => failRun(runId, failure.message),
+          profile,
+          targetPriority: priorities,
+        });
+
+        while (true) {
+          const current = yield* SubscriptionRef.get(state);
+          if (!current.enabled || current.runId !== runId) {
+            return;
+          }
+
+          const result = yield* runner.runCycle();
+          yield* Effect.raceFirst(
+            Effect.sleep(result.delayMs),
+            Queue.take(wakeups),
+          );
         }
-        const target = selectTarget(
-          yield* api.monsters.getAvailable(),
-          priorities,
-        );
-        if (target === undefined) {
-          yield* Effect.sleep("250 millis");
-          continue;
-        }
-        const attacked = yield* api.combat.attackMonster(target.monsterMapId);
-        const cast = attacked
-          ? yield* castNextCombatProfileStep(deps, profile, cursor)
-          : false;
-        yield* Effect.sleep(
-          attacked && cast ? Math.max(50, profile.delayMs) : 250,
-        );
-      }
-    }).pipe(
+      }),
+    ).pipe(
+      Effect.catchTag("CombatProfileRunError", (failure) =>
+        failRun(runId, failure.message),
+      ),
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.void
-          : SubscriptionRef.update(state, (current) => ({
-              ...current,
-              enabled: false,
-              lastError:
-                Cause.pretty(cause).split("\n")[0] ?? "Auto attack failed",
-              profile: undefined,
-            })),
+          : failRun(
+              runId,
+              Cause.pretty(cause).split("\n")[0] ?? "Auto attack failed",
+            ),
       ),
       Effect.ensuring(
         Effect.all([api.combat.cancelAutoAttack(), api.combat.cancelTarget()], {
@@ -157,64 +154,47 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
 
   const disable = () =>
     FiberMap.remove(fibers, key).pipe(
-      Effect.andThen(Ref.set(messageState.state, new Map())),
+      Effect.andThen(Queue.clear(wakeups)),
       Effect.andThen(
-        SubscriptionRef.set(state, {
+        SubscriptionRef.update(state, (current) => ({
           enabled: false,
           lastError: undefined,
           profile: undefined,
-        }),
+          runId: current.runId + 1,
+        })),
       ),
       Effect.andThen(getState()),
     );
 
-  const enable = (options: AutoAttackStartOptions) => {
-    const profile = getCombatProfileById(options.library, options.profileId);
-    return SubscriptionRef.set(state, {
-      enabled: true,
-      lastError: undefined,
-      profile,
-    }).pipe(
-      Effect.andThen(Ref.set(messageState.state, new Map())),
-      Effect.andThen(
-        FiberMap.run(fibers, key, loop(profile, options.targetPriority ?? [])),
-      ),
-      Effect.andThen(getState()),
-    );
-  };
+  const enable = (options: AutoAttackStartOptions) =>
+    Effect.gen(function* () {
+      const profile = getCombatProfileById(options.library, options.profileId);
+      const runId = yield* SubscriptionRef.modify(
+        state,
+        (current): readonly [number, State] => {
+          const nextRunId = current.runId + 1;
+          return [
+            nextRunId,
+            {
+              enabled: true,
+              lastError: undefined,
+              profile,
+              runId: nextRunId,
+            },
+          ];
+        },
+      );
+      yield* Queue.clear(wakeups);
+      yield* FiberMap.run(
+        fibers,
+        key,
+        loop(runId, profile, options.targetPriority ?? []),
+      );
+      return yield* getState();
+    });
 
   const isEnabled = () =>
     SubscriptionRef.get(state).pipe(Effect.map((current) => current.enabled));
-
-  const disposeMessages = yield* api.events.on(
-    { type: "update-message" },
-    (event) =>
-      Effect.gen(function* () {
-        if (event.type !== "update-message") return;
-        const current = yield* SubscriptionRef.get(state);
-        const profile = current.profile;
-        if (!current.enabled || profile === undefined) return;
-        const message = {
-          message: event.message,
-          ...(event.monsterMapId === undefined
-            ? {}
-            : { monMapId: event.monsterMapId }),
-          source: event.source,
-        } as const;
-        const dependencies = makeCombatProfileRuntimeDeps(
-          api.combat,
-          api.player,
-          api.players,
-        );
-        yield* castCombatProfileMessageTriggers(
-          dependencies,
-          profile,
-          message,
-          messageState,
-        );
-      }),
-  );
-  yield* Effect.addFinalizer(() => Effect.sync(disposeMessages));
 
   return {
     changes,

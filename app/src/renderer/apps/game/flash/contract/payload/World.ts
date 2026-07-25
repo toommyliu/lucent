@@ -72,6 +72,8 @@ export const EntityPatchPayload = Schema.Struct({
   intMP: Schema.optionalKey(WireInt),
   intMPMax: Schema.optionalKey(WireInt),
   intState: Schema.optionalKey(EntityStatePayload),
+  px: Schema.optionalKey(WireNumber),
+  py: Schema.optionalKey(WireNumber),
   strFrame: Schema.optionalKey(Schema.String),
   strPad: Schema.optionalKey(Schema.String),
   tx: Schema.optionalKey(WireNumber),

@@ -16,6 +16,7 @@ const DesktopBridgeViewSchema = Schema.Literals([
   "account-manager",
   "combat-profiles",
   "environment",
+  "follower",
   "game",
   "settings",
 ]);

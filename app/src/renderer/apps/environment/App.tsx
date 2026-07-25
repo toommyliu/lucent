@@ -77,13 +77,11 @@ function AutomationAction(props: {
   readonly onChange: (enabled: boolean) => void;
 }): JSX.Element {
   const action = () => (props.enabled ? "Stop" : "Start");
+
   return (
     <Button
-      class={
-        props.enabled
-          ? "environment-automation-action"
-          : "environment-automation-action environment-automation-action--paused"
-      }
+      aria-label={`${action()} ${props.label}`}
+      class="environment-automation-action"
       size="sm"
       variant={props.enabled ? "destructive-outline" : "outline"}
       onClick={() => props.onChange(!props.enabled)}
@@ -419,45 +417,45 @@ export function App(): JSX.Element {
 
   return (
     <div class="standalone-window environment-root">
+      <header class="standalone-window__header">
+        <div class="standalone-window__header-actions">
+          <TooltipButton>
+            <TooltipButtonTrigger
+              variant="outline"
+              size="sm"
+              disabled={clearingAll() || totalCount() === 0}
+              onClick={() => setClearDialogOpen(true)}
+            >
+              Clear current
+            </TooltipButtonTrigger>
+            <TooltipButtonContent>
+              Remove every registered quest, item, and boost from this
+              Environment.
+            </TooltipButtonContent>
+          </TooltipButton>
+          <TooltipButton>
+            <TooltipButtonTrigger
+              class="environment-sync-action"
+              variant="default"
+              size="sm"
+              aria-busy={syncing()}
+              aria-label={syncing() ? "Applying to all" : "Apply to all"}
+              disabled={syncing()}
+              onClick={() => setApplyDialogOpen(true)}
+            >
+              {syncing() ? "Applying…" : "Apply to all"}
+            </TooltipButtonTrigger>
+            <TooltipButtonContent>
+              Copy this Environment's settings and lists to every other
+              Environment, replacing what's already there.
+            </TooltipButtonContent>
+          </TooltipButton>
+        </div>
+      </header>
+
       <div class="standalone-window__content-frame">
         <div class="standalone-window__content">
           <section class="environment-shell" aria-label="Environment controls">
-            <header class="standalone-window__header">
-              <div class="standalone-window__header-actions">
-                <TooltipButton>
-                  <TooltipButtonTrigger
-                    variant="outline"
-                    size="sm"
-                    disabled={clearingAll() || totalCount() === 0}
-                    onClick={() => setClearDialogOpen(true)}
-                  >
-                    Clear current
-                  </TooltipButtonTrigger>
-                  <TooltipButtonContent>
-                    Remove every registered quest, item, and boost from this
-                    Environment.
-                  </TooltipButtonContent>
-                </TooltipButton>
-                <TooltipButton>
-                  <TooltipButtonTrigger
-                    class="environment-sync-action"
-                    variant="default"
-                    size="sm"
-                    aria-busy={syncing()}
-                    aria-label={syncing() ? "Applying to all" : "Apply to all"}
-                    disabled={syncing()}
-                    onClick={() => setApplyDialogOpen(true)}
-                  >
-                    {syncing() ? "Applying…" : "Apply to all"}
-                  </TooltipButtonTrigger>
-                  <TooltipButtonContent>
-                    Copy this Environment's settings and lists to every other
-                    Environment, replacing what's already there.
-                  </TooltipButtonContent>
-                </TooltipButton>
-              </div>
-            </header>
-
             <Show when={error()}>
               {(message) => (
                 <Alert class="environment-error" variant="error">

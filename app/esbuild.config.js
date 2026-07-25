@@ -120,6 +120,7 @@ const rendererViews = [
     startsPending: true,
   }),
   createRendererView("environment", "Environment", { startsPending: true }),
+  createRendererView("follower", "Follower", { startsPending: true }),
 ];
 
 const rendererOptions = (view) => ({

@@ -8,6 +8,7 @@ export const DesktopWindowKindSchema = Schema.Literals([
   "account-manager",
   "combat-profiles",
   "environment",
+  "follower",
   "game",
   "settings",
 ]);

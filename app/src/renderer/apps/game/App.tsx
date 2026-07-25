@@ -1993,7 +1993,8 @@ export function App(props: {
     if (
       id !== "combat-profiles" &&
       id !== "account-manager" &&
-      id !== "environment"
+      id !== "environment" &&
+      id !== "follower"
     ) {
       return;
     }
@@ -2799,8 +2800,17 @@ export function App(props: {
   };
 
   const handleToggleFollower = () => {
-    console.debug("[game:follower:no-op]", "toggle");
     setOpenMenu(null);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const { follower } = yield* Automation;
+          return yield* follower.toggle(combatProfileLibrary());
+        }),
+      )
+      .catch((error: unknown) => {
+        console.error("[game:follower]", "toggle failed", error);
+      });
   };
 
   const selectOptionCommand = (commandId: SettingsCommandId) => {

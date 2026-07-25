@@ -19,6 +19,7 @@ import {
   ArmyIpc,
   CombatProfilesIpc,
   EnvironmentIpc,
+  FollowerIpc,
   ScriptingIpc,
   SettingsIpc,
   UpdatesIpc,
@@ -143,6 +144,54 @@ const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
 
+const followerBridge: NonNullable<DesktopBridge["follower"]> = {
+  configure: (payload) => invoke(FollowerIpc.configure, payload),
+  getPlayers: () => invoke(FollowerIpc.getPlayers, undefined),
+  getState: () => invoke(FollowerIpc.getState, undefined),
+  me: () => invoke(FollowerIpc.me, undefined),
+  onChanged: (listener) => subscribe(FollowerIpc.changed, listener),
+  onPlayersChanged: (listener) =>
+    subscribe(FollowerIpc.playersChanged, listener),
+  start: (payload) => invoke(FollowerIpc.start, payload),
+  stop: () => invoke(FollowerIpc.stop, undefined),
+};
+
+const followerErrorMessage = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ""
+    ? cause.message
+    : "Follower request failed";
+
+const gameFollowerBridge: NonNullable<DesktopBridge["gameFollower"]> = {
+  onCommand: (listener) =>
+    subscribe(FollowerIpc.command, (command) => {
+      void Promise.resolve()
+        .then(() => listener(command))
+        .then((outcome) => {
+          if (outcome.kind !== command.kind) {
+            throw new Error(
+              `Follower returned ${outcome.kind} for ${command.kind}`,
+            );
+          }
+          return {
+            ok: true as const,
+            outcome,
+            requestId: command.requestId,
+          };
+        })
+        .catch((cause: unknown) => ({
+          error: followerErrorMessage(cause),
+          ok: false as const,
+          requestId: command.requestId,
+        }))
+        .then((response) => invoke(FollowerIpc.respond, response))
+        .catch((cause: unknown) => {
+          console.error("Failed to respond to follower command:", cause);
+        });
+    }),
+  publishPlayers: (players) => invoke(FollowerIpc.publishPlayers, players),
+  publishState: (state) => invoke(FollowerIpc.publishState, state),
+};
+
 const environmentBridge: NonNullable<DesktopBridge["environment"]> = {
   addBoost: (name) => invoke(EnvironmentIpc.addBoost, { name }),
   addBoosts: (names) => invoke(EnvironmentIpc.addBoosts, { names }),
@@ -240,6 +289,7 @@ const bridge: DesktopBridge = {
         combatProfiles: combatProfilesBridge,
         environment: environmentBridge,
         gameAccounts: gameAccountsBridge,
+        gameFollower: gameFollowerBridge,
         ...(gameConsoleObservabilityEnabled
           ? { gameConsoleObservability: gameConsoleObservabilityBridge }
           : {}),
@@ -260,6 +310,13 @@ const bridge: DesktopBridge = {
   ...(bridgeView === "environment"
     ? {
         environment: environmentBridge,
+      }
+    : {}),
+  ...(bridgeView === "follower"
+    ? {
+        combatProfiles: combatProfilesBridge,
+        follower: followerBridge,
+        windows: windowsBridge,
       }
     : {}),
   ...(bridgeView === "account-manager"

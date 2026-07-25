@@ -7,6 +7,8 @@ import { makeAutoRelogin } from "./AutoRelogin";
 import type { AutoReloginState } from "./AutoRelogin";
 import { makeAutoZone } from "./AutoZone";
 import type { AutoZoneState } from "./AutoZone";
+import { makeDesktopFollowerPort, makeFollower } from "./Follower";
+import type { FollowerState } from "@lucent/core/follower";
 
 export const makeAutomation = Effect.gen(function* () {
   const api = yield* Api;
@@ -16,6 +18,7 @@ export const makeAutomation = Effect.gen(function* () {
   const autoAttack = yield* makeAutoAttack(api, fibers);
   const autoRelogin = yield* makeAutoRelogin(api, fibers);
   const autoZone = yield* makeAutoZone(api, fibers);
+  const follower = yield* makeFollower(api, fibers, makeDesktopFollowerPort());
 
   const observe = <S>(
     changes: Stream.Stream<S>,
@@ -38,6 +41,9 @@ export const makeAutomation = Effect.gen(function* () {
   const observeAutoZone = (listener: (state: AutoZoneState) => void) =>
     observe(autoZone.changes, listener);
 
+  const observeFollower = (listener: (state: FollowerState) => void) =>
+    observe(follower.changes, listener);
+
   const autoAttackApi = {
     ...autoAttack,
     onState: observeAutoAttack,
@@ -53,10 +59,16 @@ export const makeAutomation = Effect.gen(function* () {
     onState: observeAutoZone,
   };
 
+  const followerApi = {
+    ...follower,
+    onState: observeFollower,
+  };
+
   return {
     autoAttack: autoAttackApi,
     autoRelogin: autoReloginApi,
     autoZone: autoZoneApi,
+    follower: followerApi,
   };
 });
 

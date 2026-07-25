@@ -16,6 +16,10 @@ import type {
   CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import type {
+  FollowerStartPayload,
+  FollowerState,
+} from "@lucent/core/follower";
+import type {
   ArmyConfigPayload,
   ArmyFailPayload,
   ArmyLeavePayload,
@@ -40,6 +44,11 @@ import type {
   ScriptSelectFileResult,
 } from "./ipc/scripting";
 import type { EnvironmentBoostDiscovery } from "./ipc/environment";
+import type {
+  FollowerCommand,
+  FollowerCommandOutcome,
+  FollowerPlayers,
+} from "./ipc/follower";
 import type {
   ScriptInputsDefinition,
   ScriptInputValues,
@@ -69,12 +78,14 @@ export type DesktopBridgeView =
   | "account-manager"
   | "combat-profiles"
   | "environment"
+  | "follower"
   | "game"
   | "settings";
 export type DesktopBridgeWindowKind =
   | "account-manager"
   | "combat-profiles"
   | "environment"
+  | "follower"
   | "game"
   | "settings";
 
@@ -186,6 +197,29 @@ export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
 
+export interface DesktopFollowerBridge {
+  readonly configure: (payload: FollowerStartPayload) => Promise<FollowerState>;
+  readonly getPlayers: () => Promise<FollowerPlayers>;
+  readonly getState: () => Promise<FollowerState>;
+  readonly me: () => Promise<string>;
+  readonly onChanged: (listener: (state: FollowerState) => void) => () => void;
+  readonly onPlayersChanged: (
+    listener: (players: FollowerPlayers) => void,
+  ) => () => void;
+  readonly start: (payload: FollowerStartPayload) => Promise<FollowerState>;
+  readonly stop: () => Promise<FollowerState>;
+}
+
+export interface DesktopGameFollowerBridge {
+  readonly onCommand: (
+    listener: (
+      command: FollowerCommand,
+    ) => FollowerCommandOutcome | Promise<FollowerCommandOutcome>,
+  ) => () => void;
+  readonly publishPlayers: (players: FollowerPlayers) => Promise<void>;
+  readonly publishState: (state: FollowerState) => Promise<void>;
+}
+
 export interface DesktopEnvironmentBridge {
   readonly addBoost: (name: string) => Promise<EnvironmentState>;
   readonly addBoosts: (names: readonly string[]) => Promise<EnvironmentState>;
@@ -284,8 +318,10 @@ export interface DesktopBridge {
   readonly combatProfiles?: DesktopCombatProfilesBridge;
   readonly debug: boolean;
   readonly environment?: DesktopEnvironmentBridge;
+  readonly follower?: DesktopFollowerBridge;
   readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
+  readonly gameFollower?: DesktopGameFollowerBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

@@ -209,6 +209,7 @@ export const ALL_DESKTOP_WINDOW_KINDS = [
   "account-manager",
   "combat-profiles",
   "environment",
+  "follower",
   "game",
   "settings",
 ] as const satisfies readonly [DesktopWindowKind, ...DesktopWindowKind[]];

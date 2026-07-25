@@ -4,6 +4,7 @@ export * from "./accountSettings";
 export * from "./combatProfiles";
 export * from "./core";
 export * from "./environment";
+export * from "./follower";
 export * from "./gameConsole";
 export * from "./settings";
 export * from "./scripting";
