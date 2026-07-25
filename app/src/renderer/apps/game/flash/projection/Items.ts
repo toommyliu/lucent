@@ -104,6 +104,12 @@ const decodePositiveInt = Schema.decodeUnknownOption(PositiveWireInt);
 
 const WHEEL_TREASURE_POTION_ID = 18_927; // Treasure Potion
 const WHEEL_SECONDARY_REWARD_ID = 19_189; // Daily XP Boost! (1 hr)
+const ownedItemContainers: readonly ItemContainer[] = [
+  "temporary",
+  "inventory",
+  "house",
+  "bank",
+];
 
 interface TurnInItem {
   readonly itemId: number;
@@ -344,6 +350,17 @@ const itemRecordPayload = (key: string, value: unknown): unknown => {
 
   return { ...record, ItemID: itemId };
 };
+
+const findOwnedItem = Effect.fn("findOwnedItem")(function* (
+  store: Store,
+  itemId: number,
+) {
+  for (const container of ownedItemContainers) {
+    const item = yield* store.items.get(container, itemId);
+    if (item !== null) return item;
+  }
+  return null;
+});
 
 const upsertWheelReward = (
   store: Store,
@@ -650,7 +667,10 @@ export const projectExtensionItems = (
         for (const [key, value] of Object.entries(decoded.value.items)) {
           const payload = decodeItem(itemRecordPayload(key, value));
           if (Option.isNone(payload)) continue;
-          const item = toItem(payload.value);
+          // Sparse addItems increments after the first full item payload.
+          // Reuse existing metadata so omitted bTemp/bHouse fields preserve the container.
+          const existing = yield* findOwnedItem(store, payload.value.ItemID);
+          const item = toItem(payload.value, existing?.snapshot());
           const container: ItemContainer = item.banked
             ? "bank"
             : item.houseItem
@@ -658,7 +678,10 @@ export const projectExtensionItems = (
               : item.temporaryItem
                 ? "temporary"
                 : "inventory";
-          const current = yield* store.items.get(container, item.itemId);
+          const current =
+            existing?.context === container
+              ? existing
+              : yield* store.items.get(container, item.itemId);
           if (current === null) {
             yield* store.items.upsert(container, item);
           } else {
