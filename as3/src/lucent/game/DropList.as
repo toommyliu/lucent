@@ -5,6 +5,7 @@ package lucent.game {
 
   [BridgeNamespace("drops")]
   public class DropList {
+    private static const DROP_COUNT_REGEX:RegExp = /(.*)\s+x\s*(\d*)/i;
     private static const DROP_MC:String = "DFrame2MC";
 
     private static function getItemId(item:Object):int {
@@ -16,7 +17,21 @@ package lucent.game {
     }
 
     private static function isDefaultDropFrame(child:*):Boolean {
-      return getQualifiedClassName(child) == DROP_MC && Boolean(child.fData);
+      return getQualifiedClassName(child).indexOf(DROP_MC) != -1 && Boolean(child.cnt);
+    }
+
+    private static function normalizeDropName(value:*):String {
+      return String(value).replace(/^\s+|\s+$/g, "").toLowerCase();
+    }
+
+    private static function parseDefaultDropName(value:*):String {
+      var name:String = normalizeDropName(value);
+      var match:Array = DROP_COUNT_REGEX.exec(name);
+      if (match && match.length > 1) {
+        return normalizeDropName(match[1]);
+      }
+
+      return name;
     }
 
     private static function getCustomDropEntry(itemId:int):* {
@@ -37,10 +52,19 @@ package lucent.game {
 
     private static function getDefaultDropFrame(itemId:int):* {
       var game:Object = Main.Game;
+      var item:* = game.world.invTree[itemId];
+      if (!item || !item.sName) {
+        return null;
+      }
+
+      var itemName:String = normalizeDropName(item.sName);
       var children:int = game.ui.dropStack.numChildren;
       for (var i:int = 0; i < children; i++) {
         var child:* = game.ui.dropStack.getChildAt(i);
-        if (isDefaultDropFrame(child) && int(child.fData.ItemID) == itemId) {
+        if (
+          isDefaultDropFrame(child) &&
+          parseDefaultDropName(child.cnt.strName.text) == itemName
+        ) {
           return child;
         }
       }
