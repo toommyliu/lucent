@@ -1014,7 +1014,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
               <MenuGroup>
                 <MenuItem
                   class="game-menu__item"
-                  disabled={props.scriptRunning()}
                   onSelect={() => void props.loadScript()}
                   value="loadScript"
                 >

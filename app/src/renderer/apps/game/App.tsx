@@ -7,6 +7,7 @@ import {
   AlertDescription,
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -1119,6 +1120,8 @@ export function App(props: {
     createSignal<ScriptInputsDialogError | null>(null);
   const [scriptInputDialogSaving, setScriptInputDialogSaving] =
     createSignal(false);
+  const [scriptReplacementDialogOpen, setScriptReplacementDialogOpen] =
+    createSignal(false);
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
@@ -2137,8 +2140,8 @@ export function App(props: {
     }
   };
 
-  const loadScript = async () => {
-    if (scriptRunning() || scriptBusy()) {
+  const selectScript = async (stopCurrent = false) => {
+    if (scriptBusy()) {
       return;
     }
 
@@ -2150,27 +2153,64 @@ export function App(props: {
 
     setScriptBusy(true);
     try {
-      const result = await bridge.openFile();
+      const stopPromise = stopCurrent
+        ? runtime.runPromise(
+            Effect.gen(function* () {
+              const runner = yield* ScriptRunner;
+              return yield* runner.stop("replaced");
+            }),
+          )
+        : Promise.resolve<ScriptRunnerStatus | null>(null);
+      const [stoppedStatus, result] = await Promise.all([
+        stopPromise,
+        bridge.openFile(),
+      ]);
+      if (stoppedStatus !== null) {
+        applyScriptRunnerStatus(stoppedStatus);
+      }
       if (result.canceled) {
         return;
+      }
+
+      const inputValues =
+        result.file.inputs === null
+          ? {}
+          : await refreshScriptInputValues(result.file.inputs);
+
+      if (!stopCurrent && scriptRunning()) {
+        const status = await runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.stop("replaced");
+          }),
+        );
+        applyScriptRunnerStatus(status);
       }
 
       setLoadedScript(result.file);
       setScriptRunnerStatus({ state: "idle" });
       setScriptInputDialogError(null);
-      if (result.file.inputs === null) {
-        setScriptInputValues({});
-      } else {
-        setScriptInputValues(
-          await refreshScriptInputValues(result.file.inputs),
-        );
-      }
+      setScriptInputValues(inputValues);
       setOpenMenu(null);
     } catch (error) {
       console.error("[game:script]", "load failed", error);
     } finally {
       setScriptBusy(false);
     }
+  };
+
+  const loadScript = (): void => {
+    if (scriptBusy()) {
+      return;
+    }
+
+    if (scriptRunning()) {
+      setOpenMenu(null);
+      setScriptReplacementDialogOpen(true);
+      return;
+    }
+
+    void selectScript();
   };
 
   const openScriptInputsDialog = (
@@ -3440,6 +3480,25 @@ export function App(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={scriptReplacementDialogOpen()}
+        onOpenChange={(details) => setScriptReplacementDialogOpen(details.open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop the current script?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Another script can’t be loaded while this one is running.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void selectScript(true)}>
+              Stop and Load
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={fatalScriptAlertOpen()}
         onOpenChange={(details) => {
