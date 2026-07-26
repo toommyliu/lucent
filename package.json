@@ -9,6 +9,8 @@
     "clean": "tsx scripts/clean.ts",
     "dev": "tsx scripts/dev-runner.ts dev",
     "dev:app": "tsx scripts/dev-runner.ts app",
+    "dev:app:game": "tsx scripts/dev-runner.ts app --launch-mode game",
+    "dev:app:manager": "tsx scripts/dev-runner.ts app --launch-mode manager",
     "dev:docs": "tsx scripts/dev-runner.ts docs",
     "dist:app": "tsx scripts/build-desktop-artifact.ts",
     "dist:app:all": "tsx scripts/build-desktop-artifact.ts --platform all",
