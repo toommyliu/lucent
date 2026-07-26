@@ -11,6 +11,7 @@ export const DesktopWindowKindSchema = Schema.Literals([
   "follower",
   "game",
   "loader-grabber",
+  "packets",
   "settings",
 ]);
 

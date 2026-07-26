@@ -26,6 +26,7 @@ import {
   WindowsIpc,
   GameConsoleIpc,
   LoaderGrabberIpc,
+  PacketsIpc,
 } from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
@@ -150,6 +151,20 @@ const loaderGrabberBridge: DesktopBridge["loaderGrabber"] = {
   load: (payload) => invoke(LoaderGrabberIpc.load, payload),
   onRequest: (listener) => subscribe(LoaderGrabberIpc.request, listener),
   respond: (response) => invoke(LoaderGrabberIpc.respond, response),
+};
+
+const packetsBridge: NonNullable<DesktopBridge["packets"]> = {
+  onCaptured: (listener) => subscribe(PacketsIpc.captured, listener),
+  onRequest: (listener) => subscribe(PacketsIpc.request, listener),
+  onStatus: (listener) => subscribe(PacketsIpc.status, listener),
+  publishCaptured: (payload) => invoke(PacketsIpc.publishCaptured, payload),
+  publishStatus: (payload) => invoke(PacketsIpc.publishStatus, payload),
+  respond: (response) => invoke(PacketsIpc.respond, response),
+  send: (payload) => invoke(PacketsIpc.send, payload),
+  startCapture: () => invoke(PacketsIpc.startCapture, undefined),
+  startQueue: (payload) => invoke(PacketsIpc.startQueue, payload),
+  stopCapture: () => invoke(PacketsIpc.stopCapture, undefined),
+  stopQueue: () => invoke(PacketsIpc.stopQueue, undefined),
 };
 
 const followerBridge: NonNullable<DesktopBridge["follower"]> = {
@@ -299,6 +314,7 @@ const bridge: DesktopBridge = {
         environment: environmentBridge,
         gameAccounts: gameAccountsBridge,
         gameFollower: gameFollowerBridge,
+        packets: packetsBridge,
         ...(gameConsoleObservabilityEnabled
           ? { gameConsoleObservability: gameConsoleObservabilityBridge }
           : {}),
@@ -326,6 +342,11 @@ const bridge: DesktopBridge = {
         combatProfiles: combatProfilesBridge,
         follower: followerBridge,
         windows: windowsBridge,
+      }
+    : {}),
+  ...(bridgeView === "packets"
+    ? {
+        packets: packetsBridge,
       }
     : {}),
   ...(bridgeView === "account-manager"

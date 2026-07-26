@@ -8,6 +8,7 @@ import {
   type PacketForDirection,
   type PacketForSelector,
   type PacketSelector,
+  type RawPacket,
 } from "../contract/Packet";
 import type { Store } from "../state/Store";
 import type { Wait } from "./Wait";
@@ -29,6 +30,8 @@ const placeholders = [
   "MAP_NAME",
   "PLAYER_NAME",
 ] as const;
+
+export type ClientPacketSendType = "str" | "json" | "xml";
 
 export const makePacket = Effect.fnUntraced(function* (
   gateway: GatewayService,
@@ -72,10 +75,20 @@ export const makePacket = Effect.fnUntraced(function* (
         runFork(Fiber.interrupt(fiber));
       }),
     )) as OnPacket;
+  const onRaw = <E>(
+    handler: (packet: RawPacket) => Effect.Effect<void, E>,
+  ): Effect.Effect<() => void> =>
+    gateway.rawPackets.pipe(
+      Stream.runForEach(handler),
+      Effect.forkIn(scope),
+      Effect.map((fiber) => () => {
+        runFork(Fiber.interrupt(fiber));
+      }),
+    );
 
   const once = wait.forPacket;
 
-  const sendClient = (packet: string, type?: "str" | "json") =>
+  const sendClient = (packet: string, type?: ClientPacketSendType) =>
     resolve(packet).pipe(
       Effect.flatMap((resolved) => gateway.sendClient(resolved, type)),
     );
@@ -87,6 +100,7 @@ export const makePacket = Effect.fnUntraced(function* (
 
   return {
     on,
+    onRaw,
     once,
     sendClient,
     sendServer,

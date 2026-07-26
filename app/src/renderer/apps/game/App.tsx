@@ -1997,16 +1997,6 @@ export function App(props: {
 
   const handleOpenWindow = (id: WindowId) => {
     setOpenMenu(null);
-    if (
-      id !== "combat-profiles" &&
-      id !== "account-manager" &&
-      id !== "environment" &&
-      id !== "follower" &&
-      id !== "loader-grabber"
-    ) {
-      return;
-    }
-
     void window.desktop.windows?.open(id).catch((error: unknown) => {
       console.error(`[game] failed to open window ${id}`, error);
     });

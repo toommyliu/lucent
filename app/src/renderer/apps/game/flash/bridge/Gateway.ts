@@ -13,7 +13,7 @@ import { decodeCallback, type Callback } from "../contract/Callback";
 import type { Diagnostic } from "../contract/Diagnostic";
 import { makeDiagnostic } from "../contract/Diagnostic";
 import type { Event, RuntimeEvent } from "../contract/Event";
-import type { Packet, PacketDirection } from "../contract/Packet";
+import type { Packet, PacketDirection, RawPacket } from "../contract/Packet";
 import {
   isUnsupportedPacketEnvelope,
   parsePacket,
@@ -67,6 +67,7 @@ export const makeGateway = (target?: Window) =>
     const diagnostics = yield* PubSub.unbounded<Diagnostic>({ replay: 64 });
     const events = yield* PubSub.unbounded<Event>();
     const packets = yield* PubSub.unbounded<Packet>();
+    const rawPackets = yield* PubSub.unbounded<RawPacket>();
     let started = false;
 
     yield* Effect.addFinalizer(() =>
@@ -76,6 +77,7 @@ export const makeGateway = (target?: Window) =>
           PubSub.shutdown(diagnostics),
           PubSub.shutdown(events),
           PubSub.shutdown(packets),
+          PubSub.shutdown(rawPackets),
         ],
         { discard: true },
       ),
@@ -179,6 +181,7 @@ export const makeGateway = (target?: Window) =>
         const input = packetInput(callback);
         if (input === undefined) return;
 
+        yield* PubSub.publish(rawPackets, input);
         const packet = parsePacket(input.direction, input.raw);
         if (Option.isNone(packet)) {
           if (isUnsupportedPacketEnvelope(input.raw)) return;
@@ -241,6 +244,7 @@ export const makeGateway = (target?: Window) =>
       diagnostics: Stream.fromPubSub(diagnostics),
       events: Stream.fromPubSub(events),
       packets: Stream.fromPubSub(packets),
+      rawPackets: Stream.fromPubSub(rawPackets),
       publishEvent,
       reportDiagnostic,
       reportProjectionTrace,

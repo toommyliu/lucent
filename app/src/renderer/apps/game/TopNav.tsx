@@ -71,7 +71,6 @@ export type GameTopNavMenu =
   | "cells";
 export type WindowId =
   | "environment"
-  | "fast-travels"
   | "loader-grabber"
   | "follower"
   | "packets"

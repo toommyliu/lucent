@@ -19,6 +19,7 @@ const DesktopBridgeViewSchema = Schema.Literals([
   "follower",
   "game",
   "loader-grabber",
+  "packets",
   "settings",
 ]);
 const decodeDesktopBridgeView = Schema.decodeUnknownOption(

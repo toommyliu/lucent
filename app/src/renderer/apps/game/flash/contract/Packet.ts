@@ -46,6 +46,11 @@ export const Packet = Schema.Union([
 export type FlashPacket = ClientPacket | ServerPacket | ExtensionPacket;
 export type Packet = FlashPacket;
 
+export interface RawPacket {
+  readonly direction: PacketDirection;
+  readonly raw: string;
+}
+
 export interface PacketSelector {
   readonly command?: string;
   readonly direction?: PacketDirection;

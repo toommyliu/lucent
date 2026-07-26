@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Fiber, Layer, Option, Stream } from "effect";
 
 import { makeWait } from "../protocol/Wait";
 import { Bridge, makeBridge } from "./Bridge";
@@ -48,6 +48,32 @@ describe("Gateway", () => {
 
         expect(target.packetFromClient).toBeUndefined();
       }).pipe(Effect.provide(Layer.effect(Bridge, makeBridge(swfTarget))));
+    },
+  );
+
+  it.effect(
+    "publishes raw packets even when their envelope is unsupported",
+    () => {
+      const target = {} as Window;
+
+      return Effect.scoped(
+        Effect.gen(function* () {
+          const gateway = yield* makeGateway(target);
+          yield* gateway.start(() => Effect.void);
+          const capture = yield* gateway.rawPackets.pipe(
+            Stream.runHead,
+            Effect.forkScoped,
+          );
+          yield* Effect.yieldNow;
+
+          target.packetFromClient?.("<msg t='sys'></msg>");
+
+          expect(Option.getOrNull(yield* Fiber.join(capture))).toEqual({
+            direction: "client",
+            raw: "<msg t='sys'></msg>",
+          });
+        }),
+      ).pipe(Effect.provide(Layer.effect(Bridge, makeBridge(swfTarget))));
     },
   );
 });

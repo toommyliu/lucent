@@ -516,7 +516,6 @@ export const makeCombat = (
     if ((runtime.profile.messageTriggers?.length ?? 0) > 0) {
       subscriptions.push(
         events.on({ type: "update-message" }, (event) => {
-          if (event.type !== "update-message") return Effect.void;
           return castCombatProfileMessageTriggers(
             runtime.dependencies,
             runtime.profile,

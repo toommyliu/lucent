@@ -3042,7 +3042,6 @@ a.badge--destructive:hover {
   min-width: 0;
   padding: 3rem 1.5rem;
   text-align: center;
-  text-wrap: balance;
 }
 
 .empty__header {
@@ -3176,7 +3175,6 @@ a.badge--destructive:hover {
   max-width: 24rem;
   min-width: 0;
   font-size: var(--text-md);
-  text-wrap: balance;
   width: 100%;
 }
 

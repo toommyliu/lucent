@@ -81,6 +81,13 @@ import type {
   LoaderGrabberRequest,
   LoaderGrabberResponse,
 } from "./ipc/loaderGrabber";
+import type { PacketsRequest, PacketsResponse } from "./ipc/packets";
+import type {
+  PacketCapturedPayload,
+  PacketQueuePayload,
+  PacketSendPayload,
+  PacketsStatusPayload,
+} from "./packets";
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
@@ -90,6 +97,7 @@ export type DesktopBridgeView =
   | "follower"
   | "game"
   | "loader-grabber"
+  | "packets"
   | "settings";
 export type DesktopBridgeWindowKind =
   | "account-manager"
@@ -98,6 +106,7 @@ export type DesktopBridgeWindowKind =
   | "follower"
   | "game"
   | "loader-grabber"
+  | "packets"
   | "settings";
 
 export interface DesktopSettingsBridge {
@@ -217,6 +226,26 @@ export interface DesktopLoaderGrabberBridge {
     listener: (request: LoaderGrabberRequest) => void,
   ) => () => void;
   readonly respond: (response: LoaderGrabberResponse) => Promise<void>;
+}
+
+export interface DesktopPacketsBridge {
+  readonly onCaptured: (
+    listener: (payload: PacketCapturedPayload) => void,
+  ) => () => void;
+  readonly onRequest: (
+    listener: (request: PacketsRequest) => void,
+  ) => () => void;
+  readonly onStatus: (
+    listener: (payload: PacketsStatusPayload) => void,
+  ) => () => void;
+  readonly publishCaptured: (payload: PacketCapturedPayload) => Promise<void>;
+  readonly publishStatus: (payload: PacketsStatusPayload) => Promise<void>;
+  readonly respond: (response: PacketsResponse) => Promise<void>;
+  readonly send: (payload: PacketSendPayload) => Promise<void>;
+  readonly startCapture: () => Promise<void>;
+  readonly startQueue: (payload: PacketQueuePayload) => Promise<void>;
+  readonly stopCapture: () => Promise<void>;
+  readonly stopQueue: () => Promise<void>;
 }
 
 export interface DesktopFollowerBridge {
@@ -345,6 +374,7 @@ export interface DesktopBridge {
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly gameFollower?: DesktopGameFollowerBridge;
   readonly loaderGrabber: DesktopLoaderGrabberBridge;
+  readonly packets?: DesktopPacketsBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

@@ -16,6 +16,7 @@ import * as CombatProfiles from "../internal/combat-profiles/CombatProfiles";
 import * as GameEnvironments from "../internal/environment/GameEnvironments";
 import * as GameFollowers from "../internal/follower/GameFollowers";
 import * as GameLoaderGrabbers from "../internal/loader-grabber/GameLoaderGrabbers";
+import * as GamePackets from "../internal/packets/GamePackets";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopIpcSenders from "../ipc/DesktopIpcSenders";
 import * as DesktopSettings from "../settings/DesktopSettings";
@@ -118,6 +119,9 @@ export const makeDesktopLayer = (
   const gameLoaderGrabbersLayer = GameLoaderGrabbers.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
   );
+  const gamePacketsLayer = GamePackets.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
+  );
 
   const accountRepositoryLayer = AccountRepository.layer.pipe(
     Layer.provideMerge(environmentLayer),
@@ -188,6 +192,7 @@ export const makeDesktopLayer = (
     gameEnvironmentsLayer,
     gameFollowersLayer,
     gameLoaderGrabbersLayer,
+    gamePacketsLayer,
     observabilityLayer,
     settingsLayer,
     scriptingLayer,

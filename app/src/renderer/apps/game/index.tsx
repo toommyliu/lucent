@@ -7,9 +7,11 @@ import { Gateway } from "./flash/bridge/Gateway";
 import { diagnosticTimestamp } from "./flash/contract/Diagnostic";
 import { installConsoleForwarder } from "./consoleForwarder";
 import { installLoaderGrabberBridge } from "./loaderGrabberBridge";
+import { installPacketsBridge } from "./packetsBridge";
 
 installConsoleForwarder(window.desktop.gameConsoleObservability);
 const loaderGrabberBridge = installLoaderGrabberBridge(flashRuntime);
+const packetsBridge = installPacketsBridge(flashRuntime);
 
 const diagnosticLogs: unknown[] = [];
 (window as any).logs = diagnosticLogs;
@@ -213,6 +215,7 @@ flashRuntime.runFork(
 mountDesktopRenderer((props) => <App {...props} />, {
   cleanup: () => {
     loaderGrabberBridge.dispose();
+    packetsBridge.dispose();
     void flashRuntime.dispose();
   },
   markReady: false,

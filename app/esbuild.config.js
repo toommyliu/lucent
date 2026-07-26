@@ -124,6 +124,7 @@ const rendererViews = [
   createRendererView("loader-grabber", "Loader Grabber", {
     startsPending: true,
   }),
+  createRendererView("packets", "Packets", { startsPending: true }),
 ];
 
 const rendererOptions = (view) => ({
