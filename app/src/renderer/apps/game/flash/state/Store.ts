@@ -143,6 +143,11 @@ export const makeStore = Effect.gen(function* () {
   };
 
   const quests = {
+    clear: SynchronizedRef.update(questsRef, (state) => {
+      state.accepted.clear();
+      state.quests.clear();
+      return state;
+    }),
     get: (id: number) =>
       SynchronizedRef.get(questsRef).pipe(
         Effect.map((state) => state.quests.get(id) ?? null),
@@ -184,6 +189,10 @@ export const makeStore = Effect.gen(function* () {
   };
 
   const shops = {
+    clear: SynchronizedRef.update(shopsRef, (state) => {
+      state.current = null;
+      return state;
+    }),
     get: SynchronizedRef.get(shopsRef).pipe(
       Effect.map((state) => state.current),
     ),

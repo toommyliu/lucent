@@ -16,6 +16,8 @@ export const projectAuth = (store: Store, event: RuntimeEvent) =>
             ? [store.auth.setLoggedIn(false)]
             : []),
           store.items.clear,
+          store.quests.clear,
+          store.shops.clear,
           store.world.clearArea,
           store.world.clearSelf,
         ],
