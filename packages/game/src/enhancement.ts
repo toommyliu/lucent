@@ -1,4 +1,4 @@
-import type { Item } from "./item";
+import type { Enhancement, Item } from "./item";
 
 export type EnhancementSlot = "cape" | "class" | "helm" | "weapon";
 
@@ -16,6 +16,7 @@ export type EnhancementStrategyResolution =
 
 interface NamedValue {
   readonly aliases?: readonly string[];
+  readonly displayName?: string;
   readonly name: string;
 }
 
@@ -164,6 +165,7 @@ const WEAPON_SPECIALS = [
   },
   {
     aliases: ["powerword", "pwd", "pw die"],
+    displayName: "Powerword DIE",
     family: "awe",
     name: "powerword die",
     procId: WEAPON_PROC_IDS.powerwordDie,
@@ -278,6 +280,90 @@ const HELM_ENHANCEMENTS = [
     special: { name: "hearty" },
   },
 ] as const satisfies readonly HelmEnhancement[];
+
+const EXTRA_PATTERN_DISPLAY_NAMES = new Map<number, string>([
+  [1, "Adventurer"],
+  [4, "Armsman"],
+]);
+
+const titleCase = (value: string): string =>
+  value
+    .split(" ")
+    .map((word) =>
+      word === "" ? word : `${word[0]!.toUpperCase()}${word.slice(1)}`,
+    )
+    .join(" ");
+
+const namedValueDisplayName = (value: NamedValue): string =>
+  value.displayName ?? titleCase(value.name);
+
+const enhancementPatternDisplayNames = (
+  patternId: number,
+): readonly string[] | undefined => {
+  const basic = BASIC_ENHANCEMENTS.find(
+    (entry) => entry.patternId === patternId,
+  );
+  if (basic !== undefined) {
+    return [namedValueDisplayName(basic)];
+  }
+
+  const weapon = FORGE_WEAPON_PATTERNS.find(
+    (entry) => entry.patternId === patternId,
+  );
+  if (weapon !== undefined) {
+    return [namedValueDisplayName(weapon)];
+  }
+
+  const cape = CAPE_SPECIALS.find((entry) => entry.patternId === patternId);
+  if (cape !== undefined) {
+    const name = namedValueDisplayName(cape);
+    return name === "Forge" ? [name] : ["Forge", name];
+  }
+
+  const helm = HELM_ENHANCEMENTS.find((entry) => entry.patternId === patternId);
+  if (helm !== undefined) {
+    return [
+      titleCase("inventoryName" in helm ? helm.inventoryName : helm.name),
+      namedValueDisplayName(helm.special),
+    ];
+  }
+
+  const extra = EXTRA_PATTERN_DISPLAY_NAMES.get(patternId);
+  return extra === undefined ? undefined : [extra];
+};
+
+export const formatItemEnhancement = (
+  enhancement: Pick<Enhancement, "level" | "patternId" | "procId"> | undefined,
+): string | undefined => {
+  if (enhancement === undefined) {
+    return undefined;
+  }
+
+  const parts: string[] = [];
+  const patternId = enhancement.patternId;
+  if (patternId !== undefined && patternId > 0) {
+    parts.push(
+      ...(enhancementPatternDisplayNames(patternId) ?? [
+        `Pattern ${patternId}`,
+      ]),
+    );
+  }
+
+  const procId = enhancement.procId;
+  if (procId !== undefined && procId > 0) {
+    const proc = WEAPON_SPECIALS.find((entry) => entry.procId === procId);
+    parts.push(
+      proc === undefined ? `Proc ${procId}` : namedValueDisplayName(proc),
+    );
+  }
+
+  const level = enhancement.level;
+  if (level !== undefined && level > 0) {
+    parts.push(`Level ${level}`);
+  }
+
+  return parts.length === 0 ? undefined : parts.join(", ");
+};
 
 const normalize = (value: string): string =>
   value

@@ -10,6 +10,7 @@ export const DesktopWindowKindSchema = Schema.Literals([
   "environment",
   "follower",
   "game",
+  "loader-grabber",
   "settings",
 ]);
 

@@ -290,14 +290,20 @@ export const makePlayer = (
     );
   const isMember = () => read("player.isMember", Schema.Boolean, false);
   const isReady = () =>
-    Effect.all([
-      auth.isLoggedIn(),
-      map.isLoaded(),
-      read("player.isLoaded", Schema.Boolean, false),
-    ]).pipe(
-      Effect.map(
-        ([loggedIn, loaded, playerLoaded]) =>
-          loggedIn && loaded && playerLoaded,
+    store.projection.get.pipe(
+      Effect.flatMap((projection) =>
+        Object.values(projection.completed).every(Boolean)
+          ? Effect.all([
+              auth.isLoggedIn(),
+              map.isLoaded(),
+              read("player.isLoaded", Schema.Boolean, false),
+            ]).pipe(
+              Effect.map(
+                ([loggedIn, loaded, playerLoaded]) =>
+                  loggedIn && loaded && playerLoaded,
+              ),
+            )
+          : Effect.succeed(false),
       ),
     );
 

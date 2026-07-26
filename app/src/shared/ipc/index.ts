@@ -6,6 +6,7 @@ export * from "./core";
 export * from "./environment";
 export * from "./follower";
 export * from "./gameConsole";
+export * from "./loaderGrabber";
 export * from "./settings";
 export * from "./scripting";
 export * from "./updates";

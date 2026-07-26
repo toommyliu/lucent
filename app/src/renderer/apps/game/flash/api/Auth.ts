@@ -162,6 +162,8 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
   const getPassword = () =>
     Effect.gen(function* () {
       const cached = yield* store.auth.get;
+      const projection = yield* store.projection.get;
+      if (!projection.completed.player) return cached.password;
       const live = yield* bridge.invokeJson(
         "flash.getGameObjectS",
         ["loginInfo.strPassword"],
@@ -201,6 +203,8 @@ export const makeAuth = (bridge: BridgeService, store: Store, wait: Wait) => {
   const getUsername = () =>
     Effect.gen(function* () {
       const cached = yield* store.auth.get;
+      const projection = yield* store.projection.get;
+      if (!projection.completed.player) return cached.username;
       const live = yield* bridge.invokeJson(
         "flash.getGameObjectS",
         ["loginInfo.strUsername"],

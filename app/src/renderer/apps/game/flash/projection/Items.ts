@@ -16,6 +16,7 @@ import {
 import type { ClientPacket, ExtensionPacket } from "../contract/Packet";
 import { ItemPayload, toItem } from "../contract/payload/Items";
 import type { ItemContainer } from "../state/Items";
+import type { ProjectionKey } from "../state/Projection";
 import type { Store } from "../state/Store";
 
 const InventoryLoad = Schema.Struct({
@@ -173,8 +174,52 @@ const decodeContainerItems = (
       );
     }
 
-    return items;
+    return { invalid, items };
   });
+
+const projectContainerBaseline = Effect.fn("projectContainerBaseline")(
+  function* (
+    store: Store,
+    values: readonly unknown[] | null,
+    context: "house" | "inventory",
+    key: ProjectionKey,
+    operation: string,
+    diagnose: DiagnosticReporter,
+  ) {
+    const decoded = yield* decodeContainerItems(
+      values ?? [],
+      context,
+      operation,
+      diagnose,
+    );
+    yield* store.items.replace(context, decoded.items);
+    if (decoded.invalid.length > 0) {
+      yield* store.projection.fail(
+        key,
+        `${operation} contained ${decoded.invalid.length} malformed item entries`,
+      );
+      return;
+    }
+
+    yield* store.projection.complete(key);
+  },
+);
+
+const failContainerBaselines = (
+  store: Store,
+  packet: ExtensionPacket,
+  reason: string,
+) => {
+  const keys: readonly ProjectionKey[] =
+    packet.command === "loadInventoryBig"
+      ? ["inventory", "houseInventory"]
+      : packet.command === "initInventory"
+        ? ["inventory"]
+        : ["houseInventory"];
+  return Effect.forEach(keys, (key) => store.projection.fail(key, reason), {
+    discard: true,
+  });
+};
 
 const equipHouse = Effect.fn("equipHouse")(function* (
   store: Store,
@@ -401,35 +446,84 @@ export const projectExtensionItems = (
       case "loadHouseInventory": {
         const decoded = decodeInventoryLoad(data);
         if (Option.isNone(decoded)) {
+          const reason = `${packet.command} has a malformed container payload`;
           yield* diagnose(
             `items:${packet.command}`,
             new Error("Malformed container payload"),
             [data],
           );
+          yield* failContainerBaselines(store, packet, reason);
           return [];
         }
-        if (decoded.value.bitSuccess === false) return [];
-        // Treating omission as empty would erase a projection this packet did
-        // not carry; null is the server's explicit empty snapshot.
-        if (decoded.value.items !== undefined) {
-          const context =
-            packet.command === "loadHouseInventory" ? "house" : "inventory";
-          const items = yield* decodeContainerItems(
-            decoded.value.items ?? [],
-            context,
-            `items:${packet.command}:entries`,
-            diagnose,
+        if (decoded.value.bitSuccess === false) {
+          yield* failContainerBaselines(
+            store,
+            packet,
+            `${packet.command} reported an unsuccessful baseline load`,
           );
-          yield* store.items.replace(context, items);
+          return [];
         }
-        if (decoded.value.hitems !== undefined) {
-          const items = yield* decodeContainerItems(
-            decoded.value.hitems ?? [],
-            "house",
-            `items:${packet.command}:house-entries`,
+
+        if (packet.command === "loadInventoryBig") {
+          if (decoded.value.items === undefined) {
+            yield* store.projection.fail(
+              "inventory",
+              "loadInventoryBig omitted items",
+            );
+          } else {
+            yield* projectContainerBaseline(
+              store,
+              decoded.value.items,
+              "inventory",
+              "inventory",
+              "items:loadInventoryBig:entries",
+              diagnose,
+            );
+          }
+
+          if (decoded.value.hitems === undefined) {
+            yield* store.projection.fail(
+              "houseInventory",
+              "loadInventoryBig omitted hitems",
+            );
+          } else {
+            yield* projectContainerBaseline(
+              store,
+              decoded.value.hitems,
+              "house",
+              "houseInventory",
+              "items:loadInventoryBig:house-entries",
+              diagnose,
+            );
+          }
+          return [];
+        }
+
+        if (decoded.value.items === undefined) {
+          const key =
+            packet.command === "initInventory" ? "inventory" : "houseInventory";
+          yield* store.projection.fail(key, `${packet.command} omitted items`);
+          return [];
+        }
+
+        if (packet.command === "initInventory") {
+          yield* projectContainerBaseline(
+            store,
+            decoded.value.items,
+            "inventory",
+            "inventory",
+            "items:initInventory:entries",
             diagnose,
           );
-          yield* store.items.replace("house", items);
+        } else {
+          yield* projectContainerBaseline(
+            store,
+            decoded.value.items,
+            "house",
+            "houseInventory",
+            "items:loadHouseInventory:entries",
+            diagnose,
+          );
         }
         return [];
       }
@@ -475,14 +569,14 @@ export const projectExtensionItems = (
         }
 
         const values = Object.values(decoded.value.items);
-        const drops = yield* decodeContainerItems(
+        const decodedDrops = yield* decodeContainerItems(
           values,
           "drop",
           "items:dropItem:entries",
           diagnose,
         );
         const events: Event[] = [];
-        for (const drop of drops) {
+        for (const drop of decodedDrops.items) {
           yield* store.items.upsert("drop", drop);
           events.push({
             item: drop.toJSON(),

@@ -165,6 +165,11 @@ const parseMap = (area: string | undefined) => {
   };
 };
 
+const usernamesEqual = (left: string, right: string): boolean =>
+  left.trim() !== "" &&
+  right.trim() !== "" &&
+  left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+
 const playerPatch = (
   patch: EntityPatch,
   currentPosition: { readonly x: number; readonly y: number },
@@ -227,6 +232,7 @@ const projectMoveArea = (
         new Error("Malformed area baseline"),
         [packet.data],
       );
+      yield* store.projection.fail("map", "moveToArea payload is malformed");
       return [];
     }
     const previousAuth = yield* store.auth.get;
@@ -324,14 +330,9 @@ const projectMoveArea = (
 
     if (
       previousSelf !== null &&
-      previousSelf.username.localeCompare(previousAuth.username, undefined, {
-        sensitivity: "accent",
-      }) === 0 &&
-      !players.some(
-        (player) =>
-          player.username.localeCompare(previousSelf.username, undefined, {
-            sensitivity: "accent",
-          }) === 0,
+      usernamesEqual(previousSelf.username, previousAuth.username) &&
+      !players.some((player) =>
+        usernamesEqual(player.username, previousSelf.username),
       )
     ) {
       players.push(previousSelf);
@@ -341,11 +342,8 @@ const projectMoveArea = (
     yield* store.world.setMap(map);
     yield* store.world.setMonsters(monsters);
     yield* store.world.setPlayers(players);
-    let self = players.find(
-      (player) =>
-        player.username.localeCompare(previousAuth.username, undefined, {
-          sensitivity: "accent",
-        }) === 0,
+    let self = players.find((player) =>
+      usernamesEqual(player.username, previousAuth.username),
     );
     if (self === undefined) {
       const userId = yield* localUserId(store, bridge);
@@ -353,7 +351,23 @@ const projectMoveArea = (
         self = players.find((player) => player.entityId === userId.value);
       }
     }
-    if (self !== undefined) yield* store.world.setSelf(self.username);
+    if (map.name === "") {
+      yield* store.projection.fail(
+        "map",
+        "moveToArea omitted a usable areaName",
+      );
+    } else {
+      yield* store.projection.complete("map");
+    }
+    if (self === undefined) {
+      yield* store.projection.fail(
+        "player",
+        "moveToArea did not establish the local player",
+      );
+    } else {
+      yield* store.world.setSelf(self.username);
+      yield* store.projection.complete("player");
+    }
     return [
       { type: "join-map", map },
       { type: "players-changed" },
@@ -444,6 +458,10 @@ export const projectExtensionWorld = (
             new Error("Malformed player baseline"),
             [data],
           );
+          yield* store.projection.fail(
+            "player",
+            `${packet.command} payload is malformed`,
+          );
           return [];
         }
 
@@ -473,12 +491,18 @@ export const projectExtensionWorld = (
           }
           if (
             (Option.isSome(userId) && player.entityId === userId.value) ||
-            player.username.localeCompare(auth.username, undefined, {
-              sensitivity: "accent",
-            }) === 0
+            usernamesEqual(player.username, auth.username)
           ) {
             yield* store.world.setSelf(player.username);
           }
+        }
+        if ((yield* store.world.getMe) === null) {
+          yield* store.projection.fail(
+            "player",
+            `${packet.command} did not establish the local player`,
+          );
+        } else {
+          yield* store.projection.complete("player");
         }
         return playersChanged
           ? ([{ type: "players-changed" }] satisfies readonly Event[])
@@ -506,15 +530,33 @@ export const projectExtensionWorld = (
           yield* diagnose("world:uotls", new Error("Malformed player update"), [
             packet.data,
           ]);
+          const record = decodeRecord(packet.data);
+          const username =
+            Option.isSome(record) && typeof record.value["unm"] === "string"
+              ? record.value["unm"]
+              : "";
+          const auth = yield* store.auth.get;
+          if (usernamesEqual(username, auth.username)) {
+            yield* store.projection.fail(
+              "player",
+              "initial uotls player payload is malformed",
+            );
+          }
           return [];
         }
+        const auth = yield* store.auth.get;
         let current = yield* store.world.getPlayer(decoded.value.unm);
         let playersChanged = false;
         if (current === null) {
           const baseline =
             packet.wireType === "json"
               ? Option.flatMap(decodeRecord(packet.data), (data) =>
-                  decodePlayer(data["o"]),
+                  Option.flatMap(decodeRecord(data["o"]), (player) =>
+                    decodePlayer({
+                      ...player,
+                      uoName: decoded.value.unm,
+                    }),
+                  ),
                 )
               : Option.none();
           if (Option.isNone(baseline)) {
@@ -523,6 +565,12 @@ export const projectExtensionWorld = (
               new Error("Ignored update for unknown player"),
               [decoded.value.unm, packet.data],
             );
+            if (usernamesEqual(decoded.value.unm, auth.username)) {
+              yield* store.projection.fail(
+                "player",
+                "initial uotls omitted the local player baseline",
+              );
+            }
             return [];
           }
           current = yield* store.world.putPlayer(toPlayer(baseline.value));
@@ -533,6 +581,12 @@ export const projectExtensionWorld = (
           playerPatch(decoded.value.o, current.position),
         );
         if (result === null) return [];
+        if (usernamesEqual(result.player.username, auth.username)) {
+          yield* store.world.setSelf(result.player.username);
+          yield* store.projection.complete("player");
+        } else if ((yield* store.world.getMe) !== null) {
+          yield* store.projection.complete("player");
+        }
         const events: Event[] = playersChanged
           ? [{ type: "players-changed" }]
           : [];

@@ -1,0 +1,183 @@
+import { Context, Deferred, Effect, Layer, Option, Schema } from "effect";
+
+import {
+  LoaderGrabberIpc,
+  type LoaderGrabberOutcome,
+  type LoaderGrabberRequest,
+  type LoaderGrabberResponse,
+} from "../../../shared/ipc/loaderGrabber";
+import type {
+  LoaderGrabberGrabRequest,
+  LoaderGrabberLoadRequest,
+} from "../../../shared/loader-grabber";
+import { createRandomId } from "../../../shared/randomId";
+import { DesktopIpc } from "../../ipc/DesktopIpc";
+import { DesktopWindows } from "../../window/DesktopWindows";
+
+export const LOADER_GRABBER_REQUEST_TIMEOUT_MS = 12_000;
+
+export type LoaderGrabberRequestInput =
+  | {
+      readonly kind: "grab";
+      readonly payload: LoaderGrabberGrabRequest;
+    }
+  | {
+      readonly kind: "load";
+      readonly payload: LoaderGrabberLoadRequest;
+    };
+
+export class LoaderGrabberRequestError extends Schema.TaggedErrorClass<LoaderGrabberRequestError>()(
+  "LoaderGrabberRequestError",
+  {
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
+interface PendingRequest {
+  readonly gameBrowserWindowId: number;
+  readonly gate: Deferred.Deferred<
+    LoaderGrabberOutcome,
+    LoaderGrabberRequestError
+  >;
+  readonly kind: LoaderGrabberRequestInput["kind"];
+}
+
+export interface GameLoaderGrabbersShape {
+  readonly remove: (gameBrowserWindowId: number) => Effect.Effect<void>;
+  readonly request: (
+    gameBrowserWindowId: number,
+    input: LoaderGrabberRequestInput,
+  ) => Effect.Effect<LoaderGrabberOutcome, LoaderGrabberRequestError>;
+  readonly respond: (
+    gameBrowserWindowId: number,
+    response: LoaderGrabberResponse,
+  ) => Effect.Effect<void>;
+}
+
+export class GameLoaderGrabbers extends Context.Service<
+  GameLoaderGrabbers,
+  GameLoaderGrabbersShape
+>()("lucent/internal/loader-grabber/GameLoaderGrabbers") {}
+
+export const makeGameLoaderGrabbers = Effect.gen(function* () {
+  const ipc = yield* DesktopIpc;
+  const windows = yield* DesktopWindows;
+  const pendingRequests = new Map<string, PendingRequest>();
+
+  const remove: GameLoaderGrabbersShape["remove"] = Effect.fn(
+    "GameLoaderGrabbers.remove",
+  )(function* (gameBrowserWindowId) {
+    for (const [requestId, pending] of pendingRequests) {
+      if (pending.gameBrowserWindowId !== gameBrowserWindowId) {
+        continue;
+      }
+      pendingRequests.delete(requestId);
+      yield* Deferred.fail(
+        pending.gate,
+        new LoaderGrabberRequestError({
+          detail: "The game renderer is unavailable.",
+        }),
+      );
+    }
+  });
+
+  const request: GameLoaderGrabbersShape["request"] = Effect.fn(
+    "GameLoaderGrabbers.request",
+  )(function* (gameBrowserWindowId, input) {
+    const requestId = createRandomId("loader-grabber");
+    const gate = yield* Deferred.make<
+      LoaderGrabberOutcome,
+      LoaderGrabberRequestError
+    >();
+    pendingRequests.set(requestId, {
+      gameBrowserWindowId,
+      gate,
+      kind: input.kind,
+    });
+
+    const message = {
+      ...input,
+      requestId,
+    } as LoaderGrabberRequest;
+    yield* ipc.sendToBrowserWindowIds(
+      [gameBrowserWindowId],
+      LoaderGrabberIpc.request,
+      message,
+    );
+
+    const result = yield* Deferred.await(gate).pipe(
+      Effect.timeoutOption(LOADER_GRABBER_REQUEST_TIMEOUT_MS),
+      Effect.ensuring(
+        Effect.sync(() => {
+          pendingRequests.delete(requestId);
+        }),
+      ),
+    );
+    if (Option.isNone(result)) {
+      return yield* new LoaderGrabberRequestError({
+        detail: "The game did not respond to the Loader grabber request.",
+      });
+    }
+    return result.value;
+  });
+
+  const respond: GameLoaderGrabbersShape["respond"] = Effect.fn(
+    "GameLoaderGrabbers.respond",
+  )(function* (gameBrowserWindowId, response) {
+    const pending = pendingRequests.get(response.requestId);
+    if (
+      pending === undefined ||
+      pending.gameBrowserWindowId !== gameBrowserWindowId
+    ) {
+      return;
+    }
+
+    pendingRequests.delete(response.requestId);
+    if (!response.ok) {
+      yield* Deferred.fail(
+        pending.gate,
+        new LoaderGrabberRequestError({
+          detail: response.error || "The Loader grabber request failed.",
+        }),
+      );
+      return;
+    }
+    if (response.outcome.kind !== pending.kind) {
+      yield* Deferred.fail(
+        pending.gate,
+        new LoaderGrabberRequestError({
+          detail: `The game returned ${response.outcome.kind} for a ${pending.kind} request.`,
+        }),
+      );
+      return;
+    }
+    yield* Deferred.succeed(pending.gate, response.outcome);
+  });
+
+  const removeGame = (event: { readonly browserWindowId: number }) =>
+    remove(event.browserWindowId);
+  const unsubscribeClosed = yield* windows.onClosed((event) =>
+    event.kind === "game" ? removeGame(event) : Effect.void,
+  );
+  const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
+    event.kind === "game" ? removeGame(event) : Effect.void,
+  );
+  const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
+    event.kind === "game" ? removeGame(event) : Effect.void,
+  );
+  yield* Effect.addFinalizer(() =>
+    Effect.sync(() => {
+      unsubscribeClosed();
+      unsubscribeDestroyed();
+      unsubscribeReloaded();
+    }),
+  );
+
+  return GameLoaderGrabbers.of({ remove, request, respond });
+});
+
+export const layer = Layer.effect(GameLoaderGrabbers, makeGameLoaderGrabbers);

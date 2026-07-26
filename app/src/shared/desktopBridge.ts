@@ -72,6 +72,15 @@ import type {
   AccountSettings,
   AccountSettingsPatch,
 } from "@lucent/core/accountSettings";
+import type {
+  GrabbedData,
+  LoaderGrabberGrabRequest,
+  LoaderGrabberLoadRequest,
+} from "./loader-grabber";
+import type {
+  LoaderGrabberRequest,
+  LoaderGrabberResponse,
+} from "./ipc/loaderGrabber";
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
@@ -80,6 +89,7 @@ export type DesktopBridgeView =
   | "environment"
   | "follower"
   | "game"
+  | "loader-grabber"
   | "settings";
 export type DesktopBridgeWindowKind =
   | "account-manager"
@@ -87,6 +97,7 @@ export type DesktopBridgeWindowKind =
   | "environment"
   | "follower"
   | "game"
+  | "loader-grabber"
   | "settings";
 
 export interface DesktopSettingsBridge {
@@ -195,6 +206,17 @@ export interface DesktopGameConsoleObservabilityBridge {
 
 export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
+}
+
+export interface DesktopLoaderGrabberBridge {
+  readonly grab: (
+    payload: LoaderGrabberGrabRequest,
+  ) => Promise<GrabbedData | null>;
+  readonly load: (payload: LoaderGrabberLoadRequest) => Promise<void>;
+  readonly onRequest: (
+    listener: (request: LoaderGrabberRequest) => void,
+  ) => () => void;
+  readonly respond: (response: LoaderGrabberResponse) => Promise<void>;
 }
 
 export interface DesktopFollowerBridge {
@@ -322,6 +344,7 @@ export interface DesktopBridge {
   readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly gameFollower?: DesktopGameFollowerBridge;
+  readonly loaderGrabber: DesktopLoaderGrabberBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };

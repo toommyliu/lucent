@@ -211,5 +211,6 @@ export const ALL_DESKTOP_WINDOW_KINDS = [
   "environment",
   "follower",
   "game",
+  "loader-grabber",
   "settings",
 ] as const satisfies readonly [DesktopWindowKind, ...DesktopWindowKind[]];

@@ -121,6 +121,9 @@ const rendererViews = [
   }),
   createRendererView("environment", "Environment", { startsPending: true }),
   createRendererView("follower", "Follower", { startsPending: true }),
+  createRendererView("loader-grabber", "Loader Grabber", {
+    startsPending: true,
+  }),
 ];
 
 const rendererOptions = (view) => ({

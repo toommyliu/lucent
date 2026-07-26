@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { LiveItem } from "./item";
 import {
+  formatItemEnhancement,
   matchesAppliedEnhancement,
   matchesEnhancementShopItem,
   resolveEnhancementStrategy,
@@ -213,5 +214,32 @@ describe("enhancement strategy", () => {
     expect(matchesAppliedEnhancement(wrongPattern, resolution.strategy)).toBe(
       false,
     );
+  });
+});
+
+describe("enhancement display", () => {
+  it("formats basic and weapon-proc enhancements by their player-facing names", () => {
+    expect(formatItemEnhancement({ level: 100, patternId: 9, procId: 3 })).toBe(
+      "Lucky, Awe Blast, Level 100",
+    );
+    expect(
+      formatItemEnhancement({ level: 100, patternId: 6, procId: 12 }),
+    ).toBe("Wizard, Elysium, Level 100");
+    expect(
+      formatItemEnhancement({ level: 100, patternId: 2, procId: 14 }),
+    ).toBe("Fighter, Dauntless, Level 100");
+  });
+
+  it("formats Forge cape and helm traits by their inventory labels", () => {
+    expect(formatItemEnhancement({ patternId: 24 })).toBe("Forge, Vainglory");
+    expect(formatItemEnhancement({ patternId: 25 })).toBe("Vim, Ether");
+    expect(formatItemEnhancement({ patternId: 32 })).toBe("Grimskull, Hearty");
+  });
+
+  it("preserves unknown identifiers as a diagnostic fallback", () => {
+    expect(
+      formatItemEnhancement({ level: 80, patternId: 999, procId: 999 }),
+    ).toBe("Pattern 999, Proc 999, Level 80");
+    expect(formatItemEnhancement(undefined)).toBeUndefined();
   });
 });

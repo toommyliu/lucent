@@ -2001,7 +2001,8 @@ export function App(props: {
       id !== "combat-profiles" &&
       id !== "account-manager" &&
       id !== "environment" &&
-      id !== "follower"
+      id !== "follower" &&
+      id !== "loader-grabber"
     ) {
       return;
     }

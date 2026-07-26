@@ -38,6 +38,13 @@ import {
   putPlayer,
   type MapState,
 } from "./World";
+import {
+  completeProjection,
+  failProjection,
+  makeProjectionState,
+  resetProjections,
+  type ProjectionKey,
+} from "./Projection";
 
 const entityForAura = (
   state: ReturnType<typeof makeWorldState>,
@@ -52,6 +59,7 @@ const entityForAura = (
 export const makeStore = Effect.gen(function* () {
   const authRef = yield* SynchronizedRef.make(makeAuthState());
   const itemsRef = yield* SynchronizedRef.make(makeItemsState());
+  const projectionRef = yield* SynchronizedRef.make(makeProjectionState());
   const questsRef = yield* SynchronizedRef.make(makeQuestsState());
   const settingsRef = yield* SubscriptionRef.make(makeSettingsState());
   const shopsRef = yield* SynchronizedRef.make(makeShopsState());
@@ -140,6 +148,30 @@ export const makeStore = Effect.gen(function* () {
         upsertItem(state, container, item),
         state,
       ]),
+  };
+
+  const projection = {
+    complete: (key: ProjectionKey) =>
+      SynchronizedRef.update(projectionRef, (state) => {
+        completeProjection(state, key);
+        return state;
+      }),
+    fail: (key: ProjectionKey, reason: string) =>
+      SynchronizedRef.update(projectionRef, (state) => {
+        failProjection(state, key, reason);
+        return state;
+      }),
+    get: SynchronizedRef.get(projectionRef).pipe(
+      Effect.map((state) => ({
+        completed: { ...state.completed },
+        epoch: state.epoch,
+        failures: { ...state.failures },
+      })),
+    ),
+    reset: SynchronizedRef.update(projectionRef, (state) => {
+      resetProjections(state);
+      return state;
+    }),
   };
 
   const quests = {
@@ -423,6 +455,7 @@ export const makeStore = Effect.gen(function* () {
         hydration: Object.fromEntries(state.hydration),
       })),
     ),
+    projection: projection.get,
     quests: SynchronizedRef.get(questsRef).pipe(
       Effect.map((state) => ({
         accepted: Array.from(state.accepted),
@@ -460,6 +493,7 @@ export const makeStore = Effect.gen(function* () {
   return {
     auth,
     items,
+    projection,
     quests,
     settings,
     shops,

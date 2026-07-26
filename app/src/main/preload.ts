@@ -25,6 +25,7 @@ import {
   UpdatesIpc,
   WindowsIpc,
   GameConsoleIpc,
+  LoaderGrabberIpc,
 } from "../shared/ipc";
 import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
@@ -144,6 +145,13 @@ const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
 
+const loaderGrabberBridge: DesktopBridge["loaderGrabber"] = {
+  grab: (payload) => invoke(LoaderGrabberIpc.grab, payload),
+  load: (payload) => invoke(LoaderGrabberIpc.load, payload),
+  onRequest: (listener) => subscribe(LoaderGrabberIpc.request, listener),
+  respond: (response) => invoke(LoaderGrabberIpc.respond, response),
+};
+
 const followerBridge: NonNullable<DesktopBridge["follower"]> = {
   configure: (payload) => invoke(FollowerIpc.configure, payload),
   getPlayers: () => invoke(FollowerIpc.getPlayers, undefined),
@@ -260,6 +268,7 @@ const environmentBridge: NonNullable<DesktopBridge["environment"]> = {
 
 const bridge: DesktopBridge = {
   debug,
+  loaderGrabber: loaderGrabberBridge,
   platform: {
     os: platform,
   },

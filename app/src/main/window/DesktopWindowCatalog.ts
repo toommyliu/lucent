@@ -4,6 +4,7 @@ export type DesktopWindowKind =
   | "environment"
   | "follower"
   | "game"
+  | "loader-grabber"
   | "settings";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
 export type DesktopWindowScope = "application" | "game" | "game-child";
@@ -98,6 +99,20 @@ const desktopWindowCatalog: ReadonlyMap<
       height: 496,
       minWidth: 1,
       minHeight: 1,
+      closeBehavior: "hide",
+      requiresFlashPlugin: false,
+      scope: "game-child",
+      singleInstance: true,
+    },
+  ],
+  [
+    "loader-grabber",
+    {
+      kind: "loader-grabber",
+      width: 712,
+      height: 710,
+      minWidth: 500,
+      minHeight: 480,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
       scope: "game-child",
