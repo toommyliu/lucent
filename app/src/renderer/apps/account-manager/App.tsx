@@ -2972,7 +2972,6 @@ export function App(): JSX.Element {
                   >
                     <InputGroupInput
                       id={ACCOUNT_PASSWORD_INPUT_ID}
-                      class="account-dialog__password-input"
                       type={passwordVisible() ? "text" : "password"}
                       value={form().password}
                       placeholder="Enter password"

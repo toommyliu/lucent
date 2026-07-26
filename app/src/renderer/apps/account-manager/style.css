@@ -1361,21 +1361,6 @@
   padding-right: 0.5rem;
 }
 
-.account-dialog__password-control:focus-within {
-  border-color: rgb(var(--input));
-  box-shadow: var(--shadow-xs);
-  z-index: auto;
-}
-
-.account-dialog__password-control .account-dialog__password-input:focus,
-.account-dialog__password-control
-  .account-dialog__password-input:focus-visible {
-  border-radius: calc(var(--radius-lg) - 1px) 0 0 calc(var(--radius-lg) - 1px);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--ring), 0.56),
-    inset 0 0 0 999px rgba(var(--ring), 0.04);
-}
-
 .account-dialog__password-button {
   border-radius: var(--radius-md);
   color: rgb(var(--muted-foreground));
