@@ -16,6 +16,7 @@ export class ScriptNotReadyError extends Schema.TaggedErrorClass<ScriptNotReadyE
   "ScriptNotReadyError",
   {
     detail: Schema.String,
+    missing: Schema.Array(Schema.String),
   },
 ) {
   override get message(): string {

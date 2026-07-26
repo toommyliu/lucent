@@ -51,6 +51,7 @@ import {
   ScriptStopSignal,
   type ScriptExitRequest,
 } from "./ScriptRunnerErrors";
+import { makeScriptStartReadiness } from "./ScriptStartReadiness";
 
 export type ScriptRunnerStatus =
   | { readonly state: "idle" }
@@ -224,6 +225,7 @@ interface PendingRestart {
 
 interface StartingCancellation {
   readonly reason?: string;
+  readonly retryAfterReconnect?: boolean;
 }
 
 interface StartingScript {
@@ -259,6 +261,26 @@ const activeStatusFields = (
 
 const normalizeUsername = (username: string): string =>
   username.trim().toLowerCase();
+
+export const statusFromStartingCancellation = (
+  starting: {
+    readonly restart?: Pick<PendingRestart, "disconnectedAt" | "name" | "path">;
+  },
+  cancellation: StartingCancellation,
+): ScriptRunnerStatus =>
+  cancellation.retryAfterReconnect === true && starting.restart !== undefined
+    ? {
+        ...activeStatusFields(starting.restart),
+        disconnectedAt: starting.restart.disconnectedAt,
+        state: "waiting-to-restart",
+      }
+    : {
+        ...(cancellation.reason === undefined
+          ? {}
+          : { reason: cancellation.reason }),
+        state: "stopped",
+        stoppedAt: nowIso(),
+      };
 
 type ScriptTermination =
   | { readonly kind: "failed" }
@@ -357,8 +379,6 @@ const isConnectionLoss = (event: FlashEvent): boolean =>
   (event.status === "OnConnectionLost" ||
     event.status === "OnConnectionFailed");
 
-const projectionReadinessTimeout = "5 seconds";
-
 export const layer = Layer.effect(
   ScriptRunner,
   Effect.gen(function* () {
@@ -381,6 +401,12 @@ export const layer = Layer.effect(
       wait,
     } = api;
     const { autoRelogin, autoZone } = automation;
+    const scriptStartReadiness = makeScriptStartReadiness({
+      auth,
+      player,
+      projectionReadiness,
+      wait,
+    });
 
     const services = makeScriptRuntimeServices(api, army, environment);
 
@@ -895,40 +921,11 @@ export const layer = Layer.effect(
               }),
             ),
       );
+      yield* installReadinessWatcher(starting.id, scriptScope);
 
       const setup = Effect.gen(function* () {
-        const loggedIn = yield* auth
-          .isLoggedIn()
-          .pipe(Effect.catchCause(() => Effect.succeed(false)));
-        const ready = yield* player
-          .isReady()
-          .pipe(Effect.catchCause(() => Effect.succeed(false)));
-        if (!loggedIn || !ready) {
-          return yield* new ScriptNotReadyError({
-            detail: "Scripts can only start after login and player readiness.",
-          });
-        }
-
-        const projectionsReady = yield* wait.until(
-          projectionReadiness.isReady(),
-          { timeout: projectionReadinessTimeout },
-        );
-        if (!projectionsReady) {
-          return yield* new ScriptNotReadyError({
-            detail:
-              "Scripts can only start after initial game state projection.",
-          });
-        }
-        const username = normalizeUsername(
-          yield* auth
-            .getUsername()
-            .pipe(Effect.catchCause(() => Effect.succeed(""))),
-        );
-        if (username === "") {
-          return yield* new ScriptNotReadyError({
-            detail: "Scripts can only start after account settings are bound.",
-          });
-        }
+        const readiness = yield* scriptStartReadiness.awaitReady();
+        const username = readiness.username;
         yield* bindAccount(username);
 
         yield* scriptScope.addCleanup(() =>
@@ -958,8 +955,6 @@ export const layer = Layer.effect(
           revision: file.revision,
           source: file.source,
         });
-        yield* installReadinessWatcher(starting.id, scriptScope);
-
         const release = yield* Deferred.make<void>();
         const fiber = yield* Deferred.await(release).pipe(
           Effect.andThen(runScript(starting.id, file, loaded.main)),
@@ -1046,13 +1041,7 @@ export const layer = Layer.effect(
                 const cancellation = (yield* Deferred.isDone(starting.cancel))
                   ? yield* Deferred.await(starting.cancel)
                   : { reason: "start interrupted" };
-                return {
-                  ...(cancellation.reason === undefined
-                    ? {}
-                    : { reason: cancellation.reason }),
-                  state: "stopped",
-                  stoppedAt: nowIso(),
-                } as ScriptRunnerStatus;
+                return statusFromStartingCancellation(starting, cancellation);
               }
 
               if (
@@ -1080,13 +1069,12 @@ export const layer = Layer.effect(
           onSuccess: (outcome) =>
             outcome.kind === "started"
               ? Effect.succeed<ScriptRunnerStatus>(outcome.status)
-              : Effect.succeed<ScriptRunnerStatus>({
-                  ...(outcome.cancellation.reason === undefined
-                    ? {}
-                    : { reason: outcome.cancellation.reason }),
-                  state: "stopped",
-                  stoppedAt: nowIso(),
-                }),
+              : Effect.succeed<ScriptRunnerStatus>(
+                  statusFromStartingCancellation(
+                    starting,
+                    outcome.cancellation,
+                  ),
+                ),
         }),
       );
 
@@ -1153,28 +1141,14 @@ export const layer = Layer.effect(
               return Option.some<RestartReadiness>({ kind: "disabled" });
             }
 
-            const loggedIn = yield* auth
-              .isLoggedIn()
-              .pipe(Effect.catchCause(() => Effect.succeed(false)));
-            if (!loggedIn) return Option.none<RestartReadiness>();
+            const readiness = yield* scriptStartReadiness.get();
+            if (!readiness.ready) return Option.none<RestartReadiness>();
 
-            const ready = yield* player
-              .isReady()
-              .pipe(Effect.catchCause(() => Effect.succeed(false)));
-            if (!ready) return Option.none<RestartReadiness>();
-
-            const projectionsReady = yield* projectionReadiness
-              .isReady()
-              .pipe(Effect.catchCause(() => Effect.succeed(false)));
-            if (!projectionsReady) return Option.none<RestartReadiness>();
-
-            const username = normalizeUsername(
-              yield* auth
-                .getUsername()
-                .pipe(Effect.catchCause(() => Effect.succeed(""))),
-            );
             return Option.some<RestartReadiness>({
-              kind: username === pending.username ? "ready" : "account-changed",
+              kind:
+                readiness.username === pending.username
+                  ? "ready"
+                  : "account-changed",
             });
           }),
           { interval: "250 millis" },
@@ -1282,6 +1256,14 @@ export const layer = Layer.effect(
           Effect.gen(function* () {
             const result = yield* lifecycleGate.withPermit(
               Effect.gen(function* () {
+                const starting = yield* Ref.get(startingRef);
+                if (starting?.id === id) {
+                  yield* Deferred.succeed(starting.cancel, {
+                    reason: "connection lost",
+                    retryAfterReconnect: starting.restart !== undefined,
+                  });
+                  return null;
+                }
                 if ((yield* Ref.get(pendingFinalizationRef)) !== null) {
                   return null;
                 }

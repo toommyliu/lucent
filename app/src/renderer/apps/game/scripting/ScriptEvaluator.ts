@@ -22,6 +22,7 @@ import {
   ScriptExecutionError,
   ScriptStopSignal,
 } from "./ScriptRunnerErrors";
+import { makeScriptStartReadiness } from "./ScriptStartReadiness";
 import { makeScriptRuntimeServices } from "./api/Services";
 
 const ScriptEvalFunction = Function as unknown as new (
@@ -84,6 +85,30 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
     const scope = makeScriptAsyncScope();
 
     return yield* Effect.gen(function* () {
+      const callbackFailure = yield* Deferred.make<never, unknown>();
+      const disposeConnectionWatcher = yield* api.events.on(
+        { type: "connection" },
+        (event) =>
+          event.status === "OnConnectionLost" ||
+          event.status === "OnConnectionFailed"
+            ? Deferred.fail(
+                callbackFailure,
+                new ScriptStopSignal({ reason: "connection lost" }),
+              ).pipe(Effect.asVoid)
+            : Effect.void,
+      );
+      yield* scope.addCleanup(disposeConnectionWatcher);
+      const readiness = makeScriptStartReadiness({
+        auth: api.auth,
+        player: api.player,
+        projectionReadiness: api.projectionReadiness,
+        wait: api.wait,
+      });
+      yield* Effect.raceFirst(
+        readiness.awaitReady(),
+        Deferred.await(callbackFailure),
+      );
+
       const runnerOptions = yield* runner.getOptions();
       const optionsRef = yield* Ref.make(
         snapshotScriptRuntimeOptions(runnerOptions),
@@ -94,7 +119,6 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         Ref.updateAndGet(optionsRef, (options) =>
           snapshotScriptRuntimeOptions(update(options)),
         ).pipe(Effect.map(snapshotScriptRuntimeOptions));
-      const callbackFailure = yield* Deferred.make<never, unknown>();
       const script = makeScriptRuntimeApi({
         getOptions,
         inputValues: {},
