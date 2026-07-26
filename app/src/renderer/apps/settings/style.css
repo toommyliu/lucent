@@ -281,7 +281,7 @@
 }
 
 .hotkey-group.card {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 

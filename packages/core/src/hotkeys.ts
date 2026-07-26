@@ -4,8 +4,7 @@ export type SettingsCommandCategory =
   | "General"
   | "Scripts"
   | "Options"
-  | "Tools"
-  | "Packets";
+  | "Windows";
 export type HotkeyDisplayPlatform = "linux" | "mac" | "windows";
 
 export const SETTINGS_COMMAND_IDS = [
@@ -36,8 +35,7 @@ export const SETTING_COMMAND_CATEGORIES = [
   "General",
   "Scripts",
   "Options",
-  "Tools",
-  "Packets",
+  "Windows",
 ] as const satisfies readonly SettingsCommandCategory[];
 
 export type SettingsCommandId = (typeof SETTINGS_COMMAND_IDS)[number];
@@ -117,25 +115,25 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
   },
   {
     id: "openEnvironment",
-    category: "Tools",
+    category: "Windows",
     label: "Open Environment",
     defaultHotkey: "Alt+E",
   },
   {
     id: "openLoaderGrabber",
-    category: "Tools",
+    category: "Windows",
     label: "Open Loader/Grabber",
     defaultHotkey: "",
   },
   {
     id: "openFollower",
-    category: "Tools",
+    category: "Windows",
     label: "Open Follower Window",
     defaultHotkey: "Alt+F",
   },
   {
     id: "openPackets",
-    category: "Packets",
+    category: "Windows",
     label: "Open Packets",
     defaultHotkey: "",
   },
