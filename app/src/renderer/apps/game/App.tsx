@@ -103,13 +103,14 @@ import {
 } from "./automation/AutoZone";
 import {
   ScriptRunner,
+  type ScriptRunnerOptions,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
-import type { ScriptRuntimeOptions } from "./scripting/ScriptApi";
 import {
   formatRoomNumberInput,
   parseRoomNumberInput,
 } from "./scripting/roomPolicyInput";
+import { prepareScriptStart } from "./scripting/scriptStartPreparation";
 import { runScriptEval } from "./scripting/ScriptEvaluator";
 import {
   fatalScriptAlertFromError,
@@ -1099,6 +1100,9 @@ export function App(props: {
     DEFAULT_ACCOUNT_SETTINGS.scripts.roomPolicy,
   );
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
+  const [scriptReloadBeforeStart, setScriptReloadBeforeStart] = createSignal(
+    DEFAULT_ACCOUNT_SETTINGS.scripts.reloadBeforeStart,
+  );
   const [scriptRestartAfterReconnect, setScriptRestartAfterReconnect] =
     createSignal(false);
   const [scriptRoomNumberDraft, setScriptRoomNumberDraft] = createSignal("");
@@ -2260,6 +2264,63 @@ export function App(props: {
     setOpenMenu(null);
   };
 
+  const prepareAndStartLoadedScript = async (
+    currentFile: ScriptFile,
+    currentInputValues: ScriptInputValues,
+    inputsPersistedForRevision?: string,
+  ): Promise<void> => {
+    const scripting = window.desktop.scripting;
+    const prepared = await prepareScriptStart(
+      { file: currentFile, inputValues: currentInputValues },
+      scriptReloadBeforeStart(),
+      {
+        getInputValues: refreshScriptInputValues,
+        readFile: (path) => {
+          if (scripting === undefined) {
+            return Promise.reject(
+              new Error("Desktop scripting bridge unavailable"),
+            );
+          }
+          return scripting.readFile(path);
+        },
+      },
+    );
+    const revisionChanged = prepared.file.revision !== currentFile.revision;
+
+    setLoadedScript(prepared.file);
+    setScriptInputValues(prepared.inputValues);
+    setScriptInputDialogError(null);
+    if (revisionChanged) {
+      setScriptRunnerStatus({ state: "idle" });
+    }
+
+    if (
+      prepared.status === "missing-required" &&
+      prepared.file.inputs !== null
+    ) {
+      openScriptInputsDialog(
+        "required",
+        prepared.file.inputs,
+        prepared.inputValues,
+      );
+      return;
+    }
+
+    let inputValues = prepared.inputValues;
+    if (
+      prepared.file.inputs !== null &&
+      prepared.file.revision !== inputsPersistedForRevision
+    ) {
+      inputValues = await saveScriptInputValues(
+        prepared.file.inputs,
+        inputValues,
+      );
+      setScriptInputValues(inputValues);
+    }
+
+    await startLoadedScript(prepared.file, inputValues);
+  };
+
   const accountScriptLabel = (
     script: AccountScriptReference | undefined,
   ): string | undefined => script?.name ?? script?.path;
@@ -2297,7 +2358,8 @@ export function App(props: {
     }
   };
 
-  const applyScriptOptions = (options: ScriptRuntimeOptions): void => {
+  const applyScriptOptions = (options: ScriptRunnerOptions): void => {
+    setScriptReloadBeforeStart(options.reloadBeforeStart);
     setScriptRestartAfterReconnect(options.restartAfterReconnect);
     setScriptRoomPolicy({ ...options.roomPolicy });
     setScriptSafeStartStop(options.safeStartStop);
@@ -2601,11 +2663,12 @@ export function App(props: {
   };
 
   const persistScriptInputs = async () => {
-    const definition = getScriptInputsDefinition();
-    if (definition === null) {
+    const file = loadedScript();
+    if (file?.inputs === null || file?.inputs === undefined) {
       setScriptInputDialogOpen(false);
       return;
     }
+    const definition = file.inputs;
 
     if (scriptInputDialogSaving()) {
       return;
@@ -2640,10 +2703,7 @@ export function App(props: {
       resetScriptInputDialogRefs();
 
       if (shouldStart) {
-        const file = loadedScript();
-        if (file !== null) {
-          await startLoadedScript(file, saved);
-        }
+        await prepareAndStartLoadedScript(file, saved, file.revision);
       }
     } catch (error) {
       console.error("[game:script]", "save inputs failed", error);
@@ -2710,22 +2770,7 @@ export function App(props: {
         return;
       }
 
-      let inputValues = scriptInputValues();
-      if (file.inputs !== null) {
-        const validation = validateScriptInputValues(file.inputs, inputValues);
-        inputValues = validation.values;
-        setScriptInputValues(inputValues);
-
-        if (validation.status === "missing-required") {
-          openScriptInputsDialog("required", file.inputs, inputValues);
-          return;
-        }
-
-        inputValues = await saveScriptInputValues(file.inputs, inputValues);
-        setScriptInputValues(inputValues);
-      }
-
-      await startLoadedScript(file, inputValues);
+      await prepareAndStartLoadedScript(file, scriptInputValues());
     } catch (error) {
       console.error("[game:script]", "toggle failed", error);
       if (!wasRunning && file !== null) {
@@ -2783,6 +2828,27 @@ export function App(props: {
       .then(applyScriptOptions)
       .catch((error: unknown) => {
         console.error("[game:script]", "safe-start-stop toggle failed", error);
+        syncScriptOptions();
+      });
+  };
+
+  const handleToggleScriptReloadBeforeStart = () => {
+    const enabled = !scriptReloadBeforeStart();
+    setScriptReloadBeforeStart(enabled);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.setReloadBeforeStart(enabled);
+        }),
+      )
+      .then(applyScriptOptions)
+      .catch((error: unknown) => {
+        console.error(
+          "[game:script]",
+          "reload-before-start toggle failed",
+          error,
+        );
         syncScriptOptions();
       });
   };
@@ -3617,6 +3683,7 @@ export function App(props: {
         scriptRunning={scriptRunning}
         scriptStatus={scriptStatus}
         scriptTogglePending={scriptTogglePending}
+        scriptReloadBeforeStart={scriptReloadBeforeStart}
         scriptRestartAfterReconnect={scriptRestartAfterReconnect}
         scriptRoomPolicy={scriptRoomPolicy}
         scriptSafeStartStop={scriptSafeStartStop}
@@ -3635,6 +3702,9 @@ export function App(props: {
         handleCommitScriptRoomNumber={handleCommitScriptRoomNumber}
         handleToggleScriptRestartAfterReconnect={
           handleToggleScriptRestartAfterReconnect
+        }
+        handleToggleScriptReloadBeforeStart={
+          handleToggleScriptReloadBeforeStart
         }
         handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
         autoZoneEnabled={autoZoneEnabled}

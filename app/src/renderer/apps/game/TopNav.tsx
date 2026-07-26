@@ -134,6 +134,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly scriptRunning: Accessor<boolean>;
   readonly scriptStatus: Accessor<string>;
   readonly scriptTogglePending: Accessor<boolean>;
+  readonly scriptReloadBeforeStart: Accessor<boolean>;
   readonly scriptRestartAfterReconnect: Accessor<boolean>;
   readonly scriptRoomPolicy: Accessor<RoomPolicy>;
   readonly scriptSafeStartStop: Accessor<boolean>;
@@ -149,6 +150,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
     policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
   ) => void;
   readonly handleCommitScriptRoomNumber: () => void;
+  readonly handleToggleScriptReloadBeforeStart: () => void;
   readonly handleToggleScriptRestartAfterReconnect: () => void;
   readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
@@ -1094,6 +1096,35 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       <TooltipContent>
                         Best-effort attempt to start or stop the script at your
                         house.
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip
+                      closeDelay={0}
+                      openDelay={400}
+                      positioning={{ placement: "right" }}
+                    >
+                      <TooltipTrigger
+                        asChild={(triggerProps) => (
+                          <MenuCheckboxItem
+                            {...(triggerProps({
+                              "aria-description":
+                                "Start with the latest saved version of the selected script.",
+                              checked: props.scriptReloadBeforeStart(),
+                              class: "game-menu__item",
+                              closeOnSelect: false,
+                              disabled: !props.scriptOptionsReady(),
+                              onClick:
+                                props.handleToggleScriptReloadBeforeStart,
+                              value: "script-reload-before-start",
+                            } as unknown as ButtonProps) as unknown as MenuCheckboxItemProps)}
+                          >
+                            Reload Before Start
+                          </MenuCheckboxItem>
+                        )}
+                      />
+                      <TooltipContent>
+                        Start with the latest saved version of the selected
+                        script.
                       </TooltipContent>
                     </Tooltip>
                     <MenuCheckboxItem

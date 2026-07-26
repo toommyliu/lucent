@@ -34,8 +34,9 @@ const decodeRoomPolicy = Schema.decodeUnknownEffect(RoomPolicySchema);
 export const snapshotScriptRuntimeOptions = (
   options: ScriptRuntimeOptions,
 ): ScriptRuntimeOptions => ({
-  ...options,
+  restartAfterReconnect: options.restartAfterReconnect,
   roomPolicy: snapshotRoomPolicy(options.roomPolicy),
+  safeStartStop: options.safeStartStop,
 });
 
 export type ScriptRuntimeOptionsUpdate = (

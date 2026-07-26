@@ -98,6 +98,7 @@ describe("AccountSettingsRepository", () => {
             path,
             JSON.stringify({
               scripts: {
+                reloadBeforeStart: "invalid",
                 restartAfterReconnect: "invalid",
                 roomPolicy: { kind: "specific", roomNumber: 42 },
                 safeStartStop: false,
@@ -109,6 +110,7 @@ describe("AccountSettingsRepository", () => {
 
         expect(yield* repository.get("hero")).toMatchObject({
           scripts: {
+            reloadBeforeStart: false,
             restartAfterReconnect: false,
             roomPolicy: { kind: "specific", roomNumber: 42 },
             safeStartStop: false,
@@ -116,10 +118,11 @@ describe("AccountSettingsRepository", () => {
         });
 
         const updated = yield* repository.update("HERO", {
-          scripts: { restartAfterReconnect: true },
+          scripts: { reloadBeforeStart: true },
         });
         expect(updated.scripts).toEqual({
-          restartAfterReconnect: true,
+          reloadBeforeStart: true,
+          restartAfterReconnect: false,
           roomPolicy: { kind: "specific", roomNumber: 42 },
           safeStartStop: false,
         });
