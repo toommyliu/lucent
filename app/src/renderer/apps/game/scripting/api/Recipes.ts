@@ -2,6 +2,7 @@ import { PositiveInt, TrimmedNonEmptyString } from "@lucent/core";
 import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
+import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
 import type { BridgeService } from "../../flash/bridge/Bridge";
 import { enhanceItem } from "../recipes/EnhanceItem";
 import type { ScriptRecipeDependencies } from "../recipes/Dependencies";
@@ -22,10 +23,7 @@ const ScriptItemQuerySchema = Schema.Union([
   }),
 ]);
 
-export const ScriptEnhanceItemOptionsSchema = Schema.Struct({
-  enhancement: TrimmedNonEmptyString,
-  special: Schema.optionalKey(TrimmedNonEmptyString),
-});
+export const ScriptEnhanceItemOptionsSchema = EnhancementSelectorSchema;
 
 export type ScriptEnhanceItemOptions =
   typeof ScriptEnhanceItemOptionsSchema.Type;

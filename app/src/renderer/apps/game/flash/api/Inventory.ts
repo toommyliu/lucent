@@ -1,7 +1,15 @@
-import { normalizeItemQuantity } from "@lucent/game";
+import {
+  matchesAppliedEnhancement,
+  normalizeItemQuantity,
+  resolveEnhancementStrategy,
+} from "@lucent/game";
 import type { ItemQuery } from "@lucent/game";
 import { Effect, Option, Schema } from "effect";
 
+import {
+  EquipEnhancementSelectorSchema,
+  type EquipEnhancementSelector,
+} from "../../EnhancementSelectors";
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
@@ -19,6 +27,9 @@ const EquipResponse = Schema.Struct({
 });
 const decodeWearResponse = Schema.decodeUnknownOption(WearResponse);
 const decodeEquipResponse = Schema.decodeUnknownOption(EquipResponse);
+const decodeEquipEnhancementSelector = Schema.decodeUnknownOption(
+  EquipEnhancementSelectorSchema,
+);
 
 export interface EquipOptions {
   /** Whether to wear wearable equipment after equipping it. Defaults to true. */
@@ -175,6 +186,50 @@ export const makeInventory = (
   const equip = (selector: ItemQuery, options?: EquipOptions) =>
     equipEffect(selector, options);
 
+  const equipByEnhancementEffect = Effect.fn("Inventory.equipByEnhancement")(
+    function* (selector: EquipEnhancementSelector) {
+      const decoded = decodeEquipEnhancementSelector(selector);
+      if (Option.isNone(decoded)) return false;
+      const normalized = decoded.value;
+      if (
+        normalized.slot === undefined &&
+        normalized.special === undefined &&
+        normalized.enhancement.toLowerCase() === "forge"
+      ) {
+        return false;
+      }
+
+      const items = yield* getAll();
+      let target: (typeof items)[number] | undefined;
+      for (const item of items) {
+        if (item.category.trim().toLowerCase() === "enhancement") continue;
+        const resolution = resolveEnhancementStrategy(
+          item,
+          normalized.enhancement,
+          item.enhancement?.level ?? 0,
+          normalized.special,
+        );
+        if (
+          !resolution.ok ||
+          (normalized.slot !== undefined &&
+            resolution.strategy.slot !== normalized.slot) ||
+          !matchesAppliedEnhancement(item, resolution.strategy)
+        ) {
+          continue;
+        }
+        if (
+          target === undefined ||
+          (item.enhancement?.level ?? 0) > (target.enhancement?.level ?? 0)
+        ) {
+          target = item;
+        }
+      }
+      return target === undefined ? false : yield* equip(target.itemId);
+    },
+  );
+  const equipByEnhancement = (selector: EquipEnhancementSelector) =>
+    equipByEnhancementEffect(selector);
+
   const getAvailableSlots = () =>
     Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
       Math.max(0, slots - used),
@@ -222,6 +277,7 @@ export const makeInventory = (
   return {
     contains,
     equip,
+    equipByEnhancement,
     get,
     getAll,
     getAvailableSlots,
