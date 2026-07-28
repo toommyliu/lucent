@@ -507,8 +507,13 @@
 }
 
 .segmented-control__list.tabs__list {
+  border-radius: calc(var(--radius-md) + 0.125rem);
   display: flex;
   min-width: 0;
+}
+
+.segmented-control__list .tabs__indicator {
+  box-shadow: inset 0 0 0 1px rgba(var(--border), 0.72);
 }
 
 .segmented-control__trigger.tabs__trigger {
