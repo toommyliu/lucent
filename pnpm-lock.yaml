@@ -211,12 +211,6 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.36.2
         version: 5.36.2(solid-js@1.9.12)
-      '@fontsource-variable/inter':
-        specifier: ^5.2.8
-        version: 5.2.8
-      '@fontsource-variable/jetbrains-mono':
-        specifier: ^5.2.8
-        version: 5.2.8
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
