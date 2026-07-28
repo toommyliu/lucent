@@ -9,6 +9,7 @@ import {
   MenuContent,
   MenuGroup,
   MenuItem,
+  MenuLabel,
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator,
@@ -67,8 +68,7 @@ export type GameTopNavMenu =
   | "combat"
   | "autozone"
   | "relogin"
-  | "pads"
-  | "cells";
+  | "travel";
 export type WindowId =
   | "environment"
   | "loader-grabber"
@@ -669,11 +669,15 @@ export function TopNavOptionsMenuContent(
 
 export function TopNav(props: TopNavProps): JSX.Element {
   let autoReloginMenuContent: HTMLDivElement | undefined;
+  let travelMenuContent: HTMLDivElement | undefined;
   const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
   const [scriptRoomEditingMode, setScriptRoomEditingMode] =
     createSignal<RoomPolicyMode | null>(null);
+  const [travelHighlightedValue, setTravelHighlightedValue] = createSignal<
+    string | null
+  >(null);
 
   const handleToggleScriptClick = (): void => {
     void props.toggleScript();
@@ -899,22 +903,138 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const travelInteractionBlocked = () =>
     travelUnavailable() || props.travelBusy();
 
-  const toggleTravelMenu =
-    (menu: "pads" | "cells"): JSX.EventHandler<HTMLButtonElement, MouseEvent> =>
-    (event) => {
-      if (travelInteractionBlocked()) {
-        event.preventDefault();
-        return;
-      }
-
+  const setTravelMenuOpen = (details: { readonly open: boolean }): void => {
+    if (details.open && props.openMenu() !== "travel") {
       props.handleRefreshTravelOptions();
-      toggleMenu(menu)(event);
-    };
+    }
+    if (!details.open) {
+      setTravelHighlightedValue(null);
+    }
+    props.setOpenMenu(details.open ? "travel" : null);
+  };
+
+  const toggleTravelMenu: JSX.EventHandler<HTMLButtonElement, MouseEvent> = (
+    event,
+  ) => {
+    event.preventDefault();
+    if (travelInteractionBlocked()) {
+      return;
+    }
+
+    setTravelMenuOpen({ open: props.openMenu() !== "travel" });
+  };
 
   const isValidPad = (pad: string) =>
     props
       .validPads()
       .some((validPad) => validPad.toLowerCase() === pad.toLowerCase());
+
+  type TravelColumn = "cell" | "pad";
+
+  const travelColumnValues = (column: TravelColumn): readonly string[] =>
+    column === "cell"
+      ? props.cells().map((cell) => `cell:${cell}`)
+      : props.pads().map((pad) => `pad:${pad}`);
+
+  const travelHighlightedColumn = (): TravelColumn | null => {
+    const value = travelHighlightedValue();
+    if (value?.startsWith("cell:")) return "cell";
+    if (value?.startsWith("pad:")) return "pad";
+    return null;
+  };
+
+  const highlightTravelItem = (value: string | null): void => {
+    setTravelHighlightedValue(value);
+    if (value === null) return;
+
+    const item = Array.from(
+      travelMenuContent?.querySelectorAll<HTMLElement>(
+        "[data-slot='menu-item']",
+      ) ?? [],
+    ).find((candidate) => candidate.dataset["value"] === value);
+    item?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+
+  const handleTravelMenuKeyDown: JSX.EventHandler<
+    HTMLDivElement,
+    KeyboardEvent
+  > = (event) => {
+    if (
+      event.key !== "ArrowUp" &&
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowLeft" &&
+      event.key !== "ArrowRight" &&
+      event.key !== "Tab"
+    ) {
+      return;
+    }
+
+    if (event.key === "Tab") {
+      const values = [
+        ...travelColumnValues("cell"),
+        ...travelColumnValues("pad"),
+      ];
+      if (values.length === 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const currentIndex = values.indexOf(travelHighlightedValue() ?? "");
+      const nextIndex =
+        currentIndex === -1
+          ? event.shiftKey
+            ? values.length - 1
+            : 0
+          : (currentIndex + (event.shiftKey ? -1 : 1) + values.length) %
+            values.length;
+      highlightTravelItem(values[nextIndex] ?? null);
+      return;
+    }
+
+    const currentColumn = travelHighlightedColumn();
+    const targetColumn =
+      event.key === "ArrowLeft"
+        ? "cell"
+        : event.key === "ArrowRight"
+          ? "pad"
+          : (currentColumn ?? "cell");
+    const targetValues = travelColumnValues(targetColumn);
+    if (targetValues.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const currentValue = travelHighlightedValue();
+      const currentIndex = targetValues.indexOf(currentValue ?? "");
+      const nextIndex =
+        currentIndex === -1
+          ? event.key === "ArrowUp"
+            ? targetValues.length - 1
+            : 0
+          : (currentIndex +
+              (event.key === "ArrowUp" ? -1 : 1) +
+              targetValues.length) %
+            targetValues.length;
+      highlightTravelItem(targetValues[nextIndex] ?? null);
+      return;
+    }
+
+    if (currentColumn === targetColumn) {
+      return;
+    }
+
+    const sourceValues =
+      currentColumn === null ? [] : travelColumnValues(currentColumn);
+    const sourceIndex = sourceValues.indexOf(travelHighlightedValue() ?? "");
+    highlightTravelItem(
+      targetValues[
+        Math.min(Math.max(sourceIndex, 0), targetValues.length - 1)
+      ] ?? null,
+    );
+  };
 
   const commitAutoReloginDelayOnEnter: JSX.EventHandler<
     HTMLInputElement,
@@ -947,9 +1067,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
         <div
           class="game-topnav__left"
           data-menu-open={
-            props.openMenu() !== null &&
-            props.openMenu() !== "pads" &&
-            props.openMenu() !== "cells"
+            props.openMenu() !== null && props.openMenu() !== "travel"
               ? ""
               : undefined
           }
@@ -1514,9 +1632,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
         <div
           class="game-topnav__right"
           data-menu-open={
-            props.openMenu() === "combat" ||
-            props.openMenu() === "pads" ||
-            props.openMenu() === "cells"
+            props.openMenu() === "combat" || props.openMenu() === "travel"
               ? ""
               : undefined
           }
@@ -1649,18 +1765,27 @@ export function TopNav(props: TopNavProps): JSX.Element {
           </Menu>
 
           <Menu
-            open={props.openMenu() === "pads"}
-            onOpenChange={setMenuOpen("pads")}
+            highlightedValue={travelHighlightedValue()}
+            open={props.openMenu() === "travel"}
+            onHighlightChange={(details) =>
+              setTravelHighlightedValue(details.highlightedValue)
+            }
+            onOpenChange={setTravelMenuOpen}
           >
             <TopNavMenuTrigger
-              class="game-topnav__select-trigger"
+              aria-label={`Travel, cell ${props.selectedCell() || "unknown"}, pad ${props.selectedPad() || "unknown"}`}
               aria-busy={props.travelBusy() ? "true" : undefined}
+              class="game-topnav__select-trigger game-topnav__select-trigger--travel"
               disabled={travelUnavailable()}
-              expanded={props.openMenu() === "pads"}
-              onClick={toggleTravelMenu("pads")}
+              expanded={props.openMenu() === "travel"}
+              onClick={toggleTravelMenu}
               variant="secondary"
             >
-              <span class="game-topnav__select-label">
+              <span class="game-topnav__select-label game-topnav__travel-label">
+                {props.selectedCell() || "Cell"}
+              </span>
+              <span aria-hidden="true" class="game-topnav__travel-divider" />
+              <span class="game-topnav__trigger-detail game-topnav__travel-label">
                 {props.selectedPad() || "Pad"}
               </span>
               <Icon
@@ -1670,80 +1795,76 @@ export function TopNav(props: TopNavProps): JSX.Element {
               />
             </TopNavMenuTrigger>
             <GameMenuContent
-              class="game-menu game-menu--compact game-menu--pads"
+              ref={(element) => {
+                travelMenuContent = element;
+              }}
+              class="game-menu game-menu--travel"
+              onKeyDown={handleTravelMenuKeyDown}
               portalMount={menuPortalMount}
             >
-              <Show
-                when={props.pads().length > 0}
-                fallback={
-                  <MenuItem class="game-menu__item" disabled value="no-pads">
-                    No pads found
-                  </MenuItem>
-                }
-              >
-                <For each={props.pads()}>
-                  {(pad) => (
-                    <MenuItem
-                      class={cn(
-                        "game-menu__item game-menu__pad-option",
-                        isValidPad(pad) && "game-menu__pad-option--valid",
-                      )}
-                      onSelect={() => props.handleSelectPad(pad)}
-                      value={pad}
+              <div class="game-menu__travel-columns">
+                <MenuGroup class="game-menu__travel-column">
+                  <MenuLabel class="game-menu__travel-heading">Cell</MenuLabel>
+                  <div class="game-menu__travel-options">
+                    <Show
+                      when={props.cells().length > 0}
+                      fallback={
+                        <MenuItem
+                          class="game-menu__item"
+                          disabled
+                          value="cell:none"
+                        >
+                          No cells found
+                        </MenuItem>
+                      }
                     >
-                      <span class="game-menu__pad-name">{pad}</span>
-                    </MenuItem>
-                  )}
-                </For>
-              </Show>
-            </GameMenuContent>
-          </Menu>
-
-          <Menu
-            open={props.openMenu() === "cells"}
-            onOpenChange={setMenuOpen("cells")}
-          >
-            <TopNavMenuTrigger
-              class="game-topnav__select-trigger game-topnav__select-trigger--cell"
-              aria-busy={props.travelBusy() ? "true" : undefined}
-              disabled={travelUnavailable()}
-              expanded={props.openMenu() === "cells"}
-              onClick={toggleTravelMenu("cells")}
-              variant="secondary"
-            >
-              <span class="game-topnav__select-label">
-                {props.selectedCell() || "Cell"}
-              </span>
-              <Icon
-                icon="chevron_down"
-                aria-hidden="true"
-                class="game-topnav__select-chevron"
-              />
-            </TopNavMenuTrigger>
-            <GameMenuContent
-              class="game-menu game-menu--compact game-menu--cells"
-              portalMount={menuPortalMount}
-            >
-              <Show
-                when={props.cells().length > 0}
-                fallback={
-                  <MenuItem class="game-menu__item" disabled value="no-cells">
-                    No cells found
-                  </MenuItem>
-                }
-              >
-                <For each={props.cells()}>
-                  {(cell) => (
-                    <MenuItem
-                      class="game-menu__item"
-                      onSelect={() => props.handleSelectCell(cell)}
-                      value={cell}
+                      <For each={props.cells()}>
+                        {(cell) => (
+                          <MenuItem
+                            class="game-menu__item"
+                            onSelect={() => props.handleSelectCell(cell)}
+                            value={`cell:${cell}`}
+                          >
+                            {cell}
+                          </MenuItem>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </MenuGroup>
+                <MenuGroup class="game-menu__travel-column">
+                  <MenuLabel class="game-menu__travel-heading">Pad</MenuLabel>
+                  <div class="game-menu__travel-options">
+                    <Show
+                      when={props.pads().length > 0}
+                      fallback={
+                        <MenuItem
+                          class="game-menu__item"
+                          disabled
+                          value="pad:none"
+                        >
+                          No pads found
+                        </MenuItem>
+                      }
                     >
-                      {cell}
-                    </MenuItem>
-                  )}
-                </For>
-              </Show>
+                      <For each={props.pads()}>
+                        {(pad) => (
+                          <MenuItem
+                            class={cn(
+                              "game-menu__item game-menu__pad-option",
+                              isValidPad(pad) && "game-menu__pad-option--valid",
+                            )}
+                            onSelect={() => props.handleSelectPad(pad)}
+                            value={`pad:${pad}`}
+                          >
+                            <span class="game-menu__pad-name">{pad}</span>
+                          </MenuItem>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </MenuGroup>
+              </div>
             </GameMenuContent>
           </Menu>
 
