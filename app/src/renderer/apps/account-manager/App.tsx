@@ -2052,7 +2052,8 @@ export function App(): JSX.Element {
                       "account-manager__server-input--settling":
                         serversLoading() || serverSelectionSettling(),
                       "account-manager__server-input--closed":
-                        !serverComboboxOpen(),
+                        !serverComboboxOpen() &&
+                        selectedLaunchServer() !== undefined,
                     }}
                     placeholder="Choose server..."
                     showClear={false}

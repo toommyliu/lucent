@@ -587,7 +587,7 @@
 }
 
 .account-manager__server-field .account-manager__server-input--closed {
-  color: transparent !important;
+  opacity: 0;
 }
 
 .account-manager__server-overlay {
@@ -880,10 +880,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.account-server-option--online .account-server-option__name {
-  color: rgb(var(--success-foreground));
 }
 
 .account-server-option--full .account-server-option__name {
