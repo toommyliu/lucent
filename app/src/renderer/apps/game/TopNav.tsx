@@ -856,7 +856,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
       .map((target) => target.trim())
       .filter((target) => target !== "").length;
     if (targetCount === 0) {
-      return "Off";
+      return "None";
     }
 
     return `${targetCount} ${targetCount === 1 ? "target" : "targets"}`;
