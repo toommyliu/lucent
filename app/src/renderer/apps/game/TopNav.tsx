@@ -553,28 +553,41 @@ export function TopNavOptionsMenuContent(
       <div class="game-menu__options-content">
         <div class="game-options-grid">
           <For each={props.optionItems()}>
-            {(option) => (
-              <MenuCheckboxItem
-                checked={option.checked}
-                class="game-menu__item"
-                closeOnSelect={false}
-                disabled={option.disabled}
-                onCheckedChange={option.onCheckedChange}
-                value={option.id}
-              >
-                <span class="game-menu__option-content">
-                  <span class="game-menu__item-label">{option.label}</span>
-                  <Show
-                    when={formatOptionalHotkeyDisplay(
-                      optionHotkey(props.hotkeyBindings(), option.id),
-                      props.hotkeyPlatform,
-                    )}
-                  >
-                    {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                  </Show>
-                </span>
-              </MenuCheckboxItem>
-            )}
+            {(option) => {
+              const shortcut = () =>
+                formatOptionalHotkeyDisplay(
+                  optionHotkey(props.hotkeyBindings(), option.id),
+                  props.hotkeyPlatform,
+                );
+
+              return (
+                <MenuCheckboxItem
+                  checked={option.checked}
+                  class="game-menu__item game-menu__option-item"
+                  closeOnSelect={false}
+                  disabled={option.disabled}
+                  title={shortcut() || undefined}
+                  onCheckedChange={option.onCheckedChange}
+                  value={option.id}
+                >
+                  <span class="game-menu__option-content">
+                    <span class="game-menu__item-label">{option.label}</span>
+                    <Show when={shortcut()}>
+                      {(displayShortcut) => (
+                        <Kbd
+                          aria-label={displayShortcut()}
+                          class="game-menu__option-shortcut"
+                        >
+                          <span class="game-menu__option-shortcut-label">
+                            {displayShortcut()}
+                          </span>
+                        </Kbd>
+                      )}
+                    </Show>
+                  </span>
+                </MenuCheckboxItem>
+              );
+            }}
           </For>
         </div>
         <MenuSeparator />
@@ -1414,12 +1427,17 @@ export function TopNav(props: TopNavProps): JSX.Element {
               <MenuAutofocusAnchor />
               <MenuCheckboxItem
                 checked={props.autoZoneEnabled()}
-                class="game-menu__item"
+                class="game-menu__item game-menu__switch-item"
                 closeOnSelect={false}
                 onClick={props.handleToggleAutoZone}
                 value="toggle-autozone"
               >
-                {props.autoZoneEnabled() ? "Disable" : "Enable"}
+                <span class="game-menu__item-label">Auto Zone</span>
+                <span
+                  aria-hidden="true"
+                  class="game-menu__switch-visual"
+                  data-checked={props.autoZoneEnabled() ? "" : undefined}
+                />
               </MenuCheckboxItem>
               <MenuSub closeOnSelect={false}>
                 <MenuSubTrigger class="game-menu__item game-menu__server-trigger">
@@ -1518,19 +1536,18 @@ export function TopNav(props: TopNavProps): JSX.Element {
               </Show>
               <MenuCheckboxItem
                 checked={props.autoReloginEnabled()}
-                class="game-menu__item"
+                class="game-menu__item game-menu__switch-item"
                 closeOnSelect={false}
                 disabled={props.autoReloginToggling()}
                 onClick={props.handleToggleAutoRelogin}
                 value="toggle-autorelogin"
               >
-                {props.autoReloginToggling()
-                  ? props.autoReloginEnabled()
-                    ? "Enabling..."
-                    : "Disabling..."
-                  : props.autoReloginEnabled()
-                    ? "Disable"
-                    : "Enable"}
+                <span class="game-menu__item-label">Auto Relogin</span>
+                <span
+                  aria-hidden="true"
+                  class="game-menu__switch-visual"
+                  data-checked={props.autoReloginEnabled() ? "" : undefined}
+                />
               </MenuCheckboxItem>
               <MenuSub
                 id="autorelogin-server-menu"

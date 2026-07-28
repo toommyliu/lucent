@@ -495,7 +495,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu--options {
-  width: min(26rem, calc(100vw - 0.5rem));
+  width: min(30rem, calc(100vw - 0.5rem));
   container: options-menu / inline-size;
 }
 
@@ -727,7 +727,9 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 .game-menu__profile-item {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(2.75rem, 4.75rem);
+  grid-template-columns:
+    0.875rem minmax(0, 1fr)
+    minmax(2.75rem, 4.75rem);
   align-items: center;
   column-gap: 0.5rem;
   padding-right: 0.5rem;
@@ -786,7 +788,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu__profile-item .menu__item-indicator {
-  display: none !important;
+  justify-self: center;
 }
 
 .game-menu__server-trigger .menu__sub-icon,
@@ -803,17 +805,42 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   flex: 0 1 auto;
 }
 
-.game-menu__option-content {
-  display: flex;
-  flex: 1 1 auto;
+.game-menu__option-item {
+  display: grid;
+  grid-template-columns: 0.875rem minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-width: 0;
+  column-gap: 0.5rem;
+}
+
+.game-menu__option-item > .menu__item-indicator {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+}
+
+.game-menu__option-content {
+  display: contents;
 }
 
 .game-menu__option-content > .game-menu__item-label {
-  flex: 0 1 auto;
+  grid-column: 2;
+  grid-row: 1;
+  white-space: nowrap;
+}
+
+.game-menu__option-shortcut {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 6rem;
+  min-width: 0;
+}
+
+.game-menu__option-shortcut-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-menu--autozone-maps {
@@ -876,7 +903,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
     minmax(min(10rem, 100%), 1fr)
   );
   row-gap: 2px;
-  column-gap: 3px;
+  column-gap: 0.5rem;
 }
 
 .game-options-grid::after {
@@ -891,7 +918,11 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   pointer-events: none;
 }
 
-@container options-menu (width < 20.625rem) {
+@container options-menu (width < 24rem) {
+  .game-options-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .game-options-grid::after {
     display: none;
   }
