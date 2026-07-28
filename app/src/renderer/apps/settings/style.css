@@ -29,6 +29,10 @@
 }
 
 .settings-tabs.tabs {
+  --settings-content-scrollbar-gap: 0.75rem;
+  --settings-inline-inset: clamp(1.25rem, calc(0.25rem + 5vw), 2rem);
+  --settings-scrollbar-gutter: 0.875rem;
+
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -44,17 +48,38 @@
   background: rgb(var(--background));
   display: flex;
   flex: 0 0 auto;
-  justify-content: center;
   min-height: 3.5rem;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 1.5rem 1.5rem 0;
+  padding: 1.5rem var(--settings-inline-inset) 0;
   position: relative;
   scrollbar-width: none;
   z-index: 1;
 }
 
 .settings-tabs__bar::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tabs__bar-inner {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 54rem;
+  min-width: min-content;
+  padding-right: calc(
+    var(--settings-content-scrollbar-gap) + var(--settings-scrollbar-gutter)
+  );
+  width: 100%;
+}
+
+.settings-tabs__bar-action {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.settings-tabs__bar-action--compact {
   display: none;
 }
 
@@ -73,8 +98,17 @@
 }
 
 .settings-tabs__list.tabs__list {
-  max-width: 58rem;
-  width: 100%;
+  width: auto;
+}
+
+.settings-content-scroller {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 1.5rem var(--settings-inline-inset);
 }
 
 .settings-content-wrapper {
@@ -83,22 +117,24 @@
   flex: 1 1 auto;
   gap: 1.5rem;
   margin: 0 auto;
-  max-width: 58rem;
+  max-width: 54rem;
   min-height: 0;
-  overflow-y: auto;
   overflow-x: hidden;
-  padding: 1.5rem 2rem 3rem;
+  overflow-y: auto;
+  padding: 0 var(--settings-content-scrollbar-gap) 0 0;
+  scrollbar-gutter: stable;
   width: 100%;
+}
+
+.settings-content-wrapper::-webkit-scrollbar-thumb {
+  border-bottom-width: 0;
+  border-top-width: 0;
 }
 
 .settings-section {
   display: grid;
   gap: 1.25rem;
   min-width: 0;
-}
-
-#appearance.settings-section {
-  padding-bottom: 1.5rem;
 }
 
 .settings-section__header {
@@ -126,6 +162,7 @@
 }
 
 .settings-section__content {
+  container: settings-section-content / inline-size;
   display: grid;
   gap: 0.75rem;
   min-width: 0;
@@ -278,11 +315,6 @@
 
 .reset-settings-button {
   flex: 0 0 auto;
-}
-
-.hotkey-group.card {
-  border-radius: var(--radius-xl);
-  overflow: hidden;
 }
 
 .settings-app .card__title {
@@ -470,6 +502,21 @@
   min-width: 5.5rem;
 }
 
+.segmented-control {
+  min-width: 0;
+}
+
+.segmented-control__list.tabs__list {
+  display: flex;
+  min-width: 0;
+}
+
+.segmented-control__trigger.tabs__trigger {
+  flex: 1 0 auto;
+  min-width: 4.25rem;
+  text-align: center;
+}
+
 .theme-profile-panel {
   display: grid;
   min-width: 0;
@@ -485,7 +532,7 @@
 }
 
 .theme-profile.card {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -629,17 +676,10 @@
   width: 0.875rem;
 }
 
-.hotkey-settings-header-actions {
-  align-items: center;
-  display: flex;
-  gap: 1rem;
-}
-
 .hotkey-layouts--continuous {
   display: flex;
   flex-direction: column;
   gap: 2rem;
-  padding-bottom: 1.5rem;
 }
 
 .hotkey-category-title {
@@ -691,6 +731,57 @@
   width: 16rem;
 }
 
+@container settings-section-content (max-width: 29rem) {
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .settings-row__content {
+    min-width: 0;
+  }
+
+  .settings-row__action {
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .settings-row__children {
+    flex-basis: 100%;
+  }
+
+  .settings-row--switch {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1.5rem;
+  }
+
+  .settings-row--switch .settings-row__content {
+    min-width: 0;
+  }
+
+  .settings-row--switch .settings-row__action {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    width: auto;
+  }
+
+  .settings-row--with-subitem {
+    flex-wrap: wrap;
+  }
+
+  .update-status-subitem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .update-status-subitem__button.pill-button {
+    justify-self: start;
+  }
+}
+
 @media (max-width: 560px) {
   .settings-layout {
     display: flex;
@@ -698,10 +789,8 @@
   }
 
   .settings-tabs__bar {
-    justify-content: flex-start;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 1.25rem;
     scrollbar-width: none;
   }
 
@@ -709,13 +798,16 @@
     display: none;
   }
 
-  .settings-tabs__list.tabs__list {
-    width: auto;
+  .settings-tabs__bar-action--full {
+    display: none;
+  }
+
+  .settings-tabs__bar-action--compact {
+    display: block;
   }
 
   .settings-content-wrapper {
     gap: 1.25rem;
-    padding: 1.25rem;
   }
 
   .settings-section__header {
@@ -839,11 +931,6 @@
     display: flex;
     justify-content: flex-start;
     width: 100%;
-  }
-
-  .hotkey-settings-header-actions {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .hotkey-layouts--sidebar {

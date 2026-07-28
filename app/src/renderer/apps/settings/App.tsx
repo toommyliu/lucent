@@ -415,13 +415,19 @@ function SegmentedControl<T extends string>(props: {
   return (
     <Tabs
       aria-label={props["aria-label"]}
+      class="segmented-control"
       onValueChange={(details) => props.onChange(details.value as T)}
       value={props.value}
     >
-      <TabsList>
+      <TabsList class="segmented-control__list">
         <For each={props.options}>
           {(option) => (
-            <TabsTrigger value={option.value}>{option.label}</TabsTrigger>
+            <TabsTrigger
+              class="segmented-control__trigger"
+              value={option.value}
+            >
+              {option.label}
+            </TabsTrigger>
           )}
         </For>
       </TabsList>
@@ -695,7 +701,6 @@ function HotkeySettingsSection(props: {
   readonly platform: AppPlatform;
   readonly settings: AppSettings;
   readonly onHotkeysPatch: (patch: HotkeysPatch) => Promise<void>;
-  readonly onResetHotkeys: () => Promise<void>;
 }): JSX.Element {
   const [recordingId, setRecordingId] = createSignal<GameCommandId | null>(
     null,
@@ -926,21 +931,7 @@ function HotkeySettingsSection(props: {
   );
 
   return (
-    <SettingsSection
-      id="hotkeys"
-      title="Hotkeys"
-      action={
-        <div class="hotkey-settings-header-actions">
-          <ResetButton
-            confirmLabel="Reset hotkeys"
-            description="This restores every game-window shortcut to its default binding."
-            label="Reset hotkeys"
-            onConfirm={() => void props.onResetHotkeys()}
-            title="Reset all hotkeys?"
-          />
-        </div>
-      }
-    >
+    <SettingsSection id="hotkeys" title="Hotkeys">
       <div class="hotkey-layouts--continuous">
         <For each={commandCategories}>
           {(category) => (
@@ -1415,63 +1406,89 @@ export function App(props: {
             value={activeTab()}
           >
             <div class="settings-tabs__bar">
-              <TabsList class="settings-tabs__list" variant="underline">
-                <For each={settingsTabs}>
-                  {(tab) => (
-                    <TabsTrigger value={tab.value}>{tab.label}</TabsTrigger>
-                  )}
-                </For>
-              </TabsList>
+              <div class="settings-tabs__bar-inner">
+                <TabsList class="settings-tabs__list" variant="underline">
+                  <For each={settingsTabs}>
+                    {(tab) => (
+                      <TabsTrigger value={tab.value}>{tab.label}</TabsTrigger>
+                    )}
+                  </For>
+                </TabsList>
+                <Show when={activeTab() === "hotkeys"}>
+                  <div class="settings-tabs__bar-action settings-tabs__bar-action--full">
+                    <ResetButton
+                      confirmLabel="Reset hotkeys"
+                      description="This restores every game-window shortcut to its default binding."
+                      label="Reset hotkeys"
+                      onConfirm={() =>
+                        void runSettingsUpdate(settingsBridge().resetHotkeys())
+                      }
+                      title="Reset all hotkeys?"
+                    />
+                  </div>
+                  <div class="settings-tabs__bar-action settings-tabs__bar-action--compact">
+                    <ResetButton
+                      confirmLabel="Reset hotkeys"
+                      description="This restores every game-window shortcut to its default binding."
+                      iconOnly
+                      label="Reset hotkeys"
+                      onConfirm={() =>
+                        void runSettingsUpdate(settingsBridge().resetHotkeys())
+                      }
+                      title="Reset all hotkeys?"
+                    />
+                  </div>
+                </Show>
+              </div>
             </div>
-            <div class="settings-content-wrapper">
-              <Show when={error()}>
-                {(notice) => (
-                  <SettingsErrorNotice
-                    id={notice().id}
-                    message={notice().message}
-                    scope="global"
+            <div class="settings-content-scroller">
+              <div class="settings-content-wrapper">
+                <Show when={error()}>
+                  {(notice) => (
+                    <SettingsErrorNotice
+                      id={notice().id}
+                      message={notice().message}
+                      scope="global"
+                    />
+                  )}
+                </Show>
+                <TabsContent value="general">
+                  <GeneralSettings
+                    checking={
+                      updateCheckPending() ||
+                      liveUpdateState().status === "checking"
+                    }
+                    onCheckForUpdates={checkForUpdates}
+                    onOpenReleasePage={openReleasePage}
+                    onPreferencesPatch={(patch) =>
+                      void runSettingsUpdate(
+                        settingsBridge().updatePreferences(patch),
+                      )
+                    }
+                    settings={settings()}
+                    updateState={liveUpdateState()}
                   />
-                )}
-              </Show>
-              <TabsContent value="general">
-                <GeneralSettings
-                  checking={
-                    updateCheckPending() ||
-                    liveUpdateState().status === "checking"
-                  }
-                  onCheckForUpdates={checkForUpdates}
-                  onOpenReleasePage={openReleasePage}
-                  onPreferencesPatch={(patch) =>
-                    void runSettingsUpdate(
-                      settingsBridge().updatePreferences(patch),
-                    )
-                  }
-                  settings={settings()}
-                  updateState={liveUpdateState()}
-                />
-              </TabsContent>
-              <TabsContent value="hotkeys">
-                <HotkeySettingsSection
-                  onHotkeysPatch={(patch) =>
-                    runSettingsUpdate(settingsBridge().updateHotkeys(patch))
-                  }
-                  onResetHotkeys={() =>
-                    runSettingsUpdate(settingsBridge().resetHotkeys())
-                  }
-                  platform={props.platform}
-                  settings={settings()}
-                />
-              </TabsContent>
-              <TabsContent value="appearance">
-                <AppearanceSettings
-                  onAppearancePatch={(patch) =>
-                    void runSettingsUpdate(
-                      settingsBridge().updateAppearance(patch),
-                    )
-                  }
-                  settings={settings()}
-                />
-              </TabsContent>
+                </TabsContent>
+                <TabsContent value="hotkeys">
+                  <HotkeySettingsSection
+                    onHotkeysPatch={(patch) =>
+                      runSettingsUpdate(settingsBridge().updateHotkeys(patch))
+                    }
+                    platform={props.platform}
+                    settings={settings()}
+                  />
+                </TabsContent>
+                <TabsContent value="appearance">
+                  <AppearanceSettings
+                    onAppearancePatch={(patch) =>
+                      void runSettingsUpdate(
+                        settingsBridge().updateAppearance(patch),
+                      )
+                    }
+                    settings={settings()}
+                  />
+                </TabsContent>
+              </div>
             </div>
           </Tabs>
         </main>
