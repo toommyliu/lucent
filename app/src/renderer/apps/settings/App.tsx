@@ -1366,20 +1366,26 @@ export function App(props: {
   };
 
   onMount(() => {
-    if (props.initialSettings === null) {
-      void window.desktop.settings
-        .get()
-        .then(setSettings)
-        .catch((cause: unknown) => {
+    let disposed = false;
+    const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
+    const unsubscribeUpdates = updatesBridge().onChanged(applyUpdateState);
+
+    void window.desktop.settings
+      .get()
+      .then((nextSettings) => {
+        if (!disposed) {
+          setSettings(nextSettings);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!disposed) {
           console.error("Failed to load settings:", cause);
           showError(
             cause instanceof Error ? cause.message : "Settings unavailable",
           );
-        });
-    }
+        }
+      });
 
-    const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
-    const unsubscribeUpdates = updatesBridge().onChanged(applyUpdateState);
     void updatesBridge()
       .getState()
       .then(applyUpdateState)
@@ -1388,6 +1394,7 @@ export function App(props: {
       });
 
     onCleanup(() => {
+      disposed = true;
       unsubscribeSettings();
       unsubscribeUpdates();
     });
