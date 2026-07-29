@@ -1284,7 +1284,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
                         >
                           <SelectTrigger
                             aria-labelledby="script-room-policy-label"
-                            size="sm"
                             onKeyDown={(event) => {
                               if (
                                 event.key !== "Escape" &&

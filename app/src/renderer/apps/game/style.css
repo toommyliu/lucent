@@ -1070,7 +1070,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__script-room-label {
   color: var(--color-foreground);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
 }
