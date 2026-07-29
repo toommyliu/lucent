@@ -217,7 +217,7 @@ const DEFAULT_SANS_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const DEFAULT_MONO_FONT =
   'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
-const DEFAULT_SANS_FONT_SIZE = 13;
+const DEFAULT_SANS_FONT_SIZE = 14;
 const DEFAULT_MONO_FONT_SIZE = 12;
 
 const DEFAULT_THEME_TOKENS: Record<ThemeVariant, ThemeTokenValues> = {

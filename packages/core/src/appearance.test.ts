@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 
 import {
   createAppearanceSnapshot,
+  getTextSizeTokens,
   hexToRgb,
   readAppearanceSnapshotArgument,
   rgbEquals,
@@ -22,6 +23,21 @@ describe("appearance bootstrap", () => {
     expect(snapshot.tokens.background).toEqual(
       DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens.background,
     );
+    expect(snapshot.sansFontSize).toBe(14);
+    expect(snapshot.monoFontSize).toBe(12);
+    expect(getTextSizeTokens(snapshot.sansFontSize)).toEqual({
+      "--text-2xs": "10px",
+      "--text-xs": "11px",
+      "--text-sm": "12px",
+      "--text-base": "14px",
+      "--text-md": "14px",
+      "--text-lg": "15px",
+      "--text-xl": "16px",
+      "--text-2xl": "18px",
+      "--text-3xl": "20px",
+      "--text-4xl": "24px",
+      "--text-5xl": "28px",
+    });
   });
 
   it("formats, parses, and compares theme colors", () => {

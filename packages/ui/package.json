@@ -37,7 +37,6 @@
     "build": "tsx scripts/build.ts",
     "postinstall": "tsx scripts/build.ts",
     "icon:print": "tsx scripts/print-lucide-icon.ts",
-    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {

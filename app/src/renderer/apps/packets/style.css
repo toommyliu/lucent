@@ -608,11 +608,7 @@
 .packets-log-row__type {
   --packets-log-type-color: var(--muted-foreground);
 
-  color: color-mix(
-    in srgb,
-    rgb(var(--packets-log-type-color)) 58%,
-    var(--color-muted-foreground)
-  );
+  color: rgba(var(--packets-log-type-color), 0.72);
   display: inline-flex;
   font-weight: 700;
   justify-content: flex-start;
@@ -684,7 +680,6 @@
   min-height: 10rem;
   padding: 1rem;
   text-align: center;
-  text-wrap: initial;
 }
 
 .packets-empty .empty__header {
@@ -704,7 +699,6 @@
   line-height: 1.45;
   margin: 0.25rem 0 0;
   max-width: 18rem;
-  text-wrap: pretty;
 }
 
 .packets-sender__row {

@@ -41,17 +41,17 @@ const decodeAppearanceSnapshot = Schema.decodeUnknownOption(
 const decodeUnknownRecord = Schema.decodeUnknownOption(UnknownRecordSchema);
 
 const textSizeRatios = {
-  "--text-2xs": 10 / 13,
-  "--text-xs": 11 / 13,
-  "--text-sm": 12 / 13,
+  "--text-2xs": 10 / 14,
+  "--text-xs": 11 / 14,
+  "--text-sm": 12 / 14,
   "--text-base": 1,
-  "--text-md": 14 / 13,
-  "--text-lg": 15 / 13,
-  "--text-xl": 16 / 13,
-  "--text-2xl": 18 / 13,
-  "--text-3xl": 20 / 13,
-  "--text-4xl": 24 / 13,
-  "--text-5xl": 28 / 13,
+  "--text-md": 14 / 14,
+  "--text-lg": 15 / 14,
+  "--text-xl": 16 / 14,
+  "--text-2xl": 18 / 14,
+  "--text-3xl": 20 / 14,
+  "--text-4xl": 24 / 14,
+  "--text-5xl": 28 / 14,
 } as const;
 
 type TextSizeTokenName = keyof typeof textSizeRatios;
