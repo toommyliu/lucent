@@ -71,7 +71,7 @@ const testProfile: CombatProfile = {
   role: "Farm",
   delayMs: 150,
   cooldownMode: "use-if-ready",
-  steps: [{ skill: 1, conditions: [] }],
+  steps: [{ skill: 1, conditions: [], priority: true }],
   messageTriggers: [],
 };
 
@@ -81,7 +81,8 @@ describe("CombatProfiles", () => {
       const { combatProfiles } = yield* makeHarness();
 
       yield* combatProfiles.load;
-      yield* combatProfiles.saveProfile(testProfile);
+      const saved = yield* combatProfiles.saveProfile(testProfile);
+      expect(saved.profiles.at(-1)?.steps[0]?.priority).toBe(true);
 
       const next = yield* combatProfiles.deleteProfile(testProfile.id);
 

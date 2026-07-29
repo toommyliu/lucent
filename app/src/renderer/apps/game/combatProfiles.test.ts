@@ -30,6 +30,7 @@ const profile: CombatProfile = {
 
 const makeDeps = (overrides?: {
   readonly attackMonster?: (target: unknown) => Effect.Effect<boolean>;
+  readonly canUseSkill?: (skill: number | string) => Effect.Effect<boolean>;
   readonly useSkill?: (
     skill: number | string,
     options?: unknown,
@@ -67,6 +68,151 @@ const makeDeps = (overrides?: {
 });
 
 describe("combat profile runtime", () => {
+  it.effect(
+    "uses strict priority order without advancing the rotation cursor",
+    () =>
+      Effect.gen(function* () {
+        let prioritiesReady = true;
+        const casts: number[] = [];
+        const cursor = yield* makeCombatProfileCursor();
+        const priorityProfile: CombatProfile = {
+          ...profile,
+          steps: [
+            { skill: 1, conditions: [] },
+            { skill: 2, conditions: [], priority: true },
+            { skill: 3, conditions: [], priority: true },
+          ],
+        };
+        const deps = makeDeps({
+          canUseSkill: (skill) =>
+            Effect.succeed(skill === 2 || skill === 3 ? prioritiesReady : true),
+          useSkill: (skill) =>
+            Effect.sync(() => {
+              casts.push(Number(skill));
+              return true;
+            }),
+        });
+
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(true);
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(true);
+        prioritiesReady = false;
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(true);
+
+        expect(casts).toEqual([2, 2, 1]);
+      }),
+  );
+
+  it.effect(
+    "skips ineligible priority steps before attempting a later priority",
+    () =>
+      Effect.gen(function* () {
+        const casts: number[] = [];
+        const cursor = yield* makeCombatProfileCursor();
+        const priorityProfile: CombatProfile = {
+          ...profile,
+          steps: [
+            {
+              skill: 1,
+              conditions: [
+                {
+                  type: "self-hp",
+                  op: "<=",
+                  value: 20,
+                  unit: "percent",
+                },
+              ],
+              priority: true,
+            },
+            { skill: 2, conditions: [], priority: true },
+            { skill: 3, conditions: [], priority: true },
+            { skill: 4, conditions: [] },
+          ],
+        };
+        const deps = makeDeps({
+          canUseSkill: (skill) => Effect.succeed(skill !== 2),
+          useSkill: (skill) =>
+            Effect.sync(() => {
+              casts.push(Number(skill));
+              return true;
+            }),
+        });
+
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(true);
+        expect(casts).toEqual([3]);
+      }),
+  );
+
+  it.effect(
+    "stops after a failed waiting priority without advancing the cursor",
+    () =>
+      Effect.gen(function* () {
+        let hp = 10;
+        let laterPriorityReady = true;
+        const casts: number[] = [];
+        const castOptions: unknown[] = [];
+        const cursor = yield* makeCombatProfileCursor();
+        const priorityProfile: CombatProfile = {
+          ...profile,
+          steps: [
+            { skill: 4, conditions: [] },
+            {
+              skill: 1,
+              conditions: [
+                {
+                  type: "self-hp",
+                  op: "<=",
+                  value: 20,
+                  unit: "percent",
+                },
+              ],
+              cooldownMode: "wait-for-cooldown",
+              priority: true,
+            },
+            { skill: 5, conditions: [] },
+            { skill: 2, conditions: [], priority: true },
+          ],
+        };
+        const baseDeps = makeDeps({
+          canUseSkill: (skill) =>
+            Effect.succeed(skill === 2 ? laterPriorityReady : true),
+          useSkill: (skill, options) =>
+            Effect.sync(() => {
+              casts.push(Number(skill));
+              castOptions.push(options);
+              return skill !== 1;
+            }),
+        });
+        const deps: CombatProfileRuntimeDeps = {
+          ...baseDeps,
+          player: {
+            ...baseDeps.player,
+            getHp: () => Effect.succeed(hp),
+          },
+        };
+
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(false);
+        expect(casts).toEqual([1]);
+        expect(castOptions).toEqual([{ wait: true }]);
+
+        hp = 100;
+        laterPriorityReady = false;
+        expect(
+          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+        ).toBe(true);
+        expect(casts).toEqual([1, 4]);
+      }),
+  );
+
   it.effect("advances the rotation cursor after a failed cast", () =>
     Effect.gen(function* () {
       const casts: number[] = [];

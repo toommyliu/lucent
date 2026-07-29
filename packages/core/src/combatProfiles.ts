@@ -61,6 +61,7 @@ export type CombatProfileCondition = typeof CombatProfileConditionSchema.Type;
 export const CombatProfileStepSchema = Schema.Struct({
   skill: boundedInt(0, 5),
   conditions: Schema.Array(CombatProfileConditionSchema),
+  priority: Schema.optionalKey(Schema.Boolean),
   cooldownMode: Schema.optionalKey(CombatProfileCooldownModeSchema),
   waitMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
 });
@@ -316,6 +317,9 @@ const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
   return {
     skill,
     conditions: normalizeArray(record["conditions"], normalizeCondition),
+    ...(fromOption(decodeBoolean, record["priority"])
+      ? { priority: true }
+      : {}),
     ...(cooldownMode === undefined
       ? legacyCooldownMode === undefined
         ? {}

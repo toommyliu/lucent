@@ -41,6 +41,7 @@ const canonicalLibrary = {
       steps: [
         {
           skill: 1,
+          priority: true,
           conditions: [
             {
               type: "self-hp",
@@ -223,7 +224,7 @@ describe("combatProfiles", () => {
       id: "copy-profile-1",
       label: "Farm Rotation Copy 3",
       className: "ArchPaladin",
-      steps: [{ skill: 1 }],
+      steps: [{ skill: 1, priority: true }],
       messageTriggers: [{ messageIncludes: "enrage" }],
     });
     expect(duplicate.steps[0]).not.toBe(source.steps[0]);

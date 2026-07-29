@@ -206,39 +206,86 @@ export const matchesCombatProfileStep = (
     return true;
   });
 
-export const castNextCombatProfileStep = (
+interface PreparedCombatProfileStep {
+  readonly waitForCooldown: boolean;
+}
+
+const prepareCombatProfileStep = Effect.fn("prepareCombatProfileStep")(
+  function* (
+    deps: CombatProfileRuntimeDeps,
+    profile: CombatProfile,
+    step: CombatProfileStep,
+  ): Effect.fn.Return<PreparedCombatProfileStep | null> {
+    if (!(yield* matchesCombatProfileStep(deps, step))) {
+      return null;
+    }
+
+    const cooldownMode = step.cooldownMode ?? profile.cooldownMode;
+    const waitForCooldown = cooldownMode === "wait-for-cooldown";
+    if (!waitForCooldown && !(yield* deps.combat.canUseSkill(step.skill))) {
+      return null;
+    }
+
+    return { waitForCooldown };
+  },
+);
+
+const castPreparedCombatProfileStep = Effect.fn(
+  "castPreparedCombatProfileStep",
+)(function* (
   deps: CombatProfileRuntimeDeps,
-  profile: CombatProfile,
-  cursor: CombatProfileCursor,
-) =>
-  Effect.gen(function* () {
+  step: CombatProfileStep,
+  prepared: PreparedCombatProfileStep,
+): Effect.fn.Return<boolean> {
+  const cast = yield* deps.combat.useSkill(step.skill, {
+    wait: prepared.waitForCooldown,
+  });
+  if (cast && step.waitMs !== undefined && step.waitMs > 0) {
+    yield* Effect.sleep(`${step.waitMs} millis`);
+  }
+  return cast;
+});
+
+export const castNextCombatProfileStep = Effect.fn("castNextCombatProfileStep")(
+  function* (
+    deps: CombatProfileRuntimeDeps,
+    profile: CombatProfile,
+    cursor: CombatProfileCursor,
+  ): Effect.fn.Return<boolean> {
     const steps = profile.steps;
     if (steps.length === 0) {
       return false;
+    }
+
+    for (const step of steps) {
+      if (step.priority !== true) {
+        continue;
+      }
+
+      const prepared = yield* prepareCombatProfileStep(deps, profile, step);
+      if (prepared === null) {
+        continue;
+      }
+
+      return yield* castPreparedCombatProfileStep(deps, step, prepared);
     }
 
     const startState = yield* Ref.get(cursor.state);
     for (let offset = 0; offset < steps.length; offset += 1) {
       const stepIndex = (startState.index + offset) % steps.length;
       const step = steps[stepIndex];
-      if (
-        step === undefined ||
-        !(yield* matchesCombatProfileStep(deps, step))
-      ) {
+      if (step === undefined) {
         continue;
       }
 
-      const cooldownMode = step.cooldownMode ?? profile.cooldownMode;
-      const waitForCooldown = cooldownMode === "wait-for-cooldown";
-      if (!waitForCooldown && !(yield* deps.combat.canUseSkill(step.skill))) {
+      const prepared = yield* prepareCombatProfileStep(deps, profile, step);
+      if (prepared === null) {
         continue;
       }
 
       const resetVersionBeforeCast = (yield* Ref.get(cursor.state))
         .resetVersion;
-      const cast = yield* deps.combat.useSkill(step.skill, {
-        wait: waitForCooldown,
-      });
+      const cast = yield* castPreparedCombatProfileStep(deps, step, prepared);
       const nextIndex = (stepIndex + 1) % steps.length;
       yield* Ref.update(cursor.state, (state) =>
         state.resetVersion === resetVersionBeforeCast
@@ -246,15 +293,12 @@ export const castNextCombatProfileStep = (
           : state,
       );
 
-      if (cast && step.waitMs !== undefined && step.waitMs > 0) {
-        yield* Effect.sleep(`${step.waitMs} millis`);
-      }
-
       return cast;
     }
 
     return false;
-  });
+  },
+);
 
 const normalizeMessageTriggerText = (value: string): string =>
   value.trim().replace(/\s+/gu, " ").toLowerCase();

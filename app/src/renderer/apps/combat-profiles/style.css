@@ -244,8 +244,21 @@
   grid-template-columns:
     minmax(7rem, 8rem)
     minmax(14rem, 18rem)
+    minmax(7rem, max-content)
     minmax(0, 1fr);
   row-gap: 0.5rem;
+}
+
+.combat-profiles-step__priority {
+  align-items: center;
+  display: inline-grid;
+  gap: 0.25rem;
+  grid-template-columns: max-content auto;
+  justify-self: start;
+}
+
+.combat-profiles-step__priority .checkbox {
+  line-height: 1;
 }
 
 .combat-profiles-step__actions {

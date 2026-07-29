@@ -224,6 +224,7 @@ const toScriptProfileStep = (
 ): CombatProfileStepDefinition => ({
   skill: step.skill,
   conditions: step.conditions.map((condition) => ({ ...condition })),
+  ...(step.priority === true ? { priority: true } : {}),
   ...(step.cooldownMode === undefined
     ? {}
     : { cooldownMode: step.cooldownMode }),
@@ -669,6 +670,20 @@ export function App(): JSX.Element {
       ...step,
       skill,
     }));
+  };
+
+  const updateStepPriority = (stepIndex: number, priority: boolean): void => {
+    updateStep(stepIndex, (step) => {
+      if (!priority) {
+        const { priority: _priority, ...rest } = step;
+        return rest;
+      }
+
+      return {
+        ...step,
+        priority: true,
+      };
+    });
   };
 
   const updateStepCooldownMode = (
@@ -1259,6 +1274,27 @@ export function App(): JSX.Element {
                               </SelectContent>
                             </Select>
                           </Label>
+                          <div class="combat-profiles-step__priority">
+                            <Checkbox
+                              checked={step().priority === true}
+                              onChange={(event) =>
+                                updateStepPriority(
+                                  stepIndex,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            >
+                              Priority
+                            </Checkbox>
+                            <TooltipIconButton
+                              aria-label={`Priority skill ${step().skill} help`}
+                              class="combat-profiles-help-button"
+                              size="icon-sm"
+                              tooltip="This skill can interrupt the normal rotation. On the next normal cast, the rotation resumes where it left off."
+                            >
+                              <Icon icon="help_circle" class="button__icon" />
+                            </TooltipIconButton>
+                          </div>
                           <div class="combat-profiles-step__actions">
                             <Button
                               aria-label={`Move skill ${step().skill} up`}
