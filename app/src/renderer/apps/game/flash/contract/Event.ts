@@ -54,6 +54,21 @@ export type ProjectionEvent =
       readonly targetType: "monster" | "player";
     }
   | {
+      readonly durationMs?: number;
+      readonly monsterMapId: number;
+      readonly source: "aura" | "message";
+      readonly triggerId: string;
+      readonly triggerText: string;
+      readonly type: "anti-counter-start";
+    }
+  | {
+      readonly monsterMapId: number;
+      readonly source: "aura" | "message";
+      readonly triggerId: string;
+      readonly triggerText: string;
+      readonly type: "anti-counter-end";
+    }
+  | {
       readonly destination?: {
         readonly x: number;
         readonly y: number;
@@ -125,6 +140,21 @@ export type EventSelector =
       readonly targetId?: number;
       readonly targetType?: "monster" | "player";
       readonly type: "aura-added" | "aura-removed";
+    }
+  | {
+      readonly durationMs?: number;
+      readonly monsterMapId?: number;
+      readonly source?: "aura" | "message";
+      readonly triggerId?: string;
+      readonly triggerText?: string;
+      readonly type: "anti-counter-start";
+    }
+  | {
+      readonly monsterMapId?: number;
+      readonly source?: "aura" | "message";
+      readonly triggerId?: string;
+      readonly triggerText?: string;
+      readonly type: "anti-counter-end";
     }
   | {
       readonly message?: string;

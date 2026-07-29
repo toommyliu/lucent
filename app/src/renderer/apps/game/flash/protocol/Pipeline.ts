@@ -29,6 +29,7 @@ export interface ProjectionTrace {
 }
 
 interface EventSink {
+  readonly handleEvent?: (event: Event) => Effect.Effect<void>;
   readonly publishEvent: (event: Event) => Effect.Effect<void>;
   readonly reportDiagnostic?: DiagnosticReporter;
   readonly reportProjectionTrace?: (
@@ -110,7 +111,16 @@ export const makePipeline = (
   const diagnose: DiagnosticReporter =
     sink.reportDiagnostic ?? (() => Effect.void);
   const publish = (events: readonly Event[]) =>
-    Effect.forEach(events, sink.publishEvent, { discard: true });
+    Effect.forEach(
+      events,
+      (event) =>
+        sink.handleEvent === undefined
+          ? sink.publishEvent(event)
+          : sink
+              .handleEvent(event)
+              .pipe(Effect.andThen(sink.publishEvent(event))),
+      { discard: true },
+    );
 
   const runProjection = (
     packet: Packet,
@@ -182,7 +192,14 @@ export const makePipeline = (
       if (projected === undefined) return Effect.void;
       return runProjection(packet, projected);
     },
-    runtime: (event: RuntimeEvent) => projectAuth(store, event),
+    runtime: (event: RuntimeEvent) =>
+      projectAuth(store, event).pipe(
+        Effect.andThen(
+          sink.handleEvent === undefined
+            ? Effect.void
+            : sink.handleEvent(event),
+        ),
+      ),
   };
 };
 

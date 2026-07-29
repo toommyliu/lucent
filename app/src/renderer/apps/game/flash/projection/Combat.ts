@@ -5,12 +5,18 @@ import {
   ignoreDiagnostic,
   type DiagnosticReporter,
 } from "../contract/Diagnostic";
+import { WireNumber } from "../contract/Coercion";
 import type { ExtensionPacket, ServerPacket } from "../contract/Packet";
 import {
   AuraPayload,
   parseCombatEntityReferences,
   toAura,
 } from "../contract/payload/Combat";
+import {
+  antiCounterDurationMsFromAura,
+  matchAntiCounterAura,
+  matchAntiCounterMessage,
+} from "../domain/AntiCounter";
 import {
   EntityPatchPayload,
   entityState,
@@ -37,6 +43,16 @@ const Animation = Schema.Struct({
   msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   tInf: Schema.optionalKey(Schema.String),
 });
+const CounterAction = Schema.Struct({
+  actionResult: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Struct({
+        cInf: Schema.optionalKey(Schema.String),
+        ct: Schema.optionalKey(WireNumber),
+      }),
+    ),
+  ),
+});
 const CombatPayload = Schema.Struct({
   a: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
   anims: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
@@ -46,10 +62,12 @@ const CombatPayload = Schema.Struct({
   p: Schema.optionalKey(
     Schema.NullOr(Schema.Record(Schema.String, Schema.Unknown)),
   ),
+  sara: Schema.optionalKey(Schema.Unknown),
 });
 const decodeCombat = Schema.decodeUnknownOption(CombatPayload);
 const decodeAnimation = Schema.decodeUnknownOption(Animation);
 const decodeAuraChange = Schema.decodeUnknownOption(AuraChange);
+const decodeCounterAction = Schema.decodeUnknownOption(CounterAction);
 const decodeEntityPatch = Schema.decodeUnknownOption(EntityPatchPayload);
 
 const messageText = (
@@ -72,6 +90,30 @@ const entityPatch = (patch: EntityPatch) => {
     ...(patch.strFrame === undefined ? {} : { cell: patch.strFrame }),
     ...(state === undefined ? {} : { state }),
   };
+};
+
+const antiCounterCastDurationMs = (
+  value: unknown,
+  monsterMapId: number,
+): number | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  let durationMs: number | undefined;
+  for (const entry of value) {
+    const decoded = decodeCounterAction(entry);
+    if (Option.isNone(decoded)) continue;
+    const result = decoded.value.actionResult;
+    if (result === null || result === undefined) continue;
+    if (
+      !parseCombatEntityReferences(result.cInf ?? "").some(
+        (entity) => entity.type === "monster" && entity.id === monsterMapId,
+      )
+    ) {
+      continue;
+    }
+    if (result.ct === undefined || result.ct <= 0) continue;
+    durationMs = Math.max(durationMs ?? 0, result.ct);
+  }
+  return durationMs;
 };
 
 export const projectCombat = (
@@ -167,6 +209,51 @@ export const projectCombat = (
       }
     }
 
+    for (const value of decoded.value.anims ?? []) {
+      const animation = decodeAnimation(value);
+      if (Option.isNone(animation)) continue;
+      const message = messageText(animation.value.msg);
+      if (message === undefined) continue;
+      const source =
+        animation.value.cInf === undefined
+          ? []
+          : parseCombatEntityReferences(animation.value.cInf);
+      const target =
+        animation.value.tInf === undefined
+          ? []
+          : parseCombatEntityReferences(animation.value.tInf);
+      const monsterMapId = [...source, ...target].find(
+        (entity) => entity.type === "monster",
+      )?.id;
+      const monster =
+        monsterMapId === undefined
+          ? null
+          : yield* store.world.getMonster(monsterMapId);
+      const normalizedMessage =
+        monster === null ? message : message.replaceAll("<mon>", monster.name);
+      const antiCounterMatch = matchAntiCounterMessage(normalizedMessage);
+      if (monsterMapId !== undefined && antiCounterMatch !== undefined) {
+        const durationMs = antiCounterCastDurationMs(
+          decoded.value.sara,
+          monsterMapId,
+        );
+        events.push({
+          type: "anti-counter-start",
+          monsterMapId,
+          source: "message",
+          triggerId: antiCounterMatch.triggerId,
+          triggerText: antiCounterMatch.triggerText,
+          ...(durationMs === undefined ? {} : { durationMs }),
+        });
+      }
+      events.push({
+        type: "update-message",
+        message: normalizedMessage,
+        ...(monsterMapId === undefined ? {} : { monsterMapId }),
+        source: "animation",
+      });
+    }
+
     for (const value of decoded.value.a ?? []) {
       const change = decodeAuraChange(value);
       if (Option.isNone(change)) {
@@ -210,6 +297,23 @@ export const projectCombat = (
               toAura(payload, kind),
               auraOperation,
             );
+            const antiCounterMatch = matchAntiCounterAura(payload.nam);
+            if (
+              auraOperation === "add" &&
+              target.type === "monster" &&
+              kind === "active" &&
+              antiCounterMatch !== undefined
+            ) {
+              const durationMs = antiCounterDurationMsFromAura(payload.dur);
+              events.push({
+                type: "anti-counter-start",
+                monsterMapId: target.id,
+                source: "aura",
+                triggerId: antiCounterMatch.triggerId,
+                triggerText: antiCounterMatch.triggerText,
+                ...(durationMs === undefined ? {} : { durationMs }),
+              });
+            }
             events.push({
               type: "aura-added",
               ...eventDetails,
@@ -219,6 +323,20 @@ export const projectCombat = (
             });
           } else {
             yield* store.world.removeAura(target.type, target.id, payload.nam);
+            const antiCounterMatch = matchAntiCounterAura(payload.nam);
+            if (
+              target.type === "monster" &&
+              kind === "active" &&
+              antiCounterMatch !== undefined
+            ) {
+              events.push({
+                type: "anti-counter-end",
+                monsterMapId: target.id,
+                source: "aura",
+                triggerId: antiCounterMatch.triggerId,
+                triggerText: antiCounterMatch.triggerText,
+              });
+            }
             events.push({
               type: "aura-removed",
               ...eventDetails,
@@ -253,37 +371,6 @@ export const projectCombat = (
           }
         }
       }
-    }
-
-    for (const value of decoded.value.anims ?? []) {
-      const animation = decodeAnimation(value);
-      if (Option.isNone(animation)) continue;
-      const message = messageText(animation.value.msg);
-      if (message === undefined) continue;
-      const source =
-        animation.value.cInf === undefined
-          ? []
-          : parseCombatEntityReferences(animation.value.cInf);
-      const target =
-        animation.value.tInf === undefined
-          ? []
-          : parseCombatEntityReferences(animation.value.tInf);
-      const monsterMapId = [...source, ...target].find(
-        (entity) => entity.type === "monster",
-      )?.id;
-      const monster =
-        monsterMapId === undefined
-          ? null
-          : yield* store.world.getMonster(monsterMapId);
-      events.push({
-        type: "update-message",
-        message:
-          monster === null
-            ? message
-            : message.replaceAll("<mon>", monster.name),
-        ...(monsterMapId === undefined ? {} : { monsterMapId }),
-        source: "animation",
-      });
     }
 
     return events;

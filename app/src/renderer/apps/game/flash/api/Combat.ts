@@ -27,13 +27,17 @@ import type { BridgeService } from "../bridge/Bridge";
 import {
   NonNegativeWireInt,
   PositiveWireInt,
-  WireBoolean,
   WireInt,
 } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import { decodeCombatActionAcknowledgements } from "../contract/payload/Combat";
 import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
+import type { AntiCounter } from "./internal/AntiCounter";
+import {
+  readCombatTarget,
+  stopCombat as stopCombatControl,
+} from "./internal/CombatControl";
 import type { Inventory } from "./Inventory";
 import type { Drops } from "./Drops";
 import type { Events } from "./Events";
@@ -90,46 +94,6 @@ const ConsumableCastDispatch = Schema.NullOr(
     monsterMapId: PositiveWireInt,
   }),
 );
-const EntityStatePayload = WireInt.check(
-  Schema.isBetween({
-    minimum: EntityState.Dead,
-    maximum: EntityState.InCombat,
-  }),
-);
-const TargetPayload = Schema.NullOr(
-  Schema.Union([
-    Schema.Struct({
-      cell: Schema.String,
-      hp: WireInt,
-      level: WireInt,
-      maxHp: WireInt,
-      monsterId: WireInt,
-      monsterMapId: WireInt,
-      name: Schema.String,
-      race: Schema.String,
-      state: EntityStatePayload,
-      type: Schema.Literal("monster"),
-    }),
-    Schema.Struct({
-      afk: WireBoolean,
-      cell: Schema.String,
-      entityId: WireInt,
-      entityType: Schema.String,
-      hp: WireInt,
-      level: WireInt,
-      maxHp: WireInt,
-      maxMp: WireInt,
-      mp: WireInt,
-      name: Schema.String,
-      pad: Schema.String,
-      sp: WireInt,
-      state: EntityStatePayload,
-      type: Schema.Literal("player"),
-      username: Schema.String,
-    }),
-  ]),
-);
-
 const skillIndex = (skill: Skill): number | null => {
   return Number.isInteger(skill) && skill >= 0 && skill <= 5 ? skill : null;
 };
@@ -156,6 +120,7 @@ interface KillProfileRuntime {
 
 export const makeCombat = (
   bridge: BridgeService,
+  antiCounter: AntiCounter,
   store: Store,
   drops: Drops,
   events: Events,
@@ -171,9 +136,7 @@ export const makeCombat = (
   // Overlap would race AQW's single consumable slot; the deadline also keeps
   // queue delay from producing a late cast.
   const consumableCasts = Semaphore.makeUnsafe(1);
-  const targetValue = bridge
-    .invoke("combat.getTarget", undefined, TargetPayload)
-    .pipe(Effect.map(Option.getOrNull));
+  const targetValue = readCombatTarget(bridge);
   const targetAuras = (options?: { kind?: "active" | "passive" }) =>
     targetValue.pipe(
       Effect.flatMap((target) => {
@@ -303,20 +266,26 @@ export const makeCombat = (
       .pipe(
         Effect.flatMap((enabled) =>
           enabled
-            ? store.world
-                .getMonsterAuras(monsterMapId, { kind: "active" })
-                .pipe(Effect.map((auras) => auras.some(isCounterAttackAura)))
+            ? antiCounter
+                .isActive(monsterMapId)
+                .pipe(
+                  Effect.flatMap((tracked) =>
+                    tracked
+                      ? Effect.succeed(true)
+                      : store.world
+                          .getMonsterAuras(monsterMapId, { kind: "active" })
+                          .pipe(
+                            Effect.map((auras) =>
+                              auras.some(isCounterAttackAura),
+                            ),
+                          ),
+                  ),
+                )
             : Effect.succeed(false),
         ),
       );
 
-  const stopCombat = Effect.all(
-    [
-      bridge.invoke("combat.cancelAutoAttack", undefined, Schema.Void),
-      bridge.invoke("combat.cancelTarget", undefined, Schema.Void),
-    ],
-    { discard: true },
-  ).pipe(Effect.asVoid);
+  const stopCombat = stopCombatControl(bridge);
 
   const useSkill = (skill: Skill, options?: SkillUseOptions) => {
     const index = skillIndex(skill);
@@ -324,9 +293,11 @@ export const makeCombat = (
     return Effect.gen(function* () {
       if (!(yield* player.isAlive())) return false;
       const target = yield* targetValue;
+      const initialMonsterMapId =
+        target?.type === "monster" ? target.monsterMapId : undefined;
       if (
-        target?.type === "monster" &&
-        (yield* antiCounterActive(target.monsterMapId))
+        initialMonsterMapId !== undefined &&
+        (yield* antiCounterActive(initialMonsterMapId))
       ) {
         yield* stopCombat;
         return false;
@@ -336,6 +307,20 @@ export const makeCombat = (
           ? yield* waitForSkillReady(index)
           : yield* canUseSkill(index);
       if (!ready || !(yield* player.isAlive())) return false;
+      const targetBeforeCast = yield* targetValue;
+      const guardedMonsterMapId =
+        targetBeforeCast?.type === "monster"
+          ? targetBeforeCast.monsterMapId
+          : targetBeforeCast === null
+            ? initialMonsterMapId
+            : undefined;
+      if (
+        guardedMonsterMapId !== undefined &&
+        (yield* antiCounterActive(guardedMonsterMapId))
+      ) {
+        if (targetBeforeCast?.type === "monster") yield* stopCombat;
+        return false;
+      }
       return yield* bridge
         .invoke(
           options?.force === true ? "combat.forceUseSkill" : "combat.useSkill",

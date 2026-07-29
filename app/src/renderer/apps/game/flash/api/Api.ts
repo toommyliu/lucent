@@ -5,6 +5,7 @@ import { Gateway } from "../bridge/Gateway";
 import { makePipeline } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
 import { makeAuth } from "./Auth";
+import { makeAntiCounter } from "./internal/AntiCounter";
 import { makeBank } from "./Bank";
 import { makeCombat } from "./Combat";
 import { makeDrops } from "./Drops";
@@ -42,11 +43,13 @@ export const makeApi = Effect.gen(function* () {
   const projectionReadiness = makeProjectionReadiness(store);
   const quests = makeQuests(bridge, store, wait);
   const settings = yield* makeSettings(bridge, store);
+  const antiCounter = makeAntiCounter(bridge, settings.isAntiCounterEnabled);
   const shops = makeShops(bridge, store, inventory, wait);
   const tempInventory = makeTempInventory(store);
   const debug = typeof window !== "undefined" && window.desktop.debug;
   const combat = makeCombat(
     bridge,
+    antiCounter,
     store,
     drops,
     events,
@@ -62,6 +65,7 @@ export const makeApi = Effect.gen(function* () {
   const pipeline = makePipeline(
     store,
     {
+      handleEvent: antiCounter.handleEvent,
       publishEvent: gateway.publishEvent,
       ...(debug
         ? {
