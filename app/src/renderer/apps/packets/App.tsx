@@ -41,6 +41,7 @@ import {
 } from "@lucent/ui";
 import {
   For,
+  Index,
   Show,
   createEffect,
   createMemo,
@@ -1140,27 +1141,33 @@ export function App(): JSX.Element {
                                 height: `${logVirtualizer.getTotalSize()}px`,
                               }}
                             >
-                              <For each={logVirtualRows()}>
+                              <Index each={logVirtualRows()}>
                                 {(row) => (
-                                  <div
-                                    class="packets-log-virtual__item"
-                                    ref={(element) => {
-                                      // TanStack reads data-index synchronously during measurement.
-                                      element.setAttribute(
-                                        "data-index",
-                                        String(row.item.index),
-                                      );
-                                      logVirtualizer.measureElement(element);
-                                    }}
-                                    style={{
-                                      height: `${row.item.size}px`,
-                                      top: `${row.item.start}px`,
-                                    }}
-                                  >
-                                    <PacketLogRowView entry={row.entry} />
-                                  </div>
+                                  <Show keyed when={row().entry}>
+                                    {(entry) => (
+                                      <div
+                                        class="packets-log-virtual__item"
+                                        ref={(element) => {
+                                          // TanStack reads data-index synchronously during measurement.
+                                          element.setAttribute(
+                                            "data-index",
+                                            String(row().item.index),
+                                          );
+                                          logVirtualizer.measureElement(
+                                            element,
+                                          );
+                                        }}
+                                        style={{
+                                          height: `${row().item.size}px`,
+                                          top: `${row().item.start}px`,
+                                        }}
+                                      >
+                                        <PacketLogRowView entry={entry} />
+                                      </div>
+                                    )}
+                                  </Show>
                                 )}
-                              </For>
+                              </Index>
                             </div>
                           </Show>
                         </div>
