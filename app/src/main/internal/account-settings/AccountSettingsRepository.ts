@@ -1,4 +1,8 @@
-import { Context, Effect, Layer, Schema, Semaphore } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 
 import {
   DEFAULT_ACCOUNT_SETTINGS,

@@ -1,5 +1,6 @@
 import type { ItemQuery } from "@lucent/game";
-import { Effect, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { WireInt } from "../contract/Coercion";

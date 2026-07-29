@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { UpdatesIpc } from "../../../shared/ipc";
 import { DesktopUpdates } from "../../updates/DesktopUpdates";

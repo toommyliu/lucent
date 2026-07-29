@@ -1,5 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Deferred, Effect, Fiber, Ref } from "effect";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Ref from "effect/Ref";
 
 import type {
   CombatProfile,

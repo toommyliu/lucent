@@ -12,20 +12,18 @@ import {
   type FollowerState,
 } from "@lucent/core/follower";
 import type { Player as GamePlayer } from "@lucent/game";
-import {
-  Cause,
-  Deferred,
-  Effect,
-  FiberMap,
-  Option,
-  Queue,
-  Ref,
-  Schedule,
-  Semaphore,
-  Stream,
-  SubscriptionRef,
-  type FiberMap as FiberMapType,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Schedule from "effect/Schedule";
+import * as Semaphore from "effect/Semaphore";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+import type * as FiberMapType from "effect/FiberMap";
 
 import type { DesktopGameFollowerBridge } from "../../../../shared/desktopBridge";
 import type {

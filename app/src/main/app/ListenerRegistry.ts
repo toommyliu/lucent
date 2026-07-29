@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 export interface ListenerRegistry<Value> {
   readonly publish: (value: Value) => Effect.Effect<void>;

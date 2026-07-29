@@ -37,7 +37,8 @@ import {
   Textarea,
   TooltipIconButton,
 } from "@lucent/ui";
-import { Effect, Fiber } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import {
   createEffect,
   createMemo,

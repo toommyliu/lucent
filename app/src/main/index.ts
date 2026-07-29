@@ -1,6 +1,6 @@
-import "../shared/polyfills";
+import "../shared/generated/polyfills.node";
 import { app } from "electron";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { makeDesktopLayer } from "./app/Layers";
 import { makeDesktopRuntime } from "./app/DesktopRuntime";

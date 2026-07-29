@@ -1,5 +1,5 @@
 import { PositiveInt } from "@lucent/core";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 export const LoaderGrabberLoadTypes = [
   "hair-shop",

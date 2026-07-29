@@ -1,6 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import { createEmptyEnvironmentState } from "@lucent/core/environment";
-import { Effect, Queue, Ref, Scope } from "effect";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Scope from "effect/Scope";
 import * as TestClock from "effect/testing/TestClock";
 
 import {

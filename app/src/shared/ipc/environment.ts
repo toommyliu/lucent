@@ -5,7 +5,7 @@ import {
   EnvironmentStateSchema,
 } from "@lucent/core/environment";
 import { PositiveInt } from "@lucent/core";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { defineEvent, defineInvoke } from "./core";
 

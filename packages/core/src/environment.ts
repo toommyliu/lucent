@@ -1,4 +1,6 @@
-import { Option, Schema, SchemaTransformation } from "effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
 import { PositiveInt, TrimmedNonEmptyString } from "./baseSchemas";
 

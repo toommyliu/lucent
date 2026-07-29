@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { makeBridge } from "../bridge/Bridge";
 import { makeStore } from "../state/Store";

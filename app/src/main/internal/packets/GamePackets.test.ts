@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber, Ref } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Ref from "effect/Ref";
 
 import type { PacketsRequest } from "../../../shared/ipc/packets";
 import { DesktopIpc } from "../../ipc/DesktopIpc";

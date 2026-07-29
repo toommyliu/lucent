@@ -1,4 +1,9 @@
-import { Cause, Clock, Context, Effect, Layer, SynchronizedRef } from "effect";
+import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import {
   resolveArmyEquipSet,

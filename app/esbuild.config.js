@@ -15,6 +15,7 @@ const {
   appendFileSync,
 } = require("fs");
 const { dirname, join } = require("path");
+const runtimeTargets = require("./runtime-targets.json");
 
 const isProduction = process.env.NODE_ENV === "production";
 const isWatch = process.argv.includes("--watch") || process.argv.includes("-w");
@@ -22,31 +23,30 @@ const skipInitialBuildNotify =
   process.env.LUCENT_DEV_BUILD_NOTIFY_SKIP_INITIAL === "1";
 const notifiedBuilds = new Set();
 const staticAssetWatchIntervalMs = 100;
+const devRunnerOwnerPollIntervalMs = 1_000;
+const terminationSignals = ["SIGINT", "SIGTERM", "SIGHUP"];
+const noop = () => {};
 
 const baseOptions = {
   bundle: true,
   logLevel: "info",
   minify: isProduction,
   sourcemap: !isProduction,
+  sourcesContent: false,
 };
 
 const mainOptions = {
   ...baseOptions,
-  entryPoints: ["src/main/index.ts"],
+  entryNames: "[name]",
+  entryPoints: {
+    index: "src/main/index.ts",
+    "script-file-worker": "src/main/internal/scripting/ScriptFileWorker.ts",
+  },
   external: ["electron"],
   format: "cjs",
-  outfile: "dist/main/index.js",
+  outdir: "dist/main",
   platform: "node",
-  target: "node12",
-};
-
-const scriptFileWorkerOptions = {
-  ...baseOptions,
-  entryPoints: ["src/main/internal/scripting/ScriptFileWorker.ts"],
-  format: "cjs",
-  outfile: "dist/main/script-file-worker.js",
-  platform: "node",
-  target: "node12",
+  target: `node${runtimeTargets.node}`,
 };
 
 const sharedCssOptions = {
@@ -66,7 +66,7 @@ const preloadOptions = {
   format: "cjs",
   outfile: "dist/renderer/preload.js",
   platform: "node",
-  target: "node12",
+  target: `node${runtimeTargets.node}`,
 };
 
 const rendererThemeBootstrapScript =
@@ -127,17 +127,21 @@ const rendererViews = [
   createRendererView("packets", "Packets", { startsPending: true }),
 ];
 
-const rendererOptions = (view) => ({
+const rendererOptions = {
   ...baseOptions,
-  entryPoints: [view.entryPoint],
+  entryNames: "[name]/index",
+  entryPoints: Object.fromEntries(
+    rendererViews.map((view) => [view.id, view.entryPoint]),
+  ),
   format: "esm",
-  outfile: `dist/renderer/${view.id}/index.js`,
+  outdir: "dist/renderer",
   platform: "browser",
-  plugins: [solidPlugin(), ...(view.plugins ?? [])],
-  target: "chrome87",
-});
-
-const rendererBuildOptions = rendererViews.map(rendererOptions);
+  plugins: [
+    solidPlugin(),
+    ...rendererViews.flatMap((view) => view.plugins ?? []),
+  ],
+  target: `chrome${runtimeTargets.chrome}`,
+};
 
 const rendererIndexHtml = (view) => {
   const startsPendingAttribute = view.startsPending
@@ -263,7 +267,7 @@ const watchRendererStaticFiles = () => {
   };
 
   for (const path of watchedPaths) {
-    watchFile(path, { interval: staticAssetWatchIntervalMs }, listener);
+    watchFile(path, { interval: staticAssetWatchIntervalMs }, listener).unref();
   }
 
   return () => {
@@ -283,7 +287,11 @@ const watchLoaderSwf = () => {
     notifyBuild("renderer", { skipInitial: false });
   };
 
-  watchFile(loaderPath, { interval: staticAssetWatchIntervalMs }, listener);
+  watchFile(
+    loaderPath,
+    { interval: staticAssetWatchIntervalMs },
+    listener,
+  ).unref();
 
   return () => {
     unwatchFile(loaderPath, listener);
@@ -294,112 +302,140 @@ const buildOnce = async () => {
   clean();
   await Promise.all([
     build(mainOptions),
-    build(scriptFileWorkerOptions),
-    ...rendererBuildOptions.map((options) => build(options)),
+    build(rendererOptions),
     build(sharedCssOptions),
     build(preloadOptions),
   ]);
   copyRendererFiles();
 };
 
+const notifyPlugin = (name, label, initialBuildKey) => ({
+  name,
+  setup(pluginBuild) {
+    pluginBuild.onEnd((result) => {
+      if (result.errors.length === 0) {
+        notifyBuild(label, { initialBuildKey });
+      }
+    });
+  },
+});
+
+const parseDevRunnerPid = () => {
+  const value = Number(process.env.LUCENT_DEV_RUNNER_PID);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+};
+
+const isProcessAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+};
+
+const watchDevRunnerOwner = (onOwnerExit) => {
+  const ownerPid = parseDevRunnerPid();
+  if (ownerPid === null) {
+    return noop;
+  }
+
+  const timer = setInterval(() => {
+    if (!isProcessAlive(ownerPid)) {
+      onOwnerExit(ownerPid);
+    }
+  }, devRunnerOwnerPollIntervalMs);
+  timer.unref();
+
+  return () => clearInterval(timer);
+};
+
 const watch = async () => {
   if (!skipInitialBuildNotify) {
     clean();
   }
-  const mainContext = await context({
-    ...mainOptions,
-    plugins: [
-      {
-        name: "lucent-main-watch-notify",
-        setup(pluginBuild) {
-          pluginBuild.onEnd((result) => {
-            if (result.errors.length === 0) {
-              notifyBuild("main", { initialBuildKey: "main" });
-            }
-          });
-        },
-      },
-    ],
-  });
-  const rendererContexts = await Promise.all(
-    rendererBuildOptions.map((options, index) =>
-      context({
-        ...options,
-        plugins: [
-          ...(options.plugins ?? []),
-          {
-            name: `lucent-${rendererViews[index].id}-renderer-watch-copy`,
-            setup(pluginBuild) {
-              pluginBuild.onEnd((result) => {
-                if (result.errors.length === 0) {
-                  copyRendererFiles();
-                  notifyBuild("renderer", {
-                    initialBuildKey: `renderer:${rendererViews[index].id}`,
-                  });
-                }
-              });
-            },
+  const contexts = await Promise.all([
+    context({
+      ...mainOptions,
+      plugins: [notifyPlugin("lucent-main-watch-notify", "main", "main")],
+    }),
+    context({
+      ...rendererOptions,
+      plugins: [
+        ...(rendererOptions.plugins ?? []),
+        {
+          name: "lucent-renderer-watch-copy",
+          setup(pluginBuild) {
+            pluginBuild.onEnd((result) => {
+              if (result.errors.length === 0) {
+                copyRendererFiles();
+                notifyBuild("renderer", { initialBuildKey: "renderer" });
+              }
+            });
           },
-        ],
-      }),
-    ),
-  );
-  const scriptFileWorkerContext = await context({
-    ...scriptFileWorkerOptions,
-    plugins: [
-      {
-        name: "lucent-script-file-worker-watch-notify",
-        setup(pluginBuild) {
-          pluginBuild.onEnd((result) => {
-            if (result.errors.length === 0) {
-              notifyBuild("main", { initialBuildKey: "script-file-worker" });
-            }
-          });
         },
-      },
-    ],
-  });
-  const preloadContext = await context({
-    ...preloadOptions,
-    plugins: [
-      {
-        name: "lucent-preload-watch-notify",
-        setup(pluginBuild) {
-          pluginBuild.onEnd((result) => {
-            if (result.errors.length === 0) {
-              notifyBuild("renderer", { initialBuildKey: "preload" });
-            }
-          });
-        },
-      },
-    ],
-  });
-  const sharedCssContext = await context({
-    ...sharedCssOptions,
-    plugins: [
-      {
-        name: "lucent-shared-css-watch-notify",
-        setup(pluginBuild) {
-          pluginBuild.onEnd((result) => {
-            if (result.errors.length === 0) {
-              notifyBuild("renderer", { initialBuildKey: "shared-css" });
-            }
-          });
-        },
-      },
-    ],
-  });
-
-  await Promise.all([
-    mainContext.watch(),
-    scriptFileWorkerContext.watch(),
-    ...rendererContexts.map((rendererContext) => rendererContext.watch()),
-    preloadContext.watch(),
-    sharedCssContext.watch(),
+      ],
+    }),
+    context({
+      ...preloadOptions,
+      plugins: [
+        notifyPlugin("lucent-preload-watch-notify", "renderer", "preload"),
+      ],
+    }),
+    context({
+      ...sharedCssOptions,
+      plugins: [
+        notifyPlugin(
+          "lucent-shared-css-watch-notify",
+          "renderer",
+          "shared-css",
+        ),
+      ],
+    }),
   ]);
+
+  await Promise.all(contexts.map((buildContext) => buildContext.watch()));
   copyRendererFiles();
-  watchRendererStaticFiles();
-  watchLoaderSwf();
+  const stopStaticWatchers = [watchRendererStaticFiles(), watchLoaderSwf()];
+  let cleanupPromise;
+  let stopOwnerWatch = noop;
+
+  const cleanup = () => {
+    cleanupPromise ??= Promise.resolve().then(async () => {
+      stopOwnerWatch();
+      for (const stopStaticWatcher of stopStaticWatchers) {
+        stopStaticWatcher();
+      }
+      await Promise.allSettled(
+        contexts.map((buildContext) => buildContext.dispose()),
+      );
+      for (const signal of terminationSignals) {
+        process.removeListener(signal, signalHandlers.get(signal));
+      }
+    });
+    return cleanupPromise;
+  };
+
+  const exitAfterCleanup = (exitCode) => {
+    void cleanup().finally(() => process.exit(exitCode));
+  };
+
+  const signalHandlers = new Map(
+    terminationSignals.map((signal) => [
+      signal,
+      () => exitAfterCleanup(signal === "SIGINT" ? 130 : 0),
+    ]),
+  );
+  for (const [signal, handler] of signalHandlers) {
+    process.once(signal, handler);
+  }
+
+  stopOwnerWatch = watchDevRunnerOwner((ownerPid) => {
+    console.error(
+      `[watch] dev runner ${ownerPid} is no longer alive; stopping compiler`,
+    );
+    exitAfterCleanup(0);
+  });
 };
 
 const run = isWatch ? watch : buildOnce;

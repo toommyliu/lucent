@@ -1,7 +1,12 @@
 import type { IncomingHttpHeaders } from "http";
 import { get } from "https";
 
-import { Context, Effect, Layer, Option, Ref, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 
 import {
   UpdateReleaseInfo,

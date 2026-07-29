@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber, Result } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Result from "effect/Result";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { ArmyConfigPayload } from "@lucent/core/army";

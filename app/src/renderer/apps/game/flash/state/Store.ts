@@ -1,4 +1,6 @@
-import { Effect, SubscriptionRef, SynchronizedRef } from "effect";
+import * as Effect from "effect/Effect";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 import type {
   AuraQueryOptions,
   ItemQuery,

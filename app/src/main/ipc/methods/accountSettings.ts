@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { AccountSettingsIpc } from "../../../shared/ipc";
 import { AccountSettingsRepository } from "../../internal/account-settings/AccountSettingsRepository";

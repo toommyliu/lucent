@@ -1,4 +1,9 @@
-import { Context, Effect, Fiber, FiberMap, Layer, Stream } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as FiberMap from "effect/FiberMap";
+import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
 
 import { Api } from "../flash/api/Api";
 import { makeAutoAttack } from "./AutoAttack";

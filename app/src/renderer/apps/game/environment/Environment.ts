@@ -9,17 +9,15 @@ import {
   type EnvironmentState,
 } from "@lucent/core/environment";
 import type { Quest } from "@lucent/game";
-import {
-  Cause,
-  Context,
-  Effect,
-  Layer,
-  Option,
-  Ref,
-  Schema,
-  Semaphore,
-  SynchronizedRef,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import type { DesktopEnvironmentBridge } from "../../../../shared/desktopBridge";
 import { playBeep } from "../audio/beep";

@@ -1,6 +1,6 @@
 import { LiveItem } from "@lucent/game";
 import type { ItemData } from "@lucent/game";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import {
   NonNegativeWireInt,

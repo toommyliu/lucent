@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../../flash/api/Api";

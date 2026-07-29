@@ -1,6 +1,6 @@
 import { createEmptyEnvironmentState } from "@lucent/core/environment";
 import { describe, expect, it } from "vitest";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { EnvironmentShape } from "../../environment/Environment";
 import { makeScriptEnvironmentApi } from "./Environment";

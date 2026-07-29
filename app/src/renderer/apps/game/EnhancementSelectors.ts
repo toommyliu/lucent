@@ -1,5 +1,6 @@
 import { TrimmedNonEmptyString } from "@lucent/core";
-import { Schema, SchemaTransformation } from "effect";
+import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
 export const EnhancementSelectorSchema = Schema.Struct({
   enhancement: TrimmedNonEmptyString,

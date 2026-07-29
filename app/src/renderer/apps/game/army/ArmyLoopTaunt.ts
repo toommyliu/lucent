@@ -6,18 +6,16 @@ import type {
   ArmySessionEndedPayload,
 } from "@lucent/core/army";
 import type { MonsterQuery, PlayerSnapshot } from "@lucent/game";
-import {
-  Cause,
-  Clock,
-  Deferred,
-  Effect,
-  Option,
-  Queue,
-  Ref,
-  Scope,
-  Semaphore,
-  SynchronizedRef,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
 import type { ApiService } from "../flash/api/Api";

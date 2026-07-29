@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { BrowserWindow, IpcMainInvokeEvent, WebContents } from "electron";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
 import type { DesktopWindows } from "../window/DesktopWindows";

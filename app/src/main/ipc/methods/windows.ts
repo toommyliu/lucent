@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { WindowsIpc } from "../../../shared/ipc";
 import { getDesktopWindowDefinition } from "../../window/DesktopWindowCatalog";

@@ -1,4 +1,4 @@
-import "../shared/polyfills";
+import "../shared/generated/polyfills.renderer";
 
 import type { JSX } from "solid-js";
 import { render } from "solid-js/web";

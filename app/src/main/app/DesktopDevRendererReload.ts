@@ -2,7 +2,7 @@ import { watchFile, unwatchFile, type Stats } from "fs";
 
 import { BrowserWindow } from "electron";
 
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { DesktopObservability } from "./DesktopObservability";
 import { reloadUsableRendererWindows } from "./DesktopDevRendererReloadWindows";

@@ -1,20 +1,18 @@
-import {
-  Cause,
-  Clock,
-  Data,
-  Duration,
-  Effect,
-  FiberMap,
-  Number as EffectNumber,
-  Option,
-  Ref,
-  Result,
-  Schedule,
-  Semaphore,
-  Stream,
-  SubscriptionRef,
-  type FiberMap as FiberMapType,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
+import * as Data from "effect/Data";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as EffectNumber from "effect/Number";
+import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
+import * as Result from "effect/Result";
+import * as Schedule from "effect/Schedule";
+import * as Semaphore from "effect/Semaphore";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+import type * as FiberMapType from "effect/FiberMap";
 
 import type { ApiService } from "../flash/api/Api";
 

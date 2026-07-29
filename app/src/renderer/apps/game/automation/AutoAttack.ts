@@ -5,15 +5,13 @@ import type {
 import { getCombatProfileById } from "@lucent/core/combatProfiles";
 import { parseMonsterMapId } from "@lucent/game";
 import type { MonsterQuery } from "@lucent/game";
-import {
-  Cause,
-  Effect,
-  FiberMap,
-  Queue,
-  Stream,
-  SubscriptionRef,
-  type FiberMap as FiberMapType,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+import type * as FiberMapType from "effect/FiberMap";
 
 import type { ApiService } from "../flash/api/Api";
 import { makeCombatProfileRunner } from "./combat/CombatProfileRunner";

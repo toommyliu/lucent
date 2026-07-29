@@ -15,7 +15,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Console, Data, Effect, Option, Queue, Ref, Scope } from "effect";
+import * as Console from "effect/Console";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Scope from "effect/Scope";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { ChildProcess } from "effect/unstable/process";
 import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpawner";
@@ -39,12 +45,16 @@ const DEV_RENDERER_RELOAD_PATH = join(
   "dist",
   ".lucent-renderer-reload.json",
 );
+const DEV_PROCESS_LEASE_PATH = join(
+  APP_DIR,
+  "dist",
+  ".lucent-dev-processes.json",
+);
 const RESTART_DEBOUNCE_MS = 300;
 const FORCE_KILL_AFTER_MS = 1500;
 const FORCE_KILL_AFTER = `${FORCE_KILL_AFTER_MS} millis`;
 const PROCESS_GROUP_POLL_INTERVAL_MS = 50;
 const DEV_RUNNER_MODES = ["dev", "app", "docs"] as const;
-const TERMINATION_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 type DevMode = (typeof DEV_RUNNER_MODES)[number];
 
@@ -84,7 +94,11 @@ type ExistingDevElectronProcess = {
   readonly processGroupId: number;
 };
 
-type TerminationSignal = (typeof TERMINATION_SIGNALS)[number];
+type DevProcessLease = {
+  readonly version: 1;
+  readonly runnerPid: number;
+  readonly compileProcessGroupId: number;
+};
 
 class DevRunnerError extends Data.TaggedError("DevRunnerError")<{
   readonly message: string;
@@ -156,6 +170,15 @@ const spawnNode = (
 const isProcessGroupAlive = (processGroupId: number): boolean => {
   try {
     process.kill(-processGroupId, 0);
+    return true;
+  } catch (cause) {
+    return !isNoSuchProcessError(cause);
+  }
+};
+
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
     return true;
   } catch (cause) {
     return !isNoSuchProcessError(cause);
@@ -365,58 +388,126 @@ const stopChild = (label: string, child: ChildProcessHandle) =>
     yield* stopChildProcess(label, child);
   });
 
-const exitCodeForSignal = (signal: TerminationSignal): number => {
-  switch (signal) {
-    case "SIGINT":
-      return 130;
-    case "SIGTERM":
-      return 143;
-    case "SIGHUP":
-      return 129;
-  }
-};
-
 const installTerminationCleanup = (
   cleanup: Effect.Effect<void, unknown>,
 ): Effect.Effect<void, never, Scope.Scope> =>
-  Effect.gen(function* () {
-    const context = yield* Effect.context<never>();
-    const runPromise = Effect.runPromiseWith(context);
+  Effect.addFinalizer(() => cleanup.pipe(Effect.catch(() => Effect.void)));
 
-    const dispose = yield* Effect.sync(() => {
-      const handlers = new Map<TerminationSignal, () => void>();
-      let cleaningUp = false;
-
-      const removeHandlers = (): void => {
-        for (const [signal, handler] of handlers) {
-          process.removeListener(signal, handler);
+const readDevProcessLease = (): DevProcessLease | null => {
+  try {
+    const value = JSON.parse(
+      readFileSync(DEV_PROCESS_LEASE_PATH, "utf8"),
+    ) as Partial<DevProcessLease>;
+    return value.version === 1 &&
+      Number.isSafeInteger(value.runnerPid) &&
+      Number(value.runnerPid) > 0 &&
+      Number.isSafeInteger(value.compileProcessGroupId) &&
+      Number(value.compileProcessGroupId) > 0
+      ? {
+          version: 1,
+          runnerPid: Number(value.runnerPid),
+          compileProcessGroupId: Number(value.compileProcessGroupId),
         }
-        handlers.clear();
-      };
+      : null;
+  } catch {
+    return null;
+  }
+};
 
-      for (const signal of TERMINATION_SIGNALS) {
-        const handler = (): void => {
-          if (cleaningUp) {
-            return;
-          }
+const processGroupContainsCompileWatcher = (
+  processGroupId: number,
+): boolean => {
+  if (process.platform === "win32") {
+    return false;
+  }
 
-          cleaningUp = true;
-          removeHandlers();
-          void runPromise(cleanup.pipe(Effect.catch(() => Effect.void))).finally(
-            () => {
-              process.exit(exitCodeForSignal(signal));
-            },
-          );
-        };
-        handlers.set(signal, handler);
-        process.once(signal, handler);
+  try {
+    const options = {
+      encoding: "utf8",
+    } satisfies ExecFileSyncOptionsWithStringEncoding;
+    const output = execFileSync(
+      "ps",
+      ["-ww", "-axo", "pgid=,command="],
+      options,
+    );
+
+    return output.split("\n").some((line) => {
+      const match = /^\s*(\d+)\s+(.+)$/.exec(line);
+      if (!match || Number(match[1]) !== processGroupId) {
+        return false;
       }
-
-      return removeHandlers;
+      const command = match[2] ?? "";
+      return (
+        command.includes("pnpm compile:watch") ||
+        command.includes("node esbuild.config.js --watch")
+      );
     });
+  } catch {
+    return false;
+  }
+};
 
-    yield* Effect.addFinalizer(() => Effect.sync(dispose));
+const stopExistingDevCompileWatcher = Effect.gen(function* () {
+  const lease = readDevProcessLease();
+  if (lease === null) {
+    yield* Effect.sync(() => rmSync(DEV_PROCESS_LEASE_PATH, { force: true }));
+    return;
+  }
+
+  if (isProcessAlive(lease.runnerPid)) {
+    return yield* new DevRunnerError({
+      message: `[dev-runner] another dev runner is active with pid ${lease.runnerPid}`,
+    });
+  }
+
+  if (
+    process.platform !== "win32" &&
+    isProcessGroupAlive(lease.compileProcessGroupId) &&
+    processGroupContainsCompileWatcher(lease.compileProcessGroupId)
+  ) {
+    yield* Console.error(
+      `[dev-runner] found stale compile watcher process group ${lease.compileProcessGroupId}; stopping it before launch`,
+    );
+    yield* stopProcessGroup(
+      "stale compile watcher",
+      lease.compileProcessGroupId,
+    );
+  }
+
+  yield* Effect.sync(() => rmSync(DEV_PROCESS_LEASE_PATH, { force: true }));
+});
+
+const writeDevProcessLease = (
+  compileWatch: ChildProcessHandle,
+): Effect.Effect<void, DevRunnerError> =>
+  Effect.try({
+    try: () => {
+      if (compileWatch.pid === undefined) {
+        throw new Error("Compile watcher did not report a process id");
+      }
+      writeFileSync(
+        DEV_PROCESS_LEASE_PATH,
+        `${JSON.stringify({
+          version: 1,
+          runnerPid: process.pid,
+          compileProcessGroupId: compileWatch.pid,
+        } satisfies DevProcessLease)}\n`,
+        { flag: "wx" },
+      );
+    },
+    catch: (cause) =>
+      new DevRunnerError({
+        message: "[dev-runner] failed to record compile watcher ownership",
+        cause,
+      }),
   });
+
+const removeOwnedDevProcessLease = Effect.sync(() => {
+  const lease = readDevProcessLease();
+  if (lease?.runnerPid === process.pid) {
+    rmSync(DEV_PROCESS_LEASE_PATH, { force: true });
+  }
+});
 
 const commandHasAppDevRootArg = (command: string): boolean => {
   const markerIndex = command.indexOf(APP_DEV_ROOT_ARG);
@@ -798,6 +889,7 @@ const runDevLoop = (electronArgs: ReadonlyArray<string>) =>
     const electronEnv = createElectronEnv();
     const watchEnv = createWatchEnv();
 
+    yield* stopExistingDevCompileWatcher;
     yield* stopExistingDevElectronProcesses;
 
     yield* Console.log("[dev-runner] building app");
@@ -811,6 +903,7 @@ const runDevLoop = (electronArgs: ReadonlyArray<string>) =>
 
     yield* Console.log("[dev-runner] starting compile watcher");
     const compileWatch = yield* spawnPnpm(["compile:watch"], APP_DIR, watchEnv);
+    yield* writeDevProcessLease(compileWatch);
     yield* Effect.forkScoped(watchCompileExit(events, compileWatch));
 
     const startElectron = Effect.gen(function* () {
@@ -851,6 +944,7 @@ const runDevLoop = (electronArgs: ReadonlyArray<string>) =>
       Effect.gen(function* () {
         yield* stopActiveElectron;
         yield* stopChild("compile watcher", compileWatch);
+        yield* removeOwnedDevProcessLease;
       }),
     );
 

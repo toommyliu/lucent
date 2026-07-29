@@ -1,6 +1,6 @@
 import type { EnvironmentState } from "@lucent/core/environment";
 import type { BoostType } from "@lucent/game";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 export interface EnvironmentBoostCandidate {
   readonly category: string;

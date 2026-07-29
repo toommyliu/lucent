@@ -1,4 +1,8 @@
-import { Effect, Fiber, Schema, Semaphore, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
+import * as Stream from "effect/Stream";
 
 import type { BridgeService } from "../bridge/Bridge";
 import type { SettingsPatch as SettingsPatchValue } from "../contract/Settings";

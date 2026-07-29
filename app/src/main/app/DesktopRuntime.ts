@@ -1,4 +1,5 @@
-import { Cause, Effect } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 
 import { createAppearanceSnapshot } from "@lucent/core/appearance";
 import type { AppSettings } from "@lucent/core/settings";

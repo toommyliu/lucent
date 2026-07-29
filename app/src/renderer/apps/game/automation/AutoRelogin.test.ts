@@ -1,5 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber, FiberMap, Ref, Result } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as FiberMap from "effect/FiberMap";
+import * as Ref from "effect/Ref";
+import * as Result from "effect/Result";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { Event, EventSelector } from "../flash/contract/Event";

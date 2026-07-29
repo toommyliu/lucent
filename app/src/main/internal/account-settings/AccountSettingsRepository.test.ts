@@ -11,7 +11,8 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "@effect/vitest";
 import { afterEach } from "vitest";
-import { Effect, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 import { DEFAULT_ACCOUNT_SETTINGS } from "@lucent/core/accountSettings";
 import {

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { projectionKeys, type ProjectionKey } from "../state/Projection";
 import type { Store } from "../state/Store";

@@ -4,7 +4,12 @@ import {
   type FollowerConfig,
   type FollowerState,
 } from "@lucent/core/follower";
-import { Context, Deferred, Effect, Layer, Option, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import {
   FollowerIpc,

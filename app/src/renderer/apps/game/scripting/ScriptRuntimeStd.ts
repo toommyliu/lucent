@@ -1,4 +1,5 @@
-import { Cause, Effect } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { AutomationService } from "../automation/Automation";

@@ -4,7 +4,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Console, Data, Effect } from "effect";
+import * as Console from "effect/Console";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 import { Command, Flag } from "effect/unstable/cli";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));

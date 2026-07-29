@@ -1,5 +1,5 @@
-import type { Cause } from "effect";
-import { Effect } from "effect";
+import type * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 
 import type { ArmyApiRuntimeShape, ArmyApiShape } from "../../army/Army";
 import {

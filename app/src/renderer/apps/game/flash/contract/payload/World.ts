@@ -1,5 +1,5 @@
 import { EntityState, LiveMonster, LivePlayer } from "@lucent/game";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { PositiveWireInt, WireBoolean, WireInt, WireNumber } from "../Coercion";
 

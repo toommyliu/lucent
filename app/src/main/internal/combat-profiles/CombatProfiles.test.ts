@@ -3,7 +3,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { afterEach } from "vitest";
 
 import {

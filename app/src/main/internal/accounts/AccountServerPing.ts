@@ -1,5 +1,5 @@
 import { createConnection } from "net";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import type { AccountGameServerPing } from "@lucent/core/accounts";
 

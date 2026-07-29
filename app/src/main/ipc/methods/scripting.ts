@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { ScriptingIpc } from "../../../shared/ipc";
 import { ScriptInputRepository } from "../../internal/scripting/ScriptInputRepository";

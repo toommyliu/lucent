@@ -1,14 +1,12 @@
-import {
-  Clock,
-  Context,
-  Deferred,
-  Effect,
-  Layer,
-  Result,
-  Schema,
-  Scope,
-  SynchronizedRef,
-} from "effect";
+import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import type {
   ArmyLoopTauntCommand,

@@ -1,4 +1,6 @@
-import { Effect, Ref, Semaphore } from "effect";
+import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
+import * as Semaphore from "effect/Semaphore";
 
 import type {
   CombatProfile,

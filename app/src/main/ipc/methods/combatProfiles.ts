@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { CombatProfilesIpc } from "../../../shared/ipc";
 import { CombatProfiles } from "../../internal/combat-profiles/CombatProfiles";

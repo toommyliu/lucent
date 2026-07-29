@@ -1,12 +1,12 @@
 /* oxlint-disable unicorn/require-post-message-target-origin */
-import "../../../shared/polyfills";
+import "../../../shared/generated/polyfills.node";
 
 import { createHash } from "crypto";
 import { createReadStream, promises as fs } from "fs";
 import { basename } from "path";
 import { parentPort } from "worker_threads";
 
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type {
   ScriptFileResolution,

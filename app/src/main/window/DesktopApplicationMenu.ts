@@ -2,7 +2,11 @@ import { promises as fs } from "fs";
 
 import { Menu, app, session, type MenuItemConstructorOptions } from "electron";
 
-import { Context, Effect, Layer, Schema, Scope } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 
 import type { ThemeMode } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";

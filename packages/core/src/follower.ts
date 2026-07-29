@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { DEFAULT_COMBAT_PROFILE_ID } from "./combatProfiles";
 import {

@@ -1,4 +1,6 @@
-import { Effect, Fiber, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
 
 import type { GatewayService } from "../bridge/Gateway";
 import {

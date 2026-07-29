@@ -1,4 +1,4 @@
-import { Layer } from "effect";
+import * as Layer from "effect/Layer";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopLifecycle from "./DesktopLifecycle";

@@ -1,5 +1,5 @@
 import { LiveServer } from "@lucent/game";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { WireBoolean, WireInt } from "../Coercion";
 

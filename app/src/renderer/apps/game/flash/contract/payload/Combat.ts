@@ -1,6 +1,7 @@
 import { LiveAura } from "@lucent/game";
 import type { AuraKind } from "@lucent/game";
-import { Option, Schema } from "effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import {
   NonNegativeWireInt,

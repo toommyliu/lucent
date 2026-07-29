@@ -1,4 +1,9 @@
-import { Cause, Data, Effect, Option, Schedule, Schema } from "effect";
+import * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
+import * as Schema from "effect/Schema";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../flash/api/Api";

@@ -1,6 +1,9 @@
 import { normalizeItemQuantity, toItemSelector } from "@lucent/game";
 import type { ItemQuery, LiveItem } from "@lucent/game";
-import { Effect, Option, Schema, Semaphore } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 
 import type { BankView } from "../../Types";
 import type { BridgeService } from "../bridge/Bridge";

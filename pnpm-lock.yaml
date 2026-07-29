@@ -43,6 +43,9 @@ importers:
       asconfigc:
         specifier: ^1.9.0
         version: 1.9.0
+      core-js-compat:
+        specifier: 3.49.0
+        version: 3.49.0
       git-cliff:
         specifier: ^2.9.1
         version: 2.12.0
@@ -89,7 +92,7 @@ importers:
         specifier: 8.16.0
         version: 8.16.0
       core-js:
-        specifier: ^3.49.0
+        specifier: 3.49.0
         version: 3.49.0
       effect:
         specifier: 4.0.0-beta.83
@@ -2830,6 +2833,9 @@ packages:
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
+
+  core-js-compat@3.49.0:
+    resolution: {integrity: sha512-VQXt1jr9cBz03b331DFDCCP90b3fanciLkgiOoy8SBHy06gNf+vQ1A3WFLqG7I8TipYIKeYK9wxd0tUrvHcOZA==}
 
   core-js@3.49.0:
     resolution: {integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==}
@@ -8353,6 +8359,10 @@ snapshots:
   cookie-es@1.2.3: {}
 
   cookie@1.1.1: {}
+
+  core-js-compat@3.49.0:
+    dependencies:
+      browserslist: 4.28.2
 
   core-js@3.49.0: {}
 

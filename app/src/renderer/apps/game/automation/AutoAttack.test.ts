@@ -1,7 +1,10 @@
 import { DEFAULT_COMBAT_PROFILE_LIBRARY } from "@lucent/core/combatProfiles";
 import { EntityState, LiveMonster } from "@lucent/game";
 import { describe, expect, it } from "@effect/vitest";
-import { Deferred, Effect, FiberMap, Ref } from "effect";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as Ref from "effect/Ref";
 
 import type { ApiService } from "../flash/api/Api";
 import type { Event, EventSelector } from "../flash/contract/Event";

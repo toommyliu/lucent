@@ -1,5 +1,5 @@
 import type { ItemQuery, ShopItemQuery } from "@lucent/game";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { ScriptRecipeDependencies } from "./Dependencies";
 

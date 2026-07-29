@@ -1,4 +1,7 @@
-import { Cause, Deferred, Effect, Ref } from "effect";
+import * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
 
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";

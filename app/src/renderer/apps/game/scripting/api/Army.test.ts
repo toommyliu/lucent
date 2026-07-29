@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Cause, Effect, Ref } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
 
 import type { ArmyApiRuntimeShape } from "../../army/Army";
 import type {

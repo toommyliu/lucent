@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 export const Callback = Schema.Union([
   Schema.Struct({ type: Schema.Literal("connection"), status: Schema.String }),

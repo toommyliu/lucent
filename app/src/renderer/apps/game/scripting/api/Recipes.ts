@@ -1,6 +1,8 @@
 import { PositiveInt, TrimmedNonEmptyString } from "@lucent/core";
 import type { ItemQuery } from "@lucent/game";
-import { Effect, Option, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
 import type { BridgeService } from "../../flash/bridge/Bridge";

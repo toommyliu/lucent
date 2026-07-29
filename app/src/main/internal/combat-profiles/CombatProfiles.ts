@@ -1,4 +1,8 @@
-import { Context, Effect, Layer, Schema, SynchronizedRef } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import {
   DEFAULT_COMBAT_PROFILE_ID,

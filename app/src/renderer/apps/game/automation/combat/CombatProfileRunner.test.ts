@@ -1,7 +1,7 @@
 import type { CombatProfile } from "@lucent/core/combatProfiles";
 import { EntityState, LiveMonster } from "@lucent/game";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { Event, EventType } from "../../flash/contract/Event";
 import type { ApiService } from "../../flash/api/Api";

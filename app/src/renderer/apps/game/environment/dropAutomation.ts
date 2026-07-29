@@ -3,7 +3,13 @@ import {
   type EnvironmentDropItemData,
   type EnvironmentState,
 } from "@lucent/core/environment";
-import { Cause, Data, Effect, Queue, Schedule, Scope, Semaphore } from "effect";
+import * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Schedule from "effect/Schedule";
+import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 
 export interface PendingEnvironmentDrop extends EnvironmentDropItemData {
   readonly itemId: number;

@@ -3,7 +3,11 @@ import {
   normalizeEnvironmentState,
   type EnvironmentState,
 } from "@lucent/core/environment";
-import { Context, Deferred, Effect, Layer, Option } from "effect";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import {
   EnvironmentIpc,

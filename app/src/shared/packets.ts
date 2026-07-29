@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 export const PacketCaptureTypes = ["client", "server", "extension"] as const;
 export const PacketCaptureTypeSchema = Schema.Literals(PacketCaptureTypes);

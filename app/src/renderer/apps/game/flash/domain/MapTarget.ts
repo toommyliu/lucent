@@ -1,4 +1,5 @@
-import { Effect, Random } from "effect";
+import * as Effect from "effect/Effect";
+import * as Random from "effect/Random";
 
 import {
   MAXIMUM_ROOM_NUMBER,

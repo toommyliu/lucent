@@ -1,17 +1,15 @@
-import {
-  Cause,
-  Context,
-  Data,
-  Deferred,
-  Effect,
-  Fiber,
-  Layer,
-  Option,
-  Ref,
-  Semaphore,
-  Stream,
-  SubscriptionRef,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
+import * as Semaphore from "effect/Semaphore";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import type { ScriptFile } from "../../../../shared/ipc/scripting";
 import {

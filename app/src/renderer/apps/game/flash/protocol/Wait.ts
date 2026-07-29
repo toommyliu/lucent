@@ -1,5 +1,9 @@
-import { Effect, Option, PubSub, Schedule, Scope } from "effect";
-import type { Duration } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
+import * as Schedule from "effect/Schedule";
+import * as Scope from "effect/Scope";
+import type * as Duration from "effect/Duration";
 
 import {
   matchesEvent,

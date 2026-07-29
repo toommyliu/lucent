@@ -1,6 +1,10 @@
 import type { EventEmitter } from "events";
 
-import { Context, Deferred, Effect, Layer, Scope } from "effect";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Scope from "effect/Scope";
 
 import { DesktopObservability } from "./DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";

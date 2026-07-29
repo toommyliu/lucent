@@ -1,4 +1,6 @@
-import { Effect, FiberMap, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as Layer from "effect/Layer";
 
 import { Api } from "../flash/api/Api";
 import { Automation } from "./Automation";

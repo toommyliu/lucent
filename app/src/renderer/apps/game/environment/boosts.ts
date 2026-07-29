@@ -1,5 +1,5 @@
 import type { LiveItem } from "@lucent/game";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type {
   EnvironmentBankBoost,

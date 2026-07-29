@@ -2,7 +2,8 @@ import {
   normalizeFollowerConfig,
   type FollowerState,
 } from "@lucent/core/follower";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import { FollowerIpc } from "../../../shared/ipc";
 import {

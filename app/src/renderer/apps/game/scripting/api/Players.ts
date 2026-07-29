@@ -1,6 +1,6 @@
 import { toPlayerSelector } from "@lucent/game";
 import type { LivePlayer, PlayerQuery } from "@lucent/game";
-import type { Effect } from "effect";
+import type * as Effect from "effect/Effect";
 
 import type { ApiService } from "../../flash/api/Api";
 

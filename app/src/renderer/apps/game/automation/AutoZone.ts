@@ -1,11 +1,9 @@
-import {
-  Effect,
-  FiberMap,
-  Random,
-  Schema,
-  SubscriptionRef,
-  type FiberMap as FiberMapType,
-} from "effect";
+import * as Effect from "effect/Effect";
+import * as FiberMap from "effect/FiberMap";
+import * as Random from "effect/Random";
+import * as Schema from "effect/Schema";
+import * as SubscriptionRef from "effect/SubscriptionRef";
+import type * as FiberMapType from "effect/FiberMap";
 
 import type { ApiService } from "../flash/api/Api";
 

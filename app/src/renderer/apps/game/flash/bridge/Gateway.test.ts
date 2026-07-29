@@ -1,5 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber, Layer, Option, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 
 import { makeWait } from "../protocol/Wait";
 import { Bridge, makeBridge } from "./Bridge";

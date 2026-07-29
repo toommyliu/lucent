@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { IpcMainInvokeEvent } from "electron";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import { defineInvoke } from "../../shared/ipc";
 import {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { LiveItem } from "@lucent/game";
-import { Effect, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 
 import type { EquipEnhancementSelector } from "../../EnhancementSelectors";
 import type { BridgeService } from "../bridge/Bridge";

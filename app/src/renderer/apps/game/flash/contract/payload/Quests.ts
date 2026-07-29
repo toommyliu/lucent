@@ -1,6 +1,7 @@
 import { LiveQuest } from "@lucent/game";
 import type { QuestCadence, QuestItem, QuestReward } from "@lucent/game";
-import { Option, Schema } from "effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import {
   PositiveWireInt,

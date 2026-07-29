@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest";
-import { Effect, Fiber, PubSub } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as PubSub from "effect/PubSub";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { Event } from "../contract/Event";

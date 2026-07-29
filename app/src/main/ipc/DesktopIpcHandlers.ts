@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { DesktopIpc } from "./DesktopIpc";
 import * as AccountsIpcMethods from "./methods/accounts";

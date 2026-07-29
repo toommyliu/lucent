@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { BridgeService } from "../bridge/Bridge";
 import type { Event, RuntimeEvent } from "../contract/Event";

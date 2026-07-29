@@ -1,4 +1,7 @@
-import type { Duration, Effect, Option, pipe } from "effect";
+import type * as Duration from "effect/Duration";
+import type * as Effect from "effect/Effect";
+import type * as Option from "effect/Option";
+import type { pipe } from "effect/Function";
 
 import type { ArmyApiShape } from "../army/Army";
 import type { RoomPolicy } from "@lucent/core/accountSettings";

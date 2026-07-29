@@ -1,5 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Clock, Deferred, Effect, Fiber, Option, Random } from "effect";
+import * as Clock from "effect/Clock";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as Random from "effect/Random";
 import * as TestClock from "effect/testing/TestClock";
 
 import {

@@ -9,8 +9,13 @@ import {
   type CombatProfile,
   type CombatProfileDefinition,
 } from "@lucent/core/combatProfiles";
-import { Clock, Context, Effect, Option, Schema, Semaphore } from "effect";
-import type { Duration } from "effect";
+import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
+import type * as Duration from "effect/Duration";
 
 import {
   castCombatProfileMessageTriggers,

@@ -1,5 +1,5 @@
-import { Schema } from "effect";
-import type { Duration } from "effect";
+import * as Schema from "effect/Schema";
+import type * as Duration from "effect/Duration";
 
 export const PacketDirection = Schema.Literals([
   "client",

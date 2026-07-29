@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Queue, Scope } from "effect";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Scope from "effect/Scope";
 
 import type {
   ArmyLoopTauntCommandPayload,

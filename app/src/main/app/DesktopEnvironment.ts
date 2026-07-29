@@ -1,7 +1,8 @@
 import { homedir } from "os";
 import { join } from "path";
 
-import { Context, Layer } from "effect";
+import * as Context from "effect/Context";
+import * as Layer from "effect/Layer";
 
 import appBranding from "../../../appBranding.json";
 

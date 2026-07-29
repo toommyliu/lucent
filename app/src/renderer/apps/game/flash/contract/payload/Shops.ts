@@ -1,5 +1,5 @@
 import { LiveShop } from "@lucent/game";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { PositiveWireInt, WireBoolean } from "../Coercion";
 import type { LiveItem } from "@lucent/game";

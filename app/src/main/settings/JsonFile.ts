@@ -2,7 +2,8 @@ import { randomBytes } from "crypto";
 import { promises as fs } from "fs";
 import { dirname } from "path";
 
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 export type JsonFileReadResult =
   | { readonly status: "missing" }

@@ -20,7 +20,8 @@ import {
   setEnvironmentQuestReward,
   type EnvironmentState,
 } from "@lucent/core/environment";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import { EnvironmentIpc } from "../../../shared/ipc";
 import { GameEnvironments } from "../../internal/environment/GameEnvironments";

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { SettingsIpc } from "../../../shared/ipc";
 import { DesktopSettings } from "../../settings/DesktopSettings";

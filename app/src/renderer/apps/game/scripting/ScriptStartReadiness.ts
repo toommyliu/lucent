@@ -1,5 +1,6 @@
-import { Effect, Option } from "effect";
-import type { Duration } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import type * as Duration from "effect/Duration";
 
 import type { ProjectionReadinessSnapshot } from "../flash/api/ProjectionReadiness";
 import type { ApiService } from "../flash/api/Api";

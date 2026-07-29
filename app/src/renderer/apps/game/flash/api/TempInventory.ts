@@ -1,6 +1,6 @@
 import { normalizeItemQuantity } from "@lucent/game";
 import type { ItemQuery } from "@lucent/game";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import type { Store } from "../state/Store";
 
