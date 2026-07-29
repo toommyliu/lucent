@@ -15,7 +15,7 @@ interface RendererLifecycleOptions {
 }
 
 interface RendererMountOptions extends RendererLifecycleOptions {
-  readonly app: () => JSX.Element;
+  readonly app: (settings: AppSettings) => JSX.Element;
 }
 
 export interface DesktopRendererProps {
@@ -41,24 +41,39 @@ const runCleanup = (cleanup: RendererCleanup): void => {
   }
 };
 
-const readDesktopRendererProps = (): DesktopRendererProps => ({
-  initialSettings: window.desktop.settings.initial,
+const readDesktopRendererProps = (
+  initialSettings: AppSettings,
+): DesktopRendererProps => ({
+  initialSettings,
   platform: window.desktop.platform.os,
 });
 
 export const mountRenderer = (options: RendererMountOptions): void => {
   const themeSync = installRendererThemeSync();
-  const root = document.getElementById("root");
-  const disposeRender = root === null ? undefined : render(options.app, root);
   const cleanup = normalizeCleanup(options.cleanup);
+  let disposed = false;
+  let disposeRender: RendererCleanup | undefined;
 
-  if (options.markReady ?? true) {
-    document.documentElement.dataset["ready"] = "true";
-  }
+  void themeSync.ready.then(() => {
+    if (disposed) {
+      return;
+    }
+
+    const root = document.getElementById("root");
+    disposeRender =
+      root === null
+        ? undefined
+        : render(() => options.app(themeSync.currentSettings()), root);
+
+    if (options.markReady ?? true) {
+      document.documentElement.dataset["ready"] = "true";
+    }
+  });
 
   window.addEventListener(
     "beforeunload",
     () => {
+      disposed = true;
       for (const dispose of cleanup) {
         runCleanup(dispose);
       }
@@ -77,10 +92,8 @@ export const mountDesktopRenderer = (
   app: (props: DesktopRendererProps) => JSX.Element,
   options: RendererLifecycleOptions = {},
 ): void => {
-  const desktopProps = readDesktopRendererProps();
-
   mountRenderer({
     ...options,
-    app: () => app(desktopProps),
+    app: (settings) => app(readDesktopRendererProps(settings)),
   });
 };

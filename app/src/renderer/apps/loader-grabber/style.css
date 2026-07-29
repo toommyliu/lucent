@@ -137,7 +137,7 @@
 }
 
 .loader-grabber-results .section-panel__content {
-  background: var(--color-card);
+  background: rgb(var(--color-card));
   padding: 0;
 }
 

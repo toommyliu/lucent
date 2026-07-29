@@ -14,6 +14,7 @@ body {
   font-family: var(--font-sans);
   font-feature-settings: "cv01", "cv02", "cv03", "cv04", "ss01";
   font-size: var(--text-base);
+  font-weight: 430;
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;

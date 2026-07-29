@@ -85,6 +85,7 @@ function createNativeInputEvent(): Event {
 
 export function ColorPicker(props: ColorPickerProps): JSX.Element {
   let eventInput: HTMLInputElement | undefined;
+  let valueInput: HTMLInputElement | undefined;
   let lastChangedHex: string | null = null;
   let pendingHex: string | null = null;
   const [local, rest] = splitProps(props, [
@@ -112,8 +113,19 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
   );
 
   createEffect(() => {
-    const hex = value();
-    if (hex === pendingHex) {
+    const hex = normalizeHexColor(local.value) ?? DEFAULT_COLOR;
+    const nextDisplayValue = hex.toUpperCase();
+    const isInternalUpdate = hex === pendingHex;
+
+    if (
+      !isInternalUpdate &&
+      valueInput &&
+      valueInput.value !== nextDisplayValue
+    ) {
+      valueInput.value = nextDisplayValue;
+    }
+
+    if (isInternalUpdate) {
       return;
     }
 
@@ -153,16 +165,21 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
       }
 
       const hex = normalizeHexColor(event.currentTarget.value);
-      if (hex) {
-        setPickerValue(parseColor(hex));
+      if (!hex) {
         if (eventName === "change") {
-          emitChangeOnce(hex);
-          return;
+          event.currentTarget.value = displayValue();
         }
-
-        pendingHex = hex;
-        emitColorInputEvent("input", hex);
+        return;
       }
+
+      setPickerValue(parseColor(hex));
+      if (eventName === "change") {
+        emitChangeOnce(hex);
+        return;
+      }
+
+      pendingHex = hex;
+      emitColorInputEvent("input", hex);
     };
 
   const disabled = () => Boolean(local.disabled);
@@ -293,6 +310,9 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
         }}
         onInput={handleTextEvent("input")}
         readonly={readOnly()}
+        ref={(element) => {
+          valueInput = element;
+        }}
         spellcheck={false}
         type="text"
         value={displayValue()}

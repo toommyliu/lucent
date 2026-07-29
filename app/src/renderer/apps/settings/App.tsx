@@ -22,7 +22,6 @@ import {
   Input,
   Kbd,
   KbdGroup,
-  PillButton,
   Slider,
   SliderValue,
   Switch,
@@ -130,6 +129,15 @@ const themeVariants: ReadonlyArray<{
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
 ];
+
+const themeVariantForMode = (mode: ThemeMode): ThemeVariant => {
+  if (mode === "light" || mode === "dark") {
+    return mode;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+};
 
 const motionModes: ReadonlyArray<{
   readonly label: string;
@@ -291,7 +299,7 @@ function SettingsErrorNotice(props: {
           aria-hidden="true"
           class="settings-error__icon"
         />
-        {props.message}
+        <span class="settings-error__text">{props.message}</span>
       </AlertDescription>
     </Alert>
   );
@@ -323,7 +331,7 @@ function ResetButton(props: {
                         class: "reset-settings-button",
                         size: "icon-sm",
                         type: "button",
-                        variant: "destructive-outline",
+                        variant: "ghost",
                       } as ButtonProps),
                     ) as ButtonProps)}
                   />
@@ -341,7 +349,7 @@ function ResetButton(props: {
                 children: props.label,
                 class: "reset-settings-button",
                 size: "sm",
-                variant: "destructive-outline",
+                variant: "outline",
               } as ButtonProps) as ButtonProps)}
             />
           )}
@@ -396,8 +404,10 @@ function HotkeyConflictPill(props: {
         )}
       />
       <TooltipContent class="hotkey-row__conflict-tooltip">
-        <span>Also used by</span>
-        <strong>{props.conflicts.join(", ")}</strong>
+        <span class="hotkey-row__conflict-tooltip-title">Also used by</span>
+        <span class="hotkey-row__conflict-tooltip-body">
+          {props.conflicts.join(", ")}
+        </span>
       </TooltipContent>
     </Tooltip>
   );
@@ -635,7 +645,7 @@ function GeneralSettings(props: {
               {updateStatusText(props.updateState)}
             </div>
           </div>
-          <PillButton
+          <Button
             class="update-status-subitem__button"
             disabled={props.checking}
             onClick={() =>
@@ -659,7 +669,7 @@ function GeneralSettings(props: {
                 size="sm"
               />
             </Show>
-          </PillButton>
+          </Button>
         </div>
       </SettingsRow>
       <SettingsRow
@@ -672,7 +682,7 @@ function GeneralSettings(props: {
           />
         }
         description="Choose which window opens when the app starts."
-        title="Launch Mode"
+        title="Launch mode"
       />
     </SettingsSection>
   );
@@ -735,7 +745,7 @@ function HotkeySettingsSection(props: {
         normalized,
       );
       if (conflicts.length > 0) {
-        showLocalError(id, `Shortcut already used by ${conflicts.join(", ")}.`);
+        showLocalError(id, `Already assigned to ${conflicts.join(", ")}.`);
         return;
       }
 
@@ -755,7 +765,7 @@ function HotkeySettingsSection(props: {
     if (conflicts.length > 0) {
       showLocalError(
         id,
-        `Default shortcut already used by ${conflicts.join(", ")}.`,
+        `Default is already assigned to ${conflicts.join(", ")}.`,
       );
       return;
     }
@@ -918,6 +928,7 @@ function HotkeySettingsSection(props: {
                       icon="circle_alert"
                       aria-hidden="true"
                       class="hotkey-row__inline-error-icon"
+                      size="xs"
                     />
                     {error().message}
                   </div>
@@ -955,7 +966,17 @@ function AppearanceSettings(props: {
   readonly onAppearancePatch: (patch: AppearancePatch) => void;
 }): JSX.Element {
   const [activeThemeVariant, setActiveThemeVariant] =
-    createSignal<ThemeVariant>("dark");
+    createSignal<ThemeVariant>(
+      themeVariantForMode(props.settings.appearance.themeMode),
+    );
+  let observedThemeMode = props.settings.appearance.themeMode;
+  createEffect(() => {
+    const nextThemeMode = props.settings.appearance.themeMode;
+    if (nextThemeMode !== observedThemeMode) {
+      observedThemeMode = nextThemeMode;
+      setActiveThemeVariant(themeVariantForMode(nextThemeMode));
+    }
+  });
   const resetThemeProfile = (variant: ThemeVariant) => {
     props.onAppearancePatch({
       themes: {
@@ -1012,7 +1033,7 @@ function AppearanceSettings(props: {
               />
               <ResetButton
                 confirmLabel="Reset"
-                description={`This restores the ${variant} theme fonts, font sizes, rounding, and color token overrides.`}
+                description={`This restores the theme's fonts, font sizes, rounding, and color token overrides.`}
                 iconOnly
                 label={`Reset ${variant} theme`}
                 onConfirm={() => resetThemeProfile(variant)}
@@ -1157,30 +1178,23 @@ function AppearanceSettings(props: {
                   />
                 </div>
               }
+              class="settings-row--rounding"
+              description="Adjust corner rounding across most interface elements."
               title="Rounding"
               titleAction={
-                <>
-                  <TooltipIconButton
-                    aria-label="About rounding"
-                    class="settings-row__title-action-button"
-                    tooltip="Applies to most elements."
-                  >
-                    <Icon icon="circle_question_mark" class="button__icon" />
-                  </TooltipIconButton>
-                  {profile().rounding ===
-                  DEFAULT_THEME_PROFILE.rounding ? undefined : (
-                    <RestoreDefaultButton
-                      aria-label={`Restore default ${variant} theme rounding`}
-                      disabled={false}
-                      onClick={() =>
-                        updateThemeProfile(variant, {
-                          rounding: DEFAULT_THEME_PROFILE.rounding,
-                        })
-                      }
-                      tooltip="Restore default rounding"
-                    />
-                  )}
-                </>
+                profile().rounding ===
+                DEFAULT_THEME_PROFILE.rounding ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme rounding`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        rounding: DEFAULT_THEME_PROFILE.rounding,
+                      })
+                    }
+                    tooltip="Restore default rounding"
+                  />
+                )
               }
             />
           </div>
@@ -1227,7 +1241,10 @@ function AppearanceSettings(props: {
         action={
           <SegmentedControl
             aria-label="Theme mode"
-            onChange={(themeMode) => props.onAppearancePatch({ themeMode })}
+            onChange={(themeMode) => {
+              setActiveThemeVariant(themeVariantForMode(themeMode));
+              props.onAppearancePatch({ themeMode });
+            }}
             options={themeModes}
             value={props.settings.appearance.themeMode}
           />
