@@ -63,9 +63,11 @@ export const makeApi = Effect.gen(function* () {
     store,
     {
       publishEvent: gateway.publishEvent,
-      reportDiagnostic: gateway.reportDiagnostic,
       ...(debug
-        ? { reportProjectionTrace: gateway.reportProjectionTrace }
+        ? {
+            reportDiagnostic: gateway.reportDiagnostic,
+            reportProjectionTrace: gateway.reportProjectionTrace,
+          }
         : {}),
     },
     bridge,

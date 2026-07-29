@@ -8,7 +8,6 @@ import {
 import type { ExtensionPacket, ServerPacket } from "../contract/Packet";
 import {
   AuraPayload,
-  decodeCombatActionAcknowledgements,
   parseCombatEntityReferences,
   toAura,
 } from "../contract/payload/Combat";
@@ -92,19 +91,6 @@ export const projectCombat = (
       return [];
     }
     const events: Event[] = [];
-    if (packet.direction === "server" && packet.command === "ct") {
-      const { rejected } = decodeCombatActionAcknowledgements(packet.data);
-      yield* Effect.forEach(
-        rejected,
-        ({ shape, value }) =>
-          diagnose(
-            "combat:malformed-action-acknowledgement",
-            new Error(`Ignored malformed ${shape} action acknowledgement`),
-            [value],
-          ),
-        { discard: true },
-      );
-    }
 
     for (const [username, value] of Object.entries(decoded.value.p ?? {})) {
       const patch = decodeEntityPatch(value);

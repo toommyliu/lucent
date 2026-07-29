@@ -7,9 +7,15 @@ import * as SettingsPolicy from "../automation/SettingsPolicy";
 import * as Scripting from "../scripting/ScriptRunner";
 import * as Api from "./api/Api";
 import * as Bridge from "./bridge/Bridge";
+import * as DiagnosticSink from "./bridge/DiagnosticSink";
 import * as Gateway from "./bridge/Gateway";
 
-const gatewayLayer = Gateway.layer.pipe(Layer.provideMerge(Bridge.layer));
+const diagnosticLayer =
+  typeof window !== "undefined" && window.desktop.debug
+    ? DiagnosticSink.debugLayer
+    : DiagnosticSink.noopLayer;
+const bridgeLayer = Bridge.layer.pipe(Layer.provideMerge(diagnosticLayer));
+const gatewayLayer = Gateway.layer.pipe(Layer.provideMerge(bridgeLayer));
 export const apiLayer = Api.layer.pipe(Layer.provideMerge(gatewayLayer));
 
 const consumerLayer = Layer.mergeAll(

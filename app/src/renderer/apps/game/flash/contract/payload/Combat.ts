@@ -21,16 +21,6 @@ export interface CombatActionAcknowledgement {
   readonly targets: readonly CombatEntityReference[];
 }
 
-export interface CombatActionAcknowledgementRejection {
-  readonly shape: "payload" | "sara" | "sarsa";
-  readonly value: unknown;
-}
-
-export interface DecodedCombatActionAcknowledgements {
-  readonly acknowledgements: readonly CombatActionAcknowledgement[];
-  readonly rejected: readonly CombatActionAcknowledgementRejection[];
-}
-
 const ActionDetailsPayload = Schema.Struct({
   actID: Schema.optionalKey(NonNegativeWireInt),
   cInf: Schema.optionalKey(Schema.String),
@@ -144,40 +134,25 @@ const multiActionAcknowledgement = (
 
 export const decodeCombatActionAcknowledgements = (
   value: unknown,
-): DecodedCombatActionAcknowledgements => {
+): readonly CombatActionAcknowledgement[] => {
   const decoded = decodeActionAcknowledgementsPayload(value);
-  if (Option.isNone(decoded)) {
-    return {
-      acknowledgements: [],
-      rejected: [{ shape: "payload", value }],
-    };
-  }
+  if (Option.isNone(decoded)) return [];
 
   const acknowledgements: CombatActionAcknowledgement[] = [];
-  const rejected: CombatActionAcknowledgementRejection[] = [];
   const append = (
-    shape: "sara" | "sarsa",
     values: unknown,
     decode: (value: unknown) => CombatActionAcknowledgement | undefined,
   ): void => {
-    if (values == null) return;
-    if (!Array.isArray(values)) {
-      rejected.push({ shape, value: values });
-      return;
-    }
+    if (!Array.isArray(values)) return;
     for (const entry of values) {
       const acknowledgement = decode(entry);
-      if (acknowledgement === undefined) {
-        rejected.push({ shape, value: entry });
-      } else {
-        acknowledgements.push(acknowledgement);
-      }
+      if (acknowledgement !== undefined) acknowledgements.push(acknowledgement);
     }
   };
 
-  append("sara", decoded.value.sara, singleActionAcknowledgement);
-  append("sarsa", decoded.value.sarsa, multiActionAcknowledgement);
-  return { acknowledgements, rejected };
+  append(decoded.value.sara, singleActionAcknowledgement);
+  append(decoded.value.sarsa, multiActionAcknowledgement);
+  return acknowledgements;
 };
 
 export const AuraPayload = Schema.Struct({

@@ -10,8 +10,7 @@ import {
 } from "effect";
 
 import { decodeCallback, type Callback } from "../contract/Callback";
-import type { Diagnostic } from "../contract/Diagnostic";
-import { makeDiagnostic } from "../contract/Diagnostic";
+import type { DiagnosticPhase } from "../contract/Diagnostic";
 import type { Event, RuntimeEvent } from "../contract/Event";
 import type { Packet, PacketDirection, RawPacket } from "../contract/Packet";
 import {
@@ -20,6 +19,7 @@ import {
 } from "../protocol/PacketCodec";
 import type { ProjectionTrace } from "../protocol/Pipeline";
 import { Bridge } from "./Bridge";
+import { DiagnosticSink } from "./DiagnosticSink";
 
 type CallbackKey =
   | "onConnection"
@@ -62,9 +62,9 @@ export const makeGateway = (target?: Window) =>
   Effect.gen(function* () {
     const resolvedTarget = target ?? window;
     const bridge = yield* Bridge;
+    const diagnosticSink = yield* DiagnosticSink;
     const scope = yield* Effect.scope;
     const callbacks = yield* Queue.unbounded<Callback>();
-    const diagnostics = yield* PubSub.unbounded<Diagnostic>({ replay: 64 });
     const events = yield* PubSub.unbounded<Event>();
     const packets = yield* PubSub.unbounded<Packet>();
     const rawPackets = yield* PubSub.unbounded<RawPacket>();
@@ -74,7 +74,6 @@ export const makeGateway = (target?: Window) =>
       Effect.all(
         [
           Queue.shutdown(callbacks),
-          PubSub.shutdown(diagnostics),
           PubSub.shutdown(events),
           PubSub.shutdown(packets),
           PubSub.shutdown(rawPackets),
@@ -83,29 +82,19 @@ export const makeGateway = (target?: Window) =>
       ),
     );
 
-    yield* bridge.diagnostics.pipe(
-      Stream.runForEach((diagnostic) =>
-        PubSub.publish(diagnostics, diagnostic),
-      ),
-      Effect.forkIn(scope),
-    );
-
-    const publishDiagnosticUnsafe = (
-      phase: Diagnostic["phase"],
+    const reportDiagnosticUnsafe = (
+      phase: DiagnosticPhase,
       operation: string,
       cause: unknown,
       args?: readonly unknown[],
     ): void => {
-      PubSub.publishUnsafe(
-        diagnostics,
-        makeDiagnostic(phase, operation, cause, args),
-      );
+      diagnosticSink.report(phase, operation, cause, args);
     };
 
     const offer = (operation: string, value: unknown): void => {
       const decoded = decodeCallback(value);
       if (Option.isNone(decoded)) {
-        publishDiagnosticUnsafe(
+        reportDiagnosticUnsafe(
           "callback-decode",
           operation,
           new Error("Invalid callback input"),
@@ -114,7 +103,7 @@ export const makeGateway = (target?: Window) =>
         return;
       }
       if (!Queue.offerUnsafe(callbacks, decoded.value)) {
-        publishDiagnosticUnsafe(
+        reportDiagnosticUnsafe(
           "callback-dispatch",
           operation,
           new Error("Callback queue is unavailable"),
@@ -154,16 +143,16 @@ export const makeGateway = (target?: Window) =>
       cause: unknown,
       args?: readonly unknown[],
     ) =>
-      PubSub.publish(
-        diagnostics,
-        makeDiagnostic("projection", operation, cause, args),
-      ).pipe(Effect.asVoid);
+      Effect.sync(() =>
+        diagnosticSink.report("projection", operation, cause, args),
+      );
 
     const reportProjectionTrace = (operation: string, trace: ProjectionTrace) =>
-      PubSub.publish(
-        diagnostics,
-        makeDiagnostic("projection-trace", operation, undefined, [trace]),
-      ).pipe(Effect.asVoid);
+      Effect.sync(() =>
+        diagnosticSink.report("projection-trace", operation, undefined, [
+          trace,
+        ]),
+      );
 
     const dispatch = (
       callback: Callback,
@@ -185,9 +174,8 @@ export const makeGateway = (target?: Window) =>
         const packet = parsePacket(input.direction, input.raw);
         if (Option.isNone(packet)) {
           if (isUnsupportedPacketEnvelope(input.raw)) return;
-          yield* PubSub.publish(
-            diagnostics,
-            makeDiagnostic(
+          yield* Effect.sync(() =>
+            diagnosticSink.report(
               "packet-decode",
               `${input.direction}:packet`,
               new Error("Malformed packet envelope"),
@@ -216,10 +204,9 @@ export const makeGateway = (target?: Window) =>
               dispatch(callback, project, projectRuntime),
             ),
             Effect.catchCause((cause) =>
-              PubSub.publish(
-                diagnostics,
-                makeDiagnostic("callback-dispatch", "drain", cause),
-              ).pipe(Effect.asVoid),
+              Effect.sync(() =>
+                diagnosticSink.report("callback-dispatch", "drain", cause),
+              ),
             ),
           ),
         );
@@ -241,7 +228,6 @@ export const makeGateway = (target?: Window) =>
         .pipe(Effect.map(Option.isSome));
 
     return {
-      diagnostics: Stream.fromPubSub(diagnostics),
       events: Stream.fromPubSub(events),
       packets: Stream.fromPubSub(packets),
       rawPackets: Stream.fromPubSub(rawPackets),

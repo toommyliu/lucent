@@ -1,16 +1,6 @@
-import {
-  Context,
-  Data,
-  Effect,
-  Layer,
-  Option,
-  PubSub,
-  Schema,
-  Stream,
-} from "effect";
+import { Context, Data, Effect, Layer, Option, Schema } from "effect";
 
-import type { Diagnostic } from "../contract/Diagnostic";
-import { makeDiagnostic } from "../contract/Diagnostic";
+import { DiagnosticSink } from "./DiagnosticSink";
 
 type Method = keyof Window["swf"];
 type MethodArguments<M extends Method> = Readonly<Parameters<Window["swf"][M]>>;
@@ -22,17 +12,15 @@ class InvokeFailure extends Data.TaggedError("InvokeFailure")<{
 export const makeBridge = (target?: Pick<Window, "swf">) =>
   Effect.gen(function* () {
     const resolvedTarget = target ?? window;
-    const diagnostics = yield* PubSub.unbounded<Diagnostic>();
-    yield* Effect.addFinalizer(() => PubSub.shutdown(diagnostics));
+    const diagnosticSink = yield* DiagnosticSink;
 
     const fail = (
       method: Method,
       cause: unknown,
       args: readonly unknown[] | undefined,
     ) =>
-      PubSub.publish(
-        diagnostics,
-        makeDiagnostic(
+      Effect.sync(() =>
+        diagnosticSink.report(
           "invoke",
           String(method),
           cause,
@@ -93,7 +81,6 @@ export const makeBridge = (target?: Pick<Window, "swf">) =>
       );
 
     return {
-      diagnostics: Stream.fromPubSub(diagnostics),
       invoke,
       invokeJson,
     };

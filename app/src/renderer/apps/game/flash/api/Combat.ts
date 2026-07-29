@@ -227,7 +227,7 @@ export const makeCombat = (
               const expectedActionId = dispatch.actionId;
               const matched = decodeCombatActionAcknowledgements(
                 packetData(candidate),
-              ).acknowledgements.find(
+              ).find(
                 (candidate) =>
                   candidate.actionId === expectedActionId &&
                   candidate.source.type === "player" &&
