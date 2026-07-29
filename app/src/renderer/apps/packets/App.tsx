@@ -203,6 +203,7 @@ function PacketSenderLabelHelp(): JSX.Element {
 
 export function App(): JSX.Element {
   let packetSearchInput: HTMLInputElement | undefined;
+  let senderTextarea: HTMLTextAreaElement | undefined;
   let editingQueueTextarea: HTMLTextAreaElement | undefined;
 
   const [activeTab, setActiveTab] = createSignal<ActiveTab>("log");
@@ -499,6 +500,7 @@ export function App(): JSX.Element {
   const usePacketInSender = (entry: PacketLogEntry): void => {
     setSendText(entry.text);
     setActiveTab("send");
+    requestAnimationFrame(() => senderTextarea?.focus());
   };
 
   const addPacketToQueue = (entry: PacketLogEntry): void => {
@@ -1205,6 +1207,9 @@ export function App(): JSX.Element {
                               <PacketSenderLabelHelp />
                               <div class="packets-sender__textarea-wrapper">
                                 <Textarea
+                                  ref={(element) => {
+                                    senderTextarea = element;
+                                  }}
                                   disabled={queueRunning()}
                                   id="packet-input"
                                   onKeyDown={handleSenderKeyDown}
