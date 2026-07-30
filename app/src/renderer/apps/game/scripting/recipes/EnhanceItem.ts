@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import type { Packet } from "../../flash/contract/Packet";
-import type { ScriptEnhanceItemOptions } from "../api/Recipes";
+import type { ScriptEnhanceItemOptions } from "../ScriptApi";
 import type { ScriptRecipeDependencies } from "./Dependencies";
 
 const enhancementResponseContains = (packet: Packet, itemId: number) => {

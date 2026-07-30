@@ -1,14 +1,7 @@
 import { toPlayerSelector } from "@lucent/game";
-import type { LivePlayer, PlayerQuery } from "@lucent/game";
-import type * as Effect from "effect/Effect";
 
 import type { ApiService } from "../../flash/api/Api";
-
-export interface ScriptPlayersApi {
-  readonly get: (selector: PlayerQuery) => Effect.Effect<LivePlayer | null>;
-  readonly getAll: () => Effect.Effect<LivePlayer[]>;
-  readonly getMe: () => Effect.Effect<LivePlayer | null>;
-}
+import type { ScriptPlayersApi } from "../ScriptApi";
 
 export const makeScriptPlayersApi = (
   players: Pick<ApiService["players"], "get" | "getAll">,

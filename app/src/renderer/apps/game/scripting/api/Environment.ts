@@ -1,9 +1,5 @@
 import type { EnvironmentShape } from "../../environment/Environment";
-
-export type ScriptEnvironmentApi = Omit<
-  EnvironmentShape,
-  "setItemRules" | "setQuestAutoRegister"
->;
+import type { ScriptEnvironmentApi } from "../ScriptApi";
 
 export const makeScriptEnvironmentApi = (
   environment: EnvironmentShape,

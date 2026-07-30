@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../../flash/api/Api";
 import { applyRoomPolicy } from "../../flash/domain/MapTarget";
+import type { ScriptPlayerApi, ScriptPlayersApi } from "../ScriptApi";
 import { makeScriptPlayersApi } from "./Players";
 
 type ScriptRoomPolicyContext = {
@@ -18,14 +19,14 @@ const makeScriptPlayerJoinMap = (
     return yield* joinMap(yield* applyRoomPolicy(map, policy), cell, pad);
   });
 
-export const makeScriptPlayerApis = <
-  PlayerSource extends Pick<ApiService["player"], "get" | "joinMap">,
-  PlayersSource extends Pick<ApiService["players"], "get" | "getAll" | "getMe">,
->(
-  player: PlayerSource,
-  players: PlayersSource,
+export const makeScriptPlayerApis = (
+  player: ApiService["player"],
+  players: ApiService["players"],
   script: ScriptRoomPolicyContext,
-) => {
+): {
+  readonly player: ScriptPlayerApi;
+  readonly players: ScriptPlayersApi;
+} => {
   const playerApi = {
     ...player,
     joinMap: makeScriptPlayerJoinMap(

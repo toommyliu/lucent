@@ -14,15 +14,15 @@ tableOfContents:
 
 <a id="member-api-combat-attackmonster"></a>
 
-### `api.combat.attackMonster()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L724" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:724" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.attackMonster()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L282" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:282" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.attackMonster(selector: MonsterQuery): Effect.Effect<boolean, never, never>
+api.combat.attackMonster(query: MonsterQuery): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -30,10 +30,10 @@ api.combat.attackMonster(selector: MonsterQuery): Effect.Effect<boolean, never, 
 
 <a id="member-api-combat-cancelautoattack"></a>
 
-### `api.combat.cancelAutoAttack()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L725" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:725" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.cancelAutoAttack()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L283" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:283" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.cancelAutoAttack(): Effect.Effect<void, never, never>
+api.combat.cancelAutoAttack(): Effect.Effect<void>
 ```
 
 **Yields:** `void`
@@ -42,10 +42,10 @@ api.combat.cancelAutoAttack(): Effect.Effect<void, never, never>
 
 <a id="member-api-combat-canceltarget"></a>
 
-### `api.combat.cancelTarget()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L726" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:726" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.cancelTarget()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L284" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:284" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.cancelTarget(): Effect.Effect<void, never, never>
+api.combat.cancelTarget(): Effect.Effect<void>
 ```
 
 **Yields:** `void`
@@ -54,15 +54,15 @@ api.combat.cancelTarget(): Effect.Effect<void, never, never>
 
 <a id="member-api-combat-canuseskill"></a>
 
-### `api.combat.canUseSkill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L727" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:727" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.canUseSkill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L285" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:285" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.canUseSkill(skill: number): Effect.Effect<boolean, never, never>
+api.combat.canUseSkill(skill: Skill): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `skill` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `skill` | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `boolean`
 
@@ -70,15 +70,15 @@ api.combat.canUseSkill(skill: number): Effect.Effect<boolean, never, never>
 
 <a id="member-api-combat-castconsumableonmonster"></a>
 
-### `api.combat.castConsumableOnMonster()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L728" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:728" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.castConsumableOnMonster()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L286" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:286" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.castConsumableOnMonster(selector: MonsterQuery, expectedItemId: number): Effect.Effect<ConsumableCastResult | null, never, never>
+api.combat.castConsumableOnMonster(query: MonsterQuery, expectedItemId: number): Effect.Effect<ConsumableCastResult | null>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `expectedItemId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** <a href="/scripting/types/consumable-cast-result/" data-script-type="consumable-cast-result"><code>ConsumableCastResult</code></a> \| `null`
@@ -87,10 +87,10 @@ api.combat.castConsumableOnMonster(selector: MonsterQuery, expectedItemId: numbe
 
 <a id="member-api-combat-exit"></a>
 
-### `api.combat.exit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L729" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:729" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.exit()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L290" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:290" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.exit(): Effect.Effect<boolean, never, never>
+api.combat.exit(): Effect.Effect<boolean>
 ```
 
 **Yields:** `boolean`
@@ -99,22 +99,22 @@ api.combat.exit(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-combat-getconsumableskillitem"></a>
 
-### `api.combat.getConsumableSkillItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L730" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:730" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.getConsumableSkillItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L291" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:291" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.getConsumableSkillItem(): Effect.Effect<{ itemId: number; } | null, never, never>
+api.combat.getConsumableSkillItem(): Effect.Effect<ScriptConsumableSkillItem | null>
 ```
 
-**Yields:** { `itemId`: `number`; } \| `null`
+**Yields:** <a href="/scripting/types/script-consumable-skill-item/" data-script-type="script-consumable-skill-item"><code>ScriptConsumableSkillItem</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-combat-getskillcooldownremaining"></a>
 
-### `api.combat.getSkillCooldownRemaining()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L731" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:731" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.getSkillCooldownRemaining()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L292" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:292" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.getSkillCooldownRemaining(index: number): Effect.Effect<number, never, never>
+api.combat.getSkillCooldownRemaining(index: number): Effect.Effect<number>
 ```
 
 | Name | Type | Required | Description |
@@ -127,16 +127,16 @@ api.combat.getSkillCooldownRemaining(index: number): Effect.Effect<number, never
 
 <a id="member-api-combat-hunt"></a>
 
-### `api.combat.hunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L732" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:732" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.hunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L293" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:293" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.hunt(selector: MonsterQuery, options?: HuntOptions | undefined): Effect.Effect<LiveMonster | null, never, never>
+api.combat.hunt(query: MonsterQuery, options?: HuntOptions): Effect.Effect<LiveMonster | null>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> \| `undefined` |  |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> |  |  |
 
 **Yields:** <a href="/scripting/types/live-monster/" data-script-type="live-monster"><code>LiveMonster</code></a> \| `null`
 
@@ -144,16 +144,16 @@ api.combat.hunt(selector: MonsterQuery, options?: HuntOptions | undefined): Effe
 
 <a id="member-api-combat-kill"></a>
 
-### `api.combat.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L733" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:733" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L297" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:297" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.kill(selector: MonsterQuery, options?: CombatKillOptions | undefined): Effect.Effect<boolean, never, never>
+api.combat.kill(query: MonsterQuery, options?: CombatKillOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -161,18 +161,18 @@ api.combat.kill(selector: MonsterQuery, options?: CombatKillOptions | undefined)
 
 <a id="member-api-combat-killforitem"></a>
 
-### `api.combat.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L734" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:734" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L301" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:301" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.killForItem(selector: MonsterQuery, item: ItemQuery, quantity?: number | undefined, options?: CombatKillOptions | undefined): Effect.Effect<boolean, never, never>
+api.combat.killForItem(query: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `quantity` | `number` \| `undefined` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `quantity` | `number` |  |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -180,18 +180,18 @@ api.combat.killForItem(selector: MonsterQuery, item: ItemQuery, quantity?: numbe
 
 <a id="member-api-combat-killfortempitem"></a>
 
-### `api.combat.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L735" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:735" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L307" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:307" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.killForTempItem(selector: MonsterQuery, item: ItemQuery, quantity?: number | undefined, options?: CombatKillOptions | undefined): Effect.Effect<boolean, never, never>
+api.combat.killForTempItem(query: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `quantity` | `number` \| `undefined` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `quantity` | `number` |  |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -199,16 +199,16 @@ api.combat.killForTempItem(selector: MonsterQuery, item: ItemQuery, quantity?: n
 
 <a id="member-api-combat-target-auras-get"></a>
 
-### `api.combat.target.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L716" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:716" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.target.auras.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L226" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:226" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.target.auras.get(name: string, options?: { kind?: 'active' | 'passive'; } | undefined): Effect.Effect<LiveAura | null, never, never>
+api.combat.target.auras.get(name: string, options?: AuraQueryOptions): Effect.Effect<LiveAura | null>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | { `kind`?: '`active`' \| '`passive`'; } \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> |  |  |
 
 **Yields:** <a href="/scripting/types/live-aura/" data-script-type="live-aura"><code>LiveAura</code></a> \| `null`
 
@@ -216,15 +216,15 @@ api.combat.target.auras.get(name: string, options?: { kind?: 'active' | 'passive
 
 <a id="member-api-combat-target-auras-getall"></a>
 
-### `api.combat.target.auras.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L717" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:717" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.target.auras.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L230" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:230" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.target.auras.getAll(options?: { kind?: 'active' | 'passive'; } | undefined): Effect.Effect<LiveAura[], never, never>
+api.combat.target.auras.getAll(options?: AuraQueryOptions): Effect.Effect<LiveAura[]>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `options` | { `kind`?: '`active`' \| '`passive`'; } \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> |  |  |
 
 **Yields:** <a href="/scripting/types/live-aura/" data-script-type="live-aura"><code>LiveAura</code></a>[]
 
@@ -232,16 +232,16 @@ api.combat.target.auras.getAll(options?: { kind?: 'active' | 'passive'; } | unde
 
 <a id="member-api-combat-target-auras-has"></a>
 
-### `api.combat.target.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L718" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:718" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.target.auras.has()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L231" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:231" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.target.auras.has(name: string, options?: { kind?: 'active' | 'passive'; } | undefined): Effect.Effect<boolean, never, never>
+api.combat.target.auras.has(name: string, options?: AuraQueryOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | { `kind`?: '`active`' \| '`passive`'; } \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -249,28 +249,28 @@ api.combat.target.auras.has(name: string, options?: { kind?: 'active' | 'passive
 
 <a id="member-api-combat-target-get"></a>
 
-### `api.combat.target.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L720" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:720" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.target.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L274" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:274" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.target.get(): Effect.Effect<{ readonly cell: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly monsterId: number; readonly monsterMapId: number; readonly name: string; readonly race: string; readonly state: number; readonly type: 'monster'; } | { readonly afk: boolean; readonly cell: string; readonly entityId: number; readonly entityType: string; readonly hp: number; readonly level: number; readonly maxHp: number; readonly maxMp: number; readonly mp: number; readonly name: string; readonly pad: string; readonly sp: number; readonly state: number; readonly type: 'player'; readonly username: string; } | null, never, never>
+api.combat.target.get(): Effect.Effect<ScriptCombatTarget | null>
 ```
 
-**Yields:** { `readonly` `cell`: `string`; `readonly` `hp`: `number`; `readonly` `level`: `number`; `readonly` `maxHp`: `number`; `readonly` `monsterId`: `number`; `readonly` `monsterMapId`: `number`; `readonly` `name`: `string`; `readonly` `race`: `string`; `readonly` `state`: `number`; `readonly` `type`: '`monster`'; } \| { `readonly` `afk`: `boolean`; `readonly` `cell`: `string`; `readonly` `entityId`: `number`; `readonly` `entityType`: `string`; `readonly` `hp`: `number`; `readonly` `level`: `number`; `readonly` `maxHp`: `number`; `readonly` `maxMp`: `number`; `readonly` `mp`: `number`; `readonly` `name`: `string`; `readonly` `pad`: `string`; `readonly` `sp`: `number`; `readonly` `state`: `number`; `readonly` `type`: '`player`'; `readonly` `username`: `string`; } \| `null`
+**Yields:** <a href="/scripting/types/script-combat-target/" data-script-type="script-combat-target"><code>ScriptCombatTarget</code></a> \| `null`
 
 **Errors:** `never`
 
 <a id="member-api-combat-useskill"></a>
 
-### `api.combat.useSkill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L737" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:737" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.combat.useSkill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L314" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:314" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.combat.useSkill(skill: number, options?: SkillUseOptions | undefined): Effect.Effect<boolean, never, never>
+api.combat.useSkill(skill: Skill, options?: SkillUseOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `skill` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> \| `undefined` |  |  |
+| `skill` | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 

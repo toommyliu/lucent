@@ -14,16 +14,16 @@ tableOfContents:
 
 <a id="member-api-shops-buy"></a>
 
-### `api.shops.buy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L323" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:323" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.buy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L683" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:683" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.buy(selector: ShopItemQuery, options?: { quantity?: number; } | undefined): Effect.Effect<boolean, never, never>
+api.shops.buy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | { `quantity`?: `number`; } \| `undefined` |  |  |
+| `query` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/script-shop-quantity-options/" data-script-type="script-shop-quantity-options"><code>ScriptShopQuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -31,16 +31,16 @@ api.shops.buy(selector: ShopItemQuery, options?: { quantity?: number; } | undefi
 
 <a id="member-api-shops-canbuy"></a>
 
-### `api.shops.canBuy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L324" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:324" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.canBuy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L687" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:687" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.canBuy(selector: ShopItemQuery, options?: { quantity?: number; } | undefined): Effect.Effect<boolean, never, never>
+api.shops.canBuy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | { `quantity`?: `number`; } \| `undefined` |  |  |
+| `query` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/script-shop-quantity-options/" data-script-type="script-shop-quantity-options"><code>ScriptShopQuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -48,15 +48,15 @@ api.shops.canBuy(selector: ShopItemQuery, options?: { quantity?: number; } | und
 
 <a id="member-api-shops-close"></a>
 
-### `api.shops.close()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L325" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:325" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.close()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L691" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:691" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.close(shopId?: number | undefined): Effect.Effect<boolean, never, never>
+api.shops.close(shopId?: number): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `shopId` | `number` \| `undefined` |  |  |
+| `shopId` | `number` |  |  |
 
 **Yields:** `boolean`
 
@@ -64,15 +64,15 @@ api.shops.close(shopId?: number | undefined): Effect.Effect<boolean, never, neve
 
 <a id="member-api-shops-get"></a>
 
-### `api.shops.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L326" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:326" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.get()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L692" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:692" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.get(selector: ShopItemQuery): Effect.Effect<LiveItem | null, never, never>
+api.shops.get(query: ShopItemQuery): Effect.Effect<LiveItem | null>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** <a href="/scripting/types/live-item/" data-script-type="live-item"><code>LiveItem</code></a> \| `null`
 
@@ -80,10 +80,10 @@ api.shops.get(selector: ShopItemQuery): Effect.Effect<LiveItem | null, never, ne
 
 <a id="member-api-shops-getall"></a>
 
-### `api.shops.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L327" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:327" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getAll()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L693" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:693" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getAll(): Effect.Effect<readonly LiveItem[], never, never>
+api.shops.getAll(): Effect.Effect<readonly LiveItem[]>
 ```
 
 **Yields:** `readonly` <a href="/scripting/types/live-item/" data-script-type="live-item"><code>LiveItem</code></a>[]
@@ -92,10 +92,10 @@ api.shops.getAll(): Effect.Effect<readonly LiveItem[], never, never>
 
 <a id="member-api-shops-getinfo"></a>
 
-### `api.shops.getInfo()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L328" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:328" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getInfo()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L694" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:694" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getInfo(): Effect.Effect<LiveShop | null, never, never>
+api.shops.getInfo(): Effect.Effect<LiveShop | null>
 ```
 
 **Yields:** <a href="/scripting/types/live-shop/" data-script-type="live-shop"><code>LiveShop</code></a> \| `null`
@@ -104,15 +104,15 @@ api.shops.getInfo(): Effect.Effect<LiveShop | null, never, never>
 
 <a id="member-api-shops-getmaxbuyquantity"></a>
 
-### `api.shops.getMaxBuyQuantity()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L329" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:329" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.getMaxBuyQuantity()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L695" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:695" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.getMaxBuyQuantity(selector: ShopItemQuery): Effect.Effect<number, never, never>
+api.shops.getMaxBuyQuantity(query: ShopItemQuery): Effect.Effect<number>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `number`
 
@@ -120,10 +120,10 @@ api.shops.getMaxBuyQuantity(selector: ShopItemQuery): Effect.Effect<number, neve
 
 <a id="member-api-shops-ismergeshop"></a>
 
-### `api.shops.isMergeShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L330" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:330" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.isMergeShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L696" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:696" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.isMergeShop(): Effect.Effect<boolean, never, never>
+api.shops.isMergeShop(): Effect.Effect<boolean>
 ```
 
 **Yields:** `boolean`
@@ -132,15 +132,15 @@ api.shops.isMergeShop(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-shops-isopen"></a>
 
-### `api.shops.isOpen()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L331" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:331" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.isOpen()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L697" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:697" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.isOpen(shopId?: number | undefined): Effect.Effect<boolean, never, never>
+api.shops.isOpen(shopId?: number): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `shopId` | `number` \| `undefined` |  |  |
+| `shopId` | `number` |  |  |
 
 **Yields:** `boolean`
 
@@ -148,10 +148,10 @@ api.shops.isOpen(shopId?: number | undefined): Effect.Effect<boolean, never, nev
 
 <a id="member-api-shops-load"></a>
 
-### `api.shops.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L332" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:332" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.load()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L698" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:698" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.load(shopId: number): Effect.Effect<boolean, never, never>
+api.shops.load(shopId: number): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
@@ -164,10 +164,10 @@ api.shops.load(shopId: number): Effect.Effect<boolean, never, never>
 
 <a id="member-api-shops-loadarmorcustomize"></a>
 
-### `api.shops.loadArmorCustomize()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L333" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:333" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.loadArmorCustomize()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L699" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:699" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.loadArmorCustomize(): Effect.Effect<void, never, never>
+api.shops.loadArmorCustomize(): Effect.Effect<void>
 ```
 
 **Yields:** `void`
@@ -176,10 +176,10 @@ api.shops.loadArmorCustomize(): Effect.Effect<void, never, never>
 
 <a id="member-api-shops-loadhairshop"></a>
 
-### `api.shops.loadHairShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L334" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:334" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.loadHairShop()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L700" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:700" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.loadHairShop(shopId: number): Effect.Effect<void, never, never>
+api.shops.loadHairShop(shopId: number): Effect.Effect<void>
 ```
 
 | Name | Type | Required | Description |
@@ -192,16 +192,16 @@ api.shops.loadHairShop(shopId: number): Effect.Effect<void, never, never>
 
 <a id="member-api-shops-sell"></a>
 
-### `api.shops.sell()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Shops.ts#L335" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Shops.ts:335" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.shops.sell()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L701" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:701" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.shops.sell(selector: ItemQuery, options?: { quantity?: number; } | undefined): Effect.Effect<boolean, never, never>
+api.shops.sell(query: ItemQuery, options?: ScriptShopQuantityOptions): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | { `quantity`?: `number`; } \| `undefined` |  |  |
+| `query` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/script-shop-quantity-options/" data-script-type="script-shop-quantity-options"><code>ScriptShopQuantityOptions</code></a> |  |  |
 
 **Yields:** `boolean`
 

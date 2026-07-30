@@ -19,54 +19,62 @@ fail to match instead of selecting events where the field happens to be
 absent.
 
 ```ts
-type EventSelector = | {
-      readonly status?: string;
-      readonly type: "connection";
-    }
-  | {
-      readonly message?: string;
-      readonly type: "debug";
-    }
-  | {
-      readonly type: "packet";
-    }
-  | {
-      readonly type: "join-map";
-    }
-  | {
-      readonly questId?: number;
-      readonly type: "quest-complete";
-    }
-  | {
-      readonly monsterMapId?: number;
-      readonly type: "monster-death" | "monster-respawn";
-    }
-  | {
-      readonly entityId?: number;
-      readonly type: "player-death" | "player-location";
-      readonly username?: string;
-    }
-  | {
-      readonly duration?: number;
-      readonly icon?: string;
-      readonly name?: string;
-      readonly sourceId?: number;
-      readonly sourceType?: "monster" | "player";
-      readonly targetId?: number;
-      readonly targetType?: "monster" | "player";
-      readonly type: "aura-added" | "aura-removed";
-    }
-  | {
-      readonly message?: string;
-      readonly monsterMapId?: number;
-      readonly source?: "animation" | "aura";
-      readonly type: "update-message";
-    }
-  | {
-      readonly map?: string;
-      readonly type: "zone";
-      readonly zone?: string;
-    }
+type EventSelector = {
+    readonly status?: string;
+    readonly type: "connection";
+} | {
+    readonly message?: string;
+    readonly type: "debug";
+} | {
+    readonly type: "packet";
+} | {
+    readonly type: "join-map";
+} | {
+    readonly type: "item-drop";
+} | {
+    readonly questId?: number;
+    readonly type: "quest-complete";
+} | {
+    readonly monsterMapId?: number;
+    readonly type: "monster-death" | "monster-respawn";
+} | {
+    readonly entityId?: number;
+    readonly type: "player-death" | "player-location";
+    readonly username?: string;
+} | {
+    readonly type: "players-changed";
+} | {
+    readonly duration?: number;
+    readonly icon?: string;
+    readonly name?: string;
+    readonly sourceId?: number;
+    readonly sourceType?: "monster" | "player";
+    readonly targetId?: number;
+    readonly targetType?: "monster" | "player";
+    readonly type: "aura-added" | "aura-removed";
+} | {
+    readonly durationMs?: number;
+    readonly monsterMapId?: number;
+    readonly source?: "aura" | "message";
+    readonly triggerId?: string;
+    readonly triggerText?: string;
+    readonly type: "anti-counter-start";
+} | {
+    readonly monsterMapId?: number;
+    readonly source?: "aura" | "message";
+    readonly triggerId?: string;
+    readonly triggerText?: string;
+    readonly type: "anti-counter-end";
+} | {
+    readonly message?: string;
+    readonly monsterMapId?: number;
+    readonly source?: "animation" | "aura";
+    readonly type: "update-message";
+} | {
+    readonly map?: string;
+    readonly type: "zone";
+    readonly zone?: string;
+}
 ```
 
-<p class="source-reference"><span class="source-reference__label">Source</span><code class="source-reference__path">app/src/renderer/apps/game/flash/contract/Event.ts:73</code><a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L73" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:73" title="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:73" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a></p>
+<p class="source-reference"><span class="source-reference__label">Source</span><code class="source-reference__path">app/src/renderer/apps/game/flash/contract/Event.ts:100</code><a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L100" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:100" title="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:100" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a></p>

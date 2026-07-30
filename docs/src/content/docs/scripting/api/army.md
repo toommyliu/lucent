@@ -14,16 +14,16 @@ tableOfContents:
 
 <a id="member-api-army-equipset"></a>
 
-### `api.army.equipSet()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L54" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:54" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.equipSet()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L120" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:120" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.equipSet(setName: string, options?: ArmyEquipSetOptions | undefined): Effect.Effect<void, ArmyError, never>
+api.army.equipSet(setName: string, options?: ArmyEquipSetOptions): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `setName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> |  |  |
 
 **Yields:** `void`
 
@@ -31,15 +31,15 @@ api.army.equipSet(setName: string, options?: ArmyEquipSetOptions | undefined): E
 
 <a id="member-api-army-executewitharmy"></a>
 
-### `api.army.executeWithArmy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L58" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:58" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.executeWithArmy()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L124" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:124" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.executeWithArmy(action: Effect.Effect<A, E, never>): Effect.Effect<A, ArmyError | E, never>
+api.army.executeWithArmy(action: Effect.Effect<A, E>): Effect.Effect<A, E | ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `action` | `Effect`.`Effect`&lt;`A`, `E`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `action` | `Effect`.`Effect`&lt;`A`, `E`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** `A`
 
@@ -47,16 +47,16 @@ api.army.executeWithArmy(action: Effect.Effect<A, E, never>): Effect.Effect<A, A
 
 <a id="member-api-army-getconfigstring"></a>
 
-### `api.army.getConfigString()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L61" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:61" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.getConfigString()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L127" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:127" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.getConfigString(key: string, defaultValue?: string | undefined): Effect.Effect<string, never, never>
+api.army.getConfigString(key: string, defaultValue?: string): Effect.Effect<string>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `key` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `defaultValue` | `string` \| `undefined` |  |  |
+| `defaultValue` | `string` |  |  |
 
 **Yields:** `string`
 
@@ -64,10 +64,10 @@ api.army.getConfigString(key: string, defaultValue?: string | undefined): Effect
 
 <a id="member-api-army-getconfigvalue"></a>
 
-### `api.army.getConfigValue()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L65" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:65" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.getConfigValue()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L131" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:131" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.getConfigValue(key: string, defaultValue?: unknown): Effect.Effect<unknown, never, never>
+api.army.getConfigValue(key: string, defaultValue?: unknown): Effect.Effect<unknown>
 ```
 
 | Name | Type | Required | Description |
@@ -81,10 +81,10 @@ api.army.getConfigValue(key: string, defaultValue?: unknown): Effect.Effect<unkn
 
 <a id="member-api-army-getplayernumber"></a>
 
-### `api.army.getPlayerNumber()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L69" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:69" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.getPlayerNumber()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L135" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:135" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.getPlayerNumber(): Effect.Effect<number, never, never>
+api.army.getPlayerNumber(): Effect.Effect<number>
 ```
 
 **Yields:** `number`
@@ -93,10 +93,10 @@ api.army.getPlayerNumber(): Effect.Effect<number, never, never>
 
 <a id="member-api-army-getsession"></a>
 
-### `api.army.getSession()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L70" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:70" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.getSession()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L136" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:136" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.getSession(): Effect.Effect<ArmySessionPayload | null, never, never>
+api.army.getSession(): Effect.Effect<ArmySession | null>
 ```
 
 **Yields:** <a href="/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> \| `null`
@@ -105,10 +105,10 @@ api.army.getSession(): Effect.Effect<ArmySessionPayload | null, never, never>
 
 <a id="member-api-army-isleader"></a>
 
-### `api.army.isLeader()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L71" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:71" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.isLeader()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L137" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:137" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.isLeader(): Effect.Effect<boolean, never, never>
+api.army.isLeader(): Effect.Effect<boolean>
 ```
 
 **Yields:** `boolean`
@@ -117,10 +117,10 @@ api.army.isLeader(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-army-ismember"></a>
 
-### `api.army.isMember()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L72" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:72" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.isMember()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L138" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:138" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.isMember(): Effect.Effect<boolean, never, never>
+api.army.isMember(): Effect.Effect<boolean>
 ```
 
 **Yields:** `boolean`
@@ -129,10 +129,10 @@ api.army.isMember(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-army-isstarted"></a>
 
-### `api.army.isStarted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L73" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:73" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.isStarted()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L139" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:139" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.isStarted(): Effect.Effect<boolean, never, never>
+api.army.isStarted(): Effect.Effect<boolean>
 ```
 
 **Yields:** `boolean`
@@ -141,17 +141,17 @@ api.army.isStarted(): Effect.Effect<boolean, never, never>
 
 <a id="member-api-army-joinmap"></a>
 
-### `api.army.joinMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L74" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:74" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.joinMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L140" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:140" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.joinMap(map: string, cell?: string | undefined, pad?: string | undefined): Effect.Effect<void, ArmyError, never>
+api.army.joinMap(map: string, cell?: string, pad?: string): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `map` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `cell` | `string` \| `undefined` |  |  |
-| `pad` | `string` \| `undefined` |  |  |
+| `cell` | `string` |  |  |
+| `pad` | `string` |  |  |
 
 **Yields:** `void`
 
@@ -159,16 +159,16 @@ api.army.joinMap(map: string, cell?: string | undefined, pad?: string | undefine
 
 <a id="member-api-army-kill"></a>
 
-### `api.army.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L79" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:79" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.kill()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L145" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:145" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.kill(target: MonsterQuery, options?: CombatKillOptions | undefined): Effect.Effect<void, ArmyError, never>
+api.army.kill(target: MonsterQuery, options?: CombatKillOptions): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
@@ -176,18 +176,18 @@ api.army.kill(target: MonsterQuery, options?: CombatKillOptions | undefined): Ef
 
 <a id="member-api-army-killforitem"></a>
 
-### `api.army.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L83" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:83" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.killForItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L149" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:149" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number | undefined, options?: CombatKillOptions | undefined): Effect.Effect<void, ArmyError, never>
+api.army.killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `quantity` | `number` \| `undefined` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `quantity` | `number` |  |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
@@ -195,18 +195,18 @@ api.army.killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number | 
 
 <a id="member-api-army-killfortempitem"></a>
 
-### `api.army.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L89" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:89" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.killForTempItem()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L155" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:155" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: number | undefined, options?: CombatKillOptions | undefined): Effect.Effect<void, ArmyError, never>
+api.army.killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target` | <a href="/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `item` | <a href="/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `quantity` | `number` \| `undefined` |  |  |
-| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> \| `undefined` |  |  |
+| `quantity` | `number` |  |  |
+| `options` | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> |  |  |
 
 **Yields:** `void`
 
@@ -214,10 +214,10 @@ api.army.killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: numbe
 
 <a id="member-api-army-leave"></a>
 
-### `api.army.leave()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L95" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:95" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.leave()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L161" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:161" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.leave(): Effect.Effect<void, never, never>
+api.army.leave(): Effect.Effect<void>
 ```
 
 **Yields:** `void`
@@ -226,17 +226,17 @@ api.army.leave(): Effect.Effect<void, never, never>
 
 <a id="member-api-army-looptaunt"></a>
 
-### `api.army.loopTaunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L107" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:107" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.loopTaunt()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L173" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:173" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Starts a map-scoped Loop Taunt plan across the full Army roster.
 
 ```ts
-api.army.loopTaunt(plan: ArmyLoopTauntPlan): Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError, never>
+api.army.loopTaunt(plan: ArmyLoopTauntPlan): Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `plan` | <a href="/scripting/types/army-loop-taunt-plan/" data-script-type="army-loop-taunt-plan"><code>ArmyLoopTauntPlan</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `plan` | <a href="/scripting/types/army-loop-taunt-plan/" data-script-type="army-loop-taunt-plan"><code>ArmyLoopTauntPlan</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> | The ordered target priority groups every participant runs. |
 
 **Yields:** <a href="/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a>
 
@@ -244,17 +244,17 @@ api.army.loopTaunt(plan: ArmyLoopTauntPlan): Effect.Effect<ArmyLoopTauntHandle, 
 
 <a id="member-api-army-runstep"></a>
 
-### `api.army.runStep()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L96" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:96" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.runStep()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L162" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:162" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.runStep(label: string, action: Effect.Effect<A, E, never>, options?: ArmyRunStepOptions | undefined): Effect.Effect<A, ArmyError | E, never>
+api.army.runStep(label: string, action: Effect.Effect<A, E>, options?: ArmyRunStepOptions): Effect.Effect<A, E | ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `label` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `action` | `Effect`.`Effect`&lt;`A`, `E`, `never`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `options` | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> \| `undefined` |  |  |
+| `action` | `Effect`.`Effect`&lt;`A`, `E`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `options` | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> |  |  |
 
 **Yields:** `A`
 
@@ -262,10 +262,10 @@ api.army.runStep(label: string, action: Effect.Effect<A, E, never>, options?: Ar
 
 <a id="member-api-army-start"></a>
 
-### `api.army.start()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L101" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:101" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.start()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L167" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:167" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.start(configName: string): Effect.Effect<ArmySessionPayload, ArmyError, never>
+api.army.start(configName: string): Effect.Effect<ArmySession, ArmyError>
 ```
 
 | Name | Type | Required | Description |
@@ -278,16 +278,16 @@ api.army.start(configName: string): Effect.Effect<ArmySessionPayload, ArmyError,
 
 <a id="member-api-army-sync"></a>
 
-### `api.army.sync()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L110" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:110" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.sync()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L176" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:176" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.sync(label?: string | undefined, options?: ArmyRunStepOptions | undefined): Effect.Effect<void, ArmyError, never>
+api.army.sync(label?: string, options?: ArmyRunStepOptions): Effect.Effect<void, ArmyError>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `label` | `string` \| `undefined` |  |  |
-| `options` | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> \| `undefined` |  |  |
+| `label` | `string` |  |  |
+| `options` | <a href="/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> |  |  |
 
 **Yields:** `void`
 
@@ -295,10 +295,10 @@ api.army.sync(label?: string | undefined, options?: ArmyRunStepOptions | undefin
 
 <a id="member-api-army-waitforallinmap"></a>
 
-### `api.army.waitForAllInMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/army/Army.ts#L114" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/army/Army.ts:114" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.army.waitForAllInMap()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L180" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:180" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.army.waitForAllInMap(): Effect.Effect<void, ArmyError, never>
+api.army.waitForAllInMap(): Effect.Effect<void, ArmyError>
 ```
 
 **Yields:** `void`

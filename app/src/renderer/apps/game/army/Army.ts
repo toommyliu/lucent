@@ -13,14 +13,12 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import type { ItemQuery, MonsterQuery } from "@lucent/game";
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
-import type { CombatKillOptions } from "../flash/api/Combat";
+import type { ScriptArmyApi } from "../scripting/ScriptApi";
 import {
   ArmyLoopTauntError,
   type ArmyLoopTauntHandle,
-  type ArmyLoopTauntPlan,
   type ArmyLoopTauntRuntimePlan,
   makeArmyLoopTauntRuntime,
 } from "./ArmyLoopTaunt";
@@ -52,71 +50,7 @@ export interface ArmyEquipSetOptions {
 
 export type ArmySession = ArmySessionPayload;
 
-export interface ArmyApiShape {
-  readonly equipSet: (
-    setName: string,
-    options?: ArmyEquipSetOptions,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly executeWithArmy: <A, E>(
-    action: Effect.Effect<A, E>,
-  ) => Effect.Effect<A, E | ArmyError>;
-  readonly getConfigString: (
-    key: string,
-    defaultValue?: string,
-  ) => Effect.Effect<string>;
-  readonly getConfigValue: (
-    key: string,
-    defaultValue?: unknown,
-  ) => Effect.Effect<unknown>;
-  readonly getPlayerNumber: () => Effect.Effect<number>;
-  readonly getSession: () => Effect.Effect<ArmySession | null>;
-  readonly isLeader: () => Effect.Effect<boolean>;
-  readonly isMember: () => Effect.Effect<boolean>;
-  readonly isStarted: () => Effect.Effect<boolean>;
-  readonly joinMap: (
-    map: string,
-    cell?: string,
-    pad?: string,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly kill: (
-    target: MonsterQuery,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly killForItem: (
-    target: MonsterQuery,
-    item: ItemQuery,
-    quantity?: number,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly killForTempItem: (
-    target: MonsterQuery,
-    item: ItemQuery,
-    quantity?: number,
-    options?: CombatKillOptions,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly leave: () => Effect.Effect<void>;
-  readonly runStep: <A, E>(
-    label: string,
-    action: Effect.Effect<A, E>,
-    options?: ArmyRunStepOptions,
-  ) => Effect.Effect<A, E | ArmyError>;
-  readonly start: (configName: string) => Effect.Effect<ArmySession, ArmyError>;
-  /**
-   * Starts a map-scoped Loop Taunt plan across the full Army roster.
-   *
-   * @param plan The ordered target priority groups every participant runs.
-   */
-  readonly loopTaunt: (
-    plan: ArmyLoopTauntPlan,
-  ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
-  readonly sync: (
-    label?: string,
-    options?: ArmyRunStepOptions,
-  ) => Effect.Effect<void, ArmyError>;
-  readonly waitForAllInMap: () => Effect.Effect<void, ArmyError>;
-}
-
-export interface ArmyApiRuntimeShape extends Omit<ArmyApiShape, "loopTaunt"> {
+export interface ArmyApiRuntimeShape extends Omit<ScriptArmyApi, "loopTaunt"> {
   readonly loopTaunt: (
     plan: ArmyLoopTauntRuntimePlan,
     onFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
@@ -276,7 +210,7 @@ const makeArmyApi = (
         ? Effect.fail(new ArmyError("Army bridge is unavailable"))
         : Effect.succeed(bridge);
 
-    const getSession: ArmyApiShape["getSession"] = () =>
+    const getSession: ScriptArmyApi["getSession"] = () =>
       getState.pipe(
         Effect.map((state) =>
           state.session === null ? null : cloneSession(state.session),
@@ -397,7 +331,11 @@ const makeArmyApi = (
         );
       });
 
-    const runStepInternal: ArmyApiShape["runStep"] = (label, action, options) =>
+    const runStepInternal: ScriptArmyApi["runStep"] = (
+      label,
+      action,
+      options,
+    ) =>
       Effect.gen(function* () {
         const step = yield* nextStep;
         const session = yield* assertStarted;
@@ -412,10 +350,10 @@ const makeArmyApi = (
         return result;
       });
 
-    const runStep: ArmyApiShape["runStep"] = (label, action, options) =>
+    const runStep: ScriptArmyApi["runStep"] = (label, action, options) =>
       withCoordination(runStepInternal(label, action, options));
 
-    const sync: ArmyApiShape["sync"] = (label = "sync", options) =>
+    const sync: ScriptArmyApi["sync"] = (label = "sync", options) =>
       withCoordination(
         Effect.gen(function* () {
           const step = yield* nextStep;
@@ -424,7 +362,7 @@ const makeArmyApi = (
         }),
       );
 
-    const start: ArmyApiShape["start"] = (configName) =>
+    const start: ScriptArmyApi["start"] = (configName) =>
       withCoordination(
         Effect.gen(function* () {
           const current = yield* getState;
@@ -448,7 +386,7 @@ const makeArmyApi = (
         }),
       );
 
-    const leave: ArmyApiShape["leave"] = () =>
+    const leave: ScriptArmyApi["leave"] = () =>
       Effect.gen(function* () {
         yield* loopTaunts.stopActive("Army session is leaving");
         const state = yield* getState;
@@ -469,19 +407,19 @@ const makeArmyApi = (
         yield* SynchronizedRef.set(stateRef, defaultState);
       });
 
-    const isStarted: ArmyApiShape["isStarted"] = () =>
+    const isStarted: ScriptArmyApi["isStarted"] = () =>
       getState.pipe(Effect.map((state) => state.session !== null));
 
-    const isLeader: ArmyApiShape["isLeader"] = () =>
+    const isLeader: ScriptArmyApi["isLeader"] = () =>
       getState.pipe(Effect.map((state) => state.session?.role === "leader"));
 
-    const isMember: ArmyApiShape["isMember"] = () =>
+    const isMember: ScriptArmyApi["isMember"] = () =>
       getState.pipe(Effect.map((state) => state.session?.role === "member"));
 
-    const getPlayerNumber: ArmyApiShape["getPlayerNumber"] = () =>
+    const getPlayerNumber: ScriptArmyApi["getPlayerNumber"] = () =>
       getState.pipe(Effect.map((state) => state.session?.playerNumber ?? -1));
 
-    const getConfigValue: ArmyApiShape["getConfigValue"] = (
+    const getConfigValue: ScriptArmyApi["getConfigValue"] = (
       key,
       defaultValue,
     ) =>
@@ -493,7 +431,7 @@ const makeArmyApi = (
         ),
       );
 
-    const getConfigString: ArmyApiShape["getConfigString"] = (
+    const getConfigString: ScriptArmyApi["getConfigString"] = (
       key,
       defaultValue = "",
     ) =>
@@ -556,7 +494,7 @@ const makeArmyApi = (
         }
       });
 
-    const waitForAllInMap: ArmyApiShape["waitForAllInMap"] = () =>
+    const waitForAllInMap: ScriptArmyApi["waitForAllInMap"] = () =>
       withCoordination(
         Effect.gen(function* () {
           const step = yield* nextStep;
@@ -565,7 +503,7 @@ const makeArmyApi = (
         }),
       );
 
-    const joinMap: ArmyApiShape["joinMap"] = (map, cell, pad) =>
+    const joinMap: ScriptArmyApi["joinMap"] = (map, cell, pad) =>
       withCoordination(
         Effect.gen(function* () {
           const targetStep = yield* nextStep;
@@ -586,7 +524,7 @@ const makeArmyApi = (
         }),
       );
 
-    const kill: ArmyApiShape["kill"] = (target, options) =>
+    const kill: ScriptArmyApi["kill"] = (target, options) =>
       runStep(
         `kill:${String(target)}`,
         combat.kill(target, options).pipe(Effect.asVoid),
@@ -627,7 +565,7 @@ const makeArmyApi = (
         }),
       );
 
-    const killForItem: ArmyApiShape["killForItem"] = (
+    const killForItem: ScriptArmyApi["killForItem"] = (
       target,
       item,
       quantity,
@@ -645,7 +583,7 @@ const makeArmyApi = (
         label: `kill-item:${String(item)}`,
       });
 
-    const killForTempItem: ArmyApiShape["killForTempItem"] = (
+    const killForTempItem: ScriptArmyApi["killForTempItem"] = (
       target,
       item,
       quantity,
@@ -752,7 +690,7 @@ const makeArmyApi = (
         yield* Effect.sleep("1 second");
       });
 
-    const equipSet: ArmyApiShape["equipSet"] = (setName, options) =>
+    const equipSet: ScriptArmyApi["equipSet"] = (setName, options) =>
       runStep(
         `equip:${setName}`,
         Effect.gen(function* () {
@@ -784,7 +722,7 @@ const makeArmyApi = (
         }),
       );
 
-    const executeWithArmy: ArmyApiShape["executeWithArmy"] = (action) =>
+    const executeWithArmy: ScriptArmyApi["executeWithArmy"] = (action) =>
       runStep("execute", action);
 
     const disposeEnded = bridge?.onEnded((payload) => {

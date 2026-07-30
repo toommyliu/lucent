@@ -14,15 +14,15 @@ tableOfContents:
 
 <a id="member-api-packet-on"></a>
 
-### `api.packet.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Packet.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/api/Packet.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L530" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:530" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.on(selector: PacketSelector | undefined, handler: (packet: Packet) => ScriptCallbackResult): Effect.Effect<() => void, never, never>
+api.packet.on(query: PacketSelector | undefined, handler: (packet: Packet) => ScriptCallbackResult): Effect.Effect<() => void, never, never>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `query` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `handler` | (`packet`: <a href="/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a>) =&gt; <a href="/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
 **Yields:** () =&gt; `void`
@@ -31,10 +31,10 @@ api.packet.on(selector: PacketSelector | undefined, handler: (packet: Packet) =>
 
 <a id="member-api-packet-once"></a>
 
-### `api.packet.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Packet.ts#L16" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/api/Packet.ts:16" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L531" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:531" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.once(selector?: PacketSelector | undefined, options?: TriggeredWaitOptions<E, R> | undefined): Effect.Effect<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; } | null, E, Exclude<R, Scope.Scope>>
+api.packet.once(selector?: PacketSelector | undefined, options?: TriggeredWaitOptions<E, R> | undefined): Effect.Effect<FlashPacket | null, E, Exclude<R, Scope.Scope>>
 ```
 
 | Name | Type | Required | Description |
@@ -42,22 +42,22 @@ api.packet.once(selector?: PacketSelector | undefined, options?: TriggeredWaitOp
 | `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` |  |  |
 | `options` | <a href="/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a>&lt;`E`, `R`&gt; \| `undefined` |  |  |
 
-**Yields:** { `readonly` `command`: `string`; `readonly` `direction`: '`client`'; `readonly` `params`: `readonly` `string`[]; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`server`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`extension`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| `null`
+**Yields:** <a href="/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a> \| `null`
 
 **Errors:** `E`
 
 <a id="member-api-packet-sendclient"></a>
 
-### `api.packet.sendClient()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Packet.ts#L17" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/api/Packet.ts:17" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.sendClient()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L532" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:532" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.sendClient(packet: string, type?: 'str' | 'json' | undefined): Effect.Effect<boolean, never, never>
+api.packet.sendClient(packet: string, type?: ScriptClientPacketSendType): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `packet` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `type` | '`str`' \| '`json`' \| `undefined` |  |  |
+| `type` | <a href="/scripting/types/script-client-packet-send-type/" data-script-type="script-client-packet-send-type"><code>ScriptClientPacketSendType</code></a> |  |  |
 
 **Yields:** `boolean`
 
@@ -65,16 +65,16 @@ api.packet.sendClient(packet: string, type?: 'str' | 'json' | undefined): Effect
 
 <a id="member-api-packet-sendserver"></a>
 
-### `api.packet.sendServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Packet.ts#L18" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/api/Packet.ts:18" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.sendServer()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L536" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:536" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.sendServer(packet: string, type?: 'String' | 'Json' | undefined): Effect.Effect<boolean, never, never>
+api.packet.sendServer(packet: string, type?: "String" | "Json"): Effect.Effect<boolean>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `packet` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
-| `type` | '`String`' \| '`Json`' \| `undefined` |  |  |
+| `type` | "`String`" \| "`Json`" |  |  |
 
 **Yields:** `boolean`
 
@@ -82,14 +82,14 @@ api.packet.sendServer(packet: string, type?: 'String' | 'Json' | undefined): Eff
 
 <a id="member-api-packet-stream"></a>
 
-### `api.packet.stream()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/api/Packet.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/api/Packet.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.packet.stream()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L540" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:540" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
-api.packet.stream(selector?: PacketSelector | undefined): Stream.Stream<{ readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'server'; readonly raw: string; readonly wireType: 'str' | 'json'; } | { readonly command: string; readonly data: unknown; readonly direction: 'extension'; readonly raw: string; readonly wireType: 'str' | 'json'; }, never, never>
+api.packet.stream(selector?: S): Stream.Stream<PacketForSelector<S>>
 ```
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `selector` | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> \| `undefined` |  |  |
+| `selector` | `S` |  |  |
 
-**Returns:** `Stream`.`Stream`&lt;{ `readonly` `command`: `string`; `readonly` `direction`: '`client`'; `readonly` `params`: `readonly` `string`[]; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`server`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; } \| { `readonly` `command`: `string`; `readonly` `data`: `unknown`; `readonly` `direction`: '`extension`'; `readonly` `raw`: `string`; `readonly` `wireType`: '`str`' \| '`json`'; }, `never`, `never`&gt;
+**Returns:** `Stream`.`Stream`&lt;<a href="/scripting/types/packet-for-selector/" data-script-type="packet-for-selector"><code>PacketForSelector</code></a>&lt;`S`&gt;&gt;

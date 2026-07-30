@@ -48,6 +48,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/bank-open-options/" data-script-type="bank-open-options"><code>BankOpenOptions</code></a> | interface |  |
 | <a href="/scripting/types/bank-view/" data-script-type="bank-view"><code>BankView</code></a> | type alias |  |
 | <a href="/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
+| <a href="/scripting/types/client-packet/" data-script-type="client-packet"><code>ClientPacket</code></a> | type alias |  |
 | <a href="/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
 | <a href="/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
@@ -56,19 +57,21 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | type alias |  |
 | <a href="/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
 | <a href="/scripting/types/connect-outcome/" data-script-type="connect-outcome"><code>ConnectOutcome</code></a> | interface |  |
-| <a href="/scripting/types/consumable-cast-result/" data-script-type="consumable-cast-result"><code>ConsumableCastResult</code></a> | interface | The server acknowledgement for a dispatched consumable cast. |
+| <a href="/scripting/types/consumable-cast-result/" data-script-type="consumable-cast-result"><code>ConsumableCastResult</code></a> | interface | Retains local dispatch identity because rejected acknowledgements omit their target. |
 | <a href="/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
 | <a href="/scripting/types/entity-data/" data-script-type="entity-data"><code>EntityData</code></a> | interface |  |
 | <a href="/scripting/types/entity-snapshot/" data-script-type="entity-snapshot"><code>EntitySnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | type alias |  |
+| <a href="/scripting/types/environment-drop-policy/" data-script-type="environment-drop-policy"><code>EnvironmentDropPolicy</code></a> | type alias | Handling options for drops that are not registered by name. |
+| <a href="/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a> | type alias |  |
 | <a href="/scripting/types/equip-options/" data-script-type="equip-options"><code>EquipOptions</code></a> | interface |  |
-| <a href="/scripting/types/event/" data-script-type="event"><code>Event</code></a> | type alias |  |
 | <a href="/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
+| <a href="/scripting/types/extension-packet/" data-script-type="extension-packet"><code>ExtensionPacket</code></a> | type alias |  |
 | <a href="/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | interface |  |
 | <a href="/scripting/types/faction-snapshot/" data-script-type="faction-snapshot"><code>FactionSnapshot</code></a> | type alias |  |
+| <a href="/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> | type alias |  |
 | <a href="/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |
 | <a href="/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
-| <a href="/scripting/types/input/" data-script-type="input"><code>Input</code></a> | interface |  |
 | <a href="/scripting/types/item/" data-script-type="item"><code>Item</code></a> | interface |  |
 | <a href="/scripting/types/item-context/" data-script-type="item-context"><code>ItemContext</code></a> | type alias |  |
 | <a href="/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | interface |  |
@@ -98,8 +101,10 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/outfit-data/" data-script-type="outfit-data"><code>OutfitData</code></a> | interface |  |
 | <a href="/scripting/types/outfit-equipment/" data-script-type="outfit-equipment"><code>OutfitEquipment</code></a> | interface |  |
 | <a href="/scripting/types/outfit-snapshot/" data-script-type="outfit-snapshot"><code>OutfitSnapshot</code></a> | type alias |  |
-| <a href="/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a> | type alias |  |
+| <a href="/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a> | type alias | Alias of FlashPacket. |
 | <a href="/scripting/types/packet-direction/" data-script-type="packet-direction"><code>PacketDirection</code></a> | type alias |  |
+| <a href="/scripting/types/packet-for-direction/" data-script-type="packet-for-direction"><code>PacketForDirection</code></a> | type alias |  |
+| <a href="/scripting/types/packet-for-selector/" data-script-type="packet-for-selector"><code>PacketForSelector</code></a> | type alias |  |
 | <a href="/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
 | <a href="/scripting/types/packet-wire-type/" data-script-type="packet-wire-type"><code>PacketWireType</code></a> | type alias |  |
 | <a href="/scripting/types/player-data/" data-script-type="player-data"><code>PlayerData</code></a> | interface |  |
@@ -118,13 +123,27 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/room-policy/" data-script-type="room-policy"><code>RoomPolicy</code></a> | type alias |  |
 | <a href="/scripting/types/runtime-event/" data-script-type="runtime-event"><code>RuntimeEvent</code></a> | type alias |  |
 | <a href="/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | type alias |  |
+| <a href="/scripting/types/script-client-packet-send-type/" data-script-type="script-client-packet-send-type"><code>ScriptClientPacketSendType</code></a> | type alias |  |
+| <a href="/scripting/types/script-combat-monster-target/" data-script-type="script-combat-monster-target"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
+| <a href="/scripting/types/script-combat-player-target/" data-script-type="script-combat-player-target"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
+| <a href="/scripting/types/script-combat-target/" data-script-type="script-combat-target"><code>ScriptCombatTarget</code></a> | type alias |  |
+| <a href="/scripting/types/script-consumable-skill-item/" data-script-type="script-consumable-skill-item"><code>ScriptConsumableSkillItem</code></a> | interface |  |
+| <a href="/scripting/types/script-enhance-item-options/" data-script-type="script-enhance-item-options"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
+| <a href="/scripting/types/script-equip-enhancement-selector/" data-script-type="script-equip-enhancement-selector"><code>ScriptEquipEnhancementSelector</code></a> | interface |  |
+| <a href="/scripting/types/script-event/" data-script-type="script-event"><code>ScriptEvent</code></a> | type alias |  |
+| <a href="/scripting/types/script-event-for-selector/" data-script-type="script-event-for-selector"><code>ScriptEventForSelector</code></a> | type alias |  |
+| <a href="/scripting/types/script-event-for-type/" data-script-type="script-event-for-type"><code>ScriptEventForType</code></a> | type alias |  |
+| <a href="/scripting/types/script-event-type/" data-script-type="script-event-type"><code>ScriptEventType</code></a> | type alias |  |
 | <a href="/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a> | class |  |
 | <a href="/scripting/types/script-generator/" data-script-type="script-generator"><code>ScriptGenerator</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
+| <a href="/scripting/types/script-player-position/" data-script-type="script-player-position"><code>ScriptPlayerPosition</code></a> | interface |  |
 | <a href="/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
+| <a href="/scripting/types/script-shop-quantity-options/" data-script-type="script-shop-quantity-options"><code>ScriptShopQuantityOptions</code></a> | interface |  |
 | <a href="/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a> | class |  |
 | <a href="/scripting/types/server-data/" data-script-type="server-data"><code>ServerData</code></a> | interface |  |
+| <a href="/scripting/types/server-packet/" data-script-type="server-packet"><code>ServerPacket</code></a> | type alias |  |
 | <a href="/scripting/types/server-snapshot/" data-script-type="server-snapshot"><code>ServerSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/shop-data/" data-script-type="shop-data"><code>ShopData</code></a> | interface |  |
 | <a href="/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | type alias |  |
@@ -133,6 +152,5 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/scripting/types/shop-snapshot/" data-script-type="shop-snapshot"><code>ShopSnapshot</code></a> | type alias |  |
 | <a href="/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
 | <a href="/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
-| <a href="/scripting/types/state/" data-script-type="state"><code>State</code></a> | interface |  |
 | <a href="/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a> | interface | Runs `trigger` only after the subscription is live. A `true` result means the<br>command was sent and a matching response should be awaited; `false` closes<br>the scoped subscription immediately and returns `null`. |
 | <a href="/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> | interface |  |

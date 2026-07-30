@@ -23,7 +23,6 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Array",
   "Boolean",
   "Date",
-  "D",
   "E",
   "Error",
   "Exclude",
@@ -49,14 +48,11 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Required",
   "Requirements",
   "ResultValue",
-  "R",
-  "S",
   "Set",
   "String",
   "Symbol",
   "TemplateStringsArray",
   "This",
-  "T",
   "Value",
   "any",
   "bigint",
@@ -95,6 +91,7 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptPipe",
   "Scope",
   "Skill",
+  "Stream",
 ]);
 
 const SUPPORT_DECLARATIONS = `
@@ -179,6 +176,14 @@ interface Effect<
 }
 
 interface Scope {
+  readonly [key: string]: unknown;
+}
+
+interface Stream<
+  Value = unknown,
+  Error = never,
+  Requirements = never,
+> {
   readonly [key: string]: unknown;
 }
 
@@ -371,6 +376,20 @@ const formatType = (
   return normalizeTypeText(text);
 };
 
+const formatExpandedType = (
+  checker: ts.TypeChecker,
+  node: ts.TypeNode,
+): string =>
+  normalizeTypeText(
+    checker.typeToString(
+      checker.getTypeAtLocation(node),
+      node,
+      ts.TypeFormatFlags.NoTruncation |
+        ts.TypeFormatFlags.UseSingleQuotesForStringLiteralType |
+        ts.TypeFormatFlags.InTypeAlias,
+    ),
+  );
+
 const typeNodeText = (node: ts.TypeNode, sourceFile: ts.SourceFile): string =>
   normalizeTypeText(node.getText(sourceFile));
 
@@ -380,8 +399,9 @@ const transformTypeText = (type: string): string => {
   output = output.replace(/\bEffect\.Effect\s*</g, "Effect<");
   output = output.replace(/\bEffect\.Yieldable\s*</g, "EffectYieldable<");
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
-  output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
   output = output.replace(/\bScope\.Scope\b/g, "Scope");
+  output = output.replace(/\bStream\.Stream\s*</g, "Stream<");
+  output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
   output = output.replace(/\bReadonlyArray\s*</g, "readonly ");
   output = output.replace(
     /\bBridgeTypes\.InventoryItemSelector\b/g,
@@ -420,7 +440,9 @@ const unwrapEffectReturn = (
     const args = reference.args.map((arg) => typeNodeText(arg, sourceFile));
     switch (reference.unqualifiedName) {
       case "Effect":
-        return `Effect<${args[0] ?? "unknown"}, ${args[1] ?? "never"}>`;
+        return `Effect<${args[0] ?? "unknown"}, ${args[1] ?? "never"}${
+          args[2] === undefined || args[2] === "never" ? "" : `, ${args[2]}`
+        }>`;
       case "BridgeEffect":
         return `Effect<${args[0] ?? "unknown"}, BridgeError>`;
       case "ArmyEffect":
@@ -461,40 +483,199 @@ const parameterText = (
 const getJsDocComment = (node: ts.Node): string => {
   const docs = (node as ts.Node & { jsDoc?: ts.JSDoc[] }).jsDoc;
   const doc = docs?.[docs.length - 1];
-  const raw = doc?.comment;
-  if (typeof raw !== "string") {
+  if (doc === undefined) {
     return "";
   }
-  const text = raw.trim();
-  if (text === "") {
-    return "";
+  return `${doc
+    .getText(node.getSourceFile())
+    .trim()
+    .split("\n")
+    .map((line) => `  ${line.trimStart()}`)
+    .join("\n")}\n`;
+};
+
+const isDeclaration = (node: ts.Node): node is Declaration =>
+  ts.isInterfaceDeclaration(node) ||
+  ts.isTypeAliasDeclaration(node) ||
+  ts.isClassDeclaration(node) ||
+  ts.isEnumDeclaration(node);
+
+const isProjectDeclaration = (declaration: Declaration): boolean => {
+  const fileName = declaration.getSourceFile().fileName.replaceAll("\\", "/");
+  return (
+    !fileName.includes("/node_modules/") &&
+    !fileName.includes("/.repos/") &&
+    !fileName.endsWith(".test.ts")
+  );
+};
+
+const symbolDeclaration = (
+  checker: ts.TypeChecker,
+  symbol: ts.Symbol | undefined,
+): { readonly declaration: Declaration; readonly symbol: ts.Symbol } | null => {
+  if (symbol === undefined) {
+    return null;
   }
-  return `  /** ${text.replaceAll("*/", "*\\/")} */\n`;
+
+  const target =
+    (symbol.flags & ts.SymbolFlags.Alias) === 0
+      ? symbol
+      : checker.getAliasedSymbol(symbol);
+  const declaration = target.declarations?.find(
+    (candidate): candidate is Declaration =>
+      isDeclaration(candidate) && isProjectDeclaration(candidate),
+  );
+  return declaration === undefined ? null : { declaration, symbol: target };
 };
 
 const buildDeclarationMap = (
   program: ts.Program,
+  sourceFile: ts.SourceFile,
 ): ReadonlyMap<string, Declaration> => {
+  const checker = program.getTypeChecker();
   const declarations = new Map<string, Declaration>();
+  const symbols = new Map<string, ts.Symbol>();
+  const pending: Declaration[] = [];
+  const visited = new Set<Declaration>();
 
-  const visit = (node: ts.Node): void => {
+  const addDeclaration = (
+    declaration: Declaration,
+    symbol: ts.Symbol | undefined,
+  ): void => {
+    const name = declaration.name?.text;
     if (
-      (ts.isInterfaceDeclaration(node) ||
-        ts.isTypeAliasDeclaration(node) ||
-        ts.isClassDeclaration(node) ||
-        ts.isEnumDeclaration(node)) &&
-      node.name
+      name === undefined ||
+      BUILTIN_TYPE_NAMES.has(name) ||
+      SUPPORT_TYPE_NAMES.has(name)
     ) {
-      declarations.set(node.name.text, node);
+      return;
     }
-    ts.forEachChild(node, visit);
+
+    const current = declarations.get(name);
+    const currentSymbol = symbols.get(name);
+    if (
+      current !== undefined &&
+      current !== declaration &&
+      currentSymbol !== symbol
+    ) {
+      fail(
+        `Public scripting types contain two declarations named ${name}: ${
+          current.getSourceFile().fileName
+        } and ${declaration.getSourceFile().fileName}`,
+      );
+    }
+    if (current !== undefined) {
+      return;
+    }
+
+    declarations.set(name, declaration);
+    if (symbol !== undefined) {
+      symbols.set(name, symbol);
+    }
+    pending.push(declaration);
   };
 
-  for (const sourceFile of program.getSourceFiles()) {
-    if (sourceFile.fileName.includes("/node_modules/")) {
+  const addSymbolAt = (node: ts.Node): void => {
+    const resolved = symbolDeclaration(
+      checker,
+      checker.getSymbolAtLocation(node),
+    );
+    if (resolved !== null) {
+      addDeclaration(resolved.declaration, resolved.symbol);
+    }
+  };
+
+  const visitTypeSyntax = (node: ts.Node): void => {
+    if (ts.isTypeReferenceNode(node)) {
+      addSymbolAt(node.typeName);
+    } else if (ts.isExpressionWithTypeArguments(node)) {
+      addSymbolAt(node.expression);
+    } else if (ts.isImportTypeNode(node) && node.qualifier !== undefined) {
+      addSymbolAt(node.qualifier);
+    }
+    ts.forEachChild(node, visitTypeSyntax);
+  };
+
+  const isVisibleClassMember = (member: ts.ClassElement): boolean => {
+    const modifiers = ts.canHaveModifiers(member)
+      ? ts.getModifiers(member)
+      : undefined;
+    return !modifiers?.some(
+      (modifier) =>
+        modifier.kind === ts.SyntaxKind.PrivateKeyword ||
+        modifier.kind === ts.SyntaxKind.ProtectedKeyword ||
+        modifier.kind === ts.SyntaxKind.StaticKeyword,
+    );
+  };
+
+  const visitDeclarationTypes = (declaration: Declaration): void => {
+    if (
+      ts.isInterfaceDeclaration(declaration) ||
+      ts.isTypeAliasDeclaration(declaration)
+    ) {
+      ts.forEachChild(declaration, visitTypeSyntax);
+      return;
+    }
+
+    if (!ts.isClassDeclaration(declaration)) {
+      return;
+    }
+
+    for (const typeParameter of declaration.typeParameters ?? []) {
+      visitTypeSyntax(typeParameter);
+    }
+    for (const clause of declaration.heritageClauses ?? []) {
+      visitTypeSyntax(clause);
+    }
+    for (const member of declaration.members) {
+      if (!isVisibleClassMember(member)) {
+        continue;
+      }
+      if (
+        ts.isPropertyDeclaration(member) ||
+        ts.isGetAccessorDeclaration(member) ||
+        ts.isSetAccessorDeclaration(member) ||
+        ts.isMethodDeclaration(member)
+      ) {
+        if (member.type !== undefined) {
+          visitTypeSyntax(member.type);
+        }
+      }
+      if (
+        ts.isMethodDeclaration(member) ||
+        ts.isGetAccessorDeclaration(member) ||
+        ts.isSetAccessorDeclaration(member)
+      ) {
+        for (const typeParameter of member.typeParameters ?? []) {
+          visitTypeSyntax(typeParameter);
+        }
+        for (const parameter of member.parameters) {
+          visitTypeSyntax(parameter);
+        }
+      }
+    }
+  };
+
+  for (const rootName of ["ScriptContext", "ScriptLucentStd"]) {
+    const declaration =
+      sourceFile.statements.find(
+        (statement): statement is ts.InterfaceDeclaration =>
+          ts.isInterfaceDeclaration(statement) &&
+          statement.name.text === rootName,
+      ) ?? fail(`Unable to find interface ${rootName}`);
+    addDeclaration(
+      declaration,
+      checker.getSymbolAtLocation(declaration.name),
+    );
+  }
+
+  for (let index = 0; index < pending.length; index += 1) {
+    const declaration = pending[index];
+    if (declaration === undefined || visited.has(declaration)) {
       continue;
     }
-    visit(sourceFile);
+    visited.add(declaration);
+    visitDeclarationTypes(declaration);
   }
 
   return declarations;
@@ -541,44 +722,6 @@ const getDeclaration = (
   name: string,
 ): Declaration | null => declarations.get(name) ?? null;
 
-const resolvesToInterface = (
-  declarations: ReadonlyMap<string, Declaration>,
-  name: string,
-  seen = new Set<string>(),
-): boolean => {
-  if (seen.has(name)) {
-    return false;
-  }
-
-  const declaration = declarations.get(name);
-  if (declaration === undefined) {
-    return false;
-  }
-  if (ts.isInterfaceDeclaration(declaration)) {
-    return true;
-  }
-  if (!ts.isTypeAliasDeclaration(declaration)) {
-    return false;
-  }
-
-  const reference = parseTypeReference(declaration.type);
-  if (reference === null) {
-    return false;
-  }
-
-  const target =
-    reference.unqualifiedName === "Omit"
-      ? parseTypeReference(reference.args[0])?.unqualifiedName
-      : reference.unqualifiedName;
-  if (target === undefined) {
-    return false;
-  }
-
-  const nextSeen = new Set(seen);
-  nextSeen.add(name);
-  return resolvesToInterface(declarations, target, nextSeen);
-};
-
 const parseEffectValueShape = (
   node: ts.TypeNode | undefined,
 ): string | null => {
@@ -611,12 +754,14 @@ const nestedInterfaceName = (
   `${parentName.replace(/Api$/, "")}${interfaceNameForProperty(propertyName)}`;
 
 const collectTypeNames = (text: string, output: Set<string>): void => {
-  const withoutComments = text.replaceAll(/\/\*\*[\s\S]*?\*\//g, "");
-  for (const match of withoutComments.matchAll(
+  const typeText = text
+    .replaceAll(/\/\*\*[\s\S]*?\*\//g, "")
+    .replaceAll(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "");
+  for (const match of typeText.matchAll(
     /\b[A-Za-z_$][A-Za-z0-9_$]*\b/g,
   )) {
     const token = match[0];
-    if (!BUILTIN_TYPE_NAMES.has(token) && /^[A-Z_$]/.test(token)) {
+    if (!BUILTIN_TYPE_NAMES.has(token) && /^[A-Z]/.test(token)) {
       output.add(token);
     }
   }
@@ -716,7 +861,10 @@ const renderInterfaceFromDeclaration = (
         : "";
       const optional = member.questionToken === undefined ? "" : "?";
       lines.push(
-        `${getJsDocComment(member)}    ${readonly}${name}${optional}: ${reference.unqualifiedName};`,
+        `${getJsDocComment(member)}    ${readonly}${name}${optional}: ${formatType(
+          state.checker,
+          member.type,
+        )};`,
       );
       continue;
     }
@@ -725,19 +873,9 @@ const renderInterfaceFromDeclaration = (
       reference === null
         ? null
         : getDeclaration(state.declarations, reference.unqualifiedName);
-    if (
-      reference !== null &&
-      childDeclaration &&
-      resolvesToInterface(
-        state.declarations,
-        reference.unqualifiedName,
-      )
-    ) {
-      const childOutputName =
-        outputName === "ScriptContext" || outputName === "ScriptLucentStd"
-          ? reference.unqualifiedName
-          : nestedInterfaceName(outputName, name);
-      renderApiInterface(state, reference.unqualifiedName, childOutputName);
+    if (childDeclaration && ts.isInterfaceDeclaration(childDeclaration)) {
+      const childOutputName = childDeclaration.name.text;
+      renderApiInterface(state, childDeclaration.name.text, childOutputName);
       lines.push(`    readonly ${name}: ${childOutputName};`);
       continue;
     }
@@ -888,7 +1026,7 @@ const renderTypeAlias = (
     return raw;
   }
 
-  return `type ${declaration.name.text}${typeParameters} = ${formatType(
+  return `type ${declaration.name.text}${typeParameters} = ${formatExpandedType(
     checker,
     declaration.type,
   )};`;
@@ -932,6 +1070,15 @@ const renderReferencedDeclarations = (
 ): readonly string[] => {
   const output: string[] = [];
   const seen = new Set([...apiInterfaceNames, ...SUPPORT_TYPE_NAMES]);
+  for (const declaration of state.declarations.values()) {
+    const visit = (node: ts.Node): void => {
+      if (ts.isTypeParameterDeclaration(node)) {
+        seen.add(node.name.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(declaration);
+  }
   const pending = Array.from(state.referencedTypes).sort();
 
   for (let index = 0; index < pending.length; index += 1) {
@@ -941,11 +1088,9 @@ const renderReferencedDeclarations = (
     }
     seen.add(name);
 
-    const declaration = state.declarations.get(name);
-    if (!declaration) {
-      output.push(`interface ${name} { readonly [key: string]: unknown; }`);
-      continue;
-    }
+    const declaration =
+      state.declarations.get(name) ??
+      fail(`Unable to resolve public scripting type ${name}`);
 
     const rendered = declarationText(state.checker, declaration);
     if (rendered === null) {
@@ -1039,10 +1184,10 @@ const validateGeneratedTypes = (content: string): void => {
   }
 
   for (const name of [
-    "ScriptEventsOnApi",
-    "ScriptPacketOnApi",
-    "WaitForEvent",
-    "WaitForPacket",
+    "ScriptEventsOn",
+    "ScriptPacketOn",
+    "ScriptWaitForEvent",
+    "ScriptWaitForPacket",
   ]) {
     const declaration = interfaces.get(name);
     if (
@@ -1066,18 +1211,34 @@ const validateGeneratedTypes = (content: string): void => {
   if (content.includes("Scope.Scope")) {
     fail("Generated scripting types must normalize Scope.Scope to Scope");
   }
+  if (content.includes("Stream.Stream")) {
+    fail("Generated scripting types must normalize Stream.Stream to Stream");
+  }
   if (/\binterface\s+Extract\b/u.test(content)) {
     fail("Generated scripting types must use the built-in Extract type");
+  }
+  if (/^type Event\s*=/mu.test(content)) {
+    fail("Generated scripting types must not shadow the DOM Event type");
+  }
+  const directSelfAlias =
+    /^type ([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*;$/mu.exec(content);
+  if (directSelfAlias !== null) {
+    fail(`Generated ${directSelfAlias[1]} type must not alias itself`);
+  }
+  for (const name of ["R", "Json", "State", "Session"]) {
+    if (new RegExp(`^interface ${name}\\b`, "mu").test(content)) {
+      fail(`Generated scripting types must not contain an opaque ${name}`);
+    }
   }
 };
 
 const main = async (options: CliOptions): Promise<void> => {
   const program = createProgram(options.repoRoot);
-  if (!program.getSourceFile(options.sourceFile)) {
+  const sourceFile =
+    program.getSourceFile(options.sourceFile) ??
     fail(`Unable to load ${relative(options.repoRoot, options.sourceFile)}`);
-  }
 
-  const declarations = buildDeclarationMap(program);
+  const declarations = buildDeclarationMap(program, sourceFile);
   const content = renderScriptTypes(program, declarations);
   validateGeneratedTypes(content);
 

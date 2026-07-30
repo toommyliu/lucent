@@ -1,11 +1,11 @@
 import { PositiveInt, TrimmedNonEmptyString } from "@lucent/core";
-import type { ItemQuery } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
 import type { BridgeService } from "../../flash/bridge/Bridge";
+import type { ScriptEnhanceItemOptions, ScriptRecipesApi } from "../ScriptApi";
 import { enhanceItem } from "../recipes/EnhanceItem";
 import type { ScriptRecipeDependencies } from "../recipes/Dependencies";
 import { ensureLifeSteal, ensureScrollOfEnrage } from "../recipes/Supplies";
@@ -25,10 +25,8 @@ const ScriptItemQuerySchema = Schema.Union([
   }),
 ]);
 
-export const ScriptEnhanceItemOptionsSchema = EnhancementSelectorSchema;
-
-export type ScriptEnhanceItemOptions =
-  typeof ScriptEnhanceItemOptionsSchema.Type;
+export const ScriptEnhanceItemOptionsSchema =
+  EnhancementSelectorSchema satisfies Schema.Schema<ScriptEnhanceItemOptions>;
 
 const ScriptEnhanceItemRequestSchema = Schema.Struct({
   item: ScriptItemQuerySchema,
@@ -38,16 +36,6 @@ const ScriptEnhanceItemRequestSchema = Schema.Struct({
 const decodeScriptEnhanceItemRequest = Schema.decodeUnknownOption(
   ScriptEnhanceItemRequestSchema,
 );
-
-export interface ScriptRecipesApi {
-  readonly doWheelOfDoom: (toBank?: boolean) => Effect.Effect<boolean>;
-  readonly enhanceItem: (
-    item: ItemQuery,
-    options: ScriptEnhanceItemOptions,
-  ) => Effect.Effect<boolean>;
-  readonly ensureLifeSteal: (quantity: number) => Effect.Effect<boolean>;
-  readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
-}
 
 export const makeScriptRecipesApi = (
   services: ScriptRuntimeServices,

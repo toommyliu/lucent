@@ -149,6 +149,12 @@ type TypeMethodDoc = SourceInfo & {
   readonly inheritedFrom: string | null;
 };
 
+type TypeNamedValueDoc = {
+  readonly name: string;
+  readonly value: string;
+  readonly summary: string;
+};
+
 type ReferencedTypeDoc = SourceInfo & {
   readonly name: string;
   readonly slug: string;
@@ -156,6 +162,8 @@ type ReferencedTypeDoc = SourceInfo & {
   readonly summary: string;
   readonly aliasOf: string | null;
   readonly definition: string;
+  readonly resolvedDefinition: string | null;
+  readonly namedValues: readonly TypeNamedValueDoc[];
   readonly properties: readonly TypeMemberDoc[];
   readonly methods: readonly TypeMethodDoc[];
 };
@@ -175,6 +183,7 @@ type ApiNamespace = {
   readonly slug: string;
   readonly href: string;
   readonly sourceType: string;
+  readonly description: string;
 };
 
 type TypeLink = {
@@ -415,7 +424,7 @@ const getSummary = (node: ts.Node): string =>
   getText(getNodeJsDoc(node)?.comment);
 
 const getParamDescriptions = (
-  node: ts.SignatureDeclaration,
+  node: ts.Node,
 ): ReadonlyMap<string, string> => {
   const descriptions = new Map<string, string>();
   const doc = getNodeJsDoc(node);
@@ -474,9 +483,22 @@ const isInsideRepo = (repoRoot: string, fileName: string): boolean => {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 };
 
+const isDocumentableSourceFile = (sourceFile: ts.SourceFile): boolean => {
+  const fileName = sourceFile.fileName.replaceAll("\\", "/");
+  return (
+    !fileName.endsWith(".test.ts") &&
+    (fileName.includes("/app/src/shared/") ||
+      fileName.includes("/app/src/renderer/apps/game/") ||
+      fileName.includes("/packages/core/src/") ||
+      fileName.includes("/packages/game/src/"))
+  );
+};
+
 const buildDeclarationMap = (
   program: ts.Program,
+  publicEntryPoint: ts.SourceFile,
 ): ReadonlyMap<string, ts.InterfaceDeclaration | ts.TypeAliasDeclaration> => {
+  const checker = program.getTypeChecker();
   const declarations = new Map<
     string,
     ts.InterfaceDeclaration | ts.TypeAliasDeclaration
@@ -492,21 +514,81 @@ const buildDeclarationMap = (
     );
   };
 
-  const visit = (node: ts.Node): void => {
-    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
-      const current = declarations.get(node.name.text);
-      if (current === undefined || declarationRank(node) < declarationRank(current)) {
-        declarations.set(node.name.text, node);
-      }
+  const isExported = (
+    declaration: ts.InterfaceDeclaration | ts.TypeAliasDeclaration,
+  ): boolean =>
+    ts
+      .getModifiers(declaration)
+      ?.some(
+        (modifier) =>
+          modifier.kind === ts.SyntaxKind.ExportKeyword ||
+          modifier.kind === ts.SyntaxKind.DefaultKeyword,
+      ) ?? false;
+
+  const add = (
+    declaration: ts.InterfaceDeclaration | ts.TypeAliasDeclaration,
+    preferred = false,
+  ): void => {
+    if (!isDocumentableSourceFile(declaration.getSourceFile())) {
+      return;
     }
-    ts.forEachChild(node, visit);
+    const current = declarations.get(declaration.name.text);
+    if (
+      preferred ||
+      current === undefined ||
+      declarationRank(declaration) < declarationRank(current)
+    ) {
+      declarations.set(declaration.name.text, declaration);
+    }
   };
 
-  for (const sourceFile of program.getSourceFiles()) {
-    if (sourceFile.fileName.includes("/node_modules/")) {
+  for (const statement of publicEntryPoint.statements) {
+    if (
+      ts.isInterfaceDeclaration(statement) ||
+      ts.isTypeAliasDeclaration(statement)
+    ) {
+      add(statement, true);
       continue;
     }
-    visit(sourceFile);
+    if (
+      !ts.isImportDeclaration(statement) ||
+      statement.importClause?.namedBindings === undefined ||
+      !ts.isNamedImports(statement.importClause.namedBindings)
+    ) {
+      continue;
+    }
+    for (const element of statement.importClause.namedBindings.elements) {
+      const symbol = checker.getSymbolAtLocation(element.name);
+      const target =
+        symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0
+          ? checker.getAliasedSymbol(symbol)
+          : symbol;
+      const declaration = target?.declarations?.find(
+        (
+          candidate,
+        ): candidate is ts.InterfaceDeclaration | ts.TypeAliasDeclaration =>
+          ts.isInterfaceDeclaration(candidate) ||
+          ts.isTypeAliasDeclaration(candidate),
+      );
+      if (declaration !== undefined) {
+        add(declaration, true);
+      }
+    }
+  }
+
+  for (const sourceFile of program.getSourceFiles()) {
+    if (!isDocumentableSourceFile(sourceFile)) {
+      continue;
+    }
+    for (const statement of sourceFile.statements) {
+      if (
+        (ts.isInterfaceDeclaration(statement) ||
+          ts.isTypeAliasDeclaration(statement)) &&
+        isExported(statement)
+      ) {
+        add(statement);
+      }
+    }
   }
 
   return declarations;
@@ -638,15 +720,60 @@ const formatResolvedType = (
     )
     .replace(/import\(["'][^"']+["']\)\./g, "");
 
-const formatType = (
+const formatExpandedType = (
   checker: ts.TypeChecker,
+  node: ts.TypeNode,
+): string =>
+  checker
+    .typeToString(
+      checker.getTypeAtLocation(node),
+      node,
+      ts.TypeFormatFlags.InTypeAlias |
+        ts.TypeFormatFlags.NoTruncation |
+        ts.TypeFormatFlags.UseSingleQuotesForStringLiteralType,
+    )
+    .replace(/import\(["'][^"']+["']\)\./g, "");
+
+const normalizedTypeText = (value: string): string =>
+  value
+    .replace(/\s+/g, " ")
+    .replaceAll('"', "'")
+    .replace(/;$/, "")
+    .trim();
+
+const printTypeAliasDefinition = (
+  name: string,
+  typeParameters: string,
+  type: string,
+): string => {
+  const sourceFile = ts.createSourceFile(
+    "__docgen_type__.ts",
+    `type ${name}${typeParameters} = ${type};`,
+    ts.ScriptTarget.Latest,
+    false,
+    ts.ScriptKind.TS,
+  );
+  const statement = sourceFile.statements[0];
+  if (statement === undefined || !ts.isTypeAliasDeclaration(statement)) {
+    return `type ${name}${typeParameters} = ${type}`;
+  }
+
+  return ts
+    .createPrinter({ newLine: ts.NewLineKind.LineFeed })
+    .printNode(ts.EmitHint.Unspecified, statement, sourceFile)
+    .trim()
+    .replace(/;$/, "");
+};
+
+const formatType = (
+  _checker: ts.TypeChecker,
   node: ts.TypeNode | undefined,
 ): string => {
   if (node === undefined) {
     return "unknown";
   }
 
-  return formatResolvedType(checker, checker.getTypeAtLocation(node), node);
+  return node.getText(node.getSourceFile()).replace(/\s+/g, " ").trim();
 };
 
 const parseEffectReturn = (
@@ -726,8 +853,9 @@ const getReturnDoc = (
 const getParameterDocs = (
   checker: ts.TypeChecker,
   node: ts.SignatureDeclaration,
+  documentationNode: ts.Node = node,
 ): ParameterDoc[] => {
-  const descriptions = getParamDescriptions(node);
+  const descriptions = getParamDescriptions(documentationNode);
   const sourceFile = node.getSourceFile();
 
   return node.parameters.map((parameter) => {
@@ -782,14 +910,66 @@ const collectTypeReferences = (
 };
 
 const expandTypeReferences = (
+  checker: ts.TypeChecker,
   declarations: ReadonlyMap<
     string,
     ts.InterfaceDeclaration | ts.TypeAliasDeclaration
   >,
   roots: ReadonlySet<string>,
-): ReadonlySet<string> => {
+): {
+  readonly declarations: ReadonlyMap<
+    string,
+    ts.InterfaceDeclaration | ts.TypeAliasDeclaration
+  >;
+  readonly references: ReadonlySet<string>;
+} => {
+  const resolvedDeclarations = new Map(declarations);
   const expanded = new Set(roots);
   const pending = Array.from(roots);
+
+  const collectResolvedReferences = (
+    node: ts.Node,
+    output: Set<string>,
+  ): void => {
+    if (ts.isTypeReferenceNode(node)) {
+      const parsedName = parseTypeReference(node)?.unqualifiedName;
+      const symbol = checker.getSymbolAtLocation(node.typeName);
+      const target =
+        symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0
+          ? checker.getAliasedSymbol(symbol)
+          : symbol;
+      const declaration = target?.declarations?.find(
+        (
+          candidate,
+        ): candidate is ts.InterfaceDeclaration | ts.TypeAliasDeclaration =>
+          ts.isInterfaceDeclaration(candidate) ||
+          ts.isTypeAliasDeclaration(candidate),
+      );
+      const name = declaration?.name.text ?? parsedName;
+      if (
+        name !== undefined &&
+        !TYPE_REFERENCE_WRAPPERS.has(name) &&
+        !BUILTIN_TYPE_NAMES.has(name)
+      ) {
+        if (
+          declaration !== undefined &&
+          isDocumentableSourceFile(declaration.getSourceFile())
+        ) {
+          resolvedDeclarations.set(name, declaration);
+          output.add(name);
+        } else if (
+          declaration === undefined &&
+          resolvedDeclarations.has(name)
+        ) {
+          output.add(name);
+        }
+      }
+    }
+
+    ts.forEachChild(node, (child) =>
+      collectResolvedReferences(child, output),
+    );
+  };
 
   for (let index = 0; index < pending.length; index += 1) {
     const name = pending[index];
@@ -797,19 +977,36 @@ const expandTypeReferences = (
       continue;
     }
 
-    const declaration = declarations.get(name);
+    const declaration = resolvedDeclarations.get(name);
     if (declaration === undefined) {
       continue;
     }
 
     const nested = new Set<string>();
-    collectTypeReferences(declaration, nested);
+    collectResolvedReferences(declaration, nested);
     if (ts.isInterfaceDeclaration(declaration)) {
       for (const clause of declaration.heritageClauses ?? []) {
         for (const heritage of clause.types) {
-          const reference = parseHeritageReference(heritage);
-          if (reference !== null) {
-            nested.add(reference.unqualifiedName);
+          const symbol = checker.getSymbolAtLocation(heritage.expression);
+          const target =
+            symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0
+              ? checker.getAliasedSymbol(symbol)
+              : symbol;
+          const inherited = target?.declarations?.find(
+            (
+              candidate,
+            ): candidate is
+              | ts.InterfaceDeclaration
+              | ts.TypeAliasDeclaration =>
+              ts.isInterfaceDeclaration(candidate) ||
+              ts.isTypeAliasDeclaration(candidate),
+          );
+          if (
+            inherited !== undefined &&
+            isDocumentableSourceFile(inherited.getSourceFile())
+          ) {
+            resolvedDeclarations.set(inherited.name.text, inherited);
+            nested.add(inherited.name.text);
           }
         }
       }
@@ -828,7 +1025,10 @@ const expandTypeReferences = (
     }
   }
 
-  return expanded;
+  return {
+    declarations: resolvedDeclarations,
+    references: expanded,
+  };
 };
 
 const resolveNestedInterface = (
@@ -999,6 +1199,54 @@ const collectMembersFromInterface = (
       continue;
     }
 
+    const memberType = checker.getTypeAtLocation(member.type ?? member);
+    const callSignatures = memberType.getCallSignatures();
+    if (
+      member.type !== undefined &&
+      !ts.isFunctionTypeNode(member.type) &&
+      callSignatures.length > 0
+    ) {
+      const signature = callSignatures.at(-1)!;
+      const signatureDeclaration = signature.getDeclaration();
+      const signatureNode = signatureDeclaration ?? member;
+      const parameters = getSignatureParameterDocs(
+        checker,
+        signature,
+        signatureNode,
+      );
+      const rawReturn = formatResolvedType(
+        checker,
+        signature.getReturnType(),
+        signatureNode,
+      );
+      const returnDoc = parseEffectReturn(
+        rawReturn,
+        signatureDeclaration?.type,
+        signatureNode.getSourceFile(),
+      );
+      for (const parameter of signatureDeclaration?.parameters ?? []) {
+        collectTypeReferences(parameter.type, typeReferences);
+      }
+      collectTypeReferences(signatureDeclaration?.type, typeReferences);
+
+      const path = `${basePath}.${name}`;
+      docs.push({
+        path,
+        name,
+        kind: "method",
+        summary:
+          getSummary(member) ||
+          (signatureDeclaration === undefined
+            ? ""
+            : getSummary(signatureDeclaration)),
+        signature: methodSignature(path, parameters, returnDoc),
+        parameters,
+        returnDoc,
+        ...getSourceInfo(options, git, member),
+      });
+      continue;
+    }
+
     const nestedInterface = resolveNestedInterface(declarations, member.type);
     if (nestedInterface !== null && !isEffectTypeNode(member.type)) {
       docs.push(
@@ -1017,7 +1265,7 @@ const collectMembersFromInterface = (
     }
 
     if (member.type && ts.isFunctionTypeNode(member.type)) {
-      const parameters = getParameterDocs(checker, member.type);
+      const parameters = getParameterDocs(checker, member.type, member);
       const returnDoc = getReturnDoc(checker, member.type);
       for (const parameter of member.type.parameters) {
         collectTypeReferences(parameter.type, typeReferences);
@@ -1312,28 +1560,42 @@ const collectApiGroups = (
     }
 
     const typeReferences = new Set<string>();
-    const shapeType = checker.getTypeAtLocation(member.type ?? member);
-    const members = collectMembersFromType(
-      checker,
-      options,
-      git,
-      shapeType,
-      member,
-      `api.${name}`,
-      typeReferences,
-    );
+    const shapeDeclaration = resolveNestedInterface(declarations, member.type);
+    const members =
+      shapeDeclaration === null
+        ? collectMembersFromType(
+            checker,
+            options,
+            git,
+            checker.getTypeAtLocation(member.type ?? member),
+            member,
+            `api.${name}`,
+            typeReferences,
+          )
+        : collectMembersFromInterface(
+            checker,
+            declarations,
+            options,
+            git,
+            shapeDeclaration,
+            `api.${name}`,
+            typeReferences,
+          );
     if (members.length === 0) {
       continue;
     }
 
+    const summary =
+      getSummary(member) ||
+      (shapeDeclaration === null ? "" : getSummary(shapeDeclaration));
     const id = `api/${kebabCase(name)}`;
     namespaces.push({
       name,
       slug: kebabCase(name),
       href: `/scripting/api/${kebabCase(name)}/`,
       sourceType: formatType(checker, member.type),
+      description: summary,
     });
-    const summary = getSummary(member);
     groups.push({
       id,
       title: `api.${name}`,
@@ -1357,20 +1619,34 @@ const collectApiGroups = (
     }
 
     const typeReferences = new Set<string>();
-    const members = collectMembersFromType(
-      checker,
-      options,
-      git,
-      checker.getTypeAtLocation(member.type ?? member),
-      member,
-      `features.${name}`,
-      typeReferences,
-    );
+    const shapeDeclaration = resolveNestedInterface(declarations, member.type);
+    const members =
+      shapeDeclaration === null
+        ? collectMembersFromType(
+            checker,
+            options,
+            git,
+            checker.getTypeAtLocation(member.type ?? member),
+            member,
+            `features.${name}`,
+            typeReferences,
+          )
+        : collectMembersFromInterface(
+            checker,
+            declarations,
+            options,
+            git,
+            shapeDeclaration,
+            `features.${name}`,
+            typeReferences,
+          );
     if (members.length === 0) {
       continue;
     }
 
-    const summary = getSummary(member) || "";
+    const summary =
+      getSummary(member) ||
+      (shapeDeclaration === null ? "" : getSummary(shapeDeclaration));
     groups.push({
       id: `features/${kebabCase(name)}`,
       title: `features.${name}`,
@@ -1502,7 +1778,7 @@ const reflectionRank = (reflection: DeclarationReflection): number => {
 
 const isDocSourceReflection = (
   options: CliOptions,
-  reflection: DeclarationReflection,
+  reflection: DeclarationReflection | SignatureReflection,
 ): boolean => {
   const source = reflection.sources?.[0];
   if (source === undefined) {
@@ -1662,6 +1938,10 @@ const buildReferencedTypeDoc = (
       child.kind === ReflectionKind.EnumMember
     ) {
       const getSignature = child.getSignature;
+      const sourceReflection = getSignature ?? child;
+      if (!isDocSourceReflection(options, sourceReflection)) {
+        continue;
+      }
       properties.push({
         name: child.name,
         type: typeToString(getSignature?.type ?? child.type),
@@ -1677,6 +1957,9 @@ const buildReferencedTypeDoc = (
 
     if (child.kind === ReflectionKind.Method) {
       for (const signature of child.signatures ?? []) {
+        if (!isDocSourceReflection(options, signature)) {
+          continue;
+        }
         methods.push({
           name: child.name,
           signature: methodSignatureText(child, signature),
@@ -1729,10 +2012,86 @@ const buildReferencedTypeDoc = (
       (aliasTarget === null ? "" : `Alias of ${aliasTarget.name}.`),
     aliasOf: aliasTarget?.name ?? null,
     definition: declarationDefinition(reflection),
+    resolvedDefinition: null,
+    namedValues: [],
     properties: properties.sort((a, b) => a.name.localeCompare(b.name)),
     methods: methods.sort((a, b) => a.name.localeCompare(b.name)),
     ...reflectionSource(options, git, reflection),
   };
+};
+
+const unwrapInitializer = (expression: ts.Expression): ts.Expression => {
+  if (
+    ts.isAsExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isParenthesizedExpression(expression)
+  ) {
+    return unwrapInitializer(expression.expression);
+  }
+
+  return expression;
+};
+
+const getTypeNamedValues = (
+  checker: ts.TypeChecker,
+  declaration: ts.TypeAliasDeclaration,
+): TypeNamedValueDoc[] => {
+  const valueDeclaration =
+    checker.getSymbolAtLocation(declaration.name)?.valueDeclaration;
+  if (
+    valueDeclaration === undefined ||
+    !ts.isVariableDeclaration(valueDeclaration) ||
+    valueDeclaration.initializer === undefined
+  ) {
+    return [];
+  }
+
+  const initializer = unwrapInitializer(valueDeclaration.initializer);
+  if (!ts.isObjectLiteralExpression(initializer)) {
+    return [];
+  }
+
+  const sourceFile = initializer.getSourceFile();
+  return initializer.properties.flatMap((property) => {
+    if (!ts.isPropertyAssignment(property)) {
+      return [];
+    }
+    const name = getPropertyName(property.name);
+    if (name === null) {
+      return [];
+    }
+
+    return [
+      {
+        name,
+        value: property.initializer.getText(sourceFile),
+        summary: getSummary(property),
+      },
+    ];
+  });
+};
+
+const getNamedValueUnionType = (
+  name: string,
+  sourceType: string,
+  values: readonly TypeNamedValueDoc[],
+): string | null => {
+  if (
+    sourceType.replace(/\s+/g, "") !==
+      `(typeof${name})[keyoftypeof${name}]` ||
+    values.length === 0 ||
+    values.some(
+      (value) =>
+        !/^(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?|true|false|null)$/.test(
+          value.value,
+        ),
+    )
+  ) {
+    return null;
+  }
+
+  return values.map((value) => value.value).join(" | ");
 };
 
 const buildAstReferencedTypeDoc = (
@@ -1891,13 +2250,32 @@ const buildAstReferencedTypeDoc = (
     }
   }
 
+  const sourceFile = declaration.getSourceFile();
   const typeParameters =
     declaration.typeParameters === undefined ||
     declaration.typeParameters.length === 0
       ? ""
       : `<${declaration.typeParameters
-          .map((parameter) => parameter.name.text)
+          .map((parameter) => parameter.getText(sourceFile))
           .join(", ")}>`;
+  const sourceType = ts.isTypeAliasDeclaration(declaration)
+    ? typeText(declaration.type, sourceFile)
+    : null;
+  const namedValues = ts.isTypeAliasDeclaration(declaration)
+    ? getTypeNamedValues(checker, declaration)
+    : [];
+  const expandedType =
+    ts.isTypeAliasDeclaration(declaration) && sourceType !== null
+      ? (getNamedValueUnionType(name, sourceType, namedValues) ??
+        formatExpandedType(checker, declaration.type))
+      : null;
+  const resolvedDefinition =
+    sourceType !== null &&
+    expandedType !== null &&
+    normalizedTypeText(expandedType) !== normalizedTypeText(sourceType) &&
+    normalizedTypeText(expandedType) !== name
+      ? printTypeAliasDefinition(name, typeParameters, expandedType)
+      : null;
   const summary = getSummary(declaration);
   return {
     name,
@@ -1907,10 +2285,9 @@ const buildAstReferencedTypeDoc = (
     aliasOf,
     definition: ts.isInterfaceDeclaration(declaration)
       ? `interface ${name}${typeParameters}`
-      : `type ${name}${typeParameters} = ${typeText(
-          declaration.type,
-          declaration.getSourceFile(),
-        )}`,
+      : `type ${name}${typeParameters} = ${sourceType}`,
+    resolvedDefinition,
+    namedValues,
     properties: properties.sort((left, right) =>
       left.name.localeCompare(right.name),
     ),
@@ -2446,7 +2823,7 @@ const renderApiOverview = (namespaces: readonly ApiNamespace[]): string => {
     "",
     GENERATED_HEADER,
     "",
-    "`api` gives scripts access to gameplay and game-state namespaces.",
+    "`api` gives scripts access to gameplay controls and information.",
     "",
     "## Namespaces",
     "",
@@ -2454,9 +2831,9 @@ const renderApiOverview = (namespaces: readonly ApiNamespace[]): string => {
     "| --- | --- |",
     ...namespaces.map(
       (namespace) =>
-        `| [\`api.${namespace.name}\`](${namespace.href}) | ${titleCase(
-          namespace.name,
-        )} APIs. |`,
+        `| [\`api.${namespace.name}\`](${namespace.href}) | ${escapeTableCell(
+          namespace.description || `${titleCase(namespace.name)} APIs.`,
+        )} |`,
     ),
   ];
 
@@ -2530,7 +2907,8 @@ const collectScriptEventReferences = (
     ts.InterfaceDeclaration | ts.TypeAliasDeclaration
   >,
 ): readonly ScriptEventReference[] => {
-  const declaration = declarations.get("Event");
+  const declaration =
+    declarations.get("ScriptEvent") ?? declarations.get("Event");
   if (declaration === undefined) {
     return [];
   }
@@ -2608,7 +2986,7 @@ const renderEventsReference = (
     "",
     "## Supported Events",
     "",
-    "`on`, `once`, and `stream` accept every event below. Payload shapes are generated from the current `Event` union.",
+    "`on`, `once`, and `stream` accept every event below. Payload shapes are generated from the current `ScriptEvent` union.",
     "",
     "| Event | Payload |",
     "| --- | --- |",
@@ -2705,7 +3083,28 @@ const renderTypePage = (
     );
   }
 
-  lines.push("```ts", type.definition, "```", "", renderSource(type), "");
+  lines.push(
+    "```ts",
+    type.resolvedDefinition ?? type.definition,
+    "```",
+    "",
+    renderSource(type),
+    "",
+  );
+
+  if (type.namedValues.length > 0) {
+    lines.push(
+      "## Named values",
+      "",
+      "| Name | Value | Description |",
+      "| --- | --- | --- |",
+      ...type.namedValues.map(
+        (value) =>
+          `| ${renderCode(value.name)} | ${renderCode(value.value)} | ${escapeTableCell(value.summary)} |`,
+      ),
+      "",
+    );
+  }
 
   if (type.properties.length > 0) {
     lines.push("## Properties", "");
@@ -2756,8 +3155,14 @@ const renderTypePreviewsJson = (types: readonly ReferencedTypeDoc[]): string =>
               kind: type.kind,
               summary: type.summary,
               aliasOf: type.aliasOf,
-              definition: type.definition,
+              definition: type.resolvedDefinition ?? type.definition,
               keys: [
+                ...type.namedValues.map((value) => ({
+                  kind: "named value",
+                  name: value.name,
+                  signature: `${value.name}: ${value.value}`,
+                  description: value.summary,
+                })),
                 ...type.properties.map((property) => ({
                   kind: "property",
                   name: property.name,
@@ -2905,13 +3310,12 @@ const writeGeneratedDocs = (
 const main = (options: CliOptions): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
     const program = createProgram(options.repoRoot);
-    const sourceFile = program.getSourceFile(options.sourceFile);
-    if (!sourceFile) {
+    const sourceFile =
+      program.getSourceFile(options.sourceFile) ??
       fail(`Unable to load ${relative(options.repoRoot, options.sourceFile)}`);
-    }
 
     const checker = program.getTypeChecker();
-    const declarations = buildDeclarationMap(program);
+    const declarations = buildDeclarationMap(program, sourceFile);
     const git = yield* getGitSourceInfo(options.repoRoot);
     const { runtimeHelpers, namespaces, groups, typeReferences } =
       collectApiGroups(
@@ -2920,25 +3324,29 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
         options,
         options.includeSourceLinks ? git : null,
       );
-    const expandedTypeReferences = expandTypeReferences(
+    const expanded = expandTypeReferences(
+      checker,
       declarations,
       new Set(typeReferences),
     );
     const typedocProject = yield* createTypeDocProject(
       program,
       options,
-      declarations,
-      expandedTypeReferences,
+      expanded.declarations,
+      expanded.references,
     );
     const referencedTypes = collectReferencedTypeDocs(
       checker,
-      declarations,
+      expanded.declarations,
       options,
       options.includeSourceLinks ? git : null,
       typedocProject,
-      expandedTypeReferences,
+      expanded.references,
     );
-    const scriptEvents = collectScriptEventReferences(checker, declarations);
+    const scriptEvents = collectScriptEventReferences(
+      checker,
+      expanded.declarations,
+    );
     const renderedFiles = renderFiles(
       options,
       runtimeHelpers,

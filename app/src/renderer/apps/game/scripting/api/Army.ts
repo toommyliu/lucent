@@ -1,7 +1,7 @@
 import type * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
-import type { ArmyApiRuntimeShape, ArmyApiShape } from "../../army/Army";
+import type { ArmyApiRuntimeShape } from "../../army/Army";
 import {
   ArmyLoopTauntError,
   type ArmyLoopTauntAssignment,
@@ -9,6 +9,7 @@ import {
   type ArmyLoopTauntRuntimePlan,
 } from "../../army/ArmyLoopTaunt";
 import { ScriptExecutionError } from "../ScriptRunnerErrors";
+import type { ScriptArmyApi } from "../ScriptApi";
 import type { ScriptAsyncScope } from "../scriptAsyncScope";
 import { normalizeScriptCallbackResult } from "./Callbacks";
 
@@ -46,7 +47,7 @@ export const makeScriptArmyApi = (
   army: ArmyApiRuntimeShape,
   scope: ScriptAsyncScope,
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
-): ArmyApiShape => {
+): ScriptArmyApi => {
   const { loopTaunt, ...publicArmy } = army;
 
   return {

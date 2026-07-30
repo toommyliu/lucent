@@ -2,36 +2,13 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
 import type { ApiService } from "../../flash/api/Api";
-import type {
-  FlashPacket,
-  PacketDirection,
-  PacketForDirection,
-  PacketSelector,
-} from "../../flash/contract/Packet";
+import type { FlashPacket, PacketSelector } from "../../flash/contract/Packet";
+import type { ScriptPacketApi, ScriptPacketOn } from "../ScriptApi";
 import type { ScriptAsyncScope } from "../scriptAsyncScope";
 import {
   notifyScriptCallbackFailure,
   type ScriptCallbackResult,
 } from "./Callbacks";
-
-interface ScriptPacketOn {
-  <const D extends PacketDirection>(
-    selector: PacketSelector & { readonly direction: D },
-    handler: (packet: PacketForDirection<D>) => ScriptCallbackResult,
-  ): Effect.Effect<() => void>;
-  (
-    selector: PacketSelector | undefined,
-    handler: (packet: FlashPacket) => ScriptCallbackResult,
-  ): Effect.Effect<() => void>;
-}
-
-export interface ScriptPacketApi {
-  readonly on: ScriptPacketOn;
-  readonly once: ApiService["packet"]["once"];
-  readonly sendClient: ApiService["packet"]["sendClient"];
-  readonly sendServer: ApiService["packet"]["sendServer"];
-  readonly stream: ApiService["packet"]["stream"];
-}
 
 export const makeScriptPacketApi = (
   packet: ApiService["packet"],

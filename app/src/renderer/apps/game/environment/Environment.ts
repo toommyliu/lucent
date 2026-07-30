@@ -72,37 +72,29 @@ export interface EnvironmentShape {
   setQuestAutoRegister(
     options: EnvironmentQuestAutoRegisterOptions,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest requirements in the drop list. */
   setAutoRegisterRequirements(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest rewards in the drop list. */
   setAutoRegisterRewards(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
   addItem(name: string): Effect.Effect<EnvironmentState, unknown>;
   removeItem(name: string): Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only AC-tagged items. */
   setAcceptAcMemberOnlyDrops(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member AC-tagged items. */
   setAcceptAcNonMemberDrops(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only non-AC items. */
   setAcceptNonAcMemberOnlyDrops(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member non-AC items. */
   setAcceptNonAcNonMemberDrops(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Reject or ignore unregistered drops that are not accepted by policy. */
   setRejectUnregisteredDrops(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Update one or more drop-handling options. */
   setDropPolicy(
     policy: Partial<EnvironmentDropPolicy>,
   ): Effect.Effect<EnvironmentState, unknown>;
@@ -119,11 +111,9 @@ export interface EnvironmentShape {
   removeBoost(name: string): Effect.Effect<EnvironmentState, unknown>;
   clearBoosts(): Effect.Effect<EnvironmentState, unknown>;
   fetchBoosts(): Effect.Effect<readonly string[], unknown>;
-  /** Enable or pause automatic boost use. */
   setBoostAutomationEnabled(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic drop acceptance and rejection. */
   setDropAutomationEnabled(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
@@ -131,7 +121,6 @@ export interface EnvironmentShape {
     name: string,
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic quest acceptance and completion. */
   setQuestAutomationEnabled(
     enabled: boolean,
   ): Effect.Effect<EnvironmentState, unknown>;

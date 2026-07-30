@@ -2,7 +2,6 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
-import type { AutomationService } from "../automation/Automation";
 import type { BridgeService } from "../flash/bridge/Bridge";
 import { makeScriptArmyApi } from "./api/Army";
 import { makeScriptEventsApi } from "./api/Events";
@@ -12,12 +11,17 @@ import { makeScriptPlayerApis } from "./api/Player";
 import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
-import type { ScriptLucentStd, ScriptRuntimeApi } from "./ScriptApi";
+import type {
+  ScriptAutoReloginFeature,
+  ScriptAutoZoneFeature,
+  ScriptLucentStd,
+  ScriptRuntimeApi,
+} from "./ScriptApi";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 
 export interface ScriptRuntimeFeatures {
-  readonly autoRelogin: AutomationService["autoRelogin"];
-  readonly autoZone: AutomationService["autoZone"];
+  readonly autoRelogin: ScriptAutoReloginFeature;
+  readonly autoZone: ScriptAutoZoneFeature;
 }
 
 export interface ScriptRuntimeStdOptions {
