@@ -756,6 +756,11 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   font-size: var(--text-xs);
 }
 
+.game-menu__profile-list {
+  display: grid;
+  gap: 0.125rem;
+}
+
 .game-menu__profile-heading {
   display: flex;
   align-items: baseline;

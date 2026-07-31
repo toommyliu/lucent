@@ -1749,6 +1749,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </MenuItem>
               </MenuGroup>
               <MenuRadioGroup
+                class="game-menu__profile-list"
                 value={autoAttackSelectionValue()}
                 onValueChange={handleAutoAttackSelectionChange}
               >
