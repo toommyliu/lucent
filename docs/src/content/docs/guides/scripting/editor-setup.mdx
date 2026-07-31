@@ -1,0 +1,47 @@
+---
+title: Editor setup
+description: Set up autocomplete and optional type checks for your scripts.
+---
+
+import FileTree from "../../../../../components/FileTree.astro";
+
+## Add autocomplete
+
+Download [`script-api.d.ts`](/script-api.d.ts) and save it beside your scripts.
+It adds autocomplete and helpful details for most of the values you’ll work with.
+
+For a single script, add this line at the top:
+
+```js
+/// <reference path="./script-api.d.ts" />
+
+const { api, script } = require("lucent");
+```
+
+## Set up a folder
+
+For several scripts, save `script-api.d.ts` in their folder and add a
+`jsconfig.json` beside it:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "checkJs": false,
+    "skipLibCheck": true
+  },
+  "include": ["**/*.js", "*.d.ts"]
+}
+```
+
+This is what the folder should look like:
+
+<FileTree
+  label="Example script folder"
+  root="scripts"
+  files={["farm.js", "quest.js", "script-api.d.ts", "jsconfig.json"]}
+/>
+
+This enables autocomplete without reporting type errors. Add `// @ts-check` to
+the top of any script you want checked.

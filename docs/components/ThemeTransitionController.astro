@@ -1,0 +1,112 @@
+<lucent-theme-transition-controller hidden></lucent-theme-transition-controller>
+
+<script>
+  const THEME_STORAGE_KEY = "blume-theme";
+  const FALLBACK_TRANSITION_DURATION_MS = 240;
+
+  type ViewTransitionDocument = Document & {
+    startViewTransition?: (update: () => void) => {
+      readonly ready: Promise<void>;
+    };
+  };
+
+  /** Animate user-triggered theme changes while leaving Blume's stored preference intact. */
+  class LucentThemeTransitionController extends HTMLElement {
+    #fallbackTimer: number | undefined;
+
+    #applyTheme = (theme: "dark" | "light"): void => {
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    };
+
+    #toggleWithViewTransition = (
+      documentWithTransition: ViewTransitionDocument,
+      nextTheme: "dark" | "light",
+    ): void => {
+      const transitionBlocker = document.createElement("style");
+      transitionBlocker.textContent =
+        "*,*::before,*::after{transition:none!important}";
+      document.head.append(transitionBlocker);
+
+      const transition = documentWithTransition.startViewTransition?.(() => {
+        this.#applyTheme(nextTheme);
+        void window.getComputedStyle(document.documentElement).opacity;
+      });
+
+      if (transition === undefined) {
+        transitionBlocker.remove();
+        this.#toggleWithFallback(nextTheme);
+        return;
+      }
+
+      void transition.ready.then(
+        () => transitionBlocker.remove(),
+        () => transitionBlocker.remove(),
+      );
+    };
+
+    #toggleWithFallback = (nextTheme: "dark" | "light"): void => {
+      const root = document.documentElement;
+      window.clearTimeout(this.#fallbackTimer);
+      root.setAttribute("data-lucent-theme-transition", "");
+
+      requestAnimationFrame(() => {
+        this.#applyTheme(nextTheme);
+        this.#fallbackTimer = window.setTimeout(() => {
+          root.removeAttribute("data-lucent-theme-transition");
+        }, FALLBACK_TRANSITION_DURATION_MS);
+      });
+    };
+
+    #onClick = (event: MouseEvent): void => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const toggle = event.target.closest("[data-blume-theme-toggle]");
+      if (toggle === null) {
+        return;
+      }
+
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (reduceMotion) {
+        return;
+      }
+
+      // Blume also delegates this click. Capture it first so the theme changes once.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const root = document.documentElement;
+      const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+      const documentWithTransition = document as ViewTransitionDocument;
+
+      if (typeof documentWithTransition.startViewTransition === "function") {
+        this.#toggleWithViewTransition(documentWithTransition, nextTheme);
+      } else {
+        this.#toggleWithFallback(nextTheme);
+      }
+    };
+
+    connectedCallback(): void {
+      document.addEventListener("click", this.#onClick, { capture: true });
+    }
+
+    disconnectedCallback(): void {
+      document.removeEventListener("click", this.#onClick, { capture: true });
+      window.clearTimeout(this.#fallbackTimer);
+      document.documentElement.removeAttribute(
+        "data-lucent-theme-transition",
+      );
+    }
+  }
+
+  if (!customElements.get("lucent-theme-transition-controller")) {
+    customElements.define(
+      "lucent-theme-transition-controller",
+      LucentThemeTransitionController,
+    );
+  }
+</script>

@@ -1,0 +1,8 @@
+---
+import type { ComponentProps } from "astro/types";
+import Header from "./Header.astro";
+
+type Props = ComponentProps<typeof Header>;
+---
+
+<Header {...Astro.props} hasSidebar={false} />

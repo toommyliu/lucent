@@ -29,10 +29,13 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
 const DEFAULT_SOURCE_FILE = "app/src/renderer/apps/game/scripting/ScriptApi.ts";
-const DEFAULT_OUTPUT_DIR = "docs/src/content/docs/scripting";
-const LEGACY_OUTPUT_DIR = "docs/src/content/docs/script-commands";
-const SOURCE_LINKS_OUTPUT = "docs/src/generated/script-source-links.ts";
-const TYPE_PREVIEWS_OUTPUT = "docs/public/script-type-previews.json";
+const DEFAULT_OUTPUT_DIR =
+  "docs/src/content/docs/reference/scripting";
+const LEGACY_OUTPUT_DIRS = [
+  "docs/src/content/docs/script-commands",
+  "docs/src/content/docs/scripting",
+] as const;
+const SCRIPTING_REFERENCE_ROUTE = "/reference/scripting";
 const APP_TSCONFIG = "app/tsconfig.json";
 const SOURCE_REF_ENV = "DOCGEN_SOURCE_REF";
 const DEFAULT_SOURCE_REF = "main";
@@ -176,14 +179,6 @@ type ApiGroup = {
   readonly summary: string;
   readonly members: readonly MemberDoc[];
   readonly typeReferences: readonly string[];
-};
-
-type ApiNamespace = {
-  readonly name: string;
-  readonly slug: string;
-  readonly href: string;
-  readonly sourceType: string;
-  readonly description: string;
 };
 
 type TypeLink = {
@@ -1529,7 +1524,6 @@ const collectApiGroups = (
   git: GitSourceInfo | null,
 ): {
   readonly runtimeHelpers: readonly MemberDoc[];
-  readonly namespaces: readonly ApiNamespace[];
   readonly groups: readonly ApiGroup[];
   readonly typeReferences: readonly string[];
 } => {
@@ -1548,7 +1542,6 @@ const collectApiGroups = (
     helperTypeReferences,
   );
 
-  const namespaces: ApiNamespace[] = [];
   for (const member of scriptApi.members) {
     if (!ts.isPropertySignature(member)) {
       continue;
@@ -1589,13 +1582,6 @@ const collectApiGroups = (
       getSummary(member) ||
       (shapeDeclaration === null ? "" : getSummary(shapeDeclaration));
     const id = `api/${kebabCase(name)}`;
-    namespaces.push({
-      name,
-      slug: kebabCase(name),
-      href: `/scripting/api/${kebabCase(name)}/`,
-      sourceType: formatType(checker, member.type),
-      description: summary,
-    });
     groups.push({
       id,
       title: `api.${name}`,
@@ -1680,7 +1666,6 @@ const collectApiGroups = (
 
   return {
     runtimeHelpers,
-    namespaces: namespaces.sort((a, b) => a.name.localeCompare(b.name)),
     groups: groups.sort((a, b) => a.id.localeCompare(b.id)),
     typeReferences: Array.from(documentedTypeReferences),
   };
@@ -2552,9 +2537,15 @@ const renderHeadingSourceLink = (source: SourceInfo): string => {
 
 const renderSource = (source: SourceInfo): string => {
   const sourceReference = `${source.sourcePath}:${source.sourceLine}`;
-  const sourcePath = `<code class="source-reference__path">${escapeHtml(sourceReference)}</code>`;
+  const sourceFile = source.sourcePath.split("/").at(-1) ?? source.sourcePath;
+  const sourceLabel = `${sourceFile}:${source.sourceLine}`;
+  const sourcePath = `<code class="source-reference__path">${escapeHtml(sourceLabel)}</code>`;
 
-  return `<p class="source-reference"><span class="source-reference__label">Source</span>${sourcePath}${renderSourceLink(source)}</p>`;
+  if (source.sourceUrl === null) {
+    return `<p class="source-reference">Defined in ${sourcePath}</p>`;
+  }
+
+  return `<p class="source-reference">Defined in <a class="source-reference__link" href="${escapeHtml(source.sourceUrl)}" aria-label="Open source: ${escapeHtml(sourceReference)}" title="${escapeHtml(sourceReference)}" target="_blank" rel="noreferrer">${sourcePath}</a></p>`;
 };
 
 const GENERATED_MEMBER_SUMMARIES: Readonly<Record<string, string>> = {
@@ -2563,6 +2554,25 @@ const GENERATED_MEMBER_SUMMARIES: Readonly<Record<string, string>> = {
   "api.events.once": "Waits for the next matching event.",
   "api.events.stream":
     "Creates a lazy Effect Stream of matching events for advanced stream composition.",
+};
+
+const memberCopyCall = (member: MemberDoc): string => {
+  const requiredArguments = member.parameters
+    .filter((parameter) => parameter.required)
+    .map((parameter) =>
+      parameter.rest ? `...${parameter.name}` : parameter.name,
+    )
+    .join(", ");
+  const expression =
+    member.kind === "method"
+      ? `${member.path}(${requiredArguments})`
+      : member.path;
+
+  if (member.returnDoc.result !== null) {
+    return `yield* ${expression};`;
+  }
+
+  return member.kind === "method" ? `${expression};` : expression;
 };
 
 const renderMember = (
@@ -2585,6 +2595,10 @@ const renderMember = (
     lines.push(renderSource(member), "");
   }
 
+  lines.push(
+    `<div data-api-copy-call="${escapeHtml(memberCopyCall(member))}" hidden></div>`,
+    "",
+  );
   lines.push("```ts", member.signature, "```", "");
 
   if (member.parameters.length > 0) {
@@ -2671,7 +2685,7 @@ const frontmatter = (
   const yamlString = (value: string): string => JSON.stringify(value);
   const sidebar =
     label === undefined ? "" : `sidebar:\n  label: ${yamlString(label)}\n`;
-  return `---\ntitle: ${yamlString(title)}\ndescription: ${yamlString(description)}\n${sidebar}${extraFields}tableOfContents:\n  minHeadingLevel: 2\n  maxHeadingLevel: 3\n---`;
+  return `---\ntitle: ${yamlString(title)}\ndescription: ${yamlString(description)}\n${sidebar}${extraFields}---`;
 };
 
 const finalizeMarkdown = (lines: readonly string[]): string =>
@@ -2680,190 +2694,59 @@ const finalizeMarkdown = (lines: readonly string[]): string =>
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd()}\n`;
 
-const renderIndex = (_namespaces: readonly ApiNamespace[]): string => {
-  const lines = [
-    frontmatter("Scripting API", "", "Overview"),
-    "",
-    GENERATED_HEADER,
-    "",
-    'Scripts export a CommonJS generator function and import script APIs from `require("lucent")`.',
-    "",
-    "```js",
-    'const { features, script, api } = require("lucent")',
-    "",
-    "module.exports = function* run() {",
-    '  yield* script.log("started")',
-    '  yield* script.options.setRoomPolicy({ kind: "random-private" })',
-    '  yield* api.player.joinMap("battleon")',
-    "  const me = yield* api.players.getMe()",
-    "  if (me !== null) yield* script.log(`Logged in as ${me.username}`)",
-    "}",
-    "```",
-    "",
-    "## Runtime Import",
-    "",
-    '`require("lucent")` returns the script API facade. The declaration file types this import directly, so `features`, `script`, and `api` get autocomplete without a JSDoc parameter annotation.',
-    "",
-    "| Member | Description |",
-    "| --- | --- |",
-    "| [`api`](/scripting/api/) | Interact with the game. |",
-    "| [`script`](/scripting/script/) | Manage the running script. |",
-    "| [`features`](/scripting/features/) | Use feature controls. |",
-    "| [`imports`](/scripting/imports/) | Import supported script modules. |",
-    "",
-    "## Reference",
-    "",
-    "| Page | Description |",
-    "| --- | --- |",
-    "| [`types`](/scripting/types/) | Referenced scripting data types and public class surfaces. |",
-    "",
-    "## Editor Integration",
-    "",
-    "Download the generated declaration file [`script-api.d.ts`](/script-api.d.ts) and place it beside your scripts. You can rename it if your `jsconfig.json` includes the renamed declaration file. It declares the supported imports, so `require(\"lucent\")` and `require(\"effect\")` are typed automatically.",
-    "",
-    "```js",
-    '/// <reference path="./script-api.d.ts" />',
-    "",
-    'const { features, script, api } = require("lucent")',
-    "",
-    "module.exports = function* run() {",
-    '  yield* script.options.setRoomPolicy({ kind: "random-private" })',
-    '  yield* api.player.joinMap("battleon")',
-    "  const me = yield* api.players.getMe()",
-    "  if (me !== null) yield* script.log(me.username)",
-    "}",
-    "```",
-    "",
-    "For a folder full of scripts, put the declaration file beside them and add `jsconfig.json` to the folder. Keep `checkJs` off to get autocomplete without diagnostics noise, and add `// @ts-check` only to files where you want type errors reported.",
-    "",
-    "```json",
-    "{",
-    '  "compilerOptions": {',
-    '    "target": "ES2020",',
-    '    "lib": ["ES2020", "DOM"],',
-    '    "checkJs": false,',
-    '    "skipLibCheck": true',
-    "  },",
-    '  "include": ["**/*.js", "*.d.ts"]',
-    "}",
-    "```",
-  ];
-  return finalizeMarkdown(lines);
-};
-
-const renderImportsOverview = (): string => {
+const renderIndex = (): string => {
   const lines = [
     frontmatter(
-      "Script Imports",
-      "Supported modules available to scripts.",
-      "Imports",
+      "lucent module",
+      'Namespaces available from require("lucent").',
+      "lucent module",
     ),
     "",
     GENERATED_HEADER,
     "",
-    "Scripts can import a small set of supported modules. For now, other imports are not available.",
+    '`require("lucent")` exposes the public scripting API through three namespaces.',
     "",
-    "### `require(\"lucent\")`",
-    "",
-    "`require(\"lucent\")` returns the active script API facade.",
-    "",
-    "```js",
-    'const { features, script, api } = require("lucent")',
-    "",
-    "module.exports = function* run() {",
-    '  yield* api.player.joinMap("battleon")',
-    '  yield* api.wait.forMapLoaded("battleon", { timeout: "10 seconds" })',
-    '  yield* script.log("ready")',
-    "}",
-    "```",
-    "",
-    "Feature controls remain grouped under `features`.",
-    "",
-    "```js",
-    'const { features, script, api } = require("lucent")',
-    "const { autoZone } = features",
-    "",
-    "module.exports = function* run() {",
-    '  yield* autoZone.setMap("ultradage")',
-    "  yield* autoZone.enable()",
-    "}",
-    "```",
-    "",
-    "### `require(\"effect\")`",
-    "",
-    "`require(\"effect\")` returns the exposed Effect modules available for use.",
-    "",
-    "```js",
-    'const { features, script, api } = require("lucent")',
-    'const { Effect, pipe } = require("effect")',
-    "",
-    "module.exports = function* run() {",
-    "  const me = yield* api.players.getMe()",
-    "  if (me !== null) {",
-    "    yield* script.log(me.username)",
-    "  }",
-    "}",
-    "```",
-    "",
-    "The curated import currently exposes [`Effect`](https://effect-ts.github.io/effect/effect/Effect.ts.html), [`Option`](https://effect-ts.github.io/effect/effect/Option.ts.html), [`Duration`](https://effect-ts.github.io/effect/effect/Duration.ts.html), and [`pipe`](https://effect-ts.github.io/effect/effect/Function.ts.html).",
-    "",
-    "When a script yields an Effect, the script runner owns its execution and cancellation. Background work that is started manually, such as detached fibers or timers, should still be cleaned up by the script.",
-  ];
-
-  return finalizeMarkdown(lines);
-};
-
-const renderApiOverview = (namespaces: readonly ApiNamespace[]): string => {
-  const lines = [
-    frontmatter(
-      "Game API",
-      "Gameplay and game-state APIs exposed to scripts.",
-      "API",
-    ),
-    "",
-    GENERATED_HEADER,
-    "",
-    "`api` gives scripts access to gameplay controls and information.",
+    "For help creating a script, start with [Writing scripts](/guides/scripting/script-format/).",
     "",
     "## Namespaces",
     "",
     "| Namespace | Description |",
     "| --- | --- |",
-    ...namespaces.map(
-      (namespace) =>
-        `| [\`api.${namespace.name}\`](${namespace.href}) | ${escapeTableCell(
-          namespace.description || `${titleCase(namespace.name)} APIs.`,
-        )} |`,
-    ),
+    "| `api` | Control the game and read its state. |",
+    `| [\`script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | Work with the current script and its runtime. |`,
+    "| `features` | Control higher-level automation. |",
+    "",
+    "## Other modules",
+    "",
+    `The [\`effect\` module](${SCRIPTING_REFERENCE_ROUTE}/effect/) exposes the Effect utilities available to scripts.`,
+    "",
+    "## Types",
+    "",
+    `Browse [referenced types](${SCRIPTING_REFERENCE_ROUTE}/types/) for data shapes and public class surfaces.`,
+    "",
+    "The generated [`script-api.d.ts`](/script-api.d.ts) declaration file contains the same public surface for editor tooling.",
   ];
-
   return finalizeMarkdown(lines);
 };
 
-const renderFeaturesOverview = (groups: readonly ApiGroup[]): string => {
-  const featureGroups = groups.filter((group) =>
-    group.id.startsWith("features/"),
-  );
+const renderEffectModule = (): string => {
   const lines = [
     frontmatter(
-      "Features",
-      "Higher-level gameplay automation features exposed to scripts.",
-      "Features",
+      "effect module",
+      "Effect utilities available to scripts.",
+      "effect module",
     ),
     "",
     GENERATED_HEADER,
     "",
-    "`features` gives scripts access to higher-level automation controls that sit above the lower-level game API namespaces.",
+    '`require("effect")` exposes a small set of Effect utilities.',
     "",
-    "## Namespaces",
-    "",
-    "| Namespace | Description |",
+    "| Export | Description |",
     "| --- | --- |",
-    ...featureGroups.map((group) => {
-      const description =
-        group.description || `${group.label} feature controls.`;
-      return `| [\`${group.title}\`](/scripting/${group.id}/) | ${escapeTableCell(description)} |`;
-    }),
+    "| [`Effect`](https://effect-ts.github.io/effect/effect/Effect.ts.html) | Create and combine operations. |",
+    "| [`Option`](https://effect-ts.github.io/effect/effect/Option.ts.html) | Represent a value that may be missing. |",
+    "| [`Duration`](https://effect-ts.github.io/effect/effect/Duration.ts.html) | Express a length of time. |",
+    "| [`pipe`](https://effect-ts.github.io/effect/effect/Function.ts.html) | Pass a value through a series of functions. |",
   ];
 
   return finalizeMarkdown(lines);
@@ -2875,14 +2758,14 @@ const renderScriptOverview = (
 ): string => {
   const lines = [
     frontmatter(
-      "Script",
-      "Current script lifecycle and diagnostics APIs.",
-      "Script",
+      "Script runtime",
+      "The script namespace for the current script and its runtime.",
+      "script",
     ),
     "",
     GENERATED_HEADER,
     "",
-    "`script` gives scripts access to the current script's lifecycle, diagnostics, and session-backed options.",
+    "`script` is the `lucent` namespace for lifecycle, inputs, options, logging, and other runtime utilities.",
     "",
     "## Members",
     "",
@@ -3036,7 +2919,11 @@ const renderGroup = (
 
 const renderTypesIndex = (types: readonly ReferencedTypeDoc[]): string => {
   const lines = [
-    frontmatter("Referenced Types", "", "Types"),
+    frontmatter(
+      "Types",
+      "Data shapes and public class surfaces referenced by the scripting API.",
+      "Type index",
+    ),
     "",
     GENERATED_HEADER,
     "",
@@ -3048,7 +2935,7 @@ const renderTypesIndex = (types: readonly ReferencedTypeDoc[]): string => {
     ...types.map(
       (type) =>
         `| ${renderTypeLink(type.name, {
-          href: `/scripting/types/${type.slug}/`,
+          href: `${SCRIPTING_REFERENCE_ROUTE}/types/${type.slug}/`,
           slug: type.slug,
         })} | ${escapeTableCell(type.kind)} | ${escapeTableCell(type.summary)} |`,
     ),
@@ -3123,106 +3010,29 @@ const renderTypePage = (
   return finalizeMarkdown(lines);
 };
 
-const renderSourceLinksModule = (
-  types: readonly ReferencedTypeDoc[],
-): string => {
-  const entries = types
-    .filter((type) => type.sourceUrl !== null)
-    .map((type) => {
-      const sourceReference = `${type.sourcePath}:${type.sourceLine}`;
-      return `  ${JSON.stringify(`scripting/types/${type.slug}`)}: { path: ${JSON.stringify(sourceReference)}, url: ${JSON.stringify(type.sourceUrl)} },`;
-    })
-    .sort();
-
-  return `${GENERATED_HEADER.replace("<!--", "//").replace("-->", "").trim()}
-
-export const scriptSourceLinks: Record<string, { path: string; url: string }> = {
-${entries.join("\n")}
-};
-`;
-};
-
-const renderTypePreviewsJson = (types: readonly ReferencedTypeDoc[]): string =>
-  `${JSON.stringify(
-    {
-      types: Object.fromEntries(
-        types
-          .map((type): [string, object] => [
-            type.slug,
-            {
-              name: type.name,
-              slug: type.slug,
-              kind: type.kind,
-              summary: type.summary,
-              aliasOf: type.aliasOf,
-              definition: type.resolvedDefinition ?? type.definition,
-              keys: [
-                ...type.namedValues.map((value) => ({
-                  kind: "named value",
-                  name: value.name,
-                  signature: `${value.name}: ${value.value}`,
-                  description: value.summary,
-                })),
-                ...type.properties.map((property) => ({
-                  kind: "property",
-                  name: property.name,
-                  signature: `${property.readonly ? "readonly " : ""}${property.name}${
-                    property.optional ? "?" : ""
-                  }: ${property.type}`,
-                  description: property.summary,
-                })),
-                ...type.methods.map((method) => ({
-                  kind: "method",
-                  name: `${method.name}()`,
-                  signature: method.signature,
-                  description: method.summary,
-                })),
-              ],
-              source:
-                type.sourceUrl === null
-                  ? null
-                  : {
-                      path: `${type.sourcePath}:${type.sourceLine}`,
-                      url: type.sourceUrl,
-                    },
-            },
-          ])
-          .sort(([left], [right]) => left.localeCompare(right)),
-      ),
-    },
-    null,
-    2,
-  )}\n`;
-
 const renderFiles = (
   options: CliOptions,
   helpers: readonly MemberDoc[],
-  namespaces: readonly ApiNamespace[],
   groups: readonly ApiGroup[],
   types: readonly ReferencedTypeDoc[],
   events: readonly ScriptEventReference[],
 ): ReadonlyArray<RenderedFile> => {
-  const typeLinks = buildTypeLinks(types, "/scripting/types/");
+  const typeLinks = buildTypeLinks(
+    types,
+    `${SCRIPTING_REFERENCE_ROUTE}/types/`,
+  );
   return [
     {
       path: join(options.outputDir, "index.md"),
-      content: renderIndex(namespaces),
-    },
-    {
-      path: join(options.outputDir, "api.md"),
-      content: renderApiOverview(namespaces),
-    },
-    {
-      path: join(options.outputDir, "features.md"),
-      content: renderFeaturesOverview(groups),
+      content: renderIndex(),
     },
     {
       path: join(options.outputDir, "script.md"),
       content: renderScriptOverview(helpers, typeLinks),
     },
     {
-      path: join(options.outputDir, "imports.md"),
-      content: renderImportsOverview(),
+      path: join(options.outputDir, "effect.md"),
+      content: renderEffectModule(),
     },
     {
       path: join(options.outputDir, "types/index.md"),
@@ -3236,14 +3046,6 @@ const renderFiles = (
       path: join(options.outputDir, `types/${type.slug}.md`),
       content: renderTypePage(type, typeLinks),
     })),
-    {
-      path: resolve(options.repoRoot, SOURCE_LINKS_OUTPUT),
-      content: renderSourceLinksModule(types),
-    },
-    {
-      path: resolve(options.repoRoot, TYPE_PREVIEWS_OUTPUT),
-      content: renderTypePreviewsJson(types),
-    },
   ];
 };
 
@@ -3273,8 +3075,11 @@ const writeGeneratedDocs = (
   files: ReadonlyArray<RenderedFile>,
 ): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
-    const legacyDir = resolve(repoRoot, LEGACY_OUTPUT_DIR);
-    if (legacyDir !== outputDir) {
+    for (const legacyOutputDir of LEGACY_OUTPUT_DIRS) {
+      const legacyDir = resolve(repoRoot, legacyOutputDir);
+      if (legacyDir === outputDir) {
+        continue;
+      }
       yield* Effect.tryPromise(() =>
         fs.rm(legacyDir, { recursive: true, force: true }),
       );
@@ -3317,7 +3122,7 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
     const checker = program.getTypeChecker();
     const declarations = buildDeclarationMap(program, sourceFile);
     const git = yield* getGitSourceInfo(options.repoRoot);
-    const { runtimeHelpers, namespaces, groups, typeReferences } =
+    const { runtimeHelpers, groups, typeReferences } =
       collectApiGroups(
         checker,
         declarations,
@@ -3350,7 +3155,6 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
     const renderedFiles = renderFiles(
       options,
       runtimeHelpers,
-      namespaces,
       groups,
       referencedTypes,
       scriptEvents,

@@ -1,0 +1,329 @@
+:root {
+  --blume-muted-foreground: oklch(0.48 0 0);
+  --docs-text-xs: 0.75rem;
+  --docs-text-sm: 0.875rem;
+}
+
+:root[data-theme="dark"] {
+  --blume-muted-foreground: oklch(0.74 0 0);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: normal;
+}
+
+:root[data-lucent-theme-transition],
+:root[data-lucent-theme-transition] *,
+:root[data-lucent-theme-transition] *::before,
+:root[data-lucent-theme-transition] *::after {
+  transition-duration: 240ms !important;
+  transition-property: background-color, border-color, color, fill, stroke !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 1ms;
+  }
+}
+
+[data-blume-nav-drawer] {
+  scrollbar-gutter: stable;
+}
+
+[data-blume-search-kbd] {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.prose {
+  font-size: var(--docs-text-sm);
+}
+
+.prose :not(pre) > code:not(:where([class~="not-prose"] *)) {
+  background: var(--blume-muted);
+  font-size: 1em;
+  font-variant-ligatures: none;
+  font-weight: 500;
+}
+
+.prose :where(table) {
+  font-size: var(--docs-text-sm);
+}
+
+.prose :where(pre[data-language])::before {
+  font-size: var(--docs-text-sm);
+}
+
+.prose .source-reference {
+  display: flex;
+  align-items: baseline;
+  max-width: 100%;
+  gap: 0.25rem;
+  margin-block: 0.5rem 0.375rem;
+  color: var(--blume-muted-foreground);
+  font-size: var(--docs-text-sm);
+  line-height: 1.25;
+}
+
+.prose .source-reference__path {
+  display: block;
+  min-width: 0;
+  max-width: min(100%, 22rem);
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--docs-text-sm);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prose :is(.source-reference__link, .source-reference__heading-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--blume-muted-foreground);
+  text-decoration: none;
+}
+
+.prose .source-reference__link {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.prose .source-reference__link:hover .source-reference__path {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.prose .source-reference__heading-link {
+  float: right;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-inline-start: 0.5rem;
+}
+
+.prose :is(.source-reference__link, .source-reference__heading-link):hover {
+  color: var(--blume-foreground);
+}
+
+.prose .source-reference__icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.prose .required-mark {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin-inline: auto;
+  background-color: currentColor;
+  color: var(--blume-foreground);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.prose table:has(.required-mark) :is(th, td):nth-child(3) {
+  text-align: center;
+}
+
+.api-copy-control {
+  position: absolute;
+  z-index: 2;
+  top: 0.5rem;
+  right: 0.75rem;
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--blume-muted-foreground);
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+.api-copy-control:hover {
+  background: var(--blume-muted);
+  color: var(--blume-foreground);
+}
+
+.api-copy-control :is(button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.api-copy-control :is(button):hover {
+  color: var(--blume-foreground);
+}
+
+.api-copy-control :is(button):focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--blume-ring);
+  outline-offset: -2px;
+}
+
+.api-copy-control__primary {
+  width: 1.875rem;
+}
+
+.api-copy-control__toggle {
+  width: 1.5rem;
+}
+
+.api-copy-control__toggle[aria-expanded="true"] {
+  color: var(--blume-foreground);
+}
+
+.api-copy-control__menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 9.5rem;
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid var(--blume-border);
+  border-radius: var(--blume-radius);
+  background: var(--blume-background);
+  color: var(--blume-foreground);
+}
+
+.api-copy-control__action {
+  display: grid !important;
+  width: 100%;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.5rem;
+  justify-content: flex-start !important;
+  border-radius: calc(var(--blume-radius) - 0.25rem) !important;
+  padding: 0.5rem 0.625rem;
+  font-family: var(--blume-font-body);
+  font-size: var(--docs-text-sm);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.api-copy-control__action > :last-child {
+  text-align: end;
+}
+
+.api-copy-control__action[data-active="true"] {
+  background: var(--blume-muted);
+}
+
+.api-copy-control__option-mark {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide the "Open in v0" link and its separator, since it is not relevant to the current docs. */
+[data-open-in="v0"],
+[data-open-in="v0"] + hr {
+  display: none;
+}
+
+/* Keep long API member names within the fixed-width table of contents. */
+[data-blume-toc] {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+[data-blume-toc] blume-toc :is(ul, li, a) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-blume-toc] blume-toc a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keep reference kinds in one visual column, including expandable namespaces. */
+[data-blume-nav-tree] span[class*="rounded-full"] {
+  width: 4.25rem;
+  text-align: center;
+}
+
+[data-blume-nav-tree]
+  a
+  > span.flex.items-center.gap-2:has(> span[class*="rounded-full"]),
+[data-blume-nav-tree] details > summary:has(> span[class*="rounded-full"]),
+[data-blume-nav-tree] p > a:has(> span[class*="rounded-full"]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.25rem 0.8125rem;
+  column-gap: 0.375rem;
+}
+
+[data-blume-nav-tree]
+  a
+  > span.flex.items-center.gap-2:has(> span[class*="rounded-full"])::after,
+[data-blume-nav-tree] p > a:has(> span[class*="rounded-full"])::after {
+  width: 0.8125rem;
+  content: "";
+}
+
+[data-blume-nav-tree]
+  p
+  > a:has(> span[class*="rounded-full"])
+  > span[class*="rounded-full"] {
+  margin-inline-start: 0;
+}
+
+/* Emphasize the module and namespace along the active reference path. */
+[data-blume-nav-tree]
+  a[aria-current="page"]
+  span[class*="rounded-full"],
+[data-blume-nav-tree]
+  details:has(a[aria-current="page"])
+  > summary
+  > span[class*="rounded-full"],
+[data-blume-nav-tree]
+  p:has(+ div a[aria-current="page"])
+  > a
+  > span[class*="rounded-full"] {
+  background-color: color-mix(
+    in oklab,
+    var(--blume-foreground) 72%,
+    var(--blume-muted)
+  );
+  color: var(--blume-background);
+}
+
+/* Blume renders a routed flat-group heading more tightly than regular rows. */
+[data-blume-nav-tree] p:has(> a[href="/reference/scripting"]) {
+  margin-bottom: 0.125rem;
+  padding-inline: 0;
+}
+
+[data-blume-nav-tree] p > a[href="/reference/scripting"] {
+  width: 100%;
+  margin-inline-start: 0;
+  padding: 0.375rem 0.625rem;
+}
+
+/* Show the module boundary without another redundant overview row. */
+[data-blume-nav-tree]
+  p:has(> a[href="/reference/scripting"])
+  + div {
+  margin-inline-start: 0.625rem;
+  border-inline-start: 1px solid var(--blume-border);
+  padding-inline-start: 0.375rem;
+}

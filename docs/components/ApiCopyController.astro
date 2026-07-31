@@ -1,0 +1,259 @@
+<lucent-api-copy-controller hidden></lucent-api-copy-controller>
+
+<script>
+  const COPY_ICON =
+    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
+  const CHECK_ICON =
+    '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"></path></svg>';
+  const CHEVRON_ICON =
+    '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>';
+  const COPY_MODE_STORAGE_KEY = "lucent-api-copy-mode";
+  type CopyMode = "call" | "signature";
+
+  const readCopyMode = (): CopyMode => {
+    try {
+      return localStorage.getItem(COPY_MODE_STORAGE_KEY) === "signature"
+        ? "signature"
+        : "call";
+    } catch {
+      return "call";
+    }
+  };
+
+  let copyMode = readCopyMode();
+
+  const copyModeLabel = (mode: CopyMode): string =>
+    mode === "call" ? "Copy call" : "Copy signature";
+
+  const updateCopyControls = (): void => {
+    const label = copyModeLabel(copyMode);
+    for (const control of document.querySelectorAll<HTMLElement>(
+      "[data-api-copy-control]",
+    )) {
+      const primary = control.querySelector<HTMLButtonElement>(
+        "[data-api-copy-primary]",
+      );
+      if (primary !== null && primary.getAttribute("aria-label") !== "Copied") {
+        primary.innerHTML = COPY_ICON;
+        primary.setAttribute("aria-label", label);
+        primary.title = label;
+      }
+
+      const toggle = control.querySelector<HTMLButtonElement>(
+        "[data-api-copy-toggle]",
+      );
+      toggle?.setAttribute(
+        "aria-label",
+        `Choose copy action. Current: ${label}`,
+      );
+
+      for (const option of control.parentElement?.querySelectorAll<HTMLElement>(
+        "[data-api-copy-mode]",
+      ) ?? []) {
+        const active = option.dataset.apiCopyMode === copyMode;
+        option.dataset.active = String(active);
+        option.setAttribute("aria-checked", String(active));
+        const mark = option.querySelector<HTMLElement>(
+          "[data-api-copy-option-mark]",
+        );
+        if (mark !== null) {
+          mark.innerHTML = active ? CHECK_ICON : "";
+        }
+      }
+    }
+  };
+
+  const selectCopyMode = (mode: CopyMode): void => {
+    copyMode = mode;
+    try {
+      localStorage.setItem(COPY_MODE_STORAGE_KEY, mode);
+    } catch {
+      // The choice still persists for the current page when storage is blocked.
+    }
+    updateCopyControls();
+  };
+
+  const copyText = async (
+    value: string,
+    feedbackButton: HTMLButtonElement,
+  ): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+
+    feedbackButton.innerHTML = CHECK_ICON;
+    feedbackButton.setAttribute("aria-label", "Copied");
+    window.setTimeout(() => {
+      feedbackButton.innerHTML = COPY_ICON;
+      feedbackButton.setAttribute("aria-label", copyModeLabel(copyMode));
+    }, 1500);
+  };
+
+  const positionMenu = (
+    toggle: HTMLButtonElement,
+    menu: HTMLDivElement,
+  ): void => {
+    const toggleBounds = toggle.getBoundingClientRect();
+    const menuWidth = menu.offsetWidth;
+    const left = Math.max(
+      8,
+      Math.min(window.innerWidth - menuWidth - 8, toggleBounds.right - menuWidth),
+    );
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${toggleBounds.bottom + 6}px`;
+  };
+
+  const enhanceCopyControl = (marker: HTMLElement): boolean => {
+    let signature = marker.nextElementSibling;
+    while (signature !== null && signature.tagName !== "PRE") {
+      signature = signature.nextElementSibling;
+    }
+
+    if (!(signature instanceof HTMLPreElement)) {
+      return false;
+    }
+
+    signature.querySelector("[data-blume-copy]")?.remove();
+
+    if (signature.querySelector("[data-api-copy-control]") !== null) {
+      return true;
+    }
+
+    const copyCall = marker.dataset.apiCopyCall;
+    if (copyCall === undefined) {
+      return false;
+    }
+
+    const control = document.createElement("div");
+    control.className = "api-copy-control";
+    control.dataset.apiCopyControl = "";
+    control.setAttribute("role", "group");
+    control.setAttribute("aria-label", "Copy");
+
+    const primary = document.createElement("button");
+    primary.type = "button";
+    primary.className = "api-copy-control__primary";
+    primary.dataset.apiCopyPrimary = "";
+    primary.setAttribute("aria-label", copyModeLabel(copyMode));
+    primary.title = copyModeLabel(copyMode);
+    primary.innerHTML = COPY_ICON;
+    primary.addEventListener("click", () => {
+      const value =
+        copyMode === "call"
+          ? copyCall
+          : (signature.querySelector("code")?.textContent ?? "");
+      void copyText(value, primary);
+    });
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "api-copy-control__toggle";
+    toggle.dataset.apiCopyToggle = "";
+    toggle.setAttribute(
+      "aria-label",
+      `Choose copy action. Current: ${copyModeLabel(copyMode)}`,
+    );
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-haspopup", "menu");
+    toggle.title = "Choose copy action";
+    toggle.innerHTML = CHEVRON_ICON;
+
+    const menu = document.createElement("div");
+    menu.className = "api-copy-control__menu";
+    menu.popover = "auto";
+    menu.setAttribute("role", "menu");
+    menu.addEventListener("toggle", () => {
+      toggle.setAttribute(
+        "aria-expanded",
+        menu.matches(":popover-open") ? "true" : "false",
+      );
+    });
+
+    const createModeOption = (mode: CopyMode): HTMLButtonElement => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "api-copy-control__action";
+      option.dataset.apiCopyMode = mode;
+      option.setAttribute("role", "menuitemradio");
+
+      const mark = document.createElement("span");
+      mark.className = "api-copy-control__option-mark";
+      mark.dataset.apiCopyOptionMark = "";
+
+      const label = document.createElement("span");
+      label.textContent = copyModeLabel(mode);
+      option.append(mark, label);
+      option.addEventListener("click", () => {
+        selectCopyMode(mode);
+        const value =
+          mode === "call"
+            ? copyCall
+            : (signature.querySelector("code")?.textContent ?? "");
+        void copyText(value, primary);
+        menu.hidePopover();
+        toggle.focus();
+      });
+      return option;
+    };
+
+    const copyCallOption = createModeOption("call");
+    const copySignatureOption = createModeOption("signature");
+    menu.append(copyCallOption, copySignatureOption);
+
+    toggle.addEventListener("click", () => {
+      if (menu.matches(":popover-open")) {
+        menu.hidePopover();
+        return;
+      }
+
+      menu.showPopover();
+      positionMenu(toggle, menu);
+      const activeOption = menu.querySelector<HTMLButtonElement>(
+        `[data-api-copy-mode="${copyMode}"]`,
+      );
+      activeOption?.focus();
+    });
+
+    control.append(primary, toggle);
+    signature.append(control, menu);
+    updateCopyControls();
+    return true;
+  };
+
+  class LucentApiCopyController extends HTMLElement {
+    #observer: MutationObserver | null = null;
+
+    connectedCallback(): void {
+      const enhanceAll = (): void => {
+        const markers = document.querySelectorAll<HTMLElement>(
+          "[data-api-copy-call]",
+        );
+        for (const marker of markers) {
+          enhanceCopyControl(marker);
+        }
+      };
+
+      enhanceAll();
+      this.#observer = new MutationObserver(enhanceAll);
+      this.#observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    disconnectedCallback(): void {
+      this.#observer?.disconnect();
+      this.#observer = null;
+    }
+  }
+
+  if (!customElements.get("lucent-api-copy-controller")) {
+    customElements.define(
+      "lucent-api-copy-controller",
+      LucentApiCopyController,
+    );
+  }
+</script>

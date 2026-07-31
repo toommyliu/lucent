@@ -1,0 +1,35 @@
+---
+/** A compact folder tree for showing which files belong beside one another. */
+interface Props {
+  files: readonly string[];
+  label?: string;
+  root: string;
+}
+
+const { files, label = "Folder layout", root } = Astro.props;
+---
+
+<figure
+  class="not-prose my-5 overflow-hidden rounded-blume border border-border"
+>
+  <figcaption
+    class="border-border border-b px-4 py-2.5 font-medium text-muted-foreground text-sm"
+  >
+    {label}
+  </figcaption>
+  <div class="bg-muted/40 px-4 py-3 font-mono text-sm leading-7">
+    <div class="font-medium text-foreground">{root}/</div>
+    <ul class="m-0 list-none p-0 text-muted-foreground" role="list">
+      {
+        files.map((file, index) => (
+          <li class="m-0 flex items-center gap-2 p-0">
+            <span aria-hidden="true" class="select-none text-border">
+              {index === files.length - 1 ? "└─" : "├─"}
+            </span>
+            <span class="text-foreground">{file}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</figure>

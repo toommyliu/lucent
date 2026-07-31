@@ -1,0 +1,10 @@
+---
+import type { ComponentProps } from "astro/types";
+import BlumeHeader from "blume/components/layout/Header.astro";
+import ThemeTransitionController from "./ThemeTransitionController.astro";
+
+type Props = ComponentProps<typeof BlumeHeader>;
+---
+
+<BlumeHeader {...Astro.props} />
+<ThemeTransitionController />
