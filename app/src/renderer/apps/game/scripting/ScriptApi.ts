@@ -733,11 +733,6 @@ export interface ScriptWaitApi {
   ) => Effect.Effect<A | null>;
 }
 
-export interface ScriptAntiCounterFeature {
-  readonly isEnabled: () => Effect.Effect<boolean>;
-  readonly setEnabled: (enabled: boolean) => Effect.Effect<void>;
-}
-
 export interface ScriptAutoReloginFeature {
   readonly onState: (
     listener: (state: AutoReloginState) => void,
@@ -772,7 +767,6 @@ export interface ScriptAutoZoneFeature {
 }
 
 export interface ScriptFeaturesApi {
-  readonly antiCounter: ScriptAntiCounterFeature;
   readonly autoRelogin: ScriptAutoReloginFeature;
   readonly autoZone: ScriptAutoZoneFeature;
 }

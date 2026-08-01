@@ -75,10 +75,6 @@ export const makeScriptLucentStd = (
       settings,
     }),
     features: Object.freeze({
-      antiCounter: Object.freeze({
-        isEnabled: options.services.settings.isAntiCounterEnabled,
-        setEnabled: options.services.settings.setAntiCounterEnabled,
-      }),
       autoRelogin: options.features.autoRelogin,
       autoZone: options.features.autoZone,
     }),

@@ -207,10 +207,6 @@ interface ScriptRuntimeApi {
     sleep(ms: number): Effect<void, ScriptExecutionError>;
     stop(reason?: string): Effect<never, ScriptStopSignal>;
 }
-interface ScriptAntiCounterFeature {
-    isEnabled(): Effect<boolean, never>;
-    setEnabled(enabled: boolean): Effect<void, never>;
-}
 interface ScriptArmyApi {
     equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, ArmyError>;
     executeWithArmy<A, E>(action: Effect<A, E, never>): Effect<A, E | ArmyError>;
@@ -371,7 +367,6 @@ interface ScriptEventsOn {
     (query: EventSelector | undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
 }
 interface ScriptFeaturesApi {
-    readonly antiCounter: ScriptAntiCounterFeature;
     readonly autoRelogin: ScriptAutoReloginFeature;
     readonly autoZone: ScriptAutoZoneFeature;
 }
