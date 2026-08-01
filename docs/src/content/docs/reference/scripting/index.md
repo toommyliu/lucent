@@ -1,5 +1,6 @@
 ---
 title: "lucent module"
+description: ""
 sidebar:
   label: "lucent module"
 ---
