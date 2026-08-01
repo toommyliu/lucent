@@ -31,6 +31,7 @@
   },
   "include": [
     "./appBranding.json",
+    "./scripts/**/*.ts",
     "./src/**/*"
   ],
   "exclude": [
