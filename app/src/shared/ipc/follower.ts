@@ -77,6 +77,12 @@ export const FollowerPlayersSchema = Schema.Array(Schema.String);
 export type FollowerPlayers = typeof FollowerPlayersSchema.Type;
 
 export const FollowerIpc = {
+  getConfig: defineInvoke({
+    channel: `${namespace}:get-config`,
+    name: "follower.getConfig",
+    payload: Schema.Void,
+    result: Schema.NullOr(FollowerConfigSchema),
+  }),
   configure: defineInvoke({
     channel: `${namespace}:configure`,
     name: "follower.configure",

@@ -20,6 +20,7 @@ import {
   CombatProfilesIpc,
   EnvironmentIpc,
   FollowerIpc,
+  GameRendererIpc,
   ScriptingIpc,
   SettingsIpc,
   UpdatesIpc,
@@ -154,6 +155,7 @@ const loaderGrabberBridge: DesktopBridge["loaderGrabber"] = {
 };
 
 const packetsBridge: NonNullable<DesktopBridge["packets"]> = {
+  getStatus: () => invoke(PacketsIpc.getStatus, undefined),
   onCaptured: (listener) => subscribe(PacketsIpc.captured, listener),
   onRequest: (listener) => subscribe(PacketsIpc.request, listener),
   onStatus: (listener) => subscribe(PacketsIpc.status, listener),
@@ -169,6 +171,7 @@ const packetsBridge: NonNullable<DesktopBridge["packets"]> = {
 
 const followerBridge: NonNullable<DesktopBridge["follower"]> = {
   configure: (payload) => invoke(FollowerIpc.configure, payload),
+  getConfig: () => invoke(FollowerIpc.getConfig, undefined),
   getPlayers: () => invoke(FollowerIpc.getPlayers, undefined),
   getState: () => invoke(FollowerIpc.getState, undefined),
   me: () => invoke(FollowerIpc.me, undefined),
@@ -314,6 +317,10 @@ const bridge: DesktopBridge = {
         environment: environmentBridge,
         gameAccounts: gameAccountsBridge,
         gameFollower: gameFollowerBridge,
+        gameRenderer: {
+          getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
+          ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
+        },
         packets: packetsBridge,
         ...(gameConsoleObservabilityEnabled
           ? { gameConsoleObservability: gameConsoleObservabilityBridge }

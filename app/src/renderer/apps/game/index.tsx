@@ -8,10 +8,18 @@ import { installPacketsBridge } from "./packetsBridge";
 installConsoleForwarder(window.desktop.gameConsoleObservability);
 const loaderGrabberBridge = installLoaderGrabberBridge(flashRuntime);
 const packetsBridge = installPacketsBridge(flashRuntime);
+const gameRendererGeneration =
+  window.desktop.gameRenderer?.getGeneration() ?? Promise.resolve(null);
 
-void flashRuntime.context().catch((cause) => {
-  console.warn("[flash] runtime initialization failed", cause);
-});
+void Promise.all([flashRuntime.context(), gameRendererGeneration])
+  .then(([, generation]) =>
+    generation === null
+      ? undefined
+      : window.desktop.gameRenderer?.ready(generation),
+  )
+  .catch((cause) => {
+    console.warn("[flash] runtime initialization failed", cause);
+  });
 
 mountDesktopRenderer((props) => <App {...props} />, {
   cleanup: () => {

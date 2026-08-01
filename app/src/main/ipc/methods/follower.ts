@@ -117,6 +117,18 @@ export const configure = makeDesktopIpcMethod({
     }),
 });
 
+export const getConfig = makeDesktopIpcMethod({
+  descriptor: FollowerIpc.getConfig,
+  allowedSenders: ["follower"],
+  handler: Effect.fn("desktop.ipc.follower.getConfig")(
+    function* (_payload, sender) {
+      const followers = yield* GameFollowers;
+      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
+      return yield* followers.getConfig(gameBrowserWindowId);
+    },
+  ),
+});
+
 export const getState = makeDesktopIpcMethod({
   descriptor: FollowerIpc.getState,
   allowedSenders: ["follower"],
@@ -221,6 +233,7 @@ export const publishPlayers = makeDesktopIpcMethod({
 
 export const methods = [
   configure,
+  getConfig,
   getPlayers,
   getState,
   me,

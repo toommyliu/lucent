@@ -93,6 +93,15 @@ export const makeGameLoaderGrabbers = Effect.gen(function* () {
   const request: GameLoaderGrabbersShape["request"] = Effect.fn(
     "GameLoaderGrabbers.request",
   )(function* (gameBrowserWindowId, input) {
+    const rendererReady = yield* windows
+      .isRendererReady(gameBrowserWindowId)
+      .pipe(Effect.catch(() => Effect.succeed(false)));
+    if (!rendererReady) {
+      return yield* new LoaderGrabberRequestError({
+        detail: "The game renderer is reloading.",
+      });
+    }
+
     const requestId = createRandomId("loader-grabber");
     const gate = yield* Deferred.make<
       LoaderGrabberOutcome,

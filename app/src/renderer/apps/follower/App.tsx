@@ -24,6 +24,7 @@ import {
 import {
   For,
   Show,
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -44,6 +45,7 @@ import {
   createIdleFollowerState,
   parseFollowerLocationFallbacks,
   type FollowerStartPayload,
+  type FollowerConfig,
   type FollowerState,
 } from "@lucent/core/follower";
 import {
@@ -242,10 +244,32 @@ export function App(): JSX.Element {
 
   const applyFollowerState = (nextState: FollowerState): void => {
     setState(nextState);
-    if (nextState.enabled || nextState.running) {
+    if (
+      nextState.enabled ||
+      nextState.running ||
+      (nextState.phase === "idle" && nextState.lastError === undefined)
+    ) {
       setDismissedIssue(false);
       setError("");
     }
+  };
+
+  const applyFollowerConfig = (config: FollowerConfig | null): void => {
+    if (config === null) {
+      return;
+    }
+
+    batch(() => {
+      setTargetName(config.targetName);
+      setCombatEnabled(config.combatEnabled);
+      setCopyWalk(config.copyWalk);
+      setRetryEnabled(config.retryEnabled);
+      setMaxAttempts(config.maxAttempts);
+      setSelectedProfileId(config.selectedProfileId);
+      setAttackPriority(config.attackPriority.join(", "));
+      setLockedZoneFallbacks(config.lockedZoneFallbacks);
+      setLockedZoneRoomOverride(config.lockedZoneRoomOverride);
+    });
   };
 
   const fillMe = async (): Promise<void> => {
@@ -599,6 +623,14 @@ export function App(): JSX.Element {
       },
     );
     const unsubscribeProfiles = combatProfiles.onChanged(applyLibrary);
+
+    void follower
+      .getConfig()
+      .then(applyFollowerConfig)
+      .catch((cause: unknown) => {
+        console.error("Failed to load follower configuration:", cause);
+        setError("Failed to load follower configuration");
+      });
 
     void follower
       .getState()

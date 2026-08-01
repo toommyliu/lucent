@@ -5,6 +5,7 @@ export * from "./combatProfiles";
 export * from "./core";
 export * from "./environment";
 export * from "./follower";
+export * from "./gameRenderer";
 export * from "./gameConsole";
 export * from "./loaderGrabber";
 export * from "./packets";

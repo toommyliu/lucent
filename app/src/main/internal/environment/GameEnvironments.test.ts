@@ -1,0 +1,70 @@
+import { addEnvironmentItem } from "@lucent/core/environment";
+import { describe, expect, it } from "@effect/vitest";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+
+import { DesktopIpc } from "../../ipc/DesktopIpc";
+import { DesktopWindows } from "../../window/DesktopWindows";
+import { makeGameEnvironments } from "./GameEnvironments";
+
+describe("GameEnvironments", () => {
+  it.effect(
+    "preserves state and settles transient work when the game reloads",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          let reload: (() => Effect.Effect<void, unknown>) | undefined;
+          const ipc = DesktopIpc.of({
+            handle: () => Effect.void,
+            sendToAll: () => Effect.void,
+            sendToBrowserWindowIds: () => Effect.void,
+          });
+          const windows = {
+            isRendererReady: () => Effect.succeed(true),
+            onClosed: () => Effect.succeed(() => undefined),
+            onRendererDestroyed: () => Effect.succeed(() => undefined),
+            onRendererReloaded: (
+              listener: (event: {
+                readonly browserWindowId: number;
+                readonly generation: number;
+                readonly id: string;
+                readonly kind: "game";
+              }) => Effect.Effect<void, unknown>,
+            ) =>
+              Effect.sync(() => {
+                reload = () =>
+                  listener({
+                    browserWindowId: 42,
+                    generation: 2,
+                    id: "game-42",
+                    kind: "game",
+                  });
+                return () => {
+                  reload = undefined;
+                };
+              }),
+          } as unknown as DesktopWindows["Service"];
+          const environments = yield* makeGameEnvironments.pipe(
+            Effect.provideService(DesktopIpc, ipc),
+            Effect.provideService(DesktopWindows, windows),
+          );
+
+          yield* environments.update(42, (state) =>
+            addEnvironmentItem(state, "Potion"),
+          );
+          const pending = yield* Effect.forkScoped(
+            environments.fetchBoosts(42),
+          );
+          yield* Effect.yieldNow;
+          yield* reload!();
+
+          expect(yield* Fiber.join(pending)).toEqual({
+            bank: [],
+            bankLoaded: false,
+            inventory: [],
+          });
+          expect((yield* environments.get(42)).itemNames).toEqual(["Potion"]);
+        }),
+      ),
+  );
+});

@@ -57,6 +57,9 @@ interface FollowerPlayersUpdate {
 }
 
 export interface GameFollowersShape {
+  readonly getConfig: (
+    gameBrowserWindowId: number,
+  ) => Effect.Effect<FollowerConfig | null>;
   readonly get: (gameBrowserWindowId: number) => Effect.Effect<FollowerState>;
   readonly getPlayers: (
     gameBrowserWindowId: number,
@@ -89,15 +92,25 @@ export const makeGameFollowers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc;
   const windows = yield* DesktopWindows;
   const states = new Map<number, FollowerState>();
+  // Desired configuration survives renderer generations and is reconciled on ready.
+  const configs = new Map<number, FollowerConfig>();
   const playersByGame = new Map<number, FollowerPlayers>();
   const pendingCommands = new Map<string, PendingCommand>();
 
   const get: GameFollowersShape["get"] = (gameBrowserWindowId) =>
-    Effect.sync(() =>
-      normalizeFollowerState(
-        states.get(gameBrowserWindowId) ?? createIdleFollowerState(),
+    windows.isRendererReady(gameBrowserWindowId).pipe(
+      Effect.map((rendererReady) =>
+        rendererReady
+          ? normalizeFollowerState(
+              states.get(gameBrowserWindowId) ?? createIdleFollowerState(),
+            )
+          : createIdleFollowerState(),
       ),
+      Effect.catch(() => Effect.succeed(createIdleFollowerState())),
     );
+
+  const getConfig: GameFollowersShape["getConfig"] = (gameBrowserWindowId) =>
+    Effect.sync(() => configs.get(gameBrowserWindowId) ?? null);
 
   const set: GameFollowersShape["set"] = (gameBrowserWindowId, state) =>
     Effect.sync(() => {
@@ -107,7 +120,12 @@ export const makeGameFollowers = Effect.gen(function* () {
     });
 
   const getPlayers: GameFollowersShape["getPlayers"] = (gameBrowserWindowId) =>
-    Effect.sync(() => playersByGame.get(gameBrowserWindowId) ?? []);
+    windows.isRendererReady(gameBrowserWindowId).pipe(
+      Effect.map((rendererReady) =>
+        rendererReady ? (playersByGame.get(gameBrowserWindowId) ?? []) : [],
+      ),
+      Effect.catch(() => Effect.succeed([])),
+    );
 
   const setPlayers: GameFollowersShape["setPlayers"] = (
     gameBrowserWindowId,
@@ -129,21 +147,21 @@ export const makeGameFollowers = Effect.gen(function* () {
       };
     });
 
-  const remove: GameFollowersShape["remove"] = (gameBrowserWindowId) =>
+  const invalidate = (gameBrowserWindowId: number) =>
     Effect.gen(function* () {
       states.delete(gameBrowserWindowId);
-      const players = playersByGame.get(gameBrowserWindowId);
       playersByGame.delete(gameBrowserWindowId);
-      if (players !== undefined && players.length > 0) {
-        const targets = yield* windows
-          .getOwnedBrowserWindowIds(gameBrowserWindowId, "follower")
-          .pipe(Effect.catch(() => Effect.succeed([])));
-        yield* ipc.sendToBrowserWindowIds(
+      const targets = yield* windows
+        .getOwnedBrowserWindowIds(gameBrowserWindowId, "follower")
+        .pipe(Effect.catch(() => Effect.succeed([])));
+      yield* Effect.all([
+        ipc.sendToBrowserWindowIds(
           targets,
-          FollowerIpc.playersChanged,
-          [],
-        );
-      }
+          FollowerIpc.changed,
+          createIdleFollowerState(),
+        ),
+        ipc.sendToBrowserWindowIds(targets, FollowerIpc.playersChanged, []),
+      ]);
       for (const [requestId, pending] of pendingCommands) {
         if (pending.gameBrowserWindowId !== gameBrowserWindowId) {
           continue;
@@ -159,9 +177,28 @@ export const makeGameFollowers = Effect.gen(function* () {
       }
     });
 
+  const remove: GameFollowersShape["remove"] = (gameBrowserWindowId) =>
+    invalidate(gameBrowserWindowId).pipe(
+      Effect.andThen(Effect.sync(() => configs.delete(gameBrowserWindowId))),
+      Effect.asVoid,
+    );
+
   const request: GameFollowersShape["request"] = Effect.fn(
     "GameFollowers.request",
   )(function* (gameBrowserWindowId, input) {
+    if (input.kind === "configure" || input.kind === "start") {
+      configs.set(gameBrowserWindowId, input.config);
+    }
+
+    const rendererReady = yield* windows
+      .isRendererReady(gameBrowserWindowId)
+      .pipe(Effect.catch(() => Effect.succeed(false)));
+    if (!rendererReady) {
+      return yield* new GameFollowerRequestError({
+        detail: "The follower game renderer is reloading.",
+      });
+    }
+
     const requestId = createRandomId("follower-command");
     const gate = yield* Deferred.make<
       FollowerCommandOutcome,
@@ -238,16 +275,50 @@ export const makeGameFollowers = Effect.gen(function* () {
     event.kind === "game" ? remove(event.browserWindowId) : Effect.void,
   );
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
-    event.kind === "game" ? remove(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? invalidate(event.browserWindowId) : Effect.void,
+  );
+  const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
+    event.kind === "game" ? invalidate(event.browserWindowId) : Effect.void,
+  );
+  const unsubscribeReady = yield* windows.onRendererReady((event) =>
+    event.kind !== "game"
+      ? Effect.void
+      : Effect.gen(function* () {
+          const config = configs.get(event.browserWindowId);
+          if (config === undefined) {
+            return;
+          }
+
+          const outcome = yield* request(event.browserWindowId, {
+            config,
+            kind: "configure",
+          });
+          if (outcome.kind !== "configure") {
+            return;
+          }
+
+          const state = yield* set(event.browserWindowId, outcome.state);
+          const targets = yield* windows
+            .getOwnedBrowserWindowIds(event.browserWindowId, "follower")
+            .pipe(Effect.catch(() => Effect.succeed([])));
+          yield* ipc.sendToBrowserWindowIds(
+            targets,
+            FollowerIpc.changed,
+            state,
+          );
+        }).pipe(Effect.catch(() => Effect.void)),
   );
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       unsubscribeClosed();
       unsubscribeDestroyed();
+      unsubscribeReloaded();
+      unsubscribeReady();
     }),
   );
 
   return GameFollowers.of({
+    getConfig,
     get,
     getPlayers,
     remove,

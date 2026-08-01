@@ -76,6 +76,18 @@ export const startCapture = makeDesktopIpcMethod({
   handler: (_payload, sender) => requestGame(sender, { kind: "start-capture" }),
 });
 
+export const getStatus = makeDesktopIpcMethod({
+  descriptor: PacketsIpc.getStatus,
+  allowedSenders: ["packets"],
+  handler: Effect.fn("desktop.ipc.packets.getStatus")(
+    function* (_payload, sender) {
+      const packets = yield* GamePackets;
+      const gameBrowserWindowId = yield* resolveOwningGame(sender);
+      return yield* packets.getStatus(gameBrowserWindowId);
+    },
+  ),
+});
+
 export const stopCapture = makeDesktopIpcMethod({
   descriptor: PacketsIpc.stopCapture,
   allowedSenders: ["packets"],
@@ -117,15 +129,40 @@ export const stopQueue = makeDesktopIpcMethod({
 export const publishCaptured = makeDesktopIpcMethod({
   descriptor: PacketsIpc.publishCaptured,
   allowedSenders: ["game"],
-  handler: (payload, sender) =>
-    notifyPacketsWindow(sender.browserWindowId, PacketsIpc.captured, payload),
+  handler: Effect.fn("desktop.ipc.packets.publishCaptured")(
+    function* (payload, sender) {
+      const windows = yield* DesktopWindows;
+      const rendererReady = yield* windows
+        .isRendererReady(sender.browserWindowId)
+        .pipe(Effect.catch(() => Effect.succeed(false)));
+      if (rendererReady) {
+        yield* notifyPacketsWindow(
+          sender.browserWindowId,
+          PacketsIpc.captured,
+          payload,
+        );
+      }
+    },
+  ),
 });
 
 export const publishStatus = makeDesktopIpcMethod({
   descriptor: PacketsIpc.publishStatus,
   allowedSenders: ["game"],
-  handler: (payload, sender) =>
-    notifyPacketsWindow(sender.browserWindowId, PacketsIpc.status, payload),
+  handler: Effect.fn("desktop.ipc.packets.publishStatus")(
+    function* (payload, sender) {
+      const windows = yield* DesktopWindows;
+      const rendererReady = yield* windows
+        .isRendererReady(sender.browserWindowId)
+        .pipe(Effect.catch(() => Effect.succeed(false)));
+      if (!rendererReady) {
+        return;
+      }
+
+      const packets = yield* GamePackets;
+      yield* packets.publishStatus(sender.browserWindowId, payload);
+    },
+  ),
 });
 
 export const respond = makeDesktopIpcMethod({
@@ -140,6 +177,7 @@ export const respond = makeDesktopIpcMethod({
 });
 
 export const methods = [
+  getStatus,
   startCapture,
   stopCapture,
   send,

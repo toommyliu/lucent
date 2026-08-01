@@ -62,6 +62,12 @@ export const PacketsResponseSchema = Schema.Union([
 export type PacketsResponse = typeof PacketsResponseSchema.Type;
 
 export const PacketsIpc = {
+  getStatus: defineInvoke({
+    channel: `${namespace}:get-status`,
+    name: "packets.getStatus",
+    payload: Schema.Void,
+    result: PacketsStatusPayloadSchema,
+  }),
   startCapture: defineInvoke({
     channel: `${namespace}:start-capture`,
     name: "packets.startCapture",

@@ -33,8 +33,11 @@ describe("GameFollowers", () => {
         const windows = {
           getOwnedBrowserWindowIds: (browserWindowId: number) =>
             Effect.succeed([browserWindowId + 100]),
+          isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
+          onRendererReady: () => Effect.succeed(() => undefined),
+          onRendererReloaded: () => Effect.succeed(() => undefined),
         } as unknown as DesktopWindows["Service"];
         const followers = yield* makeGameFollowers.pipe(
           Effect.provideService(DesktopIpc, ipc),
@@ -69,8 +72,11 @@ describe("GameFollowers", () => {
             Ref.set(sent, payload as FollowerCommand),
         });
         const windows = {
+          isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
+          onRendererReady: () => Effect.succeed(() => undefined),
+          onRendererReloaded: () => Effect.succeed(() => undefined),
         } as unknown as DesktopWindows["Service"];
         const followers = yield* makeGameFollowers.pipe(
           Effect.provideService(DesktopIpc, ipc),

@@ -219,7 +219,7 @@ export function App(): JSX.Element {
   >({
     client: true,
     extension: true,
-    server: true,
+    server: false,
   });
   const [sendText, setSendText] = createSignal("");
   const [sendTarget, setSendTarget] =
@@ -263,16 +263,16 @@ export function App(): JSX.Element {
     },
   );
 
-  const filteredPackets = createMemo(() => {
+  const sourceFilteredPackets = createMemo(() => {
     const activeFilters = filters();
-    const query = search().trim();
-    return packets().filter((entry) => {
-      if (!activeFilters[entry.type]) {
-        return false;
-      }
+    return packets().filter((entry) => activeFilters[entry.type]);
+  });
 
-      return query === "" || includesSearch(entry.text, query);
-    });
+  const filteredPackets = createMemo(() => {
+    const query = search().trim();
+    return sourceFilteredPackets().filter(
+      (entry) => query === "" || includesSearch(entry.text, query),
+    );
   });
 
   const logEmptyState = createMemo<PacketLogEmptyState>(() => {
@@ -480,7 +480,10 @@ export function App(): JSX.Element {
   };
 
   const copyAllCaptured = (): void => {
-    const content = formatPacketLogEntries(packets(), showTimestamps());
+    const content = formatPacketLogEntries(
+      sourceFilteredPackets(),
+      showTimestamps(),
+    );
     if (content) {
       void copyText(content).then((copied) => {
         if (copied) {
@@ -839,8 +842,25 @@ export function App(): JSX.Element {
   };
 
   onMount(() => {
+    let disposed = false;
+    let receivedStatus = false;
     const unsubscribeCaptured = desktopPackets.onCaptured(addCapturedPacket);
-    const unsubscribeStatus = desktopPackets.onStatus(handleRuntimeStatus);
+    const unsubscribeStatus = desktopPackets.onStatus((status) => {
+      receivedStatus = true;
+      handleRuntimeStatus(status);
+    });
+    void desktopPackets
+      .getStatus()
+      .then((status) => {
+        if (!disposed && !receivedStatus) {
+          handleRuntimeStatus(status);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!disposed) {
+          setOperationError("Failed to load packet runtime status", cause);
+        }
+      });
     const resizeObserver = new ResizeObserver(updateLogViewportMetrics);
     if (logViewport) {
       resizeObserver.observe(logViewport);
@@ -848,6 +868,7 @@ export function App(): JSX.Element {
     }
 
     onCleanup(() => {
+      disposed = true;
       if (allPacketsCopiedTimer !== undefined) {
         window.clearTimeout(allPacketsCopiedTimer);
       }
@@ -889,13 +910,13 @@ export function App(): JSX.Element {
                   aria-label={
                     allPacketsCopied()
                       ? "Copied captured packets"
-                      : "Copy all captured packets"
+                      : "Copy all packets from enabled sources"
                   }
                   class="packets-copy-button"
                   classList={{
                     "packets-copy-button--copied": allPacketsCopied(),
                   }}
-                  disabled={packets().length === 0}
+                  disabled={sourceFilteredPackets().length === 0}
                   onClick={copyAllCaptured}
                   size="sm"
                   type="button"

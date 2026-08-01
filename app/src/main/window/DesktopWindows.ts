@@ -79,6 +79,16 @@ export interface DesktopWindowsShape {
   readonly getOwnerBrowserWindowId: (
     browserWindowId: number,
   ) => Effect.Effect<number | null, DesktopWindowError>;
+  readonly getRendererGeneration: (
+    browserWindowId: number,
+  ) => Effect.Effect<number, DesktopWindowError>;
+  readonly isRendererReady: (
+    browserWindowId: number,
+  ) => Effect.Effect<boolean, DesktopWindowError>;
+  readonly markRendererReady: (
+    browserWindowId: number,
+    generation: number,
+  ) => Effect.Effect<void, DesktopWindowError>;
   readonly onClosed: (
     listener: (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
@@ -95,6 +105,11 @@ export interface DesktopWindowsShape {
   readonly onRendererReloaded: (
     listener: (
       event: DesktopWindowRendererReloadedEvent,
+    ) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
+  readonly onRendererReady: (
+    listener: (
+      event: DesktopWindowRendererReadyEvent,
     ) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
   readonly open: (
@@ -263,9 +278,11 @@ const createWindowOptions = (
 
 interface DesktopWindowRecord {
   readonly browserWindowId: number;
+  generation: number;
   readonly kind: DesktopWindowKind;
   // ownerId is logical ownership only; Electron parent windows are intentionally not used.
   readonly ownerId?: DesktopWindowInstanceId;
+  rendererReady: boolean;
   readonly window: ElectronWindowHandle;
 }
 
@@ -289,6 +306,13 @@ export interface DesktopWindowRendererDestroyedEvent {
 }
 
 export interface DesktopWindowRendererReloadedEvent {
+  readonly browserWindowId: number;
+  readonly generation: number;
+  readonly id: DesktopWindowInstanceId;
+  readonly kind: DesktopWindowKind;
+}
+
+export interface DesktopWindowRendererReadyEvent {
   readonly browserWindowId: number;
   readonly generation: number;
   readonly id: DesktopWindowInstanceId;
@@ -332,6 +356,9 @@ const makeDesktopWindows = Effect.gen(function* () {
   >();
   const rendererReloadedListeners = new Set<
     (event: DesktopWindowRendererReloadedEvent) => Effect.Effect<void, unknown>
+  >();
+  const rendererReadyListeners = new Set<
+    (event: DesktopWindowRendererReadyEvent) => Effect.Effect<void, unknown>
   >();
   let appIsQuitting = false;
 
@@ -487,6 +514,92 @@ const makeDesktopWindows = Effect.gen(function* () {
         ),
       );
 
+  const isRendererReady: DesktopWindowsShape["isRendererReady"] = (
+    browserWindowId,
+  ) =>
+    Effect.sync(() => {
+      const entry = findBrowserWindowEntry(browserWindowId);
+      return entry !== null && entry[1].rendererReady;
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new DesktopWindowError({
+            id: String(browserWindowId),
+            detail: `Failed to read renderer readiness: ${browserWindowId}`,
+            cause,
+          }),
+      ),
+    );
+
+  const getRendererGeneration: DesktopWindowsShape["getRendererGeneration"] = (
+    browserWindowId,
+  ) =>
+    Effect.try({
+      try: () => {
+        const entry = findBrowserWindowEntry(browserWindowId);
+        if (entry === null) {
+          throw new Error(`Desktop window is not open: ${browserWindowId}`);
+        }
+        return entry[1].generation;
+      },
+      catch: (cause) =>
+        new DesktopWindowError({
+          id: String(browserWindowId),
+          detail: `Failed to read renderer generation: ${browserWindowId}`,
+          cause,
+        }),
+    });
+
+  const markRendererReady: DesktopWindowsShape["markRendererReady"] = (
+    browserWindowId,
+    generation,
+  ) =>
+    Effect.gen(function* () {
+      const readyEvent = yield* Effect.try({
+        try: () => {
+          const entry = findBrowserWindowEntry(browserWindowId);
+          if (entry === null) {
+            throw new Error(`Desktop window is not open: ${browserWindowId}`);
+          }
+
+          const [id, record] = entry;
+          if (record.generation !== generation) {
+            throw new Error(
+              `Renderer generation ${generation} is stale; current generation is ${record.generation}.`,
+            );
+          }
+          if (record.rendererReady) {
+            return null;
+          }
+
+          record.rendererReady = true;
+          return {
+            browserWindowId,
+            generation: record.generation,
+            id,
+            kind: record.kind,
+          } satisfies DesktopWindowRendererReadyEvent;
+        },
+        catch: (cause) =>
+          new DesktopWindowError({
+            id: String(browserWindowId),
+            detail: `Failed to mark renderer ready: ${browserWindowId}`,
+            cause,
+          }),
+      });
+
+      if (readyEvent === null) {
+        return;
+      }
+
+      yield* Effect.forEach(
+        rendererReadyListeners,
+        (listener) =>
+          listener(readyEvent).pipe(Effect.catch(() => Effect.void)),
+        { discard: true },
+      );
+    });
+
   const getOwnedBrowserWindowIds: DesktopWindowsShape["getOwnedBrowserWindowIds"] =
     (ownerBrowserWindowId, kind) =>
       Effect.try({
@@ -595,6 +708,14 @@ const makeDesktopWindows = Effect.gen(function* () {
       rendererReloadedListeners.add(listener);
       return () => {
         rendererReloadedListeners.delete(listener);
+      };
+    });
+
+  const onRendererReady: DesktopWindowsShape["onRendererReady"] = (listener) =>
+    Effect.sync(() => {
+      rendererReadyListeners.add(listener);
+      return () => {
+        rendererReadyListeners.delete(listener);
       };
     });
 
@@ -733,12 +854,15 @@ const makeDesktopWindows = Effect.gen(function* () {
         );
         const browserWindowId = window.id;
         const webContents = window.webContents;
-        windows.set(id, {
+        const record: DesktopWindowRecord = {
           browserWindowId,
+          generation: INITIAL_WINDOW_GENERATION,
           kind,
           ...(ownerId === undefined ? {} : { ownerId }),
+          rendererReady: false,
           window,
-        });
+        };
+        windows.set(id, record);
         const createdEvent: DesktopWindowCreatedEvent = {
           browserWindowId,
           generation: INITIAL_WINDOW_GENERATION,
@@ -753,6 +877,8 @@ const makeDesktopWindows = Effect.gen(function* () {
         const stopObservingWindowReloads = observeWindowReloads(
           webContents,
           (generation) => {
+            record.generation = generation;
+            record.rendererReady = false;
             const reloadedEvent: DesktopWindowRendererReloadedEvent = {
               browserWindowId,
               generation,
@@ -766,6 +892,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         );
 
         webContents.on("destroyed", () => {
+          record.rendererReady = false;
           stopObservingWindowReloads();
           for (const listener of rendererDestroyedListeners) {
             void runPromise(listener(rendererDestroyedEvent)).catch(
@@ -868,10 +995,14 @@ const makeDesktopWindows = Effect.gen(function* () {
     getBrowserWindowKind,
     getOwnedBrowserWindowIds,
     getOwnerBrowserWindowId,
+    getRendererGeneration,
+    isRendererReady,
+    markRendererReady,
     onClosed,
     onCreated,
     onRendererDestroyed,
     onRendererReloaded,
+    onRendererReady,
     open,
     reveal,
     revealBrowserWindow,

@@ -20,6 +20,8 @@ describe("GamePackets", () => {
             Ref.set(sent, payload as PacketsRequest),
         });
         const windows = {
+          getOwnedBrowserWindowIds: () => Effect.succeed([]),
+          isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
           onRendererReloaded: () => Effect.succeed(() => undefined),

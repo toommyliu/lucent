@@ -22,6 +22,7 @@ describe("GameLoaderGrabbers", () => {
             Ref.set(sent, payload as LoaderGrabberRequest),
         });
         const windows = {
+          isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
           onRendererReloaded: () => Effect.succeed(() => undefined),

@@ -7,6 +7,7 @@ import * as ArmyIpcMethods from "./methods/army";
 import * as CombatProfilesIpcMethods from "./methods/combatProfiles";
 import * as EnvironmentIpcMethods from "./methods/environment";
 import * as FollowerIpcMethods from "./methods/follower";
+import * as GameRendererIpcMethods from "./methods/gameRenderer";
 import * as LoaderGrabberIpcMethods from "./methods/loaderGrabber";
 import * as PacketsIpcMethods from "./methods/packets";
 import * as ScriptingIpcMethods from "./methods/scripting";
@@ -46,9 +47,13 @@ export const installDesktopIpcHandlers = Effect.fn(
   for (const method of FollowerIpcMethods.methods) {
     yield* ipc.handle(method);
   }
+  for (const method of GameRendererIpcMethods.methods) {
+    yield* ipc.handle(method);
+  }
   for (const method of LoaderGrabberIpcMethods.methods) {
     yield* ipc.handle(method);
   }
+  yield* ipc.handle(PacketsIpcMethods.getStatus);
   yield* ipc.handle(PacketsIpcMethods.startCapture);
   yield* ipc.handle(PacketsIpcMethods.stopCapture);
   yield* ipc.handle(PacketsIpcMethods.send);
@@ -80,6 +85,7 @@ export const desktopIpcMethods = [
   ...CombatProfilesIpcMethods.methods,
   ...EnvironmentIpcMethods.methods,
   ...FollowerIpcMethods.methods,
+  ...GameRendererIpcMethods.methods,
   ...LoaderGrabberIpcMethods.methods,
   ...PacketsIpcMethods.methods,
   ...SettingsIpcMethods.methods,

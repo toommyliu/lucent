@@ -16,6 +16,7 @@ import type {
   CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import type {
+  FollowerConfig,
   FollowerStartPayload,
   FollowerState,
 } from "@lucent/core/follower";
@@ -213,6 +214,13 @@ export interface DesktopGameConsoleObservabilityBridge {
   readonly message: (message: string) => void;
 }
 
+export interface DesktopGameRendererBridge {
+  /** Reads the generation assigned to this game document. */
+  readonly getGeneration: () => Promise<number>;
+  /** Marks the current game renderer generation ready to receive commands. */
+  readonly ready: (generation: number) => Promise<void>;
+}
+
 export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
@@ -229,6 +237,7 @@ export interface DesktopLoaderGrabberBridge {
 }
 
 export interface DesktopPacketsBridge {
+  readonly getStatus: () => Promise<PacketsStatusPayload>;
   readonly onCaptured: (
     listener: (payload: PacketCapturedPayload) => void,
   ) => () => void;
@@ -250,6 +259,7 @@ export interface DesktopPacketsBridge {
 
 export interface DesktopFollowerBridge {
   readonly configure: (payload: FollowerStartPayload) => Promise<FollowerState>;
+  readonly getConfig: () => Promise<FollowerConfig | null>;
   readonly getPlayers: () => Promise<FollowerPlayers>;
   readonly getState: () => Promise<FollowerState>;
   readonly me: () => Promise<string>;
@@ -373,6 +383,7 @@ export interface DesktopBridge {
   readonly gameAccounts?: DesktopGameAccountsBridge;
   readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
   readonly gameFollower?: DesktopGameFollowerBridge;
+  readonly gameRenderer?: DesktopGameRendererBridge;
   readonly loaderGrabber: DesktopLoaderGrabberBridge;
   readonly packets?: DesktopPacketsBridge;
   readonly platform: {
