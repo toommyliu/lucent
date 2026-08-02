@@ -27,7 +27,6 @@ export const RoomPolicySchema = Schema.Union([
 export type RoomPolicy = typeof RoomPolicySchema.Type;
 
 export const AccountScriptSettingsSchema = Schema.Struct({
-  reloadBeforeStart: Schema.Boolean,
   restartAfterReconnect: Schema.Boolean,
   roomPolicy: RoomPolicySchema,
   safeStartStop: Schema.Boolean,
@@ -43,7 +42,6 @@ export const AccountSettingsSchema = Schema.Struct({
 export type AccountSettings = typeof AccountSettingsSchema.Type;
 
 export const AccountScriptSettingsPatchSchema = Schema.Struct({
-  reloadBeforeStart: Schema.optionalKey(Schema.Boolean),
   restartAfterReconnect: Schema.optionalKey(Schema.Boolean),
   roomPolicy: Schema.optionalKey(RoomPolicySchema),
   safeStartStop: Schema.optionalKey(Schema.Boolean),
@@ -66,7 +64,6 @@ export const RANDOM_PRIVATE_ROOM_POLICY: RoomPolicy = {
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   version: ACCOUNT_SETTINGS_VERSION,
   scripts: {
-    reloadBeforeStart: false,
     restartAfterReconnect: false,
     roomPolicy: RANDOM_PRIVATE_ROOM_POLICY,
     safeStartStop: true,
@@ -100,10 +97,6 @@ export const normalizeAccountSettings = (value: unknown): AccountSettings => {
   return {
     version: ACCOUNT_SETTINGS_VERSION,
     scripts: {
-      reloadBeforeStart: booleanOr(
-        scripts["reloadBeforeStart"],
-        DEFAULT_ACCOUNT_SETTINGS.scripts.reloadBeforeStart,
-      ),
       restartAfterReconnect: booleanOr(
         scripts["restartAfterReconnect"],
         DEFAULT_ACCOUNT_SETTINGS.scripts.restartAfterReconnect,

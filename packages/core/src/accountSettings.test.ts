@@ -12,7 +12,6 @@ describe("account settings", () => {
     expect(
       normalizeAccountSettings({
         scripts: {
-          reloadBeforeStart: "invalid",
           restartAfterReconnect: true,
           roomPolicy: { kind: "specific", roomNumber: 42 },
           safeStartStop: "invalid",
@@ -21,7 +20,6 @@ describe("account settings", () => {
     ).toEqual({
       version: 1,
       scripts: {
-        reloadBeforeStart: false,
         restartAfterReconnect: true,
         roomPolicy: { kind: "specific", roomNumber: 42 },
         safeStartStop: true,
@@ -72,13 +70,13 @@ describe("account settings", () => {
   it("patches one field without dropping siblings", () => {
     expect(
       applyAccountSettingsPatch(DEFAULT_ACCOUNT_SETTINGS, {
-        scripts: { reloadBeforeStart: true },
+        scripts: { restartAfterReconnect: true },
       }),
     ).toEqual({
       ...DEFAULT_ACCOUNT_SETTINGS,
       scripts: {
         ...DEFAULT_ACCOUNT_SETTINGS.scripts,
-        reloadBeforeStart: true,
+        restartAfterReconnect: true,
       },
     });
   });

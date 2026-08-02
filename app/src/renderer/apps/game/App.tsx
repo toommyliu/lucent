@@ -104,9 +104,9 @@ import {
 } from "./automation/AutoZone";
 import {
   ScriptRunner,
-  type ScriptRunnerOptions,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
+import type { ScriptRuntimeOptions } from "./scripting/ScriptApi";
 import {
   formatRoomNumberInput,
   parseRoomNumberInput,
@@ -1101,9 +1101,6 @@ export function App(props: {
     DEFAULT_ACCOUNT_SETTINGS.scripts.roomPolicy,
   );
   const [scriptSafeStartStop, setScriptSafeStartStop] = createSignal(true);
-  const [scriptReloadBeforeStart, setScriptReloadBeforeStart] = createSignal(
-    DEFAULT_ACCOUNT_SETTINGS.scripts.reloadBeforeStart,
-  );
   const [scriptRestartAfterReconnect, setScriptRestartAfterReconnect] =
     createSignal(false);
   const [scriptRoomNumberDraft, setScriptRoomNumberDraft] = createSignal("");
@@ -2264,7 +2261,6 @@ export function App(props: {
     const scripting = window.desktop.scripting;
     const prepared = await prepareScriptStart(
       { file: currentFile, inputValues: currentInputValues },
-      scriptReloadBeforeStart(),
       {
         getInputValues: refreshScriptInputValues,
         readFile: (path) => {
@@ -2350,8 +2346,7 @@ export function App(props: {
     }
   };
 
-  const applyScriptOptions = (options: ScriptRunnerOptions): void => {
-    setScriptReloadBeforeStart(options.reloadBeforeStart);
+  const applyScriptOptions = (options: ScriptRuntimeOptions): void => {
     setScriptRestartAfterReconnect(options.restartAfterReconnect);
     setScriptRoomPolicy({ ...options.roomPolicy });
     setScriptSafeStartStop(options.safeStartStop);
@@ -2820,27 +2815,6 @@ export function App(props: {
       .then(applyScriptOptions)
       .catch((error: unknown) => {
         console.error("[game:script]", "safe-start-stop toggle failed", error);
-        syncScriptOptions();
-      });
-  };
-
-  const handleToggleScriptReloadBeforeStart = () => {
-    const enabled = !scriptReloadBeforeStart();
-    setScriptReloadBeforeStart(enabled);
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.setReloadBeforeStart(enabled);
-        }),
-      )
-      .then(applyScriptOptions)
-      .catch((error: unknown) => {
-        console.error(
-          "[game:script]",
-          "reload-before-start toggle failed",
-          error,
-        );
         syncScriptOptions();
       });
   };
@@ -3675,7 +3649,6 @@ export function App(props: {
         scriptRunning={scriptRunning}
         scriptStatus={scriptStatus}
         scriptTogglePending={scriptTogglePending}
-        scriptReloadBeforeStart={scriptReloadBeforeStart}
         scriptRestartAfterReconnect={scriptRestartAfterReconnect}
         scriptRoomPolicy={scriptRoomPolicy}
         scriptSafeStartStop={scriptSafeStartStop}
@@ -3694,9 +3667,6 @@ export function App(props: {
         handleCommitScriptRoomNumber={handleCommitScriptRoomNumber}
         handleToggleScriptRestartAfterReconnect={
           handleToggleScriptRestartAfterReconnect
-        }
-        handleToggleScriptReloadBeforeStart={
-          handleToggleScriptReloadBeforeStart
         }
         handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
         autoZoneEnabled={autoZoneEnabled}

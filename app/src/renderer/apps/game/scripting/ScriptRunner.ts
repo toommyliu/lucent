@@ -13,7 +13,6 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import type { ScriptFile } from "../../../../shared/ipc/scripting";
 import {
-  DEFAULT_ACCOUNT_SETTINGS,
   type AccountScriptSettingsPatch,
   type AccountSettings,
   type RoomPolicy,
@@ -32,10 +31,12 @@ import {
 } from "./scriptAsyncScope";
 import { loadScriptModule } from "./scriptLoader";
 import {
+  DEFAULT_SCRIPT_RUNTIME_OPTIONS,
   makeScriptRuntimeApi,
   runScriptExitActions,
   snapshotRoomPolicy,
   snapshotScriptRuntimeOptions,
+  type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
 import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptRuntimeServices } from "./api/Services";
@@ -98,33 +99,8 @@ export type ScriptRunnerStatus =
 
 export type StateDisposer = () => void;
 
-export interface ScriptRunnerOptions extends ScriptRuntimeOptions {
-  readonly reloadBeforeStart: boolean;
-}
-
-const snapshotScriptRunnerOptions = (
-  options: ScriptRunnerOptions,
-): ScriptRunnerOptions => ({
-  reloadBeforeStart: options.reloadBeforeStart,
-  restartAfterReconnect: options.restartAfterReconnect,
-  roomPolicy: snapshotRoomPolicy(options.roomPolicy),
-  safeStartStop: options.safeStartStop,
-});
-
-const DEFAULT_SCRIPT_RUNNER_OPTIONS = snapshotScriptRunnerOptions(
-  DEFAULT_ACCOUNT_SETTINGS.scripts,
-);
-
-const runnerOptionsFrom = (settings: AccountSettings): ScriptRunnerOptions =>
-  snapshotScriptRunnerOptions(settings.scripts);
-
-const runtimeOptionsFrom = (
-  options: ScriptRunnerOptions,
-): ScriptRuntimeOptions => snapshotScriptRuntimeOptions(options);
-
-type ScriptRunnerOptionsUpdate = (
-  options: ScriptRunnerOptions,
-) => ScriptRunnerOptions;
+const runtimeOptionsFrom = (settings: AccountSettings): ScriptRuntimeOptions =>
+  snapshotScriptRuntimeOptions(settings.scripts);
 
 const roomPoliciesEqual = (left: RoomPolicy, right: RoomPolicy): boolean =>
   left.kind === right.kind &&
@@ -132,12 +108,9 @@ const roomPoliciesEqual = (left: RoomPolicy, right: RoomPolicy): boolean =>
     (right.kind === "specific" && left.roomNumber === right.roomNumber));
 
 const accountSettingsPatch = (
-  current: ScriptRunnerOptions,
-  next: ScriptRunnerOptions,
+  current: ScriptRuntimeOptions,
+  next: ScriptRuntimeOptions,
 ): AccountScriptSettingsPatch => ({
-  ...(current.reloadBeforeStart === next.reloadBeforeStart
-    ? {}
-    : { reloadBeforeStart: next.reloadBeforeStart }),
   ...(current.restartAfterReconnect === next.restartAfterReconnect
     ? {}
     : { restartAfterReconnect: next.restartAfterReconnect }),
@@ -156,29 +129,26 @@ class ScriptAccountSettingsBridgeError extends Data.TaggedError(
 export interface ScriptRunnerShape {
   readonly bindAccount: (
     username: string,
-  ) => Effect.Effect<ScriptRunnerOptions>;
-  readonly getOptions: () => Effect.Effect<ScriptRunnerOptions>;
+  ) => Effect.Effect<ScriptRuntimeOptions>;
+  readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly getStatus: () => Effect.Effect<ScriptRunnerStatus>;
   readonly isRunning: () => Effect.Effect<boolean>;
   readonly onStatus: (
     listener: (status: ScriptRunnerStatus) => void,
   ) => Effect.Effect<StateDisposer>;
   readonly onOptions: (
-    listener: (options: ScriptRunnerOptions) => void,
+    listener: (options: ScriptRuntimeOptions) => void,
   ) => Effect.Effect<StateDisposer>;
-  readonly resetOptions: () => Effect.Effect<ScriptRunnerOptions>;
-  readonly setReloadBeforeStart: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRunnerOptions>;
+  readonly resetOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly setRestartAfterReconnect: (
     enabled: boolean,
-  ) => Effect.Effect<ScriptRunnerOptions>;
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly setRoomPolicy: (
     policy: RoomPolicy,
-  ) => Effect.Effect<ScriptRunnerOptions>;
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly setSafeStartStop: (
     enabled: boolean,
-  ) => Effect.Effect<ScriptRunnerOptions>;
+  ) => Effect.Effect<ScriptRuntimeOptions>;
   readonly start: (
     file: ScriptFile,
     inputs: ScriptInputValues,
@@ -417,8 +387,8 @@ export const layer = Layer.effect(
     );
     const pendingRestartRef = yield* Ref.make<PendingRestart | null>(null);
     const startingRef = yield* Ref.make<StartingScript | null>(null);
-    const optionsRef = yield* SubscriptionRef.make<ScriptRunnerOptions>(
-      DEFAULT_SCRIPT_RUNNER_OPTIONS,
+    const optionsRef = yield* SubscriptionRef.make<ScriptRuntimeOptions>(
+      DEFAULT_SCRIPT_RUNTIME_OPTIONS,
     );
     const accountUsernameRef = yield* Ref.make<string | null>(null);
     const accountSettingsGate = yield* Semaphore.make(1);
@@ -434,7 +404,7 @@ export const layer = Layer.effect(
 
     const getOptions = () =>
       SubscriptionRef.get(optionsRef).pipe(
-        Effect.map(snapshotScriptRunnerOptions),
+        Effect.map(snapshotScriptRuntimeOptions),
       );
 
     const loadPersistedOptions = Effect.fn("ScriptRunner.loadPersistedOptions")(
@@ -444,21 +414,21 @@ export const layer = Layer.effect(
           yield* Effect.logWarning(
             "Account settings bridge is unavailable; using script defaults.",
           );
-          return DEFAULT_SCRIPT_RUNNER_OPTIONS;
+          return DEFAULT_SCRIPT_RUNTIME_OPTIONS;
         }
 
         return yield* Effect.tryPromise({
           try: () => bridge.get(username),
           catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
         }).pipe(
-          Effect.map(runnerOptionsFrom),
+          Effect.map(runtimeOptionsFrom),
           Effect.catch((cause) =>
             Effect.logWarning({
               message:
                 "Failed to load account script settings; using defaults.",
               username,
               cause,
-            }).pipe(Effect.as(DEFAULT_SCRIPT_RUNNER_OPTIONS)),
+            }).pipe(Effect.as(DEFAULT_SCRIPT_RUNTIME_OPTIONS)),
           ),
         );
       },
@@ -475,25 +445,25 @@ export const layer = Layer.effect(
 
           const options =
             normalized === ""
-              ? DEFAULT_SCRIPT_RUNNER_OPTIONS
+              ? DEFAULT_SCRIPT_RUNTIME_OPTIONS
               : yield* loadPersistedOptions(normalized);
           yield* Ref.set(
             accountUsernameRef,
             normalized === "" ? null : normalized,
           );
           return yield* SubscriptionRef.updateAndGet(optionsRef, () =>
-            snapshotScriptRunnerOptions(options),
-          ).pipe(Effect.map(snapshotScriptRunnerOptions));
+            snapshotScriptRuntimeOptions(options),
+          ).pipe(Effect.map(snapshotScriptRuntimeOptions));
         }),
       );
 
     const setOptions = (
-      update: ScriptRunnerOptionsUpdate,
-    ): Effect.Effect<ScriptRunnerOptions> =>
+      update: ScriptRuntimeOptionsUpdate,
+    ): Effect.Effect<ScriptRuntimeOptions> =>
       accountSettingsGate.withPermits(1)(
         Effect.gen(function* () {
           const current = yield* getOptions();
-          const next = snapshotScriptRunnerOptions(update(current));
+          const next = snapshotScriptRuntimeOptions(update(current));
           const patch = accountSettingsPatch(current, next);
           if (Object.keys(patch).length === 0) return current;
 
@@ -503,14 +473,14 @@ export const layer = Layer.effect(
             return yield* SubscriptionRef.updateAndGet(
               optionsRef,
               () => next,
-            ).pipe(Effect.map(snapshotScriptRunnerOptions));
+            ).pipe(Effect.map(snapshotScriptRuntimeOptions));
           }
 
           const persisted = yield* Effect.tryPromise({
             try: () => bridge.update(username, { scripts: patch }),
             catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
           }).pipe(
-            Effect.map(runnerOptionsFrom),
+            Effect.map(runtimeOptionsFrom),
             Effect.catch((cause) =>
               Effect.logWarning({
                 message:
@@ -524,20 +494,9 @@ export const layer = Layer.effect(
           return yield* SubscriptionRef.updateAndGet(
             optionsRef,
             () => persisted,
-          ).pipe(Effect.map(snapshotScriptRunnerOptions));
+          ).pipe(Effect.map(snapshotScriptRuntimeOptions));
         }),
       );
-
-    const getRuntimeOptions = () =>
-      getOptions().pipe(Effect.map(runtimeOptionsFrom));
-
-    const setRuntimeOptions = (
-      update: (options: ScriptRuntimeOptions) => ScriptRuntimeOptions,
-    ) =>
-      setOptions((current) => ({
-        ...current,
-        ...update(runtimeOptionsFrom(current)),
-      })).pipe(Effect.map(runtimeOptionsFrom));
 
     const observe = <A>(
       changes: Stream.Stream<A>,
@@ -930,11 +889,11 @@ export const layer = Layer.effect(
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
         );
         const script = makeScriptRuntimeApi({
-          getOptions: getRuntimeOptions,
+          getOptions,
           inputValues: inputs,
           log: (message) => console.log("[script]", message),
           scope: scriptScope,
-          setOptions: setRuntimeOptions,
+          setOptions,
         });
         const lucent = makeScriptLucentStd({
           bridge,
@@ -1436,7 +1395,7 @@ export const layer = Layer.effect(
       lifecycleGate.withPermit(
         Effect.gen(function* () {
           const options = yield* setOptions(() =>
-            snapshotScriptRunnerOptions(DEFAULT_SCRIPT_RUNNER_OPTIONS),
+            snapshotScriptRuntimeOptions(DEFAULT_SCRIPT_RUNTIME_OPTIONS),
           );
           yield* cancelPendingRestart();
           return options;
@@ -1462,17 +1421,12 @@ export const layer = Layer.effect(
       onOptions: (listener) =>
         observe(
           SubscriptionRef.changes(optionsRef),
-          snapshotScriptRunnerOptions,
+          snapshotScriptRuntimeOptions,
           listener,
         ),
       onStatus: (listener) =>
         observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
       resetOptions,
-      setReloadBeforeStart: (enabled) =>
-        setOptions((options) => ({
-          ...options,
-          reloadBeforeStart: enabled,
-        })),
       setRoomPolicy: (roomPolicy) =>
         setOptions((options) => ({
           ...options,

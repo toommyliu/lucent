@@ -31,22 +31,6 @@ const file = (
 });
 
 describe("prepareScriptStart", () => {
-  it("uses the loaded snapshot without reading when reload is disabled", async () => {
-    const readFile = vi.fn<ScriptStartPreparationDependencies["readFile"]>();
-    const getInputValues =
-      vi.fn<ScriptStartPreparationDependencies["getInputValues"]>();
-    const current = { file: file("one"), inputValues: { item: "Sword" } };
-
-    await expect(
-      prepareScriptStart(current, false, { getInputValues, readFile }),
-    ).resolves.toEqual({
-      ...current,
-      status: "ready",
-    });
-    expect(readFile).not.toHaveBeenCalled();
-    expect(getInputValues).not.toHaveBeenCalled();
-  });
-
   it("rereads unchanged source without replacing current inputs", async () => {
     const fresh = file("one");
     const readFile = vi.fn(async () => fresh);
@@ -55,7 +39,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         { getInputValues, readFile },
       ),
     ).resolves.toEqual({
@@ -75,7 +58,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         { getInputValues, readFile },
       ),
     ).resolves.toEqual({
@@ -92,7 +74,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         {
           getInputValues: async () => ({}),
           readFile: async () => fresh,
@@ -112,7 +93,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         {
           getInputValues,
           readFile: async () => fresh,
@@ -133,7 +113,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         {
           getInputValues,
           readFile: async () => Promise.reject(error),
@@ -149,7 +128,6 @@ describe("prepareScriptStart", () => {
     await expect(
       prepareScriptStart(
         { file: file("one"), inputValues: { item: "Current" } },
-        true,
         {
           getInputValues: async () => Promise.reject(error),
           readFile: async () => file("two"),
@@ -169,14 +147,12 @@ describe("prepareScriptStart", () => {
       .mockResolvedValueOnce({ item: "Sword" });
     const first = await prepareScriptStart(
       { file: file("one"), inputValues: {} },
-      true,
       { getInputValues, readFile },
     );
 
     await expect(
       prepareScriptStart(
         { file: first.file, inputValues: { item: "Sword" } },
-        true,
         { getInputValues, readFile },
       ),
     ).resolves.toMatchObject({

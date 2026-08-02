@@ -31,14 +31,11 @@ export interface ScriptStartPreparationDependencies {
 
 export const prepareScriptStart = async (
   current: CurrentScriptStart,
-  reloadBeforeStart: boolean,
   dependencies: ScriptStartPreparationDependencies,
 ): Promise<ScriptStartPreparation> => {
-  const file = reloadBeforeStart
-    ? await dependencies.readFile(current.file.path)
-    : current.file;
+  const file = await dependencies.readFile(current.file.path);
   const inputValues =
-    !reloadBeforeStart || file.revision === current.file.revision
+    file.revision === current.file.revision
       ? current.inputValues
       : file.inputs === null
         ? {}
