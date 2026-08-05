@@ -7,6 +7,7 @@ import {
   AlertDescription,
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -1206,6 +1207,8 @@ export function App(props: {
   const [scriptInputDialogSaving, setScriptInputDialogSaving] =
     createSignal(false);
   const [scriptsDialogOpen, setScriptsDialogOpen] = createSignal(false);
+  const [scriptReplacementDialogOpen, setScriptReplacementDialogOpen] =
+    createSignal(false);
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
@@ -2333,9 +2336,28 @@ export function App(props: {
     }
   };
 
-  const loadScript = (): void => {
+  const openScripts = (): void => {
     setOpenMenu(null);
     setScriptsDialogOpen(true);
+  };
+
+  const loadScript = (): void => {
+    if (scriptBusy()) {
+      return;
+    }
+
+    setOpenMenu(null);
+    if (scriptRunning()) {
+      setScriptReplacementDialogOpen(true);
+      return;
+    }
+
+    void chooseScriptFile(false);
+  };
+
+  const toggleScriptsDialog = (): void => {
+    setOpenMenu(null);
+    setScriptsDialogOpen((open) => !open);
   };
 
   const openScriptInputsDialog = (
@@ -3106,6 +3128,7 @@ export function App(props: {
       ["toggleTopBar", toggleTopNav],
       ["loadScript", loadScript],
       ["toggleScript", toggleScript],
+      ["toggleScriptsDialog", toggleScriptsDialog],
       ["toggleOptionsMenu", toggleOptionsMenu],
       ["toggleAutoattack", handleToggleAutoAttack],
       ["toggleFollower", handleToggleFollower],
@@ -3741,6 +3764,29 @@ export function App(props: {
         </DialogContent>
       </Dialog>
       <AlertDialog
+        open={scriptReplacementDialogOpen()}
+        onOpenChange={(details) => setScriptReplacementDialogOpen(details.open)}
+      >
+        <AlertDialogContent showCloseButton={false}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace the running script?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose a replacement file. The current script will keep running
+              until the new file loads successfully.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void chooseScriptFile(true)}
+              variant="destructive"
+            >
+              Choose replacement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
         open={fatalScriptAlertOpen()}
         onOpenChange={(details) => {
           setFatalScriptAlertOpen(details.open);
@@ -3858,7 +3904,7 @@ export function App(props: {
         scriptRunning={scriptRunning}
         scriptTogglePending={scriptTogglePending}
         scriptOptionsReady={scriptReady}
-        openScripts={loadScript}
+        openScripts={openScripts}
         toggleScript={toggleScript}
         autoZoneEnabled={autoZoneEnabled}
         autoZoneMap={autoZoneMap}

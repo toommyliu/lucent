@@ -12,6 +12,7 @@ export const SETTINGS_COMMAND_IDS = [
   "toggleTopBar",
   "loadScript",
   "toggleScript",
+  "toggleScriptsDialog",
   "toggleOptionsMenu",
   "openEnvironment",
   "openLoaderGrabber",
@@ -107,6 +108,12 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
     category: "Scripts",
     label: "Toggle Script",
     defaultHotkey: "Mod+Shift+X",
+  },
+  {
+    id: "toggleScriptsDialog",
+    category: "Scripts",
+    label: "Toggle Scripts Dialog",
+    defaultHotkey: "Mod+Shift+S",
   },
   {
     id: "toggleOptionsMenu",
