@@ -1,8 +1,9 @@
 import { Icon } from "./Icon";
 import { Menu as MenuPrimitive } from "@ark-ui/solid/menu";
-import { splitProps, type JSX } from "solid-js";
+import { Show, splitProps, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
+import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 
 export type MenuProps = Parameters<typeof MenuPrimitive.Root>[0];
 
@@ -40,10 +41,17 @@ export interface MenuContentProps extends Omit<
 
 export function MenuContent(props: MenuContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class", "portal"]);
+  const dialogPortalMount = useDialogPortalMount();
+  const dialogFloatingZIndex = useDialogFloatingZIndex();
+  const positionerStyle = (): JSX.CSSProperties | undefined =>
+    dialogFloatingZIndex === undefined
+      ? undefined
+      : { "z-index": dialogFloatingZIndex };
   const content = () => (
     <MenuPrimitive.Positioner
       class="menu__positioner"
       data-slot="menu-positioner"
+      style={positionerStyle()}
     >
       <MenuPrimitive.Content
         {...rest}
@@ -57,7 +65,17 @@ export function MenuContent(props: MenuContentProps): JSX.Element {
     </MenuPrimitive.Positioner>
   );
 
-  return local.portal === false ? content() : <Portal>{content()}</Portal>;
+  if (local.portal === false) return content();
+
+  return (
+    <Show
+      when={dialogPortalMount()}
+      keyed
+      fallback={<Portal>{content()}</Portal>}
+    >
+      {(mount) => <Portal mount={mount}>{content()}</Portal>}
+    </Show>
+  );
 }
 
 export interface MenuItemProps extends Omit<
@@ -70,38 +88,14 @@ export interface MenuItemProps extends Omit<
 }
 
 export function MenuItem(props: MenuItemProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    "class",
-    "inset",
-    "onClick",
-    "onSelect",
-    "value",
-    "variant",
-  ]);
-  let handledPrimitiveSelect = false;
+  const [local, rest] = splitProps(props, ["class", "inset", "variant"]);
   return (
     <MenuPrimitive.Item
       {...rest}
-      onClick={(event) => {
-        if (typeof local.onClick === "function") {
-          (local.onClick as JSX.EventHandler<HTMLDivElement, MouseEvent>)(
-            event,
-          );
-        }
-        if (!handledPrimitiveSelect) local.onSelect?.();
-      }}
-      onSelect={() => {
-        handledPrimitiveSelect = true;
-        queueMicrotask(() => {
-          handledPrimitiveSelect = false;
-        });
-        local.onSelect?.();
-      }}
-      value={local.value}
       class={cn("menu__item", local.inset && "menu__item--inset", local.class)}
       data-inset={local.inset ? "" : undefined}
       data-slot="menu-item"
-      data-value={local.value}
+      data-value={props.value}
       data-variant={local.variant ?? "default"}
     />
   );

@@ -13,7 +13,7 @@ describe("ScriptRunner", () => {
         },
       },
       {
-        reason: "connection lost",
+        reason: "Connection lost",
         retryAfterReconnect: true,
       },
     );
@@ -28,9 +28,9 @@ describe("ScriptRunner", () => {
 
   it("stops an ordinary cancelled start", () => {
     expect(
-      statusFromStartingCancellation({}, { reason: "connection lost" }),
+      statusFromStartingCancellation({}, { reason: "Connection lost" }),
     ).toMatchObject({
-      reason: "connection lost",
+      reason: "Connection lost",
       state: "stopped",
     });
   });

@@ -17,18 +17,9 @@ import {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Slider,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
   type ButtonProps,
-  type MenuCheckboxItemProps,
   type MenuContentProps,
   type MenuSubContentProps,
 } from "@lucent/ui";
@@ -44,7 +35,6 @@ import {
 import { Portal } from "solid-js/web";
 
 import type { AppPlatform } from "../../../shared/desktopBridge";
-import type { RoomPolicy } from "@lucent/core/accountSettings";
 import {
   formatHotkeyDisplay,
   readHotkeyBinding,
@@ -55,15 +45,9 @@ import {
   AUTO_ZONE_MAP_OPTIONS,
   type AutoZoneSupportedMap,
 } from "./automation/AutoZone";
-import {
-  parseRoomNumberInput,
-  roomNumberKind,
-  type RoomPolicyMode,
-} from "./scripting/roomPolicyInput";
 
 export type GameTopNavMenu =
   | "windows"
-  | "scripts"
   | "options"
   | "combat"
   | "autozone"
@@ -131,25 +115,10 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly handleSelectAutoAttackProfile: (selectedProfileId: string) => void;
   readonly scriptLoaded: Accessor<boolean>;
   readonly scriptRunning: Accessor<boolean>;
-  readonly scriptStatus: Accessor<string>;
   readonly scriptTogglePending: Accessor<boolean>;
-  readonly scriptRestartAfterReconnect: Accessor<boolean>;
-  readonly scriptRoomPolicy: Accessor<RoomPolicy>;
-  readonly scriptSafeStartStop: Accessor<boolean>;
   readonly scriptOptionsReady: Accessor<boolean>;
-  readonly scriptRoomNumberDraft: Accessor<string>;
-  readonly setScriptRoomNumberDraft: (value: string) => void;
-  readonly scriptRoomNumberError: Accessor<string>;
-  readonly scriptInputsAvailable: Accessor<boolean>;
-  readonly loadScript: () => void | Promise<void>;
+  readonly openScripts: () => void;
   readonly toggleScript: () => void | Promise<void>;
-  readonly openScriptInputs: () => void;
-  readonly handleSelectScriptRoomPolicy: (
-    policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
-  ) => void;
-  readonly handleCommitScriptRoomNumber: () => void;
-  readonly handleToggleScriptRestartAfterReconnect: () => void;
-  readonly handleToggleScriptSafeStartStop: () => void;
   readonly autoZoneEnabled: Accessor<boolean>;
   readonly autoZoneMap: Accessor<AutoZoneSupportedMap | undefined>;
   readonly handleToggleAutoZone: () => void;
@@ -684,8 +653,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
-  const [scriptRoomEditingMode, setScriptRoomEditingMode] =
-    createSignal<RoomPolicyMode | null>(null);
   const [travelHighlightedValue, setTravelHighlightedValue] = createSignal<
     string | null
   >(null);
@@ -697,66 +664,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
     !props.scriptLoaded() ||
     props.scriptTogglePending() ||
     (!props.scriptRunning() && !props.scriptOptionsReady());
-  const scriptRoomMode = (): RoomPolicyMode => {
-    const editingMode = scriptRoomEditingMode();
-    if (editingMode !== null) return editingMode;
-    return props.scriptRoomPolicy().kind;
-  };
-
-  const beginScriptSpecificRoomEdit = (): void => {
-    if (scriptRoomEditingMode() === "specific") return;
-
-    setScriptRoomEditingMode("specific");
-    const policy = props.scriptRoomPolicy();
-    props.setScriptRoomNumberDraft(
-      policy.kind === "specific" ? String(policy.roomNumber) : "",
-    );
-  };
-
-  const handleScriptRoomModeChange = (details: {
-    value: readonly string[];
-  }): void => {
-    const value = details.value[0];
-    if (
-      value !== "public" &&
-      value !== "random-private" &&
-      value !== "specific"
-    ) {
-      return;
-    }
-
-    if (value === "specific") {
-      beginScriptSpecificRoomEdit();
-      return;
-    }
-
-    setScriptRoomEditingMode(null);
-    props.handleSelectScriptRoomPolicy({ kind: value });
-  };
-
-  const handleScriptOptionsMenuOpenChange = (details: {
-    readonly open: boolean;
-  }): void => {
-    if (details.open) return;
-
-    setScriptRoomEditingMode(null);
-    const policy = props.scriptRoomPolicy();
-    props.setScriptRoomNumberDraft(
-      policy.kind === "specific" ? String(policy.roomNumber) : "",
-    );
-  };
-
-  const scriptRoomNumberMessage = (): string => {
-    const parsed = parseRoomNumberInput(props.scriptRoomNumberDraft());
-    return parsed.status === "invalid"
-      ? props.scriptRoomNumberError() || "Enter a room from 1 to 99999."
-      : "";
-  };
-
-  const scriptRoomNumberDraftKind = (): "private" | "public" | undefined => {
-    const parsed = parseRoomNumberInput(props.scriptRoomNumberDraft());
-    return parsed.status === "valid" ? roomNumberKind(parsed.value) : undefined;
-  };
 
   const autoReloginNeedsAttention = (): boolean =>
     props.autoReloginLastError() !== "";
@@ -1124,230 +1031,14 @@ export function TopNav(props: TopNavProps): JSX.Element {
             </GameMenuContent>
           </Menu>
 
-          <Menu
-            open={props.openMenu() === "scripts"}
-            onOpenChange={setMenuOpen("scripts")}
+          <Button
+            class="game-topnav__trigger"
+            onClick={() => props.openScripts()}
+            size="sm"
+            variant="ghost"
           >
-            <TopNavMenuTrigger
-              expanded={props.openMenu() === "scripts"}
-              onClick={toggleMenu("scripts")}
-            >
-              Scripts
-            </TopNavMenuTrigger>
-            <GameMenuContent
-              class="game-menu game-menu--scripts"
-              portalMount={menuPortalMount}
-            >
-              <div class="game-menu__status" role="status">
-                {props.scriptStatus()}
-              </div>
-              <MenuGroup>
-                <MenuItem
-                  class="game-menu__item"
-                  onSelect={() => void props.loadScript()}
-                  value="loadScript"
-                >
-                  <span class="game-menu__item-label">Load Script</span>
-                  <Show
-                    when={formatOptionalHotkeyDisplay(
-                      commandHotkey(props.hotkeyBindings(), "loadScript"),
-                      props.hotkeyPlatform,
-                    )}
-                  >
-                    {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                  </Show>
-                </MenuItem>
-                <MenuItem
-                  class="game-menu__item"
-                  disabled={
-                    !props.scriptLoaded() ||
-                    !props.scriptInputsAvailable() ||
-                    props.scriptRunning()
-                  }
-                  onSelect={props.openScriptInputs}
-                  value="script-inputs"
-                >
-                  <span class="game-menu__item-label">Edit Inputs...</span>
-                </MenuItem>
-                <MenuItem
-                  class="game-menu__item"
-                  disabled={scriptToggleDisabled()}
-                  onClick={handleToggleScriptClick}
-                  value="start-script"
-                >
-                  <span class="game-menu__item-label">
-                    {props.scriptRunning() ? "Stop" : "Start"}
-                  </span>
-                  <Show
-                    when={formatOptionalHotkeyDisplay(
-                      commandHotkey(props.hotkeyBindings(), "toggleScript"),
-                      props.hotkeyPlatform,
-                    )}
-                  >
-                    {(shortcut) => <Kbd>{shortcut()}</Kbd>}
-                  </Show>
-                </MenuItem>
-                <MenuSub
-                  closeOnSelect={false}
-                  onOpenChange={handleScriptOptionsMenuOpenChange}
-                >
-                  <MenuSubTrigger class="game-menu__item">
-                    <span class="game-menu__item-label">Options</span>
-                  </MenuSubTrigger>
-                  <GameMenuSubContent
-                    class="game-menu game-menu--compact game-menu--script-options"
-                    portalMount={menuPortalMount}
-                  >
-                    <Tooltip
-                      closeDelay={0}
-                      openDelay={400}
-                      positioning={{ placement: "right" }}
-                    >
-                      <TooltipTrigger
-                        asChild={(triggerProps) => (
-                          <MenuCheckboxItem
-                            {...(triggerProps({
-                              "aria-description":
-                                "Best-effort attempt to start or stop the script at your house.",
-                              checked: props.scriptSafeStartStop(),
-                              class: "game-menu__item",
-                              closeOnSelect: false,
-                              disabled: !props.scriptOptionsReady(),
-                              onClick: props.handleToggleScriptSafeStartStop,
-                              value: "script-safe-start-stop",
-                            } as unknown as ButtonProps) as unknown as MenuCheckboxItemProps)}
-                          >
-                            Safe Start/Stop
-                          </MenuCheckboxItem>
-                        )}
-                      />
-                      <TooltipContent>
-                        Best-effort attempt to start or stop the script at your
-                        house.
-                      </TooltipContent>
-                    </Tooltip>
-                    <MenuCheckboxItem
-                      checked={props.scriptRestartAfterReconnect()}
-                      class="game-menu__item"
-                      closeOnSelect={false}
-                      disabled={!props.scriptOptionsReady()}
-                      onClick={props.handleToggleScriptRestartAfterReconnect}
-                      value="script-restart-after-reconnect"
-                    >
-                      Restart After Reconnect
-                    </MenuCheckboxItem>
-                    <MenuSeparator />
-                    <div class="game-menu__script-room-fields">
-                      <div class="game-menu__script-room-control">
-                        <span
-                          class="game-menu__script-room-label"
-                          id="script-room-policy-label"
-                        >
-                          Room policy
-                        </span>
-                        <Select
-                          class="game-menu__script-room-select"
-                          disabled={!props.scriptOptionsReady()}
-                          value={[scriptRoomMode()]}
-                          onValueChange={handleScriptRoomModeChange}
-                        >
-                          <SelectTrigger
-                            aria-labelledby="script-room-policy-label"
-                            onKeyDown={(event) => {
-                              if (
-                                event.key !== "Escape" &&
-                                event.key !== "Tab"
-                              ) {
-                                event.stopPropagation();
-                              }
-                            }}
-                          >
-                            <SelectValue placeholder="Room policy" />
-                          </SelectTrigger>
-                          <SelectContent
-                            class="game-menu__script-room-select-content"
-                            portalMount={menuPortalMount()}
-                          >
-                            <SelectItem value="public">Public rooms</SelectItem>
-                            <SelectItem value="random-private">
-                              Random private
-                            </SelectItem>
-                            <SelectItem value="specific">
-                              Specific room
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Show when={scriptRoomMode() === "specific"}>
-                        <Label
-                          class="game-menu__script-room-control"
-                          for="script-room-number"
-                        >
-                          <span class="game-menu__script-room-label">
-                            Room number
-                          </span>
-                          <Input
-                            aria-describedby="script-room-number-message"
-                            class="game-menu__script-room-input"
-                            disabled={!props.scriptOptionsReady()}
-                            id="script-room-number"
-                            inputMode="numeric"
-                            invalid={props.scriptRoomNumberError() !== ""}
-                            maxLength={5}
-                            placeholder="1–99999"
-                            size="sm"
-                            title={scriptRoomNumberMessage()}
-                            type="text"
-                            value={props.scriptRoomNumberDraft()}
-                            onBlur={props.handleCommitScriptRoomNumber}
-                            onFocus={beginScriptSpecificRoomEdit}
-                            onInput={(event) =>
-                              props.setScriptRoomNumberDraft(
-                                event.currentTarget.value,
-                              )
-                            }
-                            onKeyDown={commitMenuInputOnEnter(
-                              props.handleCommitScriptRoomNumber,
-                            )}
-                          />
-                        </Label>
-                        <div
-                          aria-live="polite"
-                          class="game-menu__script-room-feedback"
-                          data-invalid={
-                            props.scriptRoomNumberError() !== ""
-                              ? ""
-                              : undefined
-                          }
-                          id="script-room-number-message"
-                        >
-                          <Show when={scriptRoomNumberDraftKind()} keyed>
-                            {(kind) => (
-                              <span
-                                class="game-menu__script-room-badge"
-                                data-kind={kind}
-                              >
-                                {kind === "public"
-                                  ? "Public room"
-                                  : "Private room"}
-                              </span>
-                            )}
-                          </Show>
-                          <Show when={scriptRoomNumberMessage()} keyed>
-                            {(message) => (
-                              <span class="game-menu__script-room-message">
-                                {message}
-                              </span>
-                            )}
-                          </Show>
-                        </div>
-                      </Show>
-                    </div>
-                  </GameMenuSubContent>
-                </MenuSub>
-              </MenuGroup>
-            </GameMenuContent>
-          </Menu>
+            Scripts
+          </Button>
 
           <Menu
             open={props.openMenu() === "options"}

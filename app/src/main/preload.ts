@@ -135,6 +135,37 @@ const accountSettingsBridge: NonNullable<DesktopBridge["accountSettings"]> = {
     invoke(AccountSettingsIpc.update, { patch, username }),
 };
 
+const scriptingBridge: NonNullable<DesktopBridge["scripting"]> = {
+  checkPackageUpdate: (packageName) =>
+    invoke(ScriptingIpc.checkPackageUpdate, { packageName }),
+  deleteCredential: (id) => invoke(ScriptingIpc.deleteCredential, { id }),
+  getCatalog: () => invoke(ScriptingIpc.getCatalog, undefined),
+  getCatalogPage: (request) => invoke(ScriptingIpc.getCatalogPage, request),
+  getInputValues: (definition) =>
+    invoke(ScriptingIpc.getInputValues, definition),
+  loadReference: (reference) => invoke(ScriptingIpc.loadReference, reference),
+  installPackage: (input) => invoke(ScriptingIpc.installPackage, input),
+  listCredentials: () => invoke(ScriptingIpc.listCredentials, undefined),
+  onCatalogChanged: (listener) =>
+    subscribe(ScriptingIpc.catalogChanged, listener),
+  openFile: () => invoke(ScriptingIpc.openFile, undefined),
+  openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
+  openRepository: (repositoryUrl) =>
+    invoke(ScriptingIpc.openRepository, { repositoryUrl }),
+  readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
+  readReference: (reference) => invoke(ScriptingIpc.readReference, reference),
+  refreshCatalog: () => invoke(ScriptingIpc.refreshCatalog, undefined),
+  removePackage: (input) => invoke(ScriptingIpc.removePackage, input),
+  resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
+  resolveReference: (reference) =>
+    invoke(ScriptingIpc.resolveReference, reference),
+  saveInputValues: (definition, values) =>
+    invoke(ScriptingIpc.saveInputValues, { definition, values }),
+  saveCredential: (input) => invoke(ScriptingIpc.saveCredential, input),
+  selectFile: () => invoke(ScriptingIpc.selectFile, undefined),
+  updatePackage: (input) => invoke(ScriptingIpc.updatePackage, input),
+};
+
 const gameConsoleObservabilityBridge: NonNullable<
   DesktopBridge["gameConsoleObservability"]
 > = {
@@ -325,17 +356,7 @@ const bridge: DesktopBridge = {
         ...(gameConsoleObservabilityEnabled
           ? { gameConsoleObservability: gameConsoleObservabilityBridge }
           : {}),
-        scripting: {
-          getInputValues: (definition) =>
-            invoke(ScriptingIpc.getInputValues, definition),
-          openFile: () => invoke(ScriptingIpc.openFile, undefined),
-          openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
-          readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
-          resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
-          selectFile: () => invoke(ScriptingIpc.selectFile, undefined),
-          saveInputValues: (definition, values) =>
-            invoke(ScriptingIpc.saveInputValues, { definition, values }),
-        },
+        scripting: scriptingBridge,
         windows: windowsBridge,
       }
     : {}),
@@ -359,17 +380,7 @@ const bridge: DesktopBridge = {
   ...(bridgeView === "account-manager"
     ? {
         accounts: accountsBridge,
-        scripting: {
-          getInputValues: (definition) =>
-            invoke(ScriptingIpc.getInputValues, definition),
-          openFile: () => invoke(ScriptingIpc.openFile, undefined),
-          openPath: (path) => invoke(ScriptingIpc.openPath, { path }),
-          readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
-          resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
-          selectFile: () => invoke(ScriptingIpc.selectFile, undefined),
-          saveInputValues: (definition, values) =>
-            invoke(ScriptingIpc.saveInputValues, { definition, values }),
-        },
+        scripting: scriptingBridge,
       }
     : {}),
   ...(bridgeView === "combat-profiles"

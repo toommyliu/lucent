@@ -62,6 +62,7 @@ const stringifyJson = (
 const writeTextAtomic = (
   path: string,
   source: string,
+  options: { readonly mode?: number } = {},
 ): Effect.Effect<void, JsonFileError> => {
   const tempPath = `${path}.${process.pid}.${randomBytes(16).toString(
     "hex",
@@ -79,7 +80,11 @@ const writeTextAtomic = (
     }).pipe(Effect.catch(() => Effect.void));
 
     yield* Effect.tryPromise({
-      try: () => fs.writeFile(tempPath, source, "utf8"),
+      try: () =>
+        fs.writeFile(tempPath, source, {
+          encoding: "utf8",
+          ...(options.mode === undefined ? {} : { mode: options.mode }),
+        }),
       catch: (cause) => makeError(tempPath, "write", cause),
     }).pipe(
       Effect.catch((error: JsonFileError) =>
@@ -121,7 +126,8 @@ export const readJsonFile = (
 export const writeJsonFile = (
   path: string,
   value: unknown,
+  options: { readonly mode?: number } = {},
 ): Effect.Effect<void, JsonFileError> =>
   stringifyJson(path, value).pipe(
-    Effect.flatMap((source) => writeTextAtomic(path, source)),
+    Effect.flatMap((source) => writeTextAtomic(path, source, options)),
   );

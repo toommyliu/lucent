@@ -8,4 +8,5 @@ export * from "./environment";
 export * from "./follower";
 export * from "./hotkeys";
 export * from "./scriptInputs";
+export * from "./scriptPackages";
 export * from "./settings";

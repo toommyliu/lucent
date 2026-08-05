@@ -1,6 +1,4 @@
-import { EventEmitter } from "events";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
-import { get as httpsGet } from "https";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -17,6 +15,16 @@ import {
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
+import {
+  GitHubApiClient,
+  makeGitHubApiClient,
+} from "../github/GitHubApiClient";
+import {
+  DesktopHttpClient,
+  DesktopHttpClientError,
+  type DesktopHttpGetOptions,
+  type DesktopHttpResponse,
+} from "../http/DesktopHttpClient";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates, layer as desktopUpdatesLayer } from "./DesktopUpdates";
 
@@ -27,73 +35,45 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("https", () => ({
-  get: vi.fn(),
-}));
+const httpRequests: DesktopHttpGetOptions[] = [];
+const httpResponses: DesktopHttpResponse[] = [];
 
-type HttpsResponse = EventEmitter & {
-  readonly headers: Record<string, string>;
-  readonly statusCode: number;
-  readonly statusMessage: string;
-};
-
-type HttpsRequest = EventEmitter & {
-  destroy: (error?: Error) => void;
-  setTimeout: (milliseconds: number, listener: () => void) => HttpsRequest;
-};
-
-type HttpsGetMock = {
-  readonly mockImplementationOnce: (
-    implementation: (...args: readonly unknown[]) => HttpsRequest,
-  ) => void;
-};
-
-const getMock = httpsGet as unknown as HttpsGetMock;
-
-const responseCallbackFrom = (
-  args: readonly unknown[],
-): ((response: HttpsResponse) => void) => {
-  const callback = args.find(
-    (arg): arg is (response: HttpsResponse) => void =>
-      typeof arg === "function",
-  );
-  if (callback === undefined) {
-    throw new Error("https.get test mock expected a response callback.");
-  }
-  return callback;
-};
+const httpClient = DesktopHttpClient.of({
+  get: (options) =>
+    Effect.gen(function* () {
+      httpRequests.push(options);
+      const response = httpResponses.shift();
+      if (response === undefined) {
+        return yield* new DesktopHttpClientError({
+          kind: "request-failed",
+          detail: "No test HTTP response was queued.",
+          url: options.url.href,
+        });
+      }
+      return response;
+    }),
+  download: (options) =>
+    Effect.fail(
+      new DesktopHttpClientError({
+        kind: "request-failed",
+        detail: "The update checker must not download files.",
+        url: options.url.href,
+      }),
+    ),
+});
 
 const mockGitHubResponse = (options: {
   readonly body?: string;
   readonly headers?: Record<string, string>;
   readonly statusCode?: number;
   readonly statusMessage?: string;
-}) => {
-  getMock.mockImplementationOnce((...args) => {
-    const callback = responseCallbackFrom(args);
-    const request = new EventEmitter() as HttpsRequest;
-    request.setTimeout = () => request;
-    request.destroy = (error?: Error) => {
-      if (error !== undefined) {
-        request.emit("error", error);
-      }
-    };
-
-    process.nextTick(() => {
-      const response = new EventEmitter() as HttpsResponse;
-      Object.assign(response, {
-        headers: options.headers ?? {},
-        statusCode: options.statusCode ?? 200,
-        statusMessage: options.statusMessage ?? "OK",
-      });
-      callback(response);
-      if (options.body !== undefined) {
-        response.emit("data", options.body);
-      }
-      response.emit("end");
-    });
-
-    return request;
+}): void => {
+  httpResponses.push({
+    body: Buffer.from(options.body ?? "", "utf8"),
+    headers: options.headers ?? {},
+    statusCode: options.statusCode ?? 200,
+    statusMessage: options.statusMessage ?? "OK",
+    url: "https://api.github.com/repos/toommyliu/lucent/releases/latest",
   });
 };
 
@@ -177,6 +157,10 @@ const makeUpdatesHarness = (options: {
           Layer.succeed(DesktopObservability, observability),
           Layer.succeed(ElectronApp, app),
           Layer.succeed(ElectronShell, shell),
+          Layer.succeed(
+            GitHubApiClient,
+            makeGitHubApiClient(httpClient, `Lucent/${options.currentVersion}`),
+          ),
           Layer.succeed(DesktopSettings, settingsService),
         ),
       ),
@@ -187,6 +171,8 @@ const makeUpdatesHarness = (options: {
 
 afterEach(async () => {
   vi.clearAllMocks();
+  httpRequests.length = 0;
+  httpResponses.length = 0;
   await Promise.all(
     [...tempDirs].map((path) => rm(path, { force: true, recursive: true })),
   );
@@ -208,7 +194,7 @@ describe("DesktopUpdates", () => {
       if (state.status === "disabled") {
         expect(state.reason).toContain("disabled");
       }
-      expect(vi.mocked(httpsGet)).not.toHaveBeenCalled();
+      expect(httpRequests).toHaveLength(0);
     }),
   );
 
@@ -326,11 +312,12 @@ describe("DesktopUpdates", () => {
         const state = yield* updates.checkNow();
 
         expect(state.status).toBe("current");
-        expect(vi.mocked(httpsGet).mock.calls[0]?.[1]).toMatchObject({
-          headers: { "If-None-Match": "etag-1" },
+        expect(httpRequests[0]?.headers).toMatchObject({
+          "If-None-Match": "etag-1",
         });
 
-        vi.clearAllMocks();
+        httpRequests.length = 0;
+        httpResponses.length = 0;
         const disabledHarness = yield* makeUpdatesHarness({
           checkForUpdates: false,
           currentVersion: "1.0.0",
@@ -341,7 +328,7 @@ describe("DesktopUpdates", () => {
         const disabledState = yield* disabledUpdates.checkNow();
 
         expect(disabledState.status).toBe("disabled");
-        expect(vi.mocked(httpsGet)).not.toHaveBeenCalled();
+        expect(httpRequests).toHaveLength(0);
       }),
   );
 });

@@ -7,7 +7,6 @@ import {
   AlertDescription,
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -67,6 +66,7 @@ import {
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import type { ScriptFile } from "../../../shared/ipc/scripting";
+import type { ScriptReference } from "@lucent/core/scriptPackages";
 import {
   normalizeScriptInputValues,
   validateScriptInputValues,
@@ -119,6 +119,7 @@ import {
   type FatalScriptAlert,
 } from "./scripting/fatalAlert";
 import { resolveAccountScript } from "./scripting/accountScriptResolution";
+import { ScriptsDialog } from "./ScriptsDialog";
 import {
   TopNav,
   type GameTopNavMenu,
@@ -168,6 +169,88 @@ const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
 const PLAYER_READY_RETRY_INTERVAL_MS = 250;
 const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
 const ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS = 30_000;
+
+type ScriptTimingOperation =
+  | "catalog-load"
+  | "catalog-start"
+  | "loaded-start"
+  | "required-input-start";
+
+interface ScriptTimingTrace {
+  readonly id: string;
+  readonly operation: ScriptTimingOperation;
+  readonly startedAt: number;
+}
+
+let nextScriptTimingTraceId = 0;
+
+const roundedDuration = (durationMs: number): number =>
+  Math.round(durationMs * 10) / 10;
+
+const reportScriptTiming = (
+  trace: ScriptTimingTrace,
+  event: "begin" | "complete" | "stage",
+  data: Readonly<Record<string, unknown>> = {},
+): void => {
+  if (!window.desktop.debug) return;
+  console.info("[script:timing]", {
+    event,
+    operation: trace.operation,
+    traceId: trace.id,
+    ...data,
+  });
+};
+
+const beginScriptTiming = (
+  operation: ScriptTimingOperation,
+  data: Readonly<Record<string, unknown>> = {},
+): ScriptTimingTrace => {
+  const trace: ScriptTimingTrace = {
+    id: `script-${Date.now().toString(36)}-${(nextScriptTimingTraceId += 1)}`,
+    operation,
+    startedAt: performance.now(),
+  };
+  reportScriptTiming(trace, "begin", data);
+  return trace;
+};
+
+const timeScriptStage = async <Result,>(
+  trace: ScriptTimingTrace,
+  stage: string,
+  run: () => Promise<Result>,
+): Promise<Result> => {
+  const startedAt = performance.now();
+  try {
+    const result = await run();
+    reportScriptTiming(trace, "stage", {
+      durationMs: roundedDuration(performance.now() - startedAt),
+      outcome: "completed",
+      stage,
+    });
+    return result;
+  } catch (cause) {
+    reportScriptTiming(trace, "stage", {
+      durationMs: roundedDuration(performance.now() - startedAt),
+      error: formatEvalError(cause),
+      outcome: "failed",
+      stage,
+    });
+    throw cause;
+  }
+};
+
+const completeScriptTiming = (
+  trace: ScriptTimingTrace,
+  outcome: "completed" | "failed",
+  cause?: unknown,
+): void => {
+  reportScriptTiming(trace, "complete", {
+    durationMs: roundedDuration(performance.now() - trace.startedAt),
+    ...(cause === undefined ? {} : { error: formatEvalError(cause) }),
+    outcome,
+  });
+};
+
 const DEFAULT_FLASH_SETTINGS: FlashSettingsSnapshot = {
   animationsEnabled: true,
   antiCounterEnabled: true,
@@ -1122,8 +1205,7 @@ export function App(props: {
     createSignal<ScriptInputsDialogError | null>(null);
   const [scriptInputDialogSaving, setScriptInputDialogSaving] =
     createSignal(false);
-  const [scriptReplacementDialogOpen, setScriptReplacementDialogOpen] =
-    createSignal(false);
+  const [scriptsDialogOpen, setScriptsDialogOpen] = createSignal(false);
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
@@ -2133,7 +2215,59 @@ export function App(props: {
     }
   };
 
-  const selectScript = async (stopCurrent = false) => {
+  const stopScriptForReplacement = async (): Promise<void> => {
+    const status = await runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        return yield* runner.stop("replaced");
+      }),
+    );
+    applyScriptRunnerStatus(status);
+  };
+
+  const applyLoadedScript = async (
+    file: ScriptFile,
+    options: {
+      readonly replaceRunning: boolean;
+      readonly start: boolean;
+    },
+    timing?: ScriptTimingTrace,
+  ): Promise<void> => {
+    const inputDefinition = file.inputs;
+    const inputValues =
+      inputDefinition === null
+        ? {}
+        : timing === undefined
+          ? await refreshScriptInputValues(inputDefinition)
+          : await timeScriptStage(timing, "load-input-values.ipc", () =>
+              refreshScriptInputValues(inputDefinition),
+            );
+
+    if (scriptRunning()) {
+      if (!options.replaceRunning) {
+        throw new Error("A script is already running.");
+      }
+      if (timing === undefined) {
+        await stopScriptForReplacement();
+      } else {
+        await timeScriptStage(timing, "stop-replaced-script", () =>
+          stopScriptForReplacement(),
+        );
+      }
+    }
+
+    setLoadedScript(file);
+    setScriptRunnerStatus({ state: "idle" });
+    setScriptInputDialogError(null);
+    setScriptInputValues(inputValues);
+    setOpenMenu(null);
+
+    if (options.start) {
+      await prepareAndStartLoadedScript(file, inputValues, undefined, timing);
+    }
+  };
+
+  const chooseScriptFile = async (replaceRunning = false): Promise<void> => {
     if (scriptBusy()) {
       return;
     }
@@ -2146,64 +2280,62 @@ export function App(props: {
 
     setScriptBusy(true);
     try {
-      const stopPromise = stopCurrent
-        ? runtime.runPromise(
-            Effect.gen(function* () {
-              const runner = yield* ScriptRunner;
-              return yield* runner.stop("replaced");
-            }),
-          )
-        : Promise.resolve<ScriptRunnerStatus | null>(null);
-      const [stoppedStatus, result] = await Promise.all([
-        stopPromise,
-        bridge.openFile(),
-      ]);
-      if (stoppedStatus !== null) {
-        applyScriptRunnerStatus(stoppedStatus);
-      }
+      const result = await bridge.openFile();
       if (result.canceled) {
         return;
       }
-
-      const inputValues =
-        result.file.inputs === null
-          ? {}
-          : await refreshScriptInputValues(result.file.inputs);
-
-      if (!stopCurrent && scriptRunning()) {
-        const status = await runtime.runPromise(
-          Effect.gen(function* () {
-            const runner = yield* ScriptRunner;
-            return yield* runner.stop("replaced");
-          }),
-        );
-        applyScriptRunnerStatus(status);
-      }
-
-      setLoadedScript(result.file);
-      setScriptRunnerStatus({ state: "idle" });
-      setScriptInputDialogError(null);
-      setScriptInputValues(inputValues);
-      setOpenMenu(null);
+      await applyLoadedScript(result.file, {
+        replaceRunning,
+        start: false,
+      });
     } catch (error) {
       console.error("[game:script]", "load failed", error);
+      throw error;
+    } finally {
+      setScriptBusy(false);
+    }
+  };
+
+  const selectCatalogScript = async (
+    reference: ScriptReference,
+    start: boolean,
+    replaceRunning: boolean,
+  ): Promise<void> => {
+    if (scriptBusy()) return;
+    const bridge = window.desktop.scripting;
+    if (bridge === undefined) {
+      throw new Error("Desktop scripting bridge unavailable.");
+    }
+
+    const timing = beginScriptTiming(start ? "catalog-start" : "catalog-load", {
+      kind: reference.kind,
+      path: reference.path,
+      ...(reference.kind === "package"
+        ? { packageName: reference.packageName }
+        : {}),
+      replaceRunning,
+    });
+    setScriptBusy(true);
+    try {
+      const file = await timeScriptStage(timing, "load-reference.ipc", () =>
+        bridge.loadReference(reference),
+      );
+      await timeScriptStage(timing, "apply-loaded-script", () =>
+        applyLoadedScript(file, { replaceRunning, start }, timing),
+      );
+      completeScriptTiming(timing, "completed");
+    } catch (error) {
+      completeScriptTiming(timing, "failed", error);
+      console.error("[game:script]", "catalog selection failed", error);
+      throw error;
     } finally {
       setScriptBusy(false);
     }
   };
 
   const loadScript = (): void => {
-    if (scriptBusy()) {
-      return;
-    }
-
-    if (scriptRunning()) {
-      setOpenMenu(null);
-      setScriptReplacementDialogOpen(true);
-      return;
-    }
-
-    void selectScript();
+    setOpenMenu(null);
+    setScriptsDialogOpen(true);
   };
 
   const openScriptInputsDialog = (
@@ -2242,13 +2374,19 @@ export function App(props: {
   const startLoadedScript = async (
     file: ScriptFile,
     inputValues: ScriptInputValues,
+    timing?: ScriptTimingTrace,
   ): Promise<void> => {
-    const status = await runtime.runPromise(
-      Effect.gen(function* () {
-        const runner = yield* ScriptRunner;
-        return yield* runner.start(file, inputValues);
-      }),
-    );
+    const start = () =>
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.start(file, inputValues);
+        }),
+      );
+    const status =
+      timing === undefined
+        ? await start()
+        : await timeScriptStage(timing, "runner-start", start);
     applyScriptRunnerStatus(status);
     setOpenMenu(null);
   };
@@ -2257,22 +2395,45 @@ export function App(props: {
     currentFile: ScriptFile,
     currentInputValues: ScriptInputValues,
     inputsPersistedForRevision?: string,
+    timing?: ScriptTimingTrace,
   ): Promise<void> => {
     const scripting = window.desktop.scripting;
-    const prepared = await prepareScriptStart(
-      { file: currentFile, inputValues: currentInputValues },
-      {
-        getInputValues: refreshScriptInputValues,
-        readFile: (path) => {
-          if (scripting === undefined) {
-            return Promise.reject(
-              new Error("Desktop scripting bridge unavailable"),
-            );
-          }
-          return scripting.readFile(path);
+    const prepare = () =>
+      prepareScriptStart(
+        { file: currentFile, inputValues: currentInputValues },
+        {
+          getInputValues: (definition) =>
+            timing === undefined
+              ? refreshScriptInputValues(definition)
+              : timeScriptStage(timing, "refresh-input-values.ipc", () =>
+                  refreshScriptInputValues(definition),
+                ),
+          readFile: (path) => {
+            if (scripting === undefined) {
+              return Promise.reject(
+                new Error("Desktop scripting bridge unavailable"),
+              );
+            }
+            const read = () =>
+              currentFile.reference === undefined
+                ? scripting.readFile(path)
+                : scripting.readReference(currentFile.reference);
+            return timing === undefined
+              ? read()
+              : timeScriptStage(
+                  timing,
+                  currentFile.reference === undefined
+                    ? "read-file.ipc"
+                    : "read-reference.ipc",
+                  read,
+                );
+          },
         },
-      },
-    );
+      );
+    const prepared =
+      timing === undefined
+        ? await prepare()
+        : await timeScriptStage(timing, "start-preparation", prepare);
     const revisionChanged = prepared.file.revision !== currentFile.revision;
 
     setLoadedScript(prepared.file);
@@ -2286,6 +2447,12 @@ export function App(props: {
       prepared.status === "missing-required" &&
       prepared.file.inputs !== null
     ) {
+      if (timing !== undefined) {
+        reportScriptTiming(timing, "stage", {
+          outcome: "deferred",
+          stage: "required-inputs",
+        });
+      }
       openScriptInputsDialog(
         "required",
         prepared.file.inputs,
@@ -2295,18 +2462,21 @@ export function App(props: {
     }
 
     let inputValues = prepared.inputValues;
+    const preparedInputDefinition = prepared.file.inputs;
     if (
-      prepared.file.inputs !== null &&
+      preparedInputDefinition !== null &&
       prepared.file.revision !== inputsPersistedForRevision
     ) {
-      inputValues = await saveScriptInputValues(
-        prepared.file.inputs,
-        inputValues,
-      );
+      const save = () =>
+        saveScriptInputValues(preparedInputDefinition, inputValues);
+      inputValues =
+        timing === undefined
+          ? await save()
+          : await timeScriptStage(timing, "save-input-values.ipc", save);
       setScriptInputValues(inputValues);
     }
 
-    await startLoadedScript(prepared.file, inputValues);
+    await startLoadedScript(prepared.file, inputValues, timing);
   };
 
   const accountScriptLabel = (
@@ -2602,7 +2772,10 @@ export function App(props: {
 
       await publishAccountLaunchStatus("starting", "Loading script...");
       const file = await resolveAccountScript(
-        (path) => bridge.resolveFile(path),
+        (path) =>
+          payload.script?.reference === undefined
+            ? bridge.resolveFile(path)
+            : bridge.resolveReference(payload.script.reference),
         payload.script.path,
       );
       if (file === null) {
@@ -2690,7 +2863,18 @@ export function App(props: {
       resetScriptInputDialogRefs();
 
       if (shouldStart) {
-        await prepareAndStartLoadedScript(file, saved, file.revision);
+        const timing = beginScriptTiming("required-input-start", {
+          name: file.name,
+          path: file.path,
+          revision: file.revision,
+        });
+        try {
+          await prepareAndStartLoadedScript(file, saved, file.revision, timing);
+          completeScriptTiming(timing, "completed");
+        } catch (error) {
+          completeScriptTiming(timing, "failed", error);
+          throw error;
+        }
       }
     } catch (error) {
       console.error("[game:script]", "save inputs failed", error);
@@ -2751,14 +2935,29 @@ export function App(props: {
     }
 
     const file = loadedScript();
+    const timing =
+      file === null
+        ? undefined
+        : beginScriptTiming("loaded-start", {
+            name: file.name,
+            path: file.path,
+            revision: file.revision,
+          });
     setScriptBusy(true);
     try {
       if (file === null) {
         return;
       }
 
-      await prepareAndStartLoadedScript(file, scriptInputValues());
+      await prepareAndStartLoadedScript(
+        file,
+        scriptInputValues(),
+        undefined,
+        timing,
+      );
+      if (timing !== undefined) completeScriptTiming(timing, "completed");
     } catch (error) {
+      if (timing !== undefined) completeScriptTiming(timing, "failed", error);
       console.error("[game:script]", "toggle failed", error);
       if (!wasRunning && file !== null) {
         showFatalScriptError(file.name, error, file.path);
@@ -2843,7 +3042,7 @@ export function App(props: {
   const handleCommitScriptRoomNumber = () => {
     const parsed = parseRoomNumberInput(scriptRoomNumberDraft());
     if (parsed.status === "invalid") {
-      setScriptRoomNumberError("Enter a room from 1 to 99999.");
+      setScriptRoomNumberError("Enter a room number from 1 to 99,999.");
       return;
     }
 
@@ -3394,6 +3593,35 @@ export function App(props: {
       classList={{ "game-app--topnav-hidden": !topNavVisible() }}
       data-platform={platformLabel()}
     >
+      <ScriptsDialog
+        bridge={window.desktop.scripting}
+        inputsAvailable={scriptInputsAvailable()}
+        loadedReference={loadedScript()?.reference}
+        onChooseFile={chooseScriptFile}
+        onCommitRoomNumber={handleCommitScriptRoomNumber}
+        onEditInputs={openScriptInputs}
+        onOpenChange={setScriptsDialogOpen}
+        onSelectRoomPolicy={handleSelectScriptRoomPolicy}
+        onSelectScript={selectCatalogScript}
+        onSetRoomNumberDraft={(value) => {
+          setScriptRoomNumberDraft(value);
+          setScriptRoomNumberError("");
+        }}
+        onToggleRestartAfterReconnect={handleToggleScriptRestartAfterReconnect}
+        onToggleSafeStartStop={handleToggleScriptSafeStartStop}
+        onToggleScript={toggleScript}
+        open={scriptsDialogOpen()}
+        optionsReady={scriptReady()}
+        restartAfterReconnect={scriptRestartAfterReconnect()}
+        roomNumberDraft={scriptRoomNumberDraft()}
+        roomNumberError={scriptRoomNumberError()}
+        roomPolicy={scriptRoomPolicy()}
+        safeStartStop={scriptSafeStartStop()}
+        scriptBusy={scriptBusy()}
+        scriptLoaded={scriptLoaded()}
+        scriptRunning={scriptRunning()}
+        scriptStatus={scriptStatus()}
+      />
       <Dialog
         open={scriptInputDialogOpen()}
         onOpenChange={(details) => {
@@ -3513,25 +3741,6 @@ export function App(props: {
         </DialogContent>
       </Dialog>
       <AlertDialog
-        open={scriptReplacementDialogOpen()}
-        onOpenChange={(details) => setScriptReplacementDialogOpen(details.open)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Stop the current script?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Another script can’t be loaded while this one is running.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void selectScript(true)}>
-              Stop and Load
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog
         open={fatalScriptAlertOpen()}
         onOpenChange={(details) => {
           setFatalScriptAlertOpen(details.open);
@@ -3647,28 +3856,10 @@ export function App(props: {
         handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
         scriptLoaded={scriptLoaded}
         scriptRunning={scriptRunning}
-        scriptStatus={scriptStatus}
         scriptTogglePending={scriptTogglePending}
-        scriptRestartAfterReconnect={scriptRestartAfterReconnect}
-        scriptRoomPolicy={scriptRoomPolicy}
-        scriptSafeStartStop={scriptSafeStartStop}
         scriptOptionsReady={scriptReady}
-        scriptRoomNumberDraft={scriptRoomNumberDraft}
-        setScriptRoomNumberDraft={(value) => {
-          setScriptRoomNumberDraft(value);
-          setScriptRoomNumberError("");
-        }}
-        scriptRoomNumberError={scriptRoomNumberError}
-        scriptInputsAvailable={scriptInputsAvailable}
-        loadScript={loadScript}
+        openScripts={loadScript}
         toggleScript={toggleScript}
-        openScriptInputs={openScriptInputs}
-        handleSelectScriptRoomPolicy={handleSelectScriptRoomPolicy}
-        handleCommitScriptRoomNumber={handleCommitScriptRoomNumber}
-        handleToggleScriptRestartAfterReconnect={
-          handleToggleScriptRestartAfterReconnect
-        }
-        handleToggleScriptSafeStartStop={handleToggleScriptSafeStartStop}
         autoZoneEnabled={autoZoneEnabled}
         autoZoneMap={autoZoneMap}
         handleToggleAutoZone={handleToggleAutoZone}

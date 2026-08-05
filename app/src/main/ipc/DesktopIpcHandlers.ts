@@ -24,6 +24,7 @@ export const installDesktopIpcHandlers = Effect.fn(
   yield* ArmyIpcMethods.installLifecycle();
   yield* CombatProfilesIpcMethods.installEventForwarding();
   yield* SettingsIpcMethods.installEventForwarding();
+  yield* ScriptingIpcMethods.installEventForwarding();
   yield* UpdatesIpcMethods.installEventForwarding();
 
   for (const method of WindowsIpcMethods.methods) {
@@ -65,13 +66,18 @@ export const installDesktopIpcHandlers = Effect.fn(
   for (const method of SettingsIpcMethods.methods) {
     yield* ipc.handle(method);
   }
-  yield* ipc.handle(ScriptingIpcMethods.openFile);
-  yield* ipc.handle(ScriptingIpcMethods.readFile);
-  yield* ipc.handle(ScriptingIpcMethods.resolveFile);
-  yield* ipc.handle(ScriptingIpcMethods.selectFile);
-  yield* ipc.handle(ScriptingIpcMethods.openPath);
-  yield* ipc.handle(ScriptingIpcMethods.getInputValues);
-  yield* ipc.handle(ScriptingIpcMethods.saveInputValues);
+  for (const method of ScriptingIpcMethods.libraryMethods) {
+    yield* ipc.handle(method);
+  }
+  for (const method of ScriptingIpcMethods.inputMethods) {
+    yield* ipc.handle(method);
+  }
+  for (const method of ScriptingIpcMethods.credentialMethods) {
+    yield* ipc.handle(method);
+  }
+  for (const method of ScriptingIpcMethods.packageMethods) {
+    yield* ipc.handle(method);
+  }
   for (const method of UpdatesIpcMethods.methods) {
     yield* ipc.handle(method);
   }

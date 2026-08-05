@@ -17,12 +17,21 @@ import * as GameEnvironments from "../internal/environment/GameEnvironments";
 import * as GameFollowers from "../internal/follower/GameFollowers";
 import * as GameLoaderGrabbers from "../internal/loader-grabber/GameLoaderGrabbers";
 import * as GamePackets from "../internal/packets/GamePackets";
+import * as GitHubApiClient from "../github/GitHubApiClient";
+import * as DesktopHttpClient from "../http/DesktopHttpClient";
 import * as DesktopIpc from "../ipc/DesktopIpc";
 import * as DesktopIpcSenders from "../ipc/DesktopIpcSenders";
 import * as DesktopSettings from "../settings/DesktopSettings";
 import * as ScriptFiles from "../internal/scripting/ScriptFiles";
 import * as ScriptInputRepository from "../internal/scripting/ScriptInputRepository";
 import * as DesktopScriptLibrary from "../scripting/DesktopScriptLibrary";
+import * as GitHubCredentials from "../scripting/GitHubCredentials";
+import * as GitHubScriptPackageClient from "../scripting/GitHubScriptPackageClient";
+import * as ScriptPackageCatalog from "../scripting/ScriptPackageCatalog";
+import * as ScriptPackageManager from "../scripting/ScriptPackageManager";
+import * as ScriptPackageState from "../scripting/ScriptPackageState";
+import * as ScriptSourceRegistry from "../scripting/ScriptSourceRegistry";
+import * as ScriptWorkspace from "../scripting/ScriptWorkspace";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
 import * as DesktopAccountGameWindows from "../window/DesktopAccountGameWindows";
@@ -67,8 +76,63 @@ export const makeDesktopLayer = (
   );
 
   const scriptFilesLayer = ScriptFiles.layer;
+  const httpClientLayer = Layer.succeed(
+    DesktopHttpClient.DesktopHttpClient,
+    DesktopHttpClient.DesktopHttpClient.of(
+      DesktopHttpClient.makeDesktopHttpClient(),
+    ),
+  );
+  const scriptPackageStateLayer = ScriptPackageState.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
+  const scriptPackageCatalogLayer = ScriptPackageCatalog.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        ElectronApp.layer,
+        environmentLayer,
+        scriptPackageStateLayer,
+      ),
+    ),
+  );
+  const gitHubCredentialsLayer = GitHubCredentials.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
+  const gitHubApiClientLayer = GitHubApiClient.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(ElectronApp.layer, httpClientLayer)),
+  );
+  const gitHubScriptPackageClientLayer = GitHubScriptPackageClient.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(gitHubApiClientLayer, gitHubCredentialsLayer),
+    ),
+  );
+  const scriptPackageManagerLayer = ScriptPackageManager.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        environmentLayer,
+        gitHubScriptPackageClientLayer,
+        scriptPackageCatalogLayer,
+        scriptPackageStateLayer,
+      ),
+    ),
+  );
+  const scriptSourceRegistryLayer = ScriptSourceRegistry.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        environmentLayer,
+        scriptFilesLayer,
+        scriptPackageCatalogLayer,
+      ),
+    ),
+  );
 
   const scriptingLayer = Layer.mergeAll(
+    ScriptWorkspace.layer.pipe(Layer.provideMerge(environmentLayer)),
+    gitHubCredentialsLayer,
+    gitHubScriptPackageClientLayer,
+    scriptPackageCatalogLayer,
+    scriptPackageManagerLayer,
+    scriptPackageStateLayer,
+    scriptSourceRegistryLayer,
     ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
     scriptFilesLayer,
     DesktopScriptLibrary.layer.pipe(
@@ -78,6 +142,8 @@ export const makeDesktopLayer = (
           ElectronShell.layer,
           environmentLayer,
           scriptFilesLayer,
+          scriptPackageCatalogLayer,
+          scriptSourceRegistryLayer,
         ),
       ),
     ),
@@ -89,6 +155,7 @@ export const makeDesktopLayer = (
         ElectronApp.layer,
         ElectronShell.layer,
         environmentLayer,
+        gitHubApiClientLayer,
         observabilityLayer,
         settingsLayer,
       ),
@@ -193,6 +260,7 @@ export const makeDesktopLayer = (
     gameFollowersLayer,
     gameLoaderGrabbersLayer,
     gamePacketsLayer,
+    httpClientLayer,
     observabilityLayer,
     settingsLayer,
     scriptingLayer,

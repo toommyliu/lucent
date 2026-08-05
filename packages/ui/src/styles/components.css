@@ -138,6 +138,7 @@ body::-webkit-scrollbar-corner,
   position: absolute;
 }
 
+.button[data-slot="alert-dialog-cancel"]:focus,
 .button:focus-visible,
 .input:focus-visible,
 .textarea:focus-visible,

@@ -12,12 +12,32 @@ import type {
   ScriptOpenFileResult,
   ScriptSelectFileResult,
 } from "@lucent/core/scriptInputs";
+import type {
+  ScriptCatalogOverview,
+  ScriptCatalogPage,
+  ScriptCatalogPageRequest,
+  ScriptReference,
+} from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronShell } from "../electron/ElectronShell";
 import { ScriptFiles } from "../internal/scripting/ScriptFiles";
+import { ScriptPackageCatalog } from "./ScriptPackageCatalog";
+import { normalizeGitHubRepositoryUrl } from "./GitHubScriptPackageClient";
+import { ScriptSourceRegistry } from "./ScriptSourceRegistry";
 
 const scriptLibraryOperationSchema = Schema.Literals(["mkdir", "open", "read"]);
+
+const causeMessage = (cause: unknown): string | undefined => {
+  const message =
+    cause instanceof Error || Schema.isSchemaError(cause)
+      ? cause.message
+      : typeof cause === "string"
+        ? cause
+        : undefined;
+  const trimmed = message?.trim();
+  return trimmed === "" ? undefined : trimmed;
+};
 
 export class DesktopScriptLibraryError extends Schema.TaggedErrorClass<DesktopScriptLibraryError>()(
   "DesktopScriptLibraryError",
@@ -28,22 +48,48 @@ export class DesktopScriptLibraryError extends Schema.TaggedErrorClass<DesktopSc
   },
 ) {
   override get message(): string {
-    return this.path === undefined
-      ? `Script library ${this.operation} failed.`
-      : `Script library ${this.operation} failed at ${this.path}.`;
+    const context =
+      this.path === undefined
+        ? `Script library ${this.operation} failed.`
+        : `Script library ${this.operation} failed at ${this.path}.`;
+    const detail = causeMessage(this.cause);
+    return detail === undefined ? context : `${context} ${detail}`;
   }
 }
 
 export interface DesktopScriptLibraryShape {
+  readonly getCatalog: Effect.Effect<
+    ScriptCatalogOverview,
+    DesktopScriptLibraryError
+  >;
+  readonly getCatalogPage: (
+    request: ScriptCatalogPageRequest,
+  ) => Effect.Effect<ScriptCatalogPage, DesktopScriptLibraryError>;
+  readonly loadReference: (
+    reference: ScriptReference,
+  ) => Effect.Effect<ScriptFile, DesktopScriptLibraryError>;
   readonly openFile: Effect.Effect<
     ScriptOpenFileResult,
     DesktopScriptLibraryError
   >;
   readonly openPath: (path: string) => Effect.Effect<boolean>;
+  readonly openRepository: (
+    repositoryUrl: string,
+  ) => Effect.Effect<boolean, DesktopScriptLibraryError>;
   readonly readFile: (
     path: string,
   ) => Effect.Effect<ScriptFile, DesktopScriptLibraryError>;
+  readonly readReference: (
+    reference: ScriptReference,
+  ) => Effect.Effect<ScriptFile, DesktopScriptLibraryError>;
+  readonly refreshCatalog: Effect.Effect<
+    ScriptCatalogOverview,
+    DesktopScriptLibraryError
+  >;
   readonly resolveFile: (path: string) => Effect.Effect<ScriptFileResolution>;
+  readonly resolveReference: (
+    reference: ScriptReference,
+  ) => Effect.Effect<ScriptFileResolution>;
   readonly selectFile: Effect.Effect<
     ScriptSelectFileResult,
     DesktopScriptLibraryError
@@ -80,12 +126,54 @@ export const layer = Layer.effect(
     const dialog = yield* ElectronDialog;
     const env = yield* DesktopEnvironment;
     const files = yield* ScriptFiles;
+    const catalog = yield* ScriptPackageCatalog;
+    const sources = yield* ScriptSourceRegistry;
     const shell = yield* ElectronShell;
 
     const readFile = (path: string) =>
-      files
-        .read(path)
+      sources
+        .readPath(path)
         .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
+
+    const readReference = (reference: ScriptReference) =>
+      sources
+        .readReference(reference)
+        .pipe(
+          Effect.mapError((cause) =>
+            wrapError(
+              "read",
+              cause,
+              reference.kind === "loose"
+                ? reference.path
+                : `${reference.packageName}/${reference.path}`,
+            ),
+          ),
+        );
+
+    const loadReference = (reference: ScriptReference) =>
+      catalog.resolveReference(reference).pipe(
+        Effect.mapError((cause) => wrapError("read", cause)),
+        Effect.flatMap((entry) =>
+          entry === undefined
+            ? Effect.fail(
+                wrapError(
+                  "read",
+                  new Error("The selected script is no longer available."),
+                ),
+              )
+            : files.read(entry.path).pipe(
+                Effect.map((file) => ({
+                  ...file,
+                  name: entry.name,
+                  path: entry.path,
+                  reference,
+                })),
+                Effect.mapError((cause) =>
+                  wrapError("read", cause, entry.path),
+                ),
+              ),
+        ),
+      );
 
     const selectPath = Effect.gen(function* () {
       yield* ensureDirectory(env.scriptsDir);
@@ -113,12 +201,21 @@ export const layer = Layer.effect(
     const selectFile: DesktopScriptLibraryShape["selectFile"] = Effect.gen(
       function* () {
         const path = yield* selectPath;
-        return path === null
-          ? ({ canceled: true } satisfies ScriptSelectFileResult)
-          : ({
-              canceled: false,
-              file: { name: basename(path), path },
-            } satisfies ScriptSelectFileResult);
+        if (path === null) {
+          return { canceled: true } satisfies ScriptSelectFileResult;
+        }
+
+        const reference = yield* catalog
+          .referenceForPath(path)
+          .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
+        return {
+          canceled: false,
+          file: {
+            name: basename(path),
+            path,
+            ...(reference === undefined ? {} : { reference }),
+          },
+        } satisfies ScriptSelectFileResult;
       },
     );
 
@@ -129,7 +226,17 @@ export const layer = Layer.effect(
           return { canceled: true } satisfies ScriptOpenFileResult;
         }
 
-        const file = yield* readFile(path);
+        const reference = yield* catalog
+          .referenceForPath(path)
+          .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
+        const file =
+          reference === undefined
+            ? yield* files
+                .read(path)
+                .pipe(
+                  Effect.mapError((cause) => wrapError("read", cause, path)),
+                )
+            : yield* loadReference(reference);
         return { canceled: false, file } satisfies ScriptOpenFileResult;
       },
     );
@@ -137,11 +244,33 @@ export const layer = Layer.effect(
     const openPath: DesktopScriptLibraryShape["openPath"] = (path) =>
       shell.openPath(path);
 
+    const openRepository: DesktopScriptLibraryShape["openRepository"] = (
+      repositoryUrl,
+    ) =>
+      Effect.try({
+        try: () => new URL(normalizeGitHubRepositoryUrl(repositoryUrl).url),
+        catch: (cause) => wrapError("open", cause, repositoryUrl),
+      }).pipe(Effect.flatMap(shell.openExternal));
+
     return DesktopScriptLibrary.of({
+      getCatalog: catalog.getOverview.pipe(
+        Effect.mapError((cause) => wrapError("read", cause)),
+      ),
+      getCatalogPage: (request) =>
+        catalog
+          .getPage(request)
+          .pipe(Effect.mapError((cause) => wrapError("read", cause))),
+      loadReference,
       openFile,
       openPath,
+      openRepository,
       readFile,
-      resolveFile: files.resolve,
+      readReference,
+      refreshCatalog: catalog.refresh.pipe(
+        Effect.mapError((cause) => wrapError("read", cause)),
+      ),
+      resolveFile: sources.resolvePath,
+      resolveReference: sources.resolveReference,
       selectFile,
     });
   }),

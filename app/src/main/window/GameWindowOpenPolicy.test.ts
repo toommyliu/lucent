@@ -12,6 +12,14 @@ describe("parseAllowedGameWindowOpenUrl", () => {
       parseAllowedGameWindowOpenUrl("https://support.artix.com/help")?.href,
     ).toBe("https://support.artix.com/help");
     expect(
+      parseAllowedGameWindowOpenUrl(
+        "https://github.com/settings/personal-access-tokens/new",
+      )?.href,
+    ).toBe("https://github.com/settings/personal-access-tokens/new");
+    expect(
+      parseAllowedGameWindowOpenUrl("https://github.com/settings/profile"),
+    ).toBeNull();
+    expect(
       parseAllowedGameWindowOpenUrl("https://aq.com.evil.test/help"),
     ).toBeNull();
     expect(

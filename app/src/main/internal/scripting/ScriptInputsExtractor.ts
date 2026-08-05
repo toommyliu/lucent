@@ -61,11 +61,11 @@ const staticError = (detail: string, cause?: unknown) =>
     ...(cause === undefined ? {} : { cause }),
   });
 
-const validationError = (detail: string, cause?: unknown) =>
+const validationError = (cause: Schema.SchemaError) =>
   new ScriptInputsExtractorError({
     operation: "validate",
-    detail,
-    ...(cause === undefined ? {} : { cause }),
+    detail: `Script inputs definition is invalid: ${cause.message}`,
+    cause,
   });
 
 const keyName = (property: AstNode): string => {
@@ -216,11 +216,7 @@ const normalizeDefinition = (
 ): Effect.Effect<ScriptInputsDefinition, ScriptInputsExtractorError> =>
   decodeScriptInputsDefinition(
     normalizeInputDefinitionValue(value, fallbackId),
-  ).pipe(
-    Effect.mapError((cause) =>
-      validationError("Script inputs definition is invalid.", cause),
-    ),
-  );
+  ).pipe(Effect.mapError(validationError));
 
 const parseSource = (
   source: string,

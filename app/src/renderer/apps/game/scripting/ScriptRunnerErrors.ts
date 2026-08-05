@@ -46,7 +46,7 @@ export const makeScriptExitSignal = (options?: {
   readonly closeWindow?: boolean;
   readonly logout?: boolean;
 }): ScriptStopSignal => {
-  const signal = new ScriptStopSignal({ reason: "script requested exit" });
+  const signal = new ScriptStopSignal({ reason: "Requested by the script" });
   const request: ScriptExitRequest = {
     closeWindow: options?.closeWindow === true,
     logout: options?.logout === true,

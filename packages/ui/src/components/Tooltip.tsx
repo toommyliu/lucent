@@ -1,7 +1,8 @@
 import { Tooltip as TooltipPrimitive } from "@ark-ui/solid/tooltip";
-import { splitProps, type JSX } from "solid-js";
+import { Show, splitProps, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
+import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 
 export type TooltipProps = Parameters<typeof TooltipPrimitive.Root>[0];
 
@@ -40,10 +41,17 @@ export interface TooltipContentProps extends Omit<
 
 export function TooltipContent(props: TooltipContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class", "portal"]);
+  const dialogPortalMount = useDialogPortalMount();
+  const dialogFloatingZIndex = useDialogFloatingZIndex();
+  const positionerStyle = (): JSX.CSSProperties | undefined =>
+    dialogFloatingZIndex === undefined
+      ? undefined
+      : { "z-index": dialogFloatingZIndex };
   const content = () => (
     <TooltipPrimitive.Positioner
       class="tooltip__positioner"
       data-slot="tooltip-positioner"
+      style={positionerStyle()}
     >
       <TooltipPrimitive.Content
         {...rest}
@@ -55,7 +63,17 @@ export function TooltipContent(props: TooltipContentProps): JSX.Element {
     </TooltipPrimitive.Positioner>
   );
 
-  return local.portal === false ? content() : <Portal>{content()}</Portal>;
+  if (local.portal === false) return content();
+
+  return (
+    <Show
+      when={dialogPortalMount()}
+      keyed
+      fallback={<Portal>{content()}</Portal>}
+    >
+      {(mount) => <Portal mount={mount}>{content()}</Portal>}
+    </Show>
+  );
 }
 
 export { TooltipPrimitive };

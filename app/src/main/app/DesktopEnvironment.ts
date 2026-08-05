@@ -25,6 +25,7 @@ export interface DesktopEnvironmentShape extends DesktopEnvironmentConfig {
   readonly flashTrustRootPath: string;
   readonly logFilePath: string;
   readonly logsDir: string;
+  readonly packagesDir: string;
   readonly releaseCachePath: string;
   readonly scriptsDir: string;
   readonly settingsPath: string;
@@ -118,6 +119,7 @@ export const makeDesktopEnvironment = (
     flashTrustRootPath: resolveFlashTrustRootPath(config.appDataDir),
     logFilePath: join(logsDir, "lucent.log"),
     logsDir,
+    packagesDir: workspacePath("packages"),
     releaseCachePath: appDataPath("release-cache.json"),
     scriptsDir: workspacePath("scripts"),
     settingsPath: appDataPath("settings.json"),

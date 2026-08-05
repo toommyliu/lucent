@@ -1,12 +1,10 @@
-import type { IncomingHttpHeaders } from "http";
-import { get } from "https";
-
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import { gt, valid } from "semver";
 
 import {
   UpdateReleaseInfo,
@@ -18,6 +16,11 @@ import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
+import {
+  GitHubApiClient,
+  type GitHubApiClientShape,
+} from "../github/GitHubApiClient";
+import { firstHttpHeader } from "../http/DesktopHttpClient";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
 import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
@@ -25,6 +28,7 @@ import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
 const RELEASE_URL =
   "https://api.github.com/repos/toommyliu/lucent/releases/latest";
 const CHECK_TIMEOUT_MS = 10_000;
+const CHECK_ATTEMPTS = 3;
 
 export class DesktopUpdateError extends Schema.TaggedErrorClass<DesktopUpdateError>()(
   "DesktopUpdateError",
@@ -87,35 +91,14 @@ const decodeUpdateReleaseCache = Schema.decodeUnknownOption(
   UpdateReleaseCacheSchema,
 );
 
-const normalizeVersion = (version: string): string =>
-  version.trim().replace(/^v/i, "");
-
-const parseVersionParts = (version: string): readonly number[] | null => {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(
-    normalizeVersion(version),
-  );
-  if (!match) {
-    return null;
+const normalizeVersion = (version: string): string => {
+  const value = version.trim();
+  const normalized = value.startsWith("v") ? value.slice(1) : value;
+  const parsed = valid(normalized);
+  if (parsed === null) {
+    throw new Error(`Invalid semantic version: ${JSON.stringify(version)}.`);
   }
-
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-};
-
-const compareSemver = (left: string, right: string): number => {
-  const leftParts = parseVersionParts(left);
-  const rightParts = parseVersionParts(right);
-  if (leftParts === null || rightParts === null) {
-    return normalizeVersion(left).localeCompare(normalizeVersion(right));
-  }
-
-  for (let index = 0; index < 3; index += 1) {
-    const diff = leftParts[index]! - rightParts[index]!;
-    if (diff !== 0) {
-      return diff;
-    }
-  }
-
-  return 0;
+  return parsed;
 };
 
 const optionalString = (value: unknown): string | undefined =>
@@ -154,91 +137,47 @@ const parseGitHubReleasePayload = (
   });
 };
 
-const firstHeader = (
-  headers: IncomingHttpHeaders,
-  name: string,
-): string | undefined => {
-  const value = headers[name];
-  if (Array.isArray(value)) {
-    return value.find((entry) => entry.trim().length > 0);
-  }
-
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-};
-
-const requestHeaders = (etag: string | undefined): Record<string, string> => ({
-  Accept: "application/vnd.github+json",
-  "User-Agent": "lucent-update-checker",
-  ...(etag === undefined ? {} : { "If-None-Match": etag }),
-});
-
-const fetchLatestGitHubRelease = (options?: {
-  readonly etag?: string;
-}): Effect.Effect<UpdateReleaseFetchResult, DesktopUpdateError> =>
-  Effect.tryPromise({
-    try: () =>
-      new Promise<UpdateReleaseFetchResult>((resolve, reject) => {
-        const request = get(
-          RELEASE_URL,
-          { headers: requestHeaders(options?.etag) },
-          (response) => {
-            const statusCode = response.statusCode ?? 0;
-            const etag = firstHeader(response.headers, "etag");
-            const chunks: Buffer[] = [];
-
-            response.on("error", reject);
-            response.on("data", (chunk: Buffer | string) => {
-              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-            });
-            response.on("end", () => {
-              if (statusCode === 304) {
-                resolve({
-                  status: "not-modified",
-                  ...(etag === undefined ? {} : { etag }),
-                });
-                return;
-              }
-
-              const source = Buffer.concat(chunks).toString("utf8");
-              if (statusCode < 200 || statusCode >= 300) {
-                reject(
-                  new Error(
-                    `GitHub Releases returned HTTP ${statusCode} ${
-                      response.statusMessage ?? ""
-                    }`.trim(),
-                  ),
-                );
-                return;
-              }
-
-              try {
-                resolve({
-                  status: "modified",
-                  release: parseGitHubReleasePayload(
-                    decodeGitHubReleasePayload(JSON.parse(source)),
-                  ),
-                  ...(etag === undefined ? {} : { etag }),
-                });
-              } catch (cause) {
-                reject(cause);
-              }
-            });
-          },
-        );
-
-        request.setTimeout(CHECK_TIMEOUT_MS, () => {
-          request.destroy(new Error("Timed out while checking for updates."));
-        });
-        request.on("error", reject);
-      }),
-    catch: (cause) =>
-      new DesktopUpdateError({
+const desktopUpdateError = (cause: unknown): DesktopUpdateError =>
+  cause instanceof DesktopUpdateError
+    ? cause
+    : new DesktopUpdateError({
         detail: errorMessage(cause, "Failed to check for updates."),
         cause,
-      }),
+      });
+
+const fetchLatestGitHubRelease = Effect.fn(
+  "DesktopUpdates.fetchLatestGitHubRelease",
+)(function* (
+  api: GitHubApiClientShape,
+  options?: { readonly etag?: string },
+): Effect.fn.Return<UpdateReleaseFetchResult, DesktopUpdateError> {
+  const response = yield* api
+    .get({
+      attempts: CHECK_ATTEMPTS,
+      ...(options?.etag === undefined ? {} : { etag: options.etag }),
+      timeoutMs: CHECK_TIMEOUT_MS,
+      url: new URL(RELEASE_URL),
+    })
+    .pipe(Effect.mapError(desktopUpdateError));
+  const etag = firstHttpHeader(response.headers, "etag");
+  if (response.statusCode === 304) {
+    return {
+      status: "not-modified",
+      ...(etag === undefined ? {} : { etag }),
+    };
+  }
+
+  return yield* Effect.try({
+    try: () => ({
+      status: "modified" as const,
+      release: parseGitHubReleasePayload(
+        decodeGitHubReleasePayload(JSON.parse(response.body.toString("utf8"))),
+      ),
+      ...(etag === undefined ? {} : { etag }),
+    }),
+    catch: desktopUpdateError,
   });
+});
 
 const normalizeUpdateReleaseCache = (
   value: unknown,
@@ -331,7 +270,7 @@ const makeDesktopUpdates = (
       release: UpdateReleaseInfo,
       checkedAt: string,
     ): UpdateCheckState =>
-      compareSemver(release.version, currentVersion) > 0
+      gt(release.version, currentVersion)
         ? {
             status: "available",
             currentVersion,
@@ -459,10 +398,11 @@ export const layer = Layer.effect(
     const observability = yield* DesktopObservability;
     const shell = yield* ElectronShell;
     const settings = yield* DesktopSettings;
+    const api = yield* GitHubApiClient;
     const currentVersion = yield* app.getVersion;
 
-    const fetchRelease: DesktopUpdatesOptions["fetchRelease"] =
-      fetchLatestGitHubRelease;
+    const fetchRelease: DesktopUpdatesOptions["fetchRelease"] = (options) =>
+      fetchLatestGitHubRelease(api, options);
 
     const isEnabled: DesktopUpdatesOptions["isEnabled"] = settings.get.pipe(
       Effect.map(

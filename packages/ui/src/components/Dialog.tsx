@@ -199,6 +199,11 @@ export function DialogContent(props: DialogContentProps): JSX.Element {
             <Portal>
               <DialogOverlay
                 data-nested={layer > 1 ? "" : undefined}
+                data-slot={
+                  slot === "alert-dialog-content"
+                    ? "alert-dialog-overlay"
+                    : "dialog-overlay"
+                }
                 style={{ "z-index": dialogOverlayZIndex(layer) }}
               />
               <DialogPrimitive.Positioner
@@ -219,6 +224,7 @@ export function DialogContent(props: DialogContentProps): JSX.Element {
                   data-nested-dialog-open={
                     nestedOpenCount() > 0 ? "" : undefined
                   }
+                  inert={nestedOpenCount() > 0 ? true : undefined}
                   style={dialogContentStyle(local.style, nestedOpenCount())}
                   data-slot={slot}
                 >

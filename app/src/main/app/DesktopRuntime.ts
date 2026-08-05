@@ -19,6 +19,7 @@ import { ElectronTheme } from "../electron/ElectronTheme";
 import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers";
 import { DesktopSettings } from "../settings/DesktopSettings";
+import { ScriptWorkspace } from "../scripting/ScriptWorkspace";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopApplicationMenu } from "../window/DesktopApplicationMenu";
 import { DesktopWindows } from "../window/DesktopWindows";
@@ -71,6 +72,7 @@ export const makeDesktopRuntime = (
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
       const settingsService = yield* DesktopSettings;
+      const scriptWorkspace = yield* ScriptWorkspace;
       const updates = yield* DesktopUpdates;
       const windows = yield* DesktopWindows;
 
@@ -85,6 +87,7 @@ export const makeDesktopRuntime = (
       const settings = yield* settingsService.load;
 
       yield* app.whenReady;
+      yield* scriptWorkspace.initialize;
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;

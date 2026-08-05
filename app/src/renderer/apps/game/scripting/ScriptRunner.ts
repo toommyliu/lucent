@@ -31,6 +31,10 @@ import {
 } from "./scriptAsyncScope";
 import { loadScriptModule } from "./scriptLoader";
 import {
+  attributedScriptErrorDetails,
+  attributedScriptErrorMessage,
+} from "./scriptSourceAttribution";
+import {
   DEFAULT_SCRIPT_RUNTIME_OPTIONS,
   makeScriptRuntimeApi,
   runScriptExitActions,
@@ -316,14 +320,15 @@ const isScriptNotReadyCause = (cause: Cause.Cause<unknown>): boolean => {
 const causeMessage = (cause: Cause.Cause<unknown>): string => {
   const squashed = Cause.squash(cause);
   return squashed instanceof Error && squashed.message.length > 0
-    ? squashed.message
+    ? attributedScriptErrorMessage(squashed)
     : Cause.pretty(cause);
 };
 
 const causeDetailsText = (cause: Cause.Cause<unknown>): string | undefined => {
   const squashed = Cause.squash(cause);
-  if (squashed instanceof Error && squashed.stack?.trim() !== "") {
-    return squashed.stack;
+  if (squashed instanceof Error) {
+    const details = attributedScriptErrorDetails(squashed);
+    if (details !== undefined) return details;
   }
 
   const pretty = Cause.pretty(cause);
@@ -910,6 +915,7 @@ export const layer = Layer.effect(
           lucent,
           name: file.path ?? file.name,
           revision: file.revision,
+          ...(file.snapshot === undefined ? {} : { snapshot: file.snapshot }),
           source: file.source,
         });
         const release = yield* Deferred.make<void>();
@@ -997,7 +1003,7 @@ export const layer = Layer.effect(
               if (Cause.hasInterruptsOnly(cause)) {
                 const cancellation = (yield* Deferred.isDone(starting.cancel))
                   ? yield* Deferred.await(starting.cancel)
-                  : { reason: "start interrupted" };
+                  : { reason: "Start cancelled" };
                 return statusFromStartingCancellation(starting, cancellation);
               }
 
@@ -1195,7 +1201,7 @@ export const layer = Layer.effect(
             outcome.kind === "cancelled"
               ? outcome.cancellation.reason
               : outcome.readiness.kind === "account-changed"
-                ? "account changed"
+                ? "Account changed"
                 : undefined;
           yield* completePendingRestart(pending, {
             ...(reason === undefined ? {} : { reason }),
@@ -1216,7 +1222,7 @@ export const layer = Layer.effect(
                 const starting = yield* Ref.get(startingRef);
                 if (starting?.id === id) {
                   yield* Deferred.succeed(starting.cancel, {
-                    reason: "connection lost",
+                    reason: "Connection lost",
                     retryAfterReconnect: starting.restart !== undefined,
                   });
                   return null;
@@ -1313,11 +1319,13 @@ export const layer = Layer.effect(
                 } as const;
               }
 
-              const restart = yield* cancelPendingRestart("replaced");
+              const restart = yield* cancelPendingRestart(
+                "Replaced by another script",
+              );
               const starting = yield* Ref.get(startingRef);
               if (starting !== null) {
                 yield* Deferred.succeed(starting.cancel, {
-                  reason: "replaced",
+                  reason: "Replaced by another script",
                 });
                 return {
                   done: restart?.done ?? starting.done,
@@ -1343,7 +1351,7 @@ export const layer = Layer.effect(
                   },
                   interrupt: true,
                   terminalStatus: () => ({
-                    reason: "replaced",
+                    reason: "Replaced by another script",
                     state: "stopped",
                     stoppedAt: nowIso(),
                   }),

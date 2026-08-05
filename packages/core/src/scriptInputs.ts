@@ -1,5 +1,10 @@
 import * as Schema from "effect/Schema";
 
+import {
+  ScriptExecutionSnapshotSchema,
+  ScriptReferenceSchema,
+} from "./scriptPackages";
+
 export const ScriptInputValueSchema = Schema.Union([
   Schema.String,
   Schema.Number,
@@ -84,6 +89,7 @@ export type ScriptInputsDefinition = typeof ScriptInputsDefinitionSchema.Type;
 export const ScriptFileReferenceSchema = Schema.Struct({
   path: Schema.String,
   name: Schema.String,
+  reference: Schema.optionalKey(ScriptReferenceSchema),
 });
 
 export type ScriptFileReference = typeof ScriptFileReferenceSchema.Type;
@@ -94,6 +100,8 @@ export const ScriptFileSchema = Schema.Struct({
   source: Schema.String,
   inputs: Schema.NullOr(ScriptInputsDefinitionSchema),
   revision: Schema.String,
+  reference: Schema.optionalKey(ScriptReferenceSchema),
+  snapshot: Schema.optionalKey(ScriptExecutionSnapshotSchema),
 });
 
 export type ScriptFile = typeof ScriptFileSchema.Type;

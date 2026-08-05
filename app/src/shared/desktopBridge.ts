@@ -54,6 +54,19 @@ import type {
   ScriptInputsDefinition,
   ScriptInputValues,
 } from "@lucent/core/scriptInputs";
+import type {
+  GitHubCredentialSummary,
+  GitHubCredentialWrite,
+  ScriptCatalogChange,
+  ScriptCatalogOverview,
+  ScriptCatalogPage,
+  ScriptCatalogPageRequest,
+  ScriptPackageInstallRequest,
+  ScriptPackageMutationResult,
+  ScriptPackageRemoveRequest,
+  ScriptPackageUpdateRequest,
+  ScriptReference,
+} from "@lucent/core/scriptPackages";
 import type { UpdateCheckState } from "./updates";
 import type {
   AccountGameLaunchPayload,
@@ -135,18 +148,49 @@ export interface DesktopUpdatesBridge {
 }
 
 export interface DesktopScriptingBridge {
+  readonly checkPackageUpdate: (
+    packageName: string,
+  ) => Promise<ScriptCatalogOverview>;
+  readonly deleteCredential: (id: string) => Promise<void>;
+  readonly getCatalog: () => Promise<ScriptCatalogOverview>;
+  readonly getCatalogPage: (
+    request: ScriptCatalogPageRequest,
+  ) => Promise<ScriptCatalogPage>;
   readonly getInputValues: (
     definition: ScriptInputsDefinition,
   ) => Promise<ScriptInputValues>;
+  readonly loadReference: (reference: ScriptReference) => Promise<ScriptFile>;
+  readonly installPackage: (
+    request: ScriptPackageInstallRequest,
+  ) => Promise<ScriptPackageMutationResult>;
+  readonly listCredentials: () => Promise<readonly GitHubCredentialSummary[]>;
   readonly openFile: () => Promise<ScriptOpenFileResult>;
   readonly openPath: (path: string) => Promise<boolean>;
+  readonly openRepository: (repositoryUrl: string) => Promise<boolean>;
+  readonly onCatalogChanged: (
+    listener: (change: ScriptCatalogChange) => void,
+  ) => () => void;
   readonly readFile: (path: string) => Promise<ScriptFile>;
+  readonly readReference: (reference: ScriptReference) => Promise<ScriptFile>;
+  readonly refreshCatalog: () => Promise<ScriptCatalogOverview>;
+  readonly removePackage: (
+    request: ScriptPackageRemoveRequest,
+  ) => Promise<ScriptPackageMutationResult>;
   readonly resolveFile: (path: string) => Promise<ScriptFileResolution>;
+  readonly resolveReference: (
+    reference: ScriptReference,
+  ) => Promise<ScriptFileResolution>;
   readonly selectFile: () => Promise<ScriptSelectFileResult>;
   readonly saveInputValues: (
     definition: ScriptInputsDefinition,
     values: ScriptInputValues,
   ) => Promise<ScriptInputValues>;
+  readonly saveCredential: (
+    credential: GitHubCredentialWrite,
+  ) => Promise<GitHubCredentialSummary>;
+  readonly updatePackage: (
+    request: ScriptPackageUpdateRequest,
+  ) => Promise<ScriptPackageMutationResult>;
 }
 
 export interface DesktopCombatProfilesBridge {

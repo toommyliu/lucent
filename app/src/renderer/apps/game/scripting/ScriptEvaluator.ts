@@ -96,7 +96,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
           event.status === "OnConnectionFailed"
             ? Deferred.fail(
                 callbackFailure,
-                new ScriptStopSignal({ reason: "connection lost" }),
+                new ScriptStopSignal({ reason: "Connection lost" }),
               ).pipe(Effect.asVoid)
             : Effect.void,
       );
