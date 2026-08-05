@@ -80,7 +80,7 @@ export const makeDesktopRuntime = (
       yield* lifecycle.register;
       yield* observability.info("startup", "Lucent desktop runtime starting", {
         appDataDir: env.appDataDir,
-        logFilePath: env.logFilePath,
+        logFilePath: observability.logFilePath,
         workspaceDir: env.workspaceDir,
       });
 

@@ -34,6 +34,7 @@ import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
+import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const ARCHIVE_MAX_ENTRIES = 10_000;
 const ARCHIVE_MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
@@ -328,6 +329,7 @@ export const layer = Layer.effect(
     const client = yield* GitHubScriptPackageClient;
     const env = yield* DesktopEnvironment;
     const state = yield* ScriptPackageState;
+    const { packagesDir } = resolveScriptWorkspacePaths(env.workspaceDir);
     const mutationGate = yield* Semaphore.make(1);
 
     const mapCatalogError = (cause: unknown) =>
@@ -509,7 +511,7 @@ export const layer = Layer.effect(
             ));
 
         yield* Effect.tryPromise({
-          try: () => fs.mkdir(env.packagesDir, { recursive: true }),
+          try: () => fs.mkdir(packagesDir, { recursive: true }),
           catch: (cause) =>
             managerError(
               "install",
@@ -592,7 +594,7 @@ export const layer = Layer.effect(
                 );
               }
 
-              const destination = packagePath(env.packagesDir, packageName);
+              const destination = packagePath(packagesDir, packageName);
               const discovery = yield* catalog.getDiscovery.pipe(
                 Effect.mapError((cause) =>
                   managerError(
@@ -824,7 +826,7 @@ export const layer = Layer.effect(
             } satisfies ScriptPackageMutationResult;
           }
 
-          const root = packagePath(env.packagesDir, input.packageName);
+          const root = packagePath(packagesDir, input.packageName);
           const temporaryRoot = yield* Effect.tryPromise({
             try: () =>
               fs.mkdtemp(join(env.workspaceDir, ".lucent-package-remove-")),
@@ -864,7 +866,7 @@ export const layer = Layer.effect(
           yield* Effect.tryPromise({
             try: async () => {
               await fs.rm(temporaryRoot, { recursive: true, force: true });
-              await removeEmptyParents(root, env.packagesDir);
+              await removeEmptyParents(root, packagesDir);
             },
             catch: (cause) =>
               managerError("remove", "Failed to clean removal staging.", cause),

@@ -41,6 +41,7 @@ import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
+import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const MANIFEST_MAX_BYTES = 1024 * 1024;
 const NonEmptyManifestStringSchema = Schema.String.check(
@@ -730,6 +731,9 @@ export const layer = Layer.effect(
     const env = yield* DesktopEnvironment;
     const state = yield* ScriptPackageState;
     const currentVersion = yield* app.getVersion;
+    const { packagesDir, scriptsDir } = resolveScriptWorkspacePaths(
+      env.workspaceDir,
+    );
     const changes = makeListenerRegistry<ScriptCatalogChange>();
     const scanGate = yield* Semaphore.make(1);
     const lastScanRef = yield* Ref.make<DiscoveredScriptCatalog | null>(null);
@@ -741,14 +745,14 @@ export const layer = Layer.effect(
         return yield* Effect.tryPromise({
           try: async () => {
             await Promise.all([
-              fs.mkdir(env.scriptsDir, { recursive: true }),
-              fs.mkdir(env.packagesDir, { recursive: true }),
+              fs.mkdir(scriptsDir, { recursive: true }),
+              fs.mkdir(packagesDir, { recursive: true }),
             ]);
             return discoverScriptCatalog({
               currentVersion,
               managedPackages,
-              packagesDir: env.packagesDir,
-              scriptsDir: env.scriptsDir,
+              packagesDir,
+              scriptsDir,
             });
           },
           catch: (cause) =>

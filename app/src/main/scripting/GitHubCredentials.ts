@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { join } from "path";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -118,7 +119,7 @@ export const layer = Layer.effect(
   GitHubCredentials,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const credentialsPath = env.appDataPath("github-credentials.json");
+    const credentialsPath = join(env.appDataDir, "github-credentials.json");
     const loaded = yield* readJsonFile(credentialsPath).pipe(
       Effect.match({
         onFailure: (cause): CredentialLoadState => ({

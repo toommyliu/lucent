@@ -117,11 +117,7 @@ export const makeDesktopLayer = (
   );
   const scriptSourceRegistryLayer = ScriptSourceRegistry.layer.pipe(
     Layer.provideMerge(
-      Layer.mergeAll(
-        environmentLayer,
-        scriptFilesLayer,
-        scriptPackageCatalogLayer,
-      ),
+      Layer.mergeAll(scriptFilesLayer, scriptPackageCatalogLayer),
     ),
   );
 

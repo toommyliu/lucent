@@ -12,10 +12,7 @@ import type {
   ScriptCatalogOverview,
   ScriptPackageIntegrity,
 } from "@lucent/core/scriptPackages";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   GitHubScriptPackageClient,
   type GitHubCommitResolution,
@@ -141,7 +138,7 @@ const makeManagerHarness = (options: {
         managed = value;
       }),
   });
-  const environment = makeDesktopEnvironment({
+  const environment = DesktopEnvironment.of({
     appDataDir: "/tmp/lucent-package-manager-data",
     assetsDir: "/tmp/lucent-package-manager-assets",
     isDev: true,

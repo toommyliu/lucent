@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -135,7 +137,7 @@ const deleteProfileFromLibrary = (
 
 const makeCombatProfiles = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const path = env.appDataPath("combat-profiles.json");
+  const path = join(env.appDataDir, "combat-profiles.json");
   const libraryRef = yield* SynchronizedRef.make<CombatProfileLibrary | null>(
     null,
   );

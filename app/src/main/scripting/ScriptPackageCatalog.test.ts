@@ -6,10 +6,7 @@ import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronApp } from "../electron/ElectronApp";
 import { hashDirectory } from "./ScriptPackageFileSystem";
 import {
@@ -234,7 +231,7 @@ describe("ScriptPackageCatalog", () => {
           write(join(workspace.scriptsDir, "first.js"), ""),
         );
         let scanCount = 0;
-        const environment = makeDesktopEnvironment({
+        const environment = DesktopEnvironment.of({
           appDataDir: join(workspace.root, "app-data"),
           assetsDir: join(workspace.root, "assets"),
           isDev: true,

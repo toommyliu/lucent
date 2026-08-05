@@ -15,10 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DEFAULT_ACCOUNT_SETTINGS } from "@lucent/core/accountSettings";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
   AccountSettingsRepository,
   layer as accountSettingsRepositoryLayer,
@@ -47,7 +44,7 @@ const makeRepository = () =>
     const workspaceDir = yield* Effect.promise(() =>
       makeTempDir("lucent-account-settings-workspace-"),
     );
-    const env = makeDesktopEnvironment({
+    const env = DesktopEnvironment.of({
       appDataDir,
       assetsDir: join(appDataDir, "assets"),
       isDev: true,

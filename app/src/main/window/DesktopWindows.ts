@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
+import appBranding from "../../../appBranding.json";
 import {
   type AppearanceSnapshot,
   createAppearanceSnapshot,
@@ -243,6 +244,8 @@ const createWindowOptions = (
 ): ElectronWindowCreateOptions => {
   const width = bounds?.width ?? definition.width;
   const height = bounds?.height ?? definition.height;
+  const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
+  const appIconPath = join(env.assetsDir, activeBranding.iconPng);
 
   return {
     width,
@@ -254,7 +257,7 @@ const createWindowOptions = (
     ...(definition.minHeight === undefined
       ? {}
       : { minHeight: Math.min(definition.minHeight, height) }),
-    ...(env.platform === "linux" ? { icon: env.appIconPath } : {}),
+    ...(env.platform === "linux" ? { icon: appIconPath } : {}),
     backgroundColor: snapshot.backgroundColor,
     show: false,
     webPreferences: {

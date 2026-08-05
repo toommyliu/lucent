@@ -13,10 +13,7 @@ import {
   normalizeCombatProfileLibrary,
   type CombatProfile,
 } from "@lucent/core/combatProfiles";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
   CombatProfiles,
   layer as desktopCombatProfilesLayer,
@@ -45,7 +42,7 @@ const makeHarness = () =>
     const workspaceDir = yield* Effect.promise(() =>
       makeTempDir("lucent-combat-profiles-workspace-"),
     );
-    const env = makeDesktopEnvironment({
+    const env = DesktopEnvironment.of({
       appDataDir,
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
@@ -61,7 +58,7 @@ const makeHarness = () =>
 
     return {
       combatProfiles,
-      path: env.appDataPath("combat-profiles.json"),
+      path: join(env.appDataDir, "combat-profiles.json"),
     };
   });
 

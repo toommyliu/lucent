@@ -17,7 +17,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { configureFlashStartup } from "./Preflight";
+import { configureFlashStartup, resolveWorkspaceHome } from "./Preflight";
 
 const temporaryDirectories: string[] = [];
 
@@ -38,7 +38,6 @@ const makeEnvironmentConfig = () => {
     config: {
       appDataDir: join(directory, "app-data"),
       assetsDir: join(directory, "assets"),
-      flashPluginPathOverride: flashPluginPath,
       isDev: true,
       platform: "darwin" as const,
       workspaceDir: join(directory, "workspace"),
@@ -48,12 +47,21 @@ const makeEnvironmentConfig = () => {
 };
 
 describe("main preflight", () => {
+  it("resolves the Lucent workspace beneath Documents", () => {
+    expect(
+      resolveWorkspaceHome({ documentsPath: "/Users/example/Documents" }),
+    ).toBe(join("/Users/example/Documents", "Lucent"));
+  });
+
   it("configures the optional Flash version with the plugin path", () => {
     const { config, flashPluginPath } = makeEnvironmentConfig();
 
-    expect(configureFlashStartup(config, "32.0.0.371").status).toBe(
-      "configured",
-    );
+    expect(
+      configureFlashStartup(config, {
+        flashPluginPathOverride: flashPluginPath,
+        flashVersion: "32.0.0.371",
+      }).status,
+    ).toBe("configured");
     expect(electronMock.appendSwitch.mock.calls).toEqual([
       ["ppapi-flash-path", flashPluginPath],
       ["ppapi-flash-version", "32.0.0.371"],
@@ -63,7 +71,11 @@ describe("main preflight", () => {
   it("leaves the Flash version unset when it is omitted", () => {
     const { config, flashPluginPath } = makeEnvironmentConfig();
 
-    expect(configureFlashStartup(config).status).toBe("configured");
+    expect(
+      configureFlashStartup(config, {
+        flashPluginPathOverride: flashPluginPath,
+      }).status,
+    ).toBe("configured");
     expect(electronMock.appendSwitch).toHaveBeenCalledOnce();
     expect(electronMock.appendSwitch).toHaveBeenCalledWith(
       "ppapi-flash-path",

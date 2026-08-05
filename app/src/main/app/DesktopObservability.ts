@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import type { EventEmitter } from "events";
+import { join } from "path";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -27,6 +28,7 @@ export interface DesktopObservabilityShape {
     data?: unknown,
   ) => Effect.Effect<void>;
   readonly installProcessHooks: Effect.Effect<void, never, Scope.Scope>;
+  readonly logFilePath: string;
   readonly warn: (
     component: string,
     message: string,
@@ -67,6 +69,8 @@ const serialize = (record: unknown): Effect.Effect<string> =>
 
 const makeDesktopObservability = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
+  const logsDir = join(env.appDataDir, "logs");
+  const logFilePath = join(logsDir, "lucent.log");
 
   const writeRecord = (
     level: ObservabilityLevel,
@@ -86,8 +90,8 @@ const makeDesktopObservability = Effect.gen(function* () {
       Effect.flatMap((source) =>
         Effect.tryPromise({
           try: async () => {
-            await fs.mkdir(env.logsDir, { recursive: true });
-            await fs.appendFile(env.logFilePath, source, "utf8");
+            await fs.mkdir(logsDir, { recursive: true });
+            await fs.appendFile(logFilePath, source, "utf8");
           },
           catch: () => undefined,
         }),
@@ -151,6 +155,7 @@ const makeDesktopObservability = Effect.gen(function* () {
     error,
     info,
     installProcessHooks,
+    logFilePath,
     warn,
   });
 });

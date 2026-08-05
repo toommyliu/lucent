@@ -11,10 +11,7 @@ import {
   findMissingRequiredScriptInputs,
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
   ScriptInputRepository,
   layer as scriptInputRepositoryLayer,
@@ -74,7 +71,7 @@ const makeRepository = () =>
     const workspaceDir = yield* Effect.promise(() =>
       makeTempDir("lucent-script-inputs-workspace-"),
     );
-    const env = makeDesktopEnvironment({
+    const env = DesktopEnvironment.of({
       appDataDir,
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
@@ -121,7 +118,7 @@ describe("ScriptInputRepository service", () => {
       });
       const persisted = JSON.parse(
         yield* Effect.promise(() =>
-          readFile(env.appDataPath("script-inputs.json"), "utf8"),
+          readFile(join(env.appDataDir, "script-inputs.json"), "utf8"),
         ),
       ) as Record<string, unknown>;
 
@@ -154,7 +151,7 @@ describe("ScriptInputRepository service", () => {
       );
       const persisted = JSON.parse(
         yield* Effect.promise(() =>
-          readFile(env.appDataPath("script-inputs.json"), "utf8"),
+          readFile(join(env.appDataDir, "script-inputs.json"), "utf8"),
         ),
       ) as Record<string, unknown>;
 
@@ -170,7 +167,7 @@ describe("ScriptInputRepository service", () => {
     () =>
       Effect.gen(function* () {
         const { env, repository } = yield* makeRepository();
-        const path = env.appDataPath("script-inputs.json");
+        const path = join(env.appDataDir, "script-inputs.json");
         yield* Effect.promise(() =>
           writeFile(
             path,

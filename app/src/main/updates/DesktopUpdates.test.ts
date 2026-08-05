@@ -8,10 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
@@ -105,7 +102,7 @@ const makeUpdatesHarness = (options: {
     const workspaceDir = yield* Effect.promise(() =>
       makeTempDir("lucent-updates-workspace-"),
     );
-    const env = makeDesktopEnvironment({
+    const env = DesktopEnvironment.of({
       appDataDir,
       assetsDir: join(appDataDir, "assets"),
       isDev: true,
@@ -114,7 +111,11 @@ const makeUpdatesHarness = (options: {
     });
     if (options.cache !== undefined) {
       yield* Effect.promise(() =>
-        writeFile(env.releaseCachePath, JSON.stringify(options.cache), "utf8"),
+        writeFile(
+          join(env.appDataDir, "release-cache.json"),
+          JSON.stringify(options.cache),
+          "utf8",
+        ),
       );
     }
 
@@ -134,6 +135,7 @@ const makeUpdatesHarness = (options: {
       error: () => Effect.void,
       info: () => Effect.void,
       installProcessHooks: Effect.void,
+      logFilePath: join(env.appDataDir, "logs", "lucent.log"),
       warn: () => Effect.void,
     });
     const app = ElectronApp.of({
@@ -227,7 +229,9 @@ describe("DesktopUpdates", () => {
           expect(state.release.tagName).toBe("v1.2.3");
         }
         const cache = JSON.parse(
-          yield* Effect.promise(() => readFile(env.releaseCachePath, "utf8")),
+          yield* Effect.promise(() =>
+            readFile(join(env.appDataDir, "release-cache.json"), "utf8"),
+          ),
         ) as {
           readonly etag?: string;
           readonly release?: { readonly tagName?: string };

@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -46,7 +48,7 @@ export const layer = Layer.effect(
   AccountRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const path = env.appDataPath(ACCOUNT_MANAGER_STORAGE_FILE);
+    const path = join(env.appDataDir, ACCOUNT_MANAGER_STORAGE_FILE);
     const storageRef =
       yield* SynchronizedRef.make<AccountManagerStorage | null>(null);
 

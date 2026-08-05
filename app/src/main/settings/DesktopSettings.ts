@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -232,23 +234,24 @@ const applyHotkeysPatch = (
 
 const makeDesktopSettings = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
+  const settingsPath = join(env.appDataDir, "settings.json");
   const settingsRef = yield* SynchronizedRef.make<AppSettings | null>(null);
   const settingsChanges = makeListenerRegistry<AppSettings>();
 
   const readSettingsFromFile = Effect.gen(function* () {
-    const result = yield* readJsonFile(env.settingsPath).pipe(
+    const result = yield* readJsonFile(settingsPath).pipe(
       Effect.mapError(wrapDataError),
     );
     if (result.status === "missing") {
       yield* writeJsonFile(
-        env.settingsPath,
+        settingsPath,
         serializeAppSettings(DEFAULT_APP_SETTINGS),
       ).pipe(Effect.mapError(wrapDataError));
       return DEFAULT_APP_SETTINGS;
     }
 
     const settings = normalizeAppSettings(result.value);
-    yield* writeJsonFile(env.settingsPath, serializeAppSettings(settings)).pipe(
+    yield* writeJsonFile(settingsPath, serializeAppSettings(settings)).pipe(
       Effect.mapError(wrapDataError),
     );
     return settings;
@@ -274,10 +277,10 @@ const makeDesktopSettings = Effect.gen(function* () {
     settings: AppSettings,
   ): Effect.Effect<AppSettings, DesktopSettingsError> => {
     const normalized = normalizeAppSettings(settings);
-    return writeJsonFile(
-      env.settingsPath,
-      serializeAppSettings(normalized),
-    ).pipe(Effect.mapError(wrapDataError), Effect.as(normalized));
+    return writeJsonFile(settingsPath, serializeAppSettings(normalized)).pipe(
+      Effect.mapError(wrapDataError),
+      Effect.as(normalized),
+    );
   };
 
   const update = (

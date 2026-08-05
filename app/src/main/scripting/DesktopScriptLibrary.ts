@@ -25,6 +25,7 @@ import { ScriptFiles } from "../internal/scripting/ScriptFiles";
 import { ScriptPackageCatalog } from "./ScriptPackageCatalog";
 import { normalizeGitHubRepositoryUrl } from "./GitHubScriptPackageClient";
 import { ScriptSourceRegistry } from "./ScriptSourceRegistry";
+import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const scriptLibraryOperationSchema = Schema.Literals(["mkdir", "open", "read"]);
 
@@ -129,6 +130,7 @@ export const layer = Layer.effect(
     const catalog = yield* ScriptPackageCatalog;
     const sources = yield* ScriptSourceRegistry;
     const shell = yield* ElectronShell;
+    const { scriptsDir } = resolveScriptWorkspacePaths(env.workspaceDir);
 
     const readFile = (path: string) =>
       sources
@@ -176,11 +178,11 @@ export const layer = Layer.effect(
       );
 
     const selectPath = Effect.gen(function* () {
-      yield* ensureDirectory(env.scriptsDir);
+      yield* ensureDirectory(scriptsDir);
       const result = yield* dialog
         .showOpenDialog({
           buttonLabel: "Load Script",
-          defaultPath: env.scriptsDir,
+          defaultPath: scriptsDir,
           filters: [
             { extensions: ["js", "cjs"], name: "JavaScript Scripts" },
             { extensions: ["*"], name: "All Files" },

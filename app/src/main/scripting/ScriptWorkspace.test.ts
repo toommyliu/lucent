@@ -6,15 +6,13 @@ import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   SCRIPT_WORKSPACE_CONFIG,
   ScriptWorkspace,
   layer,
 } from "./ScriptWorkspace";
+import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const directories: string[] = [];
 
@@ -36,7 +34,7 @@ const makeFixture = async () => {
   );
   const workspaceDir = join(root, "Documents", "Lucent");
   await write(templatePath, "declare module 'lucent' {}\n");
-  const environment = makeDesktopEnvironment({
+  const environment = DesktopEnvironment.of({
     appDataDir: join(root, "app-data"),
     assetsDir,
     isDev: true,
@@ -50,7 +48,11 @@ const makeFixture = async () => {
     const workspace = yield* ScriptWorkspace;
     yield* workspace.initialize;
   }).pipe(Effect.provide(testLayer), Effect.runPromise);
-  return { environment, initialize, workspaceDir };
+  return {
+    initialize,
+    paths: resolveScriptWorkspacePaths(workspaceDir),
+    workspaceDir,
+  };
 };
 
 afterEach(async () => {
@@ -66,12 +68,8 @@ describe("ScriptWorkspace", () => {
     const fixture = await makeFixture();
     await fixture.initialize;
 
-    await expect(
-      fs.stat(fixture.environment.scriptsDir),
-    ).resolves.toMatchObject({});
-    await expect(
-      fs.stat(fixture.environment.packagesDir),
-    ).resolves.toMatchObject({});
+    await expect(fs.stat(fixture.paths.scriptsDir)).resolves.toMatchObject({});
+    await expect(fs.stat(fixture.paths.packagesDir)).resolves.toMatchObject({});
     await expect(
       fs.readFile(join(fixture.workspaceDir, "jsconfig.json"), "utf8"),
     ).resolves.toBe(SCRIPT_WORKSPACE_CONFIG);

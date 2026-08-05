@@ -8,10 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   DesktopSettings,
   DesktopSettingsError,
@@ -42,7 +39,7 @@ describe("DesktopSettings", () => {
       const workspaceDir = yield* Effect.promise(() =>
         makeTempDir("lucent-settings-workspace-"),
       );
-      const env = makeDesktopEnvironment({
+      const env = DesktopEnvironment.of({
         appDataDir,
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
@@ -67,7 +64,9 @@ describe("DesktopSettings", () => {
       const updated = yield* settings.updateAppearance({ themeMode: "light" });
       unsubscribe();
       const persisted = JSON.parse(
-        yield* Effect.promise(() => readFile(env.settingsPath, "utf8")),
+        yield* Effect.promise(() =>
+          readFile(join(env.appDataDir, "settings.json"), "utf8"),
+        ),
       ) as {
         readonly appearance?: { readonly themeMode?: string };
         readonly hotkeys?: { readonly bindings?: readonly unknown[] };
@@ -91,7 +90,7 @@ describe("DesktopSettings", () => {
       const workspaceDir = yield* Effect.promise(() =>
         makeTempDir("lucent-settings-workspace-"),
       );
-      const env = makeDesktopEnvironment({
+      const env = DesktopEnvironment.of({
         appDataDir,
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
@@ -107,7 +106,7 @@ describe("DesktopSettings", () => {
 
       yield* settings.load;
       const before = yield* Effect.promise(() =>
-        readFile(env.settingsPath, "utf8"),
+        readFile(join(env.appDataDir, "settings.json"), "utf8"),
       );
       const result = yield* settings
         .updateHotkeys({
@@ -123,7 +122,9 @@ describe("DesktopSettings", () => {
       expect(result).toBeInstanceOf(DesktopSettingsError);
       expect(result?.message).toContain("Hotkey is already assigned");
       expect(
-        yield* Effect.promise(() => readFile(env.settingsPath, "utf8")),
+        yield* Effect.promise(() =>
+          readFile(join(env.appDataDir, "settings.json"), "utf8"),
+        ),
       ).toBe(before);
     }),
   );
@@ -136,7 +137,7 @@ describe("DesktopSettings", () => {
       const workspaceDir = yield* Effect.promise(() =>
         makeTempDir("lucent-settings-workspace-"),
       );
-      const env = makeDesktopEnvironment({
+      const env = DesktopEnvironment.of({
         appDataDir,
         assetsDir: join(appDataDir, "assets"),
         isDev: true,
@@ -161,7 +162,9 @@ describe("DesktopSettings", () => {
 
       const current = yield* settings.get;
       const persisted = JSON.parse(
-        yield* Effect.promise(() => readFile(env.settingsPath, "utf8")),
+        yield* Effect.promise(() =>
+          readFile(join(env.appDataDir, "settings.json"), "utf8"),
+        ),
       ) as {
         readonly appearance?: { readonly themeMode?: string };
         readonly preferences?: { readonly launchMode?: string };

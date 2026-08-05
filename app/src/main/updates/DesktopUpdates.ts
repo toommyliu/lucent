@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -400,6 +402,7 @@ export const layer = Layer.effect(
     const settings = yield* DesktopSettings;
     const api = yield* GitHubApiClient;
     const currentVersion = yield* app.getVersion;
+    const releaseCachePath = join(env.appDataDir, "release-cache.json");
 
     const fetchRelease: DesktopUpdatesOptions["fetchRelease"] = (options) =>
       fetchLatestGitHubRelease(api, options);
@@ -411,7 +414,7 @@ export const layer = Layer.effect(
     );
 
     const loadCache: DesktopUpdatesOptions["loadCache"] = readJsonFile(
-      env.releaseCachePath,
+      releaseCachePath,
     ).pipe(
       Effect.map((result) =>
         result.status === "ok"
@@ -426,10 +429,7 @@ export const layer = Layer.effect(
     );
 
     const saveCache: DesktopUpdatesOptions["saveCache"] = (cache) =>
-      writeJsonFile(
-        env.releaseCachePath,
-        serializeUpdateReleaseCache(cache),
-      ).pipe(
+      writeJsonFile(releaseCachePath, serializeUpdateReleaseCache(cache)).pipe(
         Effect.catch((cause) =>
           observability.warn("updates", "Failed to save release cache", {
             cause,

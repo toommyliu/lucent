@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -127,7 +129,7 @@ export const layer = Layer.effect(
   ScriptPackageState,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const statePath = env.appDataPath("script-packages.json");
+    const statePath = join(env.appDataDir, "script-packages.json");
     const initial = yield* readJsonFile(statePath).pipe(
       Effect.match({
         onFailure: (cause): ScriptPackageLoadState => ({

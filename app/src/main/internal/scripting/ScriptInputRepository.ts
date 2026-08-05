@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -101,7 +103,7 @@ export const layer = Layer.effect(
   ScriptInputRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const path = env.appDataPath("script-inputs.json");
+    const path = join(env.appDataDir, "script-inputs.json");
     const writes = yield* Semaphore.make(1);
 
     const getValues = (definition: ScriptInputsDefinition) =>

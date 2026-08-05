@@ -7,10 +7,7 @@ import { afterEach } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import {
-  DesktopEnvironment,
-  makeDesktopEnvironment,
-} from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { AccountGameWindows } from "./AccountGameWindows";
 import * as AccountRepository from "./AccountRepository";
 import { Accounts, layer as accountsLayer } from "./Accounts";
@@ -33,7 +30,7 @@ const makeHarness = () =>
       mkdtemp(join(tmpdir(), "lucent-accounts-data-")),
     );
     tempDirs.add(appDataDir);
-    const env = makeDesktopEnvironment({
+    const env = DesktopEnvironment.of({
       appDataDir,
       assetsDir: join(appDataDir, "assets"),
       isDev: true,

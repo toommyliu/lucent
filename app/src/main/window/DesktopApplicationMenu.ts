@@ -13,6 +13,7 @@ import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
+import { resolveFlashTrustRootPath } from "../flash/FlashPaths";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopWindows } from "./DesktopWindows";
@@ -68,6 +69,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const isDarwin = env.platform === "darwin";
+  const flashTrustRootPath = resolveFlashTrustRootPath(env.appDataDir);
 
   const logMenuFailure = (operation: string, cause: unknown): void => {
     void runPromise(
@@ -208,8 +210,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       },
       {
         label: "Clear Flash Data",
-        click: () =>
-          clearData("Flash", removeDirectory(env.flashTrustRootPath)),
+        click: () => clearData("Flash", removeDirectory(flashTrustRootPath)),
       },
     ];
     const launchMenuItems: MenuItemConstructorOptions[] = [

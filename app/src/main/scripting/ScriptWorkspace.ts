@@ -7,6 +7,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const scriptWorkspaceOperationSchema = Schema.Literals([
   "copy-types",
@@ -76,8 +77,11 @@ export const layer = Layer.effect(
   ScriptWorkspace,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const configPath = env.workspacePath("jsconfig.json");
-    const typesPath = env.workspacePath("script-api.d.ts");
+    const { packagesDir, scriptsDir } = resolveScriptWorkspacePaths(
+      env.workspaceDir,
+    );
+    const configPath = join(env.workspaceDir, "jsconfig.json");
+    const typesPath = join(env.workspaceDir, "script-api.d.ts");
     const templatePath = env.isDev
       ? join(env.assetsDir, "..", "docs", "public", "script-api.d.ts")
       : join(env.assetsDir, "..", "script-api.d.ts");
@@ -114,7 +118,7 @@ export const layer = Layer.effect(
       initialize: Effect.gen(function* () {
         yield* createDirectory(env.workspaceDir);
         yield* Effect.all(
-          [createDirectory(env.scriptsDir), createDirectory(env.packagesDir)],
+          [createDirectory(scriptsDir), createDirectory(packagesDir)],
           { concurrency: 2, discard: true },
         );
         yield* Effect.all([createConfig, copyTypes], {

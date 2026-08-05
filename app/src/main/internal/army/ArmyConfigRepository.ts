@@ -73,6 +73,7 @@ export const layer = Layer.effect(
   ArmyConfigRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const armyDir = join(env.workspaceDir, "army");
 
     const read: ArmyConfigRepositoryShape["read"] = (configNameInput) =>
       Effect.gen(function* () {
@@ -80,7 +81,7 @@ export const layer = Layer.effect(
           try: () => assertValidArmyConfigName(configNameInput),
           catch: (cause) => error("validate", configNameInput, cause),
         });
-        const path = join(env.armyDir, `${configName}.yaml`);
+        const path = join(armyDir, `${configName}.yaml`);
         const source = yield* readText(configName, path);
         const raw = yield* Effect.try({
           try: () => parse(source) as unknown,

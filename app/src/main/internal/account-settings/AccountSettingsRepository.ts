@@ -1,3 +1,5 @@
+import { join } from "path";
+
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -97,7 +99,11 @@ export const layer = Layer.effect(
       username: string,
     ) {
       const normalized = yield* normalizeUsername(username);
-      return env.appDataPath(ACCOUNT_SETTINGS_DIRECTORY, `${normalized}.json`);
+      return join(
+        env.appDataDir,
+        ACCOUNT_SETTINGS_DIRECTORY,
+        `${normalized}.json`,
+      );
     });
 
     const readPath = Effect.fn("AccountSettingsRepository.readPath")(function* (

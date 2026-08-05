@@ -1,17 +1,17 @@
 import { randomFillSync } from "crypto";
 import { existsSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 
 import { app } from "electron";
 
 import appBranding from "../../../appBranding.json";
 import { parseCliOptions, type CliOptions } from "../cli";
+import { type DesktopEnvironmentConfig } from "./DesktopEnvironment";
 import {
-  makeDesktopEnvironment,
-  resolveUserDataPath,
-  resolveWorkspaceHome,
-  type DesktopEnvironmentConfig,
-} from "./DesktopEnvironment";
+  resolveFlashTrustRootPath,
+  resolvePepperFlashPluginPath,
+} from "../flash/FlashPaths";
 import { writeTrustFile } from "../flash/FlashTrust";
 
 export type FlashStartupResult =
@@ -61,6 +61,42 @@ const installCryptoFallback = (): void => {
 
 const parseMainCliOptions = (): CliOptions => parseCliOptions(process.argv);
 
+export const resolveWorkspaceHome = (
+  options: {
+    readonly documentsPath?: string;
+  } = {},
+): string =>
+  join(options.documentsPath ?? join(homedir(), "Documents"), "Lucent");
+
+const resolveAppDataBasePath = (
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string => {
+  if (platform === "win32") {
+    return env["APPDATA"] ?? join(homedir(), "AppData", "Roaming");
+  }
+
+  if (platform === "darwin") {
+    return join(homedir(), "Library", "Application Support");
+  }
+
+  return env["XDG_DATA_HOME"] ?? join(homedir(), ".local", "share");
+};
+
+export const resolveUserDataPath = (options: {
+  readonly isDev: boolean;
+  readonly platform?: NodeJS.Platform;
+  readonly env?: NodeJS.ProcessEnv;
+}): string => {
+  const activeBranding = options.isDev
+    ? appBranding.dev
+    : appBranding.production;
+  return join(
+    resolveAppDataBasePath(options.platform, options.env),
+    activeBranding.userDataDirName,
+  );
+};
+
 const resolveEnvironmentConfig = (
   cliOptions: CliOptions,
 ): DesktopEnvironmentConfig => {
@@ -79,9 +115,6 @@ const resolveEnvironmentConfig = (
     appDataDir: app.getPath("userData"),
     assetsDir: join(app.getAppPath(), "..", "assets"),
     debug: cliOptions.debug === true,
-    ...(cliOptions.flashPluginPath === undefined
-      ? {}
-      : { flashPluginPathOverride: cliOptions.flashPluginPath }),
     isDev,
     platform,
     workspaceDir: resolveWorkspaceHome({
@@ -92,25 +125,34 @@ const resolveEnvironmentConfig = (
 
 export const configureFlashStartup = (
   envConfig: DesktopEnvironmentConfig,
-  flashVersion?: string,
+  options: {
+    readonly flashPluginPathOverride?: string;
+    readonly flashVersion?: string;
+  } = {},
 ): FlashStartupResult => {
-  const env = makeDesktopEnvironment(envConfig);
-  const trustedPaths = [join(env.assetsDir, "loader.swf")];
-  const flashPluginPath = env.flashPluginPath;
+  const trustedPaths = [join(envConfig.assetsDir, "loader.swf")];
+  const flashPluginPath = resolvePepperFlashPluginPath({
+    ...(options.flashPluginPathOverride === undefined
+      ? {}
+      : { override: options.flashPluginPathOverride }),
+    platform: envConfig.platform,
+    workspaceDir: envConfig.workspaceDir,
+  });
+  const flashTrustRootPath = resolveFlashTrustRootPath(envConfig.appDataDir);
   const pluginMissing =
     flashPluginPath === null || !existsSync(flashPluginPath);
 
   if (!pluginMissing) {
     app.commandLine.appendSwitch("ppapi-flash-path", flashPluginPath);
-    if (flashVersion !== undefined) {
-      app.commandLine.appendSwitch("ppapi-flash-version", flashVersion);
+    if (options.flashVersion !== undefined) {
+      app.commandLine.appendSwitch("ppapi-flash-version", options.flashVersion);
     }
   }
 
   try {
     writeTrustFile({
       appName: "lucent",
-      rootPath: env.flashTrustRootPath,
+      rootPath: flashTrustRootPath,
       trustedPaths,
     });
   } catch (cause) {
@@ -118,7 +160,7 @@ export const configureFlashStartup = (
       status: "failed",
       cause,
       flashPluginPath,
-      flashTrustRootPath: env.flashTrustRootPath,
+      flashTrustRootPath,
       trustedPaths,
     };
   }
@@ -127,7 +169,7 @@ export const configureFlashStartup = (
     return {
       status: "missing-plugin",
       flashPluginPath,
-      flashTrustRootPath: env.flashTrustRootPath,
+      flashTrustRootPath,
       trustedPaths,
     };
   }
@@ -135,7 +177,7 @@ export const configureFlashStartup = (
   return {
     status: "configured",
     flashPluginPath,
-    flashTrustRootPath: env.flashTrustRootPath,
+    flashTrustRootPath,
     trustedPaths,
   };
 };
@@ -146,6 +188,13 @@ export const prepareMainProcess = (): MainProcessBootstrap => {
 
   const cliOptions = parseMainCliOptions();
   const envConfig = resolveEnvironmentConfig(cliOptions);
-  const flash = configureFlashStartup(envConfig, cliOptions.flashVersion);
+  const flash = configureFlashStartup(envConfig, {
+    ...(cliOptions.flashPluginPath === undefined
+      ? {}
+      : { flashPluginPathOverride: cliOptions.flashPluginPath }),
+    ...(cliOptions.flashVersion === undefined
+      ? {}
+      : { flashVersion: cliOptions.flashVersion }),
+  });
   return { cliOptions, envConfig, flash };
 };
