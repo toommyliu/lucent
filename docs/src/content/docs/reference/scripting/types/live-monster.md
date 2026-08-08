@@ -11,7 +11,7 @@ sidebar:
 class LiveMonster extends LiveEntity<MonsterData>
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L79" aria-label="Open source: packages/game/src/monster.ts:79" title="packages/game/src/monster.ts:79" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:79</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L107" aria-label="Open source: packages/game/src/monster.ts:107" title="packages/game/src/monster.ts:107" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:107</code></a></p>
 
 ## Properties
 
@@ -45,6 +45,16 @@ readonly cell: string
 
 ```ts
 readonly dead: boolean
+```
+
+<a id="property-drops"></a>
+
+### `drops` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L110" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:110" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+Server-provided drops discovered while sharing a cell with this monster.
+
+```ts
+readonly drops: readonly MonsterDrop[]
 ```
 
 <a id="property-hp"></a>
@@ -81,7 +91,7 @@ readonly inCombat: boolean
 
 <a id="property-level"></a>
 
-### `level` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L80" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:80" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `level` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L113" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:113" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly level: number
@@ -105,7 +115,7 @@ readonly maxMp: number
 
 <a id="property-monsterid"></a>
 
-### `monsterId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L83" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:83" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `monsterId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L116" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:116" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly monsterId: number
@@ -113,7 +123,7 @@ readonly monsterId: number
 
 <a id="property-monstermapid"></a>
 
-### `monsterMapId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L86" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:86" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `monsterMapId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L119" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:119" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly monsterMapId: number
@@ -137,7 +147,7 @@ readonly mpPercent: number
 
 <a id="property-name"></a>
 
-### `name` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L89" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:89" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `name` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L122" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:122" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly name: string
@@ -145,7 +155,7 @@ readonly name: string
 
 <a id="property-race"></a>
 
-### `race` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L92" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:92" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `race` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L125" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:125" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly race: string
@@ -203,7 +213,7 @@ isInCell(cell: string): boolean
 
 <a id="method-matches"></a>
 
-### `matches()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L96" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:96" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `matches()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L129" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:129" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 matches(selector: MonsterQuery): boolean
@@ -215,6 +225,16 @@ matches(selector: MonsterQuery): boolean
 
 ```ts
 removeAura(name: string, kind?: AuraKind): void
+```
+
+<a id="method-replacedrops"></a>
+
+### `replaceDrops()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L151" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:151" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+Replaces the server-provided drop collection without replacing the monster.
+
+```ts
+replaceDrops(drops: readonly MonsterDrop[]): void
 ```
 
 <a id="method-replacefrom"></a>
@@ -235,7 +255,7 @@ snapshot(): MonsterData
 
 <a id="method-tojson"></a>
 
-### `toJSON()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L117" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:117" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `toJSON()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L164" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/monster.ts:164" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 toJSON(): MonsterSnapshot

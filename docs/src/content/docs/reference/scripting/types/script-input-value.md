@@ -11,4 +11,4 @@ sidebar:
 type ScriptInputValue = string | number | boolean
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/scriptInputs.ts#L9" aria-label="Open source: packages/core/src/scriptInputs.ts:9" title="packages/core/src/scriptInputs.ts:9" target="_blank" rel="noreferrer"><code class="source-reference__path">scriptInputs.ts:9</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/scriptInputs.ts#L14" aria-label="Open source: packages/core/src/scriptInputs.ts:14" title="packages/core/src/scriptInputs.ts:14" target="_blank" rel="noreferrer"><code class="source-reference__path">scriptInputs.ts:14</code></a></p>

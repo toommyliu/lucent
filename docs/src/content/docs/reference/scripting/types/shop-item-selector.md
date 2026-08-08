@@ -11,4 +11,4 @@ sidebar:
 type ShopItemSelector = ItemSelector | ShopItemSelectorById
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L39" aria-label="Open source: packages/game/src/item.ts:39" title="packages/game/src/item.ts:39" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:39</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L95" aria-label="Open source: packages/game/src/item.ts:95" title="packages/game/src/item.ts:95" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:95</code></a></p>

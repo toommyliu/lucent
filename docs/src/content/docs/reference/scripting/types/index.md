@@ -89,6 +89,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/live-server/" data-script-type="live-server"><code>LiveServer</code></a> | class |  |
 | <a href="/reference/scripting/types/live-shop/" data-script-type="live-shop"><code>LiveShop</code></a> | class |  |
 | <a href="/reference/scripting/types/monster-data/" data-script-type="monster-data"><code>MonsterData</code></a> | interface |  |
+| <a href="/reference/scripting/types/monster-drop/" data-script-type="monster-drop"><code>MonsterDrop</code></a> | interface | An item and its acquisition metadata from AQW's monster-drop response. |
 | <a href="/reference/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | type alias |  |
 | <a href="/reference/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/monster-selector-by-map-id/" data-script-type="monster-selector-by-map-id"><code>MonsterSelectorByMapId</code></a> | interface |  |

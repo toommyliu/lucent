@@ -11,13 +11,13 @@ sidebar:
 interface Enhancement
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L11" aria-label="Open source: packages/game/src/item.ts:11" title="packages/game/src/item.ts:11" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:11</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L67" aria-label="Open source: packages/game/src/item.ts:67" title="packages/game/src/item.ts:67" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:67</code></a></p>
 
 ## Properties
 
 <a id="property-dps"></a>
 
-### `dps` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L12" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:12" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `dps` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L68" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:68" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly dps?: number
@@ -25,7 +25,7 @@ readonly dps?: number
 
 <a id="property-id"></a>
 
-### `id` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L13" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:13" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `id` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L69" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:69" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly id?: number
@@ -33,7 +33,7 @@ readonly id?: number
 
 <a id="property-level"></a>
 
-### `level` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L14" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:14" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `level` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L70" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:70" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly level?: number
@@ -41,7 +41,7 @@ readonly level?: number
 
 <a id="property-patternid"></a>
 
-### `patternId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L15" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:15" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `patternId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L71" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:71" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly patternId?: number
@@ -49,7 +49,7 @@ readonly patternId?: number
 
 <a id="property-procid"></a>
 
-### `procId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L16" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:16" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `procId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L72" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:72" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly procId?: number
@@ -57,7 +57,7 @@ readonly procId?: number
 
 <a id="property-range"></a>
 
-### `range` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L17" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:17" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `range` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L73" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:73" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly range?: number
@@ -65,7 +65,7 @@ readonly range?: number
 
 <a id="property-rarity"></a>
 
-### `rarity` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L18" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:18" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `rarity` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L74" tabindex="-1" aria-hidden="true" title="Open source: packages/game/src/item.ts:74" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 ```ts
 readonly rarity?: number

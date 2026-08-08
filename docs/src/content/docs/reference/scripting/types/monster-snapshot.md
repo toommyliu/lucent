@@ -16,7 +16,9 @@ type MonsterSnapshot = Readonly<MonsterData> & Readonly<EntityData> & {
     readonly idle: boolean;
     readonly inCombat: boolean;
     readonly mpPercent: number;
+} & {
+    readonly drops: readonly MonsterDrop[];
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L77" aria-label="Open source: packages/game/src/monster.ts:77" title="packages/game/src/monster.ts:77" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:77</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L102" aria-label="Open source: packages/game/src/monster.ts:102" title="packages/game/src/monster.ts:102" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:102</code></a></p>

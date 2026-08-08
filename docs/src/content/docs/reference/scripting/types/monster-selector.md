@@ -11,4 +11,4 @@ sidebar:
 type MonsterSelector = MonsterSelectorByMapId | MonsterSelectorByName
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L19" aria-label="Open source: packages/game/src/monster.ts:19" title="packages/game/src/monster.ts:19" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:19</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L42" aria-label="Open source: packages/game/src/monster.ts:42" title="packages/game/src/monster.ts:42" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:42</code></a></p>

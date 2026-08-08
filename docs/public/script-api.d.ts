@@ -775,12 +775,14 @@ interface LiveItem extends LiveModel<ItemData> {
   toJSON(): ItemSnapshot;
 }
 interface LiveMonster extends LiveEntity<MonsterData> {
+  readonly drops: readonly MonsterDrop[];
   readonly level: number;
   readonly monsterId: number;
   readonly monsterMapId: number;
   readonly name: string;
   readonly race: string;
   matches(selector: MonsterQuery): boolean;
+  replaceDrops(drops: readonly MonsterDrop[]): void;
   toJSON(): MonsterSnapshot;
 }
 interface LiveOutfit extends LiveModel<OutfitData> {
@@ -980,6 +982,7 @@ type ItemContext =
   | "drop"
   | "house"
   | "inventory"
+  | "monster-drop"
   | "shop"
   | "temporary";
 interface Enhancement {
@@ -1044,7 +1047,30 @@ interface MonsterData extends EntityData {
   name: string;
   race: string;
 }
-type MonsterSnapshot = Readonly<MonsterData> & EntitySnapshot;
+interface MonsterDrop {
+  readonly eventDrop: boolean;
+  readonly icon: string;
+  readonly item: ItemSnapshot;
+  readonly questGated: boolean;
+  readonly questObjectives: readonly string[];
+  /** Numeric rarity identifier returned by AQW. */
+  readonly rarity: number;
+  /** Display label produced by AQW's rarity lookup. */
+  readonly rarityName: string;
+  /** Additive boosted drop percentage shown by AQW, when supplied. */
+  readonly rateBoostPercent: number | null;
+  /** Drop percentage shown by AQW, normalized for variable quantities. */
+  readonly ratePercent: number | null;
+  /** Quest IDs parsed from AQW's `sReqQuests` field. */
+  readonly requiredQuestIds: readonly number[];
+  readonly requiredQuests: readonly string[];
+  readonly stackSize: number;
+  readonly variableQuantity: boolean;
+}
+type MonsterSnapshot = Readonly<MonsterData> &
+  EntitySnapshot & {
+    readonly drops: readonly MonsterDrop[];
+  };
 interface OutfitData {
   colors: OutfitColors;
   equipment: OutfitEquipment;

@@ -4,7 +4,30 @@ import {
   type EntityData,
   type EntitySnapshot,
 } from "./entity";
+import type { ItemSnapshot } from "./item";
 import { normalizeGameText } from "./model";
+
+/** An item and its acquisition metadata from AQW's monster-drop response. */
+export interface MonsterDrop {
+  readonly eventDrop: boolean;
+  readonly icon: string;
+  readonly item: ItemSnapshot;
+  readonly questGated: boolean;
+  readonly questObjectives: readonly string[];
+  /** Numeric rarity identifier returned by AQW. */
+  readonly rarity: number;
+  /** Display label produced by AQW's rarity lookup. */
+  readonly rarityName: string;
+  /** Additive boosted drop percentage shown by AQW, when supplied. */
+  readonly rateBoostPercent: number | null;
+  /** Drop percentage shown by AQW, normalized for variable quantities. */
+  readonly ratePercent: number | null;
+  /** Quest IDs parsed from AQW's `sReqQuests` field. */
+  readonly requiredQuestIds: readonly number[];
+  readonly requiredQuests: readonly string[];
+  readonly stackSize: number;
+  readonly variableQuantity: boolean;
+}
 
 export interface MonsterSelectorByMapId {
   readonly monMapId: number;
@@ -39,6 +62,8 @@ export const toMonsterSelector = (query: MonsterQuery): MonsterSelector => {
 };
 
 export interface Monster extends Entity {
+  /** Server-provided drops discovered while sharing a cell with this monster. */
+  readonly drops: readonly MonsterDrop[];
   readonly level: number;
   readonly monsterId: number;
   readonly monsterMapId: number;
@@ -74,9 +99,17 @@ export interface MonsterData extends EntityData {
   race: string;
 }
 
-export type MonsterSnapshot = Readonly<MonsterData> & EntitySnapshot;
+export type MonsterSnapshot = Readonly<MonsterData> &
+  EntitySnapshot & {
+    readonly drops: readonly MonsterDrop[];
+  };
 
 export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
+  readonly #drops = new Map<number, MonsterDrop>();
+
+  get drops(): readonly MonsterDrop[] {
+    return Array.from(this.#drops.values());
+  }
   get level(): number {
     return this.modelData.level;
   }
@@ -114,12 +147,33 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
           );
   }
 
+  /** Replaces the server-provided drop collection without replacing the monster. */
+  replaceDrops(drops: readonly MonsterDrop[]): void {
+    this.#drops.clear();
+    for (const drop of drops) {
+      this.#drops.set(drop.item.itemId, {
+        ...drop,
+        item: { ...drop.item },
+        questObjectives: [...drop.questObjectives],
+        requiredQuestIds: [...drop.requiredQuestIds],
+        requiredQuests: [...drop.requiredQuests],
+      });
+    }
+  }
+
   toJSON(): MonsterSnapshot {
     return {
       ...this.modelData,
       alive: this.alive,
       auras: this.auras.map((aura) => aura.toJSON()),
       dead: this.dead,
+      drops: this.drops.map((drop) => ({
+        ...drop,
+        item: { ...drop.item },
+        questObjectives: [...drop.questObjectives],
+        requiredQuestIds: [...drop.requiredQuestIds],
+        requiredQuests: [...drop.requiredQuests],
+      })),
       hpPercent: this.hpPercent,
       idle: this.idle,
       inCombat: this.inCombat,

@@ -69,6 +69,7 @@ export const GrabbedItemSchema = Schema.Struct({
     "drop",
     "house",
     "inventory",
+    "monster-drop",
     "shop",
     "temporary",
   ]),
@@ -94,6 +95,22 @@ export const GrabbedItemSchema = Schema.Struct({
   worn: Schema.Boolean,
 });
 export type GrabbedItem = typeof GrabbedItemSchema.Type;
+
+const MonsterDropSchema = Schema.Struct({
+  eventDrop: Schema.Boolean,
+  icon: Schema.String,
+  item: GrabbedItemSchema,
+  questGated: Schema.Boolean,
+  questObjectives: Schema.Array(Schema.String),
+  rarity: Schema.Number,
+  rarityName: Schema.String,
+  rateBoostPercent: Schema.NullOr(Schema.Number),
+  ratePercent: Schema.NullOr(Schema.Number),
+  requiredQuestIds: Schema.Array(Schema.Number),
+  requiredQuests: Schema.Array(Schema.String),
+  stackSize: Schema.Number,
+  variableQuantity: Schema.Boolean,
+});
 
 const QuestItemSchema = Schema.Struct({
   itemId: Schema.Number,
@@ -142,6 +159,7 @@ export const GrabbedMonsterSchema = Schema.Struct({
   auras: Schema.Array(AuraSchema),
   cell: Schema.String,
   dead: Schema.Boolean,
+  drops: Schema.Array(MonsterDropSchema),
   hp: Schema.Number,
   hpPercent: Schema.Number,
   idle: Schema.Boolean,

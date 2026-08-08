@@ -21,4 +21,4 @@ type ItemSnapshot = Readonly<ItemData> & {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L111" aria-label="Open source: packages/game/src/item.ts:111" title="packages/game/src/item.ts:111" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:111</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L167" aria-label="Open source: packages/game/src/item.ts:167" title="packages/game/src/item.ts:167" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:167</code></a></p>

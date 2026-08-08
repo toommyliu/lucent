@@ -1,4 +1,4 @@
-import type { LiveMonster, LivePlayer } from "@lucent/game";
+import type { LiveMonster, LivePlayer, MonsterDrop } from "@lucent/game";
 
 export interface MapState {
   id: number;
@@ -10,6 +10,7 @@ export interface WorldState {
   readonly cellPads: string[];
   readonly cells: string[];
   readonly map: MapState;
+  readonly monsterDrops: Map<number, readonly MonsterDrop[]>;
   readonly monsters: Map<number, LiveMonster>;
   readonly playerIds: Map<number, string>;
   readonly players: Map<string, LivePlayer>;
@@ -24,6 +25,7 @@ export const makeWorldState = (): WorldState => ({
   cellPads: [],
   cells: [],
   map: { id: 0, name: "", roomNumber: 0 },
+  monsterDrops: new Map(),
   monsters: new Map(),
   playerIds: new Map(),
   players: new Map(),
@@ -37,6 +39,7 @@ export const clearArea = (state: WorldState): void => {
   state.map.id = 0;
   state.map.name = "";
   state.map.roomNumber = 0;
+  state.monsterDrops.clear();
   state.monsters.clear();
   state.playerIds.clear();
   state.players.clear();
@@ -59,8 +62,10 @@ export const putMonster = (
   incoming: LiveMonster,
 ): LiveMonster => {
   const current = state.monsters.get(incoming.monsterMapId);
-  if (current === undefined)
+  if (current === undefined) {
+    const drops = state.monsterDrops.get(incoming.monsterMapId);
+    if (drops !== undefined) incoming.replaceDrops(drops);
     state.monsters.set(incoming.monsterMapId, incoming);
-  else current.replaceFrom(incoming);
+  } else current.replaceFrom(incoming);
   return current ?? incoming;
 };

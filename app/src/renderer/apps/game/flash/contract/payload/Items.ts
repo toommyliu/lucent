@@ -10,7 +10,7 @@ import {
   WireNumber,
 } from "../Coercion";
 
-export const ItemPayload = Schema.Struct({
+export const ItemFields = {
   ItemID: PositiveWireInt,
   CharItemID: Schema.optionalKey(PositiveWireInt),
   EnhDPS: Schema.optionalKey(WireNumber),
@@ -44,7 +44,9 @@ export const ItemPayload = Schema.Struct({
   sName: Schema.optionalKey(Schema.String),
   sType: Schema.optionalKey(Schema.String),
   strES: Schema.optionalKey(Schema.String),
-});
+};
+
+export const ItemPayload = Schema.Struct(ItemFields);
 export type ItemPayload = typeof ItemPayload.Type;
 
 export const ItemPayloads = Schema.Array(ItemPayload);

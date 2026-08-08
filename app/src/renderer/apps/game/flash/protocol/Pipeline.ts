@@ -6,6 +6,7 @@ import type { DiagnosticReporter } from "../contract/Diagnostic";
 import type { Packet } from "../contract/Packet";
 import { projectAuth } from "../projection/Auth";
 import { projectCombat } from "../projection/Combat";
+import { projectMonsterDrops } from "../projection/MonsterDrops";
 import {
   projectExtensionItems,
   projectHouseEquipRequest,
@@ -169,6 +170,9 @@ export const makePipeline = (
       case "extension":
         if (packet.command === "cb") {
           return projectCombat(store, packet, diagnose);
+        }
+        if (packet.command === "monsterDrops") {
+          return projectMonsterDrops(store, packet, diagnose);
         }
         if (extensionItemCommands.has(packet.command)) {
           return projectExtensionItems(store, packet, diagnose);

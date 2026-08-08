@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getItemRarityName,
   EntityState,
   LiveItem,
   LiveMonster,
@@ -106,6 +107,51 @@ describe("game domain models", () => {
     expect(monster.matches("undead")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
     expect(toMonsterSelector("id:9")).toEqual({ monMapId: 9 });
+    monster.replaceDrops([
+      {
+        eventDrop: true,
+        icon: "iibag",
+        item: new LiveItem({
+          category: "Item",
+          coins: false,
+          context: "monster-drop",
+          cost: 0,
+          description: "A test drop",
+          equipped: false,
+          equipmentSlot: "",
+          file: "",
+          houseItem: false,
+          itemId: 10,
+          link: "None",
+          memberOnly: false,
+          meta: "",
+          name: "Bone",
+          quantity: 1,
+          temporaryItem: false,
+        }).toJSON(),
+        questGated: false,
+        questObjectives: [],
+        rarity: 1,
+        rarityName: "Enhancement +0",
+        rateBoostPercent: null,
+        ratePercent: 25,
+        requiredQuestIds: [2972],
+        requiredQuests: [],
+        stackSize: 100,
+        variableQuantity: false,
+      },
+    ]);
+    monster.replaceFrom(
+      new LiveMonster({
+        ...monster.snapshot(),
+        hp: 50,
+      }),
+    );
+    expect(monster.drops[0]?.item.name).toBe("Bone");
+    expect(monster.toJSON().drops[0]?.ratePercent).toBe(25);
+    expect(monster.toJSON().drops[0]?.requiredQuestIds).toEqual([2972]);
+    expect(getItemRarityName(16)).toBe("Boss Drop");
+    expect(getItemRarityName(22)).toBe("Unknown");
     expect(server.full).toBe(true);
   });
 

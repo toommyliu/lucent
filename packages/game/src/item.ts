@@ -5,8 +5,64 @@ export type ItemContext =
   | "drop"
   | "house"
   | "inventory"
+  | "monster-drop"
   | "shop"
   | "temporary";
+
+const itemRarityNames: Readonly<Record<number, string>> = {
+  0: "Unknown",
+  1: "Enhancement +0",
+  2: "Enhancement +1",
+  3: "Enhancement +2",
+  4: "Enhancement +3",
+  5: "Enhancement +4",
+  6: "Enhancement +5",
+  7: "Enhancement +6",
+  8: "Enhancement +100",
+  9: "Enhancement +200",
+  10: "Unknown",
+  11: "Common",
+  12: "Weird",
+  13: "Awesome",
+  14: "1% Drop",
+  15: "5% Drop",
+  16: "Boss Drop",
+  17: "Hidden Secret",
+  18: "Junk",
+  19: "Impossible",
+  20: "Artifact",
+  21: "Limited Time Drop",
+  23: "Crazy",
+  24: "Expensive",
+  25: "Placeholder",
+  30: "Rare",
+  35: "Epic",
+  36: "Champion",
+  40: "Verification Shop",
+  50: "Seasonal",
+  55: "Seasonal Rare",
+  60: "Event",
+  65: "Event Rare",
+  67: "Infinity",
+  68: "New Collection Chest",
+  70: "Limited Rare",
+  75: "Collector",
+  80: "Promo",
+  81: "Founder",
+  88: "Benevolent",
+  90: "Ultra Rare",
+  91: "Achievement Tracker",
+  92: "Upgrade Pack",
+  93: "Limited Quantity",
+  94: "Frostval Gifting",
+  95: "Super Ultra Rare",
+  96: "Kickstarter Backer",
+  99: "Custom Item",
+  100: "Legendary",
+};
+
+export const getItemRarityName = (rarity: number): string =>
+  itemRarityNames[rarity] ?? "Unknown";
 
 export interface Enhancement {
   readonly dps?: number;

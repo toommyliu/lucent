@@ -39,7 +39,8 @@ export const makeApi = Effect.gen(function* () {
   const bank = yield* makeBank(bridge, store, auth, inventory, house, wait);
   const drops = yield* makeDrops(bridge, store, auth, wait);
   const map = makeMap(bridge, store, wait);
-  const monsters = makeMonsters(bridge, store);
+  const monsterServices = yield* makeMonsters(bridge, store, events, wait);
+  const monsters = monsterServices.api;
   const players = makePlayers(store);
   const player = makePlayer(bridge, store, auth, inventory, map, wait);
   const projectionReadiness = makeProjectionReadiness(store);
@@ -57,7 +58,7 @@ export const makeApi = Effect.gen(function* () {
     events,
     inventory,
     map,
-    monsters,
+    monsterServices.lookup,
     player,
     players,
     settings,

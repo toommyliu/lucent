@@ -110,6 +110,27 @@ public class World
       return ids;
     }
 
+    [BridgeExport]
+    public static function requestMonsterDrops(monMapId:Number):Boolean
+    {
+      var game:Object = Main.Game;
+      if (!game || !game.world || isNaN(monMapId) || monMapId <= 0)
+      {
+        return false;
+      }
+
+      for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
+      {
+        if (mon && mon.dataLeaf && Number(mon.dataLeaf.MonMapID) == monMapId)
+        {
+          game.sfc.sendXtMessage("zm", "getMonsterDrops", [monMapId], "str", game.world.curRoom);
+          return true;
+        }
+      }
+
+      return false;
+    }
+
     private static function getMonsterByName(name:String):Object
     {
       if (!name)

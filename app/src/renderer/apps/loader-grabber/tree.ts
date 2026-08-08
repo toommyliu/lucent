@@ -160,19 +160,67 @@ const buildMonsters = (
     | GrabbedDataByType["map-monsters"],
   includeHealth: boolean,
 ): readonly TreeItem[] =>
-  monsters.map((monster) => ({
-    children: [
-      node("ID", monster.monsterId),
-      node("MonMapID", monster.monsterMapId),
-      node("Race", monster.race),
-      node("Level", monster.level),
-      includeHealth
-        ? node("Health", `${monster.hp}/${monster.maxHp}`)
-        : node("Cell", monster.cell),
-    ],
-    name: monster.name.trim() === "" ? "Unnamed monster" : monster.name,
-    raw: monster,
-  }));
+  monsters.map((monster) => {
+    const drops = monster.drops.map((drop): TreeItem => {
+      const item = itemTree(drop.item, {});
+      return {
+        ...item,
+        children: compact([
+          ...(item.children ?? []),
+          drop.ratePercent === null
+            ? undefined
+            : node("Drop Rate", `${drop.ratePercent}%`),
+          drop.rateBoostPercent === null
+            ? undefined
+            : node("Drop Rate Boost", `+${drop.rateBoostPercent}%`),
+          node("Rarity", drop.rarityName),
+          node("Rarity ID", drop.rarity),
+          node("Stack Size", drop.stackSize),
+          node("Variable Quantity", drop.variableQuantity ? "Yes" : "No"),
+          node("Event Drop", drop.eventDrop ? "Yes" : "No"),
+          node("Quest Gated", drop.questGated ? "Yes" : "No"),
+          drop.requiredQuestIds.length === 0
+            ? undefined
+            : {
+                children: drop.requiredQuestIds.map((questId) =>
+                  node("Quest ID", questId),
+                ),
+                name: "Required Quest IDs",
+              },
+          drop.requiredQuests.length === 0
+            ? undefined
+            : {
+                children: drop.requiredQuests.map((quest) => ({ name: quest })),
+                name: "Required Quests",
+              },
+          drop.questObjectives.length === 0
+            ? undefined
+            : {
+                children: drop.questObjectives.map((objective) => ({
+                  name: objective,
+                })),
+                name: "Quest Objectives",
+              },
+        ]),
+        raw: drop,
+      };
+    });
+
+    return {
+      children: compact([
+        node("ID", monster.monsterId),
+        node("MonMapID", monster.monsterMapId),
+        node("Race", monster.race),
+        node("Level", monster.level),
+        includeHealth
+          ? node("Health", `${monster.hp}/${monster.maxHp}`)
+          : node("Cell", monster.cell),
+        drops.length === 0 ? undefined : { children: drops, name: "Drops" },
+      ]),
+      name: monster.name.trim() === "" ? "Unnamed monster" : monster.name,
+      raw: monster,
+    };
+  });
 
 export const buildGrabbedDataTree = (
   type: LoaderGrabberGrabType,

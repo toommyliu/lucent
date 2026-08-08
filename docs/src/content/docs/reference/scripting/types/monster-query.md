@@ -11,4 +11,4 @@ sidebar:
 type MonsterQuery = string | number | MonsterSelector
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L20" aria-label="Open source: packages/game/src/monster.ts:20" title="packages/game/src/monster.ts:20" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:20</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/monster.ts#L43" aria-label="Open source: packages/game/src/monster.ts:43" title="packages/game/src/monster.ts:43" target="_blank" rel="noreferrer"><code class="source-reference__path">monster.ts:43</code></a></p>

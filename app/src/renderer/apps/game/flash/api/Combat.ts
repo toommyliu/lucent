@@ -47,7 +47,7 @@ import type { Inventory } from "./Inventory";
 import type { Drops } from "./Drops";
 import type { Events } from "./Events";
 import type { Map } from "./Map";
-import type { Monsters } from "./Monsters";
+import type { MonsterLookup } from "./Monsters";
 import type { Player } from "./Player";
 import type { Players } from "./Players";
 import type { Settings } from "./Settings";
@@ -131,7 +131,7 @@ export const makeCombat = (
   events: Events,
   inventory: Inventory,
   map: Map,
-  monsters: Monsters,
+  monsters: MonsterLookup,
   player: Player,
   players: Players,
   settings: Settings,

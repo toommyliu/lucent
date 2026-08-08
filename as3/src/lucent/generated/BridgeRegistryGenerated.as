@@ -165,6 +165,7 @@ package lucent.generated
       external.externalize("world.isMonsterAvailable", World.isMonsterAvailable);
       external.externalize("world.loadSwf", World.loadSwf);
       external.externalize("world.reload", World.reload);
+      external.externalize("world.requestMonsterDrops", World.requestMonsterDrops);
       external.externalize("world.setSpawnPoint", World.setSpawnPoint);
     }
   }

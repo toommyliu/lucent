@@ -209,6 +209,7 @@ declare global {
       "world.isMonsterAvailable": (monMapId: number) => boolean;
       "world.loadSwf": (swf: string) => void;
       "world.reload": () => void;
+      "world.requestMonsterDrops": (monMapId: number) => boolean;
       "world.setSpawnPoint": (cell?: string, pad?: string) => void;
     };
     onConnection?: (status: string) => void;

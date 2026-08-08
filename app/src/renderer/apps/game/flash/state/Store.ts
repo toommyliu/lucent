@@ -11,8 +11,9 @@ import type {
   LiveQuest,
   LiveServer,
   LiveShop,
-  MonsterQuery,
   MonsterData,
+  MonsterDrop,
+  MonsterQuery,
   PlayerData,
   ShopItemQuery,
 } from "@lucent/game";
@@ -301,6 +302,10 @@ export const makeStore = Effect.gen(function* () {
             ) ?? null,
         ),
       ),
+    getMonsterDrops: (id: number) =>
+      SynchronizedRef.get(worldRef).pipe(
+        Effect.map((state) => state.monsterDrops.get(id) ?? null),
+      ),
     getMonsterAuras: (id: number, options?: AuraQueryOptions) =>
       SynchronizedRef.get(worldRef).pipe(
         Effect.map((state) =>
@@ -417,6 +422,21 @@ export const makeStore = Effect.gen(function* () {
         state.monsters.clear();
         for (const monster of monsters) putMonster(state, monster);
         return state;
+      }),
+    setMonsterDrops: (id: number, drops: readonly MonsterDrop[]) =>
+      SynchronizedRef.modify(worldRef, (state) => {
+        const monster = state.monsters.get(id);
+        if (monster === undefined) return [false, state];
+        const snapshot = drops.map((drop) => ({
+          ...drop,
+          item: { ...drop.item },
+          questObjectives: [...drop.questObjectives],
+          requiredQuestIds: [...drop.requiredQuestIds],
+          requiredQuests: [...drop.requiredQuests],
+        }));
+        state.monsterDrops.set(id, snapshot);
+        monster.replaceDrops(snapshot);
+        return [true, state];
       }),
     setPlayers: (players: readonly LivePlayer[]) =>
       SynchronizedRef.update(worldRef, (state) => {
