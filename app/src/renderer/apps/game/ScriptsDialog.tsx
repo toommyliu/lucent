@@ -3,6 +3,7 @@ import {
   Alert,
   AlertAction,
   AlertDescription,
+  AlertTitle,
   AlertDialog,
   AlertDialogCancel,
   AlertDialogContent,
@@ -39,15 +40,14 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  Tooltip,
-  TooltipContent,
   TooltipIconButton,
-  TooltipTrigger,
-  type BadgeProps,
+  type AlertVariant,
+  type ButtonVariant,
   type IconButtonProps,
   type IconName,
 } from "@lucent/ui";
 import {
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -95,8 +95,12 @@ import {
   touchScriptCatalogPages,
   type ScriptCatalogPageCache,
 } from "./scriptCatalogPages";
+import {
+  scriptContextCharacterLimit,
+  truncatePathContext,
+} from "./scriptPathDisplay";
 
-const SCRIPT_ROW_HEIGHT = 52;
+const SCRIPT_ROW_HEIGHT = 40;
 const GITHUB_TOKEN_URL =
   "https://github.com/settings/personal-access-tokens/new";
 
@@ -112,7 +116,13 @@ const openGitHubTokenPage = (): void => {
 
 type ScriptsDialogTab = "options" | "packages" | "scripts";
 type ScrollableScriptsDialogTab = Exclude<ScriptsDialogTab, "options">;
-type PackageManagementView = "credentials" | "install" | "installed";
+type PackageManagementView =
+  | "credentials"
+  | "details"
+  | "install"
+  | "installed";
+type CredentialManagerParentView = "install" | "installed";
+type CredentialEditorReturnView = "credentials" | "install";
 
 interface ConfirmationState {
   readonly confirmLabel: string;
@@ -168,41 +178,61 @@ function ErrorAlert(props: ErrorAlertProps): JSX.Element {
   );
 }
 
-interface PackageStatusBadgeProps {
-  readonly description: string;
-  readonly icon: IconName;
-  readonly label: string;
-  readonly variant: NonNullable<BadgeProps["variant"]>;
+interface CatalogRefreshButtonProps {
+  readonly disabled: boolean;
+  readonly loading: boolean;
+  readonly onClick: () => void;
 }
 
-function PackageStatusBadge(props: PackageStatusBadgeProps): JSX.Element {
+function CatalogRefreshButton(props: CatalogRefreshButtonProps): JSX.Element {
   return (
-    <Tooltip
-      closeDelay={0}
-      openDelay={200}
-      positioning={{ placement: "top-start" }}
+    <IconButton
+      aria-label="Refresh catalog"
+      class="game-scripts-dialog__refresh-button"
+      disabled={props.disabled}
+      loading={props.loading}
+      onClick={props.onClick}
+      size="icon"
+      title="Refresh catalog"
+      variant="outline"
     >
-      <TooltipTrigger
-        asChild={(triggerProps) => (
-          <Badge
-            {...(triggerProps({
-              "aria-label": `${props.label}: ${props.description}`,
-              children: (
-                <>
-                  <Icon icon={props.icon} size="sm" />
-                  <span>{props.label}</span>
-                </>
-              ),
-              class: "game-scripts-dialog__status-badge",
-              tabIndex: 0,
-            } as JSX.ButtonHTMLAttributes<HTMLButtonElement>) as unknown as BadgeProps)}
-            // size="sm"
-            variant={props.variant}
-          />
-        )}
-      />
-      <TooltipContent>{props.description}</TooltipContent>
-    </Tooltip>
+      <Icon icon="refresh_cw" size="sm" />
+    </IconButton>
+  );
+}
+
+interface PackageUpdateCheckButtonProps {
+  readonly checking: boolean;
+  readonly disabled: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly title?: string | undefined;
+  readonly variant: Extract<ButtonVariant, "ghost" | "secondary">;
+}
+
+function PackageUpdateCheckButton(
+  props: PackageUpdateCheckButtonProps,
+): JSX.Element {
+  return (
+    <Button
+      aria-busy={props.checking ? "true" : undefined}
+      disabled={props.disabled || props.checking}
+      onClick={props.onClick}
+      size="sm"
+      title={props.title}
+      variant={props.variant}
+    >
+      <Show
+        when={props.checking}
+        fallback={<Icon icon="git_compare_arrows" size="sm" />}
+      >
+        <Spinner
+          class="game-scripts-dialog__package-update-spinner"
+          size="sm"
+        />
+      </Show>
+      {props.label}
+    </Button>
   );
 }
 
@@ -259,17 +289,29 @@ const sameReference = (
   (left.kind !== "package" ||
     (right.kind === "package" && left.packageName === right.packageName));
 
-const scriptContext = (entry: ScriptCatalogEntry): string =>
+const scriptLocation = (entry: ScriptCatalogEntry): string =>
   entry.packageName === undefined
     ? entry.relativePath
-    : `Package: ${entry.packageName} / ${entry.relativePath}`;
+    : `${entry.packageName}/${entry.relativePath}`;
+
+const scriptContext = (entry: ScriptCatalogEntry): string | undefined => {
+  const separatorIndex = entry.relativePath.lastIndexOf("/");
+  const directory =
+    separatorIndex === -1
+      ? undefined
+      : entry.relativePath.slice(0, separatorIndex);
+  if (entry.packageName === undefined) return directory;
+  return directory === undefined
+    ? entry.packageName
+    : `${entry.packageName}/${directory}`;
+};
 
 const packageCompatibilityDetail = (entry: ValidScriptPackage): string => {
   switch (entry.compatibility.status) {
     case "compatible":
       return `This package requires Lucent ${entry.compatibility.requiredVersion}. You're using v${entry.compatibility.currentVersion}, which is compatible.`;
     case "incompatible":
-      return `This package requires Lucent ${entry.compatibility.requiredVersion}. You're using v${entry.compatibility.currentVersion}, so the package can't run.`;
+      return `This package requires Lucent ${entry.compatibility.requiredVersion}, but you're using v${entry.compatibility.currentVersion}. Its code can't be used.`;
     case "unknown":
       return "Lucent can't check compatibility because the package doesn't include a valid Lucent version requirement.";
   }
@@ -384,6 +426,30 @@ const packagePrimaryActionLabels: Record<PackagePrimaryAction, string> = {
   update: "Update",
 };
 
+const packageFooterPrimaryAction = (
+  entry: ValidScriptPackage,
+): PackagePrimaryAction | undefined => {
+  const action = packagePrimaryAction(entry);
+  return action === "update" ? undefined : action;
+};
+
+const packageIntegrityDetail = (
+  entry: ValidScriptPackage,
+  integrity: "modified" | "unmanaged",
+): string => {
+  switch (integrity) {
+    case "modified":
+      return (
+        "This package has local changes. Updating will overwrite them." +
+        (entry.update.status === "available"
+          ? " A newer version is also available."
+          : "")
+      );
+    case "unmanaged":
+      return "Lucent didn't install this folder, so it can't verify or update it.";
+  }
+};
+
 const packageRateLimitTitle = (
   limit: ActiveScriptPackageRateLimit | undefined,
 ): string | undefined =>
@@ -395,8 +461,12 @@ interface PackageDisplayStatus {
   readonly description: string;
   readonly icon: IconName;
   readonly label: string;
-  readonly variant: NonNullable<BadgeProps["variant"]>;
+  readonly listLabel: string;
+  readonly tone: "error" | "info" | "secondary" | "success" | "warning";
 }
+
+const packageAlertVariant = (status: PackageDisplayStatus): AlertVariant =>
+  status.tone === "secondary" ? "default" : status.tone;
 
 const packageDisplayStatus = (
   entry: ValidScriptPackage,
@@ -407,30 +477,31 @@ const packageDisplayStatus = (
       description: packageCompatibilityDetail(entry),
       icon: "triangle_alert",
       label: "Incompatible",
-      variant: "error",
+      listLabel: "Needs attention",
+      tone: "error",
     };
   }
 
   if (entry.integrity === "modified") {
     return {
-      description:
-        "This package has local changes. Updating will overwrite them." +
-        (entry.update.status === "available"
-          ? " A newer version is also available."
-          : ""),
+      description: packageIntegrityDetail(entry, entry.integrity),
       icon: "triangle_alert",
-      label: "Modified",
-      variant: "warning",
+      label:
+        entry.update.status === "available"
+          ? "Modified, update available"
+          : "Modified",
+      listLabel: "Needs attention",
+      tone: "warning",
     };
   }
 
   if (entry.integrity === "unmanaged") {
     return {
-      description:
-        "Lucent didn't install this folder, so it can't verify or update it.",
+      description: packageIntegrityDetail(entry, entry.integrity),
       icon: "help_circle",
       label: "Unmanaged",
-      variant: "secondary",
+      listLabel: "Needs attention",
+      tone: "warning",
     };
   }
 
@@ -439,16 +510,29 @@ const packageDisplayStatus = (
       description: packageCompatibilityDetail(entry),
       icon: "help_circle",
       label: "Compatibility unknown",
-      variant: "warning",
+      listLabel: "Needs attention",
+      tone: "warning",
+    };
+  }
+
+  if (entry.warning !== undefined) {
+    return {
+      description: entry.warning,
+      icon: "triangle_alert",
+      label: "Package warning",
+      listLabel: "Needs attention",
+      tone: "warning",
     };
   }
 
   if (entry.source === undefined) {
     return {
-      description: "This package hasn't changed since it was installed.",
+      description:
+        "This verified package has no remote source, so Lucent can't check it for updates.",
       icon: "check",
-      label: "Verified",
-      variant: "success",
+      label: "Local package",
+      listLabel: "Local package",
+      tone: "secondary",
     };
   }
 
@@ -457,16 +541,18 @@ const packageDisplayStatus = (
       return {
         description: `The package's Git ref points to a newer commit (${entry.update.commit.slice(0, 7)}).`,
         icon: "download",
-        label: "Update ready",
-        variant: "info",
+        label: "Update available",
+        listLabel: "Update available",
+        tone: "info",
       };
     case "current":
       return {
         description:
           "This package is compatible and unchanged. Its Git ref still points to the installed commit.",
         icon: "check",
-        label: "Verified",
-        variant: "success",
+        label: "Up to date",
+        listLabel: "Up to date",
+        tone: "success",
       };
     case "rate-limited": {
       const timing = scriptPackageRateLimitTiming(entry.update.retryAt, now);
@@ -476,16 +562,18 @@ const packageDisplayStatus = (
             timing.status === "elapsed"
               ? "GitHub's cooldown has ended. Check again to refresh the package status."
               : "GitHub saved an invalid retry deadline. Check again to refresh the package status.",
-          icon: "refresh_cw",
+          icon: "git_compare_arrows",
           label: "Ready to check",
-          variant: "info",
+          listLabel: "Ready to check",
+          tone: "info",
         };
       }
       return {
         description: `GitHub's request limit has been reached. Try again ${formatRelativeTime(entry.update.retryAt, now)}.`,
         icon: "triangle_alert",
-        label: "Check paused",
-        variant: "warning",
+        label: "Rate limited",
+        listLabel: "Try later",
+        tone: "warning",
       };
     }
     case "unknown":
@@ -493,7 +581,8 @@ const packageDisplayStatus = (
         description: `${entry.update.message} No files were changed.`,
         icon: "triangle_alert",
         label: "Check failed",
-        variant: "warning",
+        listLabel: "Needs attention",
+        tone: "warning",
       };
     case "unchecked":
       return {
@@ -501,14 +590,51 @@ const packageDisplayStatus = (
           "This package hasn't changed, but Lucent hasn't checked its Git ref for updates yet.",
         icon: "help_circle",
         label: "Updates not checked",
-        variant: "secondary",
+        listLabel: "Not checked",
+        tone: "secondary",
       };
   }
 };
 
+const packageNoticeDescription = (
+  entry: ValidScriptPackage,
+  displayStatus: PackageDisplayStatus,
+): string => {
+  const details = [displayStatus.description];
+
+  // The badge shows the most urgent status, but the notice should retain every
+  // compatibility or integrity problem that needs the user's attention.
+  if (entry.compatibility.status === "incompatible") {
+    if (entry.integrity !== "verified") {
+      details.push(packageIntegrityDetail(entry, entry.integrity));
+    }
+  } else if (
+    entry.compatibility.status === "unknown" &&
+    entry.integrity !== "verified"
+  ) {
+    details.push(packageCompatibilityDetail(entry));
+  }
+
+  return details.join(" ");
+};
+
+const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
+  entry.compatibility.status === "incompatible" ||
+  entry.integrity === "modified" ||
+  entry.integrity === "unmanaged" ||
+  entry.compatibility.status === "unknown" ||
+  entry.warning !== undefined ||
+  entry.update.status === "available" ||
+  entry.update.status === "unknown" ||
+  entry.update.status === "rate-limited";
+
 export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const [scriptViewport, setScriptViewport] = createSignal<HTMLDivElement>();
-  const [packageViewport, setPackageViewport] = createSignal<HTMLDivElement>();
+  const [scriptViewportWidth, setScriptViewportWidth] = createSignal(0);
+  const scriptContextLimit = createMemo(() =>
+    scriptContextCharacterLimit(scriptViewportWidth()),
+  );
+  const [packageViewport, setPackageViewport] = createSignal<HTMLElement>();
   const [catalog, setCatalog] =
     createSignal<ScriptCatalogOverview>(emptyCatalog());
   const [catalogLoading, setCatalogLoading] = createSignal(true);
@@ -526,10 +652,13 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     new Map(),
   );
   const [scriptQueryLoading, setScriptQueryLoading] = createSignal(false);
+  const [scriptQueryIndicatorVisible, setScriptQueryIndicatorVisible] =
+    createSignal(false);
   const [scriptTotal, setScriptTotal] = createSignal(0);
   const [busy, setBusy] = createSignal(false);
   const [checkingPackageUpdates, setCheckingPackageUpdates] =
     createSignal(false);
+  const [checkingPackageName, setCheckingPackageName] = createSignal<string>();
   const [error, setErrorText] = createSignal("");
   const [errorRetryable, setErrorRetryable] = createSignal(false);
   const setError = (message: string): void => {
@@ -547,6 +676,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   };
   const [packageManagementView, setPackageManagementView] =
     createSignal<PackageManagementView>("installed");
+  const [selectedPackagePath, setSelectedPackagePath] = createSignal<string>();
+  const [credentialManagerParentView, setCredentialManagerParentView] =
+    createSignal<CredentialManagerParentView>("installed");
+  const [credentialEditorReturnView, setCredentialEditorReturnView] =
+    createSignal<CredentialEditorReturnView>("credentials");
+  const [installOptionsOpen, setInstallOptionsOpen] = createSignal(false);
   const [roomEditingMode, setRoomEditingMode] =
     createSignal<RoomPolicyMode | null>(null);
   const [confirmation, setConfirmation] =
@@ -564,10 +699,13 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const [copiedCommitPath, setCopiedCommitPath] = createSignal<string>();
   const [rateLimitNow, setRateLimitNow] = createSignal(Date.now());
   let catalogRequestId = 0;
+  let scriptQueryRequestId = 0;
+  let requestedCatalogQuery = "";
   let scriptPageGeneration = 0;
   const scriptPageRequests = new Set<string>();
   let searchTimer: number | undefined;
   let copiedCommitTimer: number | undefined;
+  let scriptViewportResizeObserver: ResizeObserver | undefined;
   const scrollPositions: Record<ScrollableScriptsDialogTab, number> = {
     packages: 0,
     scripts: 0,
@@ -578,17 +716,36 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const revisionChanged = catalog().revision !== nextCatalog.revision;
     setCatalog(nextCatalog);
     if (revisionChanged) {
+      scriptQueryRequestId += 1;
+      requestedCatalogQuery = catalogQuery();
+      setScriptQueryLoading(false);
       scriptPageGeneration += 1;
       scriptPageRequests.clear();
       setScriptPages(new Map());
       setScriptTotal(catalogQuery() === "" ? nextCatalog.scriptCount : 0);
-      setScriptQueryLoading(catalogQuery() !== "");
-      if (catalogQuery() !== "") void requestScriptPages([0]);
+      const nextQuery = search().trim();
+      if (nextQuery !== catalogQuery()) {
+        void requestScriptQuery(nextQuery);
+      } else if (catalogQuery() !== "") {
+        void requestScriptPages([0]);
+      }
     }
   };
 
   const selectedCredential = createMemo(() =>
     credentials().find((entry) => entry.id === credentialId()),
+  );
+
+  const selectedPackage = createMemo(() =>
+    catalog().packages.find((entry) => entry.path === selectedPackagePath()),
+  );
+
+  const firstPackageInstall = createMemo(
+    () =>
+      packageManagementView() === "installed" &&
+      catalog().revision !== "" &&
+      !catalogLoading() &&
+      catalog().packages.length === 0,
   );
 
   const repositoryInput = createMemo(() =>
@@ -604,23 +761,33 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (input.kind !== "tree") return;
     setRepositoryUrl(input.repository.url);
     setRepositoryRef(input.ref);
+    setInstallOptionsOpen(true);
     setError("");
   };
 
   const packageManagementBreadcrumb = createMemo(() => {
     switch (packageManagementView()) {
-      case "install":
-        return {
-          current: "Install package",
-          parent: "Packages",
-          parentView: "installed" as const,
-        };
       case "credentials":
+        if (credentialEditorOpen()) {
+          return {
+            current:
+              editingCredentialId() === "" ? "Add credential" : "Replace token",
+            parent: "GitHub credentials",
+            parentView: "credentials" as const,
+          };
+        }
         return {
-          current: "Credentials",
-          parent: "Packages",
-          parentView: "installed" as const,
+          current: "GitHub credentials",
+          parent:
+            credentialManagerParentView() === "install"
+              ? "Install package"
+              : "Packages",
+          parentView: credentialManagerParentView(),
         };
+      case "details":
+        return undefined;
+      case "install":
+        return undefined;
       case "installed":
         return undefined;
     }
@@ -649,6 +816,43 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       ),
     ),
   );
+
+  const packageActionLabel = (
+    entry: ValidScriptPackage,
+    action: PackagePrimaryAction,
+  ): string => {
+    const activeLimit = packageActiveRateLimit(entry);
+    if (activeLimit !== undefined) {
+      return formatScriptPackageRetryLabel(
+        activeLimit.retryAtTimestamp,
+        rateLimitNow(),
+      );
+    }
+    if (action === "check" && entry.update.status === "rate-limited") {
+      return "Check again";
+    }
+    return packagePrimaryActionLabels[action];
+  };
+
+  const packageUpdateCheckLabel = (entry: ValidScriptPackage): string => {
+    const activeLimit = packageActiveRateLimit(entry);
+    return activeLimit === undefined
+      ? "Check for updates"
+      : formatScriptPackageRetryLabel(
+          activeLimit.retryAtTimestamp,
+          rateLimitNow(),
+        );
+  };
+
+  createEffect(() => {
+    if (
+      packageManagementView() === "details" &&
+      selectedPackage() === undefined
+    ) {
+      setSelectedPackagePath(undefined);
+      setPackageManagementView("installed");
+    }
+  });
 
   createEffect(() => {
     if (props.open) setRateLimitNow(Date.now());
@@ -719,15 +923,80 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           requestedOffsets,
         ),
       );
-      setScriptQueryLoading(false);
     } catch (cause) {
       if (generation === scriptPageGeneration && props.open) {
-        setScriptQueryLoading(false);
         setCatalogError("Failed to load script catalog rows.", cause);
       }
     } finally {
       for (const offset of requestedOffsets) {
         scriptPageRequests.delete(`${generation}:${offset}`);
+      }
+    }
+  };
+
+  const requestScriptQuery = async (query: string): Promise<void> => {
+    requestedCatalogQuery = query;
+    const requestId = ++scriptQueryRequestId;
+    if (query === catalogQuery()) {
+      setScriptQueryLoading(false);
+      return;
+    }
+
+    const bridge = props.bridge;
+    const revision = catalog().revision;
+    if (bridge === undefined || revision === "" || !props.open) {
+      setScriptQueryLoading(false);
+      return;
+    }
+
+    setScriptQueryLoading(true);
+    try {
+      const page = await bridge.getCatalogPage({
+        limit: SCRIPT_CATALOG_PAGE_SIZE,
+        offset: 0,
+        query,
+        revision,
+      });
+      if (
+        requestId !== scriptQueryRequestId ||
+        query !== requestedCatalogQuery ||
+        revision !== catalog().revision ||
+        !props.open
+      ) {
+        return;
+      }
+      if (page.revision !== revision) {
+        setScriptQueryLoading(false);
+        setPendingCatalogRevision(page.revision);
+        return;
+      }
+
+      scriptPageGeneration += 1;
+      scriptPageRequests.clear();
+      batch(() => {
+        setCatalogQuery(query);
+        setScriptTotal(page.total);
+        setScriptPages(
+          storeScriptCatalogPageRange(
+            new Map(),
+            page.offset,
+            page.entries,
+            [0],
+          ),
+        );
+        setScriptQueryLoading(false);
+      });
+      scriptVirtualizer.scrollToOffset(0);
+      scriptVirtualizer.measure();
+      clearRetryableError();
+    } catch (cause) {
+      if (
+        requestId === scriptQueryRequestId &&
+        query === requestedCatalogQuery &&
+        props.open
+      ) {
+        setScriptQueryLoading(false);
+        setCatalogError("Failed to search the script catalog.", cause);
       }
     }
   };
@@ -783,7 +1052,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const restoreScrollPosition = (
     tab: ScrollableScriptsDialogTab,
-    viewport: HTMLDivElement,
+    viewport: HTMLElement,
   ): void => {
     requestAnimationFrame(() => {
       if (activeTab() !== tab || !viewport.isConnected) return;
@@ -793,10 +1062,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const mountScriptViewport = (element: HTMLDivElement): void => {
     setScriptViewport(element);
+    setScriptViewportWidth(element.clientWidth);
+    scriptViewportResizeObserver?.observe(element);
     restoreScrollPosition("scripts", element);
   };
 
-  const mountPackageViewport = (element: HTMLDivElement): void => {
+  const mountPackageViewport = (element: HTMLElement): void => {
     setPackageViewport(element);
     restoreScrollPosition("packages", element);
   };
@@ -900,6 +1171,15 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const refreshCatalog = (): Promise<void> => loadCatalog(true);
 
+  const retryCatalog = (): void => {
+    const nextQuery = search().trim();
+    if (nextQuery !== catalogQuery()) {
+      void requestScriptQuery(nextQuery);
+      return;
+    }
+    void refreshCatalog();
+  };
+
   const refreshCredentials = async (): Promise<void> => {
     const bridge = props.bridge;
     if (bridge === undefined) return;
@@ -914,8 +1194,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const revision = untrack(() => catalog().revision);
     if (!props.open) {
       catalogRequestId += 1;
+      scriptQueryRequestId += 1;
+      requestedCatalogQuery = catalogQuery();
       scriptPageGeneration += 1;
       scriptPageRequests.clear();
+      setScriptQueryLoading(false);
       setCatalogLoading(revision === "");
       return;
     }
@@ -925,6 +1208,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     } else {
       setCatalogLoading(false);
       void refreshCredentials();
+      const nextQuery = untrack(() => search().trim());
+      if (nextQuery !== catalogQuery()) {
+        void requestScriptQuery(nextQuery);
+        return;
+      }
       window.requestAnimationFrame(() => {
         if (!props.open) return;
         scriptVirtualizer.measure();
@@ -938,6 +1226,18 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         }
       });
     }
+  });
+
+  createEffect(() => {
+    if (!scriptQueryLoading()) {
+      setScriptQueryIndicatorVisible(false);
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setScriptQueryIndicatorVisible(true),
+      150,
+    );
+    onCleanup(() => window.clearTimeout(timer));
   });
 
   createEffect(() => {
@@ -973,30 +1273,25 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       .finally(() => setCatalogSyncing(false));
   });
 
-  let activeCatalogQuery = catalogQuery();
-  createEffect(() => {
-    const query = catalogQuery();
-    if (query === activeCatalogQuery) return;
-    activeCatalogQuery = query;
-    scriptPageGeneration += 1;
-    scriptPageRequests.clear();
-    setScriptPages(new Map());
-    setScriptTotal(query === "" ? catalog().scriptCount : 0);
-    setScriptQueryLoading(query !== "" && catalog().revision !== "");
-    scriptVirtualizer.scrollToOffset(0);
-    scriptVirtualizer.measure();
-    if (query !== "" && catalog().revision !== "") {
-      void requestScriptPages([0]);
-    }
-  });
-
   onMount(() => {
+    scriptViewportResizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry !== undefined) {
+        setScriptViewportWidth(Math.round(entry.contentRect.width));
+      }
+    });
+    const viewport = scriptViewport();
+    if (viewport !== undefined) scriptViewportResizeObserver.observe(viewport);
+
     const unsubscribe = props.bridge?.onCatalogChanged((change) => {
       if (change.revision !== catalog().revision) {
         setPendingCatalogRevision(change.revision);
       }
     });
-    onCleanup(() => unsubscribe?.());
+    onCleanup(() => {
+      scriptViewportResizeObserver?.disconnect();
+      unsubscribe?.();
+    });
   });
 
   onCleanup(() => {
@@ -1062,13 +1357,35 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       askForConfirmation({
         confirmLabel: start ? "Stop and start" : "Stop and load",
         description: `${props.scriptStatus}. Stop it and ${start ? "start" : "load"} ${entry.name}?`,
-        destructive: true,
         onConfirm: () => runScriptSelection(entry, start, true),
         title: "Replace the running script?",
       });
       return;
     }
     void runScriptSelection(entry, start, false);
+  };
+
+  const clearScriptSearch = (): void => {
+    if (searchTimer !== undefined) {
+      window.clearTimeout(searchTimer);
+      searchTimer = undefined;
+    }
+    setSearch("");
+    void requestScriptQuery("");
+  };
+
+  const updateScriptSearch = (value: string): void => {
+    setSearch(value);
+    if (searchTimer !== undefined) {
+      window.clearTimeout(searchTimer);
+    }
+    scriptQueryRequestId += 1;
+    requestedCatalogQuery = catalogQuery();
+    setScriptQueryLoading(false);
+    searchTimer = window.setTimeout(() => {
+      void requestScriptQuery(value.trim());
+      searchTimer = undefined;
+    }, 100);
   };
 
   const chooseFile = (): void => {
@@ -1078,7 +1395,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         confirmLabel: "Choose replacement",
         description:
           "Choose a replacement file. The current script will keep running until the new file loads successfully.",
-        destructive: true,
         onConfirm: async () => {
           await props.onChooseFile(true);
           setConfirmation(null);
@@ -1106,6 +1422,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (result.status !== "completed" && result.status !== "unchanged") return;
     setRepositoryUrl("");
     setRepositoryRef("");
+    setInstallOptionsOpen(false);
     setPackageManagementView("installed");
   };
 
@@ -1156,9 +1473,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     askForConfirmation({
       confirmLabel: "Install package",
       description:
-        "Scripts in this package have the same permissions as other Lucent scripts. Only install packages from repositories you trust.",
+        "Package code has the same access as Lucent scripts. Only install repositories you trust.",
       onConfirm: () => installPackage(request),
-      title: "Trust and install this package?",
+      title: "Install this package?",
     });
   };
 
@@ -1229,12 +1546,15 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         if (bridge === undefined) {
           throw new Error("Desktop scripting bridge unavailable.");
         }
-        applyMutation(
-          await bridge.removePackage({
-            packageName: entry.name,
-            confirmModified: true,
-          }),
-        );
+        const result = await bridge.removePackage({
+          packageName: entry.name,
+          confirmModified: true,
+        });
+        applyMutation(result);
+        if (result.status === "completed" || result.status === "unchanged") {
+          setSelectedPackagePath(undefined);
+          setPackageManagementView("installed");
+        }
       },
       title: "Remove this package?",
     });
@@ -1245,12 +1565,14 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const bridge = props.bridge;
     if (bridge === undefined || busy()) return;
     setBusy(true);
+    setCheckingPackageName(entry.name);
     setError("");
     try {
       replaceCatalog(await bridge.checkPackageUpdate(entry.name));
     } catch (cause) {
       setOperationError(`Failed to check ${entry.name} for updates.`, cause);
     } finally {
+      setCheckingPackageName(undefined);
       setBusy(false);
     }
   };
@@ -1346,6 +1668,27 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     }
   };
 
+  const openPackageInstaller = (): void => {
+    setInstallOptionsOpen(
+      repositoryRef().trim() !== "" || credentialId() !== "",
+    );
+    setError("");
+    setPackageManagementView("install");
+  };
+
+  const openPackageDetails = (entry: ScriptPackageSummary): void => {
+    setSelectedPackagePath(entry.path);
+    setError("");
+    setPackageManagementView("details");
+  };
+
+  const closePackageDetails = (): void => {
+    if (busy()) return;
+    setSelectedPackagePath(undefined);
+    setError("");
+    setPackageManagementView("installed");
+  };
+
   const resetCredentialDraft = (): void => {
     setEditingCredentialId("");
     setCredentialLabel("");
@@ -1353,8 +1696,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setCredentialTokenVisible(false);
   };
 
-  const openCredentialEditor = (entry?: GitHubCredentialSummary): void => {
+  const openCredentialEditor = (
+    entry?: GitHubCredentialSummary,
+    returnView: CredentialEditorReturnView = "credentials",
+  ): void => {
     setError("");
+    setCredentialEditorReturnView(returnView);
     setEditingCredentialId(entry?.id ?? "");
     setCredentialLabel(entry?.label ?? "");
     setCredentialToken("");
@@ -1368,12 +1715,22 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     resetCredentialDraft();
     setCredentialEditorOpen(false);
     setError("");
+    if (credentialEditorReturnView() === "install") {
+      setPackageManagementView("install");
+    }
   };
 
-  const openCredentialManager = (): void => {
+  const openCredentialManager = (
+    parentView: CredentialManagerParentView = "installed",
+  ): void => {
+    setCredentialManagerParentView(parentView);
     resetCredentialDraft();
     setCredentialEditorOpen(false);
     setError("");
+    if (parentView === "install" && credentials().length === 0) {
+      openCredentialEditor(undefined, "install");
+      return;
+    }
     setPackageManagementView("credentials");
   };
 
@@ -1394,9 +1751,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         ),
       );
       setCredentialId(saved.id);
+      const returnView = credentialEditorReturnView();
       resetCredentialDraft();
       setCredentialEditorOpen(false);
-      setPackageManagementView("credentials");
+      setPackageManagementView(
+        returnView === "install" ? "install" : "credentials",
+      );
     } catch (cause) {
       setOperationError("Failed to save the GitHub credential.", cause);
     } finally {
@@ -1459,6 +1819,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           setConfirmation(null);
           resetCredentialDraft();
           setCredentialEditorOpen(false);
+          setCredentialEditorReturnView("credentials");
+          setCredentialManagerParentView("installed");
+          setInstallOptionsOpen(false);
+          setSelectedPackagePath(undefined);
           setPackageManagementView("installed");
           setRoomEditingMode(null);
         }
@@ -1533,11 +1897,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 class="game-scripts-dialog__alert"
                 message={error()}
                 {...(errorRetryable() ? {} : { onDismiss: () => setError("") })}
-                {...(errorRetryable()
-                  ? { onRetry: () => void refreshCatalog() }
-                  : {})}
-                retryDisabled={busy() || catalogLoading()}
-                retrying={catalogLoading()}
+                {...(errorRetryable() ? { onRetry: retryCatalog } : {})}
+                retryDisabled={
+                  busy() || catalogLoading() || scriptQueryLoading()
+                }
+                retrying={catalogLoading() || scriptQueryLoading()}
               />
             </Show>
           </div>
@@ -1557,39 +1921,34 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               value="scripts"
             >
               <div class="game-scripts-dialog__script-toolbar">
-                <Input
-                  aria-label="Search scripts"
-                  fullWidth
-                  placeholder="Search scripts"
-                  // size="sm"
-                  value={search()}
-                  onInput={(event) => {
-                    const value = event.currentTarget.value;
-                    setSearch(value);
-                    if (searchTimer !== undefined) {
-                      window.clearTimeout(searchTimer);
+                <InputGroup class="game-scripts-dialog__script-search">
+                  <InputGroupInput
+                    aria-label="Search scripts"
+                    placeholder="Search scripts..."
+                    value={search()}
+                    onInput={(event) =>
+                      updateScriptSearch(event.currentTarget.value)
                     }
-                    searchTimer = window.setTimeout(() => {
-                      setCatalogQuery(value.trim());
-                      searchTimer = undefined;
-                    }, 100);
-                  }}
-                />
-                <IconButton
-                  aria-label="Refresh scripts"
-                  class="game-scripts-dialog__refresh-button"
+                  />
+                  <InputGroupAddon align="inline-end" aria-live="polite">
+                    <Show
+                      when={scriptQueryIndicatorVisible()}
+                      fallback={<Icon aria-hidden="true" icon="search" />}
+                    >
+                      <Spinner size="sm" />
+                      <span class="visually-hidden">Searching scripts...</span>
+                    </Show>
+                  </InputGroupAddon>
+                </InputGroup>
+                <CatalogRefreshButton
                   disabled={busy() || catalogLoading()}
                   loading={catalogLoading() && catalog().revision !== ""}
                   onClick={() => void refreshCatalog()}
-                  size="icon"
-                  title="Refresh scripts"
-                  variant="outline"
-                >
-                  <Icon icon="refresh_cw" size="sm" />
-                </IconButton>
+                />
               </div>
               <div
                 ref={mountScriptViewport}
+                aria-busy={scriptQueryLoading() ? "true" : undefined}
                 class="game-scripts-dialog__script-viewport"
                 onScroll={(event) => {
                   if (activeTab() === "scripts") {
@@ -1611,135 +1970,184 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   }
                 >
                   <Show
-                    when={!scriptQueryLoading()}
+                    when={scriptTotal() > 0}
                     fallback={
-                      <div
-                        class="game-scripts-dialog__empty game-scripts-dialog__loading"
-                        role="status"
-                      >
-                        <Spinner size="sm" />
-                        <span>Searching scripts...</span>
+                      <div class="game-scripts-dialog__empty game-scripts-dialog__collection-empty">
+                        <p class="game-scripts-dialog__collection-empty-title">
+                          {catalogQuery() === ""
+                            ? "No scripts found"
+                            : "No matching scripts"}
+                        </p>
+                        <Show
+                          when={catalogQuery() === ""}
+                          fallback={
+                            <Button
+                              onClick={clearScriptSearch}
+                              size="sm"
+                              variant="secondary"
+                            >
+                              Clear search
+                            </Button>
+                          }
+                        >
+                          <p class="game-scripts-dialog__collection-empty-description">
+                            Load a file or install a package.
+                          </p>
+                          <div class="game-scripts-dialog__collection-empty-actions">
+                            <Button onClick={chooseFile} size="sm">
+                              Load script...
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                changeActiveTab("packages");
+                                openPackageInstaller();
+                              }}
+                              size="sm"
+                              variant="secondary"
+                            >
+                              Install package
+                            </Button>
+                          </div>
+                        </Show>
                       </div>
                     }
                   >
-                    <Show
-                      when={scriptTotal() > 0}
-                      fallback={
-                        <div class="game-scripts-dialog__empty">
-                          {catalogQuery() === ""
-                            ? "No scripts found."
-                            : "No scripts match this search."}
-                        </div>
-                      }
+                    <div
+                      class="game-scripts-dialog__virtual-list"
+                      style={{
+                        height: `${scriptVirtualizer.getTotalSize()}px`,
+                      }}
                     >
-                      <div
-                        class="game-scripts-dialog__virtual-list"
-                        style={{
-                          height: `${scriptVirtualizer.getTotalSize()}px`,
-                        }}
-                      >
-                        <For each={scriptVirtualizer.getVirtualItems()}>
-                          {(virtualRow) => {
-                            const entry = () =>
-                              scriptCatalogEntryAt(
-                                scriptPages(),
-                                virtualRow.index,
-                              );
-                            return (
-                              <Show
-                                when={entry()}
-                                keyed
-                                fallback={
+                      <For each={scriptVirtualizer.getVirtualItems()}>
+                        {(virtualRow) => {
+                          const entry = () =>
+                            scriptCatalogEntryAt(
+                              scriptPages(),
+                              virtualRow.index,
+                            );
+                          return (
+                            <Show
+                              when={entry()}
+                              keyed
+                              fallback={
+                                <div
+                                  aria-hidden="true"
+                                  class="game-scripts-dialog__script-row game-scripts-dialog__script-row--loading"
+                                  data-last={
+                                    virtualRow.index === scriptTotal() - 1
+                                      ? ""
+                                      : undefined
+                                  }
+                                  style={{
+                                    height: `${virtualRow.size}px`,
+                                    transform: `translateY(${virtualRow.start}px)`,
+                                  }}
+                                >
+                                  <div class="game-scripts-dialog__script-copy">
+                                    <span />
+                                    <span />
+                                  </div>
+                                </div>
+                              }
+                            >
+                              {(script) => {
+                                const selected = () =>
+                                  sameReference(
+                                    props.loadedReference,
+                                    script.reference,
+                                  );
+                                return (
                                   <div
-                                    aria-hidden="true"
-                                    class="game-scripts-dialog__script-row game-scripts-dialog__script-row--loading"
+                                    class="game-scripts-dialog__script-row"
+                                    data-last={
+                                      virtualRow.index === scriptTotal() - 1
+                                        ? ""
+                                        : undefined
+                                    }
+                                    data-selected={selected() ? "" : undefined}
                                     style={{
                                       height: `${virtualRow.size}px`,
                                       transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                   >
                                     <div class="game-scripts-dialog__script-copy">
-                                      <span />
-                                      <span />
+                                      <button
+                                        aria-label={`Open ${scriptLocation(script)} in your default editor`}
+                                        class="game-scripts-dialog__script-path"
+                                        onClick={() => void openScript(script)}
+                                        title={script.path}
+                                        type="button"
+                                      >
+                                        <Show
+                                          when={scriptContext(script)}
+                                          keyed
+                                        >
+                                          {(context) => (
+                                            <>
+                                              <span class="game-scripts-dialog__script-context">
+                                                {truncatePathContext(
+                                                  context,
+                                                  scriptContextLimit(),
+                                                )}
+                                              </span>
+                                              <span
+                                                aria-hidden="true"
+                                                class="game-scripts-dialog__script-separator"
+                                              >
+                                                /
+                                              </span>
+                                            </>
+                                          )}
+                                        </Show>
+                                        <span class="game-scripts-dialog__script-name">
+                                          {script.name}
+                                        </span>
+                                        <Icon
+                                          aria-hidden="true"
+                                          class="game-scripts-dialog__script-open-icon"
+                                          icon="arrow_up_right"
+                                          size="xs"
+                                        />
+                                      </button>
+                                    </div>
+                                    <div class="game-scripts-dialog__row-actions">
+                                      <Button
+                                        disabled={
+                                          busy() ||
+                                          props.scriptBusy ||
+                                          (selected() && props.scriptRunning)
+                                        }
+                                        onClick={() =>
+                                          selectScript(script, false)
+                                        }
+                                        size="sm"
+                                        variant="outline"
+                                      >
+                                        Load
+                                      </Button>
+                                      <Button
+                                        disabled={
+                                          busy() ||
+                                          props.scriptBusy ||
+                                          (selected() && props.scriptRunning) ||
+                                          !props.optionsReady
+                                        }
+                                        onClick={() =>
+                                          selectScript(script, true)
+                                        }
+                                        size="sm"
+                                      >
+                                        Start
+                                      </Button>
                                     </div>
                                   </div>
-                                }
-                              >
-                                {(script) => {
-                                  const selected = () =>
-                                    sameReference(
-                                      props.loadedReference,
-                                      script.reference,
-                                    );
-                                  return (
-                                    <div
-                                      class="game-scripts-dialog__script-row"
-                                      data-selected={
-                                        selected() ? "" : undefined
-                                      }
-                                      style={{
-                                        height: `${virtualRow.size}px`,
-                                        transform: `translateY(${virtualRow.start}px)`,
-                                      }}
-                                    >
-                                      <div class="game-scripts-dialog__script-copy">
-                                        <span>{script.name}</span>
-                                        <button
-                                          aria-label={`Open ${scriptContext(script)} in your default editor`}
-                                          class="game-scripts-dialog__script-path"
-                                          onClick={() =>
-                                            void openScript(script)
-                                          }
-                                          title={script.path}
-                                          type="button"
-                                        >
-                                          <span>{scriptContext(script)}</span>
-                                          <Icon
-                                            icon="arrow_up_right"
-                                            size="xs"
-                                          />
-                                        </button>
-                                      </div>
-                                      <div class="game-scripts-dialog__row-actions">
-                                        <Button
-                                          disabled={
-                                            busy() ||
-                                            props.scriptBusy ||
-                                            (selected() && props.scriptRunning)
-                                          }
-                                          onClick={() =>
-                                            selectScript(script, false)
-                                          }
-                                          size="sm"
-                                          variant="outline"
-                                        >
-                                          Load
-                                        </Button>
-                                        <Button
-                                          disabled={
-                                            busy() ||
-                                            props.scriptBusy ||
-                                            (selected() &&
-                                              props.scriptRunning) ||
-                                            !props.optionsReady
-                                          }
-                                          onClick={() =>
-                                            selectScript(script, true)
-                                          }
-                                          size="sm"
-                                        >
-                                          Start
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  );
-                                }}
-                              </Show>
-                            );
-                          }}
-                        </For>
-                      </div>
-                    </Show>
+                                );
+                              }}
+                            </Show>
+                          );
+                        }}
+                      </For>
+                    </div>
                   </Show>
                 </Show>
               </div>
@@ -1907,60 +2315,53 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               value="packages"
             >
               <Show
-                when={packageManagementBreadcrumb()}
-                fallback={
-                  <div
-                    aria-label="Package actions"
-                    class="game-scripts-dialog__package-toolbar"
-                    role="toolbar"
-                  >
-                    <div class="game-scripts-dialog__package-toolbar-group">
-                      <Button
-                        onClick={() => setPackageManagementView("install")}
-                        size="sm"
-                      >
-                        Install package
-                      </Button>
-                      <Button
-                        disabled={busy()}
-                        onClick={openCredentialManager}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        Credentials
-                      </Button>
-                    </div>
-                    <div class="game-scripts-dialog__package-toolbar-actions">
-                      <Button
-                        disabled={
-                          busy() ||
-                          catalogLoading() ||
-                          packagesEligibleForUpdateCheck().length === 0
-                        }
-                        loading={checkingPackageUpdates()}
-                        onClick={() => void checkAllPackageUpdates()}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        Check for updates
-                      </Button>
-                      <IconButton
-                        aria-label="Refresh installed packages"
-                        class="game-scripts-dialog__refresh-button"
-                        disabled={busy() || catalogLoading()}
-                        loading={catalogLoading() && catalog().revision !== ""}
-                        onClick={() => void refreshCatalog()}
-                        size="icon"
-                        title="Refresh installed packages"
-                        variant="outline"
-                      >
-                        <Icon icon="refresh_cw" size="sm" />
-                      </IconButton>
-                    </div>
-                  </div>
+                when={
+                  packageManagementView() === "installed" &&
+                  catalog().packages.length > 0
                 }
-                keyed
               >
+                <div
+                  aria-label="Package actions"
+                  class="game-scripts-dialog__package-toolbar"
+                  role="toolbar"
+                >
+                  <div class="game-scripts-dialog__package-toolbar-group">
+                    <Button onClick={openPackageInstaller} size="sm">
+                      <Icon icon="plus" size="sm" />
+                      Install package
+                    </Button>
+                    <Button
+                      disabled={busy()}
+                      onClick={() => openCredentialManager("installed")}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <Icon icon="key_round" size="sm" />
+                      GitHub credentials
+                    </Button>
+                  </div>
+                  <div class="game-scripts-dialog__package-toolbar-actions">
+                    <PackageUpdateCheckButton
+                      checking={checkingPackageUpdates()}
+                      disabled={
+                        busy() ||
+                        catalogLoading() ||
+                        packagesEligibleForUpdateCheck().length === 0
+                      }
+                      label="Check for updates"
+                      onClick={() => void checkAllPackageUpdates()}
+                      variant="ghost"
+                    />
+                    <CatalogRefreshButton
+                      disabled={busy() || catalogLoading()}
+                      loading={catalogLoading() && catalog().revision !== ""}
+                      onClick={() => void refreshCatalog()}
+                    />
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={packageManagementBreadcrumb()} keyed>
                 {(breadcrumb) => (
                   <div class="game-scripts-dialog__section-heading">
                     <nav
@@ -2006,7 +2407,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                     <Show
                       when={
                         packageManagementView() === "credentials" &&
-                        !credentialEditorOpen()
+                        !credentialEditorOpen() &&
+                        credentials().length > 0
                       }
                     >
                       <Button
@@ -2022,11 +2424,49 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 )}
               </Show>
 
-              <Show when={packageManagementView() === "install"}>
+              <Show
+                when={
+                  packageManagementView() === "install" || firstPackageInstall()
+                }
+              >
                 <section
                   aria-labelledby="script-package-management-title"
-                  class="game-scripts-dialog__install game-scripts-dialog__management-view"
+                  class="game-scripts-dialog__install"
                 >
+                  <Show
+                    when={
+                      packageManagementView() === "install" &&
+                      catalog().packages.length > 0
+                    }
+                  >
+                    <Button
+                      class="game-scripts-dialog__install-back"
+                      disabled={busy()}
+                      onClick={() => {
+                        setError("");
+                        setPackageManagementView("installed");
+                      }}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      <Icon icon="arrow_left" size="xs" />
+                      Packages
+                    </Button>
+                  </Show>
+                  <div class="game-scripts-dialog__install-heading">
+                    <h2 id="script-package-management-title">
+                      Install package
+                    </h2>
+                    <Button
+                      disabled={busy()}
+                      onClick={() => openCredentialManager("install")}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <Icon icon="key_round" size="sm" />
+                      GitHub credentials
+                    </Button>
+                  </div>
                   <div class="game-scripts-dialog__install-fields">
                     <Field
                       class="game-scripts-dialog__install-repository"
@@ -2036,7 +2476,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                         repositoryUrl().trim() !== ""
                       }
                       for="script-package-repository"
-                      label="GitHub repository (required)"
+                      label="GitHub repository"
                     >
                       <Input
                         aria-describedby={
@@ -2098,37 +2538,63 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                         </div>
                       </Show>
                     </Field>
-                    <Field
-                      class="game-scripts-dialog__install-ref"
-                      for="script-package-ref"
-                      label="Git ref"
+                    <Button
+                      aria-controls="script-package-install-options"
+                      aria-expanded={installOptionsOpen()}
+                      class="game-scripts-dialog__install-options-toggle"
+                      onClick={() =>
+                        setInstallOptionsOpen((current) => !current)
+                      }
+                      size="xs"
+                      type="button"
+                      variant="ghost"
                     >
-                      <Input
-                        fullWidth
-                        id="script-package-ref"
-                        placeholder="Branch, tag, or commit"
-                        value={repositoryRef()}
-                        onInput={(event) =>
-                          setRepositoryRef(event.currentTarget.value)
+                      <Icon
+                        aria-hidden="true"
+                        class={
+                          installOptionsOpen()
+                            ? "game-scripts-dialog__install-options-icon game-scripts-dialog__install-options-icon--open"
+                            : "game-scripts-dialog__install-options-icon"
                         }
+                        icon="chevron_right"
+                        size="xs"
                       />
-                    </Field>
-                    <Field
-                      class="game-scripts-dialog__install-credential"
-                      contentClass="game-scripts-dialog__credential-field"
-                      for="script-package-credential"
-                      label="GitHub access"
-                    >
-                      <div class="game-scripts-dialog__credential-field-control">
-                        <div class="game-scripts-dialog__credential-select-column">
+                      Advanced options
+                    </Button>
+                    <Show when={installOptionsOpen()}>
+                      <div
+                        class="game-scripts-dialog__install-options"
+                        id="script-package-install-options"
+                      >
+                        <Field
+                          class="game-scripts-dialog__install-ref"
+                          for="script-package-ref"
+                          label="Git ref"
+                        >
+                          <Input
+                            fullWidth
+                            id="script-package-ref"
+                            placeholder="Branch, tag, or commit"
+                            value={repositoryRef()}
+                            onInput={(event) =>
+                              setRepositoryRef(event.currentTarget.value)
+                            }
+                          />
+                        </Field>
+                        <Field
+                          class="game-scripts-dialog__install-credential"
+                          contentClass="game-scripts-dialog__credential-field"
+                          for="script-package-credential"
+                          label="GitHub access"
+                        >
                           <Select
                             class="game-scripts-dialog__credential-select"
                             ids={{ trigger: "script-package-credential" }}
                             positioning={{
                               fitViewport: true,
                               gutter: 4,
-                              placement: "bottom-end",
-                              sameWidth: false,
+                              placement: "bottom-start",
+                              sameWidth: true,
                             }}
                             value={[
                               credentialId() === ""
@@ -2186,41 +2652,422 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                             </SelectContent>
                           </Select>
                           <div class="game-scripts-dialog__credential-field-footer">
-                            Public repositories don't need a credential. Use a
-                            saved credential for private repositories or a
-                            higher GitHub request limit.
+                            Public repositories don't need a credential.
                           </div>
-                        </div>
-                        <Button
-                          class="game-scripts-dialog__install-action"
-                          disabled={
-                            busy() ||
-                            repositoryInput().kind !== "repository" ||
-                            installRateLimit() !== undefined
-                          }
-                          onClick={beginInstall}
-                          size="sm"
-                          title={packageRateLimitTitle(installRateLimit())}
-                        >
-                          <Show when={installRateLimit()} fallback="Install">
-                            {(limit) =>
-                              formatScriptPackageRetryLabel(
-                                limit().retryAtTimestamp,
-                                rateLimitNow(),
-                              )
-                            }
-                          </Show>
-                        </Button>
+                        </Field>
                       </div>
-                    </Field>
+                    </Show>
+                    <div class="game-scripts-dialog__install-actions">
+                      <Button
+                        disabled={
+                          busy() ||
+                          repositoryInput().kind !== "repository" ||
+                          installRateLimit() !== undefined
+                        }
+                        onClick={beginInstall}
+                        size="sm"
+                        title={packageRateLimitTitle(installRateLimit())}
+                      >
+                        <Show when={installRateLimit()} fallback="Install">
+                          {(limit) =>
+                            formatScriptPackageRetryLabel(
+                              limit().retryAtTimestamp,
+                              rateLimitNow(),
+                            )
+                          }
+                        </Show>
+                      </Button>
+                    </div>
                   </div>
                 </section>
+              </Show>
+
+              <Show
+                when={
+                  packageManagementView() === "details"
+                    ? selectedPackage()
+                    : undefined
+                }
+                keyed
+              >
+                {(entry) => (
+                  <section
+                    ref={mountPackageViewport}
+                    aria-label="Package details"
+                    class="game-scripts-dialog__package-details"
+                    onScroll={(event) => {
+                      if (activeTab() === "packages") {
+                        scrollPositions.packages =
+                          event.currentTarget.scrollTop;
+                      }
+                    }}
+                  >
+                    <Button
+                      class="game-scripts-dialog__package-details-back"
+                      disabled={busy()}
+                      onClick={closePackageDetails}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      <Icon icon="arrow_left" size="xs" />
+                      Packages
+                    </Button>
+                    <Show
+                      when={entry.status === "valid" ? entry : undefined}
+                      keyed
+                      fallback={
+                        <>
+                          <header class="game-scripts-dialog__package-details-heading">
+                            <div class="game-scripts-dialog__package-details-identity">
+                              <span class="game-scripts-dialog__package-name">
+                                {entry.name ?? "Invalid package"}
+                              </span>
+                              <p>Lucent couldn't load this package.</p>
+                            </div>
+                          </header>
+                          <Alert
+                            class="game-scripts-dialog__package-notice"
+                            variant="error"
+                          >
+                            <AlertTitle>
+                              <Icon icon="triangle_alert" size="md" />
+                              Needs attention
+                            </AlertTitle>
+                            <AlertDescription>
+                              {entry.status === "invalid"
+                                ? entry.diagnostic
+                                : "This folder isn't a valid package."}
+                            </AlertDescription>
+                          </Alert>
+                          <dl class="game-scripts-dialog__package-detail-list">
+                            <div class="game-scripts-dialog__package-detail-row">
+                              <dt>Location</dt>
+                              <dd>
+                                <span title={entry.path}>{entry.path}</span>
+                              </dd>
+                            </div>
+                          </dl>
+                          <div class="game-scripts-dialog__package-detail-actions">
+                            <Button
+                              onClick={() => void openPackage(entry)}
+                              size="sm"
+                              variant="secondary"
+                            >
+                              <Icon icon="folder_open" size="sm" />
+                              Open folder
+                            </Button>
+                          </div>
+                        </>
+                      }
+                    >
+                      {(valid) => {
+                        const displayStatus = createMemo(() =>
+                          packageDisplayStatus(valid, rateLimitNow()),
+                        );
+                        const checkSummary = createMemo(() =>
+                          packageCheckSummary(valid, rateLimitNow()),
+                        );
+                        const noticeDescription = createMemo(() =>
+                          packageNoticeDescription(valid, displayStatus()),
+                        );
+                        return (
+                          <>
+                            <header class="game-scripts-dialog__package-details-heading">
+                              <div class="game-scripts-dialog__package-details-identity">
+                                <div class="game-scripts-dialog__package-details-title">
+                                  <span class="game-scripts-dialog__package-name">
+                                    {valid.name}
+                                  </span>
+                                  <Show when={valid.version} keyed>
+                                    {(version) => (
+                                      <span class="game-scripts-dialog__package-version">
+                                        v{version}
+                                      </span>
+                                    )}
+                                  </Show>
+                                  <Show when={!needsPackageNotice(valid)}>
+                                    <Badge
+                                      class="game-scripts-dialog__package-status-badge"
+                                      size="default"
+                                      variant={displayStatus().tone}
+                                    >
+                                      {displayStatus().label}
+                                    </Badge>
+                                  </Show>
+                                </div>
+                                <Show when={valid.description} keyed>
+                                  {(description) => (
+                                    <p title={description}>{description}</p>
+                                  )}
+                                </Show>
+                              </div>
+                            </header>
+                            <Show when={needsPackageNotice(valid)}>
+                              <Alert
+                                class="game-scripts-dialog__package-notice"
+                                variant={packageAlertVariant(displayStatus())}
+                              >
+                                <AlertTitle>
+                                  <Icon icon={displayStatus().icon} size="md" />
+                                  {displayStatus().label}
+                                </AlertTitle>
+                                <AlertDescription>
+                                  {noticeDescription()}
+                                </AlertDescription>
+                                <Show
+                                  when={valid.update.status === "available"}
+                                >
+                                  <AlertAction>
+                                    <Button
+                                      disabled={
+                                        busy() ||
+                                        packageActiveRateLimit(valid) !==
+                                          undefined
+                                      }
+                                      onClick={() => beginUpdatePackage(valid)}
+                                      size="sm"
+                                    >
+                                      Update
+                                    </Button>
+                                  </AlertAction>
+                                </Show>
+                              </Alert>
+                            </Show>
+                            <dl class="game-scripts-dialog__package-detail-list">
+                              <Show
+                                when={valid.source}
+                                keyed
+                                fallback={
+                                  <div class="game-scripts-dialog__package-detail-row">
+                                    <dt>Source</dt>
+                                    <dd>Local folder</dd>
+                                  </div>
+                                }
+                              >
+                                {(source) => (
+                                  <div class="game-scripts-dialog__package-detail-row">
+                                    <dt>Source</dt>
+                                    <dd class="game-scripts-dialog__package-source">
+                                      <span class="game-scripts-dialog__package-source-identity">
+                                        <span class="game-scripts-dialog__package-source-reference">
+                                          <Button
+                                            aria-label={`Open ${valid.name} repository`}
+                                            class="game-scripts-dialog__package-source-repository"
+                                            onClick={() =>
+                                              void openRepository(valid)
+                                            }
+                                            size="xs"
+                                            title={source.repositoryUrl}
+                                            variant="link"
+                                          >
+                                            <span class="game-scripts-dialog__package-source-repository-label">
+                                              {source.repositoryUrl
+                                                .replace(
+                                                  /^https:\/\/github\.com\//,
+                                                  "",
+                                                )
+                                                .replace(/\/$/, "")}
+                                            </span>
+                                            <Show
+                                              when={source.requestedRef}
+                                              keyed
+                                            >
+                                              {(requestedRef) => (
+                                                <span class="game-scripts-dialog__package-source-ref">
+                                                  ({requestedRef})
+                                                </span>
+                                              )}
+                                            </Show>
+                                            <Icon
+                                              aria-hidden="true"
+                                              class="game-scripts-dialog__package-source-open-icon"
+                                              icon="arrow_up_right"
+                                              size="xs"
+                                            />
+                                          </Button>
+                                        </span>
+                                        <span class="game-scripts-dialog__package-source-commit">
+                                          <span class="game-scripts-dialog__package-source-commit-label">
+                                            Commit
+                                          </span>
+                                          <code
+                                            class="game-scripts-dialog__package-detail-mono"
+                                            title={source.resolvedCommit}
+                                          >
+                                            {source.resolvedCommit.slice(0, 7)}
+                                          </code>
+                                          <TooltipIconButton
+                                            aria-label={`Copy commit ${source.resolvedCommit}`}
+                                            class="game-scripts-dialog__package-source-copy"
+                                            onClick={() =>
+                                              void copyCommit(
+                                                valid.path,
+                                                source.resolvedCommit,
+                                              )
+                                            }
+                                            size="icon-xs"
+                                            tooltip={
+                                              copiedCommitPath() === valid.path
+                                                ? "Copied"
+                                                : "Copy commit"
+                                            }
+                                          >
+                                            <Icon
+                                              icon={
+                                                copiedCommitPath() ===
+                                                valid.path
+                                                  ? "check"
+                                                  : "copy"
+                                              }
+                                              size="xs"
+                                            />
+                                          </TooltipIconButton>
+                                        </span>
+                                      </span>
+                                    </dd>
+                                  </div>
+                                )}
+                              </Show>
+                              <Show when={checkSummary().timestamp} keyed>
+                                {(timestamp) => (
+                                  <div class="game-scripts-dialog__package-detail-row">
+                                    <dt>{checkSummary().timestampLabel}</dt>
+                                    <dd>
+                                      <time
+                                        datetime={timestamp}
+                                        title={new Date(
+                                          timestamp,
+                                        ).toLocaleString()}
+                                      >
+                                        {formatRelativeTime(
+                                          timestamp,
+                                          rateLimitNow(),
+                                        )}
+                                      </time>
+                                    </dd>
+                                  </div>
+                                )}
+                              </Show>
+                            </dl>
+                            <div
+                              aria-label="Package actions"
+                              class="game-scripts-dialog__package-detail-actions"
+                              role="toolbar"
+                            >
+                              <div class="game-scripts-dialog__package-detail-actions-group">
+                                <Show
+                                  when={packageFooterPrimaryAction(valid)}
+                                  keyed
+                                >
+                                  {(action) =>
+                                    action === "check" ? (
+                                      <PackageUpdateCheckButton
+                                        checking={
+                                          checkingPackageName() === valid.name
+                                        }
+                                        disabled={
+                                          busy() ||
+                                          packageActiveRateLimit(valid) !==
+                                            undefined
+                                        }
+                                        label={packageActionLabel(
+                                          valid,
+                                          action,
+                                        )}
+                                        onClick={() =>
+                                          runPackagePrimaryAction(valid, action)
+                                        }
+                                        title={packageRateLimitTitle(
+                                          packageActiveRateLimit(valid),
+                                        )}
+                                        variant="secondary"
+                                      />
+                                    ) : (
+                                      <Button
+                                        disabled={
+                                          busy() ||
+                                          packageActiveRateLimit(valid) !==
+                                            undefined
+                                        }
+                                        onClick={() =>
+                                          runPackagePrimaryAction(valid, action)
+                                        }
+                                        size="sm"
+                                        title={packageRateLimitTitle(
+                                          packageActiveRateLimit(valid),
+                                        )}
+                                        variant={
+                                          action === "update"
+                                            ? "default"
+                                            : "secondary"
+                                        }
+                                      >
+                                        {packageActionLabel(valid, action)}
+                                      </Button>
+                                    )
+                                  }
+                                </Show>
+                                <Show
+                                  when={
+                                    packagePrimaryAction(valid) !==
+                                    "open-folder"
+                                  }
+                                >
+                                  <Button
+                                    onClick={() => void openPackage(valid)}
+                                    size="sm"
+                                    variant="secondary"
+                                  >
+                                    <Icon icon="folder_open" size="sm" />
+                                    Open folder
+                                  </Button>
+                                </Show>
+                                <Show
+                                  when={
+                                    valid.source !== undefined &&
+                                    packagePrimaryAction(valid) !== "check"
+                                  }
+                                >
+                                  <PackageUpdateCheckButton
+                                    checking={
+                                      checkingPackageName() === valid.name
+                                    }
+                                    disabled={
+                                      busy() ||
+                                      packageActiveRateLimit(valid) !==
+                                        undefined
+                                    }
+                                    label={packageUpdateCheckLabel(valid)}
+                                    onClick={() => void checkUpdate(valid)}
+                                    title={packageRateLimitTitle(
+                                      packageActiveRateLimit(valid),
+                                    )}
+                                    variant="secondary"
+                                  />
+                                </Show>
+                              </div>
+                              <Button
+                                class="game-scripts-dialog__package-remove-button"
+                                disabled={busy()}
+                                onClick={() => removePackage(valid)}
+                                size="sm"
+                                variant="destructive-outline"
+                              >
+                                Remove package
+                              </Button>
+                            </div>
+                          </>
+                        );
+                      }}
+                    </Show>
+                  </section>
+                )}
               </Show>
 
               <Show when={packageManagementView() === "credentials"}>
                 <section
                   aria-labelledby="script-package-management-title"
-                  class="game-scripts-dialog__credential-manager game-scripts-dialog__management-view"
+                  class="game-scripts-dialog__credential-manager"
                   data-editor-open={credentialEditorOpen() ? "" : undefined}
                 >
                   <div class="game-scripts-dialog__credential-manager-body">
@@ -2232,8 +3079,19 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                             when={credentials().length > 0}
                             fallback={
                               <div class="game-scripts-dialog__credential-manager-empty">
-                                No saved credentials; public repositories work
-                                without one.
+                                <div>
+                                  <strong>No GitHub credentials</strong>
+                                  <span>
+                                    Only needed for private repositories.
+                                  </span>
+                                </div>
+                                <Button
+                                  onClick={() => openCredentialEditor()}
+                                  size="sm"
+                                >
+                                  <Icon icon="plus" size="sm" />
+                                  Add credential
+                                </Button>
                               </div>
                             }
                           >
@@ -2317,8 +3175,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                             </h3>
                             <p class="game-scripts-dialog__credential-view-description">
                               {editingCredentialId() === ""
-                                ? "Save a personal access token to use private repositories or get a higher GitHub request limit."
-                                : `Enter a new personal access token for ${credentialLabel()}.`}
+                                ? "Use a personal access token for private repositories and higher GitHub API rate limits."
+                                : `Enter a new token for ${credentialLabel()}.`}
                             </p>
                           </div>
                           <Show when={editingCredentialId() === ""}>
@@ -2386,15 +3244,13 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                         ? "eye_off"
                                         : "eye"
                                     }
+                                    size="xs"
                                   />
                                 </Button>
                               </InputGroupAddon>
                             </InputGroup>
                             <div class="game-scripts-dialog__credential-token-help">
-                              <span>
-                                When possible, give the token read-only access
-                                to private repositories.
-                              </span>
+                              <span>Prefer read-only repository access.</span>
                               <Button
                                 class="game-scripts-dialog__credential-token-link"
                                 onClick={openGitHubTokenPage}
@@ -2411,6 +3267,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                           <Button
                             disabled={busy()}
                             onClick={closeCredentialEditor}
+                            size="sm"
                             variant="outline"
                           >
                             Cancel
@@ -2423,6 +3280,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                             }
                             loading={busy()}
                             onClick={() => void saveCredential()}
+                            size="sm"
                           >
                             {editingCredentialId() !== ""
                               ? "Replace token"
@@ -2438,10 +3296,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               <Show
                 when={
                   packageManagementView() === "installed" &&
-                  (catalog().revision !== "" || !catalogLoading())
+                  !firstPackageInstall()
                 }
-                fallback={
-                  <Show when={packageManagementView() === "installed"}>
+              >
+                <Show
+                  when={catalog().revision !== "" || !catalogLoading()}
+                  fallback={
                     <div
                       class="game-scripts-dialog__empty game-scripts-dialog__loading"
                       role="status"
@@ -2449,393 +3309,110 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       <Spinner size="sm" />
                       <span>Loading packages...</span>
                     </div>
-                  </Show>
-                }
-              >
-                <Show
-                  when={catalog().packages.length > 0}
-                  fallback={
-                    <div class="game-scripts-dialog__empty">
-                      No packages are installed.
-                    </div>
                   }
                 >
-                  <div
-                    ref={mountPackageViewport}
-                    class="game-scripts-dialog__package-list"
-                    onScroll={(event) => {
-                      if (activeTab() === "packages") {
-                        scrollPositions.packages =
-                          event.currentTarget.scrollTop;
-                      }
-                    }}
-                  >
-                    <For each={catalog().packages}>
-                      {(entry) => (
-                        <article class="game-scripts-dialog__package-row">
+                  <Show when={catalog().packages.length > 0}>
+                    <div
+                      ref={mountPackageViewport}
+                      class="game-scripts-dialog__package-list"
+                      onScroll={(event) => {
+                        if (activeTab() === "packages") {
+                          scrollPositions.packages =
+                            event.currentTarget.scrollTop;
+                        }
+                      }}
+                    >
+                      <For each={catalog().packages}>
+                        {(entry) => (
                           <Show
                             when={entry.status === "valid" ? entry : undefined}
+                            keyed
                             fallback={
-                              <>
-                                <div class="game-scripts-dialog__package-copy">
-                                  <div class="game-scripts-dialog__package-title">
-                                    <span
-                                      class="game-scripts-dialog__package-name"
-                                      title={entry.name ?? "Needs attention"}
-                                    >
-                                      {entry.name ?? "Needs attention"}
+                              <button
+                                aria-label={`View ${entry.name ?? "invalid package"} details`}
+                                class="game-scripts-dialog__package-row"
+                                onClick={() => openPackageDetails(entry)}
+                                type="button"
+                              >
+                                <span class="game-scripts-dialog__package-copy">
+                                  <span class="game-scripts-dialog__package-title">
+                                    <span class="game-scripts-dialog__package-name">
+                                      {entry.name ?? "Invalid package"}
                                     </span>
-                                    <div class="game-scripts-dialog__badges">
-                                      <PackageStatusBadge
-                                        description="Lucent found a package folder but couldn't load it. See the error below for details."
-                                        icon="triangle_alert"
-                                        label="Needs attention"
-                                        variant="error"
-                                      />
-                                    </div>
-                                  </div>
+                                  </span>
                                   <span
-                                    class="game-scripts-dialog__package-detail"
+                                    class="game-scripts-dialog__package-description"
                                     title={
                                       entry.status === "invalid"
                                         ? entry.diagnostic
-                                        : "This folder isn't a valid package."
+                                        : undefined
                                     }
                                   >
                                     {entry.status === "invalid"
                                       ? entry.diagnostic
                                       : "This folder isn't a valid package."}
                                   </span>
-                                </div>
-                                <div class="game-scripts-dialog__package-actions">
-                                  <Button
-                                    class="game-scripts-dialog__package-primary-action"
-                                    onClick={() => void openPackage(entry)}
-                                    size="sm"
-                                    variant="ghost"
-                                  >
-                                    Open folder
-                                  </Button>
-                                </div>
-                              </>
+                                </span>
+                                <span
+                                  class="game-scripts-dialog__package-row-tail"
+                                  data-tone="error"
+                                >
+                                  <span>Needs attention</span>
+                                  <Icon icon="chevron_right" size="sm" />
+                                </span>
+                              </button>
                             }
                           >
                             {(valid) => {
                               const displayStatus = createMemo(() =>
-                                packageDisplayStatus(valid(), rateLimitNow()),
-                              );
-                              const checkSummary = createMemo(() =>
-                                packageCheckSummary(valid(), rateLimitNow()),
+                                packageDisplayStatus(valid, rateLimitNow()),
                               );
                               return (
-                                <>
-                                  <div class="game-scripts-dialog__package-copy">
-                                    <div class="game-scripts-dialog__package-title">
-                                      <span
-                                        class="game-scripts-dialog__package-name"
-                                        title={valid().name}
-                                      >
-                                        {valid().name}
+                                <button
+                                  aria-label={`View ${valid.name} package details`}
+                                  class="game-scripts-dialog__package-row"
+                                  onClick={() => openPackageDetails(valid)}
+                                  type="button"
+                                >
+                                  <span class="game-scripts-dialog__package-copy">
+                                    <span class="game-scripts-dialog__package-title">
+                                      <span class="game-scripts-dialog__package-name">
+                                        {valid.name}
                                       </span>
-                                      <Show when={valid().version} keyed>
+                                      <Show when={valid.version} keyed>
                                         {(version) => (
                                           <span class="game-scripts-dialog__package-version">
                                             v{version}
                                           </span>
                                         )}
                                       </Show>
-                                      <div class="game-scripts-dialog__badges">
-                                        <PackageStatusBadge
-                                          description={
-                                            displayStatus().description
-                                          }
-                                          icon={displayStatus().icon}
-                                          label={displayStatus().label}
-                                          variant={displayStatus().variant}
-                                        />
-                                      </div>
-                                    </div>
-                                    <Show when={valid().description} keyed>
-                                      {(description) => (
-                                        <span
-                                          class="game-scripts-dialog__package-description"
-                                          title={description}
-                                        >
-                                          {description}
-                                        </span>
-                                      )}
-                                    </Show>
-                                    <Show when={valid().warning} keyed>
-                                      {(warning) => (
-                                        <span
-                                          class="game-scripts-dialog__warning"
-                                          title={warning}
-                                        >
-                                          {warning}
-                                        </span>
-                                      )}
-                                    </Show>
-                                    <Show when={valid().source} keyed>
-                                      {(source) => (
-                                        <div
-                                          class="game-scripts-dialog__package-source"
-                                          title={`Commit ${source.resolvedCommit}`}
-                                        >
-                                          <Show
-                                            when={checkSummary().timestamp}
-                                            keyed
-                                          >
-                                            {(timestamp) => (
-                                              <span class="game-scripts-dialog__package-source-field">
-                                                <span class="game-scripts-dialog__package-source-label">
-                                                  {
-                                                    checkSummary()
-                                                      .timestampLabel
-                                                  }
-                                                </span>
-                                                <time
-                                                  class="game-scripts-dialog__package-source-value"
-                                                  datetime={timestamp}
-                                                  title={new Date(
-                                                    timestamp,
-                                                  ).toLocaleString()}
-                                                >
-                                                  {formatRelativeTime(
-                                                    timestamp,
-                                                    rateLimitNow(),
-                                                  )}
-                                                </time>
-                                              </span>
-                                            )}
-                                          </Show>
-                                          <span class="game-scripts-dialog__package-source-field game-scripts-dialog__package-source-field--commit">
-                                            <span class="game-scripts-dialog__package-source-label">
-                                              Commit
-                                            </span>
-                                            <span class="game-scripts-dialog__package-source-value">
-                                              {source.resolvedCommit.slice(
-                                                0,
-                                                7,
-                                              )}
-                                            </span>
-                                            <TooltipIconButton
-                                              aria-label={`Copy commit ${source.resolvedCommit}`}
-                                              class={
-                                                copiedCommitPath() ===
-                                                valid().path
-                                                  ? "game-scripts-dialog__copy-commit game-scripts-dialog__copy-commit--copied"
-                                                  : "game-scripts-dialog__copy-commit"
-                                              }
-                                              onClick={() =>
-                                                void copyCommit(
-                                                  valid().path,
-                                                  source.resolvedCommit,
-                                                )
-                                              }
-                                              size="icon-sm"
-                                              tooltip={
-                                                copiedCommitPath() ===
-                                                valid().path
-                                                  ? "Copied"
-                                                  : "Copy commit hash"
-                                              }
-                                            >
-                                              <Icon
-                                                icon={
-                                                  copiedCommitPath() ===
-                                                  valid().path
-                                                    ? "check"
-                                                    : "copy"
-                                                }
-                                                size="sm"
-                                              />
-                                            </TooltipIconButton>
-                                          </span>
-                                        </div>
-                                      )}
-                                    </Show>
-                                  </div>
-                                  <div class="game-scripts-dialog__package-actions">
-                                    <Show
-                                      when={packagePrimaryAction(valid())}
-                                      keyed
+                                    </span>
+                                    <span
+                                      class="game-scripts-dialog__package-description"
+                                      title={
+                                        valid.description ??
+                                        displayStatus().description
+                                      }
                                     >
-                                      {(action) => {
-                                        const rateLimit = () =>
-                                          packageActiveRateLimit(valid());
-                                        const label = (): string => {
-                                          const activeLimit = rateLimit();
-                                          if (activeLimit !== undefined) {
-                                            return formatScriptPackageRetryLabel(
-                                              activeLimit.retryAtTimestamp,
-                                              rateLimitNow(),
-                                            );
-                                          }
-                                          if (
-                                            action === "check" &&
-                                            valid().update.status ===
-                                              "rate-limited"
-                                          ) {
-                                            return "Check again";
-                                          }
-                                          return packagePrimaryActionLabels[
-                                            action
-                                          ];
-                                        };
-                                        return (
-                                          <Button
-                                            class="game-scripts-dialog__package-primary-action"
-                                            disabled={
-                                              busy() ||
-                                              rateLimit() !== undefined
-                                            }
-                                            onClick={() =>
-                                              runPackagePrimaryAction(
-                                                valid(),
-                                                action,
-                                              )
-                                            }
-                                            size="sm"
-                                            title={
-                                              rateLimit() !== undefined
-                                                ? packageRateLimitTitle(
-                                                    rateLimit(),
-                                                  )
-                                                : undefined
-                                            }
-                                            variant={
-                                              action === "update"
-                                                ? "default"
-                                                : action === "open-folder"
-                                                  ? "ghost"
-                                                  : "secondary"
-                                            }
-                                          >
-                                            {label()}
-                                          </Button>
-                                        );
-                                      }}
-                                    </Show>
-                                    <Menu
-                                      positioning={{
-                                        gutter: 4,
-                                        placement: "bottom-end",
-                                      }}
-                                    >
-                                      <MenuTrigger
-                                        asChild={(triggerProps) => (
-                                          <IconButton
-                                            {...(triggerProps({
-                                              "aria-label": `More actions for ${valid().name}`,
-                                              children: (
-                                                <Icon
-                                                  icon="ellipsis"
-                                                  size="sm"
-                                                />
-                                              ),
-                                              class:
-                                                "game-scripts-dialog__package-menu-trigger",
-                                              disabled: busy(),
-                                              size: "icon-sm",
-                                              type: "button",
-                                              variant: "ghost",
-                                            } as IconButtonProps) as IconButtonProps)}
-                                          />
-                                        )}
-                                      />
-                                      <MenuContent class="game-scripts-dialog__package-menu">
-                                        <Show
-                                          when={
-                                            packagePrimaryAction(valid()) !==
-                                            "open-folder"
-                                          }
-                                        >
-                                          <MenuItem
-                                            onSelect={() =>
-                                              void openPackage(valid())
-                                            }
-                                            value="open-folder"
-                                          >
-                                            Open folder
-                                          </MenuItem>
-                                        </Show>
-                                        <Show
-                                          when={valid().source !== undefined}
-                                        >
-                                          <MenuItem
-                                            onSelect={() =>
-                                              void openRepository(valid())
-                                            }
-                                            value="open-repository"
-                                          >
-                                            Open repository
-                                          </MenuItem>
-                                        </Show>
-                                        <Show
-                                          when={
-                                            valid().source !== undefined &&
-                                            packagePrimaryAction(valid()) !==
-                                              "check"
-                                          }
-                                        >
-                                          <MenuItem
-                                            disabled={
-                                              packageActiveRateLimit(
-                                                valid(),
-                                              ) !== undefined
-                                            }
-                                            onSelect={() =>
-                                              void checkUpdate(valid())
-                                            }
-                                            title={packageRateLimitTitle(
-                                              packageActiveRateLimit(valid()),
-                                            )}
-                                            value="check-again"
-                                          >
-                                            <Show
-                                              when={packageActiveRateLimit(
-                                                valid(),
-                                              )}
-                                              fallback="Check again"
-                                            >
-                                              {(limit) =>
-                                                formatScriptPackageRetryLabel(
-                                                  limit().retryAtTimestamp,
-                                                  rateLimitNow(),
-                                                )
-                                              }
-                                            </Show>
-                                          </MenuItem>
-                                        </Show>
-                                        <Show
-                                          when={
-                                            packagePrimaryAction(valid()) !==
-                                              "open-folder" ||
-                                            valid().source !== undefined
-                                          }
-                                        >
-                                          <MenuSeparator />
-                                        </Show>
-                                        <MenuItem
-                                          onSelect={() =>
-                                            removePackage(valid())
-                                          }
-                                          value="remove"
-                                          variant="destructive"
-                                        >
-                                          Remove
-                                        </MenuItem>
-                                      </MenuContent>
-                                    </Menu>
-                                  </div>
-                                </>
+                                      {valid.description ??
+                                        displayStatus().description}
+                                    </span>
+                                  </span>
+                                  <span
+                                    class="game-scripts-dialog__package-row-tail"
+                                    data-tone={displayStatus().tone}
+                                  >
+                                    <span>{displayStatus().listLabel}</span>
+                                    <Icon icon="chevron_right" size="sm" />
+                                  </span>
+                                </button>
                               );
                             }}
                           </Show>
-                        </article>
-                      )}
-                    </For>
-                  </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
                 </Show>
               </Show>
             </TabsContent>

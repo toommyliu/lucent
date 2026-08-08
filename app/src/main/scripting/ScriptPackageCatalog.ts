@@ -354,18 +354,33 @@ const integrityFor = async (
 const naturalCompare = (left: string, right: string): number =>
   left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 
+/** Returns the script's parent directory relative to its loose or package root. */
+const scriptDirectory = (entry: ScriptCatalogEntry): string => {
+  const separatorIndex = entry.relativePath.lastIndexOf("/");
+  return separatorIndex === -1
+    ? ""
+    : entry.relativePath.slice(0, separatorIndex);
+};
+
 const compareScripts = (
   left: ScriptCatalogEntry,
   right: ScriptCatalogEntry,
 ): number => {
-  const nameOrder = naturalCompare(left.name, right.name);
-  if (nameOrder !== 0) return nameOrder;
   const packageOrder = naturalCompare(
     left.packageName ?? "",
     right.packageName ?? "",
   );
-  return packageOrder !== 0
-    ? packageOrder
+  if (packageOrder !== 0) return packageOrder;
+
+  const directoryOrder = naturalCompare(
+    scriptDirectory(left),
+    scriptDirectory(right),
+  );
+  if (directoryOrder !== 0) return directoryOrder;
+
+  const nameOrder = naturalCompare(left.name, right.name);
+  return nameOrder !== 0
+    ? nameOrder
     : naturalCompare(left.relativePath, right.relativePath);
 };
 

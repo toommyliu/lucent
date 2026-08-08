@@ -10,26 +10,27 @@ import {
   type IpcInvokeResult,
 } from "../../shared/ipc";
 
-const errorMessage = (cause: unknown): string => {
+const errorMessage = (cause: unknown, fallback: string): string => {
   if (cause instanceof Error && cause.message.length > 0) {
     return cause.message;
   }
-  return typeof cause === "string" && cause.length > 0
-    ? cause
-    : "IPC request failed.";
+  return typeof cause === "string" && cause.length > 0 ? cause : fallback;
 };
 
 const bridgeError = (
   channel: string,
   code: string,
   cause: unknown,
-): IpcBridgeError => ({
-  channel,
-  code,
-  message: Cause.isCause(cause)
-    ? errorMessage(Cause.squash(cause))
-    : errorMessage(cause),
-});
+): IpcBridgeError => {
+  const fallback = `IPC request failed on channel "${channel}".`;
+  return {
+    channel,
+    code,
+    message: Cause.isCause(cause)
+      ? errorMessage(Cause.squash(cause), fallback)
+      : errorMessage(cause, fallback),
+  };
+};
 
 export const createDesktopIpcInvokeHandler = <
   Descriptor extends IpcInvokeDescriptor<unknown, unknown>,

@@ -188,6 +188,14 @@ const icons = {
       },
     ],
   ],
+  git_compare_arrows: [
+    ["circle", { cx: "5", cy: "6", r: "3" }],
+    ["path", { d: "M12 6h5a2 2 0 0 1 2 2v7" }],
+    ["path", { d: "m15 9-3-3 3-3" }],
+    ["circle", { cx: "19", cy: "18", r: "3" }],
+    ["path", { d: "M12 18H7a2 2 0 0 1-2-2V9" }],
+    ["path", { d: "m9 15 3 3-3 3" }],
+  ],
   help_circle: [
     ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
     ["path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3", key: "1u773s" }],
@@ -210,6 +218,15 @@ const icons = {
     ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
     ["path", { d: "M12 16v-4", key: "1dtifu" }],
     ["path", { d: "M12 8h.01", key: "e9boi3" }],
+  ],
+  key_round: [
+    [
+      "path",
+      {
+        d: "M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z",
+      },
+    ],
+    ["circle", { cx: "16.5", cy: "7.5", r: ".5", fill: "currentColor" }],
   ],
   // Local spinner arc: 270deg from 12 o'clock to 9 o'clock, so reduced-motion
   // states read as intentional loading instead of a frozen animation frame.
