@@ -666,4 +666,123 @@ describe("Projection", () => {
       }),
     ),
   );
+
+  it.effect("exposes player position and destination movement semantics", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const events: Event[] = [];
+      const pipeline = makePipeline(store, {
+        publishEvent: (event) =>
+          Effect.sync(() => {
+            events.push(event);
+          }),
+      });
+
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 12,
+          areaName: "battleon-42",
+          monBranch: [],
+          uoBranch: [
+            {
+              entID: 11,
+              strFrame: "Enter",
+              strPad: "Spawn",
+              strUsername: "Leader",
+              tx: 120,
+              ty: 140,
+            },
+          ],
+        }),
+      );
+      events.length = 0;
+
+      yield* pipeline.packet(
+        extension("uotls", {
+          o: { px: 120, py: 140, tx: 300, ty: 240 },
+          unm: "Leader",
+        }),
+      );
+      expect(events).toEqual([
+        {
+          cell: "Enter",
+          destination: { x: 300, y: 240 },
+          entityId: 11,
+          kind: "walk",
+          pad: "Spawn",
+          position: { x: 120, y: 140 },
+          type: "player-location",
+          username: "Leader",
+        },
+      ]);
+      expect((yield* store.world.getPlayer("Leader"))?.position).toEqual({
+        x: 120,
+        y: 140,
+      });
+      events.length = 0;
+
+      yield* pipeline.packet(
+        extension("uotls", {
+          o: {
+            px: 40,
+            py: 50,
+            strFrame: "Battle",
+            strPad: "Left",
+            tx: 0,
+            ty: 0,
+          },
+          unm: "Leader",
+        }),
+      );
+      expect(events).toEqual([
+        {
+          cell: "Battle",
+          entityId: 11,
+          kind: "cell",
+          pad: "Left",
+          position: { x: 40, y: 50 },
+          type: "player-location",
+          username: "Leader",
+        },
+      ]);
+      events.length = 0;
+
+      yield* pipeline.packet(
+        extension("uotls", {
+          o: { px: 80, py: 90 },
+          unm: "Leader",
+        }),
+      );
+      expect(events).toEqual([
+        {
+          cell: "Battle",
+          entityId: 11,
+          kind: "position",
+          pad: "Left",
+          position: { x: 80, y: 90 },
+          type: "player-location",
+          username: "Leader",
+        },
+      ]);
+      events.length = 0;
+
+      yield* pipeline.packet(
+        extension("uotls", {
+          o: { strFrame: "Boss", strPad: "Right" },
+          unm: "Leader",
+        }),
+      );
+      expect(events).toEqual([
+        {
+          cell: "Boss",
+          entityId: 11,
+          kind: "cell",
+          pad: "Right",
+          position: { x: 80, y: 90 },
+          type: "player-location",
+          username: "Leader",
+        },
+      ]);
+    }),
+  );
 });

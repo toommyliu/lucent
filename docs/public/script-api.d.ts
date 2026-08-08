@@ -678,7 +678,13 @@ type EventSelector =
     }
   | {
       readonly entityId?: number;
-      readonly type: "player-death" | "player-location";
+      readonly type: "player-death";
+      readonly username?: string;
+    }
+  | {
+      readonly entityId?: number;
+      readonly kind?: "cell" | "position" | "walk";
+      readonly type: "player-location";
       readonly username?: string;
     }
   | {
@@ -1283,15 +1289,31 @@ type ProjectionEvent =
       readonly triggerText: string;
       readonly type: "anti-counter-end";
     }
-  | {
-      readonly destination?: {
+  | ({
+      readonly cell: string;
+      readonly entityId: number;
+      readonly pad: string;
+      /** The latest coordinate projected for the player. */
+      readonly position: {
         readonly x: number;
         readonly y: number;
       };
       readonly type: "player-location";
-      readonly entityId: number;
       readonly username: string;
-    }
+    } & (
+      | {
+          /** The endpoint reported by a complete `tx`/`ty` movement. */
+          readonly destination: {
+            readonly x: number;
+            readonly y: number;
+          };
+          readonly kind: "walk";
+        }
+        | {
+            /** `position` reports coordinates; `cell` reports only cell/pad. */
+            readonly kind: "cell" | "position";
+          }
+    ))
   | {
       readonly type: "update-message";
       readonly message: string;

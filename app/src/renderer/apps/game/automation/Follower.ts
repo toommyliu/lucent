@@ -36,11 +36,10 @@ import {
   type CombatProfileRunner,
 } from "./combat/CombatProfileRunner";
 import type { ApiService } from "../flash/api/Api";
+import type { EventForType } from "../flash/contract/Event";
 
 const fiberKey = "follower";
-const copyWalkFiberKey = "follower-copy-walk";
-const cycleIntervalMs = 500;
-const sameLocationTimeout = "5 seconds";
+const followerWatchdogIntervalMs = 5_000;
 const goToPlayerTimeout = "10 seconds";
 const goToPlayerWithFallbackTimeout = "3 seconds";
 const followerRetrySchedule = Schedule.exponential("500 millis").pipe(
@@ -80,6 +79,25 @@ interface Position {
   readonly x: number;
   readonly y: number;
 }
+
+interface PendingTargetWalk {
+  readonly position: Position;
+  readonly revision: number;
+}
+
+interface ObservedTargetLocation {
+  readonly cell: string;
+  readonly pad: string;
+  readonly position?: Position;
+}
+
+interface TargetMovementState {
+  readonly observed: ObservedTargetLocation | undefined;
+  readonly pending: PendingTargetWalk | undefined;
+  readonly revision: number;
+}
+
+type TargetLocationAction = "cleared" | "ignored" | "observed" | "queued";
 
 export interface FollowerStartOptions {
   readonly config: FollowerConfig;
@@ -147,10 +165,11 @@ const samePlayerNames = (
 const sameLocation = (left: GamePlayer, right: GamePlayer): boolean =>
   sameText(left.cell, right.cell) && sameText(left.pad, right.pad);
 
+const hasFinitePosition = (position: Position): boolean =>
+  Number.isFinite(position.x) && Number.isFinite(position.y);
+
 const hasUsablePosition = (position: Position): boolean =>
-  Number.isFinite(position.x) &&
-  Number.isFinite(position.y) &&
-  (position.x !== 0 || position.y !== 0);
+  hasFinitePosition(position) && (position.x !== 0 || position.y !== 0);
 
 const samePosition = (left: Position, right: Position): boolean =>
   left.x === right.x && left.y === right.y;
@@ -226,12 +245,20 @@ export const makeFollower = Effect.fnUntraced(function* (
   const updateSemaphore = yield* Semaphore.make(1);
   const wakeups = yield* Queue.sliding<void>(1);
   const deniedTarget = yield* Ref.make<string | undefined>(undefined);
-  const lastWalkTarget = yield* Ref.make<Position | undefined>(undefined);
+  const targetMovement = yield* Ref.make<TargetMovementState>({
+    observed: undefined,
+    pending: undefined,
+    revision: 0,
+  });
+  const resetTargetMovement = Ref.set(targetMovement, {
+    observed: undefined,
+    pending: undefined,
+    revision: 0,
+  });
 
   const resetRunState = Effect.gen(function* () {
-    yield* FiberMap.remove(fibers, copyWalkFiberKey);
     yield* Ref.set(deniedTarget, undefined);
-    yield* Ref.set(lastWalkTarget, undefined);
+    yield* resetTargetMovement;
     yield* Queue.clear(wakeups);
   });
 
@@ -269,6 +296,109 @@ export const makeFollower = Effect.fnUntraced(function* (
     config: FollowerConfig,
   ): boolean => self !== null && sameText(self.username, config.targetName);
 
+  const seedTargetSnapshot = Effect.fn("Follower.seedTargetSnapshot")(
+    function* (target: GamePlayer) {
+      yield* Ref.update(targetMovement, (current) =>
+        current.observed === undefined
+          ? {
+              observed: {
+                cell: target.cell,
+                pad: target.pad,
+                ...(hasUsablePosition(target.position)
+                  ? { position: { ...target.position } }
+                  : {}),
+              },
+              pending: undefined,
+              revision: current.revision + 1,
+            }
+          : current,
+      );
+    },
+  );
+
+  const observeTargetLocation = (event: EventForType<"player-location">) =>
+    Ref.modify(
+      targetMovement,
+      (current): readonly [TargetLocationAction, TargetMovementState] => {
+        const locationChanged =
+          current.observed === undefined ||
+          !sameText(current.observed.cell, event.cell) ||
+          !sameText(current.observed.pad, event.pad);
+
+        if (event.kind === "position") {
+          if (!hasFinitePosition(event.position)) {
+            return ["ignored", current];
+          }
+
+          const nextPosition = { ...event.position };
+          if (
+            !locationChanged &&
+            current.observed?.position !== undefined &&
+            samePosition(current.observed.position, nextPosition)
+          ) {
+            return ["ignored", current];
+          }
+
+          const next = {
+            observed: {
+              cell: event.cell,
+              pad: event.pad,
+              position: nextPosition,
+            },
+            pending: locationChanged ? undefined : current.pending,
+            revision: current.revision + 1,
+          } satisfies TargetMovementState;
+          return ["observed", next];
+        }
+
+        const reportedPosition =
+          event.kind === "walk" ? event.destination : undefined;
+
+        if (
+          reportedPosition === undefined ||
+          !hasFinitePosition(reportedPosition)
+        ) {
+          if (!locationChanged) {
+            return ["ignored", current];
+          }
+          const next = {
+            observed: { cell: event.cell, pad: event.pad },
+            pending: undefined,
+            revision: current.revision + 1,
+          } satisfies TargetMovementState;
+          return ["cleared", next];
+        }
+
+        const nextPosition = { ...reportedPosition };
+        if (
+          !locationChanged &&
+          current.observed?.position !== undefined &&
+          samePosition(current.observed.position, nextPosition)
+        ) {
+          return ["ignored", current];
+        }
+
+        const revision = current.revision + 1;
+        const next = {
+          observed: {
+            cell: event.cell,
+            pad: event.pad,
+            position: nextPosition,
+          },
+          pending: { position: nextPosition, revision },
+          revision,
+        } satisfies TargetMovementState;
+        return ["queued", next];
+      },
+    );
+
+  const completeTargetWalk = (revision: number) =>
+    Ref.update(targetMovement, (current) =>
+      current.pending?.revision === revision
+        ? { ...current, pending: undefined }
+        : current,
+    );
+
   const atTarget = (config: FollowerConfig) =>
     Effect.all({
       self: getSelf(),
@@ -288,12 +418,13 @@ export const makeFollower = Effect.fnUntraced(function* (
       if (self === null || target === null) {
         return false;
       }
-      if (!sameLocation(self, target)) {
-        yield* api.player.jumpToCell(target.cell, target.pad);
+      if (sameLocation(self, target)) {
+        return true;
       }
-      return yield* api.wait.until(atTarget(config), {
-        timeout: sameLocationTimeout,
-      });
+      if (!(yield* api.player.jumpToCell(target.cell, target.pad))) {
+        return false;
+      }
+      return yield* atTarget(config);
     });
 
   const tryFallbacks = (runId: number, config: FollowerConfig) =>
@@ -447,46 +578,41 @@ export const makeFollower = Effect.fnUntraced(function* (
       ),
     );
 
-  const copyTargetWalk = (
-    runId: number,
-    position: Position,
-  ): Effect.Effect<void> =>
-    Effect.gen(function* () {
+  const reconcileTargetWalk = Effect.fn("Follower.reconcileTargetWalk")(
+    function* (runId: number, config: FollowerConfig, target: GamePlayer) {
+      if (!config.copyWalk) {
+        return;
+      }
+
+      // Only seed a missing baseline here; event-derived movement remains
+      // authoritative while the follower travels to the target's cell.
+      yield* seedTargetSnapshot(target);
+      const movement = yield* Ref.get(targetMovement);
+      const pending = movement.pending;
+      if (pending === undefined) {
+        return;
+      }
+
       const current = yield* SubscriptionRef.get(state);
       if (
         current.runId !== runId ||
         !current.enabled ||
-        current.config?.copyWalk !== true ||
-        !hasUsablePosition(position)
+        current.config?.copyWalk !== true
       ) {
         return;
       }
 
-      const previous = yield* Ref.get(lastWalkTarget);
-      if (previous !== undefined && samePosition(previous, position)) {
-        return;
-      }
-
       yield* setPhase(runId, "walking");
-      if (yield* api.player.walkTo(position.x, position.y)) {
-        yield* Ref.set(lastWalkTarget, position);
+      const completed = yield* api.player.walkTo(
+        pending.position.x,
+        pending.position.y,
+      );
+      if (completed) {
+        yield* completeTargetWalk(pending.revision);
       }
-    }).pipe(
-      Effect.catchCause(() => Effect.void),
-      Effect.asVoid,
-    );
-
-  const scheduleCopyTargetWalk = (runId: number, position: Position) => {
-    return hasUsablePosition(position)
-      ? FiberMap.run(
-          fibers,
-          copyWalkFiberKey,
-          copyTargetWalk(runId, {
-            ...position,
-          }),
-        )
-      : Effect.void;
-  };
+    },
+    Effect.catchCause(() => Effect.void),
+  );
 
   const followTarget = (
     runId: number,
@@ -539,12 +665,19 @@ export const makeFollower = Effect.fnUntraced(function* (
       yield* Ref.set(deniedTarget, undefined);
       if (!sameLocation(self, target)) {
         yield* setPhase(runId, "following");
-        yield* api.player.jumpToCell(target.cell, target.pad);
-        if (
-          !(yield* api.wait.until(atTarget(config), {
-            timeout: sameLocationTimeout,
-          }))
-        ) {
+        const reached = yield* api.player.jumpToCell(target.cell, target.pad);
+        if (!reached) {
+          return {
+            error: `Could not reach ${config.targetName}`,
+            ok: false,
+            reason: "Failed to follow target",
+            retry: true,
+          } as const;
+        }
+
+        self = yield* getSelf();
+        target = yield* getTarget(config);
+        if (self === null || target === null || !sameLocation(self, target)) {
           return {
             error: `Could not reach ${config.targetName}`,
             ok: false,
@@ -554,6 +687,7 @@ export const makeFollower = Effect.fnUntraced(function* (
         }
       }
 
+      yield* reconcileTargetWalk(runId, config, target);
       return { ok: true } as const;
     }).pipe(
       Effect.catchCause((cause) =>
@@ -659,11 +793,11 @@ export const makeFollower = Effect.fnUntraced(function* (
         Effect.retry(followerRetrySchedule),
       );
       if (!followed) {
-        return cycleIntervalMs;
+        return followerWatchdogIntervalMs;
       }
 
       if (runner === undefined) {
-        return cycleIntervalMs;
+        return followerWatchdogIntervalMs;
       }
       return yield* runCombat(runId, runner);
     });
@@ -699,8 +833,23 @@ export const makeFollower = Effect.fnUntraced(function* (
           if (!current.enabled || current.runId !== runId) {
             return;
           }
-          const delayMs = yield* runCycle(runId, config, runner);
-          yield* Effect.raceFirst(Effect.sleep(delayMs), Queue.take(wakeups));
+          const outcome = yield* Effect.raceFirst(
+            runCycle(runId, config, runner).pipe(
+              Effect.map(
+                (delayMs) => ({ delayMs, kind: "completed" }) as const,
+              ),
+            ),
+            Queue.take(wakeups).pipe(
+              Effect.as({ kind: "superseded" } as const),
+            ),
+          );
+          if (outcome.kind === "superseded") {
+            continue;
+          }
+          yield* Effect.raceFirst(
+            Effect.sleep(outcome.delayMs),
+            Queue.take(wakeups),
+          );
         }
       }),
     ).pipe(
@@ -710,7 +859,6 @@ export const makeFollower = Effect.fnUntraced(function* (
           if (current.runId !== runId) {
             return;
           }
-          yield* FiberMap.remove(fibers, copyWalkFiberKey);
           yield* SubscriptionRef.update(
             state,
             (active): RuntimeState => ({
@@ -870,34 +1018,44 @@ export const makeFollower = Effect.fnUntraced(function* (
     }
   });
 
-  const disposeLocation = yield* api.events.on(
-    { type: "player-location" },
-    (event) =>
-      Effect.gen(function* () {
-        const current = yield* SubscriptionRef.get(state);
-        if (
-          !current.enabled ||
-          current.config === undefined ||
-          !sameText(event.username, current.config.targetName)
-        ) {
-          return;
-        }
+  const disposeTravelEvents = yield* api.events.on(undefined, (event) =>
+    Effect.gen(function* () {
+      const current = yield* SubscriptionRef.get(state);
+      if (!current.enabled || current.config === undefined) {
+        return;
+      }
 
-        yield* Queue.offer(wakeups, undefined);
-        if (!current.config.copyWalk || event.destination === undefined) {
+      switch (event.type) {
+        case "player-location": {
+          if (!sameText(event.username, current.config.targetName)) {
+            return;
+          }
+          if (current.config.copyWalk) {
+            const action = yield* observeTargetLocation(event);
+            if (action === "ignored" || action === "observed") {
+              return;
+            }
+          } else if (event.kind === "position") {
+            return;
+          }
+          break;
+        }
+        case "join-map":
+          yield* resetTargetMovement;
+          break;
+        case "connection":
+          yield* resetTargetMovement;
+          break;
+        case "players-changed":
+          break;
+        default:
           return;
-        }
+      }
 
-        const [self, target] = yield* Effect.all([
-          getSelf(),
-          getTarget(current.config),
-        ]);
-        if (self !== null && target !== null && sameLocation(self, target)) {
-          yield* scheduleCopyTargetWalk(current.runId, event.destination);
-        }
-      }),
+      yield* Queue.offer(wakeups, undefined);
+    }),
   );
-  yield* Effect.addFinalizer(() => Effect.sync(disposeLocation));
+  yield* Effect.addFinalizer(() => Effect.sync(disposeTravelEvents));
 
   if (port !== undefined) {
     const playerPublishSemaphore = yield* Semaphore.make(1);

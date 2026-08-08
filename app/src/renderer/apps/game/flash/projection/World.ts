@@ -172,6 +172,9 @@ const usernamesEqual = (left: string, right: string): boolean =>
   right.trim() !== "" &&
   left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
 
+const locationTextEqual = (left: string, right: string): boolean =>
+  left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+
 const playerPatch = (
   patch: EntityPatch,
   currentPosition: { readonly x: number; readonly y: number },
@@ -205,9 +208,37 @@ const playerPatch = (
 };
 
 const playerMovementDestination = (patch: EntityPatch) =>
-  patch.tx === undefined || patch.ty === undefined
+  patch.tx === undefined ||
+  patch.ty === undefined ||
+  (patch.tx === 0 && patch.ty === 0)
     ? undefined
     : { x: patch.tx, y: patch.ty };
+
+const playerHasReportedPosition = (patch: EntityPatch): boolean =>
+  patch.px !== undefined ||
+  patch.py !== undefined ||
+  (patch.tx !== undefined && patch.tx !== 0) ||
+  (patch.ty !== undefined && patch.ty !== 0);
+
+type PlayerLocationMovement =
+  | { readonly kind: "cell" | "position" }
+  | {
+      readonly destination: { readonly x: number; readonly y: number };
+      readonly kind: "walk";
+    };
+
+const playerLocationEvent = (
+  player: ReturnType<typeof toPlayer>,
+  movement: PlayerLocationMovement,
+): Extract<Event, { readonly type: "player-location" }> => ({
+  cell: player.cell,
+  entityId: player.entityId,
+  ...movement,
+  pad: player.pad,
+  position: { ...player.position },
+  type: "player-location",
+  username: player.username,
+});
 
 const monsterPatch = (patch: EntityPatch) => ({
   ...(patch.intHP === undefined ? {} : { hp: patch.intHP }),
@@ -396,17 +427,13 @@ export const projectClientWorld = Effect.fn("projectClientWorld")(function* (
       const cell = packet.params[4];
       const pad = packet.params[5];
       if (cell === undefined) return [];
-      yield* store.world.patchPlayer(current.username, {
+      const result = yield* store.world.patchPlayer(current.username, {
         cell,
         ...(pad === undefined ? {} : { pad }),
       });
-      return [
-        {
-          type: "player-location",
-          entityId: current.entityId,
-          username: current.username,
-        },
-      ];
+      return result === null
+        ? []
+        : [playerLocationEvent(result.player, { kind: "cell" })];
     }
     case "mv": {
       const current = yield* getOrHydrateSelf(store, bridge, diagnose);
@@ -421,16 +448,18 @@ export const projectClientWorld = Effect.fn("projectClientWorld")(function* (
         return [];
       }
       if (Option.isNone(x) || Option.isNone(y)) return [];
-      yield* store.world.patchPlayer(current.username, {
+      const destination = { x: x.value, y: y.value };
+      const result = yield* store.world.patchPlayer(current.username, {
         position: { x: x.value, y: y.value },
       });
-      return [
-        {
-          type: "player-location",
-          entityId: current.entityId,
-          username: current.username,
-        },
-      ];
+      return result === null
+        ? []
+        : [
+            playerLocationEvent(result.player, {
+              destination,
+              kind: "walk",
+            }),
+          ];
     }
     default:
       return [];
@@ -578,6 +607,11 @@ export const projectExtensionWorld = (
           current = yield* store.world.putPlayer(toPlayer(baseline.value));
           playersChanged = true;
         }
+        const locationChanged =
+          (decoded.value.o.strFrame !== undefined &&
+            !locationTextEqual(current.cell, decoded.value.o.strFrame)) ||
+          (decoded.value.o.strPad !== undefined &&
+            !locationTextEqual(current.pad, decoded.value.o.strPad));
         const result = yield* store.world.patchPlayer(
           current.username,
           playerPatch(decoded.value.o, current.position),
@@ -595,16 +629,26 @@ export const projectExtensionWorld = (
         if (
           decoded.value.o.strFrame !== undefined ||
           decoded.value.o.strPad !== undefined ||
+          decoded.value.o.px !== undefined ||
+          decoded.value.o.py !== undefined ||
           decoded.value.o.tx !== undefined ||
           decoded.value.o.ty !== undefined
         ) {
           const destination = playerMovementDestination(decoded.value.o);
-          events.push({
-            ...(destination === undefined ? {} : { destination }),
-            type: "player-location",
-            entityId: result.player.entityId,
-            username: result.player.username,
-          });
+          events.push(
+            playerLocationEvent(
+              result.player,
+              destination !== undefined
+                ? { destination, kind: "walk" }
+                : {
+                    kind:
+                      locationChanged ||
+                      !playerHasReportedPosition(decoded.value.o)
+                        ? "cell"
+                        : "position",
+                  },
+            ),
+          );
         }
         if (result.becameDead) {
           events.push({
@@ -674,17 +718,13 @@ export const projectExtensionWorld = (
         )
           return [];
 
-        yield* store.world.patchPlayer(current.username, {
+        const result = yield* store.world.patchPlayer(current.username, {
           cell: cell.value,
           pad: pad.value,
         });
-        return [
-          {
-            type: "player-location",
-            entityId: current.entityId,
-            username: current.username,
-          },
-        ];
+        return result === null
+          ? []
+          : [playerLocationEvent(result.player, { kind: "cell" })];
       }
       case "clearAuras": {
         const current = yield* store.world.getMe;
