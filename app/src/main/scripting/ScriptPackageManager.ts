@@ -457,7 +457,7 @@ export const layer = Layer.effect(
         );
         if (destinationExists) {
           yield* Effect.tryPromise({
-            try: () => fs.rm(backupPath, { recursive: true, force: true }),
+            try: () => fs.rmdir(backupPath, { recursive: true }),
             catch: (cause) =>
               managerError("replace", "Failed to clean package backup.", cause),
           }).pipe(Effect.catch(() => Effect.void));
@@ -688,7 +688,7 @@ export const layer = Layer.effect(
             }),
           () =>
             Effect.tryPromise({
-              try: () => fs.rm(temporaryRoot, { recursive: true, force: true }),
+              try: () => fs.rmdir(temporaryRoot, { recursive: true }),
               catch: (cause) =>
                 managerError(
                   "install",
@@ -865,7 +865,7 @@ export const layer = Layer.effect(
           );
           yield* Effect.tryPromise({
             try: async () => {
-              await fs.rm(temporaryRoot, { recursive: true, force: true });
+              await fs.rmdir(temporaryRoot, { recursive: true });
               await removeEmptyParents(root, packagesDir);
             },
             catch: (cause) =>
