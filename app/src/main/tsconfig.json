@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"],
+    "typeRoots": ["../../node_modules/@types"]
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["./**/*.test.ts", "./**/*.spec.ts"]
+}

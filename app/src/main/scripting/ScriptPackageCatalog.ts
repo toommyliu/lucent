@@ -468,7 +468,7 @@ export const discoverScriptCatalog = async (
   }
 
   const visitPackages = async (directory: string): Promise<void> => {
-    let entries: Dirent<string>[];
+    let entries: Dirent[];
     try {
       entries = await fs.readdir(directory, {
         encoding: "utf8",
