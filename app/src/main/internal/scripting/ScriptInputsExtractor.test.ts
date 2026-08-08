@@ -69,7 +69,9 @@ describe("ScriptInputsExtractor service", () => {
         expect(result.error).toBeInstanceOf(ScriptInputsExtractorError);
         expect(result.error).toMatchObject({
           operation: "validate",
-          message: "Script inputs definition is invalid.",
+          message: expect.stringContaining(
+            "Script inputs definition is invalid:",
+          ),
         });
       }
     }),
