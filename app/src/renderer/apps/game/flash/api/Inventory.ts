@@ -44,6 +44,10 @@ export const isDirectInventoryConsumable = (link: string): boolean => {
   return normalized === "elixir" || normalized === "tonic";
 };
 
+const isDirectInventoryUseItem = (category: string, link: string): boolean =>
+  category.trim().toLowerCase() === "serveruse" ||
+  isDirectInventoryConsumable(link);
+
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
@@ -207,6 +211,29 @@ export const makeInventory = (
   const equip = (selector: ItemQuery, options?: EquipOptions) =>
     equipEffect(selector, options);
 
+  const use = Effect.fn("Inventory.use")(function* (selector: ItemQuery) {
+    const item = yield* get(selector);
+    if (item === null || !isDirectInventoryUseItem(item.category, item.link)) {
+      return false;
+    }
+    if (!(yield* canUseMemberItem(item.memberOnly))) return false;
+
+    const startingQuantity = item.quantity;
+    const sent = yield* bridge
+      .invoke("inventory.use", [{ itemId: item.itemId }], Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+    if (!sent) return false;
+
+    return yield* wait.until(
+      get(item.itemId).pipe(
+        Effect.map(
+          (current) => current === null || current.quantity < startingQuantity,
+        ),
+      ),
+      { timeout: "5 seconds" },
+    );
+  });
+
   const equipByEnhancementEffect = Effect.fn("Inventory.equipByEnhancement")(
     function* (selector: EquipEnhancementSelector) {
       const decoded = decodeEquipEnhancementSelector(selector);
@@ -287,6 +314,7 @@ export const makeInventory = (
     getSlots,
     getUsedSlots,
     unequipConsumable,
+    use,
     wear,
   };
 };

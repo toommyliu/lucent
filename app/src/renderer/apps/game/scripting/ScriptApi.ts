@@ -474,6 +474,8 @@ export interface ScriptInventoryApi {
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;
   readonly unequipConsumable: (query: ItemQuery) => Effect.Effect<boolean>;
+  /** Uses an eligible item directly from inventory, such as a Tonic, Elixir, or boost. */
+  readonly use: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly wear: (query: ItemQuery) => Effect.Effect<boolean>;
 }
 

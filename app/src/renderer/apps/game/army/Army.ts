@@ -647,12 +647,9 @@ const makeArmyApi = (
         return;
       }
 
-      const startingQuantity = inventoryItem.quantity;
-
       if (isDirectInventoryConsumable(inventoryItem.link)) {
-        // useBoost dispatches AQW's serverUseItem request and confirms quantity.
-        const used = yield* player
-          .useBoost(inventoryItem.itemId)
+        const used = yield* inventory
+          .use(inventoryItem.itemId)
           .pipe(
             Effect.catchCause((cause) =>
               warnEquip(setName, "pots", resolved, cause).pipe(
@@ -668,6 +665,8 @@ const makeArmyApi = (
         yield* Effect.sleep("1 second");
         return;
       }
+
+      const startingQuantity = inventoryItem.quantity;
 
       const equipped = yield* inventory
         .equip(resolved)

@@ -96,6 +96,7 @@ declare global {
       "inventory.unequipConsumable": (
         selector: FlashTypes.InventoryItemSelector,
       ) => boolean;
+      "inventory.use": (selector: FlashTypes.InventoryItemSelector) => boolean;
       "inventory.wear": (selector: FlashTypes.InventoryItemSelector) => boolean;
       "outfits.equip": (name: string, keepColors?: boolean) => boolean;
       "outfits.get": (name: string) => Record<string, unknown> | null;

@@ -418,38 +418,7 @@ export const makePlayer = (
       }
     });
 
-  const useBoost = (selector: ItemQuery) => {
-    return inventory.get(selector).pipe(
-      Effect.flatMap((item) => {
-        if (item === null) return Effect.succeed(false);
-        const startingQuantity = item.quantity;
-        return bridge
-          .invoke("player.useBoost", [item.itemId], Schema.Boolean)
-          .pipe(
-            Effect.flatMap(
-              Option.match({
-                onNone: () => Effect.succeed(false),
-                onSome: (sent) =>
-                  sent
-                    ? wait.until(
-                        inventory
-                          .get(item.itemId)
-                          .pipe(
-                            Effect.map(
-                              (current) =>
-                                current === null ||
-                                current.quantity < startingQuantity,
-                            ),
-                          ),
-                        { timeout: "5 seconds" },
-                      )
-                    : Effect.succeed(false),
-              }),
-            ),
-          );
-      }),
-    );
-  };
+  const useBoost = (selector: ItemQuery) => inventory.use(selector);
 
   const walkTo = (x: number, y: number, speed?: number) =>
     Effect.gen(function* () {

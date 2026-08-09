@@ -49,9 +49,14 @@ const item = ({
     temporaryItem: false,
   });
 
-const consumable = (itemId: number, link: string, equipped = false): LiveItem =>
+const consumable = (
+  itemId: number,
+  link: string,
+  equipped = false,
+  category = "Item",
+): LiveItem =>
   new LiveItem({
-    category: "Item",
+    category,
     coins: false,
     context: "inventory",
     cost: 0,
@@ -76,6 +81,7 @@ const makeHarness = (items: readonly LiveItem[]) =>
 
     const equippedItemIds: number[] = [];
     const unequippedItemIds: number[] = [];
+    const usedItemIds: number[] = [];
     const bridge = {
       invoke: (method: string, args: readonly unknown[] | undefined) =>
         Effect.sync(() => {
@@ -87,6 +93,16 @@ const makeHarness = (items: readonly LiveItem[]) =>
           if (method === "inventory.unequipConsumable") {
             const selector = args?.[0] as { readonly itemId: number };
             unequippedItemIds.push(selector.itemId);
+            return Option.some(true);
+          }
+          if (method === "inventory.use") {
+            const selector = args?.[0] as { readonly itemId: number };
+            const selected = items.find(
+              (candidate) => candidate.itemId === selector.itemId,
+            );
+            if (selected === undefined) return Option.some(false);
+            usedItemIds.push(selector.itemId);
+            selected.update({ quantity: selected.quantity - 1 });
             return Option.some(true);
           }
           if (method === "player.getUserId") return Option.some(1);
@@ -103,12 +119,14 @@ const makeHarness = (items: readonly LiveItem[]) =>
         Effect.gen(function* () {
           return (yield* options.trigger) ? ({} as Packet) : null;
         }),
+      until: <A>(effect: Effect.Effect<A>) => effect,
     } as unknown as Wait;
 
     return {
       equippedItemIds,
       inventory: makeInventory(bridge, store, wait),
       unequippedItemIds,
+      usedItemIds,
     };
   });
 
@@ -244,14 +262,28 @@ describe("Inventory consumable equipment", () => {
     }),
   );
 
-  it.effect("does not equip direct-use tonics", () =>
+  it.effect("uses but does not equip direct-use tonics", () =>
     Effect.gen(function* () {
       const tonic = consumable(102, "ToNiC");
       const harness = yield* makeHarness([tonic]);
 
       expect(yield* harness.inventory.equip(tonic.itemId)).toBe(false);
+      expect(yield* harness.inventory.use(tonic.itemId)).toBe(true);
       expect(tonic.equipped).toBe(false);
+      expect(tonic.quantity).toBe(1);
       expect(harness.equippedItemIds).toEqual([]);
+      expect(harness.usedItemIds).toEqual([tonic.itemId]);
+    }),
+  );
+
+  it.effect("uses server-use boosts", () =>
+    Effect.gen(function* () {
+      const boost = consumable(103, "none", false, "ServerUse");
+      const harness = yield* makeHarness([boost]);
+
+      expect(yield* harness.inventory.use(boost.itemId)).toBe(true);
+      expect(boost.quantity).toBe(1);
+      expect(harness.usedItemIds).toEqual([boost.itemId]);
     }),
   );
 });

@@ -84,6 +84,7 @@ const makeApi = (overrides: Record<string, unknown> = {}): ApiService =>
       contains: () => Effect.succeed(true),
       equip: () => Effect.succeed(true),
       get: () => Effect.succeed({ itemId: 1, link: "potion", quantity: 1 }),
+      use: () => Effect.succeed(true),
     },
     map: {
       getName: () => Effect.succeed("ultra"),
@@ -354,10 +355,7 @@ describe("Army API", () => {
                   link: "Tonic",
                   quantity: 2,
                 }),
-            },
-            player: {
-              joinMap: () => Effect.succeed(true),
-              useBoost: (itemId: number) =>
+              use: (itemId: number) =>
                 Ref.update(directUses, (items) => [...items, itemId]).pipe(
                   Effect.as(true),
                 ),

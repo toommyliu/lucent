@@ -62,6 +62,25 @@ package lucent.game {
     }
 
     [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
+    [BridgeExport("use")]
+    public static function useItem(selector:Object):Boolean {
+      var itemObj:Object = getItem(selector);
+      if (!itemObj) {
+        return false;
+      }
+
+      var category:String = String(itemObj.sType).toLowerCase();
+      var link:String = String(itemObj.sLink).toLowerCase();
+      if (category != "serveruse" && link != "elixir" && link != "tonic") {
+        return false;
+      }
+
+      var game:Object = Main.Game;
+      game.world.sendUseItemRequest(itemObj);
+      return true;
+    }
+
+    [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
     [BridgeExport]
     public static function wear(selector:Object):Boolean {
       var itemObj:Object = getItem(selector);
