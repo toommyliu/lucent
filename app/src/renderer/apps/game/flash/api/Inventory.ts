@@ -288,8 +288,6 @@ export const makeInventory = (
   ) {
     const item = yield* get(selector);
     if (item === null || item.category !== "Item") return false;
-    if (!item.equipped) return true;
-    if (!(yield* wait.forGameAction("unequipItem"))) return false;
 
     const sent = yield* bridge
       .invoke(
