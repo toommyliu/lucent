@@ -1096,7 +1096,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   aria-hidden="true"
                   class="game-menu__switch-visual"
                   data-checked={props.autoZoneEnabled() ? "" : undefined}
-                />
+                >
+                  <span class="game-menu__switch-thumb" />
+                </span>
               </MenuCheckboxItem>
               <MenuSub closeOnSelect={false}>
                 <MenuSubTrigger class="game-menu__item game-menu__server-trigger">
@@ -1206,7 +1208,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   aria-hidden="true"
                   class="game-menu__switch-visual"
                   data-checked={props.autoReloginEnabled() ? "" : undefined}
-                />
+                >
+                  <span class="game-menu__switch-thumb" />
+                </span>
               </MenuCheckboxItem>
               <MenuSub
                 id="autorelogin-server-menu"
@@ -1363,7 +1367,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   aria-hidden="true"
                   class="game-menu__switch-visual"
                   data-checked={props.autoAttackEnabled() ? "" : undefined}
-                />
+                >
+                  <span class="game-menu__switch-thumb" />
+                </span>
               </MenuCheckboxItem>
               <MenuSub closeOnSelect={false}>
                 <MenuSubTrigger class="game-menu__item game-menu__sub-trigger">
