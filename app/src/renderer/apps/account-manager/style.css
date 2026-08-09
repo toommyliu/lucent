@@ -461,7 +461,7 @@
 }
 
 .account-manager__group-content {
-  min-width: min(20rem, var(--available-width));
+  min-width: min(22rem, var(--available-width));
   width: max-content;
 }
 
@@ -583,11 +583,15 @@
   font-weight: 500;
   min-width: 0;
   outline: none;
-  transition: opacity 180ms ease;
 }
 
-.account-manager__server-field .account-manager__server-input--closed {
-  opacity: 0;
+.account-manager__server-field .account-manager__server-input--overlaid {
+  color: transparent;
+}
+
+.account-manager__server-field
+  .account-manager__server-input--overlaid[data-state="open"] {
+  caret-color: rgb(var(--foreground));
 }
 
 .account-manager__server-overlay {

@@ -517,6 +517,7 @@ export function App(): JSX.Element {
   let accountSearchInput: HTMLInputElement | undefined;
   let serverFieldElement: HTMLDivElement | undefined;
   let serverComboboxInput: HTMLInputElement | undefined;
+  let replaceServerInputOnEdit = false;
   let launchTilingTrigger: HTMLButtonElement | undefined;
   let groupFieldElement: HTMLDivElement | undefined;
   let groupComboboxInput: HTMLInputElement | undefined;
@@ -693,6 +694,12 @@ export function App(): JSX.Element {
     return serverName === ""
       ? undefined
       : serverOptions().find((server) => server.name === serverName);
+  });
+  const serverOverlaySelection = createMemo(() => {
+    const server = selectedLaunchServer();
+    return server !== undefined && serverInputValue() === launchServer()
+      ? server
+      : undefined;
   });
   const selectedServerDisplayValue = createMemo(() => launchServer());
   const selectedServerInputValue = createMemo(() => launchServer());
@@ -2027,6 +2034,9 @@ export function App(): JSX.Element {
                     setServerComboboxOpen(details.open);
                     setServerSearchQuery("");
                     setServerInputValue(launchServer());
+                    if (!details.open) {
+                      replaceServerInputOnEdit = false;
+                    }
                   }}
                   onValueChange={(details) => {
                     const value = details.value[0] ?? NO_SERVER_VALUE;
@@ -2051,33 +2061,67 @@ export function App(): JSX.Element {
                     classList={{
                       "account-manager__server-input--settling":
                         serversLoading() || serverSelectionSettling(),
-                      "account-manager__server-input--closed":
-                        !serverComboboxOpen() &&
-                        selectedLaunchServer() !== undefined,
+                      "account-manager__server-input--overlaid":
+                        serverOverlaySelection() !== undefined,
                     }}
                     placeholder="Choose server..."
                     showClear={false}
                     size="lg"
+                    triggerProps={{
+                      onPointerDown: () => {
+                        replaceServerInputOnEdit = true;
+                      },
+                    }}
                     value={serverInputValue()}
                     onInput={(event) => {
+                      replaceServerInputOnEdit = false;
                       const value = event.currentTarget.value;
                       setServerInputValue(value);
                       setServerSearchQuery(value);
                     }}
                     onKeyDown={(event) => {
+                      const replacesCurrentValue =
+                        replaceServerInputOnEdit &&
+                        !event.isComposing &&
+                        !event.altKey &&
+                        !event.ctrlKey &&
+                        !event.metaKey &&
+                        (event.key === "Backspace" ||
+                          event.key === "Delete" ||
+                          event.key.length === 1);
+                      if (replacesCurrentValue) {
+                        // Ark may move the caret after opening, so select immediately before the native edit.
+                        event.currentTarget.select();
+                        replaceServerInputOnEdit = false;
+                      } else if (
+                        event.key === "ArrowLeft" ||
+                        event.key === "ArrowRight" ||
+                        event.key === "Home" ||
+                        event.key === "End"
+                      ) {
+                        replaceServerInputOnEdit = false;
+                      }
+
                       if (event.key !== "Escape") {
                         return;
                       }
 
+                      replaceServerInputOnEdit = false;
                       setServerSearchQuery("");
                       setServerInputValue(selectedServerInputValue());
                       event.currentTarget.blur();
+                    }}
+                    onPointerDown={() => {
+                      replaceServerInputOnEdit =
+                        !serverComboboxOpen() &&
+                        serverOverlaySelection() !== undefined;
                     }}
                     onFocus={() => {
                       setServerInputFocused(true);
                       setServerInputValue(launchServer());
                     }}
                     onBlur={() => {
+                      replaceServerInputOnEdit = false;
                       setServerInputFocused(false);
                       if (!serverComboboxOpen()) {
                         setServerSearchQuery("");
@@ -2085,27 +2129,23 @@ export function App(): JSX.Element {
                       }
                     }}
                   >
-                    <Show
-                      when={
-                        serverComboboxOpen()
-                          ? undefined
-                          : selectedLaunchServer()
-                      }
-                    >
+                    <Show when={serverOverlaySelection()}>
                       {(server) => (
                         <span class="account-manager__server-overlay">
                           {launchServer()}
-                          <span class="account-manager__server-overlay-meta">
-                            {serverMeta(server())}
-                          </span>
-                          <Show when={serverPingDisplayState(server())}>
-                            {(ping) => (
-                              <span
-                                class={`account-manager__server-overlay-ping account-server-ping account-server-ping--${ping().quality}`}
-                              >
-                                {ping().label}
-                              </span>
-                            )}
+                          <Show when={!serverComboboxOpen()}>
+                            <span class="account-manager__server-overlay-meta">
+                              {serverMeta(server())}
+                            </span>
+                            <Show when={serverPingDisplayState(server())}>
+                              {(ping) => (
+                                <span
+                                  class={`account-manager__server-overlay-ping account-server-ping account-server-ping--${ping().quality}`}
+                                >
+                                  {ping().label}
+                                </span>
+                              )}
+                            </Show>
                           </Show>
                         </span>
                       )}
@@ -2396,7 +2436,7 @@ export function App(): JSX.Element {
                                     closeDelay={0}
                                     interactive={false}
                                     open={tooltipOpen()}
-                                    openDelay={300}
+                                    openDelay={200}
                                     unmountOnExit
                                     positioning={{ placement: "right" }}
                                     onOpenChange={(details) =>
