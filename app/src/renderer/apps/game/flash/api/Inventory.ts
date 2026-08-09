@@ -38,6 +38,12 @@ export interface EquipOptions {
   readonly wear?: boolean;
 }
 
+/** Whether AQW consumes the usable item directly instead of assigning slot 6. */
+export const isDirectInventoryConsumable = (link: string): boolean => {
+  const normalized = link.trim().toLowerCase();
+  return normalized === "elixir" || normalized === "tonic";
+};
+
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
@@ -46,6 +52,22 @@ export const makeInventory = (
   const getAll = () => store.items.getAll("inventory");
 
   const get = (selector: ItemQuery) => store.items.get("inventory", selector);
+
+  const setEquippedConsumable = Effect.fn("Inventory.setEquippedConsumable")(
+    function* (itemId: number | undefined) {
+      const items = yield* getAll();
+      for (const item of items) {
+        // Usable-item equipment is a local client mutation with no equipItem packet.
+        if (
+          item.category === "Item" &&
+          item.link.trim() !== "" &&
+          item.link.trim().toLowerCase() !== "none"
+        ) {
+          item.update({ equipped: item.itemId === itemId });
+        }
+      }
+    },
+  );
 
   const getSlots = () =>
     bridge
@@ -130,6 +152,9 @@ export const makeInventory = (
   ) {
     const item = yield* get(selector);
     if (item === null) return false;
+    if (item.category === "Item" && isDirectInventoryConsumable(item.link)) {
+      return false;
+    }
 
     const needsEquip = !item.equipped;
     const needsWear = (options?.wear ?? true) && item.wearable && !item.worn;
@@ -143,14 +168,8 @@ export const makeInventory = (
           .invoke("inventory.equip", [{ itemId: item.itemId }], Schema.Boolean)
           .pipe(Effect.map(Option.getOrElse(() => false)));
         if (!sent) return false;
-
-        const equipped = yield* wait.until(
-          get(item.itemId).pipe(
-            Effect.map((current) => current?.equipped === true),
-          ),
-          { timeout: "5 seconds" },
-        );
-        if (!equipped) return false;
+        yield* setEquippedConsumable(item.itemId);
+        if (!item.equipped) return false;
       } else {
         const userId = yield* getLocalUserId();
         if (Option.isNone(userId)) return false;
@@ -237,44 +256,26 @@ export const makeInventory = (
       Math.max(0, slots - used),
     );
 
-  const unequipConsumable = (selector: ItemQuery) => {
-    return get(selector).pipe(
-      Effect.flatMap((item) => {
-        if (item === null || item.category !== "Item") {
-          return Effect.succeed(false);
-        }
-        if (!item.equipped) return Effect.succeed(true);
-        return wait.forGameAction("unequipItem").pipe(
-          Effect.flatMap((ready) =>
-            ready
-              ? bridge.invoke(
-                  "inventory.unequipConsumable",
-                  [{ itemId: item.itemId }],
-                  Schema.Boolean,
-                )
-              : Effect.succeed(Option.none()),
-          ),
-          Effect.flatMap(
-            Option.match({
-              onNone: () => Effect.succeed(false),
-              onSome: (sent) =>
-                sent
-                  ? wait.until(
-                      get(item.itemId).pipe(
-                        Effect.map(
-                          (current) =>
-                            current !== null && current.equipped !== true,
-                        ),
-                      ),
-                      { timeout: "5 seconds" },
-                    )
-                  : Effect.succeed(false),
-            }),
-          ),
-        );
-      }),
-    );
-  };
+  const unequipConsumable = Effect.fn("Inventory.unequipConsumable")(function* (
+    selector: ItemQuery,
+  ) {
+    const item = yield* get(selector);
+    if (item === null || item.category !== "Item") return false;
+    if (!item.equipped) return true;
+    if (!(yield* wait.forGameAction("unequipItem"))) return false;
+
+    const sent = yield* bridge
+      .invoke(
+        "inventory.unequipConsumable",
+        [{ itemId: item.itemId }],
+        Schema.Boolean,
+      )
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+    if (!sent) return false;
+
+    yield* setEquippedConsumable(undefined);
+    return !item.equipped;
+  });
 
   return {
     contains,

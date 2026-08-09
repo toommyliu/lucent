@@ -15,6 +15,7 @@ import {
 } from "@lucent/core/army";
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
+import { isDirectInventoryConsumable } from "../flash/api/Inventory";
 import type { ScriptArmyApi } from "../scripting/ScriptApi";
 import {
   ArmyLoopTauntError,
@@ -623,58 +624,35 @@ const makeArmyApi = (
         yield* Effect.sleep("500 millis");
       });
 
-    const drinkConsumable = (
+    const drinkConsumable = Effect.fn("Army.drinkConsumable")(function* (
       session: ArmySession,
       setName: string,
       item: string,
       resolveItems: boolean,
-    ) =>
-      Effect.gen(function* () {
-        const resolved = resolveSetItem(session, item, resolveItems);
-        if (resolved === undefined) {
-          return;
-        }
+    ) {
+      const resolved = resolveSetItem(session, item, resolveItems);
+      if (resolved === undefined) {
+        return;
+      }
 
-        const inventoryItem = yield* inventory
-          .get(resolved)
-          .pipe(
-            Effect.catchCause((cause) =>
-              warnEquip(setName, "pots", resolved, cause).pipe(Effect.as(null)),
-            ),
-          );
-        if (inventoryItem === null) {
-          yield* warnEquip(setName, "pots", resolved);
-          return;
-        }
-
-        const equipped = yield* inventory
-          .equip(resolved)
-          .pipe(
-            Effect.catchCause((cause) =>
-              warnEquip(setName, "pots", resolved, cause).pipe(
-                Effect.as(false),
-              ),
-            ),
-          );
-        if (!equipped) {
-          yield* warnEquip(setName, "pots", resolved);
-          return;
-        }
-
-        const slotReady = yield* wait.until(
-          combat.getConsumableSkillItem().pipe(
-            Effect.map((slot) => slot?.itemId === inventoryItem.itemId),
-            Effect.catchCause(() => Effect.succeed(false)),
+      const inventoryItem = yield* inventory
+        .get(resolved)
+        .pipe(
+          Effect.catchCause((cause) =>
+            warnEquip(setName, "pots", resolved, cause).pipe(Effect.as(null)),
           ),
-          { timeout: "2 seconds" },
         );
-        if (!slotReady) {
-          yield* warnEquip(setName, "pots", resolved);
-          return;
-        }
+      if (inventoryItem === null) {
+        yield* warnEquip(setName, "pots", resolved);
+        return;
+      }
 
-        const used = yield* combat
-          .useSkill(consumableSkillIndex, { force: true, wait: true })
+      const startingQuantity = inventoryItem.quantity;
+
+      if (isDirectInventoryConsumable(inventoryItem.link)) {
+        // useBoost dispatches AQW's serverUseItem request and confirms quantity.
+        const used = yield* player
+          .useBoost(inventoryItem.itemId)
           .pipe(
             Effect.catchCause((cause) =>
               warnEquip(setName, "pots", resolved, cause).pipe(
@@ -688,7 +666,65 @@ const makeArmyApi = (
         }
 
         yield* Effect.sleep("1 second");
-      });
+        return;
+      }
+
+      const equipped = yield* inventory
+        .equip(resolved)
+        .pipe(
+          Effect.catchCause((cause) =>
+            warnEquip(setName, "pots", resolved, cause).pipe(Effect.as(false)),
+          ),
+        );
+      if (!equipped) {
+        yield* warnEquip(setName, "pots", resolved);
+        return;
+      }
+
+      const slotReady = yield* wait.until(
+        combat.getConsumableSkillItem().pipe(
+          Effect.map(
+            (slot) =>
+              slot?.itemId === inventoryItem.itemId && slot.ready === true,
+          ),
+          Effect.catchCause(() => Effect.succeed(false)),
+        ),
+        { timeout: "5 seconds" },
+      );
+      if (!slotReady) {
+        yield* warnEquip(setName, "pots", resolved);
+        return;
+      }
+
+      const used = yield* combat
+        .useSkill(consumableSkillIndex, { force: true, wait: true })
+        .pipe(
+          Effect.catchCause((cause) =>
+            warnEquip(setName, "pots", resolved, cause).pipe(Effect.as(false)),
+          ),
+        );
+      if (!used) {
+        yield* warnEquip(setName, "pots", resolved);
+        return;
+      }
+
+      const consumed = yield* wait.until(
+        inventory.get(inventoryItem.itemId).pipe(
+          Effect.map(
+            (current) =>
+              current === null || current.quantity < startingQuantity,
+          ),
+          Effect.catchCause(() => Effect.succeed(false)),
+        ),
+        { timeout: "5 seconds" },
+      );
+      if (!consumed) {
+        yield* warnEquip(setName, "pots", resolved);
+        return;
+      }
+
+      yield* Effect.sleep("1 second");
+    });
 
     const equipSet: ScriptArmyApi["equipSet"] = (setName, options) =>
       runStep(

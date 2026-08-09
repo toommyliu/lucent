@@ -40,6 +40,7 @@ export type ConnectToSelectionResult =
 
 export type ConsumableSkillItem = {
   itemId: number;
+  ready: boolean;
 };
 
 export type ConsumableCastDispatch = {

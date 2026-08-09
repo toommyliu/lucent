@@ -72,7 +72,7 @@ const makeApi = (overrides: Record<string, unknown> = {}): ApiService =>
   ({
     auth: { getUsername: () => Effect.succeed("Alice") },
     combat: {
-      getConsumableSkillItem: () => Effect.succeed({ itemId: 1 }),
+      getConsumableSkillItem: () => Effect.succeed({ itemId: 1, ready: true }),
       kill: () => Effect.void,
       useSkill: () => Effect.succeed(true),
     },
@@ -83,13 +83,16 @@ const makeApi = (overrides: Record<string, unknown> = {}): ApiService =>
     inventory: {
       contains: () => Effect.succeed(true),
       equip: () => Effect.succeed(true),
-      get: () => Effect.succeed({ itemId: 1 }),
+      get: () => Effect.succeed({ itemId: 1, link: "potion", quantity: 1 }),
     },
     map: {
       getName: () => Effect.succeed("ultra"),
       getRoomNumber: () => Effect.succeed(1234),
     },
-    player: { joinMap: () => Effect.succeed(true) },
+    player: {
+      joinMap: () => Effect.succeed(true),
+      useBoost: () => Effect.succeed(true),
+    },
     players: {
       getAll: () => Effect.succeed([{ username: "Alice" }]),
     },
@@ -181,7 +184,8 @@ describe("Army API", () => {
         yield* withArmy(
           makeApi({
             combat: {
-              getConsumableSkillItem: () => Effect.succeed({ itemId: 1 }),
+              getConsumableSkillItem: () =>
+                Effect.succeed({ itemId: 1, ready: true }),
               kill: () => Ref.update(kills, (count) => count + 1),
               useSkill: () => Effect.succeed(true),
             },
@@ -237,6 +241,8 @@ describe("Army API", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const equipped = yield* Ref.make<readonly string[]>([]);
+        const skillUses = yield* Ref.make(0);
+        let quantity = 3;
         const session = makeSession({
           boss: {
             default: {
@@ -257,13 +263,32 @@ describe("Army API", () => {
         const bridge = makeBridge({ start: async () => session }).bridge;
         yield* withArmy(
           makeApi({
+            combat: {
+              getConsumableSkillItem: () =>
+                Effect.succeed({ itemId: 1, ready: true }),
+              kill: () => Effect.void,
+              useSkill: () =>
+                Ref.update(skillUses, (count) => count + 1).pipe(
+                  Effect.tap(() =>
+                    Effect.sync(() => {
+                      quantity -= 1;
+                    }),
+                  ),
+                  Effect.as(true),
+                ),
+            },
             inventory: {
               contains: () => Effect.succeed(true),
               equip: (item: string) =>
                 Ref.update(equipped, (items) => [...items, item]).pipe(
                   Effect.as(true),
                 ),
-              get: () => Effect.succeed({ itemId: 1 }),
+              get: () =>
+                Effect.sync(() => ({
+                  itemId: 1,
+                  link: "potion",
+                  quantity,
+                })),
             },
           }),
           bridge,
@@ -291,6 +316,67 @@ describe("Army API", () => {
           "pot-two",
           "scroll",
         ]);
+        expect(yield* Ref.get(skillUses)).toBe(2);
+        expect(quantity).toBe(1);
+      }),
+    ),
+  );
+
+  it.effect("uses tonics directly from inventory", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const equipped = yield* Ref.make<readonly string[]>([]);
+        const directUses = yield* Ref.make<readonly number[]>([]);
+        const skillUses = yield* Ref.make(0);
+        const session = makeSession({
+          boss: {
+            default: { pots: ["Fate Tonic"] },
+            players: {},
+          },
+        });
+        const bridge = makeBridge({ start: async () => session }).bridge;
+        yield* withArmy(
+          makeApi({
+            combat: {
+              getConsumableSkillItem: () => Effect.succeed(null),
+              kill: () => Effect.void,
+              useSkill: () => Ref.update(skillUses, (count) => count + 1),
+            },
+            inventory: {
+              contains: () => Effect.succeed(true),
+              equip: (item: string) =>
+                Ref.update(equipped, (items) => [...items, item]).pipe(
+                  Effect.as(true),
+                ),
+              get: () =>
+                Effect.succeed({
+                  itemId: 42,
+                  link: "Tonic",
+                  quantity: 2,
+                }),
+            },
+            player: {
+              joinMap: () => Effect.succeed(true),
+              useBoost: (itemId: number) =>
+                Ref.update(directUses, (items) => [...items, itemId]).pipe(
+                  Effect.as(true),
+                ),
+            },
+          }),
+          bridge,
+          (army) =>
+            Effect.gen(function* () {
+              yield* army.start("test");
+              const fiber = yield* army
+                .equipSet("boss")
+                .pipe(Effect.forkScoped);
+              yield* TestClock.adjust("2 seconds");
+              yield* Fiber.join(fiber);
+            }),
+        );
+        expect(yield* Ref.get(equipped)).toEqual([]);
+        expect(yield* Ref.get(directUses)).toEqual([42]);
+        expect(yield* Ref.get(skillUses)).toBe(0);
       }),
     ),
   );

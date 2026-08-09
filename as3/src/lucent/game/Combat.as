@@ -137,7 +137,16 @@ package lucent.game {
         return null;
       }
 
-      return { itemId: itemId };
+      return {
+        itemId: itemId,
+        // sArg1 changes before seia finishes loading the usable-item action.
+        ready:
+          !game.world.lockdownPots &&
+          skill.isOK &&
+          !skill.skillLock &&
+          !skill.lock &&
+          getSkillCooldownRemainingValue(skill) <= 0
+      };
     }
 
     [BridgeExport]

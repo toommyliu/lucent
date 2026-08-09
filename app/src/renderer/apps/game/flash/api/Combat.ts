@@ -90,6 +90,7 @@ const Consumable = Schema.NullOr(
   Schema.Struct({
     itemId: Schema.optionalKey(WireInt),
     ItemID: Schema.optionalKey(WireInt),
+    ready: Schema.optionalKey(Schema.Boolean),
   }),
 );
 const ConsumableCastDispatch = Schema.NullOr(
@@ -650,7 +651,9 @@ export const makeCombat = (
           onNone: () => null,
           onSome: (item) => {
             const itemId = item?.itemId ?? item?.ItemID;
-            return itemId === undefined ? null : { itemId };
+            return itemId === undefined
+              ? null
+              : { itemId, ready: item?.ready === true };
           },
         }),
       ),

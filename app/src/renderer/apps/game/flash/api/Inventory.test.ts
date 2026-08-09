@@ -49,18 +49,44 @@ const item = ({
     temporaryItem: false,
   });
 
+const consumable = (itemId: number, link: string, equipped = false): LiveItem =>
+  new LiveItem({
+    category: "Item",
+    coins: false,
+    context: "inventory",
+    cost: 0,
+    description: "Consumable",
+    equipped,
+    equipmentSlot: "",
+    file: "consumable.swf",
+    houseItem: false,
+    itemId,
+    link,
+    memberOnly: false,
+    meta: "",
+    name: `Consumable ${itemId}`,
+    quantity: 2,
+    temporaryItem: false,
+  });
+
 const makeHarness = (items: readonly LiveItem[]) =>
   Effect.gen(function* () {
     const store = yield* makeStore;
     yield* store.items.replace("inventory", items);
 
     const equippedItemIds: number[] = [];
+    const unequippedItemIds: number[] = [];
     const bridge = {
       invoke: (method: string, args: readonly unknown[] | undefined) =>
         Effect.sync(() => {
           if (method === "inventory.equip") {
             const selector = args?.[0] as { readonly itemId: number };
             equippedItemIds.push(selector.itemId);
+            return Option.some(true);
+          }
+          if (method === "inventory.unequipConsumable") {
+            const selector = args?.[0] as { readonly itemId: number };
+            unequippedItemIds.push(selector.itemId);
             return Option.some(true);
           }
           if (method === "player.getUserId") return Option.some(1);
@@ -82,6 +108,7 @@ const makeHarness = (items: readonly LiveItem[]) =>
     return {
       equippedItemIds,
       inventory: makeInventory(bridge, store, wait),
+      unequippedItemIds,
     };
   });
 
@@ -193,6 +220,38 @@ describe("Inventory.equipByEnhancement", () => {
         }),
       ).toBe(false);
       expect(equippedItemIds).toEqual([]);
+    }),
+  );
+});
+
+describe("Inventory consumable equipment", () => {
+  it.effect("projects local equip and unequip mutations", () =>
+    Effect.gen(function* () {
+      const first = consumable(100, "potion");
+      const second = consumable(101, "scroll", true);
+      const harness = yield* makeHarness([first, second]);
+
+      expect(yield* harness.inventory.equip(first.itemId)).toBe(true);
+      expect(first.equipped).toBe(true);
+      expect(second.equipped).toBe(false);
+      expect(harness.equippedItemIds).toEqual([first.itemId]);
+
+      expect(yield* harness.inventory.unequipConsumable(first.itemId)).toBe(
+        true,
+      );
+      expect(first.equipped).toBe(false);
+      expect(harness.unequippedItemIds).toEqual([first.itemId]);
+    }),
+  );
+
+  it.effect("does not equip direct-use tonics", () =>
+    Effect.gen(function* () {
+      const tonic = consumable(102, "ToNiC");
+      const harness = yield* makeHarness([tonic]);
+
+      expect(yield* harness.inventory.equip(tonic.itemId)).toBe(false);
+      expect(tonic.equipped).toBe(false);
+      expect(harness.equippedItemIds).toEqual([]);
     }),
   );
 });
