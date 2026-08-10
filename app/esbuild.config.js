@@ -129,6 +129,7 @@ const rendererViews = [
 
 const rendererOptions = {
   ...baseOptions,
+  chunkNames: "chunks/[name]-[hash]",
   entryNames: "[name]/index",
   entryPoints: Object.fromEntries(
     rendererViews.map((view) => [view.id, view.entryPoint]),
@@ -136,6 +137,7 @@ const rendererOptions = {
   format: "esm",
   outdir: "dist/renderer",
   platform: "browser",
+  splitting: true,
   plugins: [
     solidPlugin(),
     ...rendererViews.flatMap((view) => view.plugins ?? []),
