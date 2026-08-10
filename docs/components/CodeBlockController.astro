@@ -1,0 +1,380 @@
+---
+import Tooltip from "blume/components/content/Tooltip.astro";
+
+const wrapIcon =
+  '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M3 12h15a3 3 0 1 1 0 6h-4"></path><path d="m16 16-2 2 2 2"></path><path d="M3 18h7"></path></svg>';
+---
+
+<template data-code-wrap-template>
+  <span data-code-wrap-control>
+    <Tooltip tip="Toggle wrap">
+      <button class="code-wrap-toggle" data-code-wrap-toggle type="button">
+        <span class="code-wrap-toggle__icon" set:html={wrapIcon} />
+      </button>
+    </Tooltip>
+  </span>
+</template>
+
+<lucent-code-block-controller hidden></lucent-code-block-controller>
+
+<script>
+  const CODE_WRAP_STORAGE_KEY = "lucent-code-wrap";
+  const OVERFLOW_EPSILON_PX = 1;
+
+  type CodeBlockEntry = {
+    readonly code: HTMLElement;
+    observedWidth: number | undefined;
+    readonly onKeydown: (event: KeyboardEvent) => void;
+    readonly onScroll: () => void;
+    readonly onToggleWrap: (event: MouseEvent) => void;
+    readonly originalCodeTabIndex: string | null;
+    readonly originalPreTabIndex: string | null;
+    readonly pre: HTMLPreElement;
+    readonly wrapButton: HTMLButtonElement;
+    readonly wrapControl: HTMLElement;
+  };
+
+  const readWrapPreference = (): boolean => {
+    try {
+      return localStorage.getItem(CODE_WRAP_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  };
+
+  const writeWrapPreference = (wrap: boolean): void => {
+    try {
+      localStorage.setItem(CODE_WRAP_STORAGE_KEY, String(wrap));
+    } catch {
+      // The choice still persists for the current page when storage is blocked.
+    }
+  };
+
+  /** Adds discoverable, accessible overflow controls to rendered code blocks. */
+  class LucentCodeBlockController extends HTMLElement {
+    #entries = new Map<HTMLElement, CodeBlockEntry>();
+    #measureFrame: number | undefined;
+    #mutationObserver: MutationObserver | null = null;
+    #nextTooltipId = 0;
+    #pendingMeasurements = new Set<CodeBlockEntry>();
+    #wrapLines = readWrapPreference();
+
+    #resizeObserver = new ResizeObserver((records) => {
+      for (const record of records) {
+        if (!(record.target instanceof HTMLElement)) {
+          continue;
+        }
+
+        const entry = this.#entries.get(record.target);
+        if (entry === undefined) {
+          continue;
+        }
+
+        const width = record.contentRect.width;
+        // Height changes while wrapping do not affect horizontal overflow.
+        if (
+          entry.observedWidth !== undefined &&
+          Math.abs(entry.observedWidth - width) <= OVERFLOW_EPSILON_PX
+        ) {
+          continue;
+        }
+
+        entry.observedWidth = width;
+        this.#queueMeasurement(entry);
+      }
+    });
+
+    #syncEdges = (entry: CodeBlockEntry): void => {
+      const { code, pre } = entry;
+      const maxScrollLeft = code.scrollWidth - code.clientWidth;
+      const overflowing = pre.hasAttribute("data-code-overflow");
+
+      pre.toggleAttribute(
+        "data-code-overflow-left",
+        overflowing && code.scrollLeft > OVERFLOW_EPSILON_PX,
+      );
+      pre.toggleAttribute(
+        "data-code-overflow-right",
+        overflowing &&
+          code.scrollLeft < maxScrollLeft - OVERFLOW_EPSILON_PX,
+      );
+    };
+
+    #syncTabIndex = (entry: CodeBlockEntry, canWrap: boolean): void => {
+      const { code, originalCodeTabIndex, originalPreTabIndex } = entry;
+      const inheritedTabIndex = originalCodeTabIndex ?? originalPreTabIndex;
+
+      if (inheritedTabIndex !== null) {
+        code.setAttribute("tabindex", inheritedTabIndex);
+      } else if (canWrap) {
+        code.tabIndex = 0;
+      } else {
+        code.removeAttribute("tabindex");
+      }
+    };
+
+    #syncWrapControl = (entry: CodeBlockEntry): void => {
+      const label = this.#wrapLines
+        ? "Use horizontal scrolling for long code lines"
+        : "Wrap long code lines";
+
+      entry.wrapButton.setAttribute("aria-label", label);
+      entry.wrapButton.setAttribute("aria-pressed", String(this.#wrapLines));
+    };
+
+    #measure = (entry: CodeBlockEntry): void => {
+      const { code, pre } = entry;
+      if (!code.isConnected || code.clientWidth === 0) {
+        return;
+      }
+
+      // Measure the intrinsic line width before applying the saved wrap mode.
+      pre.removeAttribute("data-code-overflow");
+      pre.removeAttribute("data-code-wrap");
+      const canWrap =
+        code.scrollWidth > code.clientWidth + OVERFLOW_EPSILON_PX;
+
+      pre.toggleAttribute("data-code-can-wrap", canWrap);
+      pre.toggleAttribute("data-code-wrap", canWrap && this.#wrapLines);
+
+      const overflowing =
+        code.scrollWidth > code.clientWidth + OVERFLOW_EPSILON_PX;
+      pre.toggleAttribute("data-code-overflow", overflowing);
+      this.#syncTabIndex(entry, canWrap);
+      this.#syncWrapControl(entry);
+      this.#syncEdges(entry);
+    };
+
+    #queueMeasurement = (entry: CodeBlockEntry): void => {
+      this.#pendingMeasurements.add(entry);
+      if (this.#measureFrame !== undefined) {
+        return;
+      }
+
+      this.#measureFrame = requestAnimationFrame(() => {
+        this.#measureFrame = undefined;
+        const pending = [...this.#pendingMeasurements];
+        this.#pendingMeasurements.clear();
+        for (const pendingEntry of pending) {
+          this.#measure(pendingEntry);
+        }
+      });
+    };
+
+    #setWrapLines = (wrap: boolean): void => {
+      this.#wrapLines = wrap;
+      writeWrapPreference(wrap);
+
+      for (const entry of this.#entries.values()) {
+        this.#measure(entry);
+      }
+    };
+
+    #isSupportedCode = (code: HTMLElement): boolean => {
+      const pre = code.parentElement;
+      if (!(pre instanceof HTMLPreElement)) {
+        return false;
+      }
+
+      const nestedInPre = pre.parentElement?.closest("pre") ?? null;
+      const nestedInTwoslash = pre.parentElement?.closest(".twoslash") ?? null;
+      return (
+        nestedInPre === null &&
+        !pre.classList.contains("twoslash") &&
+        nestedInTwoslash === null &&
+        pre.closest("blume-panel-tabs") === null
+      );
+    };
+
+    #attach = (code: HTMLElement): void => {
+      if (this.#entries.has(code) || !this.#isSupportedCode(code)) {
+        return;
+      }
+
+      const pre = code.parentElement;
+      if (!(pre instanceof HTMLPreElement)) {
+        return;
+      }
+
+      const template = document.querySelector<HTMLTemplateElement>(
+        "[data-code-wrap-template]",
+      );
+      if (template === null) {
+        return;
+      }
+
+      const fragment = template.content.cloneNode(true) as DocumentFragment;
+      const wrapControl = fragment.querySelector<HTMLElement>(
+        "[data-code-wrap-control]",
+      );
+      const tooltipTrigger = fragment.querySelector<HTMLElement>(
+        "[data-blume-tooltip-trigger]",
+      );
+      const wrapButton = fragment.querySelector<HTMLButtonElement>(
+        "[data-code-wrap-toggle]",
+      );
+      const wrapPanel = fragment.querySelector<HTMLElement>(
+        "[data-blume-tooltip-panel]",
+      );
+      if (
+        wrapControl === null ||
+        tooltipTrigger === null ||
+        wrapButton === null ||
+        wrapPanel === null
+      ) {
+        return;
+      }
+
+      this.#nextTooltipId += 1;
+      const tooltipId = `lucent-code-wrap-tooltip-${this.#nextTooltipId}`;
+      wrapControl.classList.add("code-wrap-control");
+      tooltipTrigger.removeAttribute("aria-describedby");
+      tooltipTrigger.removeAttribute("tabindex");
+      wrapButton.setAttribute("aria-describedby", tooltipId);
+      wrapPanel.id = tooltipId;
+
+      const entry: CodeBlockEntry = {
+        code,
+        observedWidth: undefined,
+        onKeydown: (event) => {
+          if (
+            event.target !== code ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey ||
+            !pre.hasAttribute("data-code-overflow")
+          ) {
+            return;
+          }
+
+          const step = Math.max(48, code.clientWidth * 0.12);
+          const scrollTarget =
+            event.key === "ArrowLeft"
+              ? code.scrollLeft - step
+              : event.key === "ArrowRight"
+                ? code.scrollLeft + step
+                : event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? code.scrollWidth
+                    : null;
+          if (scrollTarget === null) {
+            return;
+          }
+
+          event.preventDefault();
+          code.scrollLeft = scrollTarget;
+        },
+        onScroll: () => this.#syncEdges(entry),
+        onToggleWrap: (event) => {
+          this.#setWrapLines(!this.#wrapLines);
+
+          // Pointer clicks should not pin the tooltip after the pointer leaves.
+          if (event.detail > 0) {
+            wrapButton.blur();
+          }
+        },
+        originalCodeTabIndex: code.getAttribute("tabindex"),
+        originalPreTabIndex: pre.getAttribute("tabindex"),
+        pre,
+        wrapButton,
+        wrapControl,
+      };
+
+      pre.removeAttribute("tabindex");
+      code.dataset.codeScrollViewport = "";
+      code.addEventListener("keydown", entry.onKeydown);
+      code.addEventListener("scroll", entry.onScroll, { passive: true });
+      wrapButton.addEventListener("click", entry.onToggleWrap);
+      pre.append(wrapControl);
+
+      this.#entries.set(code, entry);
+      this.#resizeObserver.observe(code);
+      this.#measure(entry);
+    };
+
+    #detach = (entry: CodeBlockEntry): void => {
+      this.#pendingMeasurements.delete(entry);
+      this.#resizeObserver.unobserve(entry.code);
+      entry.code.removeEventListener("keydown", entry.onKeydown);
+      entry.code.removeEventListener("scroll", entry.onScroll);
+      entry.wrapButton.removeEventListener("click", entry.onToggleWrap);
+      entry.wrapControl.remove();
+
+      delete entry.code.dataset.codeScrollViewport;
+      if (entry.originalCodeTabIndex === null) {
+        entry.code.removeAttribute("tabindex");
+      } else {
+        entry.code.setAttribute("tabindex", entry.originalCodeTabIndex);
+      }
+
+      if (entry.originalPreTabIndex === null) {
+        entry.pre.removeAttribute("tabindex");
+      } else {
+        entry.pre.setAttribute("tabindex", entry.originalPreTabIndex);
+      }
+
+      for (const attribute of [
+        "data-code-can-wrap",
+        "data-code-overflow",
+        "data-code-overflow-left",
+        "data-code-overflow-right",
+        "data-code-wrap",
+      ]) {
+        entry.pre.removeAttribute(attribute);
+      }
+    };
+
+    #attachAll = (): void => {
+      for (const [code, entry] of this.#entries) {
+        if (!code.isConnected) {
+          this.#detach(entry);
+          this.#entries.delete(code);
+        }
+      }
+
+      for (const code of document.querySelectorAll<HTMLElement>(
+        ".prose pre > code",
+      )) {
+        this.#attach(code);
+      }
+    };
+
+    connectedCallback(): void {
+      this.#attachAll();
+      document.addEventListener("astro:page-load", this.#attachAll);
+
+      this.#mutationObserver = new MutationObserver(this.#attachAll);
+      this.#mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    disconnectedCallback(): void {
+      document.removeEventListener("astro:page-load", this.#attachAll);
+      this.#mutationObserver?.disconnect();
+      this.#mutationObserver = null;
+      this.#resizeObserver.disconnect();
+
+      if (this.#measureFrame !== undefined) {
+        cancelAnimationFrame(this.#measureFrame);
+        this.#measureFrame = undefined;
+      }
+      this.#pendingMeasurements.clear();
+
+      for (const entry of this.#entries.values()) {
+        this.#detach(entry);
+      }
+      this.#entries.clear();
+    }
+  }
+
+  if (!customElements.get("lucent-code-block-controller")) {
+    customElements.define(
+      "lucent-code-block-controller",
+      LucentCodeBlockController,
+    );
+  }
+</script>

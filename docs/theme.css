@@ -127,6 +127,180 @@
   padding-block: 0.25rem;
 }
 
+/* Make horizontal code overflow discoverable without moving the fixed toolbar. */
+.prose pre > code[data-code-scroll-viewport] {
+  scrollbar-color: color-mix(
+      in oklab,
+      var(--blume-muted-foreground) 45%,
+      transparent
+    )
+    transparent;
+  scrollbar-width: thin;
+}
+
+.prose pre:has(> code[data-code-scroll-viewport]) {
+  overflow: visible;
+}
+
+.prose pre > code[data-code-scroll-viewport]::-webkit-scrollbar {
+  display: block;
+  height: 0.625rem;
+}
+
+.prose pre > code[data-code-scroll-viewport]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prose pre > code[data-code-scroll-viewport]::-webkit-scrollbar-thumb {
+  border: 0.1875rem solid transparent;
+  border-radius: 9999px;
+  background: color-mix(
+    in oklab,
+    var(--blume-muted-foreground) 45%,
+    transparent
+  );
+  background-clip: padding-box;
+}
+
+.prose pre[data-code-overflow] > code[data-code-scroll-viewport] {
+  padding-block-end: 0.75rem;
+}
+
+.prose
+  pre[data-code-overflow-right]:not([data-code-overflow-left])
+  > code[data-code-scroll-viewport] {
+  mask-image: linear-gradient(
+    to right,
+    black 0,
+    black calc(100% - 1.75rem),
+    transparent 100%
+  );
+}
+
+.prose
+  pre[data-code-overflow-left][data-code-overflow-right]
+  > code[data-code-scroll-viewport] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 1.75rem,
+    black calc(100% - 1.75rem),
+    transparent 100%
+  );
+}
+
+.prose
+  pre[data-code-overflow-left]:not([data-code-overflow-right])
+  > code[data-code-scroll-viewport] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 1.75rem,
+    black 100%
+  );
+}
+
+.prose pre[data-code-wrap] > code[data-code-scroll-viewport] {
+  overflow-wrap: normal;
+  white-space: normal;
+}
+
+.prose
+  pre[data-code-wrap]
+  > code[data-code-scroll-viewport]:not(:has(> .line)) {
+  white-space: pre-wrap;
+}
+
+.prose
+  pre[data-code-wrap]
+  > code[data-code-scroll-viewport]
+  > .line {
+  display: block;
+  padding-inline-start: 1rem;
+  text-indent: -1rem;
+  white-space: pre-wrap;
+}
+
+.prose pre:has(> code[data-code-scroll-viewport]:focus-visible) {
+  outline: 2px solid var(--blume-accent);
+  outline-offset: 2px;
+}
+
+.prose code[data-code-scroll-viewport]:focus-visible {
+  outline: 0;
+}
+
+.code-wrap-control {
+  position: absolute;
+  z-index: 2;
+  top: 0.5rem;
+  right: 3rem;
+  display: none;
+  cursor: pointer;
+}
+
+.code-wrap-control > span,
+.code-wrap-control [data-blume-tooltip-trigger] {
+  cursor: pointer;
+}
+
+.code-wrap-toggle {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: transparent;
+  color: var(--blume-muted-foreground);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+pre[data-code-can-wrap] > .code-wrap-control {
+  display: inline-flex;
+}
+
+.script-type-signature > .code-wrap-control,
+.prose pre:has(> .api-copy-control) > .code-wrap-control {
+  right: 4.5rem;
+}
+
+.code-wrap-toggle:hover,
+.code-wrap-toggle[aria-pressed="true"] {
+  background: var(--blume-muted);
+  color: var(--blume-foreground);
+}
+
+.code-wrap-toggle:focus-visible {
+  outline: 2px solid var(--blume-accent);
+  outline-offset: 2px;
+}
+
+.code-wrap-toggle__icon {
+  display: inline-flex;
+}
+
+.code-wrap-control [data-blume-tooltip-panel] {
+  right: 0;
+  left: auto;
+  cursor: default;
+  transform: none;
+  translate: none;
+}
+
+.code-wrap-control:has(.code-wrap-toggle:focus-visible)
+  [data-blume-tooltip-panel] {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.prose pre[data-code-can-wrap][data-language]::before {
+  padding-inline-end: 6.75rem;
+}
+
 html:has(.type-peek-dialog[open]) {
   overflow: hidden;
 }
