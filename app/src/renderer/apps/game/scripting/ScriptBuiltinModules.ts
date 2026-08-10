@@ -12,31 +12,38 @@ import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
 import type {
-  ScriptAutoReloginFeature,
-  ScriptAutoZoneFeature,
-  ScriptLucentStd,
+  ScriptApi,
+  ScriptAutoReloginApi,
+  ScriptAutoZoneApi,
+  ScriptEffectStd,
   ScriptRuntimeApi,
 } from "./ScriptApi";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
+import { scriptEffectStd } from "./ScriptEffectStd";
 
-export interface ScriptRuntimeFeatures {
-  readonly autoRelogin: ScriptAutoReloginFeature;
-  readonly autoZone: ScriptAutoZoneFeature;
+export interface ScriptBuiltinModules {
+  readonly effect: ScriptEffectStd;
+  readonly "lucent/api": ScriptApi;
+  readonly "lucent/autorelogin": ScriptAutoReloginApi;
+  readonly "lucent/autozone": ScriptAutoZoneApi;
+  readonly "lucent/script": ScriptRuntimeApi;
 }
 
-export interface ScriptRuntimeStdOptions {
+export interface ScriptBuiltinModulesOptions {
+  readonly autoRelogin: ScriptAutoReloginApi;
+  readonly autoZone: ScriptAutoZoneApi;
   readonly bridge: BridgeService;
   readonly failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>;
-  readonly features: ScriptRuntimeFeatures;
   readonly roomPolicy: Effect.Effect<RoomPolicy>;
   readonly scope: ScriptAsyncScope;
   readonly script: ScriptRuntimeApi;
   readonly services: ScriptRuntimeServices;
 }
 
-export const makeScriptLucentStd = (
-  options: ScriptRuntimeStdOptions,
-): ScriptLucentStd => {
+/** Creates the frozen built-in module registry for one script execution. */
+export const makeScriptBuiltinModules = (
+  options: ScriptBuiltinModulesOptions,
+): ScriptBuiltinModules => {
   const army = makeScriptArmyApi(
     options.services.army,
     options.scope,
@@ -66,7 +73,8 @@ export const makeScriptLucentStd = (
   const services = { ...options.services, army, player, players };
 
   return Object.freeze({
-    api: Object.freeze({
+    effect: scriptEffectStd,
+    "lucent/api": Object.freeze({
       ...services,
       environment,
       events,
@@ -74,10 +82,8 @@ export const makeScriptLucentStd = (
       recipes,
       settings,
     }),
-    features: Object.freeze({
-      autoRelogin: options.features.autoRelogin,
-      autoZone: options.features.autoZone,
-    }),
-    script: options.script,
+    "lucent/autorelogin": options.autoRelogin,
+    "lucent/autozone": options.autoZone,
+    "lucent/script": options.script,
   });
 };

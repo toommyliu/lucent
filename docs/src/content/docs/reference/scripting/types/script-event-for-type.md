@@ -99,13 +99,35 @@ type ScriptEventForType<T extends ScriptEventType> = Extract<{
 }, {
     readonly type: T;
 }> | Extract<{
-    readonly destination?: {
+    readonly cell: string;
+    readonly entityId: number;
+    readonly pad: string;
+    readonly position: {
         readonly x: number;
         readonly y: number;
     };
     readonly type: "player-location";
-    readonly entityId: number;
     readonly username: string;
+} & {
+    readonly destination: {
+        readonly x: number;
+        readonly y: number;
+    };
+    readonly kind: "walk";
+}, {
+    readonly type: T;
+}> | Extract<{
+    readonly cell: string;
+    readonly entityId: number;
+    readonly pad: string;
+    readonly position: {
+        readonly x: number;
+        readonly y: number;
+    };
+    readonly type: "player-location";
+    readonly username: string;
+} & {
+    readonly kind: "cell" | "position";
 }, {
     readonly type: T;
 }> | Extract<{

@@ -42,7 +42,7 @@ import {
   snapshotScriptRuntimeOptions,
   type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
-import { makeScriptLucentStd } from "./ScriptRuntimeStd";
+import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptRuntimeServices } from "./api/Services";
 import {
   makeMoveToSafeDestination,
@@ -900,10 +900,11 @@ export const layer = Layer.effect(
           scope: scriptScope,
           setOptions,
         });
-        const lucent = makeScriptLucentStd({
+        const modules = makeScriptBuiltinModules({
+          autoRelogin,
+          autoZone,
           bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
-          features: { autoRelogin, autoZone },
           roomPolicy: SubscriptionRef.get(optionsRef).pipe(
             Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
           ),
@@ -912,7 +913,7 @@ export const layer = Layer.effect(
           services,
         });
         const loaded = yield* loadScriptModule({
-          lucent,
+          modules,
           name: file.path ?? file.name,
           revision: file.revision,
           ...(file.snapshot === undefined ? {} : { snapshot: file.snapshot }),

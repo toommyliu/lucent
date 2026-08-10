@@ -735,7 +735,8 @@ export interface ScriptWaitApi {
   ) => Effect.Effect<A | null>;
 }
 
-export interface ScriptAutoReloginFeature {
+/** Controls automatic login recovery and explicit login attempts. */
+export interface ScriptAutoReloginApi {
   readonly onState: (
     listener: (state: AutoReloginState) => void,
   ) => Effect.Effect<() => void>;
@@ -754,7 +755,8 @@ export interface ScriptAutoReloginFeature {
   readonly setServer: (server: string) => Effect.Effect<AutoReloginState>;
 }
 
-export interface ScriptAutoZoneFeature {
+/** Controls automatic movement for supported encounter zones. */
+export interface ScriptAutoZoneApi {
   readonly onState: (
     listener: (state: AutoZoneState) => void,
   ) => Effect.Effect<() => void>;
@@ -766,11 +768,6 @@ export interface ScriptAutoZoneFeature {
   readonly setMap: (
     map: AutoZoneSupportedMap | undefined,
   ) => Effect.Effect<AutoZoneState>;
-}
-
-export interface ScriptFeaturesApi {
-  readonly autoRelogin: ScriptAutoReloginFeature;
-  readonly autoZone: ScriptAutoZoneFeature;
 }
 
 export interface ScriptApi {
@@ -836,18 +833,6 @@ export interface ScriptRuntimeApi {
   readonly log: (message: unknown) => Effect.Effect<void>;
   readonly sleep: (ms: number) => Effect.Effect<void, ScriptExecutionError>;
   readonly stop: (reason?: string) => Effect.Effect<never, ScriptStopSignal>;
-}
-
-export interface ScriptLucentStd {
-  readonly api: ScriptApi;
-  readonly features: ScriptFeaturesApi;
-  readonly script: ScriptRuntimeApi;
-}
-
-export interface ScriptContext {
-  readonly api: ScriptApi;
-  readonly features: ScriptFeaturesApi;
-  readonly script: ScriptRuntimeApi;
 }
 
 export interface ScriptEffectStd {

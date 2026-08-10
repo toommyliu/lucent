@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 
-import type { ScriptLucentStd } from "./ScriptApi";
 import type {
   ScriptExecutionPackage,
   ScriptExecutionSnapshot,
@@ -12,23 +11,26 @@ import {
   sanitizeScriptSourceUrl,
   ScriptLoadError,
 } from "./scriptLoader";
+import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
+import { scriptEffectStd } from "./ScriptEffectStd";
 
-const script = Object.freeze({ marker: "script-api" });
-const lucent = Object.freeze({
-  api: Object.freeze({}),
-  features: Object.freeze({}),
-  script,
-}) as unknown as ScriptLucentStd;
+const modules = Object.freeze({
+  effect: scriptEffectStd,
+  "lucent/api": Object.freeze({ marker: "game-api" }),
+  "lucent/autorelogin": Object.freeze({ marker: "auto-relogin" }),
+  "lucent/autozone": Object.freeze({ marker: "auto-zone" }),
+  "lucent/script": Object.freeze({ marker: "script-api" }),
+}) as unknown as ScriptBuiltinModules;
 
 const loadResult = (
   source: string,
   options: {
-    readonly runtime?: ScriptLucentStd;
+    readonly modules?: ScriptBuiltinModules;
     readonly snapshot?: ScriptExecutionSnapshot;
   } = {},
 ) =>
   loadScriptModule({
-    lucent: options.runtime ?? lucent,
+    modules: options.modules ?? modules,
     source,
     ...(options.snapshot === undefined ? {} : { snapshot: options.snapshot }),
   }).pipe(
@@ -81,10 +83,19 @@ describe("scriptLoader", () => {
 
   it("loads generator exports with the supported module facades", async () => {
     const result = await loadResult(`
-      const lucent = require("lucent");
+      const api = require("lucent/api");
+      const autoRelogin = require("lucent/autorelogin");
+      const autoZone = require("lucent/autozone");
+      const script = require("lucent/script");
       const { Effect } = require("effect");
       module.exports = function* run() {
-        return [lucent.script.marker, typeof Effect.succeed];
+        return [
+          api.marker,
+          autoRelogin.marker,
+          autoZone.marker,
+          script.marker,
+          typeof Effect.succeed,
+        ];
       };
     `);
 
@@ -92,7 +103,13 @@ describe("scriptLoader", () => {
     if (result.ok) {
       expect(result.value.main().next()).toEqual({
         done: true,
-        value: ["script-api", "function"],
+        value: [
+          "game-api",
+          "auto-relogin",
+          "auto-zone",
+          "script-api",
+          "function",
+        ],
       });
     }
   });

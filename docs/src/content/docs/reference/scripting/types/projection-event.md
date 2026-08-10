@@ -64,15 +64,25 @@ type ProjectionEvent = {
     readonly triggerId: string;
     readonly triggerText: string;
     readonly type: "anti-counter-end";
-} | {
-    readonly destination?: {
+} | ({
+    readonly cell: string;
+    readonly entityId: number;
+    readonly pad: string;
+    readonly position: {
         readonly x: number;
         readonly y: number;
     };
     readonly type: "player-location";
-    readonly entityId: number;
     readonly username: string;
+} & ({
+    readonly destination: {
+        readonly x: number;
+        readonly y: number;
+    };
+    readonly kind: "walk";
 } | {
+    readonly kind: "cell" | "position";
+})) | {
     readonly type: "update-message";
     readonly message: string;
     readonly monsterMapId?: number;

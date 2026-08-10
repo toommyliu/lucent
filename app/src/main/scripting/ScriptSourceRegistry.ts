@@ -17,6 +17,7 @@ import type {
   ScriptReference,
 } from "@lucent/core/scriptPackages";
 import {
+  isScriptBuiltinModuleSpecifier,
   isRelativeScriptModuleSpecifier,
   resolveRelativeScriptModulePath,
   scriptModulePathCandidates,
@@ -397,7 +398,7 @@ export const layer = Layer.effect(
           }
 
           for (const specifier of loaded.requirements) {
-            if (specifier === "lucent" || specifier === "effect") continue;
+            if (isScriptBuiltinModuleSpecifier(specifier)) continue;
             if (isRelativeScriptModuleSpecifier(specifier)) {
               schedule(resolveRelativeTarget(discovery, target, specifier));
               continue;

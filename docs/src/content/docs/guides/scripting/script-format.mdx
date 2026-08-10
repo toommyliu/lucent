@@ -5,17 +5,19 @@ description: Learn the basic structure of a script.
 
 ## Script environment
 
-Load the `lucent` module to access the script environment:
+Load the focused modules needed by the script:
 
-- `api` controls the game.
-- `script` handles lifecycle, inputs, options, logging, and other utilities.
-- `features` controls automation helpers.
+- `lucent/api` controls the game.
+- `lucent/script` handles lifecycle, inputs, options, logging, and other utilities.
+- `lucent/autozone` controls automatic encounter-zone movement.
+- `lucent/autorelogin` controls automatic login recovery.
 
 ```js
-const { api, features, script } = require("lucent");
+const api = require("lucent/api");
+const script = require("lucent/script");
 ```
 
-See the [`lucent` module reference](/reference/scripting/) for every namespace.
+See the [scripting module reference](/reference/scripting/) for every module.
 Scripts can also use the smaller [`effect` module](/reference/scripting/effect/).
 
 ## Create the script
@@ -34,7 +36,8 @@ Each action is a generator. Call it with `yield*` to run it and receive its
 result before the script continues.
 
 ```js
-const { api, script } = require("lucent");
+const api = require("lucent/api");
+const script = require("lucent/script");
 
 module.exports = function* run() {
   yield* script.options.setRoomPolicy({ kind: "random-private" });

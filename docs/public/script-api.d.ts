@@ -44,9 +44,24 @@ declare module "effect" {
   export = effect;
 }
 
-declare module "lucent" {
-  const lucent: ScriptLucentStd;
-  namespace lucent {
+declare module "lucent/api" {
+  const api: ScriptApi;
+  export = api;
+}
+
+declare module "lucent/autorelogin" {
+  const autoRelogin: ScriptAutoReloginApi;
+  export = autoRelogin;
+}
+
+declare module "lucent/autozone" {
+  const autoZone: ScriptAutoZoneApi;
+  export = autoZone;
+}
+
+declare module "lucent/script" {
+  const script: ScriptRuntimeApi;
+  namespace script {
     export type ScriptInputValue = LucentScriptInputValue;
     export type ScriptInputType = LucentScriptInputType;
     export type ScriptInputField = LucentScriptInputField;
@@ -54,7 +69,7 @@ declare module "lucent" {
     export type ScriptInputValues = LucentScriptInputValues;
     export type ScriptModuleExports = LucentScriptModuleExports;
   }
-  export = lucent;
+  export = script;
 }
 
 type DurationInput = number | string | bigint | DurationLike;
@@ -165,16 +180,6 @@ type ScriptModuleExports = LucentScriptModuleExports;
 
 type ScriptMain = () => Generator<Effect<any, any, never>, unknown, any>;
 
-interface ScriptContext {
-    readonly api: ScriptApi;
-    readonly features: ScriptFeaturesApi;
-    readonly script: ScriptRuntimeApi;
-}
-interface ScriptLucentStd {
-    readonly api: ScriptApi;
-    readonly features: ScriptFeaturesApi;
-    readonly script: ScriptRuntimeApi;
-}
 interface ScriptApi {
     readonly army: ScriptArmyApi;
     readonly auth: ScriptAuthApi;
@@ -206,6 +211,29 @@ interface ScriptRuntimeApi {
     log(message: unknown): Effect<void, never>;
     sleep(ms: number): Effect<void, ScriptExecutionError>;
     stop(reason?: string): Effect<never, ScriptStopSignal>;
+}
+interface ScriptAutoReloginApi {
+    onState(listener: (state: AutoReloginState) => void): Effect<() => void, never>;
+    readonly changes: Stream<AutoReloginState, never, never>;
+    disable(): Effect<AutoReloginState, never>;
+    enable(): Effect<AutoReloginState, never>;
+    getDelay(): Effect<number, never>;
+    getServer(): Effect<string | undefined, never>;
+    getState(): Effect<AutoReloginState, never>;
+    isEnabled(): Effect<boolean, never>;
+    runLogin(request: AutoReloginLoginRequest): Effect<AutoReloginLoginResult, AutoReloginLoginError>;
+    setDelay(delayMs: number): Effect<AutoReloginState, never>;
+    setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
+    setServer(server: string): Effect<AutoReloginState, never>;
+}
+interface ScriptAutoZoneApi {
+    onState(listener: (state: AutoZoneState) => void): Effect<() => void, never>;
+    readonly changes: Stream<AutoZoneState, never, never>;
+    getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
+    getState(): Effect<AutoZoneState, never>;
+    isEnabled(): Effect<boolean, never>;
+    setEnabled(enabled: boolean): Effect<AutoZoneState, never>;
+    setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
 }
 interface ScriptArmyApi {
     equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, ArmyError>;
@@ -248,29 +276,6 @@ interface ScriptAuthApi {
     isTemporarilyKicked(): Effect<boolean, never>;
     login(username: string, password: string): Effect<boolean, never>;
     logout(): Effect<void, never>;
-}
-interface ScriptAutoReloginFeature {
-    onState(listener: (state: AutoReloginState) => void): Effect<() => void, never>;
-    readonly changes: Stream<AutoReloginState, never, never>;
-    disable(): Effect<AutoReloginState, never>;
-    enable(): Effect<AutoReloginState, never>;
-    getDelay(): Effect<number, never>;
-    getServer(): Effect<string | undefined, never>;
-    getState(): Effect<AutoReloginState, never>;
-    isEnabled(): Effect<boolean, never>;
-    runLogin(request: AutoReloginLoginRequest): Effect<AutoReloginLoginResult, AutoReloginLoginError>;
-    setDelay(delayMs: number): Effect<AutoReloginState, never>;
-    setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
-    setServer(server: string): Effect<AutoReloginState, never>;
-}
-interface ScriptAutoZoneFeature {
-    onState(listener: (state: AutoZoneState) => void): Effect<() => void, never>;
-    readonly changes: Stream<AutoZoneState, never, never>;
-    getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
-    getState(): Effect<AutoZoneState, never>;
-    isEnabled(): Effect<boolean, never>;
-    setEnabled(enabled: boolean): Effect<AutoZoneState, never>;
-    setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
 }
 interface ScriptBankApi {
     contains(query: ItemQuery, requested?: number): Effect<boolean, never>;
@@ -366,10 +371,6 @@ interface ScriptEventsOn {
     (query: undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
     (query: EventSelector | undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
 }
-interface ScriptFeaturesApi {
-    readonly autoRelogin: ScriptAutoReloginFeature;
-    readonly autoZone: ScriptAutoZoneFeature;
-}
 interface ScriptHouseApi {
     get(query: ItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
@@ -391,6 +392,8 @@ interface ScriptInventoryApi {
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
     unequipConsumable(query: ItemQuery): Effect<boolean, never>;
+  /** Uses an eligible item directly from inventory, such as a Tonic, Elixir, or boost. */
+    use(query: ItemQuery): Effect<boolean, never>;
     wear(query: ItemQuery): Effect<boolean, never>;
 }
 interface ScriptMapApi {
@@ -1309,10 +1312,10 @@ type ProjectionEvent =
           };
           readonly kind: "walk";
         }
-        | {
-            /** `position` reports coordinates; `cell` reports only cell/pad. */
-            readonly kind: "cell" | "position";
-          }
+      | {
+          /** `position` reports coordinates; `cell` reports only cell/pad. */
+          readonly kind: "cell" | "position";
+        }
     ))
   | {
       readonly type: "update-message";

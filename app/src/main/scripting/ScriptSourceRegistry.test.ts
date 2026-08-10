@@ -122,6 +122,11 @@ describe("script source dependency discovery", () => {
             write(
               join(workspace.scriptsDir, "entry.js"),
               `
+              require("lucent/api");
+              require("lucent/autorelogin");
+              require("lucent/autozone");
+              require("lucent/script");
+              require("effect");
               require("./lib/helper");
               require("tools");
               module.exports = function* run() {};

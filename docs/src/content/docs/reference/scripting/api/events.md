@@ -33,7 +33,8 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 | `monster-respawn` | <code>{ monsterMapId: number }</code> |
 | `packet` | <code>{ packet: FlashPacket }</code> |
 | `player-death` | <code>{ entityId: number; username: string }</code> |
-| `player-location` | <code>{ destination?: { readonly x: number; readonly y: number; }; entityId: number; username: string }</code> |
+| `player-location` | <code>{ cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; destination: { readonly x: number; readonly y: number; }; kind: &quot;walk&quot; }</code> |
+| `player-location` | <code>{ cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; kind: &quot;cell&quot; &#124; &quot;position&quot; }</code> |
 | `players-changed` | <code>{}</code> |
 | `quest-complete` | <code>{ questId: number }</code> |
 | `update-message` | <code>{ message: string; monsterMapId?: number; source: &quot;animation&quot; &#124; &quot;aura&quot; }</code> |

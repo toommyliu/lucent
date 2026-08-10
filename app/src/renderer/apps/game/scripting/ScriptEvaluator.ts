@@ -8,8 +8,8 @@ import { Automation } from "../automation/Automation";
 import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
 import { Bridge } from "../flash/bridge/Bridge";
-import type { ScriptEffectStd, ScriptLucentStd } from "./ScriptApi";
-import { scriptEffectStd } from "./ScriptEffectStd";
+import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
+import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { ScriptRunner } from "./ScriptRunner";
 import {
   makeScriptRuntimeApi,
@@ -18,7 +18,6 @@ import {
   snapshotScriptRuntimeOptions,
   type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
-import { makeScriptLucentStd } from "./ScriptRuntimeStd";
 import { makeScriptAsyncScope } from "./scriptAsyncScope";
 import {
   getScriptExitRequest,
@@ -31,10 +30,11 @@ import { makeScriptRuntimeServices } from "./api/Services";
 const ScriptEvalFunction = Function as unknown as new (
   ...args: string[]
 ) => (
-  script: ScriptLucentStd["script"],
-  features: ScriptLucentStd["features"],
-  api: ScriptLucentStd["api"],
-  effect: ScriptEffectStd["Effect"],
+  api: ScriptBuiltinModules["lucent/api"],
+  script: ScriptBuiltinModules["lucent/script"],
+  autoRelogin: ScriptBuiltinModules["lucent/autorelogin"],
+  autoZone: ScriptBuiltinModules["lucent/autozone"],
+  effect: ScriptBuiltinModules["effect"]["Effect"],
   console: Console,
 ) => Effect.Effect<unknown, unknown, never>;
 
@@ -45,15 +45,16 @@ const compileErrorMessage = (cause: unknown): string =>
 
 export const compileScriptEval = (
   source: string,
-  lucent: ScriptLucentStd,
+  modules: ScriptBuiltinModules,
   debugConsole: Console,
 ): Effect.Effect<unknown, unknown> =>
   Effect.try({
     try: () => {
       const evaluate = new ScriptEvalFunction(
-        "script",
-        "features",
         "api",
+        "script",
+        "autoRelogin",
+        "autoZone",
         "Effect",
         "console",
         `"use strict";
@@ -63,10 +64,11 @@ ${source}
 //# sourceURL=lucent-script-eval://scratch`,
       );
       return evaluate(
-        lucent.script,
-        lucent.features,
-        lucent.api,
-        scriptEffectStd.Effect,
+        modules["lucent/api"],
+        modules["lucent/script"],
+        modules["lucent/autorelogin"],
+        modules["lucent/autozone"],
+        modules.effect.Effect,
         debugConsole,
       );
     },
@@ -129,14 +131,12 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         scope,
         setOptions,
       });
-      const lucent = makeScriptLucentStd({
+      const modules = makeScriptBuiltinModules({
+        autoRelogin: automation.autoRelogin,
+        autoZone: automation.autoZone,
         bridge,
         failCause: (cause: Cause.Cause<unknown>) =>
           Deferred.failCause(callbackFailure, cause).pipe(Effect.asVoid),
-        features: {
-          autoRelogin: automation.autoRelogin,
-          autoZone: automation.autoZone,
-        },
         roomPolicy: Ref.get(optionsRef).pipe(
           Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
         ),
@@ -146,7 +146,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
       });
 
       return yield* Effect.raceFirst(
-        compileScriptEval(source, lucent, debugConsole),
+        compileScriptEval(source, modules, debugConsole),
         Deferred.await(callbackFailure),
       ).pipe(
         Effect.catch((error) =>

@@ -101,11 +101,10 @@ const redirects = [
   ...legacyScriptingRedirects,
 ];
 
-const namespaceGroup = (label: string, segment: string) => {
+const moduleGroup = (label: string, segment: string) => {
   const routeRoot = `/reference/scripting/${segment}`;
 
   return {
-    badge: "namespace",
     items: collectPageRoutes(join(scriptingReferenceRoot, segment), routeRoot),
     label,
   };
@@ -150,22 +149,23 @@ export default defineConfig({
             {
               items: [
                 {
-                  items: [
-                    namespaceGroup("api", "api"),
-                    {
-                      badge: "namespace",
-                      label: "script",
-                      root: "/reference/scripting/script",
-                    },
-                    namespaceGroup("features", "features"),
-                  ],
-                  badge: "module",
-                  display: "flat",
-                  label: "lucent",
+                  label: "Overview",
                   root: "/reference/scripting",
                 },
+                moduleGroup("lucent/api", "api"),
                 {
-                  badge: "module",
+                  label: "lucent/script",
+                  root: "/reference/scripting/script",
+                },
+                {
+                  label: "lucent/autozone",
+                  root: "/reference/scripting/autozone",
+                },
+                {
+                  label: "lucent/autorelogin",
+                  root: "/reference/scripting/autorelogin",
+                },
+                {
                   label: "effect",
                   root: "/reference/scripting/effect",
                 },

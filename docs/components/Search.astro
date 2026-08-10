@@ -216,16 +216,16 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
       if (path.startsWith("/reference/scripting/types/")) {
         return "Type";
       }
-      if (
-        path === "/reference/scripting/script" ||
-        path.startsWith("/reference/scripting/api/") ||
-        path.startsWith("/reference/scripting/features/")
-      ) {
+      if (path.startsWith("/reference/scripting/api/")) {
         return "Namespace";
       }
       if (
         path === "/reference/scripting" ||
-        path === "/reference/scripting/effect"
+        path === "/reference/scripting/api" ||
+        path === "/reference/scripting/autorelogin" ||
+        path === "/reference/scripting/autozone" ||
+        path === "/reference/scripting/effect" ||
+        path === "/reference/scripting/script"
       ) {
         return "Module";
       }

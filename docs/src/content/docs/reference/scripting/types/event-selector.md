@@ -36,7 +36,12 @@ type EventSelector = {
     readonly type: "monster-death" | "monster-respawn";
 } | {
     readonly entityId?: number;
-    readonly type: "player-death" | "player-location";
+    readonly type: "player-death";
+    readonly username?: string;
+} | {
+    readonly entityId?: number;
+    readonly kind?: "cell" | "position" | "walk";
+    readonly type: "player-location";
     readonly username?: string;
 } | {
     readonly type: "players-changed";
@@ -74,4 +79,4 @@ type EventSelector = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L100" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:100" title="app/src/renderer/apps/game/flash/contract/Event.ts:100" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:100</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L116" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:116" title="app/src/renderer/apps/game/flash/contract/Event.ts:116" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:116</code></a></p>

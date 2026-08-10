@@ -6,12 +6,13 @@ import type {
   ScriptModuleSource,
 } from "@lucent/core/scriptPackages";
 import {
+  isScriptBuiltinModuleSpecifier,
   isRelativeScriptModuleSpecifier,
   resolveRelativeScriptModulePath,
   scriptModulePathCandidates,
 } from "@lucent/core/scriptPackages";
-import type { ScriptLucentStd, ScriptMain } from "./ScriptApi";
-import { scriptEffectStd } from "./ScriptEffectStd";
+import type { ScriptMain } from "./ScriptApi";
+import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 
 export class ScriptLoadError extends Schema.TaggedErrorClass<ScriptLoadError>()(
   "ScriptLoadError",
@@ -143,7 +144,7 @@ const syntheticSnapshot = (input: {
  */
 const evaluateSnapshot = (
   snapshot: ScriptExecutionSnapshot,
-  lucent: ScriptLucentStd,
+  modules: ScriptBuiltinModules,
 ): LoadedScriptModule => {
   const modulesById = new Map(
     snapshot.modules.map((module) => [module.id, module]),
@@ -199,8 +200,9 @@ const evaluateSnapshot = (
           modulePath: module.localPath,
         });
       }
-      if (specifier === "lucent") return lucent;
-      if (specifier === "effect") return scriptEffectStd;
+      if (isScriptBuiltinModuleSpecifier(specifier)) {
+        return modules[specifier];
+      }
 
       let resolved: ScriptModuleSource | undefined;
       if (isRelativeScriptModuleSpecifier(specifier)) {
@@ -263,7 +265,7 @@ const evaluateSnapshot = (
 };
 
 export const loadScriptModule = (input: {
-  readonly lucent: ScriptLucentStd;
+  readonly modules: ScriptBuiltinModules;
   readonly name?: string;
   readonly revision?: string;
   readonly snapshot?: ScriptExecutionSnapshot;
@@ -278,7 +280,7 @@ export const loadScriptModule = (input: {
           ...(input.revision === undefined ? {} : { revision: input.revision }),
           source: input.source,
         });
-      return evaluateSnapshot(snapshot, input.lucent);
+      return evaluateSnapshot(snapshot, input.modules);
     },
     catch: (cause) =>
       cause instanceof ScriptLoadError

@@ -23,16 +23,40 @@ const safePortableSegments = (value: string): boolean =>
         !windowsReservedPathSegment.test(segment),
     );
 
+export const SCRIPT_BUILTIN_MODULE_SPECIFIERS = [
+  "effect",
+  "lucent/api",
+  "lucent/autorelogin",
+  "lucent/autozone",
+  "lucent/script",
+] as const;
+
+export type ScriptBuiltinModuleSpecifier =
+  (typeof SCRIPT_BUILTIN_MODULE_SPECIFIERS)[number];
+
+const scriptBuiltinModuleSpecifiers = new Set<string>(
+  SCRIPT_BUILTIN_MODULE_SPECIFIERS,
+);
+
+export const isScriptBuiltinModuleSpecifier = (
+  specifier: string,
+): specifier is ScriptBuiltinModuleSpecifier =>
+  scriptBuiltinModuleSpecifiers.has(specifier);
+
+const isReservedScriptPackageName = (name: string): boolean =>
+  name === "effect" ||
+  name === "lucent" /* Reserved */ ||
+  name.startsWith("lucent/");
+
 export const ScriptPackageNameSchema = Schema.String.check(
   Schema.makeFilter(
     (name) =>
       name.trim() === name &&
-      name !== "lucent" &&
-      name !== "effect" &&
+      !isReservedScriptPackageName(name) &&
       safePortableSegments(name),
     {
       expected:
-        "a safe, case-sensitive path below the Lucent package directory",
+        "a safe, case-sensitive, non-reserved path below the Lucent package directory",
     },
   ),
 );
