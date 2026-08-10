@@ -733,6 +733,147 @@ html:has(.type-peek-dialog[open]) {
   overflow-x: hidden;
 }
 
+@media (min-width: 80rem) {
+  /* Shrink only a long ToC so page actions remain reachable without forcing a gap. */
+  [data-blume-toc] {
+    display: flex;
+    overflow-y: hidden;
+    flex-direction: column;
+  }
+
+  [data-blume-toc] > .lucent-toc {
+    min-height: 0;
+    flex: 0 1 auto;
+  }
+
+  [data-blume-toc] > [data-blume-page-actions] {
+    flex: 0 0 auto;
+    margin-block-start: 1rem;
+  }
+}
+
+.lucent-toc {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.lucent-toc__frame {
+  position: relative;
+  min-height: 0;
+  margin-inline: -0.5rem;
+  flex: 1 1 auto;
+}
+
+.lucent-toc__scroll {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline: 0.5rem;
+  padding-block: 0.5rem;
+  outline-offset: -2px;
+  scroll-padding-block: 1.75rem;
+  scrollbar-color: var(--blume-border) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.lucent-toc__scroll:focus-visible {
+  border-radius: var(--blume-radius);
+  outline: 2px solid var(--blume-accent);
+}
+
+.lucent-toc__scroll::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.lucent-toc__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lucent-toc__scroll::-webkit-scrollbar-thumb {
+  border: 0.125rem solid transparent;
+  border-radius: 9999px;
+  background: var(--blume-border);
+  background-clip: padding-box;
+}
+
+.lucent-toc__overflow-cue {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  display: flex;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  color: var(--blume-muted-foreground);
+  cursor: pointer;
+}
+
+.lucent-toc__overflow-cue[hidden] {
+  display: none;
+}
+
+.lucent-toc__overflow-cue:hover {
+  color: var(--blume-foreground);
+}
+
+.lucent-toc__overflow-cue:focus-visible {
+  outline: 0;
+}
+
+.lucent-toc__overflow-label {
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 1px solid var(--blume-border);
+  border-radius: 9999px;
+  padding-inline: 0.5rem;
+  background: var(--blume-background);
+  font-size: var(--docs-text-xs);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.lucent-toc__overflow-cue:hover .lucent-toc__overflow-label {
+  background: var(--blume-muted);
+}
+
+.lucent-toc__overflow-cue:focus-visible .lucent-toc__overflow-label {
+  outline: 2px solid var(--blume-accent);
+  outline-offset: 2px;
+}
+
+.lucent-toc__overflow-cue--top {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--blume-background) 70%,
+    transparent
+  );
+}
+
+.lucent-toc__overflow-cue--bottom {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--blume-background) 70%,
+    transparent
+  );
+}
+
+@media (forced-colors: active) {
+  .lucent-toc__scroll:focus-visible,
+  .lucent-toc__overflow-cue:focus-visible .lucent-toc__overflow-label {
+    outline-color: CanvasText;
+  }
+}
+
 [data-blume-toc] blume-toc :is(ul, li, a) {
   min-width: 0;
   max-width: 100%;

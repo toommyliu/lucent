@@ -5,5 +5,6 @@ export default defineComponents({
     Header: "./components/Header.astro",
     PageFooter: "./components/DocsController.astro",
     Search: "./components/Search.astro",
+    TableOfContents: "./components/TableOfContents.astro",
   },
 });

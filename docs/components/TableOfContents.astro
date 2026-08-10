@@ -1,0 +1,258 @@
+---
+import type { Heading } from "blume/core/types.ts";
+import Icon from "blume/components/Icon.astro";
+import BlumeTableOfContents from "blume/components/layout/TableOfContents.astro";
+
+interface Props {
+  /** Headings already filtered to the configured table-of-contents depth. */
+  headings: Heading[];
+  /** Localized table-of-contents label. */
+  title: string;
+  /** Responsive presentation selected by the documentation layout. */
+  variant: "mobile" | "desktop";
+}
+
+const { headings, title, variant } = Astro.props;
+---
+
+{variant === "mobile" && <BlumeTableOfContents {...Astro.props} />}
+
+{
+  headings.length > 0 && variant === "desktop" && (
+    <lucent-toc-viewport class="lucent-toc">
+      <p class="mb-3 shrink-0 font-semibold text-foreground text-sm">
+        {title}
+      </p>
+      <div class="lucent-toc__frame">
+        <button
+          aria-label="Show earlier sections"
+          class="lucent-toc__overflow-cue lucent-toc__overflow-cue--top"
+          data-lucent-toc-scroll-up
+          hidden
+          type="button"
+        >
+          <span class="lucent-toc__overflow-label">
+            <Icon aria-hidden="true" name="chevron-up" size={14} />
+            <span>Show earlier</span>
+          </span>
+        </button>
+        <blume-toc
+          aria-label={title}
+          class="lucent-toc__scroll"
+          data-lucent-toc-scroll
+          role="navigation"
+          tabindex="0"
+        >
+          <ul class="m-0 list-none p-0">
+            {headings.map((heading) => (
+              <li style={`padding-inline-start:${(heading.depth - 2) * 0.75}rem`}>
+                <a
+                  class="block py-1.5 text-muted-foreground transition-colors hover:text-foreground aria-[current=location]:font-medium aria-[current=location]:text-foreground"
+                  href={`#${heading.slug}`}
+                >
+                  {heading.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </blume-toc>
+        <button
+          aria-label="Show later sections"
+          class="lucent-toc__overflow-cue lucent-toc__overflow-cue--bottom"
+          data-lucent-toc-scroll-down
+          hidden
+          type="button"
+        >
+          <span class="lucent-toc__overflow-label">
+            <Icon aria-hidden="true" name="chevron-down" size={14} />
+            <span>Show later</span>
+          </span>
+        </button>
+      </div>
+    </lucent-toc-viewport>
+  )
+}
+
+<script>
+  const TOC_EDGE_EPSILON_PX = 1;
+
+  /** Keeps long desktop tables of contents readable within their fixed rail. */
+  class LucentTocViewport extends HTMLElement {
+    #content: HTMLElement | null = null;
+    #frame: number | undefined;
+    #resizeObserver: ResizeObserver | null = null;
+    #scrollDownButton: HTMLButtonElement | null = null;
+    #scrollport: HTMLElement | null = null;
+    #scrollUpButton: HTMLButtonElement | null = null;
+
+    #onScrollDown = (): void => {
+      this.#pageScrollport(1);
+    };
+
+    #onScrollUp = (): void => {
+      this.#pageScrollport(-1);
+    };
+
+    #onScroll = (): void => {
+      this.#queueSync();
+    };
+
+    #onKeydown = (event: KeyboardEvent): void => {
+      const scrollport = this.#scrollport;
+      if (
+        scrollport === null ||
+        event.target !== scrollport ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+
+      const pageStep = scrollport.clientHeight * 0.8;
+      const maxScrollTop = scrollport.scrollHeight - scrollport.clientHeight;
+      if (event.shiftKey && event.key !== " ") {
+        return;
+      }
+
+      let nextScrollTop: number;
+      switch (event.key) {
+        case "ArrowUp":
+          nextScrollTop = scrollport.scrollTop - 40;
+          break;
+        case "ArrowDown":
+          nextScrollTop = scrollport.scrollTop + 40;
+          break;
+        case "PageUp":
+          nextScrollTop = scrollport.scrollTop - pageStep;
+          break;
+        case "PageDown":
+          nextScrollTop = scrollport.scrollTop + pageStep;
+          break;
+        case "Home":
+          nextScrollTop = 0;
+          break;
+        case "End":
+          nextScrollTop = maxScrollTop;
+          break;
+        case " ":
+          nextScrollTop =
+            scrollport.scrollTop + (event.shiftKey ? -pageStep : pageStep);
+          break;
+        default:
+          return;
+      }
+
+      event.preventDefault();
+      scrollport.scrollTop = nextScrollTop;
+    };
+
+    #pageScrollport = (direction: -1 | 1): void => {
+      const scrollport = this.#scrollport;
+      if (scrollport === null) {
+        return;
+      }
+
+      scrollport.scrollTop += direction * scrollport.clientHeight * 0.8;
+    };
+
+    #queueSync = (): void => {
+      if (this.#frame !== undefined) {
+        return;
+      }
+
+      this.#frame = requestAnimationFrame(() => {
+        this.#frame = undefined;
+        this.#syncOverflowCues();
+      });
+    };
+
+    #syncOverflowCues = (): void => {
+      const scrollport = this.#scrollport;
+      if (scrollport === null) {
+        return;
+      }
+
+      const maxScrollTop = Math.max(
+        0,
+        scrollport.scrollHeight - scrollport.clientHeight,
+      );
+      const overflowingTop = scrollport.scrollTop > TOC_EDGE_EPSILON_PX;
+      const overflowingBottom =
+        scrollport.scrollTop < maxScrollTop - TOC_EDGE_EPSILON_PX;
+
+      this.#syncCue(this.#scrollUpButton, overflowingTop);
+      this.#syncCue(this.#scrollDownButton, overflowingBottom);
+    };
+
+    #syncCue = (
+      button: HTMLButtonElement | null,
+      visible: boolean,
+    ): void => {
+      if (button === null || button.hidden === !visible) {
+        return;
+      }
+
+      if (!visible && document.activeElement === button) {
+        this.#scrollport?.focus({ preventScroll: true });
+      }
+      button.hidden = !visible;
+    };
+
+    connectedCallback(): void {
+      const scrollport = this.querySelector<HTMLElement>(
+        "[data-lucent-toc-scroll]",
+      );
+      if (scrollport === null) {
+        return;
+      }
+
+      this.#scrollport = scrollport;
+      this.#content = scrollport.querySelector<HTMLElement>("ul");
+      this.#scrollUpButton = this.querySelector<HTMLButtonElement>(
+        "[data-lucent-toc-scroll-up]",
+      );
+      this.#scrollDownButton = this.querySelector<HTMLButtonElement>(
+        "[data-lucent-toc-scroll-down]",
+      );
+      this.#scrollUpButton?.addEventListener("click", this.#onScrollUp);
+      this.#scrollDownButton?.addEventListener("click", this.#onScrollDown);
+      scrollport.addEventListener("keydown", this.#onKeydown);
+      scrollport.addEventListener("scroll", this.#onScroll);
+
+      this.#resizeObserver = new ResizeObserver(() => {
+        this.#queueSync();
+      });
+      this.#resizeObserver.observe(scrollport);
+      if (this.#content !== null) {
+        this.#resizeObserver.observe(this.#content);
+      }
+
+      this.#queueSync();
+    }
+
+    disconnectedCallback(): void {
+      if (this.#frame !== undefined) {
+        cancelAnimationFrame(this.#frame);
+        this.#frame = undefined;
+      }
+      this.#resizeObserver?.disconnect();
+      this.#resizeObserver = null;
+      this.#scrollUpButton?.removeEventListener("click", this.#onScrollUp);
+      this.#scrollDownButton?.removeEventListener(
+        "click",
+        this.#onScrollDown,
+      );
+      this.#scrollport?.removeEventListener("keydown", this.#onKeydown);
+      this.#scrollport?.removeEventListener("scroll", this.#onScroll);
+      this.#scrollUpButton = null;
+      this.#scrollDownButton = null;
+      this.#scrollport = null;
+      this.#content = null;
+    }
+  }
+
+  if (!customElements.get("lucent-toc-viewport")) {
+    customElements.define("lucent-toc-viewport", LucentTocViewport);
+  }
+</script>
