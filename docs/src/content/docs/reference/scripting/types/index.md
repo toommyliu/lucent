@@ -11,144 +11,144 @@ Referenced types are generated from the types directly linked by the documented 
 
 | Type | Kind | Summary |
 | --- | --- | --- |
-| <a href="/reference/scripting/types/army-config-core/" data-script-type="army-config-core"><code>ArmyConfigCore</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-config-payload/" data-script-type="army-config-payload"><code>ArmyConfigPayload</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-config-raw/" data-script-type="army-config-raw"><code>ArmyConfigRaw</code></a> | type alias |  |
-| <a href="/reference/scripting/types/army-equip-set/" data-script-type="army-equip-set"><code>ArmyEquipSet</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-equip-set-options/" data-script-type="army-equip-set-options"><code>ArmyEquipSetOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-error/" data-script-type="army-error"><code>ArmyError</code></a> | class |  |
-| <a href="/reference/scripting/types/army-loop-taunt-assignment/" data-script-type="army-loop-taunt-assignment"><code>ArmyLoopTauntAssignment</code></a> | interface | Assigns one target to the Army players allowed to keep it taunted. |
-| <a href="/reference/scripting/types/army-loop-taunt-error/" data-script-type="army-loop-taunt-error"><code>ArmyLoopTauntError</code></a> | class |  |
-| <a href="/reference/scripting/types/army-loop-taunt-handle/" data-script-type="army-loop-taunt-handle"><code>ArmyLoopTauntHandle</code></a> | interface | Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically. |
-| <a href="/reference/scripting/types/army-loop-taunt-participant-snapshot/" data-script-type="army-loop-taunt-participant-snapshot"><code>ArmyLoopTauntParticipantSnapshot</code></a> | interface | Identifies an assigned Army player and its point-in-time projected state. |
-| <a href="/reference/scripting/types/army-loop-taunt-plan/" data-script-type="army-loop-taunt-plan"><code>ArmyLoopTauntPlan</code></a> | type alias | Ordered target priorities shared by every participant in the Army.<br><br>The first group with a living target is selected. When all of its targets<br>die, the next eligible group takes over; a respawn preempts lower groups and<br>restarts that target's rotation from its first assigned player. |
-| <a href="/reference/scripting/types/army-loop-taunt-priority-group/" data-script-type="army-loop-taunt-priority-group"><code>ArmyLoopTauntPriorityGroup</code></a> | interface | A set of target assignments evaluated at the same priority.<br><br>Living assignments in the selected group run concurrently. |
-| <a href="/reference/scripting/types/army-loop-taunt-skip-context/" data-script-type="army-loop-taunt-skip-context"><code>ArmyLoopTauntSkipContext</code></a> | interface | Projected state available when deciding whether to yield a taunt attempt. |
-| <a href="/reference/scripting/types/army-loop-taunt-skip-when/" data-script-type="army-loop-taunt-skip-when"><code>ArmyLoopTauntSkipWhen</code></a> | type alias | Returns true when the selected player should yield to the next participant. |
-| <a href="/reference/scripting/types/army-loop-taunt-strategy/" data-script-type="army-loop-taunt-strategy"><code>ArmyLoopTauntStrategy</code></a> | type alias | Selects the encounter event that starts each taunt attempt. |
-| <a href="/reference/scripting/types/army-run-step-options/" data-script-type="army-run-step-options"><code>ArmyRunStepOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-session/" data-script-type="army-session"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
-| <a href="/reference/scripting/types/army-session-payload/" data-script-type="army-session-payload"><code>ArmySessionPayload</code></a> | interface |  |
-| <a href="/reference/scripting/types/army-set-config/" data-script-type="army-set-config"><code>ArmySetConfig</code></a> | interface |  |
-| <a href="/reference/scripting/types/aura-data/" data-script-type="aura-data"><code>AuraData</code></a> | interface |  |
-| <a href="/reference/scripting/types/aura-kind/" data-script-type="aura-kind"><code>AuraKind</code></a> | type alias |  |
-| <a href="/reference/scripting/types/aura-query-options/" data-script-type="aura-query-options"><code>AuraQueryOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/aura-snapshot/" data-script-type="aura-snapshot"><code>AuraSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/auto-relogin-lifecycle-event/" data-script-type="auto-relogin-lifecycle-event"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-relogin-lifecycle-step/" data-script-type="auto-relogin-lifecycle-step"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
-| <a href="/reference/scripting/types/auto-relogin-login-error/" data-script-type="auto-relogin-login-error"><code>AutoReloginLoginError</code></a> | class |  |
-| <a href="/reference/scripting/types/auto-relogin-login-request/" data-script-type="auto-relogin-login-request"><code>AutoReloginLoginRequest</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-relogin-login-result/" data-script-type="auto-relogin-login-result"><code>AutoReloginLoginResult</code></a> | type alias |  |
-| <a href="/reference/scripting/types/auto-relogin-state/" data-script-type="auto-relogin-state"><code>AutoReloginState</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-zone-state/" data-script-type="auto-zone-state"><code>AutoZoneState</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-zone-supported-map/" data-script-type="auto-zone-supported-map"><code>AutoZoneSupportedMap</code></a> | type alias |  |
-| <a href="/reference/scripting/types/bank-open-options/" data-script-type="bank-open-options"><code>BankOpenOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/bank-view/" data-script-type="bank-view"><code>BankView</code></a> | type alias |  |
-| <a href="/reference/scripting/types/boost-type/" data-script-type="boost-type"><code>BoostType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/client-packet/" data-script-type="client-packet"><code>ClientPacket</code></a> | type alias |  |
-| <a href="/reference/scripting/types/combat-kill-options/" data-script-type="combat-kill-options"><code>CombatKillOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/combat-profile/" data-script-type="combat-profile"><code>CombatProfile</code></a> | type alias |  |
-| <a href="/reference/scripting/types/combat-profile-definition/" data-script-type="combat-profile-definition"><code>CombatProfileDefinition</code></a> | interface |  |
-| <a href="/reference/scripting/types/combat-profile-message-trigger/" data-script-type="combat-profile-message-trigger"><code>CombatProfileMessageTrigger</code></a> | type alias |  |
-| <a href="/reference/scripting/types/combat-profile-message-trigger-definition/" data-script-type="combat-profile-message-trigger-definition"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
-| <a href="/reference/scripting/types/combat-profile-step/" data-script-type="combat-profile-step"><code>CombatProfileStep</code></a> | type alias |  |
-| <a href="/reference/scripting/types/combat-profile-step-definition/" data-script-type="combat-profile-step-definition"><code>CombatProfileStepDefinition</code></a> | type alias |  |
-| <a href="/reference/scripting/types/connect-outcome/" data-script-type="connect-outcome"><code>ConnectOutcome</code></a> | interface |  |
-| <a href="/reference/scripting/types/consumable-cast-result/" data-script-type="consumable-cast-result"><code>ConsumableCastResult</code></a> | interface | Retains local dispatch identity because rejected acknowledgements omit their target. |
-| <a href="/reference/scripting/types/enhancement/" data-script-type="enhancement"><code>Enhancement</code></a> | interface |  |
-| <a href="/reference/scripting/types/entity-data/" data-script-type="entity-data"><code>EntityData</code></a> | interface |  |
-| <a href="/reference/scripting/types/entity-snapshot/" data-script-type="entity-snapshot"><code>EntitySnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/entity-state/" data-script-type="entity-state"><code>EntityState</code></a> | type alias |  |
-| <a href="/reference/scripting/types/environment-drop-policy/" data-script-type="environment-drop-policy"><code>EnvironmentDropPolicy</code></a> | type alias | Handling options for drops that are not registered by name. |
-| <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a> | type alias |  |
-| <a href="/reference/scripting/types/equip-options/" data-script-type="equip-options"><code>EquipOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/event-selector/" data-script-type="event-selector"><code>EventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
-| <a href="/reference/scripting/types/extension-packet/" data-script-type="extension-packet"><code>ExtensionPacket</code></a> | type alias |  |
-| <a href="/reference/scripting/types/faction-data/" data-script-type="faction-data"><code>FactionData</code></a> | interface |  |
-| <a href="/reference/scripting/types/faction-snapshot/" data-script-type="faction-snapshot"><code>FactionSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/flash-packet/" data-script-type="flash-packet"><code>FlashPacket</code></a> | type alias |  |
-| <a href="/reference/scripting/types/game-action/" data-script-type="game-action"><code>GameAction</code></a> | type alias |  |
-| <a href="/reference/scripting/types/hunt-options/" data-script-type="hunt-options"><code>HuntOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/item/" data-script-type="item"><code>Item</code></a> | interface |  |
-| <a href="/reference/scripting/types/item-context/" data-script-type="item-context"><code>ItemContext</code></a> | type alias |  |
-| <a href="/reference/scripting/types/item-data/" data-script-type="item-data"><code>ItemData</code></a> | interface |  |
-| <a href="/reference/scripting/types/item-query/" data-script-type="item-query"><code>ItemQuery</code></a> | type alias |  |
-| <a href="/reference/scripting/types/item-selector/" data-script-type="item-selector"><code>ItemSelector</code></a> | type alias |  |
-| <a href="/reference/scripting/types/item-selector-by-id/" data-script-type="item-selector-by-id"><code>ItemSelectorById</code></a> | interface |  |
-| <a href="/reference/scripting/types/item-selector-by-name/" data-script-type="item-selector-by-name"><code>ItemSelectorByName</code></a> | interface |  |
-| <a href="/reference/scripting/types/item-snapshot/" data-script-type="item-snapshot"><code>ItemSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/live-aura/" data-script-type="live-aura"><code>LiveAura</code></a> | class |  |
-| <a href="/reference/scripting/types/live-entity/" data-script-type="live-entity"><code>LiveEntity</code></a> | class |  |
-| <a href="/reference/scripting/types/live-faction/" data-script-type="live-faction"><code>LiveFaction</code></a> | class |  |
-| <a href="/reference/scripting/types/live-item/" data-script-type="live-item"><code>LiveItem</code></a> | class |  |
-| <a href="/reference/scripting/types/live-model/" data-script-type="live-model"><code>LiveModel</code></a> | class |  |
-| <a href="/reference/scripting/types/live-monster/" data-script-type="live-monster"><code>LiveMonster</code></a> | class |  |
-| <a href="/reference/scripting/types/live-outfit/" data-script-type="live-outfit"><code>LiveOutfit</code></a> | class |  |
-| <a href="/reference/scripting/types/live-player/" data-script-type="live-player"><code>LivePlayer</code></a> | class |  |
-| <a href="/reference/scripting/types/live-quest/" data-script-type="live-quest"><code>LiveQuest</code></a> | class |  |
-| <a href="/reference/scripting/types/live-server/" data-script-type="live-server"><code>LiveServer</code></a> | class |  |
-| <a href="/reference/scripting/types/live-shop/" data-script-type="live-shop"><code>LiveShop</code></a> | class |  |
-| <a href="/reference/scripting/types/monster-data/" data-script-type="monster-data"><code>MonsterData</code></a> | interface |  |
-| <a href="/reference/scripting/types/monster-drop/" data-script-type="monster-drop"><code>MonsterDrop</code></a> | interface | An item and its acquisition metadata from AQW's monster-drop response. |
-| <a href="/reference/scripting/types/monster-query/" data-script-type="monster-query"><code>MonsterQuery</code></a> | type alias |  |
-| <a href="/reference/scripting/types/monster-selector/" data-script-type="monster-selector"><code>MonsterSelector</code></a> | type alias |  |
-| <a href="/reference/scripting/types/monster-selector-by-map-id/" data-script-type="monster-selector-by-map-id"><code>MonsterSelectorByMapId</code></a> | interface |  |
-| <a href="/reference/scripting/types/monster-selector-by-name/" data-script-type="monster-selector-by-name"><code>MonsterSelectorByName</code></a> | interface |  |
-| <a href="/reference/scripting/types/monster-snapshot/" data-script-type="monster-snapshot"><code>MonsterSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/outfit-colors/" data-script-type="outfit-colors"><code>OutfitColors</code></a> | interface |  |
-| <a href="/reference/scripting/types/outfit-data/" data-script-type="outfit-data"><code>OutfitData</code></a> | interface |  |
-| <a href="/reference/scripting/types/outfit-equipment/" data-script-type="outfit-equipment"><code>OutfitEquipment</code></a> | interface |  |
-| <a href="/reference/scripting/types/outfit-snapshot/" data-script-type="outfit-snapshot"><code>OutfitSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/packet/" data-script-type="packet"><code>Packet</code></a> | type alias | Alias of FlashPacket. |
-| <a href="/reference/scripting/types/packet-direction/" data-script-type="packet-direction"><code>PacketDirection</code></a> | type alias |  |
-| <a href="/reference/scripting/types/packet-for-direction/" data-script-type="packet-for-direction"><code>PacketForDirection</code></a> | type alias |  |
-| <a href="/reference/scripting/types/packet-for-selector/" data-script-type="packet-for-selector"><code>PacketForSelector</code></a> | type alias |  |
-| <a href="/reference/scripting/types/packet-selector/" data-script-type="packet-selector"><code>PacketSelector</code></a> | interface |  |
-| <a href="/reference/scripting/types/packet-wire-type/" data-script-type="packet-wire-type"><code>PacketWireType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/player-data/" data-script-type="player-data"><code>PlayerData</code></a> | interface |  |
-| <a href="/reference/scripting/types/player-query/" data-script-type="player-query"><code>PlayerQuery</code></a> | type alias |  |
-| <a href="/reference/scripting/types/player-selector/" data-script-type="player-selector"><code>PlayerSelector</code></a> | type alias | Alias of PlayerSelectorByUsername. |
-| <a href="/reference/scripting/types/player-selector-by-username/" data-script-type="player-selector-by-username"><code>PlayerSelectorByUsername</code></a> | interface |  |
-| <a href="/reference/scripting/types/player-snapshot/" data-script-type="player-snapshot"><code>PlayerSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/position/" data-script-type="position"><code>Position</code></a> | interface |  |
-| <a href="/reference/scripting/types/projection-event/" data-script-type="projection-event"><code>ProjectionEvent</code></a> | type alias |  |
-| <a href="/reference/scripting/types/protocol-event/" data-script-type="protocol-event"><code>ProtocolEvent</code></a> | type alias |  |
-| <a href="/reference/scripting/types/quest-cadence/" data-script-type="quest-cadence"><code>QuestCadence</code></a> | type alias |  |
-| <a href="/reference/scripting/types/quest-data/" data-script-type="quest-data"><code>QuestData</code></a> | interface |  |
-| <a href="/reference/scripting/types/quest-item/" data-script-type="quest-item"><code>QuestItem</code></a> | interface |  |
-| <a href="/reference/scripting/types/quest-reward/" data-script-type="quest-reward"><code>QuestReward</code></a> | interface |  |
-| <a href="/reference/scripting/types/quest-snapshot/" data-script-type="quest-snapshot"><code>QuestSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/room-policy/" data-script-type="room-policy"><code>RoomPolicy</code></a> | type alias |  |
-| <a href="/reference/scripting/types/runtime-event/" data-script-type="runtime-event"><code>RuntimeEvent</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-callback-result/" data-script-type="script-callback-result"><code>ScriptCallbackResult</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-client-packet-send-type/" data-script-type="script-client-packet-send-type"><code>ScriptClientPacketSendType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-combat-monster-target/" data-script-type="script-combat-monster-target"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-combat-player-target/" data-script-type="script-combat-player-target"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-combat-target/" data-script-type="script-combat-target"><code>ScriptCombatTarget</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-consumable-skill-item/" data-script-type="script-consumable-skill-item"><code>ScriptConsumableSkillItem</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-enhance-item-options/" data-script-type="script-enhance-item-options"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-equip-enhancement-selector/" data-script-type="script-equip-enhancement-selector"><code>ScriptEquipEnhancementSelector</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-event/" data-script-type="script-event"><code>ScriptEvent</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-event-for-selector/" data-script-type="script-event-for-selector"><code>ScriptEventForSelector</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-event-for-type/" data-script-type="script-event-for-type"><code>ScriptEventForType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-event-type/" data-script-type="script-event-type"><code>ScriptEventType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a> | class |  |
-| <a href="/reference/scripting/types/script-generator/" data-script-type="script-generator"><code>ScriptGenerator</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-player-position/" data-script-type="script-player-position"><code>ScriptPlayerPosition</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-shop-quantity-options/" data-script-type="script-shop-quantity-options"><code>ScriptShopQuantityOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a> | class |  |
-| <a href="/reference/scripting/types/server-data/" data-script-type="server-data"><code>ServerData</code></a> | interface |  |
-| <a href="/reference/scripting/types/server-packet/" data-script-type="server-packet"><code>ServerPacket</code></a> | type alias |  |
-| <a href="/reference/scripting/types/server-snapshot/" data-script-type="server-snapshot"><code>ServerSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/shop-data/" data-script-type="shop-data"><code>ShopData</code></a> | interface |  |
-| <a href="/reference/scripting/types/shop-item-query/" data-script-type="shop-item-query"><code>ShopItemQuery</code></a> | type alias |  |
-| <a href="/reference/scripting/types/shop-item-selector/" data-script-type="shop-item-selector"><code>ShopItemSelector</code></a> | type alias |  |
-| <a href="/reference/scripting/types/shop-item-selector-by-id/" data-script-type="shop-item-selector-by-id"><code>ShopItemSelectorById</code></a> | interface |  |
-| <a href="/reference/scripting/types/shop-snapshot/" data-script-type="shop-snapshot"><code>ShopSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/skill/" data-script-type="skill"><code>Skill</code></a> | type alias |  |
-| <a href="/reference/scripting/types/skill-use-options/" data-script-type="skill-use-options"><code>SkillUseOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/triggered-wait-options/" data-script-type="triggered-wait-options"><code>TriggeredWaitOptions</code></a> | interface | Runs `trigger` only after the subscription is live. A `true` result means the<br>command was sent and a matching response should be awaited; `false` closes<br>the scoped subscription immediately and returns `null`. |
-| <a href="/reference/scripting/types/wait-options/" data-script-type="wait-options"><code>WaitOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-config-core/"><code>ArmyConfigCore</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-config-payload/"><code>ArmyConfigPayload</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-config-raw/"><code>ArmyConfigRaw</code></a> | type alias |  |
+| <a href="/reference/scripting/types/army-equip-set/"><code>ArmyEquipSet</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-equip-set-options/"><code>ArmyEquipSetOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-error/"><code>ArmyError</code></a> | class |  |
+| <a href="/reference/scripting/types/army-loop-taunt-assignment/"><code>ArmyLoopTauntAssignment</code></a> | interface | Assigns one target to the Army players allowed to keep it taunted. |
+| <a href="/reference/scripting/types/army-loop-taunt-error/"><code>ArmyLoopTauntError</code></a> | class |  |
+| <a href="/reference/scripting/types/army-loop-taunt-handle/"><code>ArmyLoopTauntHandle</code></a> | interface | Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically. |
+| <a href="/reference/scripting/types/army-loop-taunt-participant-snapshot/"><code>ArmyLoopTauntParticipantSnapshot</code></a> | interface | Identifies an assigned Army player and its point-in-time projected state. |
+| <a href="/reference/scripting/types/army-loop-taunt-plan/"><code>ArmyLoopTauntPlan</code></a> | type alias | Ordered target priorities shared by every participant in the Army.<br><br>The first group with a living target is selected. When all of its targets<br>die, the next eligible group takes over; a respawn preempts lower groups and<br>restarts that target's rotation from its first assigned player. |
+| <a href="/reference/scripting/types/army-loop-taunt-priority-group/"><code>ArmyLoopTauntPriorityGroup</code></a> | interface | A set of target assignments evaluated at the same priority.<br><br>Living assignments in the selected group run concurrently. |
+| <a href="/reference/scripting/types/army-loop-taunt-skip-context/"><code>ArmyLoopTauntSkipContext</code></a> | interface | Projected state available when deciding whether to yield a taunt attempt. |
+| <a href="/reference/scripting/types/army-loop-taunt-skip-when/"><code>ArmyLoopTauntSkipWhen</code></a> | type alias | Returns true when the selected player should yield to the next participant. |
+| <a href="/reference/scripting/types/army-loop-taunt-strategy/"><code>ArmyLoopTauntStrategy</code></a> | type alias | Selects the encounter event that starts each taunt attempt. |
+| <a href="/reference/scripting/types/army-run-step-options/"><code>ArmyRunStepOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-session/"><code>ArmySession</code></a> | type alias | Alias of ArmySessionPayload. |
+| <a href="/reference/scripting/types/army-session-payload/"><code>ArmySessionPayload</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-set-config/"><code>ArmySetConfig</code></a> | interface |  |
+| <a href="/reference/scripting/types/aura-data/"><code>AuraData</code></a> | interface |  |
+| <a href="/reference/scripting/types/aura-kind/"><code>AuraKind</code></a> | type alias |  |
+| <a href="/reference/scripting/types/aura-query-options/"><code>AuraQueryOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/aura-snapshot/"><code>AuraSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/auto-relogin-lifecycle-event/"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
+| <a href="/reference/scripting/types/auto-relogin-lifecycle-step/"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
+| <a href="/reference/scripting/types/auto-relogin-login-error/"><code>AutoReloginLoginError</code></a> | class |  |
+| <a href="/reference/scripting/types/auto-relogin-login-request/"><code>AutoReloginLoginRequest</code></a> | interface |  |
+| <a href="/reference/scripting/types/auto-relogin-login-result/"><code>AutoReloginLoginResult</code></a> | type alias |  |
+| <a href="/reference/scripting/types/auto-relogin-state/"><code>AutoReloginState</code></a> | interface |  |
+| <a href="/reference/scripting/types/auto-zone-state/"><code>AutoZoneState</code></a> | interface |  |
+| <a href="/reference/scripting/types/auto-zone-supported-map/"><code>AutoZoneSupportedMap</code></a> | type alias |  |
+| <a href="/reference/scripting/types/bank-open-options/"><code>BankOpenOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/bank-view/"><code>BankView</code></a> | type alias |  |
+| <a href="/reference/scripting/types/boost-type/"><code>BoostType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/client-packet/"><code>ClientPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/combat-kill-options/"><code>CombatKillOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/combat-profile/"><code>CombatProfile</code></a> | type alias |  |
+| <a href="/reference/scripting/types/combat-profile-definition/"><code>CombatProfileDefinition</code></a> | interface |  |
+| <a href="/reference/scripting/types/combat-profile-message-trigger/"><code>CombatProfileMessageTrigger</code></a> | type alias |  |
+| <a href="/reference/scripting/types/combat-profile-message-trigger-definition/"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
+| <a href="/reference/scripting/types/combat-profile-step/"><code>CombatProfileStep</code></a> | type alias |  |
+| <a href="/reference/scripting/types/combat-profile-step-definition/"><code>CombatProfileStepDefinition</code></a> | type alias |  |
+| <a href="/reference/scripting/types/connect-outcome/"><code>ConnectOutcome</code></a> | interface |  |
+| <a href="/reference/scripting/types/consumable-cast-result/"><code>ConsumableCastResult</code></a> | interface | Retains local dispatch identity because rejected acknowledgements omit their target. |
+| <a href="/reference/scripting/types/enhancement/"><code>Enhancement</code></a> | interface |  |
+| <a href="/reference/scripting/types/entity-data/"><code>EntityData</code></a> | interface |  |
+| <a href="/reference/scripting/types/entity-snapshot/"><code>EntitySnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/entity-state/"><code>EntityState</code></a> | type alias |  |
+| <a href="/reference/scripting/types/environment-drop-policy/"><code>EnvironmentDropPolicy</code></a> | type alias | Handling options for drops that are not registered by name. |
+| <a href="/reference/scripting/types/environment-state/"><code>EnvironmentState</code></a> | type alias |  |
+| <a href="/reference/scripting/types/equip-options/"><code>EquipOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/event-selector/"><code>EventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
+| <a href="/reference/scripting/types/extension-packet/"><code>ExtensionPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/faction-data/"><code>FactionData</code></a> | interface |  |
+| <a href="/reference/scripting/types/faction-snapshot/"><code>FactionSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/flash-packet/"><code>FlashPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/game-action/"><code>GameAction</code></a> | type alias |  |
+| <a href="/reference/scripting/types/hunt-options/"><code>HuntOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/item/"><code>Item</code></a> | interface |  |
+| <a href="/reference/scripting/types/item-context/"><code>ItemContext</code></a> | type alias |  |
+| <a href="/reference/scripting/types/item-data/"><code>ItemData</code></a> | interface |  |
+| <a href="/reference/scripting/types/item-query/"><code>ItemQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/item-selector/"><code>ItemSelector</code></a> | type alias |  |
+| <a href="/reference/scripting/types/item-selector-by-id/"><code>ItemSelectorById</code></a> | interface |  |
+| <a href="/reference/scripting/types/item-selector-by-name/"><code>ItemSelectorByName</code></a> | interface |  |
+| <a href="/reference/scripting/types/item-snapshot/"><code>ItemSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/live-aura/"><code>LiveAura</code></a> | class |  |
+| <a href="/reference/scripting/types/live-entity/"><code>LiveEntity</code></a> | class |  |
+| <a href="/reference/scripting/types/live-faction/"><code>LiveFaction</code></a> | class |  |
+| <a href="/reference/scripting/types/live-item/"><code>LiveItem</code></a> | class |  |
+| <a href="/reference/scripting/types/live-model/"><code>LiveModel</code></a> | class |  |
+| <a href="/reference/scripting/types/live-monster/"><code>LiveMonster</code></a> | class |  |
+| <a href="/reference/scripting/types/live-outfit/"><code>LiveOutfit</code></a> | class |  |
+| <a href="/reference/scripting/types/live-player/"><code>LivePlayer</code></a> | class |  |
+| <a href="/reference/scripting/types/live-quest/"><code>LiveQuest</code></a> | class |  |
+| <a href="/reference/scripting/types/live-server/"><code>LiveServer</code></a> | class |  |
+| <a href="/reference/scripting/types/live-shop/"><code>LiveShop</code></a> | class |  |
+| <a href="/reference/scripting/types/monster-data/"><code>MonsterData</code></a> | interface |  |
+| <a href="/reference/scripting/types/monster-drop/"><code>MonsterDrop</code></a> | interface | An item and its acquisition metadata from AQW's monster-drop response. |
+| <a href="/reference/scripting/types/monster-query/"><code>MonsterQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/monster-selector/"><code>MonsterSelector</code></a> | type alias |  |
+| <a href="/reference/scripting/types/monster-selector-by-map-id/"><code>MonsterSelectorByMapId</code></a> | interface |  |
+| <a href="/reference/scripting/types/monster-selector-by-name/"><code>MonsterSelectorByName</code></a> | interface |  |
+| <a href="/reference/scripting/types/monster-snapshot/"><code>MonsterSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/outfit-colors/"><code>OutfitColors</code></a> | interface |  |
+| <a href="/reference/scripting/types/outfit-data/"><code>OutfitData</code></a> | interface |  |
+| <a href="/reference/scripting/types/outfit-equipment/"><code>OutfitEquipment</code></a> | interface |  |
+| <a href="/reference/scripting/types/outfit-snapshot/"><code>OutfitSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/packet/"><code>Packet</code></a> | type alias | Alias of FlashPacket. |
+| <a href="/reference/scripting/types/packet-direction/"><code>PacketDirection</code></a> | type alias |  |
+| <a href="/reference/scripting/types/packet-for-direction/"><code>PacketForDirection</code></a> | type alias |  |
+| <a href="/reference/scripting/types/packet-for-selector/"><code>PacketForSelector</code></a> | type alias |  |
+| <a href="/reference/scripting/types/packet-selector/"><code>PacketSelector</code></a> | interface |  |
+| <a href="/reference/scripting/types/packet-wire-type/"><code>PacketWireType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/player-data/"><code>PlayerData</code></a> | interface |  |
+| <a href="/reference/scripting/types/player-query/"><code>PlayerQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/player-selector/"><code>PlayerSelector</code></a> | type alias | Alias of PlayerSelectorByUsername. |
+| <a href="/reference/scripting/types/player-selector-by-username/"><code>PlayerSelectorByUsername</code></a> | interface |  |
+| <a href="/reference/scripting/types/player-snapshot/"><code>PlayerSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/position/"><code>Position</code></a> | interface |  |
+| <a href="/reference/scripting/types/projection-event/"><code>ProjectionEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/protocol-event/"><code>ProtocolEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/quest-cadence/"><code>QuestCadence</code></a> | type alias |  |
+| <a href="/reference/scripting/types/quest-data/"><code>QuestData</code></a> | interface |  |
+| <a href="/reference/scripting/types/quest-item/"><code>QuestItem</code></a> | interface |  |
+| <a href="/reference/scripting/types/quest-reward/"><code>QuestReward</code></a> | interface |  |
+| <a href="/reference/scripting/types/quest-snapshot/"><code>QuestSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/room-policy/"><code>RoomPolicy</code></a> | type alias |  |
+| <a href="/reference/scripting/types/runtime-event/"><code>RuntimeEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-callback-result/"><code>ScriptCallbackResult</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-client-packet-send-type/"><code>ScriptClientPacketSendType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-combat-monster-target/"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-combat-player-target/"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-combat-target/"><code>ScriptCombatTarget</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-consumable-skill-item/"><code>ScriptConsumableSkillItem</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-enhance-item-options/"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-equip-enhancement-selector/"><code>ScriptEquipEnhancementSelector</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-event/"><code>ScriptEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-event-for-selector/"><code>ScriptEventForSelector</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-event-for-type/"><code>ScriptEventForType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-event-type/"><code>ScriptEventType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-execution-error/"><code>ScriptExecutionError</code></a> | class |  |
+| <a href="/reference/scripting/types/script-generator/"><code>ScriptGenerator</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-input-value/"><code>ScriptInputValue</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-player-position/"><code>ScriptPlayerPosition</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-shop-quantity-options/"><code>ScriptShopQuantityOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-stop-signal/"><code>ScriptStopSignal</code></a> | class |  |
+| <a href="/reference/scripting/types/server-data/"><code>ServerData</code></a> | interface |  |
+| <a href="/reference/scripting/types/server-packet/"><code>ServerPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/server-snapshot/"><code>ServerSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/shop-data/"><code>ShopData</code></a> | interface |  |
+| <a href="/reference/scripting/types/shop-item-query/"><code>ShopItemQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/shop-item-selector/"><code>ShopItemSelector</code></a> | type alias |  |
+| <a href="/reference/scripting/types/shop-item-selector-by-id/"><code>ShopItemSelectorById</code></a> | interface |  |
+| <a href="/reference/scripting/types/shop-snapshot/"><code>ShopSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/skill/"><code>Skill</code></a> | type alias |  |
+| <a href="/reference/scripting/types/skill-use-options/"><code>SkillUseOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/triggered-wait-options/"><code>TriggeredWaitOptions</code></a> | interface | Runs `trigger` only after the subscription is live. A `true` result means the<br>command was sent and a matching response should be awaited; `false` closes<br>the scoped subscription immediately and returns `null`. |
+| <a href="/reference/scripting/types/wait-options/"><code>WaitOptions</code></a> | interface |  |

@@ -15,8 +15,8 @@ Lucent provides focused CommonJS modules for game actions, script runtime utilit
 | --- | --- |
 | [`lucent/api`](/reference/scripting/api/) | Perform in-game actions and inspect game state. |
 | [`lucent/script`](/reference/scripting/script/) | Work with the current script and its runtime. |
-| [`lucent/autozone`](/reference/scripting/autozone/) | Control automatic movement for supported encounter zones. |
-| [`lucent/autorelogin`](/reference/scripting/autorelogin/) | Control automatic login recovery and explicit login attempts. |
+| [`lucent/autozone`](/reference/scripting/autozone/) | Controls automatic movement for supported encounter zones. |
+| [`lucent/autorelogin`](/reference/scripting/autorelogin/) | Controls automatic login recovery. |
 | [`effect`](/reference/scripting/effect/) | Use the Effect utilities available to scripts. |
 
 ## Types

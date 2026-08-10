@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
+import { createHighlighter, type ShikiTransformer } from "shiki";
+import { siTypescript } from "simple-icons";
 import ts from "typescript";
 import {
   Application,
@@ -199,6 +201,11 @@ type ApiGroup = {
     readonly specifier: string;
   } | null;
   readonly typeReferences: readonly string[];
+};
+
+type ModuleOverviewSummaries = {
+  readonly api: string;
+  readonly script: string;
 };
 
 type TypeLink = {
@@ -1545,6 +1552,7 @@ const collectApiGroups = (
 ): {
   readonly runtimeHelpers: readonly MemberDoc[];
   readonly groups: readonly ApiGroup[];
+  readonly moduleSummaries: ModuleOverviewSummaries;
   readonly typeReferences: readonly string[];
 } => {
   const scriptApi = getInterface(declarations, "ScriptApi");
@@ -1669,6 +1677,10 @@ const collectApiGroups = (
   return {
     runtimeHelpers,
     groups: groups.sort((a, b) => a.id.localeCompare(b.id)),
+    moduleSummaries: {
+      api: getSummary(scriptApi),
+      script: getSummary(scriptRuntimeApi),
+    },
     typeReferences: Array.from(documentedTypeReferences),
   };
 };
@@ -2465,9 +2477,10 @@ const createTypeDocProject = (
         : new DocgenError("Failed to create TypeDoc project", { cause }),
   });
 
-const renderTypeExpression = (
+const renderTypeTokens = (
   type: string,
-  typeLinks: ReadonlyMap<string, TypeLink>,
+  renderIdentifier: (identifier: string) => string,
+  renderCharacter: (character: string) => string,
 ): string => {
   let rendered = "";
   for (let index = 0; index < type.length; ) {
@@ -2475,27 +2488,43 @@ const renderTypeExpression = (
     const match = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(rest);
     if (match?.[0]) {
       const token = match[0];
-      const link = typeLinks.get(token);
-      rendered +=
-        link === undefined ? renderCode(token) : renderTypeLink(token, link);
+      rendered += renderIdentifier(token);
       index += token.length;
       continue;
     }
 
     const char = type[index] ?? "";
-    if (char === "|") {
-      rendered += "\\|";
-    } else if (char === "<") {
-      rendered += "&lt;";
-    } else if (char === ">") {
-      rendered += "&gt;";
-    } else {
-      rendered += escapeTableCell(char);
-    }
+    rendered += renderCharacter(char);
     index += 1;
   }
   return rendered;
 };
+
+const renderTypeExpression = (
+  type: string,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+): string =>
+  renderTypeTokens(
+    type,
+    (token) => {
+      const link = typeLinks.get(token);
+      return link === undefined
+        ? renderCode(token)
+        : renderPreviewTypeLink(token, link);
+    },
+    (char) => {
+      if (char === "|") {
+        return "\\|";
+      }
+      if (char === "<") {
+        return "&lt;";
+      }
+      if (char === ">") {
+        return "&gt;";
+      }
+      return escapeTableCell(char);
+    },
+  );
 
 const buildTypeLinks = (
   types: readonly ReferencedTypeDoc[],
@@ -2512,7 +2541,167 @@ const buildTypeLinks = (
   );
 
 const renderTypeLink = (name: string, link: TypeLink): string =>
-  `<a href="${escapeHtml(link.href)}" data-script-type="${escapeHtml(link.slug)}">${renderHtmlCode(name)}</a>`;
+  `<a href="${escapeHtml(link.href)}">${renderHtmlCode(name)}</a>`;
+
+const renderPreviewTypeAnchor = (
+  name: string,
+  link: TypeLink,
+  content: string,
+): string =>
+  `<a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="${escapeHtml(link.slug)}" data-script-type-name="${escapeHtml(name)}" href="${escapeHtml(link.href)}" title="Preview ${escapeHtml(name)}">${content}</a>`;
+
+const renderPreviewTypeLink = (name: string, link: TypeLink): string =>
+  renderPreviewTypeAnchor(name, link, renderHtmlCode(name));
+
+const renderPreviewTypeCode = (
+  type: string,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+): string =>
+  `<code>${renderTypeTokens(
+    type,
+    (token) => {
+      const link = typeLinks.get(token);
+      return link === undefined
+        ? escapeHtml(token)
+        : renderPreviewTypeAnchor(token, link, escapeHtml(token));
+    },
+    (char) => (char === "|" ? "&#124;" : escapeHtml(char)),
+  )}</code>`;
+
+type TypeCodeBlockRenderer = (
+  code: string,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+) => string;
+
+/** Turns documented identifiers within one Shiki token into preview links. */
+const linkedTypeTransformer = (
+  typeLinks: ReadonlyMap<string, TypeLink>,
+): ShikiTransformer => ({
+  name: "lucent:linked-script-types",
+  pre(node) {
+    this.addClassToHast(node, ["astro-code", "script-type-signature"]);
+    node.properties["dataLanguage"] = "ts";
+  },
+  span(node, _line, _column, _lineElement, token) {
+    const children: typeof node.children = [];
+    let renderedThrough = 0;
+
+    for (const match of token.content.matchAll(
+      /[A-Za-z_$][A-Za-z0-9_$]*/g,
+    )) {
+      const name = match[0];
+      const link = typeLinks.get(name);
+      if (link === undefined || match.index === undefined) {
+        continue;
+      }
+
+      if (match.index > renderedThrough) {
+        children.push({
+          type: "text",
+          value: token.content.slice(renderedThrough, match.index),
+        });
+      }
+      children.push({
+        type: "element",
+        tagName: "a",
+        properties: {
+          "aria-controls": "lucent-type-peek-dialog",
+          "aria-haspopup": "dialog",
+          "data-script-type": link.slug,
+          "data-script-type-name": name,
+          "data-script-type-preview": "",
+          href: link.href,
+          title: `Preview ${name}`,
+        },
+        children: [{ type: "text", value: name }],
+      });
+      renderedThrough = match.index + name.length;
+    }
+
+    if (children.length === 0) {
+      return;
+    }
+    if (renderedThrough < token.content.length) {
+      children.push({
+        type: "text",
+        value: token.content.slice(renderedThrough),
+      });
+    }
+    node.children = children;
+  },
+});
+
+/** Adds the same TypeScript language mark used by Blume's fenced code blocks. */
+const typeScriptLanguageIconTransformer = (): ShikiTransformer => ({
+  name: "lucent:typescript-language-icon",
+  pre(node) {
+    node.children.unshift({
+      type: "element",
+      tagName: "svg",
+      properties: {
+        ariaHidden: "true",
+        className: ["blume-lang-icon"],
+        fill: "currentColor",
+        height: 14,
+        viewBox: "0 0 24 24",
+        width: 14,
+      },
+      children: [
+        {
+          type: "element",
+          tagName: "path",
+          properties: { d: siTypescript.path },
+          children: [],
+        },
+      ],
+    });
+    node.properties["dataIcon"] = "";
+  },
+});
+
+/** Creates a shared TypeScript highlighter for generated, interactive signatures. */
+const createTypeCodeBlockRenderer = (): Effect.Effect<
+  TypeCodeBlockRenderer,
+  DocgenError
+> =>
+  Effect.tryPromise({
+    try: async () => {
+      const highlighter = await createHighlighter({
+        langs: ["typescript"],
+        themes: ["github-light", "github-dark"],
+      });
+
+      return (code, typeLinks) =>
+        highlighter.codeToHtml(code, {
+          defaultColor: false,
+          lang: "typescript",
+          themes: {
+            dark: "github-dark",
+            light: "github-light",
+          },
+          transformers: [
+            typeScriptLanguageIconTransformer(),
+            linkedTypeTransformer(typeLinks),
+          ],
+        });
+    },
+    catch: (cause) =>
+      new DocgenError("Failed to initialize syntax highlighting", { cause }),
+  });
+
+/** Renders a highlighted TypeScript block whose documented identifiers remain interactive. */
+const renderLinkedTypeCodeBlock = (
+  code: string,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
+): string => {
+  const containsLink = Array.from(
+    code.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g),
+  ).some((match) => typeLinks.has(match[0]));
+  return containsLink
+    ? renderTypeCodeBlock(code, typeLinks)
+    : `\`\`\`ts\n${code}\n\`\`\``;
+};
 
 const renderSourceLink = (
   source: SourceInfo,
@@ -2581,6 +2770,7 @@ const renderMember = (
   lines: string[],
   member: MemberDoc,
   typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ) => {
   lines.push(`<a id="${memberAnchor(member.path)}"></a>`, "");
   lines.push(
@@ -2601,7 +2791,14 @@ const renderMember = (
     `<div data-api-copy-call="${escapeHtml(memberCopyCall(member))}" hidden></div>`,
     "",
   );
-  lines.push("```ts", member.signature, "```", "");
+  lines.push(
+    renderLinkedTypeCodeBlock(
+      member.signature,
+      typeLinks,
+      renderTypeCodeBlock,
+    ),
+    "",
+  );
 
   if (member.parameters.length > 0) {
     lines.push(
@@ -2634,7 +2831,12 @@ const renderMember = (
 const typeMemberAnchor = (kind: "property" | "method", name: string): string =>
   `${kind}-${anchorSlug(name)}`;
 
-const renderTypeProperty = (lines: string[], property: TypeMemberDoc) => {
+const renderTypeProperty = (
+  lines: string[],
+  property: TypeMemberDoc,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
+) => {
   lines.push(
     `<a id="${typeMemberAnchor("property", property.name)}"></a>`,
     "",
@@ -2650,16 +2852,21 @@ const renderTypeProperty = (lines: string[], property: TypeMemberDoc) => {
     lines.push(renderSource(property), "");
   }
 
-  lines.push("```ts");
+  const signature = `${property.readonly ? "readonly " : ""}${property.name}${
+    property.optional ? "?" : ""
+  }: ${property.type}`;
   lines.push(
-    `${property.readonly ? "readonly " : ""}${property.name}${
-      property.optional ? "?" : ""
-    }: ${property.type}`,
+    renderLinkedTypeCodeBlock(signature, typeLinks, renderTypeCodeBlock),
+    "",
   );
-  lines.push("```", "");
 };
 
-const renderTypeMethod = (lines: string[], method: TypeMethodDoc) => {
+const renderTypeMethod = (
+  lines: string[],
+  method: TypeMethodDoc,
+  typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
+) => {
   lines.push(
     `<a id="${typeMemberAnchor("method", method.name)}"></a>`,
     "",
@@ -2675,7 +2882,14 @@ const renderTypeMethod = (lines: string[], method: TypeMethodDoc) => {
     lines.push(renderSource(method), "");
   }
 
-  lines.push("```ts", method.signature, "```", "");
+  lines.push(
+    renderLinkedTypeCodeBlock(
+      method.signature,
+      typeLinks,
+      renderTypeCodeBlock,
+    ),
+    "",
+  );
 };
 
 type FrontmatterOptions = {
@@ -2709,7 +2923,19 @@ const finalizeMarkdown = (lines: readonly string[]): string =>
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd()}\n`;
 
-const renderIndex = (): string => {
+const renderIndex = (
+  groups: readonly ApiGroup[],
+  moduleSummaries: ModuleOverviewSummaries,
+): string => {
+  const standaloneSummaries = new Map(
+    groups.flatMap((group) =>
+      group.module === null
+        ? []
+        : [[group.module.specifier, group.summary] as const],
+    ),
+  );
+  const summaryOr = (summary: string | undefined, fallback: string): string =>
+    escapeTableCell(summary === undefined || summary === "" ? fallback : summary);
   const lines = [
     frontmatter("Scripting modules", {
       description: "Modules available to Lucent scripts.",
@@ -2724,10 +2950,10 @@ const renderIndex = (): string => {
     "",
     "| Module | Description |",
     "| --- | --- |",
-    `| [\`lucent/api\`](${SCRIPTING_REFERENCE_ROUTE}/api/) | Perform in-game actions and inspect game state. |`,
-    `| [\`lucent/script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | Work with the current script and its runtime. |`,
-    `| [\`lucent/autozone\`](${SCRIPTING_REFERENCE_ROUTE}/autozone/) | Control automatic movement for supported encounter zones. |`,
-    `| [\`lucent/autorelogin\`](${SCRIPTING_REFERENCE_ROUTE}/autorelogin/) | Control automatic login recovery and explicit login attempts. |`,
+    `| [\`lucent/api\`](${SCRIPTING_REFERENCE_ROUTE}/api/) | ${summaryOr(moduleSummaries.api, "Perform in-game actions and inspect game state.")} |`,
+    `| [\`lucent/script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | ${summaryOr(moduleSummaries.script, "Work with the current script and its runtime.")} |`,
+    `| [\`lucent/autozone\`](${SCRIPTING_REFERENCE_ROUTE}/autozone/) | ${summaryOr(standaloneSummaries.get("lucent/autozone"), "Control automatic movement for supported encounter zones.")} |`,
+    `| [\`lucent/autorelogin\`](${SCRIPTING_REFERENCE_ROUTE}/autorelogin/) | ${summaryOr(standaloneSummaries.get("lucent/autorelogin"), "Control automatic login recovery and explicit login attempts.")} |`,
     `| [\`effect\`](${SCRIPTING_REFERENCE_ROUTE}/effect/) | Use the Effect utilities available to scripts. |`,
     "",
     "## Types",
@@ -2738,6 +2964,7 @@ const renderIndex = (): string => {
 };
 
 const renderEffectModule = (): string => {
+  const effectApiRoot = "https://www.effect.website/docs/v4/api/effect";
   const lines = [
     frontmatter("effect module", {
       description: "Effect utilities available to scripts.",
@@ -2750,10 +2977,10 @@ const renderEffectModule = (): string => {
     "",
     "| Export | Description |",
     "| --- | --- |",
-    "| [`Effect`](https://effect-ts.github.io/effect/effect/Effect.ts.html) | Create and combine operations. |",
-    "| [`Option`](https://effect-ts.github.io/effect/effect/Option.ts.html) | Represent a value that may be missing. |",
-    "| [`Duration`](https://effect-ts.github.io/effect/effect/Duration.ts.html) | Express a length of time. |",
-    "| [`pipe`](https://effect-ts.github.io/effect/effect/Function.ts.html) | Pass a value through a series of functions. |",
+    `| [\`Effect\`](${effectApiRoot}/Effect) | Create and combine operations. |`,
+    `| [\`Option\`](${effectApiRoot}/Option) | Represent a value that may be missing. |`,
+    `| [\`Duration\`](${effectApiRoot}/Duration) | Express a length of time. |`,
+    `| [\`pipe\`](${effectApiRoot}/Function) | Pass a value through a series of functions. |`,
   ];
 
   return finalizeMarkdown(lines);
@@ -2762,6 +2989,7 @@ const renderEffectModule = (): string => {
 const renderScriptOverview = (
   helpers: readonly MemberDoc[],
   typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): string => {
   const lines = [
     frontmatter("lucent/script module", {
@@ -2783,7 +3011,7 @@ const renderScriptOverview = (
   ];
 
   for (const helper of helpers) {
-    renderMember(lines, helper, typeLinks);
+    renderMember(lines, helper, typeLinks, renderTypeCodeBlock);
   }
 
   return finalizeMarkdown(lines);
@@ -2862,9 +3090,8 @@ const collectScriptEventReferences = (
 
 const renderEventPayloadReference = (
   payload: string,
-  _typeLinks: ReadonlyMap<string, TypeLink>,
-): string =>
-  `<code>${escapeHtml(payload).replaceAll("|", "&#124;")}</code>`;
+  typeLinks: ReadonlyMap<string, TypeLink>,
+): string => renderPreviewTypeCode(payload, typeLinks);
 
 const renderEventsReference = (
   lines: string[],
@@ -2899,6 +3126,7 @@ const renderGroup = (
   group: ApiGroup,
   typeLinks: ReadonlyMap<string, TypeLink>,
   events: readonly ScriptEventReference[],
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): string => {
   const summary =
     group.summary ||
@@ -2934,7 +3162,7 @@ const renderGroup = (
   if (group.members.length > 0) {
     lines.push("## Members", "");
     for (const member of group.members) {
-      renderMember(lines, member, typeLinks);
+      renderMember(lines, member, typeLinks, renderTypeCodeBlock);
     }
   }
 
@@ -2970,7 +3198,10 @@ const renderTypesIndex = (types: readonly ReferencedTypeDoc[]): string => {
 const renderTypePage = (
   type: ReferencedTypeDoc,
   typeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): string => {
+  const nestedTypeLinks = new Map(typeLinks);
+  nestedTypeLinks.delete(type.name);
   const lines = [
     frontmatter(type.name, {
       description: "",
@@ -2999,9 +3230,11 @@ const renderTypePage = (
   }
 
   lines.push(
-    "```ts",
-    type.resolvedDefinition ?? type.definition,
-    "```",
+    renderLinkedTypeCodeBlock(
+      type.resolvedDefinition ?? type.definition,
+      nestedTypeLinks,
+      renderTypeCodeBlock,
+    ),
     "",
     renderSource(type),
     "",
@@ -3024,14 +3257,19 @@ const renderTypePage = (
   if (type.properties.length > 0) {
     lines.push("## Properties", "");
     for (const property of type.properties) {
-      renderTypeProperty(lines, property);
+      renderTypeProperty(
+        lines,
+        property,
+        nestedTypeLinks,
+        renderTypeCodeBlock,
+      );
     }
   }
 
   if (type.methods.length > 0) {
     lines.push("## Methods", "");
     for (const method of type.methods) {
-      renderTypeMethod(lines, method);
+      renderTypeMethod(lines, method, nestedTypeLinks, renderTypeCodeBlock);
     }
   }
 
@@ -3044,6 +3282,8 @@ const renderFiles = (
   groups: readonly ApiGroup[],
   types: readonly ReferencedTypeDoc[],
   events: readonly ScriptEventReference[],
+  moduleSummaries: ModuleOverviewSummaries,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): ReadonlyArray<RenderedFile> => {
   const typeLinks = buildTypeLinks(
     types,
@@ -3052,11 +3292,15 @@ const renderFiles = (
   return [
     {
       path: join(options.outputDir, "index.md"),
-      content: renderIndex(),
+      content: renderIndex(groups, moduleSummaries),
     },
     {
       path: join(options.outputDir, "script.md"),
-      content: renderScriptOverview(helpers, typeLinks),
+      content: renderScriptOverview(
+        helpers,
+        typeLinks,
+        renderTypeCodeBlock,
+      ),
     },
     {
       path: join(options.outputDir, "effect.md"),
@@ -3068,11 +3312,16 @@ const renderFiles = (
     },
     ...groups.map((group) => ({
       path: join(options.outputDir, `${group.id}.md`),
-      content: renderGroup(group, typeLinks, events),
+      content: renderGroup(
+        group,
+        typeLinks,
+        events,
+        renderTypeCodeBlock,
+      ),
     })),
     ...types.map((type) => ({
       path: join(options.outputDir, `types/${type.slug}.md`),
-      content: renderTypePage(type, typeLinks),
+      content: renderTypePage(type, typeLinks, renderTypeCodeBlock),
     })),
   ];
 };
@@ -3150,7 +3399,7 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
     const checker = program.getTypeChecker();
     const declarations = buildDeclarationMap(program, sourceFile);
     const git = yield* getGitSourceInfo(options.repoRoot);
-    const { runtimeHelpers, groups, typeReferences } =
+    const { runtimeHelpers, groups, moduleSummaries, typeReferences } =
       collectApiGroups(
         checker,
         declarations,
@@ -3180,12 +3429,15 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
       checker,
       expanded.declarations,
     );
+    const renderTypeCodeBlock = yield* createTypeCodeBlockRenderer();
     const renderedFiles = renderFiles(
       options,
       runtimeHelpers,
       groups,
       referencedTypes,
       scriptEvents,
+      moduleSummaries,
+      renderTypeCodeBlock,
     );
 
     yield* writeGeneratedDocs(

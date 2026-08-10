@@ -21,9 +21,7 @@ const script = require("lucent/script");
 
 <div data-api-copy-call="yield* script.beep();" hidden></div>
 
-```ts
-script.beep(times?: number): Effect.Effect<void, ScriptExecutionError>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">beep</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(times</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">?:</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> number): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;void</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" data-script-type-preview="" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError">ScriptExecutionError</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -31,7 +29,7 @@ script.beep(times?: number): Effect.Effect<void, ScriptExecutionError>
 
 **Yields:** `void`
 
-**Errors:** <a href="/reference/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a>
+**Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError"><code>ScriptExecutionError</code></a>
 
 <a id="member-script-exit"></a>
 
@@ -39,9 +37,7 @@ script.beep(times?: number): Effect.Effect<void, ScriptExecutionError>
 
 <div data-api-copy-call="yield* script.exit();" hidden></div>
 
-```ts
-script.exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect.Effect<never, ScriptStopSignal>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">exit</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(options</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">?:</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> { readonly closeWindow?: boolean; readonly logout</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">?:</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> boolean; }): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">never, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-stop-signal" data-script-type-name="ScriptStopSignal" data-script-type-preview="" href="/reference/scripting/types/script-stop-signal/" title="Preview ScriptStopSignal">ScriptStopSignal</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -49,7 +45,7 @@ script.exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolea
 
 **Yields:** `never`
 
-**Errors:** <a href="/reference/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a>
+**Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-stop-signal" data-script-type-name="ScriptStopSignal" href="/reference/scripting/types/script-stop-signal/" title="Preview ScriptStopSignal"><code>ScriptStopSignal</code></a>
 
 <a id="member-script-inputs-get"></a>
 
@@ -57,15 +53,13 @@ script.exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolea
 
 <div data-api-copy-call="yield* script.inputs.get(key);" hidden></div>
 
-```ts
-script.inputs.get(key: string): Effect.Effect<ScriptInputValue | undefined>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.inputs.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">get</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(key: string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-input-value" data-script-type-name="ScriptInputValue" data-script-type-preview="" href="/reference/scripting/types/script-input-value/" title="Preview ScriptInputValue">ScriptInputValue</a> </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#79B8FF;--shiki-light:#005CC5"> undefined</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `key` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/script-input-value/" data-script-type="script-input-value"><code>ScriptInputValue</code></a> \| `undefined`
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-input-value" data-script-type-name="ScriptInputValue" href="/reference/scripting/types/script-input-value/" title="Preview ScriptInputValue"><code>ScriptInputValue</code></a> \| `undefined`
 
 **Errors:** `never`
 
@@ -75,11 +69,9 @@ script.inputs.get(key: string): Effect.Effect<ScriptInputValue | undefined>
 
 <div data-api-copy-call="yield* script.inputs.getAll();" hidden></div>
 
-```ts
-script.inputs.getAll(): Effect.Effect<ScriptInputValues>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.inputs.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">getAll</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-input-values" data-script-type-name="ScriptInputValues" data-script-type-preview="" href="/reference/scripting/types/script-input-values/" title="Preview ScriptInputValues">ScriptInputValues</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/script-input-values/" data-script-type="script-input-values"><code>ScriptInputValues</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-input-values" data-script-type-name="ScriptInputValues" href="/reference/scripting/types/script-input-values/" title="Preview ScriptInputValues"><code>ScriptInputValues</code></a>
 
 **Errors:** `never`
 
@@ -107,11 +99,9 @@ script.log(message: unknown): Effect.Effect<void>
 
 <div data-api-copy-call="yield* script.options.getAll();" hidden></div>
 
-```ts
-script.options.getAll(): Effect.Effect<ScriptRuntimeOptions>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">getAll</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" data-script-type-preview="" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions">ScriptRuntimeOptions</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions"><code>ScriptRuntimeOptions</code></a>
 
 **Errors:** `never`
 
@@ -135,11 +125,9 @@ script.options.getRestartAfterReconnect(): Effect.Effect<boolean>
 
 <div data-api-copy-call="yield* script.options.getRoomPolicy();" hidden></div>
 
-```ts
-script.options.getRoomPolicy(): Effect.Effect<RoomPolicy>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">getRoomPolicy</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="room-policy" data-script-type-name="RoomPolicy" data-script-type-preview="" href="/reference/scripting/types/room-policy/" title="Preview RoomPolicy">RoomPolicy</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/room-policy/" data-script-type="room-policy"><code>RoomPolicy</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="room-policy" data-script-type-name="RoomPolicy" href="/reference/scripting/types/room-policy/" title="Preview RoomPolicy"><code>RoomPolicy</code></a>
 
 **Errors:** `never`
 
@@ -163,11 +151,9 @@ script.options.getSafeStartStop(): Effect.Effect<boolean>
 
 <div data-api-copy-call="yield* script.options.reset();" hidden></div>
 
-```ts
-script.options.reset(): Effect.Effect<ScriptRuntimeOptions>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">reset</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" data-script-type-preview="" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions">ScriptRuntimeOptions</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions"><code>ScriptRuntimeOptions</code></a>
 
 **Errors:** `never`
 
@@ -177,15 +163,13 @@ script.options.reset(): Effect.Effect<ScriptRuntimeOptions>
 
 <div data-api-copy-call="yield* script.options.setRestartAfterReconnect(enabled);" hidden></div>
 
-```ts
-script.options.setRestartAfterReconnect(enabled: boolean): Effect.Effect<ScriptRuntimeOptions>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setRestartAfterReconnect</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" data-script-type-preview="" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions">ScriptRuntimeOptions</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions"><code>ScriptRuntimeOptions</code></a>
 
 **Errors:** `never`
 
@@ -195,17 +179,15 @@ script.options.setRestartAfterReconnect(enabled: boolean): Effect.Effect<ScriptR
 
 <div data-api-copy-call="yield* script.options.setRoomPolicy(policy);" hidden></div>
 
-```ts
-script.options.setRoomPolicy(policy: RoomPolicy): Effect.Effect<ScriptRuntimeOptions, ScriptExecutionError>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setRoomPolicy</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(policy: <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="room-policy" data-script-type-name="RoomPolicy" data-script-type-preview="" href="/reference/scripting/types/room-policy/" title="Preview RoomPolicy">RoomPolicy</a>): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" data-script-type-preview="" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions">ScriptRuntimeOptions</a>, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" data-script-type-preview="" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError">ScriptExecutionError</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `policy` | <a href="/reference/scripting/types/room-policy/" data-script-type="room-policy"><code>RoomPolicy</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `policy` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="room-policy" data-script-type-name="RoomPolicy" href="/reference/scripting/types/room-policy/" title="Preview RoomPolicy"><code>RoomPolicy</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions"><code>ScriptRuntimeOptions</code></a>
 
-**Errors:** <a href="/reference/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a>
+**Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError"><code>ScriptExecutionError</code></a>
 
 <a id="member-script-options-setsafestartstop"></a>
 
@@ -213,15 +195,13 @@ script.options.setRoomPolicy(policy: RoomPolicy): Effect.Effect<ScriptRuntimeOpt
 
 <div data-api-copy-call="yield* script.options.setSafeStartStop(enabled);" hidden></div>
 
-```ts
-script.options.setSafeStartStop(enabled: boolean): Effect.Effect<ScriptRuntimeOptions>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.options.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setSafeStartStop</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" data-script-type-preview="" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions">ScriptRuntimeOptions</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/script-runtime-options/" data-script-type="script-runtime-options"><code>ScriptRuntimeOptions</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-runtime-options" data-script-type-name="ScriptRuntimeOptions" href="/reference/scripting/types/script-runtime-options/" title="Preview ScriptRuntimeOptions"><code>ScriptRuntimeOptions</code></a>
 
 **Errors:** `never`
 
@@ -243,9 +223,7 @@ script.signal: AbortSignal
 
 <div data-api-copy-call="yield* script.sleep(ms);" hidden></div>
 
-```ts
-script.sleep(ms: number): Effect.Effect<void, ScriptExecutionError>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">sleep</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(ms: number): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;void</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" data-script-type-preview="" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError">ScriptExecutionError</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -253,7 +231,7 @@ script.sleep(ms: number): Effect.Effect<void, ScriptExecutionError>
 
 **Yields:** `void`
 
-**Errors:** <a href="/reference/scripting/types/script-execution-error/" data-script-type="script-execution-error"><code>ScriptExecutionError</code></a>
+**Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-execution-error" data-script-type-name="ScriptExecutionError" href="/reference/scripting/types/script-execution-error/" title="Preview ScriptExecutionError"><code>ScriptExecutionError</code></a>
 
 <a id="member-script-stop"></a>
 
@@ -261,9 +239,7 @@ script.sleep(ms: number): Effect.Effect<void, ScriptExecutionError>
 
 <div data-api-copy-call="yield* script.stop();" hidden></div>
 
-```ts
-script.stop(reason?: string): Effect.Effect<never, ScriptStopSignal>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">script.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">stop</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(reason</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">?:</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">never, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="script-stop-signal" data-script-type-name="ScriptStopSignal" data-script-type-preview="" href="/reference/scripting/types/script-stop-signal/" title="Preview ScriptStopSignal">ScriptStopSignal</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -271,4 +247,4 @@ script.stop(reason?: string): Effect.Effect<never, ScriptStopSignal>
 
 **Yields:** `never`
 
-**Errors:** <a href="/reference/scripting/types/script-stop-signal/" data-script-type="script-stop-signal"><code>ScriptStopSignal</code></a>
+**Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-stop-signal" data-script-type-name="ScriptStopSignal" href="/reference/scripting/types/script-stop-signal/" title="Preview ScriptStopSignal"><code>ScriptStopSignal</code></a>

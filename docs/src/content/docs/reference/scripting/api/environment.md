@@ -15,15 +15,13 @@ sidebar:
 
 <div data-api-copy-call="yield* api.environment.addBoost(name);" hidden></div>
 
-```ts
-api.environment.addBoost(name: string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">addBoost</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(name: string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -33,15 +31,13 @@ api.environment.addBoost(name: string): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.addItem(name);" hidden></div>
 
-```ts
-api.environment.addItem(name: string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">addItem</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(name: string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -51,16 +47,14 @@ api.environment.addItem(name: string): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.addQuest(questId);" hidden></div>
 
-```ts
-api.environment.addQuest(questId: number | string, rewardItemId?: number | string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">addQuest</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(questId: number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string, rewardItemId</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">?:</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` \| `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `rewardItemId` | `number` \| `string` |  |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -70,11 +64,9 @@ api.environment.addQuest(questId: number | string, rewardItemId?: number | strin
 
 <div data-api-copy-call="yield* api.environment.clear();" hidden></div>
 
-```ts
-api.environment.clear(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">clear</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -84,11 +76,9 @@ api.environment.clear(): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.clearBoosts();" hidden></div>
 
-```ts
-api.environment.clearBoosts(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">clearBoosts</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -98,11 +88,9 @@ api.environment.clearBoosts(): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.clearItems();" hidden></div>
 
-```ts
-api.environment.clearItems(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">clearItems</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -112,15 +100,13 @@ api.environment.clearItems(): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.clearQuestReward(questId);" hidden></div>
 
-```ts
-api.environment.clearQuestReward(questId: number | string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">clearQuestReward</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(questId: number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` \| `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -130,11 +116,9 @@ api.environment.clearQuestReward(questId: number | string): Effect.Effect<Enviro
 
 <div data-api-copy-call="yield* api.environment.clearQuests();" hidden></div>
 
-```ts
-api.environment.clearQuests(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">clearQuests</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -158,11 +142,9 @@ api.environment.fetchBoosts(): Effect.Effect<readonly string[], unknown>
 
 <div data-api-copy-call="yield* api.environment.getState();" hidden></div>
 
-```ts
-api.environment.getState(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">getState</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -172,15 +154,13 @@ api.environment.getState(): Effect.Effect<EnvironmentState, unknown>
 
 <div data-api-copy-call="yield* api.environment.removeBoost(name);" hidden></div>
 
-```ts
-api.environment.removeBoost(name: string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">removeBoost</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(name: string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -190,15 +170,13 @@ api.environment.removeBoost(name: string): Effect.Effect<EnvironmentState, unkno
 
 <div data-api-copy-call="yield* api.environment.removeItem(name);" hidden></div>
 
-```ts
-api.environment.removeItem(name: string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">removeItem</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(name: string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -208,15 +186,13 @@ api.environment.removeItem(name: string): Effect.Effect<EnvironmentState, unknow
 
 <div data-api-copy-call="yield* api.environment.removeQuest(questId);" hidden></div>
 
-```ts
-api.environment.removeQuest(questId: number | string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">removeQuest</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(questId: number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` \| `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -228,15 +204,13 @@ Accept or ignore member-only AC-tagged items.
 
 <div data-api-copy-call="yield* api.environment.setAcceptAcMemberOnlyDrops(enabled);" hidden></div>
 
-```ts
-api.environment.setAcceptAcMemberOnlyDrops(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAcceptAcMemberOnlyDrops</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -248,15 +222,13 @@ Accept or ignore non-member AC-tagged items.
 
 <div data-api-copy-call="yield* api.environment.setAcceptAcNonMemberDrops(enabled);" hidden></div>
 
-```ts
-api.environment.setAcceptAcNonMemberDrops(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAcceptAcNonMemberDrops</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -268,15 +240,13 @@ Accept or ignore member-only non-AC items.
 
 <div data-api-copy-call="yield* api.environment.setAcceptNonAcMemberOnlyDrops(enabled);" hidden></div>
 
-```ts
-api.environment.setAcceptNonAcMemberOnlyDrops(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAcceptNonAcMemberOnlyDrops</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -288,15 +258,13 @@ Accept or ignore non-member non-AC items.
 
 <div data-api-copy-call="yield* api.environment.setAcceptNonAcNonMemberDrops(enabled);" hidden></div>
 
-```ts
-api.environment.setAcceptNonAcNonMemberDrops(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAcceptNonAcNonMemberDrops</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -308,15 +276,13 @@ Enable or disable auto-registration of quest requirements in the drop list.
 
 <div data-api-copy-call="yield* api.environment.setAutoRegisterRequirements(enabled);" hidden></div>
 
-```ts
-api.environment.setAutoRegisterRequirements(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAutoRegisterRequirements</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -328,15 +294,13 @@ Enable or disable auto-registration of quest rewards in the drop list.
 
 <div data-api-copy-call="yield* api.environment.setAutoRegisterRewards(enabled);" hidden></div>
 
-```ts
-api.environment.setAutoRegisterRewards(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setAutoRegisterRewards</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -348,15 +312,13 @@ Enable or pause automatic boost use.
 
 <div data-api-copy-call="yield* api.environment.setBoostAutomationEnabled(enabled);" hidden></div>
 
-```ts
-api.environment.setBoostAutomationEnabled(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setBoostAutomationEnabled</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -368,15 +330,13 @@ Enable or pause automatic drop acceptance and rejection.
 
 <div data-api-copy-call="yield* api.environment.setDropAutomationEnabled(enabled);" hidden></div>
 
-```ts
-api.environment.setDropAutomationEnabled(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setDropAutomationEnabled</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -388,15 +348,13 @@ Update one or more drop-handling options.
 
 <div data-api-copy-call="yield* api.environment.setDropPolicy(policy);" hidden></div>
 
-```ts
-api.environment.setDropPolicy(policy: Partial<EnvironmentDropPolicy>): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setDropPolicy</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(policy: Partial</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-drop-policy" data-script-type-name="EnvironmentDropPolicy" data-script-type-preview="" href="/reference/scripting/types/environment-drop-policy/" title="Preview EnvironmentDropPolicy">EnvironmentDropPolicy</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `policy` | `Partial`&lt;<a href="/reference/scripting/types/environment-drop-policy/" data-script-type="environment-drop-policy"><code>EnvironmentDropPolicy</code></a>&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| `policy` | `Partial`&lt;<a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-drop-policy" data-script-type-name="EnvironmentDropPolicy" href="/reference/scripting/types/environment-drop-policy/" title="Preview EnvironmentDropPolicy"><code>EnvironmentDropPolicy</code></a>&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -406,16 +364,14 @@ api.environment.setDropPolicy(policy: Partial<EnvironmentDropPolicy>): Effect.Ef
 
 <div data-api-copy-call="yield* api.environment.setItemNotification(name, enabled);" hidden></div>
 
-```ts
-api.environment.setItemNotification(name: string, enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setItemNotification</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(name: string, enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -427,15 +383,13 @@ Enable or pause automatic quest acceptance and completion.
 
 <div data-api-copy-call="yield* api.environment.setQuestAutomationEnabled(enabled);" hidden></div>
 
-```ts
-api.environment.setQuestAutomationEnabled(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setQuestAutomationEnabled</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -445,16 +399,14 @@ api.environment.setQuestAutomationEnabled(enabled: boolean): Effect.Effect<Envir
 
 <div data-api-copy-call="yield* api.environment.setQuestReward(questId, rewardItemId);" hidden></div>
 
-```ts
-api.environment.setQuestReward(questId: number | string, rewardItemId: number | string): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setQuestReward</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(questId: number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string, rewardItemId: number </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"> string): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `questId` | `number` \| `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 | `rewardItemId` | `number` \| `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -466,15 +418,13 @@ Reject or ignore unregistered drops that are not accepted by policy.
 
 <div data-api-copy-call="yield* api.environment.setRejectUnregisteredDrops(enabled);" hidden></div>
 
-```ts
-api.environment.setRejectUnregisteredDrops(enabled: boolean): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">setRejectUnregisteredDrops</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(enabled: boolean): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`
 
@@ -484,10 +434,8 @@ api.environment.setRejectUnregisteredDrops(enabled: boolean): Effect.Effect<Envi
 
 <div data-api-copy-call="yield* api.environment.syncToAll();" hidden></div>
 
-```ts
-api.environment.syncToAll(): Effect.Effect<EnvironmentState, unknown>
-```
+<pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.environment.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">syncToAll</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="environment-state" data-script-type-name="EnvironmentState" data-script-type-preview="" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState">EnvironmentState</a>, unknown</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a href="/reference/scripting/types/environment-state/" data-script-type="environment-state"><code>EnvironmentState</code></a>
+**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="environment-state" data-script-type-name="EnvironmentState" href="/reference/scripting/types/environment-state/" title="Preview EnvironmentState"><code>EnvironmentState</code></a>
 
 **Errors:** `unknown`

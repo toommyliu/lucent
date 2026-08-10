@@ -1,0 +1,358 @@
+<lucent-type-peek-controller>
+  <dialog
+    aria-labelledby="lucent-type-peek-title"
+    class="type-peek-dialog"
+    id="lucent-type-peek-dialog"
+    data-type-peek-dialog
+  >
+    <div class="type-peek-dialog__surface">
+      <header class="type-peek-dialog__header">
+        <button
+          type="button"
+          class="type-peek-dialog__icon-button"
+          data-type-peek-back
+          aria-label="Close type preview"
+          title="Close type preview"
+        >
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+        </button>
+
+        <div class="type-peek-dialog__heading">
+          <span>Type preview</span>
+          <h2 id="lucent-type-peek-title" tabindex="-1" data-type-peek-title>
+          </h2>
+        </div>
+
+        <a class="type-peek-dialog__page-link" data-type-peek-page-link>
+          Open page
+          <svg
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 3h6v6"></path>
+            <path d="M10 14 21 3"></path>
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          </svg>
+        </a>
+
+        <button
+          type="button"
+          class="type-peek-dialog__icon-button"
+          data-type-peek-close
+          aria-label="Close type preview"
+          title="Close type preview"
+          autofocus
+        >
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </header>
+
+      <p class="type-peek-dialog__status" role="status" data-type-peek-status>
+      </p>
+      <div class="type-peek-dialog__body prose" data-type-peek-body></div>
+    </div>
+  </dialog>
+</lucent-type-peek-controller>
+
+<script>
+  type PreviewEntry = {
+    readonly href: string;
+    readonly name: string;
+  };
+
+  type TypePreview = {
+    readonly html: string;
+    readonly title: string;
+  };
+
+  const TYPE_ROUTE_PREFIX = "/reference/scripting/types/";
+
+  /** Removes page-only chrome before an article is shown inside the preview. */
+  const preparePreviewArticle = (
+    parsed: Document,
+    href: string,
+  ): TypePreview => {
+    const article = parsed.querySelector<HTMLElement>("main article");
+    if (article === null) {
+      throw new Error(`No type article found at ${href}`);
+    }
+
+    const title =
+      article.querySelector(":scope > h1")?.textContent?.trim() ?? "Type";
+    article.querySelector(":scope > h1")?.remove();
+    article.querySelectorAll("script, style").forEach((element) =>
+      element.remove(),
+    );
+    article.querySelectorAll("[id]").forEach((element) =>
+      element.removeAttribute("id"),
+    );
+    article
+      .querySelectorAll("[data-blume-copy], .api-copy-control, .api-copy-control__menu")
+      .forEach((element) => element.remove());
+
+    for (const anchor of article.querySelectorAll("a.blume-heading-anchor")) {
+      anchor.replaceWith(...anchor.childNodes);
+    }
+    article.querySelectorAll("a:not([href])").forEach((anchor) =>
+      anchor.remove(),
+    );
+    article.querySelectorAll("p").forEach((paragraph) => {
+      if (paragraph.textContent?.trim() === "" && paragraph.children.length === 0) {
+        paragraph.remove();
+      }
+    });
+
+    return { html: article.innerHTML, title };
+  };
+
+  class LucentTypePeekController extends HTMLElement {
+    #backButton!: HTMLButtonElement;
+    #body!: HTMLDivElement;
+    #closeButton!: HTMLButtonElement;
+    #dialog!: HTMLDialogElement;
+    #generation = 0;
+    #originTrigger: HTMLAnchorElement | null = null;
+    #pageLink!: HTMLAnchorElement;
+    #previewCache = new Map<string, Promise<TypePreview>>();
+    #stack: PreviewEntry[] = [];
+    #status!: HTMLParagraphElement;
+    #title!: HTMLHeadingElement;
+
+    #onBack = (): void => {
+      if (this.#stack.length <= 1) {
+        this.#dialog.close();
+        return;
+      }
+      this.#stack.pop();
+      const entry = this.#stack.at(-1);
+      if (entry !== undefined) {
+        void this.#showEntry(entry);
+      }
+    };
+
+    #onCloseButton = (): void => {
+      this.#dialog.close();
+    };
+
+    #onClose = (): void => {
+      const trigger = this.#originTrigger;
+      this.#originTrigger = null;
+      window.setTimeout(() => {
+        if (trigger?.isConnected) {
+          trigger.focus();
+        }
+      });
+    };
+
+    #onDialogClick = (event: MouseEvent): void => {
+      if (event.target === this.#dialog) {
+        this.#dialog.close();
+      }
+    };
+
+    #onDocumentClick = (event: MouseEvent): void => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      const trigger = event.target.closest<HTMLAnchorElement>(
+        "a[data-script-type-preview]",
+      );
+      if (trigger === null) {
+        return;
+      }
+
+      const entry = this.#entryFor(trigger);
+      if (entry === null) {
+        return;
+      }
+      event.preventDefault();
+
+      const nested = this.#dialog.contains(trigger);
+      if (nested) {
+        const current = this.#stack.at(-1);
+        if (current?.href !== entry.href) {
+          this.#stack.push(entry);
+        }
+      } else {
+        this.#originTrigger = trigger;
+        this.#stack = [entry];
+      }
+
+      void this.#showEntry(entry);
+    };
+
+    /** Resolves and constrains generated preview targets to local type pages. */
+    #entryFor(trigger: HTMLAnchorElement): PreviewEntry | null {
+      const rawHref = trigger.getAttribute("href");
+      if (rawHref === null) {
+        return null;
+      }
+
+      const url = new URL(rawHref, window.location.href);
+      if (
+        url.origin !== window.location.origin ||
+        !url.pathname.startsWith(TYPE_ROUTE_PREFIX)
+      ) {
+        return null;
+      }
+
+      const label = trigger.dataset.scriptTypeName ?? trigger.textContent?.trim();
+      return {
+        href: `${url.pathname}${url.search}`,
+        name: label === undefined || label === "" ? "Type" : label,
+      };
+    }
+
+    /** Fetches one generated type article and caches its prepared preview. */
+    #loadPreview(href: string): Promise<TypePreview> {
+      const cached = this.#previewCache.get(href);
+      if (cached !== undefined) {
+        return cached;
+      }
+
+      const request = fetch(href, {
+        credentials: "same-origin",
+        headers: { Accept: "text/html" },
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Unable to load ${href}: ${response.status}`);
+          }
+          const source = await response.text();
+          const parsed = new DOMParser().parseFromString(source, "text/html");
+          return preparePreviewArticle(parsed, href);
+        })
+        .catch((error: unknown) => {
+          this.#previewCache.delete(href);
+          throw error;
+        });
+      this.#previewCache.set(href, request);
+      return request;
+    }
+
+    /** Shows an entry while discarding stale responses from faster follow-up requests. */
+    async #showEntry(entry: PreviewEntry): Promise<void> {
+      const generation = ++this.#generation;
+      this.#title.textContent = entry.name;
+      this.#pageLink.href = entry.href;
+      const hasHistory = this.#stack.length > 1;
+      const backLabel = hasHistory ? "Previous type" : "Close type preview";
+      this.#backButton.ariaLabel = backLabel;
+      this.#backButton.title = backLabel;
+      this.#body.hidden = true;
+      this.#status.hidden = false;
+      this.#status.textContent = `Loading ${entry.name}…`;
+
+      if (!this.#dialog.open) {
+        this.#dialog.showModal();
+      }
+
+      try {
+        const preview = await this.#loadPreview(entry.href);
+        if (generation !== this.#generation) {
+          return;
+        }
+        this.#title.textContent = preview.title;
+        this.#body.innerHTML = preview.html;
+        this.#status.hidden = true;
+        this.#body.hidden = false;
+        this.#title.focus();
+      } catch {
+        if (generation !== this.#generation) {
+          return;
+        }
+        this.#body.replaceChildren();
+        this.#body.hidden = true;
+        this.#status.hidden = false;
+        this.#status.textContent =
+          "This type preview could not be loaded. Open its full page instead.";
+      }
+    }
+
+    connectedCallback(): void {
+      this.#dialog = this.querySelector<HTMLDialogElement>(
+        "[data-type-peek-dialog]",
+      )!;
+      this.#backButton = this.querySelector<HTMLButtonElement>(
+        "[data-type-peek-back]",
+      )!;
+      this.#closeButton = this.querySelector<HTMLButtonElement>(
+        "[data-type-peek-close]",
+      )!;
+      this.#pageLink = this.querySelector<HTMLAnchorElement>(
+        "[data-type-peek-page-link]",
+      )!;
+      this.#title = this.querySelector<HTMLHeadingElement>(
+        "[data-type-peek-title]",
+      )!;
+      this.#status = this.querySelector<HTMLParagraphElement>(
+        "[data-type-peek-status]",
+      )!;
+      this.#body = this.querySelector<HTMLDivElement>("[data-type-peek-body]")!;
+
+      this.#backButton.addEventListener("click", this.#onBack);
+      this.#closeButton.addEventListener("click", this.#onCloseButton);
+      this.#dialog.addEventListener("click", this.#onDialogClick);
+      this.#dialog.addEventListener("close", this.#onClose);
+      document.addEventListener("click", this.#onDocumentClick);
+    }
+
+    disconnectedCallback(): void {
+      this.#generation += 1;
+      this.#backButton.removeEventListener("click", this.#onBack);
+      this.#closeButton.removeEventListener("click", this.#onCloseButton);
+      this.#dialog.removeEventListener("click", this.#onDialogClick);
+      this.#dialog.removeEventListener("close", this.#onClose);
+      document.removeEventListener("click", this.#onDocumentClick);
+    }
+  }
+
+  if (!customElements.get("lucent-type-peek-controller")) {
+    customElements.define(
+      "lucent-type-peek-controller",
+      LucentTypePeekController,
+    );
+  }
+</script>

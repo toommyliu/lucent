@@ -735,7 +735,7 @@ export interface ScriptWaitApi {
   ) => Effect.Effect<A | null>;
 }
 
-/** Controls automatic login recovery and explicit login attempts. */
+/** Controls automatic login recovery. */
 export interface ScriptAutoReloginApi {
   readonly onState: (
     listener: (state: AutoReloginState) => void,

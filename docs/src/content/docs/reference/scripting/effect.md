@@ -11,7 +11,7 @@ sidebar:
 
 | Export | Description |
 | --- | --- |
-| [`Effect`](https://effect-ts.github.io/effect/effect/Effect.ts.html) | Create and combine operations. |
-| [`Option`](https://effect-ts.github.io/effect/effect/Option.ts.html) | Represent a value that may be missing. |
-| [`Duration`](https://effect-ts.github.io/effect/effect/Duration.ts.html) | Express a length of time. |
-| [`pipe`](https://effect-ts.github.io/effect/effect/Function.ts.html) | Pass a value through a series of functions. |
+| [`Effect`](https://www.effect.website/docs/v4/api/effect/Effect) | Create and combine operations. |
+| [`Option`](https://www.effect.website/docs/v4/api/effect/Option) | Represent a value that may be missing. |
+| [`Duration`](https://www.effect.website/docs/v4/api/effect/Duration) | Express a length of time. |
+| [`pipe`](https://www.effect.website/docs/v4/api/effect/Function) | Pass a value through a series of functions. |
