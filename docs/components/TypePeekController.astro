@@ -31,8 +31,22 @@
 
         <div class="type-peek-dialog__heading">
           <span>Type preview</span>
-          <h2 id="lucent-type-peek-title" tabindex="-1" data-type-peek-title>
-          </h2>
+          <nav
+            class="type-peek-dialog__breadcrumbs"
+            aria-label="Type preview breadcrumb"
+          >
+            <ol data-type-peek-breadcrumbs>
+              <li class="type-peek-dialog__breadcrumb-current">
+                <h2
+                  id="lucent-type-peek-title"
+                  tabindex="-1"
+                  aria-current="location"
+                  data-type-peek-title
+                >
+                </h2>
+              </li>
+            </ol>
+          </nav>
         </div>
 
         <a class="type-peek-dialog__page-link" data-type-peek-page-link>
@@ -140,6 +154,7 @@
   class LucentTypePeekController extends HTMLElement {
     #backButton!: HTMLButtonElement;
     #body!: HTMLDivElement;
+    #breadcrumbList!: HTMLOListElement;
     #closeButton!: HTMLButtonElement;
     #dialog!: HTMLDialogElement;
     #generation = 0;
@@ -166,6 +181,33 @@
       this.#dialog.close();
     };
 
+    #onBreadcrumbClick = (event: MouseEvent): void => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      const trigger = event.target.closest<HTMLButtonElement>(
+        "[data-type-peek-breadcrumb-index]",
+      );
+      if (trigger === null || !this.#breadcrumbList.contains(trigger)) {
+        return;
+      }
+
+      const index = Number(trigger.dataset.typePeekBreadcrumbIndex);
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= this.#stack.length - 1
+      ) {
+        return;
+      }
+
+      this.#stack = this.#stack.slice(0, index + 1);
+      const entry = this.#stack.at(-1);
+      if (entry !== undefined) {
+        void this.#showEntry(entry);
+      }
+    };
+
     #onClose = (): void => {
       const trigger = this.#originTrigger;
       this.#originTrigger = null;
@@ -177,6 +219,16 @@
     };
 
     #onDialogClick = (event: MouseEvent): void => {
+      const overflow = this.#breadcrumbList.querySelector<HTMLDetailsElement>(
+        ".type-peek-dialog__breadcrumb-overflow[open]",
+      );
+      if (
+        overflow !== null &&
+        event.target instanceof Node &&
+        !overflow.contains(event.target)
+      ) {
+        overflow.open = false;
+      }
       if (event.target === this.#dialog) {
         this.#dialog.close();
       }
@@ -203,16 +255,22 @@
         return;
       }
 
-      const entry = this.#entryFor(trigger);
-      if (entry === null) {
+      const requestedEntry = this.#entryFor(trigger);
+      if (requestedEntry === null) {
         return;
       }
       event.preventDefault();
 
       const nested = this.#dialog.contains(trigger);
+      let entry = requestedEntry;
       if (nested) {
-        const current = this.#stack.at(-1);
-        if (current?.href !== entry.href) {
+        const existingIndex = this.#stack.findIndex(
+          (candidate) => candidate.href === entry.href,
+        );
+        if (existingIndex >= 0) {
+          this.#stack = this.#stack.slice(0, existingIndex + 1);
+          entry = this.#stack[existingIndex]!;
+        } else {
           this.#stack.push(entry);
         }
       } else {
@@ -272,6 +330,96 @@
       return request;
     }
 
+    /** Renders the traversed type path as directly selectable ancestors. */
+    #renderBreadcrumbs(): void {
+      const currentIndex = this.#stack.length - 1;
+      const createItem = (
+        entry: PreviewEntry,
+        index: number,
+        withSeparator: boolean,
+      ): HTMLLIElement => {
+        const item = document.createElement("li");
+
+        if (withSeparator) {
+          const separator = document.createElement("span");
+          separator.className = "type-peek-dialog__breadcrumb-separator";
+          separator.ariaHidden = "true";
+          separator.textContent = "›";
+          item.append(separator);
+        }
+
+        if (index === currentIndex) {
+          item.className = "type-peek-dialog__breadcrumb-current";
+          item.append(this.#title);
+          return item;
+        }
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "type-peek-dialog__breadcrumb-button";
+        button.dataset.typePeekBreadcrumbIndex = String(index);
+        button.title = `Return to ${entry.name}`;
+        button.textContent = entry.name;
+        item.append(button);
+        return item;
+      };
+
+      if (this.#stack.length <= 4) {
+        const items = this.#stack.map((entry, index) =>
+          createItem(entry, index, index > 0),
+        );
+        this.#breadcrumbList.replaceChildren(...items);
+        return;
+      }
+
+      const hiddenEntries = this.#stack.slice(2, -2);
+      const overflowItem = document.createElement("li");
+      overflowItem.className = "type-peek-dialog__breadcrumb-overflow-item";
+      const separator = document.createElement("span");
+      separator.className = "type-peek-dialog__breadcrumb-separator";
+      separator.ariaHidden = "true";
+      separator.textContent = "›";
+
+      const overflow = document.createElement("details");
+      overflow.className = "type-peek-dialog__breadcrumb-overflow";
+      const summary = document.createElement("summary");
+      const overflowLabel = `Show ${hiddenEntries.length} hidden ${hiddenEntries.length === 1 ? "type" : "types"}`;
+      summary.ariaLabel = overflowLabel;
+      summary.title = overflowLabel;
+      summary.textContent = "…";
+
+      const menu = document.createElement("ol");
+      menu.className = "type-peek-dialog__breadcrumb-menu";
+      hiddenEntries.forEach((entry, offset) => {
+        const index = offset + 2;
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.typePeekBreadcrumbIndex = String(index);
+        button.title = `Return to ${entry.name}`;
+        button.textContent = entry.name;
+        item.append(button);
+        menu.append(item);
+      });
+      overflow.append(summary, menu);
+      overflowItem.append(separator, overflow);
+
+      const leadingItems = this.#stack
+        .slice(0, 2)
+        .map((entry, index) => createItem(entry, index, index > 0));
+      const trailingStart = currentIndex - 1;
+      const trailingItems = this.#stack
+        .slice(-2)
+        .map((entry, offset) =>
+          createItem(entry, trailingStart + offset, true),
+        );
+      this.#breadcrumbList.replaceChildren(
+        ...leadingItems,
+        overflowItem,
+        ...trailingItems,
+      );
+    }
+
     /** Shows an entry while discarding stale responses from faster follow-up requests. */
     async #showEntry(entry: PreviewEntry): Promise<void> {
       const generation = ++this.#generation;
@@ -288,6 +436,7 @@
       if (!this.#dialog.open) {
         this.#dialog.showModal();
       }
+      this.#renderBreadcrumbs();
 
       try {
         const preview = await this.#loadPreview(entry.href);
@@ -295,6 +444,11 @@
           return;
         }
         this.#title.textContent = preview.title;
+        const currentIndex = this.#stack.length - 1;
+        if (this.#stack[currentIndex]?.href === entry.href) {
+          this.#stack[currentIndex] = { ...entry, name: preview.title };
+        }
+        this.#renderBreadcrumbs();
         this.#body.innerHTML = preview.html;
         this.#status.hidden = true;
         this.#body.hidden = false;
@@ -318,6 +472,9 @@
       this.#backButton = this.querySelector<HTMLButtonElement>(
         "[data-type-peek-back]",
       )!;
+      this.#breadcrumbList = this.querySelector<HTMLOListElement>(
+        "[data-type-peek-breadcrumbs]",
+      )!;
       this.#closeButton = this.querySelector<HTMLButtonElement>(
         "[data-type-peek-close]",
       )!;
@@ -333,6 +490,7 @@
       this.#body = this.querySelector<HTMLDivElement>("[data-type-peek-body]")!;
 
       this.#backButton.addEventListener("click", this.#onBack);
+      this.#breadcrumbList.addEventListener("click", this.#onBreadcrumbClick);
       this.#closeButton.addEventListener("click", this.#onCloseButton);
       this.#dialog.addEventListener("click", this.#onDialogClick);
       this.#dialog.addEventListener("close", this.#onClose);
@@ -342,6 +500,10 @@
     disconnectedCallback(): void {
       this.#generation += 1;
       this.#backButton.removeEventListener("click", this.#onBack);
+      this.#breadcrumbList.removeEventListener(
+        "click",
+        this.#onBreadcrumbClick,
+      );
       this.#closeButton.removeEventListener("click", this.#onCloseButton);
       this.#dialog.removeEventListener("click", this.#onDialogClick);
       this.#dialog.removeEventListener("close", this.#onClose);
