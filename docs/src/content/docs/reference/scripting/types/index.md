@@ -14,7 +14,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/army-config-core/"><code>ArmyConfigCore</code></a> | interface |  |
 | <a href="/reference/scripting/types/army-config-payload/"><code>ArmyConfigPayload</code></a> | interface |  |
 | <a href="/reference/scripting/types/army-config-raw/"><code>ArmyConfigRaw</code></a> | type alias |  |
-| <a href="/reference/scripting/types/army-equip-set/"><code>ArmyEquipSet</code></a> | interface |  |
+| <a href="/reference/scripting/types/army-equip-set/"><code>ArmyEquipSet</code></a> | interface | Equipment is applied in this order: `safeClass`, `safePot`, `class`,<br>`safePot`, `weapon`, `cape`, `helm`, `armor`, `pet`, each entry in `pots`,<br>then `scroll`. |
 | <a href="/reference/scripting/types/army-equip-set-options/"><code>ArmyEquipSetOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/army-error/"><code>ArmyError</code></a> | class |  |
 | <a href="/reference/scripting/types/army-loop-taunt-assignment/"><code>ArmyLoopTauntAssignment</code></a> | interface | Assigns one target to the Army players allowed to keep it taunted. |

@@ -5,6 +5,11 @@ import { NonNegativeInt } from "./baseSchemas";
 
 export type ArmyConfigRaw = Record<string, unknown>;
 
+/**
+ * Equipment is applied in this order: `safeClass`, `safePot`, `class`,
+ * `safePot`, `weapon`, `cape`, `helm`, `armor`, `pet`, each entry in `pots`,
+ * then `scroll`.
+ */
 export interface ArmyEquipSet {
   readonly armor?: string;
   readonly cape?: string;
