@@ -71,9 +71,17 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
       <kbd class={`${kbd} text-xs`}>Esc</kbd>
     </div>
 
-    <div class="relative min-h-0 flex-1">
+    <div class="relative flex min-h-0 flex-1 flex-col">
       <div
-        class="h-full overflow-y-auto p-2"
+        aria-label="Filter results"
+        class="shrink-0 overflow-x-auto bg-background px-5 py-2"
+        data-blume-search-filters
+        hidden
+        role="group"
+      >
+      </div>
+      <div
+        class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
         data-blume-search-results
         role="listbox"
       >
@@ -251,6 +259,7 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
     class BlumeSearch extends HTMLElement {
       dialog!: HTMLDialogElement;
       input!: HTMLInputElement;
+      filters!: HTMLElement;
       results!: HTMLElement;
       message!: HTMLElement;
       searchFn: SearchFn | null = null;
@@ -287,6 +296,7 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
         this.locale = this.getAttribute("data-locale");
         this.dialog = this.querySelector("[data-blume-search-dialog]")!;
         this.input = this.querySelector("[data-blume-search-input]")!;
+        this.filters = this.querySelector("[data-blume-search-filters]")!;
         this.results = this.querySelector("[data-blume-search-results]")!;
         this.message = this.querySelector("[data-blume-search-message]")!;
         this.askEnabled = this.hasAttribute("data-ask");
@@ -413,6 +423,8 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
         const generation = this.renderGeneration;
         this.selectables = [];
         this.selectedIndex = -1;
+        this.filters.replaceChildren();
+        this.filters.hidden = true;
         this.results.replaceChildren();
         this.setMessage("");
 
@@ -479,7 +491,8 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
         ];
         const filters = this.createFilterBar(hits);
         if (filters) {
-          this.results.appendChild(filters);
+          this.filters.appendChild(filters);
+          this.filters.hidden = false;
         }
 
         if (this.askEnabled) {
@@ -522,10 +535,7 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
         }
 
         const element = document.createElement("div");
-        element.className =
-          "sticky top-0 z-10 flex gap-1.5 overflow-x-auto bg-background px-3 py-2";
-        element.setAttribute("aria-label", "Filter results");
-        element.setAttribute("role", "group");
+        element.className = "flex gap-1.5";
 
         const options: { count: number; filter: ResultFilter | null; label: string }[] = [
           { count: hits.length, filter: null, label: "All" },
