@@ -19,9 +19,15 @@ import type { Wait } from "./Wait";
 export type { BankView } from "../../Types";
 
 export interface BankOpenOptions {
-  /** Whether to reload bank items before opening the view. */
+  /**
+   * Whether to reload bank items before opening the view.
+   * @defaultValue false
+   */
   readonly force?: boolean;
-  /** The bank view to open. Defaults to the regular bank. */
+  /**
+   * The bank view to open.
+   * @defaultValue "regular"
+   */
   readonly view?: BankView;
 }
 

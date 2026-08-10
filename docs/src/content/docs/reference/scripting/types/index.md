@@ -131,6 +131,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-event/"><code>ScriptEvent</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-for-selector/"><code>ScriptEventForSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-for-type/"><code>ScriptEventForType</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-event-selector-for-type/"><code>ScriptEventSelectorForType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-type/"><code>ScriptEventType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-execution-error/"><code>ScriptExecutionError</code></a> | class |  |
 | <a href="/reference/scripting/types/script-generator/"><code>ScriptGenerator</code></a> | type alias |  |

@@ -204,13 +204,16 @@ interface ScriptApi {
 }
 interface ScriptRuntimeApi {
     readonly signal: AbortSignal;
-    beep(times?: number): Effect<void, ScriptExecutionError>;
+  /** @param times Number of repetitions. */
+    beep(/** @defaultValue 1 */ times?: number): Effect<void, ScriptExecutionError>;
     readonly inputs: ScriptInputsApi;
     readonly options: ScriptOptionsApi;
-    exit(options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect<never, ScriptStopSignal>;
+  /** @param options Exit actions. */
+    exit(/** @defaultValue { closeWindow: false, logout: false } */ options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect<never, ScriptStopSignal>;
     log(message: unknown): Effect<void, never>;
     sleep(ms: number): Effect<void, ScriptExecutionError>;
-    stop(reason?: string): Effect<never, ScriptStopSignal>;
+  /** @param reason Stop message. */
+    stop(/** @defaultValue "Script stopped." */ reason?: string): Effect<never, ScriptStopSignal>;
 }
 interface ScriptAutoReloginApi {
     onState(listener: (state: AutoReloginState) => void): Effect<() => void, never>;
@@ -247,8 +250,10 @@ interface ScriptArmyApi {
     isStarted(): Effect<boolean, never>;
     joinMap(map: string, cell?: string, pad?: string): Effect<void, ArmyError>;
     kill(target: MonsterQuery, options?: CombatKillOptions): Effect<void, ArmyError>;
-    killForItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
-    killForTempItem(target: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+  /** @param quantity The minimum quantity to collect. */
+    killForItem(target: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+  /** @param quantity The minimum quantity to collect. */
+    killForTempItem(target: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
     leave(): Effect<void, never>;
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
@@ -258,7 +263,8 @@ interface ScriptArmyApi {
   * @param plan The ordered target priority groups every participant runs.
   */
     loopTaunt(plan: ArmyLoopTauntPlan): Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
-    sync(label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
+  /** @param label The coordination label. */
+    sync(/** @defaultValue "sync" */ label?: string, options?: ArmyRunStepOptions): Effect<void, ArmyError>;
     waitForAllInMap(): Effect<void, ArmyError>;
 }
 interface ScriptAurasApi {
@@ -278,7 +284,8 @@ interface ScriptAuthApi {
     logout(): Effect<void, never>;
 }
 interface ScriptBankApi {
-    contains(query: ItemQuery, requested?: number): Effect<boolean, never>;
+  /** @param requested The minimum quantity required. */
+    contains(query: ItemQuery, /** @defaultValue 1 */ requested?: number): Effect<boolean, never>;
     deposit(query: ItemQuery): Effect<boolean, never>;
     depositBatch(selectors: readonly ItemQuery[]): Effect<boolean[], never>;
     get(query: ItemQuery): Effect<LiveItem | null, never>;
@@ -287,8 +294,9 @@ interface ScriptBankApi {
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
     isOpen(view?: BankView): Effect<boolean, never>;
-    load(force?: boolean): Effect<boolean, never>;
-    open(options?: BankOpenOptions): Effect<boolean, never>;
+  /** @param force Whether to reload an already loaded bank. */
+    load(/** @defaultValue false */ force?: boolean): Effect<boolean, never>;
+    open(/** @defaultValue {} */ options?: BankOpenOptions): Effect<boolean, never>;
     swap(inventoryQuery: ItemQuery, bankQuery: ItemQuery): Effect<boolean, never>;
     withdraw(query: ItemQuery): Effect<boolean, never>;
     withdrawBatch(selectors: readonly ItemQuery[]): Effect<boolean[], never>;
@@ -304,8 +312,10 @@ interface ScriptCombatApi {
     getSkillCooldownRemaining(index: number): Effect<number, never>;
     hunt(query: MonsterQuery, options?: HuntOptions): Effect<LiveMonster | null, never>;
     kill(query: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
-    killForItem(query: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
-    killForTempItem(query: MonsterQuery, item: ItemQuery, quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+  /** @param quantity The minimum quantity to collect. */
+    killForItem(query: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+  /** @param quantity The minimum quantity to collect. */
+    killForTempItem(query: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
     useSkill(skill: number, options?: SkillUseOptions): Effect<boolean, never>;
 }
@@ -383,7 +393,8 @@ interface ScriptInputsApi {
     getAll(): Effect<ScriptInputValues, never>;
 }
 interface ScriptInventoryApi {
-    contains(query: ItemQuery, requested?: number): Effect<boolean, never>;
+  /** @param requested The minimum quantity required. */
+    contains(query: ItemQuery, /** @defaultValue 1 */ requested?: number): Effect<boolean, never>;
     equip(query: ItemQuery, options?: EquipOptions): Effect<boolean, never>;
     equipByEnhancement(query: ScriptEquipEnhancementSelector): Effect<boolean, never>;
     get(query: ItemQuery): Effect<LiveItem | null, never>;
@@ -407,11 +418,11 @@ interface ScriptMapApi {
     loadSwf(swf: string): Effect<void, never>;
     reload(): Effect<void, never>;
   /**
-  * @param cell Defaults to the current cell.
-  * @param pad Defaults to the current pad.
+  * @param cell Spawn cell.
+  * @param pad Spawn pad.
   * @returns
   */
-    setSpawnPoint(cell?: string, pad?: string): Effect<void, never>;
+    setSpawnPoint(/** @defaultValue current cell */ cell?: string, /** @defaultValue current pad */ pad?: string): Effect<void, never>;
 }
 interface ScriptMonstersApi {
     get(query: MonsterQuery): Effect<LiveMonster | null, never>;
@@ -432,8 +443,10 @@ interface ScriptOptionsApi {
 interface ScriptPacketApi {
     readonly on: ScriptPacketOn;
     readonly once: ScriptWaitForPacket;
-    sendClient(packet: string, type?: ScriptClientPacketSendType): Effect<boolean, never>;
-    sendServer(packet: string, type?: 'String' | 'Json'): Effect<boolean, never>;
+  /** @param type The client packet encoding. */
+    sendClient(packet: string, /** @defaultValue "str" */ type?: ScriptClientPacketSendType): Effect<boolean, never>;
+  /** @param type The server packet encoding. */
+    sendServer(packet: string, /** @defaultValue "String" */ type?: 'String' | 'Json'): Effect<boolean, never>;
     stream<const S extends PacketSelector | undefined = PacketSelector | undefined>(selector?: S): Stream<PacketForSelector<S>, never, never>;
 }
 interface ScriptPacketOn {
@@ -469,7 +482,8 @@ interface ScriptPlayerApi {
     joinMap(target: string, cell?: string, pad?: string): Effect<boolean, never>;
     jumpToCell(cell: string, pad?: string): Effect<boolean, never>;
     readonly outfits: ScriptPlayerOutfitsApi;
-    rest(full?: boolean): Effect<void, never>;
+  /** @param full Whether to perform a full rest. */
+    rest(/** @defaultValue false */ full?: boolean): Effect<void, never>;
     useBoost(query: ItemQuery): Effect<boolean, never>;
     walkTo(x: number, y: number, speed?: number): Effect<boolean, never>;
 }
@@ -478,10 +492,12 @@ interface ScriptPlayerFactionsApi {
     getAll(): Effect<LiveFaction[], never>;
 }
 interface ScriptPlayerOutfitsApi {
-    equip(name: string, keepColors?: boolean): Effect<boolean, never>;
+  /** @param keepColors Whether to preserve the current colors. */
+    equip(name: string, /** @defaultValue false */ keepColors?: boolean): Effect<boolean, never>;
     get(name: string): Effect<LiveOutfit | null, never>;
     getAll(): Effect<LiveOutfit[], never>;
-    wear(name: string, keepColors?: boolean): Effect<boolean, never>;
+  /** @param keepColors Whether to preserve the current colors. */
+    wear(name: string, /** @defaultValue false */ keepColors?: boolean): Effect<boolean, never>;
 }
 interface ScriptPlayersApi {
     get(query: PlayerQuery): Effect<LivePlayer | null, never>;
@@ -490,21 +506,31 @@ interface ScriptPlayersApi {
 }
 interface ScriptQuestsApi {
     abandon(questId: number): Effect<boolean, never>;
-    accept(questId: number, silent?: boolean): Effect<boolean, never>;
-    acceptBatch(questIds: readonly number[], silent?: boolean): Effect<boolean[], never>;
+  /** @param silent Whether to load the quest without opening its UI. */
+    accept(questId: number, /** @defaultValue false */ silent?: boolean): Effect<boolean, never>;
+  /** @param silent Whether to load the quests without opening their UI. */
+    acceptBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
     canComplete(questId: number): Effect<boolean, never>;
-    complete(questId: number, requestedTurnIns?: number, itemId?: number, special?: boolean): Effect<boolean, never>;
+  /**
+  * @param requestedTurnIns Number of turn-ins.
+  * @param itemId Reward item ID. -1 does not select a specific reward.
+  * @param special Whether to use special completion handling.
+  */
+    complete(questId: number, /** @defaultValue maximum currently possible */ requestedTurnIns?: number, /** @defaultValue -1 */ itemId?: number, /** @defaultValue false */ special?: boolean): Effect<boolean, never>;
     get(questId: number): Effect<LiveQuest | null, never>;
     getAccepted(): Effect<LiveQuest[], never>;
     getAll(): Effect<LiveQuest[], never>;
     getMaxTurnIns(questId: number): Effect<number, never>;
     isAvailable(questId: number): Effect<boolean, never>;
     isInProgress(questId: number): Effect<boolean, never>;
-    load(questId: number, silent?: boolean): Effect<boolean, never>;
-    loadBatch(questIds: readonly number[], silent?: boolean): Effect<boolean[], never>;
+  /** @param silent Whether to load the quest without opening its UI. */
+    load(questId: number, /** @defaultValue false */ silent?: boolean): Effect<boolean, never>;
+  /** @param silent Whether to load the quests without opening their UI. */
+    loadBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
 }
 interface ScriptRecipesApi {
-    doWheelOfDoom(toBank?: boolean): Effect<boolean, never>;
+  /** @param toBank Whether to send wheel rewards to the bank. */
+    doWheelOfDoom(/** @defaultValue false */ toBank?: boolean): Effect<boolean, never>;
     enhanceItem(item: ItemQuery, options: ScriptEnhanceItemOptions): Effect<boolean, never>;
     ensureLifeSteal(quantity: number): Effect<boolean, never>;
     ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
@@ -542,17 +568,21 @@ interface ScriptShopsApi {
     sell(query: ItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
 }
 interface ScriptTempInventoryApi {
-    contains(query: ItemQuery, requested?: number): Effect<boolean, never>;
+  /** @param requested The minimum quantity required. */
+    contains(query: ItemQuery, /** @defaultValue 1 */ requested?: number): Effect<boolean, never>;
     get(query: ItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
 }
 interface ScriptWaitApi {
-    forGameAction(action: GameAction, options?: WaitOptions | DurationInput): Effect<boolean, never>;
+  /** @param options Polling options or a timeout value. */
+    forGameAction(action: GameAction, /** @defaultValue { interval: "100 millis", timeout: "2 seconds" } */ options?: WaitOptions | DurationInput): Effect<boolean, never>;
     isGameActionAvailable(action: GameAction): Effect<boolean, never>;
     readonly forEvent: ScriptWaitForEvent;
     readonly forPacket: ScriptWaitForPacket;
-    until(condition: Effect<boolean, never, never>, options?: WaitOptions): Effect<boolean, never>;
-    untilSome<A>(condition: Effect<Option<A>, never, never>, options?: WaitOptions): Effect<A | null, never>;
+  /** @param options Polling options. */
+    until(condition: Effect<boolean, never, never>, /** @defaultValue { interval: "100 millis", timeout: undefined } */ options?: WaitOptions): Effect<boolean, never>;
+  /** @param options Polling options. */
+    untilSome<A>(condition: Effect<Option<A>, never, never>, /** @defaultValue { interval: "100 millis", timeout: undefined } */ options?: WaitOptions): Effect<A | null, never>;
 }
 interface ScriptWaitForEvent {
     <const T extends ScriptEventType, E = never, R = never>(query: ScriptEventSelectorForType<T>, options?: TriggeredWaitOptions<E, R>): Effect<ScriptEventForType<T> | null, E, Exclude<R, Scope>>;
@@ -615,9 +645,15 @@ interface AutoZoneState {
 }
 type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus';
 interface BankOpenOptions {
-  /** Whether to reload bank items before opening the view. */
+  /**
+   * Whether to reload bank items before opening the view.
+   * @defaultValue false
+   */
   readonly force?: boolean;
-  /** The bank view to open. Defaults to the regular bank. */
+  /**
+   * The bank view to open.
+   * @defaultValue "regular"
+   */
   readonly view?: BankView;
 }
 type BankView = "house" | "regular";
@@ -625,7 +661,15 @@ type BoostType = "classPoints" | "exp" | "gold" | "rep";
 interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfileDefinition;
+  /**
+   * Delay between skill attempts in milliseconds.
+   * @defaultValue 150
+   */
   readonly skillDelay?: number;
+  /**
+   * Skills to cycle while fighting.
+   * @defaultValue [1, 2, 3, 4]
+   */
   readonly skillSet?: readonly Skill[];
 }
 interface ConnectOutcome {
@@ -650,7 +694,10 @@ interface ConsumableCastResult {
 type EntityState = 0 | 2 | 1;
 type EnvironmentState = { readonly automation: { readonly boosts: boolean; readonly drops: boolean; readonly quests: boolean; }; readonly questIds: readonly number[]; readonly questAutoRegister: { readonly requirements: boolean; readonly rewards: boolean; }; readonly questRewards: { readonly [x: number]: number; }; readonly itemNames: readonly string[]; readonly itemNotificationNames: readonly string[]; readonly itemRules: { readonly buckets: readonly ('ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member')[]; readonly rejectElse: boolean; }; readonly boosts: readonly string[]; };
 interface EquipOptions {
-  /** Whether to wear wearable equipment after equipping it. Defaults to true. */
+  /**
+   * Whether to wear wearable equipment after equipping it.
+   * @defaultValue true
+   */
   readonly wear?: boolean;
 }
 type EventSelector =
@@ -731,6 +778,10 @@ type EventSelector =
     };
 type GameAction = 'acceptQuest' | 'buyItem' | 'equipItem' | 'equipLoadout' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearItem' | 'wearLoadout';
 interface HuntOptions {
+  /**
+   * Whether to prefer the cell containing the most matches.
+   * @defaultValue false
+   */
   readonly findMost?: boolean;
 }
 type ItemQuery = ItemSelector | number | string;
@@ -905,11 +956,23 @@ interface ScriptRuntimeOptions {
   readonly safeStartStop: boolean;
 }
 interface ScriptShopQuantityOptions {
+  /**
+   * The quantity to buy, validate, or sell.
+   * @defaultValue 1
+   */
   readonly quantity?: number;
 }
 type ShopItemQuery = ShopItemSelector | number | string;
 interface SkillUseOptions {
+  /**
+   * Whether to bypass the client's normal skill-use path.
+   * @defaultValue false
+   */
   readonly force?: boolean;
+  /**
+   * Whether to wait for the skill to become ready.
+   * @defaultValue false
+   */
   readonly wait?: boolean;
 }
 interface TriggeredWaitOptions<E = never, R = never> extends Pick<
@@ -919,7 +982,15 @@ interface TriggeredWaitOptions<E = never, R = never> extends Pick<
   readonly trigger?: Effect<boolean, E, R>;
 }
 interface WaitOptions {
+  /**
+   * Polling interval.
+   * @defaultValue "100 millis"
+   */
   readonly interval?: DurationInput;
+  /**
+   * Maximum wait duration.
+   * @defaultValue undefined
+   */
   readonly timeout?: DurationInput;
 }
 interface ArmyLoopTauntPriorityGroup {

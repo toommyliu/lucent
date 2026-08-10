@@ -59,7 +59,15 @@ export interface PacketSelector {
 }
 
 export interface WaitOptions {
+  /**
+   * Polling interval.
+   * @defaultValue "100 millis"
+   */
   readonly interval?: Duration.Input;
+  /**
+   * Maximum wait duration.
+   * @defaultValue undefined
+   */
   readonly timeout?: Duration.Input;
 }
 

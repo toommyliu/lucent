@@ -136,6 +136,7 @@ type ParameterDoc = {
   readonly required: boolean;
   readonly rest: boolean;
   readonly description: string;
+  readonly defaultValue: string;
 };
 
 type ReturnDoc = {
@@ -158,6 +159,7 @@ type TypeMemberDoc = SourceInfo & {
   readonly name: string;
   readonly type: string;
   readonly summary: string;
+  readonly defaultValue: string;
   readonly readonly: boolean;
   readonly optional: boolean;
   readonly inheritedFrom: string | null;
@@ -444,6 +446,25 @@ const getNodeJsDoc = (node: ts.Node): ts.JSDoc | null => {
 
 const getSummary = (node: ts.Node): string =>
   getText(getNodeJsDoc(node)?.comment);
+
+const getJsDocTagText = (node: ts.Node, tagName: string): string => {
+  const tag = getNodeJsDoc(node)?.tags?.find(
+    (candidate) => candidate.tagName.text === tagName,
+  );
+  return getText(tag?.comment).replace(/^\s*-\s+/, "");
+};
+
+const normalizeDefaultValueText = (value: string): string => {
+  const trimmed = value.trim();
+  const fenced = /^```(?:ts|typescript)?\s*\n([\s\S]*?)\n```$/.exec(trimmed);
+  return fenced?.[1]?.trim() ?? trimmed;
+};
+
+const getDefaultValue = (node: ts.Node): string => {
+  return normalizeDefaultValueText(
+    getJsDocTagText(node, "defaultValue"),
+  );
+};
 
 const getParamDescriptions = (
   node: ts.Node,
@@ -891,16 +912,31 @@ const getParameterDocs = (
         parameter.dotDotDotToken === undefined,
       rest: parameter.dotDotDotToken !== undefined,
       description: descriptions.get(name) ?? "",
+      defaultValue: getDefaultValue(parameter),
     };
   });
+};
+
+const signatureTypeParametersText = (
+  node: ts.SignatureDeclaration | undefined,
+): string => {
+  if (node?.typeParameters === undefined || node.typeParameters.length === 0) {
+    return "";
+  }
+
+  const sourceFile = node.getSourceFile();
+  return `<${node.typeParameters
+    .map((parameter) => parameter.getText(sourceFile))
+    .join(", ")}>`;
 };
 
 const methodSignature = (
   path: string,
   parameters: readonly ParameterDoc[],
   returnDoc: ReturnDoc,
+  typeParameters = "",
 ): string =>
-  `${path}(${parameters
+  `${path}${typeParameters}(${parameters
     .map(
       (parameter) =>
         `${parameter.rest ? "..." : ""}${parameter.name}${
@@ -1204,7 +1240,12 @@ const collectMembersFromInterface = (
         name,
         kind: "method",
         summary: getSummary(member),
-        signature: methodSignature(path, parameters, returnDoc),
+        signature: methodSignature(
+          path,
+          parameters,
+          returnDoc,
+          signatureTypeParametersText(member),
+        ),
         parameters,
         returnDoc,
         ...getSourceInfo(options, git, member),
@@ -1228,28 +1269,19 @@ const collectMembersFromInterface = (
       !ts.isFunctionTypeNode(member.type) &&
       callSignatures.length > 0
     ) {
-      const signature = callSignatures.at(-1)!;
-      const signatureDeclaration = signature.getDeclaration();
-      const signatureNode = signatureDeclaration ?? member;
-      const parameters = getSignatureParameterDocs(
+      const signatures = getCallableSignatureDocs(
         checker,
-        signature,
-        signatureNode,
+        `${basePath}.${name}`,
+        callSignatures,
+        member,
       );
-      const rawReturn = formatResolvedType(
-        checker,
-        signature.getReturnType(),
-        signatureNode,
-      );
-      const returnDoc = parseEffectReturn(
-        rawReturn,
-        signatureDeclaration?.type,
-        signatureNode.getSourceFile(),
-      );
-      for (const parameter of signatureDeclaration?.parameters ?? []) {
-        collectTypeReferences(parameter.type, typeReferences);
+      const primarySignature = signatures.at(-1)!;
+      for (const signature of signatures) {
+        for (const parameter of signature.declaration?.parameters ?? []) {
+          collectTypeReferences(parameter.type, typeReferences);
+        }
+        collectTypeReferences(signature.declaration?.type, typeReferences);
       }
-      collectTypeReferences(signatureDeclaration?.type, typeReferences);
 
       const path = `${basePath}.${name}`;
       docs.push({
@@ -1258,12 +1290,12 @@ const collectMembersFromInterface = (
         kind: "method",
         summary:
           getSummary(member) ||
-          (signatureDeclaration === undefined
+          (primarySignature.declaration === undefined
             ? ""
-            : getSummary(signatureDeclaration)),
-        signature: methodSignature(path, parameters, returnDoc),
-        parameters,
-        returnDoc,
+            : getSummary(primarySignature.declaration)),
+        signature: signatures.map(({ signature }) => signature).join("\n"),
+        parameters: primarySignature.parameters,
+        returnDoc: primarySignature.returnDoc,
         ...getSourceInfo(options, git, member),
       });
       continue;
@@ -1300,7 +1332,12 @@ const collectMembersFromInterface = (
         name,
         kind: "method",
         summary: getSummary(member),
-        signature: methodSignature(path, parameters, returnDoc),
+        signature: methodSignature(
+          path,
+          parameters,
+          returnDoc,
+          signatureTypeParametersText(member.type),
+        ),
         parameters,
         returnDoc,
         ...getSourceInfo(options, git, member),
@@ -1388,6 +1425,55 @@ const getSignatureParameterDocs = (
         parameterDeclaration?.dotDotDotToken === undefined,
       rest: parameterDeclaration?.dotDotDotToken !== undefined,
       description,
+      defaultValue:
+        parameterDeclaration === null
+          ? ""
+          : getDefaultValue(parameterDeclaration),
+    };
+  });
+
+type CallableSignatureDoc = {
+  readonly declaration: ts.SignatureDeclaration | undefined;
+  readonly parameters: readonly ParameterDoc[];
+  readonly returnDoc: ReturnDoc;
+  readonly signature: string;
+};
+
+const getCallableSignatureDocs = (
+  checker: ts.TypeChecker,
+  path: string,
+  signatures: readonly ts.Signature[],
+  fallbackNode: ts.Node,
+): readonly CallableSignatureDoc[] =>
+  signatures.map((signature) => {
+    const declaration = signature.getDeclaration();
+    const signatureNode = declaration ?? fallbackNode;
+    const parameters = getSignatureParameterDocs(
+      checker,
+      signature,
+      signatureNode,
+    );
+    const rawReturn = formatResolvedType(
+      checker,
+      signature.getReturnType(),
+      signatureNode,
+    );
+    const returnDoc = parseEffectReturn(
+      rawReturn,
+      declaration?.type,
+      signatureNode.getSourceFile(),
+    );
+
+    return {
+      declaration,
+      parameters,
+      returnDoc,
+      signature: methodSignature(
+        path,
+        parameters,
+        returnDoc,
+        signatureTypeParametersText(declaration),
+      ),
     };
   });
 
@@ -1447,38 +1533,29 @@ const collectMembersFromType = (
     const path = `${basePath}.${name}`;
 
     if (signatures.length > 0) {
-      const signature = signatures[0]!;
-      const signatureDeclaration = signature.getDeclaration();
-      const signatureNode = signatureDeclaration ?? sourceNode;
-      const parameters = getSignatureParameterDocs(
+      const signatureDocs = getCallableSignatureDocs(
         checker,
-        signature,
-        signatureNode,
+        path,
+        signatures,
+        sourceNode,
       );
-      const rawReturn = formatResolvedType(
-        checker,
-        signature.getReturnType(),
-        signatureNode,
-      );
-      const returnDoc = parseEffectReturn(
-        rawReturn,
-        signatureDeclaration?.type,
-        signatureNode.getSourceFile(),
-      );
+      const primarySignature = signatureDocs.at(-1)!;
 
-      for (const parameter of parameters) {
-        collectTypeNameTokens(parameter.type, typeReferences);
-      }
-      for (const parameter of signatureDeclaration?.parameters ?? []) {
-        if (parameter.type !== undefined) {
-          collectTaggedTypeReferences(
-            checker,
-            parameter.type,
-            typeReferences,
-          );
+      for (const signature of signatureDocs) {
+        for (const parameter of signature.parameters) {
+          collectTypeNameTokens(parameter.type, typeReferences);
         }
+        for (const parameter of signature.declaration?.parameters ?? []) {
+          if (parameter.type !== undefined) {
+            collectTaggedTypeReferences(
+              checker,
+              parameter.type,
+              typeReferences,
+            );
+          }
+        }
+        collectTypeNameTokens(signature.returnDoc.raw, typeReferences);
       }
-      collectTypeNameTokens(rawReturn, typeReferences);
 
       docs.push({
         path,
@@ -1488,11 +1565,13 @@ const collectMembersFromType = (
           checker,
           symbol,
           declaration,
-          signatureDeclaration,
+          primarySignature.declaration,
         ),
-        signature: methodSignature(path, parameters, returnDoc),
-        parameters,
-        returnDoc,
+        signature: signatureDocs
+          .map(({ signature }) => signature)
+          .join("\n"),
+        parameters: primarySignature.parameters,
+        returnDoc: primarySignature.returnDoc,
         ...getSourceInfo(options, git, sourceNode),
       });
       continue;
@@ -1732,15 +1811,54 @@ const commentText = (reflection: Reflection | undefined): string => {
     .trim();
 };
 
+const commentBlockTagText = (
+  reflection: Reflection | undefined,
+  tagName: string,
+): string => {
+  const tag = reflection?.comment?.blockTags.find(
+    (candidate) => candidate.tag === tagName,
+  );
+  return (tag?.content ?? [])
+    .map((part) => ("text" in part ? part.text : ""))
+    .join("")
+    .trim();
+};
+
+const commentDefaultValue = (reflection: Reflection | undefined): string =>
+  normalizeDefaultValueText(
+    commentBlockTagText(reflection, "@defaultValue"),
+  );
+
 const typeToString = (type: SomeType | undefined): string =>
   type?.toString() ?? "unknown";
+
+type ReflectedTypeParameter = NonNullable<
+  DeclarationReflection["typeParameters"]
+>[number];
+
+const reflectedTypeParameterText = (
+  parameter: ReflectedTypeParameter,
+): string =>
+  `${parameter.flags.isConst ? "const " : ""}${
+    parameter.varianceModifier === undefined
+      ? ""
+      : `${parameter.varianceModifier} `
+  }${parameter.name}${
+    parameter.type === undefined
+      ? ""
+      : ` extends ${typeToString(parameter.type)}`
+  }${
+    parameter.default === undefined
+      ? ""
+      : ` = ${typeToString(parameter.default)}`
+  }`;
 
 const typeParametersText = (
   typeParameters: DeclarationReflection["typeParameters"],
 ): string =>
   typeParameters === undefined || typeParameters.length === 0
     ? ""
-    : `<${typeParameters.map((parameter) => parameter.name).join(", ")}>`;
+    : `<${typeParameters.map(reflectedTypeParameterText).join(", ")}>`;
 
 const typedocKindName = (kind: ReflectionKind): string =>
   ReflectionKind.singularString(kind).toString().toLowerCase();
@@ -1857,11 +1975,7 @@ const methodSignatureText = (
   method: DeclarationReflection,
   signature: SignatureReflection,
 ): string => {
-  const typeParameters =
-    signature.typeParameters === undefined ||
-    signature.typeParameters.length === 0
-      ? ""
-      : `<${signature.typeParameters.map((parameter) => parameter.name).join(", ")}>`;
+  const typeParameters = typeParametersText(signature.typeParameters);
   const parameters = (signature.parameters ?? [])
     .map((parameter) => {
       const rest = parameter.flags.isRest ? "..." : "";
@@ -1945,6 +2059,9 @@ const buildReferencedTypeDoc = (
         name: child.name,
         type: typeToString(getSignature?.type ?? child.type),
         summary: commentText(getSignature ?? child),
+        defaultValue:
+          commentDefaultValue(getSignature ?? child) ||
+          commentDefaultValue(child),
         readonly:
           child.flags.isReadonly || child.kind === ReflectionKind.Accessor,
         optional: child.flags.isOptional,
@@ -2183,6 +2300,7 @@ const buildAstReferencedTypeDoc = (
             symbol,
             symbolDeclaration,
           ),
+          defaultValue: getDefaultValue(sourceNode),
           readonly: true,
           optional: (symbol.flags & ts.SymbolFlags.Optional) !== 0,
           inheritedFrom: null,
@@ -2222,6 +2340,7 @@ const buildAstReferencedTypeDoc = (
           name: memberName,
           type: formatType(checker, member.type),
           summary: getSummary(member),
+          defaultValue: getDefaultValue(member),
           readonly:
             member.modifiers?.some(
               (modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword,
@@ -2241,7 +2360,12 @@ const buildAstReferencedTypeDoc = (
       const returnDoc = getReturnDoc(checker, member);
       methods.push({
         name: memberName,
-        signature: methodSignature(memberName, parameters, returnDoc),
+        signature: methodSignature(
+          memberName,
+          parameters,
+          returnDoc,
+          signatureTypeParametersText(member),
+        ),
         summary: getSummary(member),
         inheritedFrom: null,
         ...getSourceInfo(options, git, member),
@@ -2802,12 +2926,12 @@ const renderMember = (
 
   if (member.parameters.length > 0) {
     lines.push(
-      "| Name | Type | Required | Description |",
-      "| --- | --- | --- | --- |",
+      "| Name | Type | Required | Default | Description |",
+      "| --- | --- | --- | --- | --- |",
     );
     for (const parameter of member.parameters) {
       lines.push(
-        `| ${renderCode(`${parameter.rest ? "..." : ""}${parameter.name}`)} | ${renderTypeExpression(parameter.type, typeLinks)} | ${renderBooleanMark(parameter.required)} | ${escapeTableCell(parameter.description)} |`,
+        `| ${renderCode(`${parameter.rest ? "..." : ""}${parameter.name}`)} | ${renderTypeExpression(parameter.type, typeLinks)} | ${renderBooleanMark(parameter.required)} | ${parameter.defaultValue === "" ? "" : renderCode(parameter.defaultValue)} | ${escapeTableCell(parameter.description)} |`,
       );
     }
     lines.push("");
@@ -2859,6 +2983,10 @@ const renderTypeProperty = (
     renderLinkedTypeCodeBlock(signature, typeLinks, renderTypeCodeBlock),
     "",
   );
+
+  if (property.defaultValue !== "") {
+    lines.push(`**Default:** ${renderCode(property.defaultValue)}`, "");
+  }
 };
 
 const renderTypeMethod = (
@@ -3037,7 +3165,7 @@ const collectScriptEventReferences = (
 
   const eventType = checker.getTypeAtLocation(declaration);
   const variants = eventType.isUnion() ? eventType.types : [eventType];
-  const references: ScriptEventReference[] = [];
+  const payloadsByName = new Map<string, Set<string>>();
   for (const variant of variants) {
     const typeProperty = checker.getPropertyOfType(variant, "type");
     if (typeProperty === undefined) {
@@ -3079,13 +3207,16 @@ const collectScriptEventReferences = (
         return `${property.name}${optional}: ${propertyType}`;
       });
 
-    references.push({
-      name: discriminator.value,
-      payload: fields.length === 0 ? "{}" : `{ ${fields.join("; ")} }`,
-    });
+    const payload = fields.length === 0 ? "{}" : `{ ${fields.join("; ")} }`;
+    const payloads = payloadsByName.get(discriminator.value) ?? new Set();
+    payloads.add(payload);
+    payloadsByName.set(discriminator.value, payloads);
   }
 
-  return references.sort((left, right) => left.name.localeCompare(right.name));
+  return Array.from(payloadsByName, ([name, payloads]) => ({
+    name,
+    payload: Array.from(payloads).join(" | "),
+  })).sort((left, right) => left.name.localeCompare(right.name));
 };
 
 const renderEventPayloadReference = (

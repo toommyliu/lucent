@@ -64,18 +64,38 @@ export const ConsumableCastDispatchDeadline = Context.Reference<
 });
 
 export interface HuntOptions {
+  /**
+   * Whether to prefer the cell containing the most matches.
+   * @defaultValue false
+   */
   readonly findMost?: boolean;
 }
 
 export interface SkillUseOptions {
+  /**
+   * Whether to bypass the client's normal skill-use path.
+   * @defaultValue false
+   */
   readonly force?: boolean;
+  /**
+   * Whether to wait for the skill to become ready.
+   * @defaultValue false
+   */
   readonly wait?: boolean;
 }
 
 export interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfileDefinition;
+  /**
+   * Delay between skill attempts in milliseconds.
+   * @defaultValue 150
+   */
   readonly skillDelay?: number;
+  /**
+   * Skills to cycle while fighting.
+   * @defaultValue [1, 2, 3, 4]
+   */
   readonly skillSet?: readonly Skill[];
 }
 

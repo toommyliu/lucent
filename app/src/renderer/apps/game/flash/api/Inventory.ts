@@ -34,7 +34,10 @@ const decodeEquipEnhancementSelector = Schema.decodeUnknownOption(
 );
 
 export interface EquipOptions {
-  /** Whether to wear wearable equipment after equipping it. Defaults to true. */
+  /**
+   * Whether to wear wearable equipment after equipping it.
+   * @defaultValue true
+   */
   readonly wear?: boolean;
 }
 

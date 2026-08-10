@@ -11,7 +11,7 @@ sidebar:
 
 <a id="member-api-settings-isanticounterenabled"></a>
 
-### `api.settings.isAntiCounterEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L663" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:663" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.isAntiCounterEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L727" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:727" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.isAntiCounterEnabled();" hidden></div>
 
@@ -25,7 +25,7 @@ api.settings.isAntiCounterEnabled(): Effect.Effect<boolean>
 
 <a id="member-api-settings-setanimationsenabled"></a>
 
-### `api.settings.setAnimationsEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L664" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:664" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setAnimationsEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L728" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:728" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setAnimationsEnabled(enabled);" hidden></div>
 
@@ -33,9 +33,9 @@ api.settings.isAntiCounterEnabled(): Effect.Effect<boolean>
 api.settings.setAnimationsEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -43,7 +43,7 @@ api.settings.setAnimationsEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setanticounterenabled"></a>
 
-### `api.settings.setAntiCounterEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L665" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:665" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setAntiCounterEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L729" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:729" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setAntiCounterEnabled(enabled);" hidden></div>
 
@@ -51,9 +51,9 @@ api.settings.setAnimationsEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setAntiCounterEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -61,7 +61,7 @@ api.settings.setAntiCounterEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setcollisionsenabled"></a>
 
-### `api.settings.setCollisionsEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L666" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:666" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setCollisionsEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L730" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:730" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setCollisionsEnabled(enabled);" hidden></div>
 
@@ -69,9 +69,9 @@ api.settings.setAntiCounterEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setCollisionsEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -79,7 +79,7 @@ api.settings.setCollisionsEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setcustomguild"></a>
 
-### `api.settings.setCustomGuild()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L667" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:667" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setCustomGuild()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L731" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:731" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setCustomGuild(name);" hidden></div>
 
@@ -87,9 +87,9 @@ api.settings.setCollisionsEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setCustomGuild(name: string): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -97,7 +97,7 @@ api.settings.setCustomGuild(name: string): Effect.Effect<void>
 
 <a id="member-api-settings-setcustomname"></a>
 
-### `api.settings.setCustomName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L668" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:668" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setCustomName()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L732" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:732" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setCustomName(name);" hidden></div>
 
@@ -105,9 +105,9 @@ api.settings.setCustomGuild(name: string): Effect.Effect<void>
 api.settings.setCustomName(name: string): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `name` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -115,7 +115,7 @@ api.settings.setCustomName(name: string): Effect.Effect<void>
 
 <a id="member-api-settings-setdeathadsvisible"></a>
 
-### `api.settings.setDeathAdsVisible()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L669" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:669" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setDeathAdsVisible()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L733" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:733" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setDeathAdsVisible(visible);" hidden></div>
 
@@ -123,9 +123,9 @@ api.settings.setCustomName(name: string): Effect.Effect<void>
 api.settings.setDeathAdsVisible(visible: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `visible` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `visible` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -133,7 +133,7 @@ api.settings.setDeathAdsVisible(visible: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setenemymagnetenabled"></a>
 
-### `api.settings.setEnemyMagnetEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L670" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:670" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setEnemyMagnetEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L734" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:734" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setEnemyMagnetEnabled(enabled);" hidden></div>
 
@@ -141,9 +141,9 @@ api.settings.setDeathAdsVisible(visible: boolean): Effect.Effect<void>
 api.settings.setEnemyMagnetEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -151,7 +151,7 @@ api.settings.setEnemyMagnetEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setframerate"></a>
 
-### `api.settings.setFrameRate()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L671" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:671" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setFrameRate()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L735" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:735" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setFrameRate(fps);" hidden></div>
 
@@ -159,9 +159,9 @@ api.settings.setEnemyMagnetEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setFrameRate(fps: number): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `fps` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `fps` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -169,7 +169,7 @@ api.settings.setFrameRate(fps: number): Effect.Effect<void>
 
 <a id="member-api-settings-setinfiniterangeenabled"></a>
 
-### `api.settings.setInfiniteRangeEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L672" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:672" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setInfiniteRangeEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L736" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:736" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setInfiniteRangeEnabled(enabled);" hidden></div>
 
@@ -177,9 +177,9 @@ api.settings.setFrameRate(fps: number): Effect.Effect<void>
 api.settings.setInfiniteRangeEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -187,7 +187,7 @@ api.settings.setInfiniteRangeEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setlagkillerenabled"></a>
 
-### `api.settings.setLagKillerEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L673" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:673" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setLagKillerEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L737" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:737" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setLagKillerEnabled(enabled);" hidden></div>
 
@@ -195,9 +195,9 @@ api.settings.setInfiniteRangeEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setLagKillerEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -205,7 +205,7 @@ api.settings.setLagKillerEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setotherplayersvisible"></a>
 
-### `api.settings.setOtherPlayersVisible()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L674" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:674" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setOtherPlayersVisible()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L738" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:738" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setOtherPlayersVisible(visible);" hidden></div>
 
@@ -213,9 +213,9 @@ api.settings.setLagKillerEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setOtherPlayersVisible(visible: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `visible` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `visible` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -223,7 +223,7 @@ api.settings.setOtherPlayersVisible(visible: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setprovokecellenabled"></a>
 
-### `api.settings.setProvokeCellEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L675" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:675" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setProvokeCellEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L739" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:739" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setProvokeCellEnabled(enabled);" hidden></div>
 
@@ -231,9 +231,9 @@ api.settings.setOtherPlayersVisible(visible: boolean): Effect.Effect<void>
 api.settings.setProvokeCellEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -241,7 +241,7 @@ api.settings.setProvokeCellEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setskipcutscenesenabled"></a>
 
-### `api.settings.setSkipCutscenesEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L676" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:676" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setSkipCutscenesEnabled()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L740" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:740" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setSkipCutscenesEnabled(enabled);" hidden></div>
 
@@ -249,9 +249,9 @@ api.settings.setProvokeCellEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setSkipCutscenesEnabled(enabled: boolean): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | `boolean` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 
@@ -259,7 +259,7 @@ api.settings.setSkipCutscenesEnabled(enabled: boolean): Effect.Effect<void>
 
 <a id="member-api-settings-setwalkspeed"></a>
 
-### `api.settings.setWalkSpeed()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L677" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:677" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.settings.setWalkSpeed()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L741" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:741" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.settings.setWalkSpeed(speed);" hidden></div>
 
@@ -267,9 +267,9 @@ api.settings.setSkipCutscenesEnabled(enabled: boolean): Effect.Effect<void>
 api.settings.setWalkSpeed(speed: number): Effect.Effect<void>
 ```
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `speed` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `speed` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
 **Yields:** `void`
 

@@ -146,15 +146,19 @@ export interface ScriptArmyApi {
     target: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
+  /** @param quantity The minimum quantity to collect. */
   readonly killForItem: (
     target: MonsterQuery,
     item: ItemQuery,
+    /** @defaultValue 1 */
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
+  /** @param quantity The minimum quantity to collect. */
   readonly killForTempItem: (
     target: MonsterQuery,
     item: ItemQuery,
+    /** @defaultValue 1 */
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
@@ -173,7 +177,9 @@ export interface ScriptArmyApi {
   readonly loopTaunt: (
     plan: ArmyLoopTauntPlan,
   ) => Effect.Effect<ArmyLoopTauntHandle, ArmyLoopTauntError>;
+  /** @param label The coordination label. */
   readonly sync: (
+    /** @defaultValue "sync" */
     label?: string,
     options?: ArmyRunStepOptions,
   ) => Effect.Effect<void, ArmyError>;
@@ -196,8 +202,10 @@ export interface ScriptAuthApi {
 }
 
 export interface ScriptBankApi {
+  /** @param requested The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
+    /** @defaultValue 1 */
     requested?: number,
   ) => Effect.Effect<boolean>;
   readonly deposit: (query: ItemQuery) => Effect.Effect<boolean>;
@@ -210,8 +218,15 @@ export interface ScriptBankApi {
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;
   readonly isOpen: (view?: BankView) => Effect.Effect<boolean>;
-  readonly load: (force?: boolean) => Effect.Effect<boolean>;
-  readonly open: (options?: BankOpenOptions) => Effect.Effect<boolean>;
+  /** @param force Whether to reload an already loaded bank. */
+  readonly load: (
+    /** @defaultValue false */
+    force?: boolean,
+  ) => Effect.Effect<boolean>;
+  readonly open: (
+    /** @defaultValue {} */
+    options?: BankOpenOptions,
+  ) => Effect.Effect<boolean>;
   readonly swap: (
     inventoryQuery: ItemQuery,
     bankQuery: ItemQuery,
@@ -298,15 +313,19 @@ export interface ScriptCombatApi {
     query: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
+  /** @param quantity The minimum quantity to collect. */
   readonly killForItem: (
     query: MonsterQuery,
     item: ItemQuery,
+    /** @defaultValue 1 */
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
+  /** @param quantity The minimum quantity to collect. */
   readonly killForTempItem: (
     query: MonsterQuery,
     item: ItemQuery,
+    /** @defaultValue 1 */
     quantity?: number,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
@@ -457,8 +476,10 @@ export interface ScriptEquipEnhancementSelector {
 }
 
 export interface ScriptInventoryApi {
+  /** @param requested The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
+    /** @defaultValue 1 */
     requested?: number,
   ) => Effect.Effect<boolean>;
   readonly equip: (
@@ -490,11 +511,16 @@ export interface ScriptMapApi {
   readonly loadSwf: (swf: string) => Effect.Effect<void>;
   readonly reload: () => Effect.Effect<void>;
   /**
-   * @param cell Defaults to the current cell.
-   * @param pad Defaults to the current pad.
+   * @param cell Spawn cell.
+   * @param pad Spawn pad.
    * @returns
    */
-  readonly setSpawnPoint: (cell?: string, pad?: string) => Effect.Effect<void>;
+  readonly setSpawnPoint: (
+    /** @defaultValue current cell */
+    cell?: string,
+    /** @defaultValue current pad */
+    pad?: string,
+  ) => Effect.Effect<void>;
 }
 
 export interface ScriptMonstersApi {
@@ -531,12 +557,16 @@ export type ScriptClientPacketSendType = "str" | "json" | "xml";
 export interface ScriptPacketApi {
   readonly on: ScriptPacketOn;
   readonly once: ScriptWaitForPacket;
+  /** @param type The client packet encoding. */
   readonly sendClient: (
     packet: string,
+    /** @defaultValue "str" */
     type?: ScriptClientPacketSendType,
   ) => Effect.Effect<boolean>;
+  /** @param type The server packet encoding. */
   readonly sendServer: (
     packet: string,
+    /** @defaultValue "String" */
     type?: "String" | "Json",
   ) => Effect.Effect<boolean>;
   readonly stream: <
@@ -552,13 +582,20 @@ export interface ScriptPlayerFactionsApi {
 }
 
 export interface ScriptPlayerOutfitsApi {
+  /** @param keepColors Whether to preserve the current colors. */
   readonly equip: (
     name: string,
+    /** @defaultValue false */
     keepColors?: boolean,
   ) => Effect.Effect<boolean>;
   readonly get: (name: string) => Effect.Effect<LiveOutfit | null>;
   readonly getAll: () => Effect.Effect<LiveOutfit[]>;
-  readonly wear: (name: string, keepColors?: boolean) => Effect.Effect<boolean>;
+  /** @param keepColors Whether to preserve the current colors. */
+  readonly wear: (
+    name: string,
+    /** @defaultValue false */
+    keepColors?: boolean,
+  ) => Effect.Effect<boolean>;
 }
 
 export interface ScriptPlayerPosition {
@@ -599,7 +636,11 @@ export interface ScriptPlayerApi {
   ) => Effect.Effect<boolean>;
   readonly jumpToCell: (cell: string, pad?: string) => Effect.Effect<boolean>;
   readonly outfits: ScriptPlayerOutfitsApi;
-  readonly rest: (full?: boolean) => Effect.Effect<void>;
+  /** @param full Whether to perform a full rest. */
+  readonly rest: (
+    /** @defaultValue false */
+    full?: boolean,
+  ) => Effect.Effect<void>;
   readonly useBoost: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly walkTo: (
     x: number,
@@ -616,19 +657,31 @@ export interface ScriptPlayersApi {
 
 export interface ScriptQuestsApi {
   readonly abandon: (questId: number) => Effect.Effect<boolean>;
+  /** @param silent Whether to load the quest without opening its UI. */
   readonly accept: (
     questId: number,
+    /** @defaultValue false */
     silent?: boolean,
   ) => Effect.Effect<boolean>;
+  /** @param silent Whether to load the quests without opening their UI. */
   readonly acceptBatch: (
     questIds: readonly number[],
+    /** @defaultValue false */
     silent?: boolean,
   ) => Effect.Effect<boolean[]>;
   readonly canComplete: (questId: number) => Effect.Effect<boolean>;
+  /**
+   * @param requestedTurnIns Number of turn-ins.
+   * @param itemId Reward item ID. -1 does not select a specific reward.
+   * @param special Whether to use special completion handling.
+   */
   readonly complete: (
     questId: number,
+    /** @defaultValue maximum currently possible */
     requestedTurnIns?: number,
+    /** @defaultValue -1 */
     itemId?: number,
+    /** @defaultValue false */
     special?: boolean,
   ) => Effect.Effect<boolean>;
   readonly get: (questId: number) => Effect.Effect<LiveQuest | null>;
@@ -637,9 +690,16 @@ export interface ScriptQuestsApi {
   readonly getMaxTurnIns: (questId: number) => Effect.Effect<number>;
   readonly isAvailable: (questId: number) => Effect.Effect<boolean>;
   readonly isInProgress: (questId: number) => Effect.Effect<boolean>;
-  readonly load: (questId: number, silent?: boolean) => Effect.Effect<boolean>;
+  /** @param silent Whether to load the quest without opening its UI. */
+  readonly load: (
+    questId: number,
+    /** @defaultValue false */
+    silent?: boolean,
+  ) => Effect.Effect<boolean>;
+  /** @param silent Whether to load the quests without opening their UI. */
   readonly loadBatch: (
     questIds: readonly number[],
+    /** @defaultValue false */
     silent?: boolean,
   ) => Effect.Effect<boolean[]>;
 }
@@ -650,7 +710,11 @@ export interface ScriptEnhanceItemOptions {
 }
 
 export interface ScriptRecipesApi {
-  readonly doWheelOfDoom: (toBank?: boolean) => Effect.Effect<boolean>;
+  /** @param toBank Whether to send wheel rewards to the bank. */
+  readonly doWheelOfDoom: (
+    /** @defaultValue false */
+    toBank?: boolean,
+  ) => Effect.Effect<boolean>;
   readonly enhanceItem: (
     item: ItemQuery,
     options: ScriptEnhanceItemOptions,
@@ -678,6 +742,10 @@ export interface ScriptSettingsApi {
 }
 
 export interface ScriptShopQuantityOptions {
+  /**
+   * The quantity to buy, validate, or sell.
+   * @defaultValue 1
+   */
   readonly quantity?: number;
 }
 
@@ -707,8 +775,10 @@ export interface ScriptShopsApi {
 }
 
 export interface ScriptTempInventoryApi {
+  /** @param requested The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
+    /** @defaultValue 1 */
     requested?: number,
   ) => Effect.Effect<boolean>;
   readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
@@ -716,8 +786,10 @@ export interface ScriptTempInventoryApi {
 }
 
 export interface ScriptWaitApi {
+  /** @param options Polling options or a timeout value. */
   readonly forGameAction: (
     action: GameAction,
+    /** @defaultValue { interval: "100 millis", timeout: "2 seconds" } */
     options?: WaitOptions | Duration.Input,
   ) => Effect.Effect<boolean>;
   readonly isGameActionAvailable: (
@@ -725,12 +797,16 @@ export interface ScriptWaitApi {
   ) => Effect.Effect<boolean>;
   readonly forEvent: ScriptWaitForEvent;
   readonly forPacket: ScriptWaitForPacket;
+  /** @param options Polling options. */
   readonly until: (
     condition: Effect.Effect<boolean>,
+    /** @defaultValue { interval: "100 millis", timeout: undefined } */
     options?: WaitOptions,
   ) => Effect.Effect<boolean>;
+  /** @param options Polling options. */
   readonly untilSome: <A>(
     condition: Effect.Effect<Option.Option<A>>,
+    /** @defaultValue { interval: "100 millis", timeout: undefined } */
     options?: WaitOptions,
   ) => Effect.Effect<A | null>;
 }
@@ -823,16 +899,28 @@ export interface ScriptOptionsApi {
 
 export interface ScriptRuntimeApi {
   readonly signal: AbortSignal;
-  readonly beep: (times?: number) => Effect.Effect<void, ScriptExecutionError>;
+  /** @param times Number of repetitions. */
+  readonly beep: (
+    /** @defaultValue 1 */
+    times?: number,
+  ) => Effect.Effect<void, ScriptExecutionError>;
   readonly inputs: ScriptInputsApi;
   readonly options: ScriptOptionsApi;
-  readonly exit: (options?: {
-    readonly closeWindow?: boolean;
-    readonly logout?: boolean;
-  }) => Effect.Effect<never, ScriptStopSignal>;
+  /** @param options Exit actions. */
+  readonly exit: (
+    /** @defaultValue { closeWindow: false, logout: false } */
+    options?: {
+      readonly closeWindow?: boolean;
+      readonly logout?: boolean;
+    },
+  ) => Effect.Effect<never, ScriptStopSignal>;
   readonly log: (message: unknown) => Effect.Effect<void>;
   readonly sleep: (ms: number) => Effect.Effect<void, ScriptExecutionError>;
-  readonly stop: (reason?: string) => Effect.Effect<never, ScriptStopSignal>;
+  /** @param reason Stop message. */
+  readonly stop: (
+    /** @defaultValue "Script stopped." */
+    reason?: string,
+  ) => Effect.Effect<never, ScriptStopSignal>;
 }
 
 export interface ScriptEffectStd {

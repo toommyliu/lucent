@@ -485,6 +485,11 @@ const returnTypeText = (
   node: ts.TypeNode | undefined,
 ): string => unwrapEffectReturn(checker, node) ?? formatType(checker, node);
 
+const getJsDocText = (node: ts.Node): string => {
+  const docs = (node as ts.Node & { jsDoc?: ts.JSDoc[] }).jsDoc;
+  return docs?.at(-1)?.getText(node.getSourceFile()).trim() ?? "";
+};
+
 const parameterText = (
   checker: ts.TypeChecker,
   parameter: ts.ParameterDeclaration,
@@ -498,18 +503,16 @@ const parameterText = (
       parameter.initializer === undefined)
       ? ""
       : "?";
-  return `${rest}${name}${optional}: ${formatType(checker, parameter.type)}`;
+  const documentation = getJsDocText(parameter).replace(/\s+/g, " ");
+  return `${documentation === "" ? "" : `${documentation} `}${rest}${name}${optional}: ${formatType(checker, parameter.type)}`;
 };
 
 const getJsDocComment = (node: ts.Node): string => {
-  const docs = (node as ts.Node & { jsDoc?: ts.JSDoc[] }).jsDoc;
-  const doc = docs?.[docs.length - 1];
-  if (doc === undefined) {
+  const documentation = getJsDocText(node);
+  if (documentation === "") {
     return "";
   }
-  return `${doc
-    .getText(node.getSourceFile())
-    .trim()
+  return `${documentation
     .split("\n")
     .map((line) => `  ${line.trimStart()}`)
     .join("\n")}\n`;

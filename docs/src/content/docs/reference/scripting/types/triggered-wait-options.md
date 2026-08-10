@@ -14,7 +14,7 @@ command was sent and a matching response should be awaited; `false` closes
 the scoped subscription immediately and returns `null`.
 
 ```ts
-interface TriggeredWaitOptions<E, R>
+interface TriggeredWaitOptions<E = never, R = never>
 ```
 
 <p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/protocol/Wait.ts#L43" aria-label="Open source: app/src/renderer/apps/game/flash/protocol/Wait.ts:43" title="app/src/renderer/apps/game/flash/protocol/Wait.ts:43" target="_blank" rel="noreferrer"><code class="source-reference__path">Wait.ts:43</code></a></p>
@@ -23,11 +23,15 @@ interface TriggeredWaitOptions<E, R>
 
 <a id="property-timeout"></a>
 
-### `timeout` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L63" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/contract/Packet.ts:63" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `timeout` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Packet.ts#L71" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/contract/Packet.ts:71" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+
+Maximum wait duration.
 
 ```ts
 readonly timeout?: Input
 ```
+
+**Default:** `undefined`
 
 <a id="property-trigger"></a>
 
