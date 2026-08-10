@@ -1,6 +1,8 @@
 ---
 title: "ArmySession"
-description: "Alias of ArmySessionPayload."
+description: ""
+seo:
+  description: "Alias of ArmySessionPayload."
 sidebar:
   label: "ArmySession"
 ---

@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntStrategy"
-description: "Selects the encounter event that starts each taunt attempt."
+description: ""
+seo:
+  description: "Selects the encounter event that starts each taunt attempt."
 sidebar:
   label: "ArmyLoopTauntStrategy"
 ---

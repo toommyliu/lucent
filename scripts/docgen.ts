@@ -2678,16 +2678,29 @@ const renderTypeMethod = (lines: string[], method: TypeMethodDoc) => {
   lines.push("```ts", method.signature, "```", "");
 };
 
+type FrontmatterOptions = {
+  readonly description: string;
+  readonly extraFields?: string;
+  readonly label?: string;
+  readonly seoDescription?: string;
+};
+
+/** Builds Blume frontmatter while keeping SEO-only prose out of the page header. */
 const frontmatter = (
   title: string,
-  description: string,
-  label?: string,
-  extraFields = "",
+  options: FrontmatterOptions,
 ): string => {
   const yamlString = (value: string): string => JSON.stringify(value);
+  const description = `description: ${yamlString(options.description)}\n`;
+  const seoDescription =
+    options.seoDescription === undefined || options.seoDescription === ""
+      ? ""
+      : `seo:\n  description: ${yamlString(options.seoDescription)}\n`;
   const sidebar =
-    label === undefined ? "" : `sidebar:\n  label: ${yamlString(label)}\n`;
-  return `---\ntitle: ${yamlString(title)}\ndescription: ${yamlString(description)}\n${sidebar}${extraFields}---`;
+    options.label === undefined
+      ? ""
+      : `sidebar:\n  label: ${yamlString(options.label)}\n`;
+  return `---\ntitle: ${yamlString(title)}\n${description}${seoDescription}${sidebar}${options.extraFields ?? ""}---`;
 };
 
 const finalizeMarkdown = (lines: readonly string[]): string =>
@@ -2698,11 +2711,10 @@ const finalizeMarkdown = (lines: readonly string[]): string =>
 
 const renderIndex = (): string => {
   const lines = [
-    frontmatter(
-      "Scripting modules",
-      "Modules available to Lucent scripts.",
-      "Scripting modules",
-    ),
+    frontmatter("Scripting modules", {
+      description: "Modules available to Lucent scripts.",
+      label: "Scripting modules",
+    }),
     "",
     GENERATED_HEADER,
     "",
@@ -2727,11 +2739,10 @@ const renderIndex = (): string => {
 
 const renderEffectModule = (): string => {
   const lines = [
-    frontmatter(
-      "effect module",
-      "Effect utilities available to scripts.",
-      "effect module",
-    ),
+    frontmatter("effect module", {
+      description: "Effect utilities available to scripts.",
+      label: "effect module",
+    }),
     "",
     GENERATED_HEADER,
     "",
@@ -2753,11 +2764,11 @@ const renderScriptOverview = (
   typeLinks: ReadonlyMap<string, TypeLink>,
 ): string => {
   const lines = [
-    frontmatter(
-      "lucent/script module",
-      "Lifecycle, inputs, options, logging, and utilities for the current script.",
-      "Script runtime",
-    ),
+    frontmatter("lucent/script module", {
+      description:
+        "Lifecycle, inputs, options, logging, and utilities for the current script.",
+      label: "Script runtime",
+    }),
     "",
     GENERATED_HEADER,
     "",
@@ -2895,7 +2906,11 @@ const renderGroup = (
       ? "Listen for one event, subscribe to repeated events, or compose an event stream."
       : "");
   const lines = [
-    frontmatter(group.title, summary, group.label),
+    frontmatter(group.title, {
+      description: "",
+      label: group.label,
+      seoDescription: summary,
+    }),
     "",
     GENERATED_HEADER,
     "",
@@ -2928,11 +2943,11 @@ const renderGroup = (
 
 const renderTypesIndex = (types: readonly ReferencedTypeDoc[]): string => {
   const lines = [
-    frontmatter(
-      "Types",
-      "Data shapes and public class surfaces referenced by the scripting API.",
-      "Type index",
-    ),
+    frontmatter("Types", {
+      description:
+        "Data shapes and public class surfaces referenced by the scripting API.",
+      label: "Type index",
+    }),
     "",
     GENERATED_HEADER,
     "",
@@ -2957,7 +2972,11 @@ const renderTypePage = (
   typeLinks: ReadonlyMap<string, TypeLink>,
 ): string => {
   const lines = [
-    frontmatter(type.name, type.summary || "", type.name),
+    frontmatter(type.name, {
+      description: "",
+      label: type.name,
+      seoDescription: type.summary,
+    }),
     "",
     GENERATED_HEADER,
     "",

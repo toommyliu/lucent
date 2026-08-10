@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntSkipWhen"
-description: "Returns true when the selected player should yield to the next participant."
+description: ""
+seo:
+  description: "Returns true when the selected player should yield to the next participant."
 sidebar:
   label: "ArmyLoopTauntSkipWhen"
 ---

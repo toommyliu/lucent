@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntSkipContext"
-description: "Projected state available when deciding whether to yield a taunt attempt."
+description: ""
+seo:
+  description: "Projected state available when deciding whether to yield a taunt attempt."
 sidebar:
   label: "ArmyLoopTauntSkipContext"
 ---

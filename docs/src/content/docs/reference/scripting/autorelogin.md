@@ -1,6 +1,8 @@
 ---
 title: "lucent/autorelogin module"
-description: "Controls automatic login recovery and explicit login attempts."
+description: ""
+seo:
+  description: "Controls automatic login recovery and explicit login attempts."
 sidebar:
   label: "AutoRelogin"
 ---

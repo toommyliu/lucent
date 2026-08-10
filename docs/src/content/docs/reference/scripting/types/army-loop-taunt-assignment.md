@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntAssignment"
-description: "Assigns one target to the Army players allowed to keep it taunted."
+description: ""
+seo:
+  description: "Assigns one target to the Army players allowed to keep it taunted."
 sidebar:
   label: "ArmyLoopTauntAssignment"
 ---

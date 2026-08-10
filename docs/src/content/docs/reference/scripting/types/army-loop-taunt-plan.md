@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntPlan"
-description: "Ordered target priorities shared by every participant in the Army.\n\nThe first group with a living target is selected. When all of its targets\ndie, the next eligible group takes over; a respawn preempts lower groups and\nrestarts that target's rotation from its first assigned player."
+description: ""
+seo:
+  description: "Ordered target priorities shared by every participant in the Army.\n\nThe first group with a living target is selected. When all of its targets\ndie, the next eligible group takes over; a respawn preempts lower groups and\nrestarts that target's rotation from its first assigned player."
 sidebar:
   label: "ArmyLoopTauntPlan"
 ---

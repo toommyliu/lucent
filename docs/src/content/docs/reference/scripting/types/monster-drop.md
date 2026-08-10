@@ -1,6 +1,8 @@
 ---
 title: "MonsterDrop"
-description: "An item and its acquisition metadata from AQW's monster-drop response."
+description: ""
+seo:
+  description: "An item and its acquisition metadata from AQW's monster-drop response."
 sidebar:
   label: "MonsterDrop"
 ---

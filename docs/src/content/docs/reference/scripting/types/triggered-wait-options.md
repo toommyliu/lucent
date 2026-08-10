@@ -1,6 +1,8 @@
 ---
 title: "TriggeredWaitOptions"
-description: "Runs `trigger` only after the subscription is live. A `true` result means the\ncommand was sent and a matching response should be awaited; `false` closes\nthe scoped subscription immediately and returns `null`."
+description: ""
+seo:
+  description: "Runs `trigger` only after the subscription is live. A `true` result means the\ncommand was sent and a matching response should be awaited; `false` closes\nthe scoped subscription immediately and returns `null`."
 sidebar:
   label: "TriggeredWaitOptions"
 ---

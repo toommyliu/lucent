@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntParticipantSnapshot"
-description: "Identifies an assigned Army player and its point-in-time projected state."
+description: ""
+seo:
+  description: "Identifies an assigned Army player and its point-in-time projected state."
 sidebar:
   label: "ArmyLoopTauntParticipantSnapshot"
 ---

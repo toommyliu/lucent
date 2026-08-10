@@ -1,6 +1,8 @@
 ---
 title: "api.events"
-description: "Listen for one event, subscribe to repeated events, or compose an event stream."
+description: ""
+seo:
+  description: "Listen for one event, subscribe to repeated events, or compose an event stream."
 sidebar:
   label: "Events"
 ---

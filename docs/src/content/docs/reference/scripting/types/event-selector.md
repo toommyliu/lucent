@@ -1,6 +1,8 @@
 ---
 title: "EventSelector"
-description: "An event-shaped partial selector. `type` chooses the event variant, and every\nother field is an exact-match constraint on a scalar field of that variant.\n\nOmitting a field leaves it unconstrained. With exact optional property types,\nexplicitly passing `undefined` is invalid; untyped callers that do so safely\nfail to match instead of selecting events where the field happens to be\nabsent."
+description: ""
+seo:
+  description: "An event-shaped partial selector. `type` chooses the event variant, and every\nother field is an exact-match constraint on a scalar field of that variant.\n\nOmitting a field leaves it unconstrained. With exact optional property types,\nexplicitly passing `undefined` is invalid; untyped callers that do so safely\nfail to match instead of selecting events where the field happens to be\nabsent."
 sidebar:
   label: "EventSelector"
 ---

@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntPriorityGroup"
-description: "A set of target assignments evaluated at the same priority.\n\nLiving assignments in the selected group run concurrently."
+description: ""
+seo:
+  description: "A set of target assignments evaluated at the same priority.\n\nLiving assignments in the selected group run concurrently."
 sidebar:
   label: "ArmyLoopTauntPriorityGroup"
 ---

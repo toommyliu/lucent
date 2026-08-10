@@ -1,6 +1,8 @@
 ---
 title: "ConsumableCastResult"
-description: "Retains local dispatch identity because rejected acknowledgements omit their target."
+description: ""
+seo:
+  description: "Retains local dispatch identity because rejected acknowledgements omit their target."
 sidebar:
   label: "ConsumableCastResult"
 ---

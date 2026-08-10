@@ -1,6 +1,8 @@
 ---
 title: "Packet"
-description: "Alias of FlashPacket."
+description: ""
+seo:
+  description: "Alias of FlashPacket."
 sidebar:
   label: "Packet"
 ---

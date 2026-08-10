@@ -1,6 +1,8 @@
 ---
 title: "EnvironmentDropPolicy"
-description: "Handling options for drops that are not registered by name."
+description: ""
+seo:
+  description: "Handling options for drops that are not registered by name."
 sidebar:
   label: "EnvironmentDropPolicy"
 ---

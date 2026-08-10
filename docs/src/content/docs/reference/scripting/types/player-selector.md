@@ -1,6 +1,8 @@
 ---
 title: "PlayerSelector"
-description: "Alias of PlayerSelectorByUsername."
+description: ""
+seo:
+  description: "Alias of PlayerSelectorByUsername."
 sidebar:
   label: "PlayerSelector"
 ---

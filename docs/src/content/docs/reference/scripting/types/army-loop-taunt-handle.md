@@ -1,6 +1,8 @@
 ---
 title: "ArmyLoopTauntHandle"
-description: "Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically."
+description: ""
+seo:
+  description: "Stops a Loop Taunt run early; map and script lifecycle changes stop it automatically."
 sidebar:
   label: "ArmyLoopTauntHandle"
 ---

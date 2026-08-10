@@ -1,6 +1,8 @@
 ---
 title: "lucent/autozone module"
-description: "Controls automatic movement for supported encounter zones."
+description: ""
+seo:
+  description: "Controls automatic movement for supported encounter zones."
 sidebar:
   label: "AutoZone"
 ---
