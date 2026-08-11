@@ -69,6 +69,7 @@ import { createRandomId } from "../../../shared/randomId";
 import { downloadText } from "../../lib/download";
 import { splitTextMatches } from "../../lib/text";
 import { formatPacketLogEntries, formatPacketTimestamp } from "./logFormatting";
+import { appendPacketLogBatch } from "./packetLogBuffer";
 import {
   QUEUE_PACKET_EMPTY_ERROR,
   isValidQueuePacketDraft,
@@ -135,9 +136,6 @@ const requireBridge = <T,>(bridge: T | undefined): T => {
 const desktopPackets = requireBridge(window.desktop.packets);
 
 const createEntryId = (): string => createRandomId();
-
-const includesSearch = (value: string, query: string): boolean =>
-  value.toLocaleLowerCase().includes(query.toLocaleLowerCase());
 
 const estimateWrappedLogRowHeight = (
   entry: PacketLogEntry,
@@ -245,6 +243,9 @@ export function App(): JSX.Element {
   const [allPacketsCopied, setAllPacketsCopied] = createSignal(false);
   let logViewport: HTMLDivElement | undefined;
   let allPacketsCopiedTimer: number | undefined;
+  let capturedPacketFrame: number | undefined;
+  let pendingCapturedPackets: PacketLogEntry[] = [];
+  let scrollAfterCapturedPacketFlush = false;
 
   createHotkey(
     "/",
@@ -263,17 +264,32 @@ export function App(): JSX.Element {
     },
   );
 
-  const sourceFilteredPackets = createMemo(() => {
+  const packetViews = createMemo(() => {
     const activeFilters = filters();
-    return packets().filter((entry) => activeFilters[entry.type]);
-  });
+    const query = search().trim().toLocaleLowerCase();
+    const source: PacketLogEntry[] = [];
+    const filtered: PacketLogEntry[] = [];
 
-  const filteredPackets = createMemo(() => {
-    const query = search().trim();
-    return sourceFilteredPackets().filter(
-      (entry) => query === "" || includesSearch(entry.text, query),
-    );
+    for (const entry of packets()) {
+      if (!activeFilters[entry.type]) {
+        continue;
+      }
+
+      source.push(entry);
+      if (query !== "" && entry.text.toLocaleLowerCase().includes(query)) {
+        filtered.push(entry);
+      }
+    }
+
+    return {
+      filtered: query === "" ? source : filtered,
+      source,
+    };
   });
+  const sourceFilteredPackets = (): readonly PacketLogEntry[] =>
+    packetViews().source;
+  const filteredPackets = (): readonly PacketLogEntry[] =>
+    packetViews().filtered;
 
   const logEmptyState = createMemo<PacketLogEmptyState>(() => {
     if (packets().length === 0) {
@@ -403,29 +419,41 @@ export function App(): JSX.Element {
     setFilters((current) => ({ ...current, [type]: !current[type] }));
   };
 
+  const flushCapturedPackets = (): void => {
+    capturedPacketFrame = undefined;
+    const batch = pendingCapturedPackets;
+    const shouldScroll = scrollAfterCapturedPacketFlush;
+    pendingCapturedPackets = [];
+    scrollAfterCapturedPacketFlush = false;
+
+    if (batch.length === 0) {
+      return;
+    }
+
+    setPackets((current) =>
+      appendPacketLogBatch(current, batch, PACKET_LOG_BUFFER_LIMIT),
+    );
+
+    if (shouldScroll) {
+      const lastIndex = filteredPackets().length - 1;
+      if (lastIndex >= 0) {
+        logVirtualizer.scrollToIndex(lastIndex, { align: "end" });
+      }
+    }
+  };
+
   const addCapturedPacket = (payload: PacketCapturedPayload): void => {
-    const entry: PacketLogEntry = {
+    pendingCapturedPackets.push({
       id: createEntryId(),
       raw: payload.packet,
       text: normalizePacketText(payload.packet, payload.type),
       timestamp: payload.capturedAt,
       type: payload.type,
-    };
-
-    setPackets((current) => {
-      const next = [...current, entry];
-      return next.length > PACKET_LOG_BUFFER_LIMIT
-        ? next.slice(next.length - PACKET_LOG_BUFFER_LIMIT)
-        : next;
     });
+    scrollAfterCapturedPacketFlush ||= autoScroll();
 
-    if (autoScroll()) {
-      requestAnimationFrame(() => {
-        const lastIndex = filteredPackets().length - 1;
-        if (lastIndex >= 0) {
-          logVirtualizer.scrollToIndex(lastIndex, { align: "end" });
-        }
-      });
+    if (capturedPacketFrame === undefined) {
+      capturedPacketFrame = window.requestAnimationFrame(flushCapturedPackets);
     }
   };
 
@@ -448,6 +476,8 @@ export function App(): JSX.Element {
   };
 
   const clearPackets = (): void => {
+    pendingCapturedPackets = [];
+    scrollAfterCapturedPacketFlush = false;
     setPackets([]);
   };
 
@@ -872,6 +902,10 @@ export function App(): JSX.Element {
       if (allPacketsCopiedTimer !== undefined) {
         window.clearTimeout(allPacketsCopiedTimer);
       }
+      if (capturedPacketFrame !== undefined) {
+        window.cancelAnimationFrame(capturedPacketFrame);
+      }
+      pendingCapturedPackets = [];
 
       unsubscribeCaptured();
       unsubscribeStatus();
