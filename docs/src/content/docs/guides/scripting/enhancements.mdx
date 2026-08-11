@@ -1,0 +1,158 @@
+---
+title: Enhancements
+description: Apply enhancements and equip matching gear from scripts.
+---
+
+[`api.recipes.enhanceItem()`][enhance-item] applies or upgrades an enhancement.
+[`api.inventory.equipByEnhancement()`][equip-by-enhancement] equips an inventory
+item that already has a matching enhancement.
+
+[enhance-item]: /reference/scripting/api/recipes/#member-api-recipes-enhanceitem
+[equip-by-enhancement]: /reference/scripting/api/inventory/#member-api-inventory-equipbyenhancement
+
+## Apply an enhancement
+
+{/* prettier-ignore */}
+```js
+yield* api.recipes.enhanceItem("ArchPaladin", {
+  enhancement: "lucky",
+});
+```
+
+Lucent opens the corresponding shop and applies the highest matching level
+your character can use and buy. Add `special` when the enhancement has a
+trait:
+
+{/* prettier-ignore */}
+```js
+yield* api.recipes.enhanceItem("My Weapon", {
+  enhancement: "lucky",
+  special: "spiral carve",
+});
+```
+
+## Equip by enhancement
+
+{/* prettier-ignore */}
+```js
+yield* api.inventory.equipByEnhancement({
+  enhancement: "vim",
+});
+```
+
+Lucent searches every equipment slot and equips the highest-level match. Add
+`slot` when the equipment type matters:
+
+{/* prettier-ignore */}
+```js
+yield* api.inventory.equipByEnhancement({
+  enhancement: "forge",
+  slot: "helm",
+});
+```
+
+A plain `forge` selector requires either `slot` or `special`. `slot` accepts
+`"weapon"`, `"class"`, `"helm"`, or `"cape"`; `"class"` means a Class item,
+not cosmetic armor.
+
+## Supported enhancements
+
+**Basic — all equipment slots**
+
+<EnhancementLabels
+  labels={[
+    "Fighter",
+    "Thief",
+    "Hybrid",
+    "Wizard",
+    "Healer",
+    "Spellbreaker",
+    "Lucky",
+  ]}
+/>
+
+**Awe weapon patterns**
+
+<EnhancementLabels
+  labels={["Fighter", "Thief", "Hybrid", "Wizard", "Healer", "Lucky"]}
+/>
+
+**Awe weapon traits**
+
+<EnhancementLabels
+  labels={[
+    "Spiral Carve",
+    "Awe Blast",
+    "Health Vamp",
+    "Mana Vamp",
+    "Powerword DIE",
+  ]}
+/>
+
+**Forge weapons**
+
+<EnhancementLabels
+  labels={[
+    "Forge",
+    "Forge, Lacerate",
+    "Forge, Smite",
+    "Forge, Valiance",
+    "Forge, Arcana's Concerto",
+    "Depths, Acheron",
+    "Wizard, Elysium",
+    "Forge, Praxis",
+    "Fighter, Dauntless",
+    "Forge, Ravenous",
+  ]}
+/>
+
+**Forge helms**
+
+<EnhancementLabels
+  labels={[
+    "Forge",
+    "Vim, Ether",
+    "Examen, Ether",
+    "Pneuma, Clairvoyance",
+    "Anima, Clairvoyance",
+    "Grimskull, Hearty",
+  ]}
+/>
+
+**Forge capes**
+
+<EnhancementLabels
+  labels={[
+    "Forge",
+    "Forge, Absolution",
+    "Forge, Avarice",
+    "Forge, Vainglory",
+    "Forge, Penitence",
+    "Forge, Lament",
+  ]}
+/>
+
+## Write a selector
+
+Typically, pass the first label as `enhancement` and the second as `special`.
+
+{/* prettier-ignore */}
+```js
+// Lucky
+{ enhancement: "lucky" }
+
+// Fighter, Dauntless
+{
+  enhancement: "fighter",
+  special: "dauntless",
+}
+```
+
+Unique names can be used on their own:
+
+- `dauntless`, `vim`, and `vainglory` work on their own.
+- For `Grimskull, Hearty`, use `hearty` on its own or pass both labels.
+- Awe traits need a pattern; `spiral carve` does not work on its own.
+
+Names are case-insensitive. Extra spaces and straight or curly apostrophes do
+not matter. Shortcuts such as `dtl`, `ely`, and `abso` are also accepted.

@@ -1,0 +1,49 @@
+---
+interface Props {
+  labels: readonly string[];
+}
+
+const { labels } = Astro.props;
+---
+
+<ul class="enhancement-label-list not-prose" role="list">
+  {
+    labels.map((label) => (
+      <li>
+        <code>{label}</code>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .enhancement-label-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-block: 0.5rem 1.25rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .enhancement-label-list > li {
+    margin: 0;
+    padding: 0;
+  }
+
+  .enhancement-label-list > li > code {
+    display: inline-flex;
+    min-height: 1.75rem;
+    align-items: center;
+    border: 1px solid var(--blume-border);
+    border-radius: var(--radius-md);
+    padding: 0.1875rem 0.5rem;
+    background: var(--blume-muted);
+    color: var(--blume-foreground);
+    font-family: var(--font-mono);
+    font-size: var(--docs-text-xs);
+    font-weight: 500;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+</style>
