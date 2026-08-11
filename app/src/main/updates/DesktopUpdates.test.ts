@@ -141,6 +141,7 @@ const makeUpdatesHarness = (options: {
     const app = ElectronApp.of({
       appendCommandLineSwitch: () => Effect.void,
       exit: () => Effect.void,
+      getAppMetrics: Effect.succeed([]),
       getVersion: Effect.succeed(options.currentVersion),
       isPackaged: Effect.succeed(false),
       on: () => Effect.succeed(() => undefined),
@@ -151,6 +152,7 @@ const makeUpdatesHarness = (options: {
     const shell = ElectronShell.of({
       openExternal: () => Effect.succeed(true),
       openPath: () => Effect.succeed(true),
+      showItemInFolder: () => Effect.void,
     });
     const layer = desktopUpdatesLayer.pipe(
       Layer.provide(

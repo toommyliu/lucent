@@ -3,6 +3,7 @@ import * as Layer from "effect/Layer";
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
+import * as DesktopPerformanceTrace from "./DesktopPerformanceTrace";
 import * as GameConsoleObservability from "./GameConsoleObservability";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
@@ -69,6 +70,12 @@ export const makeDesktopLayer = (
 
   const settingsLayer = DesktopSettings.layer.pipe(
     Layer.provideMerge(environmentLayer),
+  );
+
+  const performanceTraceLayer = DesktopPerformanceTrace.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(ElectronApp.layer, environmentLayer, observabilityLayer),
+    ),
   );
 
   const combatProfilesLayer = CombatProfiles.layer.pipe(
@@ -220,8 +227,10 @@ export const makeDesktopLayer = (
       Layer.mergeAll(
         ElectronApp.layer,
         ElectronDialog.layer,
+        ElectronShell.layer,
         environmentLayer,
         observabilityLayer,
+        performanceTraceLayer,
         settingsLayer,
         updatesLayer,
         windowsLayer,

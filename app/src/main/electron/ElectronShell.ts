@@ -7,6 +7,7 @@ import * as Layer from "effect/Layer";
 export interface ElectronShellShape {
   readonly openExternal: (url: URL) => Effect.Effect<boolean>;
   readonly openPath: (path: string) => Effect.Effect<boolean>;
+  readonly showItemInFolder: (path: string) => Effect.Effect<void>;
 }
 
 export class ElectronShell extends Context.Service<
@@ -30,10 +31,16 @@ const openPath: ElectronShellShape["openPath"] = (path) =>
     ),
   );
 
+const showItemInFolder: ElectronShellShape["showItemInFolder"] = (path) =>
+  Effect.sync(() => {
+    shell.showItemInFolder(path);
+  });
+
 export const layer = Layer.succeed(
   ElectronShell,
   ElectronShell.of({
     openExternal,
     openPath,
+    showItemInFolder,
   }),
 );

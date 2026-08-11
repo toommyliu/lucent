@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, type ProcessMetric } from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -10,6 +10,7 @@ export interface ElectronAppShape {
     value?: string,
   ) => Effect.Effect<void>;
   readonly exit: (code?: number) => Effect.Effect<void>;
+  readonly getAppMetrics: Effect.Effect<readonly ProcessMetric[]>;
   readonly getVersion: Effect.Effect<string>;
   readonly isPackaged: Effect.Effect<boolean>;
   readonly on: (
@@ -42,6 +43,10 @@ const exit: ElectronAppShape["exit"] = (code) =>
   Effect.sync(() => {
     app.exit(code);
   });
+
+const getAppMetrics: ElectronAppShape["getAppMetrics"] = Effect.sync(() =>
+  app.getAppMetrics(),
+);
 
 const getVersion: ElectronAppShape["getVersion"] = Effect.sync(() =>
   app.getVersion(),
@@ -76,6 +81,7 @@ export const layer = Layer.succeed(
   ElectronApp.of({
     appendCommandLineSwitch,
     exit,
+    getAppMetrics,
     getVersion,
     isPackaged,
     on,
