@@ -1,5 +1,5 @@
-import { access, readdir, readFile, rm } from "node:fs/promises";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { access, readFile, rm } from "node:fs/promises";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -11,13 +11,41 @@ import { Command, Flag } from "effect/unstable/cli";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
-const CLEAN_DIRECTORY_NAMES = new Set([
-  ".electron-runtime",
+const CLEAN_RELATIVE_PATHS = [
   "node_modules",
   "dist",
   "build",
-]);
-const CLEAN_FILE_PATHS = [join(REPO_ROOT, "packages", "electron", "path.txt")];
+  "app/node_modules",
+  "app/dist",
+  "app/build",
+  "app/.electron-runtime",
+  "docs/node_modules",
+  "docs/dist",
+  "docs/build",
+  "docs/.blume/node_modules",
+  "docs/.blume/dist",
+  "docs/.blume/build",
+  "docs/.blume-verify/node_modules",
+  "docs/.blume-verify/dist",
+  "docs/.blume-verify/build",
+  "packages/core/node_modules",
+  "packages/core/dist",
+  "packages/core/build",
+  "packages/electron/node_modules",
+  "packages/electron/dist",
+  "packages/electron/build",
+  "packages/electron/path.txt",
+  "packages/game/node_modules",
+  "packages/game/dist",
+  "packages/game/build",
+  "packages/oxlint-plugin-lucent/node_modules",
+  "packages/oxlint-plugin-lucent/dist",
+  "packages/oxlint-plugin-lucent/build",
+  "packages/ui/node_modules",
+  "packages/ui/dist",
+  "packages/ui/build",
+] as const;
+const CLEAN_PATHS = CLEAN_RELATIVE_PATHS.map((path) => join(REPO_ROOT, path));
 
 type CliInput = {
   dryRun: boolean;
@@ -68,38 +96,7 @@ const findCleanTargets = (): Effect.Effect<ReadonlyArray<string>, CleanError> =>
   Effect.gen(function* () {
     const targets: string[] = [];
 
-    const visit = (directory: string): Effect.Effect<void, CleanError> =>
-      Effect.gen(function* () {
-        const entries = yield* Effect.tryPromise({
-          try: () => readdir(directory, { withFileTypes: true }),
-          catch: (cause) =>
-            new CleanError({
-              message: `Failed to read directory ${toRelativePath(directory)}`,
-              cause,
-            }),
-        });
-
-        for (const entry of entries) {
-          if (entry.name === ".git") {
-            continue;
-          }
-
-          if (!entry.isDirectory() || entry.isSymbolicLink()) {
-            continue;
-          }
-
-          const path = join(directory, entry.name);
-          if (CLEAN_DIRECTORY_NAMES.has(basename(path))) {
-            targets.push(path);
-            continue;
-          }
-
-          yield* visit(path);
-        }
-      });
-
-    yield* visit(REPO_ROOT);
-    for (const path of CLEAN_FILE_PATHS) {
+    for (const path of CLEAN_PATHS) {
       const exists = yield* Effect.promise(() =>
         access(path).then(
           () => true,
