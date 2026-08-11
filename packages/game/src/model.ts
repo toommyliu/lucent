@@ -17,6 +17,11 @@ export abstract class LiveModel<State extends object> {
   }
 
   replaceFrom(model: LiveModel<State>): void {
+    if (this.#data === model.#data) return;
+
+    for (const key of Reflect.ownKeys(this.#data)) {
+      Reflect.deleteProperty(this.#data, key);
+    }
     Object.assign(this.#data, model.#data);
   }
 
