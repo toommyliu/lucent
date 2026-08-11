@@ -1295,6 +1295,14 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   align-items: center;
   display: flex;
   min-height: var(--control-height-sm);
+  min-width: 0;
+}
+
+.game-scripts-dialog__alert .alert__description > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-scripts-dialog__alert .alert__action {

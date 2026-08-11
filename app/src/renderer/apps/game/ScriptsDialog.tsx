@@ -96,6 +96,10 @@ import {
   type ScriptCatalogPageCache,
 } from "./scriptCatalogPages";
 import {
+  checkScriptPackageUpdatesSerially,
+  formatScriptPackageUpdateCheckFailures,
+} from "./scriptPackageUpdateCheck";
+import {
   scriptContextCharacterLimit,
   truncatePathContext,
 } from "./scriptPathDisplay";
@@ -148,7 +152,9 @@ function ErrorAlert(props: ErrorAlertProps): JSX.Element {
       variant="error"
       {...(props.class === undefined ? {} : { class: props.class })}
     >
-      <AlertDescription>{props.message}</AlertDescription>
+      <AlertDescription title={props.message}>
+        <span>{props.message}</span>
+      </AlertDescription>
       <AlertAction>
         <Show when={props.onRetry !== undefined}>
           <Button
@@ -1575,23 +1581,32 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setBusy(true);
     setCheckingPackageUpdates(true);
     setError("");
-    let packageName = packageNames[0] ?? "";
     try {
-      for (packageName of packageNames) {
-        const current = catalog().packages.find(
-          (entry): entry is ValidScriptPackage =>
-            entry.status === "valid" && entry.name === packageName,
-        );
-        if (
-          current?.source === undefined ||
-          packageActiveRateLimit(current) !== undefined
-        ) {
-          continue;
-        }
-        replaceCatalog(await bridge.checkPackageUpdate(packageName));
+      const result = await checkScriptPackageUpdatesSerially(
+        packageNames,
+        async (packageName) => {
+          const current = catalog().packages.find(
+            (entry): entry is ValidScriptPackage =>
+              entry.status === "valid" && entry.name === packageName,
+          );
+          if (
+            current?.source === undefined ||
+            packageActiveRateLimit(current) !== undefined
+          ) {
+            return "skipped";
+          }
+          replaceCatalog(await bridge.checkPackageUpdate(packageName));
+          return "checked";
+        },
+      );
+      if (result.failedCount > 0) {
+        const message = formatScriptPackageUpdateCheckFailures(result);
+        console.error("[game:scripts] Package update checks failed.", {
+          failedCount: result.failedCount,
+          succeededCount: result.succeededCount,
+        });
+        setError(message);
       }
-    } catch (cause) {
-      setOperationError(`Failed to check ${packageName} for updates.`, cause);
     } finally {
       setCheckingPackageUpdates(false);
       setBusy(false);
