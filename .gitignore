@@ -6,4 +6,6 @@ app/.electron-runtime/
 .DS_Store
 .vscode/settings.json
 *.lock
-.repos
+/.repos/*
+!/.repos/effect-smol/
+!/.repos/effect-smol/**
