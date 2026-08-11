@@ -129,6 +129,8 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
       return;
     }
 
+    pendingHex = null;
+    lastChangedHex = hex;
     setPickerValue(parseColor(hex));
   });
 
