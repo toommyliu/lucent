@@ -1069,7 +1069,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const mountScriptViewport = (element: HTMLDivElement): void => {
     setScriptViewport(element);
     setScriptViewportWidth(element.clientWidth);
-    scriptViewportResizeObserver?.observe(element);
     restoreScrollPosition("scripts", element);
   };
 
@@ -1280,8 +1279,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         setScriptViewportWidth(Math.round(entry.contentRect.width));
       }
     });
-    const viewport = scriptViewport();
-    if (viewport !== undefined) scriptViewportResizeObserver.observe(viewport);
 
     const unsubscribe = props.bridge.onCatalogChanged((change) => {
       if (change.revision !== catalog().revision) {
@@ -1292,6 +1289,15 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       scriptViewportResizeObserver?.disconnect();
       unsubscribe?.();
     });
+  });
+
+  createEffect(() => {
+    const viewport = scriptViewport();
+    const observer = scriptViewportResizeObserver;
+    if (!props.open || viewport === undefined || observer === undefined) return;
+
+    observer.observe(viewport);
+    onCleanup(() => observer.unobserve(viewport));
   });
 
   onCleanup(() => {
