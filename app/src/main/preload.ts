@@ -12,7 +12,26 @@ import {
   readDebugModeArgument,
   readGameConsoleObservabilityArgument,
 } from "../shared/rendererBootstrapArguments";
-import type { DesktopBridge, AppPlatform } from "../shared/desktopBridge";
+import type {
+  AppPlatform,
+  DesktopAccountsBridge,
+  DesktopAccountSettingsBridge,
+  DesktopBridgeByView,
+  DesktopCombatProfilesBridge,
+  DesktopEnvironmentBridge,
+  DesktopFollowerBridge,
+  DesktopGameAccountsBridge,
+  DesktopGameConsoleObservabilityBridge,
+  DesktopGameFollowerBridge,
+  DesktopGameLoaderGrabberBridge,
+  DesktopGamePacketsBridge,
+  DesktopLoaderGrabberWindowBridge,
+  DesktopPacketsWindowBridge,
+  DesktopScriptingBridge,
+  DesktopSettingsBridge,
+  DesktopSettingsManagementBridge,
+  DesktopWindowsBridge,
+} from "../shared/desktopBridge";
 import {
   AccountSettingsIpc,
   AccountsIpc,
@@ -44,6 +63,9 @@ applyBootstrapAppearance();
 
 const initialSettings = readSettingsSnapshotArgument(process.argv);
 const bridgeView = readDesktopViewArgument(process.argv);
+if (bridgeView === null) {
+  throw new Error("Missing or invalid desktop bridge view.");
+}
 const debug = readDebugModeArgument(process.argv);
 const gameConsoleObservabilityEnabled = readGameConsoleObservabilityArgument(
   process.argv,
@@ -79,24 +101,22 @@ const subscribe = createSubscribe({
   },
 });
 
-const settingsBridge: DesktopBridge["settings"] = {
+const settingsBridge: DesktopSettingsBridge = {
   initial: initialSettings,
   get: () => invoke(SettingsIpc.get, undefined),
   onChanged: (listener) => subscribe(SettingsIpc.changed, listener),
-  ...(bridgeView === "settings"
-    ? {
-        resetAppearance: () => invoke(SettingsIpc.resetAppearance, undefined),
-        resetHotkeys: () => invoke(SettingsIpc.resetHotkeys, undefined),
-        updateAppearance: (patch) =>
-          invoke(SettingsIpc.updateAppearance, patch),
-        updateHotkeys: (patch) => invoke(SettingsIpc.updateHotkeys, patch),
-        updatePreferences: (patch) =>
-          invoke(SettingsIpc.updatePreferences, patch),
-      }
-    : {}),
 };
 
-const combatProfilesBridge: NonNullable<DesktopBridge["combatProfiles"]> = {
+const settingsManagementBridge: DesktopSettingsManagementBridge = {
+  ...settingsBridge,
+  resetAppearance: () => invoke(SettingsIpc.resetAppearance, undefined),
+  resetHotkeys: () => invoke(SettingsIpc.resetHotkeys, undefined),
+  updateAppearance: (patch) => invoke(SettingsIpc.updateAppearance, patch),
+  updateHotkeys: (patch) => invoke(SettingsIpc.updateHotkeys, patch),
+  updatePreferences: (patch) => invoke(SettingsIpc.updatePreferences, patch),
+};
+
+const combatProfilesBridge: DesktopCombatProfilesBridge = {
   deleteProfile: (profileId) =>
     invoke(CombatProfilesIpc.deleteProfile, { profileId }),
   getState: () => invoke(CombatProfilesIpc.getState, undefined),
@@ -104,7 +124,7 @@ const combatProfilesBridge: NonNullable<DesktopBridge["combatProfiles"]> = {
   saveProfile: (profile) => invoke(CombatProfilesIpc.saveProfile, profile),
 };
 
-const accountsBridge: NonNullable<DesktopBridge["accounts"]> = {
+const accountsBridge: DesktopAccountsBridge = {
   closeGameWindow: (request) => invoke(AccountsIpc.closeGameWindow, request),
   createAccount: (draft) => invoke(AccountsIpc.createAccount, draft),
   createGroup: (draft) => invoke(AccountsIpc.createGroup, draft),
@@ -123,19 +143,19 @@ const accountsBridge: NonNullable<DesktopBridge["accounts"]> = {
     invoke(AccountsIpc.updateGroup, { name, patch }),
 };
 
-const gameAccountsBridge: NonNullable<DesktopBridge["gameAccounts"]> = {
+const gameAccountsBridge: DesktopGameAccountsBridge = {
   getGameLaunch: () => invoke(AccountsIpc.getGameLaunch, undefined),
   updateScriptStatus: (update) =>
     invoke(AccountsIpc.updateScriptStatus, update),
 };
 
-const accountSettingsBridge: NonNullable<DesktopBridge["accountSettings"]> = {
+const accountSettingsBridge: DesktopAccountSettingsBridge = {
   get: (username) => invoke(AccountSettingsIpc.get, { username }),
   update: (username, patch) =>
     invoke(AccountSettingsIpc.update, { patch, username }),
 };
 
-const scriptingBridge: NonNullable<DesktopBridge["scripting"]> = {
+const scriptingBridge: DesktopScriptingBridge = {
   checkPackageUpdate: (packageName) =>
     invoke(ScriptingIpc.checkPackageUpdate, { packageName }),
   deleteCredential: (id) => invoke(ScriptingIpc.deleteCredential, { id }),
@@ -166,33 +186,30 @@ const scriptingBridge: NonNullable<DesktopBridge["scripting"]> = {
   updatePackage: (input) => invoke(ScriptingIpc.updatePackage, input),
 };
 
-const gameConsoleObservabilityBridge: NonNullable<
-  DesktopBridge["gameConsoleObservability"]
-> = {
+const gameConsoleObservabilityBridge: DesktopGameConsoleObservabilityBridge = {
   message: (message) => {
     ipcRenderer.send(GameConsoleIpc.rendererMessage.channel, { message });
   },
 };
 
-const windowsBridge: NonNullable<DesktopBridge["windows"]> = {
+const windowsBridge: DesktopWindowsBridge = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
 
-const loaderGrabberBridge: DesktopBridge["loaderGrabber"] = {
+const loaderGrabberWindowBridge: DesktopLoaderGrabberWindowBridge = {
   grab: (payload) => invoke(LoaderGrabberIpc.grab, payload),
   load: (payload) => invoke(LoaderGrabberIpc.load, payload),
+};
+
+const gameLoaderGrabberBridge: DesktopGameLoaderGrabberBridge = {
   onRequest: (listener) => subscribe(LoaderGrabberIpc.request, listener),
   respond: (response) => invoke(LoaderGrabberIpc.respond, response),
 };
 
-const packetsBridge: NonNullable<DesktopBridge["packets"]> = {
+const packetsWindowBridge: DesktopPacketsWindowBridge = {
   getStatus: () => invoke(PacketsIpc.getStatus, undefined),
   onCaptured: (listener) => subscribe(PacketsIpc.captured, listener),
-  onRequest: (listener) => subscribe(PacketsIpc.request, listener),
   onStatus: (listener) => subscribe(PacketsIpc.status, listener),
-  publishCaptured: (payload) => invoke(PacketsIpc.publishCaptured, payload),
-  publishStatus: (payload) => invoke(PacketsIpc.publishStatus, payload),
-  respond: (response) => invoke(PacketsIpc.respond, response),
   send: (payload) => invoke(PacketsIpc.send, payload),
   startCapture: () => invoke(PacketsIpc.startCapture, undefined),
   startQueue: (payload) => invoke(PacketsIpc.startQueue, payload),
@@ -200,7 +217,14 @@ const packetsBridge: NonNullable<DesktopBridge["packets"]> = {
   stopQueue: () => invoke(PacketsIpc.stopQueue, undefined),
 };
 
-const followerBridge: NonNullable<DesktopBridge["follower"]> = {
+const gamePacketsBridge: DesktopGamePacketsBridge = {
+  onRequest: (listener) => subscribe(PacketsIpc.request, listener),
+  publishCaptured: (payload) => invoke(PacketsIpc.publishCaptured, payload),
+  publishStatus: (payload) => invoke(PacketsIpc.publishStatus, payload),
+  respond: (response) => invoke(PacketsIpc.respond, response),
+};
+
+const followerBridge: DesktopFollowerBridge = {
   configure: (payload) => invoke(FollowerIpc.configure, payload),
   getConfig: () => invoke(FollowerIpc.getConfig, undefined),
   getPlayers: () => invoke(FollowerIpc.getPlayers, undefined),
@@ -218,7 +242,7 @@ const followerErrorMessage = (cause: unknown): string =>
     ? cause.message
     : "Follower request failed";
 
-const gameFollowerBridge: NonNullable<DesktopBridge["gameFollower"]> = {
+const gameFollowerBridge: DesktopGameFollowerBridge = {
   onCommand: (listener) =>
     subscribe(FollowerIpc.command, (command) => {
       void Promise.resolve()
@@ -249,7 +273,7 @@ const gameFollowerBridge: NonNullable<DesktopBridge["gameFollower"]> = {
   publishState: (state) => invoke(FollowerIpc.publishState, state),
 };
 
-const environmentBridge: NonNullable<DesktopBridge["environment"]> = {
+const environmentBridge: DesktopEnvironmentBridge = {
   addBoost: (name) => invoke(EnvironmentIpc.addBoost, { name }),
   addBoosts: (names) => invoke(EnvironmentIpc.addBoosts, { names }),
   addItem: (name) => invoke(EnvironmentIpc.addItem, { name }),
@@ -315,89 +339,98 @@ const environmentBridge: NonNullable<DesktopBridge["environment"]> = {
     invoke(EnvironmentIpc.withdrawBoosts, { itemIds }),
 };
 
-const bridge: DesktopBridge = {
+const commonBridge = {
   debug,
-  loaderGrabber: loaderGrabberBridge,
   platform: {
     os: platform,
   },
   settings: settingsBridge,
-  ...(bridgeView === "game"
-    ? {
-        accountSettings: accountSettingsBridge,
-        army: {
-          fail: (payload) => invoke(ArmyIpc.fail, payload),
-          leave: (payload) => invoke(ArmyIpc.leave, payload),
-          loadConfig: (configName) =>
-            invoke(ArmyIpc.loadConfig, { configName }),
-          loopTauntAwait: (payload) => invoke(ArmyIpc.loopTauntAwait, payload),
-          loopTauntLeave: (payload) => invoke(ArmyIpc.loopTauntLeave, payload),
-          loopTauntRegister: (payload) =>
-            invoke(ArmyIpc.loopTauntRegister, payload),
-          loopTauntReport: (payload) =>
-            invoke(ArmyIpc.loopTauntReport, payload),
-          loopTauntReady: (payload) => invoke(ArmyIpc.loopTauntReady, payload),
-          onEnded: (listener) => subscribe(ArmyIpc.ended, listener),
-          onLoopTauntCommand: (listener) =>
-            subscribe(ArmyIpc.loopTauntCommand, listener),
-          progress: (payload) => invoke(ArmyIpc.progress, payload),
-          start: (payload) => invoke(ArmyIpc.start, payload),
-          sync: (payload) => invoke(ArmyIpc.sync, payload),
-        },
-        combatProfiles: combatProfilesBridge,
-        environment: environmentBridge,
-        gameAccounts: gameAccountsBridge,
-        gameFollower: gameFollowerBridge,
-        gameRenderer: {
-          getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
-          ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
-        },
-        packets: packetsBridge,
-        ...(gameConsoleObservabilityEnabled
-          ? { gameConsoleObservability: gameConsoleObservabilityBridge }
-          : {}),
-        scripting: scriptingBridge,
-        windows: windowsBridge,
-      }
-    : {}),
-  ...(bridgeView === "environment"
-    ? {
-        environment: environmentBridge,
-      }
-    : {}),
-  ...(bridgeView === "follower"
-    ? {
-        combatProfiles: combatProfilesBridge,
-        follower: followerBridge,
-        windows: windowsBridge,
-      }
-    : {}),
-  ...(bridgeView === "packets"
-    ? {
-        packets: packetsBridge,
-      }
-    : {}),
-  ...(bridgeView === "account-manager"
-    ? {
-        accounts: accountsBridge,
-        scripting: scriptingBridge,
-      }
-    : {}),
-  ...(bridgeView === "combat-profiles"
-    ? {
-        combatProfiles: combatProfilesBridge,
-      }
-    : {}),
-  ...(bridgeView === "settings"
-    ? {
-        updates: {
-          checkNow: (options) => invoke(UpdatesIpc.checkNow, options ?? {}),
-          getState: () => invoke(UpdatesIpc.getState, undefined),
-          onChanged: (listener) => subscribe(UpdatesIpc.changed, listener),
-          openReleasePage: () => invoke(UpdatesIpc.openReleasePage, undefined),
-        },
-      }
-    : {}),
 };
+
+const bridges = {
+  "account-manager": {
+    ...commonBridge,
+    accounts: accountsBridge,
+    scripting: scriptingBridge,
+    view: "account-manager",
+  },
+  "combat-profiles": {
+    ...commonBridge,
+    combatProfiles: combatProfilesBridge,
+    view: "combat-profiles",
+  },
+  environment: {
+    ...commonBridge,
+    environment: environmentBridge,
+    view: "environment",
+  },
+  follower: {
+    ...commonBridge,
+    combatProfiles: combatProfilesBridge,
+    follower: followerBridge,
+    view: "follower",
+    windows: windowsBridge,
+  },
+  game: {
+    ...commonBridge,
+    accountSettings: accountSettingsBridge,
+    army: {
+      fail: (payload) => invoke(ArmyIpc.fail, payload),
+      leave: (payload) => invoke(ArmyIpc.leave, payload),
+      loadConfig: (configName) => invoke(ArmyIpc.loadConfig, { configName }),
+      loopTauntAwait: (payload) => invoke(ArmyIpc.loopTauntAwait, payload),
+      loopTauntLeave: (payload) => invoke(ArmyIpc.loopTauntLeave, payload),
+      loopTauntRegister: (payload) =>
+        invoke(ArmyIpc.loopTauntRegister, payload),
+      loopTauntReport: (payload) => invoke(ArmyIpc.loopTauntReport, payload),
+      loopTauntReady: (payload) => invoke(ArmyIpc.loopTauntReady, payload),
+      onEnded: (listener) => subscribe(ArmyIpc.ended, listener),
+      onLoopTauntCommand: (listener) =>
+        subscribe(ArmyIpc.loopTauntCommand, listener),
+      progress: (payload) => invoke(ArmyIpc.progress, payload),
+      start: (payload) => invoke(ArmyIpc.start, payload),
+      sync: (payload) => invoke(ArmyIpc.sync, payload),
+    },
+    combatProfiles: combatProfilesBridge,
+    environment: environmentBridge,
+    gameAccounts: gameAccountsBridge,
+    gameFollower: gameFollowerBridge,
+    gameRenderer: {
+      getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
+      ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
+    },
+    loaderGrabber: gameLoaderGrabberBridge,
+    packets: gamePacketsBridge,
+    scripting: scriptingBridge,
+    view: "game",
+    windows: windowsBridge,
+    ...(gameConsoleObservabilityEnabled
+      ? { gameConsoleObservability: gameConsoleObservabilityBridge }
+      : {}),
+  },
+  "loader-grabber": {
+    ...commonBridge,
+    loaderGrabber: loaderGrabberWindowBridge,
+    view: "loader-grabber",
+  },
+  packets: {
+    ...commonBridge,
+    packets: packetsWindowBridge,
+    view: "packets",
+  },
+  settings: {
+    ...commonBridge,
+    settings: settingsManagementBridge,
+    updates: {
+      checkNow: (options) => invoke(UpdatesIpc.checkNow, options ?? {}),
+      getState: () => invoke(UpdatesIpc.getState, undefined),
+      onChanged: (listener) => subscribe(UpdatesIpc.changed, listener),
+      openReleasePage: () => invoke(UpdatesIpc.openReleasePage, undefined),
+    },
+    view: "settings",
+  },
+} satisfies DesktopBridgeByView;
+
+const bridge = bridges[bridgeView];
 
 contextBridge.exposeInMainWorld("desktop", bridge);

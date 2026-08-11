@@ -90,7 +90,7 @@ import {
   type ManagedAccountDraft,
 } from "@lucent/core/accounts";
 import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../../shared/accountPolicy";
-import type { DesktopBridge } from "../../../shared/desktopBridge";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import {
   readStoredAccountLoginServerPreference,
   resolveAccountLoginServerPreference,
@@ -156,16 +156,9 @@ type SessionCloseRequest =
       readonly type: "single";
     };
 
-type AccountManagerDesktopBridge = DesktopBridge & {
-  readonly accounts: NonNullable<DesktopBridge["accounts"]>;
-  readonly scripting: NonNullable<DesktopBridge["scripting"]>;
-};
-
-const accountsBridge = (): AccountManagerDesktopBridge["accounts"] =>
-  (window.desktop as AccountManagerDesktopBridge).accounts;
-
-const scriptingBridge = (): AccountManagerDesktopBridge["scripting"] =>
-  (window.desktop as AccountManagerDesktopBridge).scripting;
+const desktop = selectDesktopBridge(window.desktop, "account-manager");
+const desktopAccounts = desktop.accounts;
+const desktopScripting = desktop.scripting;
 
 const NO_SERVER_VALUE = "__no_server__";
 const ACCOUNT_USERNAME_INPUT_ID = "account-manager-account-username";
@@ -1336,58 +1329,55 @@ export function App(): JSX.Element {
   const groupMemberSummary = (usernames: readonly string[]): string =>
     usernames.map(groupMemberLabel).join(", ");
   const searchAccountsHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SEARCH_ACCOUNTS_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(SEARCH_ACCOUNTS_HOTKEY, desktop.platform.os),
   );
   const searchAccountsHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(
-      SEARCH_ACCOUNTS_HOTKEY,
-      window.desktop.platform.os,
-    ),
+    formatHotkeyDisplayParts(SEARCH_ACCOUNTS_HOTKEY, desktop.platform.os),
   );
   const savedGroupsHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SAVED_GROUPS_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(SAVED_GROUPS_HOTKEY, desktop.platform.os),
   );
   const savedGroupsHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SAVED_GROUPS_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(SAVED_GROUPS_HOTKEY, desktop.platform.os),
   );
   const newAccountHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, desktop.platform.os),
   );
   const newAccountHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, desktop.platform.os),
   );
   const launchTabHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LAUNCH_TAB_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(LAUNCH_TAB_HOTKEY, desktop.platform.os),
   );
   const launchTabHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LAUNCH_TAB_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(LAUNCH_TAB_HOTKEY, desktop.platform.os),
   );
   const sessionsTabHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SESSIONS_TAB_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(SESSIONS_TAB_HOTKEY, desktop.platform.os),
   );
   const sessionsTabHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SESSIONS_TAB_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(SESSIONS_TAB_HOTKEY, desktop.platform.os),
   );
   const loginServerHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, desktop.platform.os),
   );
   const loginServerHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, desktop.platform.os),
   );
   const selectScriptHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, desktop.platform.os),
   );
   const selectScriptHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, desktop.platform.os),
   );
   const startSelectedHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(START_SELECTED_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplay(START_SELECTED_HOTKEY, desktop.platform.os),
   );
   const startSelectedHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, window.desktop.platform.os),
+    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, desktop.platform.os),
   );
   const modAriaKey = createMemo(() =>
-    window.desktop.platform.os === "mac" ? "Meta" : "Control",
+    desktop.platform.os === "mac" ? "Meta" : "Control",
   );
   const newAccountAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+N`);
   const launchTabAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+1`);
@@ -1878,7 +1868,7 @@ export function App(): JSX.Element {
     const serverNames = new Set(serverSnapshot.map((server) => server.name));
     setServerPingsLoading(true);
     try {
-      const result = await accountsBridge().getServerPings();
+      const result = await desktopAccounts.getServerPings();
       if (requestId !== serverPingRequestId) {
         return;
       }
@@ -1912,8 +1902,8 @@ export function App(): JSX.Element {
     setServerError("");
     try {
       const nextServers = options?.refresh
-        ? await accountsBridge().refreshServers()
-        : await accountsBridge().getServers();
+        ? await desktopAccounts.refreshServers()
+        : await desktopAccounts.getServers();
       setServerRefreshCooldownUntil(nextServers.refreshAvailableAt);
       setServers(nextServers.servers);
       void loadServerPings(nextServers.servers);
@@ -2137,7 +2127,7 @@ export function App(): JSX.Element {
     setBusy(true);
     setGroupDialogError("");
     try {
-      const nextState = await accountsBridge().updateGroup(
+      const nextState = await desktopAccounts.updateGroup(
         currentGroupName,
         payload,
       );
@@ -2191,8 +2181,8 @@ export function App(): JSX.Element {
       };
       const nextState =
         edit.mode === "create"
-          ? await accountsBridge().createGroup(payload)
-          : await accountsBridge().updateGroup(edit.name, payload);
+          ? await desktopAccounts.createGroup(payload)
+          : await desktopAccounts.updateGroup(edit.name, payload);
       applyState(nextState);
       if (edit.mode === "create") {
         setSelectedGroupName(payload.name);
@@ -2234,7 +2224,7 @@ export function App(): JSX.Element {
     setBusy(true);
     setGroupDeleteError("");
     try {
-      const nextState = await accountsBridge().deleteGroup(groupName);
+      const nextState = await desktopAccounts.deleteGroup(groupName);
       applyState(nextState);
       setGroupToDelete(null);
     } catch (error) {
@@ -2278,8 +2268,8 @@ export function App(): JSX.Element {
     setDialogError("");
     try {
       const nextState = currentEditingUsername
-        ? await accountsBridge().updateAccount(currentEditingUsername, payload)
-        : await accountsBridge().createAccount(payload);
+        ? await desktopAccounts.updateAccount(currentEditingUsername, payload)
+        : await desktopAccounts.createAccount(payload);
 
       applyState(nextState);
       if (options.closeAfterSave || currentEditingUsername) {
@@ -2303,7 +2293,7 @@ export function App(): JSX.Element {
     try {
       let nextState = state();
       for (const username of usernames) {
-        nextState = await accountsBridge().deleteAccount(username);
+        nextState = await desktopAccounts.deleteAccount(username);
       }
       applyState(nextState);
       setSelectedAccountUsernames((previous) => {
@@ -2358,7 +2348,7 @@ export function App(): JSX.Element {
             index,
             usernames.length,
           );
-          await accountsBridge().launch({
+          await desktopAccounts.launch({
             username,
             script,
             ...(server === "" ? {} : { server }),
@@ -2510,7 +2500,7 @@ export function App(): JSX.Element {
     const gameWindowId = session.gameWindowId;
 
     try {
-      const nextState = await accountsBridge().focusGameWindow({
+      const nextState = await desktopAccounts.focusGameWindow({
         gameWindowId,
       });
       applyState(nextState);
@@ -2543,7 +2533,7 @@ export function App(): JSX.Element {
     for (const session of sessionsByWindowId.values()) {
       const gameWindowId = session.gameWindowId;
       try {
-        const nextState = await accountsBridge().closeGameWindow({
+        const nextState = await desktopAccounts.closeGameWindow({
           gameWindowId,
         });
         applyState(nextState);
@@ -2578,7 +2568,7 @@ export function App(): JSX.Element {
     setBusy(true);
     setScriptError("");
     try {
-      const result = await scriptingBridge().selectFile();
+      const result = await desktopScripting.selectFile();
       if (result.canceled) {
         return;
       }
@@ -2645,7 +2635,7 @@ export function App(): JSX.Element {
   };
 
   onMount(() => {
-    const unsubscribe = accountsBridge().onChanged(applyState);
+    const unsubscribe = desktopAccounts.onChanged(applyState);
     const loadingIndicatorTimeout = window.setTimeout(() => {
       if (!stateLoaded()) {
         setInitialLoadingVisible(true);
@@ -2655,7 +2645,7 @@ export function App(): JSX.Element {
       setServerRefreshNow(Date.now());
     }, 1_000);
 
-    void accountsBridge()
+    void desktopAccounts
       .getState()
       .then(async (nextState) => {
         applyState(nextState);

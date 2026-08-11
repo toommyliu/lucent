@@ -25,7 +25,10 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import type * as FiberMapType from "effect/FiberMap";
 
-import type { DesktopGameFollowerBridge } from "../../../../shared/desktopBridge";
+import {
+  selectDesktopBridge,
+  type DesktopGameFollowerBridge,
+} from "../../../../shared/desktopBridge";
 import type {
   FollowerCommand,
   FollowerCommandOutcome,
@@ -1128,15 +1131,11 @@ export const makeFollower = Effect.fnUntraced(function* (
 
 export type Follower = Effect.Success<ReturnType<typeof makeFollower>>;
 
-export const makeDesktopFollowerPort = (): FollowerDesktopPort | undefined => {
-  const bridge = window.desktop.gameFollower;
-  if (bridge === undefined) {
-    return undefined;
-  }
+export const makeDesktopFollowerPort = (): FollowerDesktopPort => {
+  const desktop = selectDesktopBridge(window.desktop, "game");
+  const bridge = desktop.gameFollower;
   return {
-    getCombatProfiles: () =>
-      window.desktop.combatProfiles?.getState() ??
-      Promise.resolve(DEFAULT_COMBAT_PROFILE_LIBRARY),
+    getCombatProfiles: desktop.combatProfiles.getState,
     onCommand: bridge.onCommand,
     publishPlayers: bridge.publishPlayers,
     publishState: bridge.publishState,

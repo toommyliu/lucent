@@ -12,6 +12,7 @@ import type {
   PacketsRequest,
   PacketsResponse,
 } from "../../../shared/ipc/packets";
+import type { DesktopGamePacketsBridge } from "../../../shared/desktopBridge";
 import { Api } from "./flash";
 import type { ClientPacketSendType } from "./flash/api/Packet";
 import type { flashRuntime } from "./flash";
@@ -75,30 +76,18 @@ const sendPacketEffect = Effect.fn("packetsBridge.sendPacket")(function* (
   }
 });
 
-const sendResponse = (response: PacketsResponse): Promise<void> => {
-  const packets = window.desktop.packets;
-  return packets === undefined
-    ? Promise.reject(new Error("The Packets desktop bridge is unavailable."))
-    : packets.respond(response);
-};
-
 export const installPacketsBridge = (
   runtime: GameRuntime,
+  packetsBridge: DesktopGamePacketsBridge,
 ): PacketsBridgeController => {
-  const packetsBridge = window.desktop.packets;
-  if (packetsBridge === undefined) {
-    return {
-      dispose: () => undefined,
-      stopActive: () => undefined,
-    };
-  }
-
   let captureDispose: (() => void) | undefined;
   let captureGeneration = 0;
   let connectionDispose: (() => void) | undefined;
   let disposed = false;
   let queueState: QueueState | undefined;
   let requests = Promise.resolve();
+  const sendResponse = (response: PacketsResponse): Promise<void> =>
+    packetsBridge.respond(response);
 
   const publishStatus = (stoppedReason?: string): void => {
     void packetsBridge

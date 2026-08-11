@@ -12,6 +12,7 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import type { ScriptFile } from "../../../../shared/ipc/scripting";
+import { selectDesktopBridge } from "../../../../shared/desktopBridge";
 import {
   type AccountScriptSettingsPatch,
   type AccountSettings,
@@ -362,6 +363,10 @@ export const layer = Layer.effect(
     const automation = yield* Automation;
     const environment = yield* Environment;
     const bridge = yield* Bridge;
+    const accountSettings = selectDesktopBridge(
+      window.desktop,
+      "game",
+    ).accountSettings;
     const {
       auth,
       combat,
@@ -414,16 +419,8 @@ export const layer = Layer.effect(
 
     const loadPersistedOptions = Effect.fn("ScriptRunner.loadPersistedOptions")(
       function* (username: string) {
-        const bridge = window.desktop.accountSettings;
-        if (bridge === undefined) {
-          yield* Effect.logWarning(
-            "Account settings bridge is unavailable; using script defaults.",
-          );
-          return DEFAULT_SCRIPT_RUNTIME_OPTIONS;
-        }
-
         return yield* Effect.tryPromise({
-          try: () => bridge.get(username),
+          try: () => accountSettings.get(username),
           catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
         }).pipe(
           Effect.map(runtimeOptionsFrom),
@@ -473,8 +470,7 @@ export const layer = Layer.effect(
           if (Object.keys(patch).length === 0) return current;
 
           const username = yield* Ref.get(accountUsernameRef);
-          const bridge = window.desktop.accountSettings;
-          if (username === null || bridge === undefined) {
+          if (username === null) {
             return yield* SubscriptionRef.updateAndGet(
               optionsRef,
               () => next,
@@ -482,7 +478,7 @@ export const layer = Layer.effect(
           }
 
           const persisted = yield* Effect.tryPromise({
-            try: () => bridge.update(username, { scripts: patch }),
+            try: () => accountSettings.update(username, { scripts: patch }),
             catch: (cause) => new ScriptAccountSettingsBridgeError({ cause }),
           }).pipe(
             Effect.map(runtimeOptionsFrom),

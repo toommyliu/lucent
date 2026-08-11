@@ -127,13 +127,14 @@ export interface DesktopSettingsBridge {
   readonly initial: AppSettings | null;
   readonly get: () => Promise<AppSettings>;
   readonly onChanged: (listener: (settings: AppSettings) => void) => () => void;
-  readonly resetAppearance?: () => Promise<AppSettings>;
-  readonly resetHotkeys?: () => Promise<AppSettings>;
-  readonly updateAppearance?: (patch: AppearancePatch) => Promise<AppSettings>;
-  readonly updateHotkeys?: (patch: HotkeysPatch) => Promise<AppSettings>;
-  readonly updatePreferences?: (
-    patch: PreferencesPatch,
-  ) => Promise<AppSettings>;
+}
+
+export interface DesktopSettingsManagementBridge extends DesktopSettingsBridge {
+  readonly resetAppearance: () => Promise<AppSettings>;
+  readonly resetHotkeys: () => Promise<AppSettings>;
+  readonly updateAppearance: (patch: AppearancePatch) => Promise<AppSettings>;
+  readonly updateHotkeys: (patch: HotkeysPatch) => Promise<AppSettings>;
+  readonly updatePreferences: (patch: PreferencesPatch) => Promise<AppSettings>;
 }
 
 export interface DesktopUpdatesBridge {
@@ -269,36 +270,42 @@ export interface DesktopWindowsBridge {
   readonly open: (kind: DesktopBridgeWindowKind) => Promise<string>;
 }
 
-export interface DesktopLoaderGrabberBridge {
+export interface DesktopLoaderGrabberWindowBridge {
   readonly grab: (
     payload: LoaderGrabberGrabRequest,
   ) => Promise<GrabbedData | null>;
   readonly load: (payload: LoaderGrabberLoadRequest) => Promise<void>;
+}
+
+export interface DesktopGameLoaderGrabberBridge {
   readonly onRequest: (
     listener: (request: LoaderGrabberRequest) => void,
   ) => () => void;
   readonly respond: (response: LoaderGrabberResponse) => Promise<void>;
 }
 
-export interface DesktopPacketsBridge {
+export interface DesktopPacketsWindowBridge {
   readonly getStatus: () => Promise<PacketsStatusPayload>;
   readonly onCaptured: (
     listener: (payload: PacketCapturedPayload) => void,
   ) => () => void;
-  readonly onRequest: (
-    listener: (request: PacketsRequest) => void,
-  ) => () => void;
   readonly onStatus: (
     listener: (payload: PacketsStatusPayload) => void,
   ) => () => void;
-  readonly publishCaptured: (payload: PacketCapturedPayload) => Promise<void>;
-  readonly publishStatus: (payload: PacketsStatusPayload) => Promise<void>;
-  readonly respond: (response: PacketsResponse) => Promise<void>;
   readonly send: (payload: PacketSendPayload) => Promise<void>;
   readonly startCapture: () => Promise<void>;
   readonly startQueue: (payload: PacketQueuePayload) => Promise<void>;
   readonly stopCapture: () => Promise<void>;
   readonly stopQueue: () => Promise<void>;
+}
+
+export interface DesktopGamePacketsBridge {
+  readonly onRequest: (
+    listener: (request: PacketsRequest) => void,
+  ) => () => void;
+  readonly publishCaptured: (payload: PacketCapturedPayload) => Promise<void>;
+  readonly publishStatus: (payload: PacketsStatusPayload) => Promise<void>;
+  readonly respond: (response: PacketsResponse) => Promise<void>;
 }
 
 export interface DesktopFollowerBridge {
@@ -416,25 +423,92 @@ export interface DesktopArmyBridge {
   readonly sync: (payload: ArmySyncPayload) => Promise<void>;
 }
 
-export interface DesktopBridge {
-  readonly accountSettings?: DesktopAccountSettingsBridge;
-  readonly accounts?: DesktopAccountsBridge;
-  readonly army?: DesktopArmyBridge;
-  readonly combatProfiles?: DesktopCombatProfilesBridge;
+interface DesktopBridgeBase {
   readonly debug: boolean;
-  readonly environment?: DesktopEnvironmentBridge;
-  readonly follower?: DesktopFollowerBridge;
-  readonly gameAccounts?: DesktopGameAccountsBridge;
-  readonly gameConsoleObservability?: DesktopGameConsoleObservabilityBridge;
-  readonly gameFollower?: DesktopGameFollowerBridge;
-  readonly gameRenderer?: DesktopGameRendererBridge;
-  readonly loaderGrabber: DesktopLoaderGrabberBridge;
-  readonly packets?: DesktopPacketsBridge;
   readonly platform: {
     readonly os: AppPlatform;
   };
-  readonly settings: DesktopSettingsBridge;
-  readonly scripting?: DesktopScriptingBridge;
-  readonly updates?: DesktopUpdatesBridge;
-  readonly windows?: DesktopWindowsBridge;
+}
+
+interface DesktopBridgeCapabilities {
+  readonly accountSettings: DesktopAccountSettingsBridge;
+  readonly accounts: DesktopAccountsBridge;
+  readonly army: DesktopArmyBridge;
+  readonly combatProfiles: DesktopCombatProfilesBridge;
+  readonly environment: DesktopEnvironmentBridge;
+  readonly follower: DesktopFollowerBridge;
+  readonly gameAccounts: DesktopGameAccountsBridge;
+  readonly gameConsoleObservability: DesktopGameConsoleObservabilityBridge;
+  readonly gameFollower: DesktopGameFollowerBridge;
+  readonly gameRenderer: DesktopGameRendererBridge;
+  readonly scripting: DesktopScriptingBridge;
+  readonly updates: DesktopUpdatesBridge;
+  readonly windows: DesktopWindowsBridge;
+}
+
+interface DesktopBridgeViewCapabilities {
+  readonly "account-manager": Pick<
+    DesktopBridgeCapabilities,
+    "accounts" | "scripting"
+  >;
+  readonly "combat-profiles": Pick<DesktopBridgeCapabilities, "combatProfiles">;
+  readonly environment: Pick<DesktopBridgeCapabilities, "environment">;
+  readonly follower: Pick<
+    DesktopBridgeCapabilities,
+    "combatProfiles" | "follower" | "windows"
+  >;
+  readonly game: Pick<
+    DesktopBridgeCapabilities,
+    | "accountSettings"
+    | "army"
+    | "combatProfiles"
+    | "environment"
+    | "gameAccounts"
+    | "gameFollower"
+    | "gameRenderer"
+    | "scripting"
+    | "windows"
+  > & {
+    readonly loaderGrabber: DesktopGameLoaderGrabberBridge;
+    readonly packets: DesktopGamePacketsBridge;
+  } & Partial<Pick<DesktopBridgeCapabilities, "gameConsoleObservability">>;
+  readonly "loader-grabber": {
+    readonly loaderGrabber: DesktopLoaderGrabberWindowBridge;
+  };
+  readonly packets: {
+    readonly packets: DesktopPacketsWindowBridge;
+  };
+  readonly settings: Pick<DesktopBridgeCapabilities, "updates">;
+}
+
+export type DesktopBridgeFor<View extends DesktopBridgeView> =
+  DesktopBridgeBase & {
+    readonly settings: View extends "settings"
+      ? DesktopSettingsManagementBridge
+      : DesktopSettingsBridge;
+    readonly view: View;
+  } & DesktopBridgeViewCapabilities[View];
+
+export type DesktopBridgeByView = {
+  readonly [View in DesktopBridgeView]: DesktopBridgeFor<View>;
+};
+
+export type DesktopBridge = DesktopBridgeByView[DesktopBridgeView];
+
+/** Selects the bridge for a renderer entry point and rejects a mismatched view. */
+export function selectDesktopBridge<View extends DesktopBridgeView>(
+  bridge: DesktopBridge,
+  view: View,
+): DesktopBridgeFor<View>;
+export function selectDesktopBridge(
+  bridge: DesktopBridge,
+  view: DesktopBridgeView,
+): DesktopBridge {
+  if (bridge.view !== view) {
+    throw new Error(
+      `Expected the ${view} desktop bridge, received ${bridge.view}.`,
+    );
+  }
+
+  return bridge;
 }

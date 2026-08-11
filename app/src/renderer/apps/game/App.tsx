@@ -50,7 +50,10 @@ import {
   type JSX,
 } from "solid-js";
 
-import type { AppPlatform } from "../../../shared/desktopBridge";
+import {
+  selectDesktopBridge,
+  type AppPlatform,
+} from "../../../shared/desktopBridge";
 import type {
   AccountGameLaunchPayload,
   AccountScriptReference,
@@ -130,6 +133,8 @@ import {
   windowCommandIds,
 } from "./TopNav";
 
+const desktop = selectDesktopBridge(window.desktop, "game");
+
 interface GameLoadState {
   readonly loaded: boolean;
   readonly progress: number;
@@ -193,7 +198,7 @@ const reportScriptTiming = (
   event: "begin" | "complete" | "stage",
   data: Readonly<Record<string, unknown>> = {},
 ): void => {
-  if (!window.desktop.debug) return;
+  if (!desktop.debug) return;
   console.info("[script:timing]", {
     event,
     operation: trace.operation,
@@ -2080,7 +2085,7 @@ export function App(props: {
 
   const handleOpenWindow = (id: WindowId) => {
     setOpenMenu(null);
-    void window.desktop.windows?.open(id).catch((error: unknown) => {
+    void desktop.windows.open(id).catch((error: unknown) => {
       console.error(`[game] failed to open window ${id}`, error);
     });
   };
@@ -2145,22 +2150,14 @@ export function App(props: {
 
   const refreshScriptInputValues = (
     definition: ScriptInputsDefinition,
-  ): Promise<ScriptInputValues> => {
-    const bridge = window.desktop.scripting;
-    return bridge === undefined
-      ? Promise.resolve(normalizeScriptInputValues(definition, {}))
-      : bridge.getInputValues(definition);
-  };
+  ): Promise<ScriptInputValues> => desktop.scripting.getInputValues(definition);
 
   const saveScriptInputValues = (
     definition: ScriptInputsDefinition,
     values: ScriptInputValues,
   ): Promise<ScriptInputValues> => {
     const normalized = normalizeScriptInputValues(definition, values);
-    const bridge = window.desktop.scripting;
-    return bridge === undefined
-      ? Promise.resolve(normalized)
-      : bridge.saveInputValues(definition, normalized);
+    return desktop.scripting.saveInputValues(definition, normalized);
   };
 
   const showFatalScriptAlert = (alert: FatalScriptAlert): void => {
@@ -2275,15 +2272,9 @@ export function App(props: {
       return;
     }
 
-    const bridge = window.desktop.scripting;
-    if (bridge === undefined) {
-      console.warn("[game:script]", "desktop scripting bridge unavailable");
-      return;
-    }
-
     setScriptBusy(true);
     try {
-      const result = await bridge.openFile();
+      const result = await desktop.scripting.openFile();
       if (result.canceled) {
         return;
       }
@@ -2305,11 +2296,6 @@ export function App(props: {
     replaceRunning: boolean,
   ): Promise<void> => {
     if (scriptBusy()) return;
-    const bridge = window.desktop.scripting;
-    if (bridge === undefined) {
-      throw new Error("Desktop scripting bridge unavailable.");
-    }
-
     const timing = beginScriptTiming(start ? "catalog-start" : "catalog-load", {
       kind: reference.kind,
       path: reference.path,
@@ -2321,7 +2307,7 @@ export function App(props: {
     setScriptBusy(true);
     try {
       const file = await timeScriptStage(timing, "load-reference.ipc", () =>
-        bridge.loadReference(reference),
+        desktop.scripting.loadReference(reference),
       );
       await timeScriptStage(timing, "apply-loaded-script", () =>
         applyLoadedScript(file, { replaceRunning, start }, timing),
@@ -2419,7 +2405,6 @@ export function App(props: {
     inputsPersistedForRevision?: string,
     timing?: ScriptTimingTrace,
   ): Promise<void> => {
-    const scripting = window.desktop.scripting;
     const prepare = () =>
       prepareScriptStart(
         { file: currentFile, inputValues: currentInputValues },
@@ -2431,15 +2416,10 @@ export function App(props: {
                   refreshScriptInputValues(definition),
                 ),
           readFile: (path) => {
-            if (scripting === undefined) {
-              return Promise.reject(
-                new Error("Desktop scripting bridge unavailable"),
-              );
-            }
             const read = () =>
               currentFile.reference === undefined
-                ? scripting.readFile(path)
-                : scripting.readReference(currentFile.reference);
+                ? desktop.scripting.readFile(path)
+                : desktop.scripting.readReference(currentFile.reference);
             return timing === undefined
               ? read()
               : timeScriptStage(
@@ -2508,13 +2488,8 @@ export function App(props: {
   const publishAccountStatus = async (
     update: AccountScriptStatusUpdate,
   ): Promise<boolean> => {
-    const bridge = window.desktop.gameAccounts;
-    if (bridge === undefined) {
-      return false;
-    }
-
     try {
-      await bridge.updateScriptStatus(update);
+      await desktop.gameAccounts.updateScriptStatus(update);
       return true;
     } catch (error) {
       console.error("[game:account-launch]", "status publish failed", error);
@@ -2787,17 +2762,12 @@ export function App(props: {
         return;
       }
 
-      const bridge = window.desktop.scripting;
-      if (bridge === undefined) {
-        throw new Error("Desktop scripting bridge unavailable");
-      }
-
       await publishAccountLaunchStatus("starting", "Loading script...");
       const file = await resolveAccountScript(
         (path) =>
           payload.script?.reference === undefined
-            ? bridge.resolveFile(path)
-            : bridge.resolveReference(payload.script.reference),
+            ? desktop.scripting.resolveFile(path)
+            : desktop.scripting.resolveReference(payload.script.reference),
         payload.script.path,
       );
       if (file === null) {
@@ -3177,12 +3147,12 @@ export function App(props: {
 
   onMount(() => {
     let disposed = false;
-    const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
-    const unsubscribeCombatProfiles =
-      window.desktop.combatProfiles?.onChanged(applyCombatProfileLibrary) ??
-      (() => {});
+    const unsubscribeSettings = desktop.settings.onChanged(setSettings);
+    const unsubscribeCombatProfiles = desktop.combatProfiles.onChanged(
+      applyCombatProfileLibrary,
+    );
 
-    void window.desktop.settings
+    void desktop.settings
       .get()
       .then((nextSettings) => {
         if (!disposed) {
@@ -3193,8 +3163,8 @@ export function App(props: {
         console.error("[game:settings]", "desktop sync failed", error);
       });
 
-    void window.desktop.combatProfiles
-      ?.getState()
+    void desktop.combatProfiles
+      .getState()
       .then((library) => {
         if (!disposed) {
           applyCombatProfileLibrary(library);
@@ -3403,8 +3373,8 @@ export function App(props: {
         console.error("[game:script]", "state subscription failed", error);
       });
 
-    void window.desktop.gameAccounts
-      ?.getGameLaunch()
+    void desktop.gameAccounts
+      .getGameLaunch()
       .then((payload) => {
         if (payload !== null) {
           void runAccountLaunch(payload);
@@ -3617,7 +3587,7 @@ export function App(props: {
       data-platform={platformLabel()}
     >
       <ScriptsDialog
-        bridge={window.desktop.scripting}
+        bridge={desktop.scripting}
         inputsAvailable={scriptInputsAvailable()}
         loadedReference={loadedScript()?.reference}
         onChooseFile={chooseScriptFile}
@@ -3807,12 +3777,11 @@ export function App(props: {
                       aria-label="Open script file"
                       class="game-script-error-dialog__open-source"
                       onClick={() => {
-                        const bridge = window.desktop.scripting;
-                        if (bridge !== undefined) {
-                          void bridge.openPath(path()).catch((error) => {
+                        void desktop.scripting
+                          .openPath(path())
+                          .catch((error) => {
                             console.error("Failed to open script file", error);
                           });
-                        }
                       }}
                       portal={false}
                       positioning={{ placement: "right" }}
@@ -3959,7 +3928,7 @@ export function App(props: {
         <div class="game-visual-cover" aria-hidden="true" />
       </section>
 
-      <Show when={window.desktop.debug}>
+      <Show when={desktop.debug}>
         <DevDebugEvaluator />
       </Show>
     </main>

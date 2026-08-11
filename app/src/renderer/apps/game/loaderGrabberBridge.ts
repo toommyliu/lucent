@@ -6,10 +6,8 @@ import type {
   LoaderGrabberGrabRequest,
   LoaderGrabberLoadRequest,
 } from "../../../shared/loader-grabber";
-import type {
-  LoaderGrabberRequest,
-  LoaderGrabberResponse,
-} from "../../../shared/ipc/loaderGrabber";
+import type { LoaderGrabberRequest } from "../../../shared/ipc/loaderGrabber";
+import type { DesktopGameLoaderGrabberBridge } from "../../../shared/desktopBridge";
 import { Api } from "./flash";
 import type { flashRuntime } from "./flash";
 
@@ -108,17 +106,15 @@ const errorMessage = (cause: unknown): string =>
     ? cause.message
     : "The Loader grabber request failed.";
 
-const sendResponse = (response: LoaderGrabberResponse): Promise<void> =>
-  window.desktop.loaderGrabber.respond(response);
-
 const handleRequest = async (
   runtime: GameRuntime,
+  bridge: DesktopGameLoaderGrabberBridge,
   request: LoaderGrabberRequest,
 ): Promise<void> => {
   try {
     if (request.kind === "load") {
       await runtime.runPromise(loadWithLoaderGrabber(request.payload));
-      await sendResponse({
+      await bridge.respond({
         ok: true,
         outcome: { kind: "load" },
         requestId: request.requestId,
@@ -129,13 +125,13 @@ const handleRequest = async (
     const value = await runtime.runPromise(
       grabWithLoaderGrabber(request.payload),
     );
-    await sendResponse({
+    await bridge.respond({
       ok: true,
       outcome: { kind: "grab", value },
       requestId: request.requestId,
     });
   } catch (cause) {
-    await sendResponse({
+    await bridge.respond({
       error: errorMessage(cause),
       ok: false,
       requestId: request.requestId,
@@ -149,23 +145,24 @@ export interface LoaderGrabberBridgeController {
 
 export const installLoaderGrabberBridge = (
   runtime: GameRuntime,
+  bridge: DesktopGameLoaderGrabberBridge,
 ): LoaderGrabberBridgeController => {
   let disposed = false;
   let requests = Promise.resolve();
 
-  const unsubscribe = window.desktop.loaderGrabber.onRequest((request) => {
+  const unsubscribe = bridge.onRequest((request) => {
     requests = requests
       .catch((cause: unknown) => {
         console.error("[game:loader-grabber] request queue failed", cause);
       })
       .then(() =>
         disposed
-          ? sendResponse({
+          ? bridge.respond({
               error: "The Loader grabber bridge is unavailable.",
               ok: false,
               requestId: request.requestId,
             })
-          : handleRequest(runtime, request),
+          : handleRequest(runtime, bridge, request),
       );
     void requests.catch((cause: unknown) => {
       console.error("[game:loader-grabber] response failed", cause);

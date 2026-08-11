@@ -54,18 +54,14 @@ import {
 } from "../../localStorage";
 import { filterPlayerRoster, observePlayerRoster } from "./playerRoster";
 import { reconcileFollowerCombatProfileId } from "./profileSelection";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 
 const selectedProfileStorageKey = "lucent.follower.selectedProfileId";
 
-const requireBridge = <T,>(bridge: T | undefined): T => {
-  if (bridge === undefined) {
-    throw new Error("The Follower desktop bridge is unavailable.");
-  }
-  return bridge;
-};
-const follower = requireBridge(window.desktop.follower);
-const combatProfiles = requireBridge(window.desktop.combatProfiles);
-const windows = requireBridge(window.desktop.windows);
+const desktop = selectDesktopBridge(window.desktop, "follower");
+const follower = desktop.follower;
+const combatProfiles = desktop.combatProfiles;
+const windows = desktop.windows;
 
 function LabelHelp(props: {
   readonly label: string;

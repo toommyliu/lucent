@@ -60,7 +60,7 @@ import {
   type CombatProfileStep,
   type CombatProfileStepDefinition,
 } from "@lucent/core/combatProfiles";
-import type { DesktopBridge } from "../../../shared/desktopBridge";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import {
   readStoredCombatProfileId,
   resolvePreferredCombatProfileId,
@@ -68,13 +68,10 @@ import {
 } from "./profileSelection";
 import { createRandomId } from "../../../shared/randomId";
 
-type CombatProfilesDesktopBridge = DesktopBridge & {
-  readonly combatProfiles: NonNullable<DesktopBridge["combatProfiles"]>;
-};
-
-const combatProfilesBridge =
-  (): CombatProfilesDesktopBridge["combatProfiles"] =>
-    (window.desktop as CombatProfilesDesktopBridge).combatProfiles;
+const combatProfiles = selectDesktopBridge(
+  window.desktop,
+  "combat-profiles",
+).combatProfiles;
 
 type ConditionType = CombatProfileCondition["type"];
 
@@ -388,7 +385,7 @@ export function App(): JSX.Element {
   });
 
   onMount(() => {
-    const unsubscribe = combatProfilesBridge().onChanged((nextLibrary) => {
+    const unsubscribe = combatProfiles.onChanged((nextLibrary) => {
       setLibrary(nextLibrary);
       if (
         !nextLibrary.profiles.some((profile) => profile.id === selectedId())
@@ -402,7 +399,7 @@ export function App(): JSX.Element {
       }
     });
 
-    void combatProfilesBridge()
+    void combatProfiles
       .getState()
       .then((nextLibrary) => {
         setLibrary(nextLibrary);
@@ -494,9 +491,7 @@ export function App(): JSX.Element {
       return;
     }
 
-    const nextLibrary = await runUpdate(
-      combatProfilesBridge().saveProfile(profile),
-    );
+    const nextLibrary = await runUpdate(combatProfiles.saveProfile(profile));
     const savedProfile = nextLibrary?.profiles.find(
       (candidate) => candidate.id === profile.id,
     );
@@ -547,9 +542,7 @@ export function App(): JSX.Element {
       messageTriggers: [],
     };
 
-    const nextLibrary = await runUpdate(
-      combatProfilesBridge().saveProfile(profile),
-    );
+    const nextLibrary = await runUpdate(combatProfiles.saveProfile(profile));
     if (nextLibrary !== null) {
       selectProfile(id);
     }
@@ -568,9 +561,7 @@ export function App(): JSX.Element {
     const duplicate = duplicateCombatProfile(profile, library().profiles, () =>
       createRandomId("profile"),
     );
-    const nextLibrary = await runUpdate(
-      combatProfilesBridge().saveProfile(duplicate),
-    );
+    const nextLibrary = await runUpdate(combatProfiles.saveProfile(duplicate));
     if (nextLibrary === null) {
       return;
     }
@@ -596,7 +587,7 @@ export function App(): JSX.Element {
     }
 
     const nextLibrary = await runUpdate(
-      combatProfilesBridge().deleteProfile(profile.id),
+      combatProfiles.deleteProfile(profile.id),
     );
     if (nextLibrary !== null) {
       selectProfile(

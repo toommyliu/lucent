@@ -13,7 +13,10 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
+import {
+  selectDesktopBridge,
+  type DesktopArmyBridge,
+} from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
 import { isDirectInventoryConsumable } from "../flash/api/Inventory";
 import type { ScriptArmyApi } from "../scripting/ScriptApi";
@@ -186,7 +189,7 @@ const armyEquipOrder = [
 
 const makeArmyApi = (
   api: ApiService,
-  bridge: DesktopArmyBridge | undefined = window.desktop.army,
+  bridge: DesktopArmyBridge = selectDesktopBridge(window.desktop, "game").army,
 ) =>
   Effect.gen(function* () {
     const {
@@ -205,11 +208,6 @@ const makeArmyApi = (
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
     const getState = SynchronizedRef.get(stateRef);
-
-    const requireArmyBridge = () =>
-      bridge === undefined
-        ? Effect.fail(new ArmyError("Army bridge is unavailable"))
-        : Effect.succeed(bridge);
 
     const getSession: ScriptArmyApi["getSession"] = () =>
       getState.pipe(
@@ -270,13 +268,8 @@ const makeArmyApi = (
       details?: { readonly label?: string; readonly step?: number },
     ) =>
       Effect.gen(function* () {
-        const army = bridge;
-        if (army === undefined) {
-          yield* SynchronizedRef.set(stateRef, defaultState);
-          return;
-        }
         yield* fromDesktop("Failed to fail army session", () =>
-          army.fail({
+          bridge.fail({
             ...(details?.label === undefined ? {} : { label: details.label }),
             ...(details?.step === undefined ? {} : { step: details.step }),
             reason,
@@ -292,21 +285,18 @@ const makeArmyApi = (
       label: string,
       options?: ArmyRunStepOptions,
     ) =>
-      Effect.gen(function* () {
-        const army = yield* requireArmyBridge();
-        yield* fromDesktop("Failed to synchronize army", () =>
-          army.sync({
-            label,
-            sessionId: session.sessionId,
-            step,
-            ...(options?.timeoutMs === undefined
-              ? {}
-              : { timeoutMs: options.timeoutMs }),
-          }),
-        ).pipe(
-          Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
-        );
-      });
+      fromDesktop("Failed to synchronize army", () =>
+        bridge.sync({
+          label,
+          sessionId: session.sessionId,
+          step,
+          ...(options?.timeoutMs === undefined
+            ? {}
+            : { timeoutMs: options.timeoutMs }),
+        }),
+      ).pipe(
+        Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
+      );
 
     const waitAtProgress = (
       session: ArmySession,
@@ -315,22 +305,19 @@ const makeArmyApi = (
       complete: boolean,
       options?: ArmyRunStepOptions,
     ): Effect.Effect<ArmyProgressResult, ArmyError> =>
-      Effect.gen(function* () {
-        const army = yield* requireArmyBridge();
-        return yield* fromDesktop("Failed to synchronize army progress", () =>
-          army.progress({
-            complete,
-            label,
-            sessionId: session.sessionId,
-            step,
-            ...(options?.timeoutMs === undefined
-              ? {}
-              : { timeoutMs: options.timeoutMs }),
-          }),
-        ).pipe(
-          Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
-        );
-      });
+      fromDesktop("Failed to synchronize army progress", () =>
+        bridge.progress({
+          complete,
+          label,
+          sessionId: session.sessionId,
+          step,
+          ...(options?.timeoutMs === undefined
+            ? {}
+            : { timeoutMs: options.timeoutMs }),
+        }),
+      ).pipe(
+        Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
+      );
 
     const runStepInternal: ScriptArmyApi["runStep"] = (
       label,
@@ -375,9 +362,8 @@ const makeArmyApi = (
             );
           }
           const username = yield* auth.getUsername();
-          const army = yield* requireArmyBridge();
           const session = yield* fromDesktop("Failed to start army", () =>
-            army.start({ configName, playerName: username }),
+            bridge.start({ configName, playerName: username }),
           );
           yield* SynchronizedRef.set(stateRef, {
             nextStep: 0,
@@ -395,13 +381,8 @@ const makeArmyApi = (
           return;
         }
 
-        const army = bridge;
-        if (army === undefined) {
-          yield* SynchronizedRef.set(stateRef, defaultState);
-          return;
-        }
         yield* fromDesktop("Failed to leave army", () =>
-          army.leave({
+          bridge.leave({
             sessionId: state.session!.sessionId,
           }),
         ).pipe(Effect.catchCause(() => Effect.void));
@@ -760,7 +741,7 @@ const makeArmyApi = (
     const executeWithArmy: ScriptArmyApi["executeWithArmy"] = (action) =>
       runStep("execute", action);
 
-    const disposeEnded = bridge?.onEnded((payload) => {
+    const disposeEnded = bridge.onEnded((payload) => {
       runFork(
         Effect.all(
           [
@@ -775,9 +756,7 @@ const makeArmyApi = (
         ),
       );
     });
-    if (disposeEnded !== undefined) {
-      yield* Effect.addFinalizer(() => Effect.sync(disposeEnded));
-    }
+    yield* Effect.addFinalizer(() => Effect.sync(disposeEnded));
 
     return ArmyApi.of({
       equipSet,

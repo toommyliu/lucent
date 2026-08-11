@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import { afterEach, vi } from "vitest";
 
-import type { DesktopPacketsBridge } from "../../../shared/desktopBridge";
+import type { DesktopGamePacketsBridge } from "../../../shared/desktopBridge";
 import type {
   PacketsRequest,
   PacketsResponse,
@@ -46,21 +46,20 @@ describe("packets bridge", () => {
       const response = new Promise<PacketsResponse>((resolve) => {
         resolveResponse = resolve;
       });
-      const bridge = {
+      const bridge: DesktopGamePacketsBridge = {
         onRequest: (listener: (request: PacketsRequest) => void) => {
           requestListener = listener;
           return () => {
             requestListener = undefined;
           };
         },
+        publishCaptured: async () => undefined,
         publishStatus: async () => undefined,
         respond: async (payload: PacketsResponse) => {
           resolveResponse?.(payload);
         },
-      } as unknown as DesktopPacketsBridge;
-      vi.stubGlobal("window", { desktop: { packets: bridge } });
-
-      const controller = installPacketsBridge(runtime);
+      };
+      const controller = installPacketsBridge(runtime, bridge);
       requestListener?.({
         kind: "start-queue",
         payload: {

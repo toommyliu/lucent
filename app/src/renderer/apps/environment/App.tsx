@@ -50,15 +50,12 @@ import {
   type EnvironmentQuestAutoRegisterOptions,
   type EnvironmentState,
 } from "@lucent/core/environment";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 
-const getEnvironmentBridge = () => {
-  const bridge = window.desktop.environment;
-  if (bridge === undefined) {
-    throw new Error("The Environment desktop bridge is unavailable.");
-  }
-  return bridge;
-};
-const environment = getEnvironmentBridge();
+const environment = selectDesktopBridge(
+  window.desktop,
+  "environment",
+).environment;
 
 const bucketLabels: Record<EnvironmentItemBucket, string> = {
   "ac-member": "AC member-only",

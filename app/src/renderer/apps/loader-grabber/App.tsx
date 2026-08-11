@@ -48,11 +48,17 @@ import {
   type LoaderGrabberGrabType,
   type LoaderGrabberLoadType,
 } from "../../../shared/loader-grabber";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import { buildGrabbedDataTree, filterTreeRoots, type TreeItem } from "./tree";
 import { downloadJson } from "../../lib/download";
 import { splitTextMatches } from "../../lib/text";
 
 type LoaderGrabberSource = LoaderGrabberGrabType | LoaderGrabberLoadType;
+
+const loaderGrabber = selectDesktopBridge(
+  window.desktop,
+  "loader-grabber",
+).loaderGrabber;
 
 interface SourceOption {
   readonly canGrab: boolean;
@@ -371,7 +377,7 @@ export function App(): JSX.Element {
         id: sourceId(),
         type: source(),
       });
-      await window.desktop.loaderGrabber.load(request);
+      await loaderGrabber.load(request);
       return true;
     } catch (cause) {
       setOperationError("Load failed", cause);
@@ -390,7 +396,7 @@ export function App(): JSX.Element {
       const request = normalizeLoaderGrabberGrabRequest({
         type: source(),
       });
-      const data = await window.desktop.loaderGrabber.grab(request);
+      const data = await loaderGrabber.grab(request);
       setGrabbedType(request.type);
       setGrabbedData(data);
       setSelectedRootId(null);

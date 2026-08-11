@@ -24,16 +24,7 @@ export const applySettingsAppearance = (settings: AppSettings): void => {
 };
 
 export const installRendererThemeSync = (): RendererThemeSync => {
-  const bridge = window.desktop?.settings;
-  if (bridge === undefined) {
-    applySettingsAppearance(DEFAULT_APP_SETTINGS);
-    return {
-      currentSettings: () => DEFAULT_APP_SETTINGS,
-      dispose: () => undefined,
-      ready: Promise.resolve(DEFAULT_APP_SETTINGS),
-    };
-  }
-
+  const bridge = window.desktop.settings;
   let disposed = false;
   let latestSettings = bridge.initial ?? DEFAULT_APP_SETTINGS;
   let settingsRevision = 0;

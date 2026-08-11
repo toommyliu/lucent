@@ -108,7 +108,7 @@ const withArmy = <A, E, R>(
   use: (army: ArmyApiRuntimeShape) => Effect.Effect<A, E, R>,
 ) =>
   Effect.gen(function* () {
-    vi.stubGlobal("window", { desktop: { army: bridge } });
+    vi.stubGlobal("window", { desktop: { army: bridge, view: "game" } });
     return yield* Effect.gen(function* () {
       const army = yield* ArmyApi;
       return yield* use(army);

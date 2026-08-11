@@ -62,7 +62,10 @@ import {
 } from "@lucent/core/hotkeys";
 import { readHotkeyInputFromEvent } from "../../../shared/hotkeys";
 import { hexToRgb, rgbEquals, rgbToHex } from "@lucent/core/appearance";
-import type { AppPlatform, DesktopBridge } from "../../../shared/desktopBridge";
+import {
+  selectDesktopBridge,
+  type AppPlatform,
+} from "../../../shared/desktopBridge";
 import {
   DEFAULT_APP_SETTINGS,
   THEME_TOKEN_NAMES,
@@ -78,15 +81,9 @@ import {
 import type { UpdateCheckState } from "../../../shared/updates";
 
 type HotkeyBindings = readonly HotkeyBinding[];
-type SettingsWindowDesktopBridge = DesktopBridge & {
-  readonly settings: Required<DesktopBridge["settings"]>;
-  readonly updates: NonNullable<DesktopBridge["updates"]>;
-};
-
-const settingsBridge = (): SettingsWindowDesktopBridge["settings"] =>
-  (window.desktop as SettingsWindowDesktopBridge).settings;
-const updatesBridge = () =>
-  (window.desktop as SettingsWindowDesktopBridge).updates;
+const desktop = selectDesktopBridge(window.desktop, "settings");
+const desktopSettings = desktop.settings;
+const desktopUpdates = desktop.updates;
 
 const defaultSettings: AppSettings = DEFAULT_APP_SETTINGS;
 const DEFAULT_THEME_TOKENS = {
@@ -1357,7 +1354,7 @@ export function App(props: {
       startedAt: new Date().toISOString(),
     });
 
-    void updatesBridge()
+    void desktopUpdates
       .checkNow({ force: true })
       .then((state) => applyUpdateState(state, { allowWhenDisabled: true }))
       .catch((cause: unknown) => {
@@ -1372,22 +1369,20 @@ export function App(props: {
   };
 
   const openReleasePage = (): void => {
-    void updatesBridge()
-      .openReleasePage()
-      .catch((cause: unknown) => {
-        console.error("Failed to open release page:", cause);
-        showError(
-          cause instanceof Error ? cause.message : "Release page unavailable",
-        );
-      });
+    void desktopUpdates.openReleasePage().catch((cause: unknown) => {
+      console.error("Failed to open release page:", cause);
+      showError(
+        cause instanceof Error ? cause.message : "Release page unavailable",
+      );
+    });
   };
 
   onMount(() => {
     let disposed = false;
-    const unsubscribeSettings = window.desktop.settings.onChanged(setSettings);
-    const unsubscribeUpdates = updatesBridge().onChanged(applyUpdateState);
+    const unsubscribeSettings = desktopSettings.onChanged(setSettings);
+    const unsubscribeUpdates = desktopUpdates.onChanged(applyUpdateState);
 
-    void window.desktop.settings
+    void desktopSettings
       .get()
       .then((nextSettings) => {
         if (!disposed) {
@@ -1403,7 +1398,7 @@ export function App(props: {
         }
       });
 
-    void updatesBridge()
+    void desktopUpdates
       .getState()
       .then(applyUpdateState)
       .catch((cause: unknown) => {
@@ -1445,7 +1440,7 @@ export function App(props: {
                       description="This restores every game-window shortcut to its default binding."
                       label="Reset hotkeys"
                       onConfirm={() =>
-                        void runSettingsUpdate(settingsBridge().resetHotkeys())
+                        void runSettingsUpdate(desktopSettings.resetHotkeys())
                       }
                       title="Reset all hotkeys?"
                     />
@@ -1457,7 +1452,7 @@ export function App(props: {
                       iconOnly
                       label="Reset hotkeys"
                       onConfirm={() =>
-                        void runSettingsUpdate(settingsBridge().resetHotkeys())
+                        void runSettingsUpdate(desktopSettings.resetHotkeys())
                       }
                       title="Reset all hotkeys?"
                     />
@@ -1486,7 +1481,7 @@ export function App(props: {
                     onOpenReleasePage={openReleasePage}
                     onPreferencesPatch={(patch) =>
                       void runSettingsUpdate(
-                        settingsBridge().updatePreferences(patch),
+                        desktopSettings.updatePreferences(patch),
                       )
                     }
                     settings={settings()}
@@ -1496,7 +1491,7 @@ export function App(props: {
                 <TabsContent value="hotkeys">
                   <HotkeySettingsSection
                     onHotkeysPatch={(patch) =>
-                      runSettingsUpdate(settingsBridge().updateHotkeys(patch))
+                      runSettingsUpdate(desktopSettings.updateHotkeys(patch))
                     }
                     platform={props.platform}
                     settings={settings()}
@@ -1506,7 +1501,7 @@ export function App(props: {
                   <AppearanceSettings
                     onAppearancePatch={(patch) =>
                       void runSettingsUpdate(
-                        settingsBridge().updateAppearance(patch),
+                        desktopSettings.updateAppearance(patch),
                       )
                     }
                     settings={settings()}

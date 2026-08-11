@@ -65,6 +65,7 @@ import {
   type PacketCaptureType,
   type PacketSendTarget,
 } from "../../../shared/packets";
+import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import { createRandomId } from "../../../shared/randomId";
 import { downloadText } from "../../lib/download";
 import { splitTextMatches } from "../../lib/text";
@@ -127,13 +128,7 @@ const packetPlaceholderHelp = `Placeholders resolve when packets are sent: ${PAC
   (definition) => definition.token,
 ).join(", ")}.`;
 
-const requireBridge = <T,>(bridge: T | undefined): T => {
-  if (bridge === undefined) {
-    throw new Error("The Packets desktop bridge is unavailable.");
-  }
-  return bridge;
-};
-const desktopPackets = requireBridge(window.desktop.packets);
+const desktopPackets = selectDesktopBridge(window.desktop, "packets").packets;
 
 const createEntryId = (): string => createRandomId();
 

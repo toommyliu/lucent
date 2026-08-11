@@ -366,7 +366,7 @@ export interface ArmyLoopTauntRuntime {
 
 export const makeArmyLoopTauntRuntime = (
   api: ApiService,
-  bridge: DesktopArmyBridge | undefined,
+  bridge: DesktopArmyBridge,
   getSession: () => Effect.Effect<LoopTauntSession | null>,
 ): Effect.Effect<ArmyLoopTauntRuntime, never, Scope.Scope> =>
   Effect.gen(function* () {
@@ -400,12 +400,6 @@ export const makeArmyLoopTauntRuntime = (
     const loopTaunt: ArmyLoopTauntRuntime["loopTaunt"] = (plan, onFailure) =>
       lifecycle.withPermits(1)(
         Effect.gen(function* () {
-          if (bridge === undefined) {
-            return yield* Effect.fail(
-              new ArmyLoopTauntError("Army bridge is unavailable"),
-            );
-          }
-
           const session = yield* getSession();
           if (session === null) {
             return yield* Effect.fail(

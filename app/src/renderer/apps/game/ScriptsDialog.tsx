@@ -237,7 +237,7 @@ function PackageUpdateCheckButton(
 }
 
 export interface ScriptsDialogProps {
-  readonly bridge: DesktopScriptingBridge | undefined;
+  readonly bridge: DesktopScriptingBridge;
   readonly inputsAvailable: boolean;
   readonly loadedReference: ScriptReference | undefined;
   readonly onChooseFile: (replaceRunning: boolean) => Promise<void>;
@@ -880,7 +880,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   ): Promise<void> => {
     const bridge = props.bridge;
     const revision = catalog().revision;
-    if (bridge === undefined || revision === "") return;
+    if (revision === "") return;
     const generation = scriptPageGeneration;
     const query = catalogQuery();
     const currentPages = scriptPages();
@@ -944,7 +944,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
     const bridge = props.bridge;
     const revision = catalog().revision;
-    if (bridge === undefined || revision === "" || !props.open) {
+    if (revision === "" || !props.open) {
       setScriptQueryLoading(false);
       return;
     }
@@ -1146,10 +1146,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const loadCatalog = async (refresh: boolean): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined) {
-      setCatalogLoading(false);
-      return;
-    }
     const requestId = ++catalogRequestId;
     setCatalogLoading(true);
     try {
@@ -1182,7 +1178,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const refreshCredentials = async (): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined) return;
     try {
       setCredentials(await bridge.listCredentials());
     } catch (cause) {
@@ -1245,7 +1240,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const bridge = props.bridge;
     if (
       revision === null ||
-      bridge === undefined ||
       !props.open ||
       busy() ||
       catalogLoading() ||
@@ -1283,7 +1277,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const viewport = scriptViewport();
     if (viewport !== undefined) scriptViewportResizeObserver.observe(viewport);
 
-    const unsubscribe = props.bridge?.onCatalogChanged((change) => {
+    const unsubscribe = props.bridge.onCatalogChanged((change) => {
       if (change.revision !== catalog().revision) {
         setPendingCatalogRevision(change.revision);
       }
@@ -1430,8 +1424,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     request: ScriptPackageInstallRequest,
   ): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined)
-      throw new Error("Desktop scripting bridge unavailable.");
     const result = await bridge.installPackage(request);
     if (result.status === "confirmation-required") {
       askForConfirmation({
@@ -1484,8 +1476,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     replaceModified = false,
   ): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined)
-      throw new Error("Desktop scripting bridge unavailable.");
     const result = await bridge.updatePackage({
       packageName: entry.name,
       ...(replaceModified ? { replaceModified: true } : {}),
@@ -1543,9 +1533,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       destructive: true,
       onConfirm: async () => {
         const bridge = props.bridge;
-        if (bridge === undefined) {
-          throw new Error("Desktop scripting bridge unavailable.");
-        }
         const result = await bridge.removePackage({
           packageName: entry.name,
           confirmModified: true,
@@ -1563,7 +1550,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const checkUpdate = async (entry: ValidScriptPackage): Promise<void> => {
     if (packageActiveRateLimit(entry) !== undefined) return;
     const bridge = props.bridge;
-    if (bridge === undefined || busy()) return;
+    if (busy()) return;
     setBusy(true);
     setCheckingPackageName(entry.name);
     setError("");
@@ -1579,7 +1566,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const checkAllPackageUpdates = async (): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined || busy()) return;
+    if (busy()) return;
     const packageNames = packagesEligibleForUpdateCheck().map(
       (entry) => entry.name,
     );
@@ -1613,7 +1600,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const openPackage = async (entry: ScriptPackageSummary): Promise<void> => {
     try {
-      if (!(await props.bridge?.openPath(entry.path))) {
+      if (!(await props.bridge.openPath(entry.path))) {
         throw new Error("The package folder could not be opened.");
       }
     } catch (cause) {
@@ -1624,7 +1611,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const openScript = async (entry: ScriptCatalogEntry): Promise<void> => {
     try {
       const bridge = props.bridge;
-      if (bridge === undefined || !(await bridge.openPath(entry.path))) {
+      if (!(await bridge.openPath(entry.path))) {
         throw new Error("The script could not be opened.");
       }
     } catch (cause) {
@@ -1640,10 +1627,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (repositoryUrl === undefined) return;
     try {
       const bridge = props.bridge;
-      if (
-        bridge === undefined ||
-        !(await bridge.openRepository(repositoryUrl))
-      ) {
+      if (!(await bridge.openRepository(repositoryUrl))) {
         throw new Error("The repository could not be opened.");
       }
     } catch (cause) {
@@ -1736,7 +1720,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const saveCredential = async (): Promise<void> => {
     const bridge = props.bridge;
-    if (bridge === undefined || busy()) return;
+    if (busy()) return;
     setBusy(true);
     setError("");
     try {
@@ -1771,9 +1755,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       destructive: true,
       onConfirm: async () => {
         const bridge = props.bridge;
-        if (bridge === undefined) {
-          throw new Error("Desktop scripting bridge unavailable.");
-        }
         await bridge.deleteCredential(entry.id);
         setCredentials((current) =>
           current.filter((candidate) => candidate.id !== entry.id),

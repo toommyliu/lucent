@@ -19,7 +19,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
-import type { DesktopEnvironmentBridge } from "../../../../shared/desktopBridge";
+import { selectDesktopBridge } from "../../../../shared/desktopBridge";
 import { playBeep } from "../audio/beep";
 import { Api } from "../flash/api/Api";
 import {
@@ -178,13 +178,7 @@ const fromDesktop = <A>(label: string, invoke: () => Promise<A>) =>
 
 const makeEnvironment = Effect.gen(function* () {
   const api = yield* Api;
-  const bridge: DesktopEnvironmentBridge | undefined =
-    window.desktop.environment;
-  if (bridge === undefined) {
-    return yield* Effect.die(
-      new Error("The Environment desktop bridge is unavailable."),
-    );
-  }
+  const bridge = selectDesktopBridge(window.desktop, "game").environment;
 
   const services = yield* Effect.context<never>();
   const runFork = Effect.runForkWith(services);
