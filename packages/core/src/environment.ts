@@ -396,15 +396,7 @@ export const setEnvironmentQuestReward = (
   const normalizedRewardItemId = toPositiveInt(rewardItemId);
   return normalizedQuestId === undefined || normalizedRewardItemId === undefined
     ? normalizeEnvironmentState(state)
-    : addEnvironmentQuest(
-        updateEnvironmentState(state, {
-          questRewards: {
-            ...state.questRewards,
-            [normalizedQuestId]: normalizedRewardItemId,
-          },
-        }),
-        normalizedQuestId,
-      );
+    : addEnvironmentQuest(state, normalizedQuestId, normalizedRewardItemId);
 };
 
 export const clearEnvironmentQuestReward = (
