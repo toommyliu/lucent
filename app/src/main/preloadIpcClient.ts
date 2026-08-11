@@ -1,12 +1,7 @@
-import * as Schema from "effect/Schema";
-
 import type {
   IpcEventDescriptor,
-  IpcEventPayload,
   IpcInvokeDescriptor,
   IpcInvokeEnvelope,
-  IpcInvokePayload,
-  IpcInvokeResult,
 } from "../shared/ipc";
 
 export type IpcInvokeTransport = (
@@ -45,39 +40,27 @@ export class DesktopBridgeError extends Error {
 
 export const createInvoke =
   (transport: IpcInvokeTransport) =>
-  async <Descriptor extends IpcInvokeDescriptor<unknown, unknown>>(
-    descriptor: Descriptor,
-    payload: IpcInvokePayload<Descriptor>,
-  ): Promise<IpcInvokeResult<Descriptor>> => {
-    const encodedPayload = Schema.encodeUnknownSync(
-      descriptor.payload as unknown as Schema.Encoder<unknown>,
-    )(payload);
+  async <Payload, Result>(
+    descriptor: IpcInvokeDescriptor<Payload, Result>,
+    payload: Payload,
+  ): Promise<Result> => {
+    const encodedPayload = descriptor.encodePayload(payload);
     const envelope = await transport(descriptor.channel, encodedPayload);
     if (!envelope.ok) {
       throw new DesktopBridgeError(envelope.error);
     }
-    return Schema.decodeUnknownSync(
-      descriptor.result as unknown as Schema.Decoder<
-        IpcInvokeResult<Descriptor>
-      >,
-    )(envelope.value);
+    return descriptor.decodeResult(envelope.value);
   };
 
 export const createSubscribe =
   (transport: IpcEventTransport) =>
-  <Descriptor extends IpcEventDescriptor<unknown>>(
-    descriptor: Descriptor,
-    listener: (payload: IpcEventPayload<Descriptor>) => void,
+  <Payload>(
+    descriptor: IpcEventDescriptor<Payload>,
+    listener: (payload: Payload) => void,
   ): (() => void) => {
     const subscription = (rawPayload: unknown): void => {
       try {
-        listener(
-          Schema.decodeUnknownSync(
-            descriptor.payload as unknown as Schema.Decoder<
-              IpcEventPayload<Descriptor>
-            >,
-          )(rawPayload),
-        );
+        listener(descriptor.decodePayload(rawPayload));
       } catch (cause) {
         console.error(`Failed to decode ${descriptor.name} event`, cause);
       }

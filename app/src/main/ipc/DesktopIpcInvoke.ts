@@ -1,13 +1,10 @@
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 
 import {
   type IpcBridgeError,
   type IpcInvokeDescriptor,
   type IpcInvokeEnvelope,
-  type IpcInvokePayload,
-  type IpcInvokeResult,
 } from "../../shared/ipc";
 
 const errorMessage = (cause: unknown, fallback: string): string => {
@@ -33,35 +30,26 @@ const bridgeError = (
 };
 
 export const createDesktopIpcInvokeHandler = <
-  Descriptor extends IpcInvokeDescriptor<unknown, unknown>,
+  Payload,
+  Result,
   Event,
   HandlerContext,
 >(
-  descriptor: Descriptor,
+  descriptor: IpcInvokeDescriptor<Payload, Result>,
   handler: (
-    payload: IpcInvokePayload<Descriptor>,
+    payload: Payload,
     event: Event,
-  ) => Effect.Effect<IpcInvokeResult<Descriptor>, unknown, HandlerContext>,
+  ) => Effect.Effect<Result, unknown, HandlerContext>,
   runPromise: <A, E>(effect: Effect.Effect<A, E, HandlerContext>) => Promise<A>,
 ): ((
   event: Event,
   rawPayload: unknown,
 ) => Promise<IpcInvokeEnvelope<unknown>>) => {
-  const decodePayload = Schema.decodeUnknownEffect(
-    descriptor.payload as unknown as Schema.Decoder<
-      IpcInvokePayload<Descriptor>
-    >,
-    { onExcessProperty: "error" },
-  );
-  const encodeResult = Schema.encodeUnknownEffect(
-    descriptor.result as unknown as Schema.Encoder<unknown>,
-  );
-
   return (event, rawPayload) => {
     const effect = Effect.gen(function* () {
-      const payload = yield* decodePayload(rawPayload);
+      const payload = yield* descriptor.decodePayloadEffect(rawPayload);
       const result = yield* handler(payload, event);
-      const encoded = yield* encodeResult(result);
+      const encoded = yield* descriptor.encodeResultEffect(result);
       return {
         ok: true,
         value: encoded,

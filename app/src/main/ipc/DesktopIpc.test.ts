@@ -1,14 +1,17 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { IpcMainInvokeEvent } from "electron";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Schema from "effect/Schema";
 
-import { defineInvoke } from "../../shared/ipc";
+import { defineEvent, defineInvoke } from "../../shared/ipc";
 import {
   DesktopIpcRegistrationError,
   makeDesktopIpc,
   makeDesktopIpcMethod,
   type DesktopIpcMain,
+  type DesktopIpcWindow,
 } from "./DesktopIpc";
 import {
   DesktopIpcSenders,
@@ -20,6 +23,12 @@ const descriptor = defineInvoke({
   name: "test.echo",
   payload: Schema.String,
   result: Schema.String,
+});
+
+const eventDescriptor = defineEvent({
+  channel: "desktop:test:event",
+  name: "test.event",
+  payload: Schema.String,
 });
 
 const method = makeDesktopIpcMethod({
@@ -90,5 +99,83 @@ describe("DesktopIpc", () => {
           expect(error.channel).toBe(descriptor.channel);
         }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
       ),
+  );
+
+  it.effect("continues delivery after a destroyed-window race", () =>
+    Effect.gen(function* () {
+      const { main } = makeIpcMain();
+      const delivered: string[] = [];
+      let destroyed = false;
+      const racedWindow: DesktopIpcWindow = {
+        isDestroyed: () => destroyed,
+        webContents: {
+          isDestroyed: () => destroyed,
+          send: () => {
+            destroyed = true;
+            throw new Error("Window was destroyed during delivery.");
+          },
+        },
+      };
+      const receivingWindow: DesktopIpcWindow = {
+        isDestroyed: () => false,
+        webContents: {
+          isDestroyed: () => false,
+          send: (_channel, payload) => {
+            delivered.push(String(payload));
+          },
+        },
+      };
+      const ipc = makeDesktopIpc(main, {
+        fromId: () => null,
+        getAllWindows: () => [racedWindow, receivingWindow],
+      });
+
+      yield* ipc.sendToAll(eventDescriptor, "hello");
+
+      expect(delivered).toEqual(["hello"]);
+    }),
+  );
+
+  it.effect(
+    "reports unexpected delivery failures after attempting every recipient",
+    () =>
+      Effect.gen(function* () {
+        const { main } = makeIpcMain();
+        const delivered: string[] = [];
+        const failingWindow: DesktopIpcWindow = {
+          isDestroyed: () => false,
+          webContents: {
+            isDestroyed: () => false,
+            send: () => {
+              throw new Error("Unexpected IPC transport failure.");
+            },
+          },
+        };
+        const receivingWindow: DesktopIpcWindow = {
+          isDestroyed: () => false,
+          webContents: {
+            isDestroyed: () => false,
+            send: (_channel, payload) => {
+              delivered.push(String(payload));
+            },
+          },
+        };
+        const ipc = makeDesktopIpc(main, {
+          fromId: () => null,
+          getAllWindows: () => [failingWindow, receivingWindow],
+        });
+
+        const exit = yield* Effect.exit(
+          ipc.sendToAll(eventDescriptor, "hello"),
+        );
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(Cause.squash(exit.cause)).toMatchObject({
+            message: "Unexpected IPC transport failure.",
+          });
+        }
+        expect(delivered).toEqual(["hello"]);
+      }),
   );
 });

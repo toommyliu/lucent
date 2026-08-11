@@ -15,10 +15,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
 import type { AccountManagerState } from "@lucent/core/accounts";
-import {
-  GameConsoleIpc,
-  type GameConsoleRendererMessagePayload,
-} from "../../shared/ipc";
+import { GameConsoleIpc } from "../../shared/ipc";
 import { Accounts } from "../internal/accounts/Accounts";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { INITIAL_WINDOW_GENERATION } from "../window/WindowGeneration";
@@ -141,9 +138,8 @@ interface GameConsoleHttpHandlerOptions {
   readonly addSseClient?: (response: ServerResponse) => () => void;
 }
 
-const decodeRendererMessagePayload = Schema.decodeUnknownOption(
-  GameConsoleIpc.rendererMessage
-    .payload as unknown as Schema.Decoder<GameConsoleRendererMessagePayload>,
+const decodeRendererMessagePayload = Option.liftThrowable(
+  GameConsoleIpc.rendererMessage.decodePayload,
 );
 
 const nowIso = (): string => new Date().toISOString();

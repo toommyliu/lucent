@@ -6,7 +6,10 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import { isElectronWindowUsable } from "../electron/windowUsability";
+import {
+  type ElectronWindowUsabilityTarget,
+  isElectronWindowUsable,
+} from "../electron/windowUsability";
 import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
 import {
   type IpcEventDescriptor,
@@ -92,6 +95,17 @@ export interface DesktopIpcMain {
   readonly removeHandler: (channel: string) => void;
 }
 
+export interface DesktopIpcWindow extends ElectronWindowUsabilityTarget {
+  readonly webContents: ElectronWindowUsabilityTarget["webContents"] & {
+    readonly send: (channel: string, payload: unknown) => void;
+  };
+}
+
+export interface DesktopIpcWindows {
+  readonly fromId: (browserWindowId: number) => DesktopIpcWindow | null;
+  readonly getAllWindows: () => readonly DesktopIpcWindow[];
+}
+
 export interface DesktopIpcShape {
   readonly handle: <E, R>(
     method: DesktopIpcMethodRegistration<E, R>,
@@ -117,40 +131,61 @@ export class DesktopIpc extends Context.Service<DesktopIpc, DesktopIpcShape>()(
   "lucent/desktop/ipc/DesktopIpc",
 ) {}
 
-const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
-  Schema.encodeUnknownEffect(descriptor.payload)(payload).pipe(
-    Effect.flatMap((encoded) =>
-      Effect.sync(() => {
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (isElectronWindowUsable(window)) {
-            window.webContents.send(descriptor.channel, encoded);
-          }
-        }
-      }),
-    ),
-    Effect.catch(() => Effect.void),
-  );
+const sendEncoded = (
+  windows: Iterable<DesktopIpcWindow | null>,
+  channel: string,
+  payload: unknown,
+): void => {
+  const unexpectedFailures: unknown[] = [];
+  for (const window of windows) {
+    if (window === null || !isElectronWindowUsable(window)) {
+      continue;
+    }
 
-const sendToBrowserWindowIds: DesktopIpcShape["sendToBrowserWindowIds"] = (
-  browserWindowIds,
-  descriptor,
-  payload,
-) =>
-  Schema.encodeUnknownEffect(descriptor.payload)(payload).pipe(
-    Effect.flatMap((encoded) =>
-      Effect.sync(() => {
-        for (const browserWindowId of browserWindowIds) {
-          const window = BrowserWindow.fromId(browserWindowId);
-          if (window !== null && isElectronWindowUsable(window)) {
-            window.webContents.send(descriptor.channel, encoded);
-          }
-        }
-      }),
-    ),
-    Effect.catch(() => Effect.void),
-  );
+    try {
+      window.webContents.send(channel, payload);
+    } catch (cause) {
+      if (isElectronWindowUsable(window)) {
+        unexpectedFailures.push(cause);
+      }
+    }
+  }
 
-export const makeDesktopIpc = (main: DesktopIpcMain): DesktopIpc["Service"] => {
+  if (unexpectedFailures.length > 0) {
+    throw unexpectedFailures[0];
+  }
+};
+
+export const makeDesktopIpc = (
+  main: DesktopIpcMain,
+  windows: DesktopIpcWindows = BrowserWindow,
+): DesktopIpc["Service"] => {
+  const sendEvent = <Descriptor extends IpcEventDescriptor<unknown>>(
+    descriptor: Descriptor,
+    payload: IpcEventPayload<Descriptor>,
+    targets: () => Iterable<DesktopIpcWindow | null>,
+  ): Effect.Effect<void> =>
+    descriptor.encodePayloadEffect(payload).pipe(
+      Effect.orDie,
+      Effect.flatMap((encoded) =>
+        Effect.sync(() => sendEncoded(targets(), descriptor.channel, encoded)),
+      ),
+    );
+
+  const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
+    sendEvent(descriptor, payload, windows.getAllWindows);
+
+  const sendToBrowserWindowIds: DesktopIpcShape["sendToBrowserWindowIds"] = (
+    browserWindowIds,
+    descriptor,
+    payload,
+  ) =>
+    sendEvent(descriptor, payload, () =>
+      browserWindowIds.map((browserWindowId) =>
+        windows.fromId(browserWindowId),
+      ),
+    );
+
   const handle = <E, R>(
     method: DesktopIpcMethodRegistration<E, R>,
   ): Effect.Effect<
