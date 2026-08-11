@@ -331,45 +331,87 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   line-height: 1.2;
 }
 
+.game-topnav__relogin-indicator {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 0;
+  height: 12px;
+  margin-inline-end: 0;
+  overflow: hidden;
+  color: var(--color-muted-foreground);
+  line-height: 1;
+  opacity: 0;
+  transition-property: width, margin-inline-end, opacity;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+.game-topnav__relogin-indicator[data-phase] {
+  width: 12px;
+  margin-inline-end: 5px;
+  overflow: visible;
+  opacity: 1;
+}
+
+.game-topnav__trigger--relogin svg.game-topnav__relogin-indicator-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  opacity: 1;
+  stroke-width: 2.25;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduce-motion="on"])
+    .game-topnav__relogin-indicator[data-phase="waiting"]
+    .game-topnav__relogin-indicator-icon {
+    animation: game-topnav-relogin-wait 1.6s ease-in-out infinite;
+  }
+
+  :root:not([data-reduce-motion="on"])
+    .game-topnav__relogin-indicator[data-phase="reconnecting"]
+    .game-topnav__relogin-indicator-icon {
+    animation: game-topnav-relogin-reconnect 0.8s linear infinite;
+  }
+}
+
+:root[data-reduce-motion="off"]
+  .game-topnav__relogin-indicator[data-phase="waiting"]
+  .game-topnav__relogin-indicator-icon {
+  animation: game-topnav-relogin-wait 1.6s ease-in-out infinite;
+}
+
+:root[data-reduce-motion="off"]
+  .game-topnav__relogin-indicator[data-phase="reconnecting"]
+  .game-topnav__relogin-indicator-icon {
+  animation: game-topnav-relogin-reconnect 0.8s linear infinite;
+}
+
+@keyframes game-topnav-relogin-wait {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes game-topnav-relogin-reconnect {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .game-topnav__trigger--success,
 .game-topnav__button--success {
   color: var(--color-success-foreground);
-}
-
-.game-topnav__relogin-label[data-shimmer] {
-  --relogin-shimmer-spread: calc(3ch + 40px);
-  --relogin-shimmer-half-spread: calc(1.5ch + 20px);
-
-  color: var(--color-muted-foreground);
-  background-image: linear-gradient(
-    110deg,
-    var(--color-muted-foreground)
-      calc(50% - var(--relogin-shimmer-spread)),
-    rgba(var(--foreground), 0.72)
-      calc(50% - var(--relogin-shimmer-half-spread)),
-    var(--color-foreground) 50%,
-    rgba(var(--foreground), 0.72)
-      calc(50% + var(--relogin-shimmer-half-spread)),
-    var(--color-muted-foreground)
-      calc(50% + var(--relogin-shimmer-spread))
-  );
-  background-position: 0 0;
-  background-repeat: no-repeat;
-  background-size: calc(200% + 6ch + 80px) 100%;
-  background-clip: text;
-  animation: game-topnav-relogin-shimmer 2s linear infinite;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-@keyframes game-topnav-relogin-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-
-  to {
-    background-position: 0 0;
-  }
 }
 
 .game-topnav__trigger--alert,
@@ -919,23 +961,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__error {
   color: var(--color-destructive-foreground);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-reduce-motion="off"])
-    .game-topnav__relogin-label[data-shimmer] {
-    color: inherit;
-    background: none;
-    animation: none !important;
-    -webkit-text-fill-color: currentColor;
-  }
-}
-
-:root[data-reduce-motion="on"] .game-topnav__relogin-label[data-shimmer] {
-  color: inherit;
-  background: none;
-  animation: none !important;
-  -webkit-text-fill-color: currentColor;
 }
 
 .game-options-grid {

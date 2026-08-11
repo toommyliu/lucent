@@ -669,11 +669,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
     props.autoReloginLastError() !== "";
   const autoReloginAwaitingSession = (): boolean =>
     props.autoReloginEnabled() && !props.autoReloginCaptured();
-  const autoReloginShimmering = (): boolean =>
-    props.autoReloginToggling() ||
-    props.autoReloginAttempting() ||
-    props.autoReloginWaitingDelay() ||
-    autoReloginAwaitingSession();
 
   const autoReloginAttemptsRemainingLabel = (): string => {
     const remaining = props.autoReloginAttemptsRemaining();
@@ -683,6 +678,12 @@ export function TopNav(props: TopNavProps): JSX.Element {
   };
 
   const autoReloginTriggerLabel = (): string => {
+    if (props.autoReloginToggling()) {
+      return props.autoReloginEnabled()
+        ? "Auto Relogin enabling"
+        : "Auto Relogin disabling";
+    }
+
     if (props.autoReloginAttempting()) {
       const remaining = autoReloginAttemptsRemainingLabel();
       return remaining === ""
@@ -708,6 +709,16 @@ export function TopNav(props: TopNavProps): JSX.Element {
     !props.autoReloginAttempting() &&
     !props.autoReloginWaitingDelay() &&
     !autoReloginAwaitingSession();
+
+  const autoReloginActivity = (): "waiting" | "reconnecting" | undefined => {
+    if (props.autoReloginToggling() || props.autoReloginAttempting()) {
+      return "reconnecting";
+    }
+
+    return props.autoReloginWaitingDelay() || autoReloginAwaitingSession()
+      ? "waiting"
+      : undefined;
+  };
 
   const autoReloginMenuStatus = (): string => {
     if (props.autoReloginToggling()) {
@@ -1155,11 +1166,23 @@ export function TopNav(props: TopNavProps): JSX.Element {
               }
             >
               <span
-                class="game-topnav__relogin-label"
-                data-shimmer={autoReloginShimmering() ? "" : undefined}
+                aria-hidden="true"
+                class="game-topnav__relogin-indicator"
+                data-phase={autoReloginActivity()}
               >
-                Auto Relogin
+                <Show when={autoReloginActivity()}>
+                  {(activity) => (
+                    <Icon
+                      class="game-topnav__relogin-indicator-icon"
+                      icon={
+                        activity() === "waiting" ? "clock" : "loader_circle"
+                      }
+                      size="xs"
+                    />
+                  )}
+                </Show>
               </span>
+              <span class="game-topnav__relogin-label">Auto Relogin</span>
               <Show
                 when={props.autoReloginEnabled() && props.autoReloginServer()}
               >
