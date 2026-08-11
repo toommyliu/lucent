@@ -231,6 +231,11 @@ const icons = {
   // Local spinner arc: 270deg from 12 o'clock to 9 o'clock, so reduced-motion
   // states read as intentional loading instead of a frozen animation frame.
   loader_circle: [["path", { d: "M12 3a9 9 0 1 1-9 9", key: "13zald" }]],
+  monitor: [
+    ["rect", { width: "20", height: "14", x: "2", y: "3", rx: "2" }],
+    ["line", { x1: "8", x2: "16", y1: "21", y2: "21" }],
+    ["line", { x1: "12", x2: "12", y1: "17", y2: "21" }],
+  ],
   pause: [
     [
       "rect",

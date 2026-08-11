@@ -47,17 +47,6 @@ export {
   type BadgeVariant,
 } from "./components/Badge";
 export {
-  AppShell,
-  type AppShellBodyProps,
-  type AppShellComponent,
-  type AppShellHeaderProps,
-  type AppShellHeaderLeftProps,
-  type AppShellHeaderRightProps,
-  type AppShellOrientation,
-  type AppShellProps,
-  type AppShellTitleProps,
-} from "./components/AppShell";
-export {
   Button,
   type ButtonProps,
   type ButtonSize,

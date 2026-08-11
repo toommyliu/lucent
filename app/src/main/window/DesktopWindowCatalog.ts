@@ -56,8 +56,6 @@ const desktopWindowCatalog: ReadonlyMap<
       kind: "account-manager",
       width: 980,
       height: 720,
-      minWidth: 760,
-      minHeight: 560,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
       scope: "application",

@@ -2,6 +2,13 @@ interface AccountUsernameEntry {
   readonly username: string;
 }
 
+export const haveSameAccountUsernames = (
+  left: ReadonlySet<string>,
+  right: ReadonlySet<string>,
+): boolean =>
+  left.size === right.size &&
+  [...left].every((username) => right.has(username));
+
 export const resolveSelectedAccountUsernames = (
   accounts: readonly AccountUsernameEntry[],
   selectedUsernames: ReadonlySet<string>,

@@ -56,7 +56,9 @@ export function Select(props: SelectProps): JSX.Element {
     ...(local.items ?? []),
   ]);
   const collection = createMemo(() =>
-    createListCollection<SelectOption>({ items: registeredItems() }),
+    createListCollection<SelectOption>({
+      items: local.items ?? registeredItems(),
+    }),
   );
   const context: SelectContextValue = {
     registerItem(item) {
