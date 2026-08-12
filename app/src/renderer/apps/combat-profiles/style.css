@@ -161,6 +161,22 @@
   gap: 0.5rem;
 }
 
+.combat-profiles-empty.empty {
+  gap: 0;
+  min-height: 7.5rem;
+  padding: 1.5rem 1rem;
+}
+
+.combat-profiles-empty .empty__title {
+  font-size: var(--text-base);
+  line-height: 1.35;
+}
+
+.combat-profiles-empty .empty__description {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
 .combat-profiles-trigger {
   align-items: start;
   display: grid;

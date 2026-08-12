@@ -20,6 +20,10 @@ import {
   CardFrameHeader,
   CardFrameTitle,
   Checkbox,
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
   Input,
   Label,
   Select,
@@ -1046,12 +1050,7 @@ export function CombatProfilesView(
 
             <CardFrame>
               <CardFrameHeader class="combat-profiles-frame-header">
-                <CardFrameTitle>
-                  <CombatProfilesLabelHelp
-                    label="Message triggers"
-                    tooltip="Cast a skill when a matching update message appears."
-                  />
-                </CardFrameTitle>
+                <CardFrameTitle>Message triggers</CardFrameTitle>
                 <Button
                   aria-label="Add message trigger"
                   class="combat-profiles-add-skill-button combat-profiles-frame-action"
@@ -1070,9 +1069,15 @@ export function CombatProfilesView(
                   <Show
                     when={draftMessageTriggers().length > 0}
                     fallback={
-                      <div class="combat-profiles-empty-rule">
-                        No message triggers.
-                      </div>
+                      <Empty class="combat-profiles-empty">
+                        <EmptyHeader>
+                          <EmptyTitle>No message triggers</EmptyTitle>
+                          <EmptyDescription>
+                            Add a trigger to cast a skill when a matching
+                            message appears.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     }
                   >
                     <Index each={draftMessageTriggers()}>
@@ -1235,7 +1240,19 @@ export function CombatProfilesView(
               </CardFrameHeader>
               <Card>
                 <CardContent class="combat-profiles-steps">
-                  <Index each={draftSteps()}>
+                  <Index
+                    each={draftSteps()}
+                    fallback={
+                      <Empty class="combat-profiles-empty">
+                        <EmptyHeader>
+                          <EmptyTitle>No rotation skills</EmptyTitle>
+                          <EmptyDescription>
+                            Add a skill to define this profile&apos;s rotation.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    }
+                  >
                     {(step, stepIndex) => (
                       <div class="combat-profiles-step">
                         <div class="combat-profiles-step__header">
