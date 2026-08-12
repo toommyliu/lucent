@@ -984,6 +984,22 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   column-gap: 0.5rem;
 }
 
+@media (hover: hover) {
+  .game-menu--options[data-input-mode="pointer"]
+    .game-menu__options-content[data-page="gameplay"]
+    .game-menu__item[data-highlighted]:not(:hover):not([data-state="open"]) {
+    color: rgb(var(--foreground));
+    background: transparent;
+  }
+
+  .game-menu--options[data-input-mode="pointer"]
+    .game-menu__options-content[data-page="gameplay"]
+    .game-menu__item[data-highlighted]:not(:hover):not([data-state="open"])
+    .kbd {
+    background: rgb(var(--muted));
+  }
+}
+
 .game-menu__option-switch {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1072,27 +1088,23 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   height: 1.25rem;
 }
 
-.game-menu__utility-strip {
-  display: grid;
-  gap: 0.375rem;
-  min-width: 0;
-}
-
 .game-menu__utility-actions,
 .game-menu__number-chips {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.375rem;
+  gap: 0.5rem;
   min-width: 0;
 }
 
 .game-menu__utility-actions {
-  gap: 0.25rem;
+  row-gap: 2px;
+  padding-inline: 0.25rem;
 }
 
-.game-menu__utility-actions .button {
-  width: 100%;
-  padding-inline: 0.25rem;
+.game-menu__utility-action {
+  min-width: 0;
+  min-height: 1.875rem;
+  white-space: normal;
 }
 
 .game-menu__number-chip {
@@ -1102,11 +1114,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   gap: 0.4375rem;
   min-height: var(--control-height-sm);
   padding-block: 2px;
-  padding-inline-start: 0.625rem;
+  padding-inline-start: 0.5rem;
   padding-inline-end: 2px;
   color: var(--color-foreground);
-  background: rgb(var(--secondary));
-  border: 1px solid rgb(var(--border));
+  background: rgb(var(--background));
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 500;
@@ -1124,7 +1135,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   height: 1.5rem;
   padding-inline: 0.375rem;
   color: var(--color-foreground);
-  background: rgb(var(--background));
+  background: rgb(var(--secondary));
   border-radius: 999px;
   box-shadow: var(--shadow-xs);
   cursor: default;
@@ -1210,7 +1221,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
   .game-menu__option-switch,
   .game-menu__rendering-mode,
-  .game-menu__rendering-mode-trigger {
+  .game-menu__rendering-mode-trigger,
+  .game-menu__utility-action {
     min-height: 1.75rem;
     padding-block: 0.1875rem;
   }
@@ -1260,11 +1272,12 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   justify-content: space-between;
   gap: 4px;
   min-width: 0;
+  padding-inline: 0.5rem;
 }
 
 .game-menu__field-label {
   color: var(--color-foreground);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -1285,7 +1298,11 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu__identity-field {
-  padding-inline: 0.25rem;
+  padding-inline: 0.5rem;
+}
+
+.game-menu__identity-field .game-menu__field-heading {
+  padding-inline: 0;
 }
 
 .game-menu--script-options {
