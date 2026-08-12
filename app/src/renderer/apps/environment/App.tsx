@@ -48,14 +48,68 @@ import {
   type EnvironmentItemBucket,
   type EnvironmentItemRules,
   type EnvironmentQuestAutoRegisterOptions,
+  type EnvironmentQuestRegistration,
   type EnvironmentState,
 } from "@lucent/core/environment";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
+import type { EnvironmentBoostDiscovery } from "../../../shared/ipc/environment";
 
-const environment = selectDesktopBridge(
-  window.desktop,
-  "environment",
-).environment;
+export interface EnvironmentViewFixture {
+  readonly error?: string;
+  readonly state: EnvironmentState;
+}
+
+export interface EnvironmentViewCallbacks {
+  readonly addBoosts?: (names: readonly string[]) => Promise<EnvironmentState>;
+  readonly addItems?: (names: readonly string[]) => Promise<EnvironmentState>;
+  readonly addQuests?: (
+    quests: readonly EnvironmentQuestRegistration[],
+  ) => Promise<EnvironmentState>;
+  readonly clear?: () => Promise<EnvironmentState>;
+  readonly clearBoosts?: () => Promise<EnvironmentState>;
+  readonly clearItems?: () => Promise<EnvironmentState>;
+  readonly clearQuestReward?: (
+    questId: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly clearQuests?: () => Promise<EnvironmentState>;
+  readonly fetchBoosts?: () => Promise<EnvironmentBoostDiscovery>;
+  readonly getState?: () => Promise<EnvironmentState>;
+  readonly onStateChanged?: (
+    listener: (state: EnvironmentState) => void,
+  ) => () => void;
+  readonly removeBoost?: (name: string) => Promise<EnvironmentState>;
+  readonly removeItem?: (name: string) => Promise<EnvironmentState>;
+  readonly removeQuest?: (
+    questId: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly setAutomationEnabled?: (
+    capability: EnvironmentAutomationCapability,
+    enabled: boolean,
+  ) => Promise<EnvironmentState>;
+  readonly setItemNotification?: (
+    name: string,
+    enabled: boolean,
+  ) => Promise<EnvironmentState>;
+  readonly setItemRules?: (
+    rules: EnvironmentItemRules,
+  ) => Promise<EnvironmentState>;
+  readonly setQuestAutoRegister?: (
+    options: EnvironmentQuestAutoRegisterOptions,
+  ) => Promise<EnvironmentState>;
+  readonly setQuestReward?: (
+    questId: number | string,
+    rewardItemId: number | string,
+  ) => Promise<EnvironmentState>;
+  readonly syncToAll?: () => Promise<EnvironmentState>;
+  readonly withdrawBoosts?: (
+    itemIds: readonly number[],
+  ) => Promise<readonly number[]>;
+}
+
+export interface EnvironmentViewProps {
+  readonly callbacks?: EnvironmentViewCallbacks;
+  readonly fixture: EnvironmentViewFixture;
+}
 
 const bucketLabels: Record<EnvironmentItemBucket, string> = {
   "ac-member": "AC member-only",
@@ -88,10 +142,9 @@ function AutomationAction(props: {
   );
 }
 
-export function App(): JSX.Element {
-  const [state, setState] = createSignal<EnvironmentState>(
-    createEmptyEnvironmentState(),
-  );
+/** Renders Environment state with optional callbacks for stateful interactions. */
+export function EnvironmentView(props: EnvironmentViewProps): JSX.Element {
+  const [state, setState] = createSignal<EnvironmentState>(props.fixture.state);
   const [questInput, setQuestInput] = createSignal("");
   const [itemInput, setItemInput] = createSignal("");
   const [boostInput, setBoostInput] = createSignal("");
@@ -108,7 +161,7 @@ export function App(): JSX.Element {
   >(new Set<number>());
   const [syncing, setSyncing] = createSignal(false);
   const [applyDialogOpen, setApplyDialogOpen] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const [error, setError] = createSignal(props.fixture.error ?? "");
   const [editingQuestRewardId, setEditingQuestRewardId] = createSignal<
     number | null
   >(null);
@@ -155,7 +208,9 @@ export function App(): JSX.Element {
   const clearAll = async (): Promise<void> => {
     setClearingAll(true);
     try {
-      await runStateUpdate(environment.clear());
+      await runStateUpdate(
+        props.callbacks?.clear?.() ?? Promise.resolve(state()),
+      );
     } finally {
       setClearingAll(false);
     }
@@ -170,7 +225,9 @@ export function App(): JSX.Element {
     }
 
     setQuestInput("");
-    await runStateUpdate(environment.addQuests(tokens));
+    await runStateUpdate(
+      props.callbacks?.addQuests?.(tokens) ?? Promise.resolve(state()),
+    );
   };
 
   const updateQuestReward = async (
@@ -180,15 +237,20 @@ export function App(): JSX.Element {
     const trimmed = value.trim();
     await runStateUpdate(
       trimmed
-        ? environment.setQuestReward(questId, trimmed)
-        : environment.clearQuestReward(questId),
+        ? (props.callbacks?.setQuestReward?.(questId, trimmed) ??
+            Promise.resolve(state()))
+        : (props.callbacks?.clearQuestReward?.(questId) ??
+            Promise.resolve(state())),
     );
   };
 
   const updateQuestAutoRegister = async (
     options: EnvironmentQuestAutoRegisterOptions,
   ): Promise<void> => {
-    await runStateUpdate(environment.setQuestAutoRegister(options));
+    await runStateUpdate(
+      props.callbacks?.setQuestAutoRegister?.(options) ??
+        Promise.resolve(state()),
+    );
   };
 
   const setQuestAutoRegisterOption = async (
@@ -205,7 +267,10 @@ export function App(): JSX.Element {
     capability: EnvironmentAutomationCapability,
     enabled: boolean,
   ): Promise<void> => {
-    await runStateUpdate(environment.setAutomationEnabled(capability, enabled));
+    await runStateUpdate(
+      props.callbacks?.setAutomationEnabled?.(capability, enabled) ??
+        Promise.resolve(state()),
+    );
   };
 
   const showQuestRewardInput = (questId: number): boolean =>
@@ -243,7 +308,9 @@ export function App(): JSX.Element {
   const updateItemRules = async (
     itemRules: EnvironmentItemRules,
   ): Promise<void> => {
-    await runStateUpdate(environment.setItemRules(itemRules));
+    await runStateUpdate(
+      props.callbacks?.setItemRules?.(itemRules) ?? Promise.resolve(state()),
+    );
   };
 
   const toggleItemBucket = async (
@@ -275,7 +342,9 @@ export function App(): JSX.Element {
     const items = splitEnvironmentBulkInput(itemInput());
     setItemInput("");
     if (items.length > 0) {
-      await runStateUpdate(environment.addItems(items));
+      await runStateUpdate(
+        props.callbacks?.addItems?.(items) ?? Promise.resolve(state()),
+      );
     }
   };
 
@@ -284,7 +353,9 @@ export function App(): JSX.Element {
     const boosts = splitEnvironmentBulkInput(boostInput());
     setBoostInput("");
     if (boosts.length > 0) {
-      await runStateUpdate(environment.addBoosts(boosts));
+      await runStateUpdate(
+        props.callbacks?.addBoosts?.(boosts) ?? Promise.resolve(state()),
+      );
     }
   };
 
@@ -311,12 +382,15 @@ export function App(): JSX.Element {
     setError("");
     resetBankBoostDialog();
     try {
-      const discovery = await environment.fetchBoosts();
+      const discovery = await (props.callbacks?.fetchBoosts?.() ??
+        Promise.resolve({ bank: [], bankLoaded: true, inventory: [] }));
       let nextState = state();
       if (discovery.inventory.length > 0) {
         nextState =
-          (await runStateUpdate(environment.addBoosts(discovery.inventory))) ??
-          nextState;
+          (await runStateUpdate(
+            props.callbacks?.addBoosts?.(discovery.inventory) ??
+              Promise.resolve(state()),
+          )) ?? nextState;
       }
 
       const candidates = prepareEnvironmentBankBoosts(
@@ -357,9 +431,9 @@ export function App(): JSX.Element {
     setWithdrawingBoosts(true);
     setError("");
     try {
-      const withdrawnItemIds = await environment.withdrawBoosts(
+      const withdrawnItemIds = await (props.callbacks?.withdrawBoosts?.(
         selected.map((boost) => boost.itemId),
-      );
+      ) ?? Promise.resolve([]));
       const selectedItemIds = new Set(selected.map((boost) => boost.itemId));
       const withdrawn = new Set(
         withdrawnItemIds.filter((itemId) => selectedItemIds.has(itemId)),
@@ -368,7 +442,9 @@ export function App(): JSX.Element {
         .filter((boost) => withdrawn.has(boost.itemId))
         .map((boost) => boost.name);
       if (names.length > 0) {
-        await runStateUpdate(environment.addBoosts(names));
+        await runStateUpdate(
+          props.callbacks?.addBoosts?.(names) ?? Promise.resolve(state()),
+        );
       }
 
       const summary = environmentBoostWithdrawalSummary(
@@ -393,23 +469,29 @@ export function App(): JSX.Element {
   const syncToAll = async (): Promise<void> => {
     setSyncing(true);
     try {
-      await runStateUpdate(environment.syncToAll());
+      await runStateUpdate(
+        props.callbacks?.syncToAll?.() ?? Promise.resolve(state()),
+      );
     } finally {
       setSyncing(false);
     }
   };
 
   onMount(() => {
-    const unsubscribe = environment.onChanged(setState);
-    onCleanup(unsubscribe);
+    const unsubscribe = props.callbacks?.onStateChanged?.(setState);
+    if (unsubscribe !== undefined) {
+      onCleanup(unsubscribe);
+    }
 
-    void environment
-      .getState()
-      .then(setState)
-      .catch((cause: unknown) => {
-        console.error("Failed to load environment state:", cause);
-        setError("Failed to load environment state");
-      });
+    if (props.callbacks?.getState !== undefined) {
+      void props.callbacks
+        .getState()
+        .then(setState)
+        .catch((cause: unknown) => {
+          console.error("Failed to load environment state:", cause);
+          setError("Failed to load environment state");
+        });
+    }
   });
 
   return (
@@ -482,7 +564,10 @@ export function App(): JSX.Element {
                       aria-label="Clear drops"
                       disabled={state().itemNames.length === 0}
                       onClick={() =>
-                        void runStateUpdate(environment.clearItems())
+                        void runStateUpdate(
+                          props.callbacks?.clearItems?.() ??
+                            Promise.resolve(state()),
+                        )
                       }
                     >
                       Clear
@@ -593,10 +678,10 @@ export function App(): JSX.Element {
                                 aria-pressed={beepEnabled()}
                                 onClick={() =>
                                   void runStateUpdate(
-                                    environment.setItemNotification(
+                                    props.callbacks?.setItemNotification?.(
                                       item,
                                       !beepEnabled(),
-                                    ),
+                                    ) ?? Promise.resolve(state()),
                                   )
                                 }
                               >
@@ -617,7 +702,8 @@ export function App(): JSX.Element {
                               aria-label={`Remove ${item}`}
                               onClick={() =>
                                 void runStateUpdate(
-                                  environment.removeItem(item),
+                                  props.callbacks?.removeItem?.(item) ??
+                                    Promise.resolve(state()),
                                 )
                               }
                             >
@@ -651,7 +737,10 @@ export function App(): JSX.Element {
                       aria-label="Clear quests"
                       disabled={state().questIds.length === 0}
                       onClick={() =>
-                        void runStateUpdate(environment.clearQuests())
+                        void runStateUpdate(
+                          props.callbacks?.clearQuests?.() ??
+                            Promise.resolve(state()),
+                        )
                       }
                     >
                       Clear
@@ -769,7 +858,8 @@ export function App(): JSX.Element {
                             aria-label={`Remove quest ${questId}`}
                             onClick={() =>
                               void runStateUpdate(
-                                environment.removeQuest(questId),
+                                props.callbacks?.removeQuest?.(questId) ??
+                                  Promise.resolve(state()),
                               )
                             }
                           >
@@ -802,7 +892,10 @@ export function App(): JSX.Element {
                       aria-label="Clear boosts"
                       disabled={state().boosts.length === 0}
                       onClick={() =>
-                        void runStateUpdate(environment.clearBoosts())
+                        void runStateUpdate(
+                          props.callbacks?.clearBoosts?.() ??
+                            Promise.resolve(state()),
+                        )
                       }
                     >
                       Clear
@@ -853,7 +946,8 @@ export function App(): JSX.Element {
                             aria-label={`Remove ${boost}`}
                             onClick={() =>
                               void runStateUpdate(
-                                environment.removeBoost(boost),
+                                props.callbacks?.removeBoost?.(boost) ??
+                                  Promise.resolve(state()),
                               )
                             }
                           >
@@ -990,5 +1084,46 @@ export function App(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Connects the fixture-driven Environment view to the Electron bridge. */
+export function App(): JSX.Element {
+  const environment = selectDesktopBridge(
+    window.desktop,
+    "environment",
+  ).environment;
+
+  return (
+    <EnvironmentView
+      callbacks={{
+        addBoosts: (names) => environment.addBoosts(names),
+        addItems: (names) => environment.addItems(names),
+        addQuests: (quests) => environment.addQuests(quests),
+        clear: () => environment.clear(),
+        clearBoosts: () => environment.clearBoosts(),
+        clearItems: () => environment.clearItems(),
+        clearQuestReward: (questId) => environment.clearQuestReward(questId),
+        clearQuests: () => environment.clearQuests(),
+        fetchBoosts: () => environment.fetchBoosts(),
+        getState: () => environment.getState(),
+        onStateChanged: (listener) => environment.onChanged(listener),
+        removeBoost: (name) => environment.removeBoost(name),
+        removeItem: (name) => environment.removeItem(name),
+        removeQuest: (questId) => environment.removeQuest(questId),
+        setAutomationEnabled: (capability, enabled) =>
+          environment.setAutomationEnabled(capability, enabled),
+        setItemNotification: (name, enabled) =>
+          environment.setItemNotification(name, enabled),
+        setItemRules: (rules) => environment.setItemRules(rules),
+        setQuestAutoRegister: (options) =>
+          environment.setQuestAutoRegister(options),
+        setQuestReward: (questId, rewardItemId) =>
+          environment.setQuestReward(questId, rewardItemId),
+        syncToAll: () => environment.syncToAll(),
+        withdrawBoosts: (itemIds) => environment.withdrawBoosts(itemIds),
+      }}
+      fixture={{ state: createEmptyEnvironmentState() }}
+    />
   );
 }

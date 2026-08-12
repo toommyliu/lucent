@@ -32,6 +32,7 @@
     ]
   },
   "include": [
+    "../.storybook/**/*",
     "./appBranding.json",
     "./scripts/**/*.ts",
     "./src/**/*.test.ts",

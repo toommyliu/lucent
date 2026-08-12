@@ -63,7 +63,10 @@ import {
   normalizePacketText,
   type PacketCapturedPayload,
   type PacketCaptureType,
+  type PacketQueuePayload,
+  type PacketSendPayload,
   type PacketSendTarget,
+  type PacketsStatusPayload,
 } from "../../../shared/packets";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import { createRandomId } from "../../../shared/randomId";
@@ -77,7 +80,7 @@ import {
   replaceQueuePacketAt,
 } from "./queueState";
 
-type ActiveTab = "log" | "send";
+export type ActiveTab = "log" | "send";
 const LOG_ROW_HEIGHT_COMPACT = 30;
 const LOG_ROW_OVERSCAN = 8;
 const LOG_ROW_WRAPPED_APPROX_CHAR_WIDTH = 7.2;
@@ -128,7 +131,41 @@ const packetPlaceholderHelp = `Placeholders resolve when packets are sent: ${PAC
   (definition) => definition.token,
 ).join(", ")}.`;
 
-const desktopPackets = selectDesktopBridge(window.desktop, "packets").packets;
+export interface PacketsViewFixture {
+  readonly activeTab?: ActiveTab;
+  readonly autoScroll?: boolean;
+  readonly captureRunning?: boolean;
+  readonly delayMs?: string;
+  readonly error?: string;
+  readonly filters?: Readonly<Partial<Record<PacketCaptureType, boolean>>>;
+  readonly notice?: string;
+  readonly packets?: readonly PacketCapturedPayload[];
+  readonly queue?: readonly string[];
+  readonly queueRunning?: boolean;
+  readonly search?: string;
+  readonly selectedQueueIndex?: number | null;
+  readonly sendTarget?: PacketSendTarget;
+  readonly sendText?: string;
+  readonly showTimestamps?: boolean;
+  readonly wrapPackets?: boolean;
+}
+
+export interface PacketsViewProps {
+  readonly fixture?: PacketsViewFixture;
+  readonly getStatus?: () => Promise<PacketsStatusPayload>;
+  readonly onCopyText: (text: string) => Promise<void>;
+  readonly onCaptured?: (
+    listener: (payload: PacketCapturedPayload) => void,
+  ) => () => void;
+  readonly onSend?: (payload: PacketSendPayload) => Promise<void>;
+  readonly onStartCapture?: () => Promise<void>;
+  readonly onStartQueue?: (payload: PacketQueuePayload) => Promise<void>;
+  readonly onStatus?: (
+    listener: (payload: PacketsStatusPayload) => void,
+  ) => () => void;
+  readonly onStopCapture?: () => Promise<void>;
+  readonly onStopQueue?: () => Promise<void>;
+}
 
 const createEntryId = (): string => createRandomId();
 
@@ -194,36 +231,61 @@ function PacketSenderLabelHelp(): JSX.Element {
   );
 }
 
-export function App(): JSX.Element {
+/** Renders packet capture and send state without requiring an IPC bridge. */
+export function PacketsView(props: PacketsViewProps): JSX.Element {
   let packetSearchInput: HTMLInputElement | undefined;
   let senderTextarea: HTMLTextAreaElement | undefined;
   let editingQueueTextarea: HTMLTextAreaElement | undefined;
 
-  const [activeTab, setActiveTab] = createSignal<ActiveTab>("log");
-  const [captureRunning, setCaptureRunning] = createSignal(false);
-  const [queueRunning, setQueueRunning] = createSignal(false);
-  const [packets, setPackets] = createSignal<readonly PacketLogEntry[]>([]);
-  const [search, setSearch] = createSignal("");
-  const [showTimestamps, setShowTimestamps] = createSignal(false);
-  const [autoScroll, setAutoScroll] = createSignal(true);
-  const [wrapPackets, setWrapPackets] = createSignal(false);
+  const [activeTab, setActiveTab] = createSignal<ActiveTab>(
+    props.fixture?.activeTab ?? "log",
+  );
+  const [captureRunning, setCaptureRunning] = createSignal(
+    props.fixture?.captureRunning ?? false,
+  );
+  const [queueRunning, setQueueRunning] = createSignal(
+    props.fixture?.queueRunning ?? false,
+  );
+  const [packets, setPackets] = createSignal<readonly PacketLogEntry[]>(
+    (props.fixture?.packets ?? []).map((packet, index) => ({
+      id: `fixture-${index}`,
+      raw: packet.packet,
+      text: normalizePacketText(packet.packet, packet.type),
+      timestamp: packet.capturedAt,
+      type: packet.type,
+    })),
+  );
+  const [search, setSearch] = createSignal(props.fixture?.search ?? "");
+  const [showTimestamps, setShowTimestamps] = createSignal(
+    props.fixture?.showTimestamps ?? false,
+  );
+  const [autoScroll, setAutoScroll] = createSignal(
+    props.fixture?.autoScroll ?? true,
+  );
+  const [wrapPackets, setWrapPackets] = createSignal(
+    props.fixture?.wrapPackets ?? false,
+  );
   const [filters, setFilters] = createSignal<
     Record<PacketCaptureType, boolean>
   >({
     client: true,
     extension: true,
     server: false,
+    ...props.fixture?.filters,
   });
-  const [sendText, setSendText] = createSignal("");
-  const [sendTarget, setSendTarget] =
-    createSignal<PacketSendTarget>("server-string");
-  const [delayMs, setDelayMs] = createSignal(
-    String(PACKET_QUEUE_DEFAULT_DELAY_MS),
+  const [sendText, setSendText] = createSignal(props.fixture?.sendText ?? "");
+  const [sendTarget, setSendTarget] = createSignal<PacketSendTarget>(
+    props.fixture?.sendTarget ?? "server-string",
   );
-  const [queue, setQueue] = createSignal<readonly string[]>([]);
+  const [delayMs, setDelayMs] = createSignal(
+    props.fixture?.delayMs ?? String(PACKET_QUEUE_DEFAULT_DELAY_MS),
+  );
+  const [queue, setQueue] = createSignal<readonly string[]>(
+    props.fixture?.queue ?? [],
+  );
   const [selectedQueueIndex, setSelectedQueueIndex] = createSignal<
     number | null
-  >(null);
+  >(props.fixture?.selectedQueueIndex ?? null);
   const [editingQueueIndex, setEditingQueueIndex] = createSignal<number | null>(
     null,
   );
@@ -232,8 +294,8 @@ export function App(): JSX.Element {
     createSignal(false);
   const [pendingKeyboardSendPacket, setPendingKeyboardSendPacket] =
     createSignal<string | null>(null);
-  const [error, setError] = createSignal("");
-  const [notice, setNotice] = createSignal("");
+  const [error, setError] = createSignal(props.fixture?.error ?? "");
+  const [notice, setNotice] = createSignal(props.fixture?.notice ?? "");
   const [logViewportWidth, setLogViewportWidth] = createSignal(0);
   const [allPacketsCopied, setAllPacketsCopied] = createSignal(false);
   let logViewport: HTMLDivElement | undefined;
@@ -460,9 +522,9 @@ export function App(): JSX.Element {
 
     try {
       if (nextRunning) {
-        await desktopPackets.startCapture();
+        await props.onStartCapture?.();
       } else {
-        await desktopPackets.stopCapture();
+        await props.onStopCapture?.();
       }
     } catch (cause) {
       setCaptureRunning(!nextRunning);
@@ -490,7 +552,7 @@ export function App(): JSX.Element {
 
   const copyText = async (value: string): Promise<boolean> => {
     try {
-      await navigator.clipboard.writeText(value);
+      await props.onCopyText(value);
       setNotice("");
       setError("");
       return true;
@@ -549,7 +611,7 @@ export function App(): JSX.Element {
     setError("");
     setNotice("");
     try {
-      await desktopPackets.send({
+      await props.onSend?.({
         packet,
         target: sendTarget(),
       });
@@ -741,7 +803,7 @@ export function App(): JSX.Element {
     setError("");
     setNotice("");
     try {
-      await desktopPackets.startQueue({
+      await props.onStartQueue?.({
         delayMs: parsedDelayMs(),
         packets: queue(),
         target: sendTarget(),
@@ -759,7 +821,7 @@ export function App(): JSX.Element {
 
     setQueueRunning(false);
     try {
-      await desktopPackets.stopQueue();
+      await props.onStopQueue?.();
     } catch (cause) {
       setQueueRunning(true);
       setOperationError("Packet queue stop failed", cause);
@@ -869,23 +931,25 @@ export function App(): JSX.Element {
   onMount(() => {
     let disposed = false;
     let receivedStatus = false;
-    const unsubscribeCaptured = desktopPackets.onCaptured(addCapturedPacket);
-    const unsubscribeStatus = desktopPackets.onStatus((status) => {
+    const unsubscribeCaptured = props.onCaptured?.(addCapturedPacket);
+    const unsubscribeStatus = props.onStatus?.((status) => {
       receivedStatus = true;
       handleRuntimeStatus(status);
     });
-    void desktopPackets
-      .getStatus()
-      .then((status) => {
-        if (!disposed && !receivedStatus) {
-          handleRuntimeStatus(status);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (!disposed) {
-          setOperationError("Failed to load packet runtime status", cause);
-        }
-      });
+    if (props.getStatus !== undefined) {
+      void props
+        .getStatus()
+        .then((status) => {
+          if (!disposed && !receivedStatus) {
+            handleRuntimeStatus(status);
+          }
+        })
+        .catch((cause: unknown) => {
+          if (!disposed) {
+            setOperationError("Failed to load packet runtime status", cause);
+          }
+        });
+    }
     const resizeObserver = new ResizeObserver(updateLogViewportMetrics);
     if (logViewport) {
       resizeObserver.observe(logViewport);
@@ -902,16 +966,16 @@ export function App(): JSX.Element {
       }
       pendingCapturedPackets = [];
 
-      unsubscribeCaptured();
-      unsubscribeStatus();
+      unsubscribeCaptured?.();
+      unsubscribeStatus?.();
       resizeObserver.disconnect();
-      if (captureRunning()) {
-        void desktopPackets.stopCapture().catch((cause: unknown) => {
+      if (captureRunning() && props.onStopCapture !== undefined) {
+        void props.onStopCapture().catch((cause: unknown) => {
           console.error("Failed to stop packet capture on cleanup:", cause);
         });
       }
-      if (queueRunning()) {
-        void desktopPackets.stopQueue().catch((cause: unknown) => {
+      if (queueRunning() && props.onStopQueue !== undefined) {
+        void props.onStopQueue().catch((cause: unknown) => {
           console.error("Failed to stop packet queue on cleanup:", cause);
         });
       }
@@ -1552,5 +1616,24 @@ export function App(): JSX.Element {
         </div>
       </div>
     </Tabs>
+  );
+}
+
+/** Connects the fixture-driven Packets view to the Electron bridge. */
+export function App(): JSX.Element {
+  const packets = selectDesktopBridge(window.desktop, "packets").packets;
+
+  return (
+    <PacketsView
+      getStatus={() => packets.getStatus()}
+      onCaptured={(listener) => packets.onCaptured(listener)}
+      onCopyText={(text) => navigator.clipboard.writeText(text)}
+      onSend={(payload) => packets.send(payload)}
+      onStartCapture={() => packets.startCapture()}
+      onStartQueue={(payload) => packets.startQueue(payload)}
+      onStatus={(listener) => packets.onStatus(listener)}
+      onStopCapture={() => packets.stopCapture()}
+      onStopQueue={() => packets.stopQueue()}
+    />
   );
 }

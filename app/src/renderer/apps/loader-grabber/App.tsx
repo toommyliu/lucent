@@ -45,7 +45,9 @@ import {
   normalizeLoaderGrabberGrabRequest,
   normalizeLoaderGrabberLoadRequest,
   type GrabbedData,
+  type LoaderGrabberGrabRequest,
   type LoaderGrabberGrabType,
+  type LoaderGrabberLoadRequest,
   type LoaderGrabberLoadType,
 } from "../../../shared/loader-grabber";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
@@ -53,12 +55,27 @@ import { buildGrabbedDataTree, filterTreeRoots, type TreeItem } from "./tree";
 import { downloadJson } from "../../lib/download";
 import { splitTextMatches } from "../../lib/text";
 
-type LoaderGrabberSource = LoaderGrabberGrabType | LoaderGrabberLoadType;
+export type LoaderGrabberSource = LoaderGrabberGrabType | LoaderGrabberLoadType;
 
-const loaderGrabber = selectDesktopBridge(
-  window.desktop,
-  "loader-grabber",
-).loaderGrabber;
+export interface LoaderGrabberViewFixture {
+  readonly error?: string;
+  readonly grabbedData?: GrabbedData | null;
+  readonly grabbedType?: LoaderGrabberGrabType | null;
+  readonly notice?: string;
+  readonly search?: string;
+  readonly selectedRootId?: string | null;
+  readonly source?: LoaderGrabberSource;
+  readonly sourceId?: string;
+}
+
+export interface LoaderGrabberViewProps {
+  readonly fixture?: LoaderGrabberViewFixture;
+  readonly onCopyText: (text: string) => Promise<void>;
+  readonly onGrab?: (
+    request: LoaderGrabberGrabRequest,
+  ) => Promise<GrabbedData | null>;
+  readonly onLoad?: (request: LoaderGrabberLoadRequest) => Promise<void>;
+}
 
 interface SourceOption {
   readonly canGrab: boolean;
@@ -210,7 +227,8 @@ function LoaderGrabberSection(props: {
   );
 }
 
-export function App(): JSX.Element {
+/** Renders Loader Grabber with optional fixture data and game actions. */
+export function LoaderGrabberView(props: LoaderGrabberViewProps): JSX.Element {
   let searchInput: HTMLInputElement | undefined;
   let inspector: HTMLDivElement | undefined;
   let listPane: HTMLElement | undefined;
@@ -218,17 +236,25 @@ export function App(): JSX.Element {
   let copiedTimer: number | undefined;
   let cleanupPaneResize: (() => void) | undefined;
 
-  const [source, setSource] = createSignal<LoaderGrabberSource>("shop");
-  const [sourceId, setSourceId] = createSignal("");
+  const [source, setSource] = createSignal<LoaderGrabberSource>(
+    props.fixture?.source ?? "shop",
+  );
+  const [sourceId, setSourceId] = createSignal(props.fixture?.sourceId ?? "");
   const [grabbedType, setGrabbedType] =
-    createSignal<LoaderGrabberGrabType | null>(null);
-  const [grabbedData, setGrabbedData] = createSignal<GrabbedData | null>(null);
-  const [selectedRootId, setSelectedRootId] = createSignal<string | null>(null);
+    createSignal<LoaderGrabberGrabType | null>(
+      props.fixture?.grabbedType ?? null,
+    );
+  const [grabbedData, setGrabbedData] = createSignal<GrabbedData | null>(
+    props.fixture?.grabbedData ?? null,
+  );
+  const [selectedRootId, setSelectedRootId] = createSignal<string | null>(
+    props.fixture?.selectedRootId ?? null,
+  );
   const [loading, setLoading] = createSignal(false);
   const [grabbing, setGrabbing] = createSignal(false);
-  const [error, setError] = createSignal("");
-  const [notice, setNotice] = createSignal("");
-  const [search, setSearch] = createSignal("");
+  const [error, setError] = createSignal(props.fixture?.error ?? "");
+  const [notice, setNotice] = createSignal(props.fixture?.notice ?? "");
+  const [search, setSearch] = createSignal(props.fixture?.search ?? "");
   const [copiedKey, setCopiedKey] = createSignal<string | null>(null);
   const [listPanePercent, setListPanePercent] = createSignal(
     DEFAULT_LIST_PANE_PERCENT,
@@ -354,7 +380,7 @@ export function App(): JSX.Element {
 
   const copyText = async (nodeId: string, value: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(value);
+      await props.onCopyText(value);
       setError("");
       markCopied(nodeId);
     } catch (cause) {
@@ -377,7 +403,7 @@ export function App(): JSX.Element {
         id: sourceId(),
         type: source(),
       });
-      await loaderGrabber.load(request);
+      await props.onLoad?.(request);
       return true;
     } catch (cause) {
       setOperationError("Load failed", cause);
@@ -396,7 +422,9 @@ export function App(): JSX.Element {
       const request = normalizeLoaderGrabberGrabRequest({
         type: source(),
       });
-      const data = await loaderGrabber.grab(request);
+      const data = props.onGrab
+        ? await props.onGrab(request)
+        : (props.fixture?.grabbedData ?? null);
       setGrabbedType(request.type);
       setGrabbedData(data);
       setSelectedRootId(null);
@@ -1059,5 +1087,21 @@ export function App(): JSX.Element {
         </main>
       </div>
     </div>
+  );
+}
+
+/** Connects the fixture-driven Loader/Grabber view to the Electron bridge. */
+export function App(): JSX.Element {
+  const loaderGrabber = selectDesktopBridge(
+    window.desktop,
+    "loader-grabber",
+  ).loaderGrabber;
+
+  return (
+    <LoaderGrabberView
+      onCopyText={(text) => navigator.clipboard.writeText(text)}
+      onGrab={(request) => loaderGrabber.grab(request)}
+      onLoad={(request) => loaderGrabber.load(request)}
+    />
   );
 }

@@ -28,6 +28,8 @@
     "format:write": "oxfmt",
     "prepare": "effect-language-service patch && effect-tsgo patch",
     "release": "tsx scripts/release.ts",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --if-present test:watch",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck"
@@ -40,6 +42,7 @@
     "@effect/platform-node": "4.0.0-beta.83",
     "@effect/tsgo": "0.14.4",
     "@effect/vitest": "4.0.0-beta.83",
+    "@storybook/addon-themes": "10.5.7",
     "@types/node": "^24.12.2",
     "@typescript/native-preview": "7.0.0-dev.20260524.1",
     "asconfigc": "^1.9.0",
@@ -48,11 +51,16 @@
     "oxlint": "^1.66.0",
     "shiki": "^4.3.1",
     "simple-icons": "^13.0.0",
+    "solid-js": "1.9.12",
+    "storybook": "10.5.7",
+    "storybook-solidjs-vite": "10.6.0",
     "stylelint": "^17.14.1",
     "stylelint-no-unsupported-browser-features": "^8.1.1",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.19",
     "typescript": "^5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-solid": "2.11.14",
     "vitest": "^3.2.6"
   }
 }
