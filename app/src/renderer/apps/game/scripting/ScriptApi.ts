@@ -723,7 +723,15 @@ export interface ScriptRecipesApi {
   readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
 }
 
+/** Controls game render visibility. */
+export type ScriptRenderingMode =
+  | "full"
+  | /** A.k.a. Lag Killer. */ "interface-only"
+  | "minimal";
+
 export interface ScriptSettingsApi {
+  /** Returns the active rendering mode. */
+  readonly getRenderingMode: () => Effect.Effect<ScriptRenderingMode>;
   readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
   readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
@@ -734,9 +742,10 @@ export interface ScriptSettingsApi {
   readonly setEnemyMagnetEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setFrameRate: (fps: number) => Effect.Effect<void>;
   readonly setInfiniteRangeEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setLagKillerEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setOtherPlayersVisible: (visible: boolean) => Effect.Effect<void>;
   readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
+  /** @param mode The rendering mode to activate. */
+  readonly setRenderingMode: (mode: ScriptRenderingMode) => Effect.Effect<void>;
   readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
   readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
 }

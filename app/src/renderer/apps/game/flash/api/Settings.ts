@@ -6,11 +6,16 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
 import type { BridgeService } from "../bridge/Bridge";
-import type { SettingsPatch as SettingsPatchValue } from "../contract/Settings";
+import type {
+  RenderingMode,
+  SettingsPatch as SettingsPatchValue,
+} from "../contract/Settings";
 import type { Store } from "../state/Store";
 import type { SettingsState } from "../state/Settings";
 
-export const REDUCED_RENDERING_FRAME_RATE = 2;
+export const MINIMAL_RENDERING_FRAME_RATE = 2;
+
+type NonMinimalRenderingMode = Exclude<RenderingMode, "minimal">;
 
 const normalizePatch = (input: SettingsPatchValue): SettingsPatchValue => ({
   ...input,
@@ -45,13 +50,14 @@ const recurringActionsPatch = (state: SettingsState): SettingsPatchValue => ({
   skipCutscenesEnabled: state.skipCutscenesEnabled,
 });
 
-const withEffectiveFrameRate = (
-  patch: SettingsPatchValue,
-  renderingReduced: boolean,
-): SettingsPatchValue =>
-  renderingReduced && patch.frameRate !== undefined
-    ? { ...patch, frameRate: REDUCED_RENDERING_FRAME_RATE }
-    : patch;
+const effectiveFrameRate = (state: SettingsState): number =>
+  state.renderingMode === "minimal"
+    ? MINIMAL_RENDERING_FRAME_RATE
+    : state.frameRate;
+
+const isNonMinimalRenderingMode = (
+  mode: RenderingMode,
+): mode is NonMinimalRenderingMode => mode !== "minimal";
 
 export const makeSettings = Effect.fnUntraced(function* (
   bridge: BridgeService,
@@ -59,7 +65,7 @@ export const makeSettings = Effect.fnUntraced(function* (
 ) {
   const scope = yield* Effect.scope;
   const updates = yield* Semaphore.make(1);
-  const renderingReduced = yield* Ref.make(false);
+  const resumeRenderingMode = yield* Ref.make<NonMinimalRenderingMode>("full");
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const command = (
     method: keyof Window["swf"],
@@ -69,7 +75,7 @@ export const makeSettings = Effect.fnUntraced(function* (
       .invoke(method, value === undefined ? undefined : [value], Schema.Void)
       .pipe(Effect.asVoid);
 
-  const execute = (patch: SettingsPatchValue) => {
+  const execute = (patch: SettingsPatchValue, state: SettingsState) => {
     const effects: Effect.Effect<void>[] = [];
     const enqueue = <K extends keyof SettingsPatchValue>(
       key: K,
@@ -83,10 +89,16 @@ export const makeSettings = Effect.fnUntraced(function* (
     enqueue("customGuild", "settings.setCustomGuild");
     enqueue("customName", "settings.setCustomName");
     enqueue("deathAdsVisible", "settings.setDeathAdsVisible");
-    enqueue("frameRate", "settings.setFrameRate");
-    enqueue("lagKillerEnabled", "settings.setLagKillerEnabled");
     enqueue("otherPlayersVisible", "settings.setOtherPlayersVisible");
     enqueue("walkSpeed", "settings.setWalkSpeed");
+    if (patch.renderingMode !== undefined) {
+      effects.push(
+        command("settings.setLagKillerEnabled", state.renderingMode !== "full"),
+      );
+    }
+    if (patch.frameRate !== undefined || patch.renderingMode !== undefined) {
+      effects.push(command("settings.setFrameRate", effectiveFrameRate(state)));
+    }
     if (patch.enemyMagnetEnabled === true) {
       effects.push(command("settings.enemyMagnet"));
     }
@@ -102,23 +114,33 @@ export const makeSettings = Effect.fnUntraced(function* (
     return Effect.all(effects, { discard: true });
   };
 
+  const applyUnlocked = Effect.fnUntraced(function* (
+    input: SettingsPatchValue,
+  ) {
+    const patch = normalizePatch(input);
+    const current = yield* store.settings.get;
+    const next: SettingsState = { ...current, ...patch };
+
+    yield* execute(patch, next);
+    yield* store.settings.patch({
+      ...patch,
+      ...(patch.customGuild === undefined
+        ? {}
+        : { customGuildConfigured: true }),
+      ...(patch.customName === undefined ? {} : { customNameConfigured: true }),
+    });
+
+    if (patch.renderingMode === "minimal") {
+      if (isNonMinimalRenderingMode(current.renderingMode)) {
+        yield* Ref.set(resumeRenderingMode, current.renderingMode);
+      }
+    } else if (patch.renderingMode !== undefined) {
+      yield* Ref.set(resumeRenderingMode, patch.renderingMode);
+    }
+  });
+
   const apply = (input: SettingsPatchValue) =>
-    updates.withPermits(1)(
-      Effect.gen(function* () {
-        const patch = normalizePatch(input);
-        const reduced = yield* Ref.get(renderingReduced);
-        yield* execute(withEffectiveFrameRate(patch, reduced));
-        yield* store.settings.patch({
-          ...patch,
-          ...(patch.customGuild === undefined
-            ? {}
-            : { customGuildConfigured: true }),
-          ...(patch.customName === undefined
-            ? {}
-            : { customNameConfigured: true }),
-        });
-      }),
-    );
+    updates.withPermits(1)(applyUnlocked(input));
 
   const action = (
     key:
@@ -140,17 +162,16 @@ export const makeSettings = Effect.fnUntraced(function* (
     updates.withPermits(1)(
       Effect.gen(function* () {
         const state = yield* store.settings.get;
-        const reduced = yield* Ref.get(renderingReduced);
-        yield* execute(withEffectiveFrameRate(reapplyPatch(state), reduced));
+        yield* execute(reapplyPatch(state), state);
       }),
     );
 
   const reapplyActions = () =>
     updates.withPermits(1)(
-      store.settings.get.pipe(
-        Effect.map(recurringActionsPatch),
-        Effect.flatMap(execute),
-      ),
+      Effect.gen(function* () {
+        const state = yield* store.settings.get;
+        yield* execute(recurringActionsPatch(state), state);
+      }),
     );
 
   const set =
@@ -170,7 +191,8 @@ export const makeSettings = Effect.fnUntraced(function* (
     action("skipCutscenesEnabled", "settings.skipCutscenes");
   const isAntiCounterEnabled = () =>
     store.settings.get.pipe(Effect.map((state) => state.antiCounterEnabled));
-  const isRenderingReduced = () => Ref.get(renderingReduced);
+  const getRenderingMode = () =>
+    store.settings.get.pipe(Effect.map((state) => state.renderingMode));
   const onState = (listener: (state: SettingsState) => void) =>
     store.settings.changes.pipe(
       Stream.runForEach((state) => Effect.sync(() => listener(state))),
@@ -206,26 +228,16 @@ export const makeSettings = Effect.fnUntraced(function* (
   const setEnemyMagnetEnabled = set("enemyMagnetEnabled");
   const setFrameRate = set("frameRate");
   const setInfiniteRangeEnabled = set("infiniteRangeEnabled");
-  const setLagKillerEnabled = set("lagKillerEnabled");
   const setOtherPlayersVisible = set("otherPlayersVisible");
   const setProvokeCellEnabled = set("provokeCellEnabled");
+  const setRenderingMode = set("renderingMode");
   const setSkipCutscenesEnabled = set("skipCutscenesEnabled");
   const setWalkSpeed = set("walkSpeed");
-  const setRenderingReduced = (reduced: boolean) =>
+  const restoreRenderingMode = () =>
     updates.withPermits(1)(
       Effect.gen(function* () {
-        const state = yield* store.settings.get;
-        if (!reduced) {
-          // Always leave reduced mode, even if Flash cannot restore immediately.
-          yield* Ref.set(renderingReduced, false);
-        }
-        yield* command(
-          "settings.setFrameRate",
-          reduced ? REDUCED_RENDERING_FRAME_RATE : state.frameRate,
-        );
-        if (reduced) {
-          yield* Ref.set(renderingReduced, true);
-        }
+        const mode = yield* Ref.get(resumeRenderingMode);
+        yield* applyUnlocked({ renderingMode: mode });
       }),
     );
 
@@ -234,13 +246,14 @@ export const makeSettings = Effect.fnUntraced(function* (
     changes,
     enemyMagnet,
     get,
+    getRenderingMode,
     infiniteRange,
     isAntiCounterEnabled,
-    isRenderingReduced,
     onState,
     provokeCell,
     reapply,
     reapplyActions,
+    restoreRenderingMode,
     resetCustomGuild,
     resetCustomName,
     setAnimationsEnabled,
@@ -252,10 +265,9 @@ export const makeSettings = Effect.fnUntraced(function* (
     setEnemyMagnetEnabled,
     setFrameRate,
     setInfiniteRangeEnabled,
-    setLagKillerEnabled,
     setOtherPlayersVisible,
     setProvokeCellEnabled,
-    setRenderingReduced,
+    setRenderingMode,
     setSkipCutscenesEnabled,
     setWalkSpeed,
     skipCutscenes,

@@ -1,3 +1,5 @@
+import type { RenderingMode } from "../contract/Settings";
+
 export interface SettingsState {
   animationsEnabled: boolean;
   antiCounterEnabled: boolean;
@@ -10,9 +12,9 @@ export interface SettingsState {
   enemyMagnetEnabled: boolean;
   frameRate: number;
   infiniteRangeEnabled: boolean;
-  lagKillerEnabled: boolean;
   otherPlayersVisible: boolean;
   provokeCellEnabled: boolean;
+  renderingMode: RenderingMode;
   skipCutscenesEnabled: boolean;
   walkSpeed: number;
 }
@@ -29,9 +31,9 @@ export const makeSettingsState = (): SettingsState => ({
   enemyMagnetEnabled: false,
   frameRate: 24,
   infiniteRangeEnabled: false,
-  lagKillerEnabled: false,
   otherPlayersVisible: true,
   provokeCellEnabled: false,
+  renderingMode: "full",
   skipCutscenesEnabled: false,
   walkSpeed: 8,
 });

@@ -6,6 +6,7 @@ export type SettingsCommandCategory =
   | "Scripts"
   | "Options"
   | "Windows";
+export type SettingsCommandGroup = "Rendering Mode";
 export type HotkeyDisplayPlatform = "linux" | "mac" | "windows";
 
 export const SETTINGS_COMMAND_IDS = [
@@ -24,7 +25,8 @@ export const SETTINGS_COMMAND_IDS = [
   "toggleInfiniteRange",
   "toggleProvokeCell",
   "toggleEnemyMagnet",
-  "toggleLagKiller",
+  "toggleInterfaceOnlyRendering",
+  "toggleMinimalRendering",
   "toggleHidePlayers",
   "toggleSkipCutscenes",
   "toggleAntiCounter",
@@ -46,6 +48,7 @@ export interface SettingsCommandDefinition {
   readonly category: SettingsCommandCategory;
   readonly defaultHotkey: string;
   readonly description?: string;
+  readonly group?: SettingsCommandGroup;
   readonly id: SettingsCommandId;
   readonly label: string;
 }
@@ -88,7 +91,18 @@ export const HotkeysPatchSchema = Schema.Struct({
   bindings: Schema.optionalKey(Schema.Array(HotkeyBindingPatchSchema)),
 });
 
-const decodeHotkeysSettings = Schema.decodeUnknownOption(HotkeysSettingsSchema);
+const PersistedHotkeySettingsSchema = Schema.Struct({
+  bindings: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      value: Schema.String,
+    }),
+  ),
+});
+
+const decodePersistedHotkeySettings = Schema.decodeUnknownOption(
+  PersistedHotkeySettingsSchema,
+);
 
 export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
   {
@@ -182,10 +196,18 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
     defaultHotkey: "",
   },
   {
-    id: "toggleLagKiller",
+    id: "toggleInterfaceOnlyRendering",
     category: "Options",
-    label: "Toggle Lag Killer",
+    group: "Rendering Mode",
+    label: "Toggle Interface-Only Rendering",
     defaultHotkey: "Alt+L",
+  },
+  {
+    id: "toggleMinimalRendering",
+    category: "Options",
+    group: "Rendering Mode",
+    label: "Toggle Minimal Rendering",
+    defaultHotkey: "Alt+Shift+L",
   },
   {
     id: "toggleHidePlayers",
@@ -364,9 +386,12 @@ export const normalizeHotkeySettings = (value: unknown): HotkeysSettings => {
   const defaultValues = new Map<SettingsCommandId, string>(
     DEFAULT_HOTKEYS.bindings.map((binding) => [binding.id, binding.value]),
   );
-  const decoded = decodeHotkeysSettings(value);
+  const decoded = decodePersistedHotkeySettings(value);
   if (Option.isSome(decoded)) {
     for (const binding of decoded.value.bindings) {
+      if (!isSettingsCommandId(binding.id)) {
+        continue;
+      }
       const normalizedValue = normalizeHotkeyBindingValue(binding.value);
       if (normalizedValue !== null) {
         defaultValues.set(binding.id, normalizedValue);
