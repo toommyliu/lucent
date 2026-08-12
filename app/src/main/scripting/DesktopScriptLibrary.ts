@@ -232,13 +232,14 @@ export const layer = Layer.effect(
           .referenceForPath(path)
           .pipe(Effect.mapError((cause) => wrapError("read", cause, path)));
         const file =
-          reference === undefined
-            ? yield* files
-                .read(path)
-                .pipe(
-                  Effect.mapError((cause) => wrapError("read", cause, path)),
-                )
-            : yield* loadReference(reference);
+          reference?.kind === "package"
+            ? yield* loadReference(reference)
+            : yield* files.read(path).pipe(
+                Effect.map((file) =>
+                  reference === undefined ? file : { ...file, reference },
+                ),
+                Effect.mapError((cause) => wrapError("read", cause, path)),
+              );
         return { canceled: false, file } satisfies ScriptOpenFileResult;
       },
     );

@@ -1,5 +1,5 @@
 import { promises as fs, type Dirent } from "fs";
-import { basename, extname, join, relative, resolve } from "path";
+import { basename, extname, join, relative, resolve, sep } from "path";
 
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
@@ -248,6 +248,46 @@ const compatibilityFor = (
 const isJavaScriptFile = (path: string): boolean => {
   const extension = extname(path).toLowerCase();
   return extension === ".js" || extension === ".cjs";
+};
+
+/** Resolves a selected loose script without enumerating the script library. */
+export const resolveLooseScriptReference = async (
+  scriptsDir: string,
+  path: string,
+): Promise<
+  Extract<ScriptReference, { readonly kind: "loose" }> | undefined
+> => {
+  const rootPath = resolve(scriptsDir);
+  const selectedPath = resolve(path);
+  const selectedName = basename(selectedPath);
+  if (
+    selectedPath === rootPath ||
+    !isPathInside(rootPath, selectedPath) ||
+    !isJavaScriptFile(selectedPath) ||
+    selectedName.startsWith("._")
+  ) {
+    return undefined;
+  }
+
+  const nativeRelativePath = relative(rootPath, selectedPath);
+  const segments = nativeRelativePath.split(sep);
+  let currentPath = rootPath;
+  try {
+    for (const [index, segment] of segments.entries()) {
+      currentPath = join(currentPath, segment);
+      const stat = await fs.lstat(currentPath);
+      if (stat.isSymbolicLink()) return undefined;
+
+      const isSelectedFile = index === segments.length - 1;
+      if (isSelectedFile ? !stat.isFile() : !stat.isDirectory()) {
+        return undefined;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+
+  return { kind: "loose", path: portablePath(nativeRelativePath) };
 };
 
 const referenceKey = (reference: ScriptReference): string =>
@@ -830,6 +870,28 @@ export const layer = Layer.effect(
       },
     );
 
+    const referenceForPath = Effect.fn("ScriptPackageCatalog.referenceForPath")(
+      function* (
+        path: string,
+      ): Effect.fn.Return<
+        ScriptReference | undefined,
+        ScriptPackageCatalogError
+      > {
+        const looseReference = yield* Effect.promise(() =>
+          resolveLooseScriptReference(scriptsDir, path),
+        );
+        if (looseReference !== undefined) {
+          return looseReference;
+        }
+        if (!isPathInside(packagesDir, path)) {
+          return undefined;
+        }
+
+        const discovery = yield* getDiscovery;
+        return discovery.paths.get(resolve(path));
+      },
+    );
+
     return ScriptPackageCatalog.of({
       getDiscovery,
       getOverview: getDiscovery.pipe(Effect.map(catalogOverview)),
@@ -861,10 +923,7 @@ export const layer = Layer.effect(
           }),
         ),
       onChanged: changes.subscribe,
-      referenceForPath: (path) =>
-        getDiscovery.pipe(
-          Effect.map((discovery) => discovery.paths.get(resolve(path))),
-        ),
+      referenceForPath,
       refresh,
       removePackage: (packageName) =>
         updateDiscovery((current) =>
