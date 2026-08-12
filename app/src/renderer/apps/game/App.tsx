@@ -1422,6 +1422,33 @@ export function App(props: {
     );
   };
 
+  const runMapAction = (
+    label: string,
+    action: (map: ApiService["map"]) => Effect.Effect<void>,
+  ): void => {
+    if (optionsDisabled()) return;
+
+    setOpenMenu(null);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const { map } = yield* Api;
+          yield* action(map);
+        }),
+      )
+      .catch((error: unknown) => {
+        console.error("[game:map]", `${label} failed`, error);
+      });
+  };
+
+  const handleReloadMap = (): void => {
+    runMapAction("reload", (map) => map.reload());
+  };
+
+  const handleSetSpawnPoint = (): void => {
+    runMapAction("set spawnpoint", (map) => map.setSpawnPoint());
+  };
+
   const runRenderingModeUpdate = (
     label: string,
     optimisticMode: RenderingMode,
@@ -3894,6 +3921,8 @@ export function App(props: {
         frameRate={frameRate}
         setFrameRate={setFrameRate}
         handleSetFrameRate={handleSetFrameRate}
+        handleReloadMap={handleReloadMap}
+        handleSetSpawnPoint={handleSetSpawnPoint}
         customName={customName}
         customNameConfigured={() => flashSettings().customNameConfigured}
         setCustomName={setCustomName}
