@@ -2653,13 +2653,6 @@ a.badge--destructive:hover {
   width: 0.875rem;
 }
 
-.menu__radio-dot {
-  background-color: currentColor;
-  border-radius: 50%;
-  height: 0.375rem;
-  width: 0.375rem;
-}
-
 .menu__option-item > .menu__shortcut,
 .menu__option-item > .kbd {
   margin-left: 0.375rem;

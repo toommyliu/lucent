@@ -268,7 +268,7 @@ export function ContextMenuRadioItem(
     >
       {local.children}
       <MenuPrimitive.ItemIndicator class="menu__item-indicator">
-        <div class="menu__radio-dot" />
+        <Icon icon="check" />
       </MenuPrimitive.ItemIndicator>
     </MenuPrimitive.RadioItem>
   );
