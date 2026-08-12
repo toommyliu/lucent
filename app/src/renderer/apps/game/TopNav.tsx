@@ -28,6 +28,8 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  onCleanup,
+  onMount,
   splitProps,
   type Accessor,
   type JSX,
@@ -215,29 +217,6 @@ const renderingModeOptions: readonly {
   },
 ];
 
-interface TopNavOptionSections {
-  readonly toggles: readonly TopNavToggleOptionItem[];
-  readonly renderingMode: TopNavRenderingModeOptionItem | undefined;
-}
-
-const splitTopNavOptionItems = (
-  optionItems: readonly TopNavOptionItem[],
-): TopNavOptionSections => {
-  const toggles: TopNavToggleOptionItem[] = [];
-  let renderingMode: TopNavRenderingModeOptionItem | undefined;
-
-  for (const option of optionItems) {
-    if (option.type === "rendering-mode") {
-      renderingMode ??= option;
-      continue;
-    }
-
-    toggles.push(option);
-  }
-
-  return { renderingMode, toggles };
-};
-
 const commandIdsByOptionId = new Map<string, SettingsCommandId>(
   Object.entries(topNavOptionCommandIds).map(([commandId, optionId]) => [
     optionId,
@@ -261,6 +240,22 @@ const formatOptionalHotkeyDisplay = (
   value: string,
   platform: AppPlatform,
 ): string => (value === "" ? "" : formatHotkeyDisplay(value, platform, ""));
+
+const formatOptionalAriaKeyshortcuts = (
+  value: string,
+  platform: AppPlatform,
+): string | undefined =>
+  value === ""
+    ? undefined
+    : value
+        .split("+")
+        .map((part) =>
+          part === "Mod" ? (platform === "mac" ? "Meta" : "Control") : part,
+        )
+        .join("+");
+
+const renderingModeLabel = (mode: RenderingMode): string =>
+  renderingModeOptions.find((option) => option.value === mode)?.label ?? mode;
 
 const optionHotkey = (
   bindings: readonly HotkeyBinding[],
@@ -615,26 +610,33 @@ function RenderingModeControl(props: {
     >
       <For each={renderingModeOptions}>
         {(mode) => {
-          const shortcut = () =>
+          const hotkey = () =>
             mode.commandId === undefined
               ? ""
-              : formatOptionalHotkeyDisplay(
-                  commandHotkey(props.hotkeyBindings(), mode.commandId),
-                  props.hotkeyPlatform,
-                );
+              : commandHotkey(props.hotkeyBindings(), mode.commandId);
+          const shortcut = () =>
+            formatOptionalHotkeyDisplay(hotkey(), props.hotkeyPlatform);
 
           return (
             <MenuRadioItem
+              aria-keyshortcuts={formatOptionalAriaKeyshortcuts(
+                hotkey(),
+                props.hotkeyPlatform,
+              )}
               class="game-menu__item game-menu__rendering-mode"
               closeOnSelect={false}
               disabled={
                 props.option().disabled === true ||
                 props.option().pending === true
               }
-              title={shortcut() || undefined}
               value={mode.value}
             >
               <span class="game-menu__rendering-mode-label">{mode.label}</span>
+              <Show when={shortcut()}>
+                {(displayShortcut) => (
+                  <Kbd aria-hidden="true">{displayShortcut()}</Kbd>
+                )}
+              </Show>
             </MenuRadioItem>
           );
         }}
@@ -643,40 +645,62 @@ function RenderingModeControl(props: {
   );
 }
 
+type TopNavOptionsMenuPage = "gameplay" | "rendering-mode";
+
+// Keep this in sync with `.game-menu--rendering-mode` in style.css.
+const RENDERING_MODE_SUBMENU_WIDTH_REM = 16;
+const FLOATING_MENU_GUTTER_PX = 4;
+
+interface TopNavOptionsMenuContentInternalProps
+  extends TopNavOptionsMenuContentProps, GameMenuPortalProps {
+  readonly page: Accessor<TopNavOptionsMenuPage>;
+  readonly sideSubmenuAvailable: Accessor<boolean>;
+  readonly openRenderingModePage: (mode: RenderingMode) => void;
+  readonly closeRenderingModePage: () => void;
+}
+
 export function TopNavOptionsMenuContent(
-  props: TopNavOptionsMenuContentProps,
+  props: TopNavOptionsMenuContentInternalProps,
 ): JSX.Element {
   const gameInteractionDisabled = () =>
     !props.gameLoaded() || !props.playerReady();
-  const optionSections = createMemo(() =>
-    splitTopNavOptionItems(props.optionItems()),
+  const renderingModeOption = createMemo(() =>
+    props
+      .optionItems()
+      .find(
+        (option): option is TopNavRenderingModeOptionItem =>
+          option.type === "rendering-mode",
+      ),
+  );
+  const optionIds = createMemo(() =>
+    props.optionItems().map((option) => option.id),
   );
 
-  const renderToggleOption = (option: TopNavToggleOptionItem) => {
+  const renderToggleOption = (
+    option: Accessor<TopNavToggleOptionItem>,
+  ): JSX.Element => {
+    const hotkey = () => optionHotkey(props.hotkeyBindings(), option().id);
     const shortcut = () =>
-      formatOptionalHotkeyDisplay(
-        optionHotkey(props.hotkeyBindings(), option.id),
-        props.hotkeyPlatform,
-      );
+      formatOptionalHotkeyDisplay(hotkey(), props.hotkeyPlatform);
 
     return (
       <MenuCheckboxItem
-        checked={option.checked}
+        aria-keyshortcuts={formatOptionalAriaKeyshortcuts(
+          hotkey(),
+          props.hotkeyPlatform,
+        )}
+        checked={option().checked}
         class="game-menu__item game-menu__option-switch game-menu__switch-item"
         closeOnSelect={false}
-        disabled={option.disabled}
-        title={shortcut() || undefined}
-        onCheckedChange={option.onCheckedChange}
-        value={option.id}
+        disabled={option().disabled}
+        onCheckedChange={(checked) => option().onCheckedChange(checked)}
+        value={option().id}
       >
-        <span class="game-menu__option-switch-label">{option.label}</span>
+        <span class="game-menu__option-switch-label">{option().label}</span>
         <span class="game-menu__option-switch-controls">
           <Show when={shortcut()}>
             {(displayShortcut) => (
-              <Kbd
-                aria-label={displayShortcut()}
-                class="game-menu__option-switch-shortcut"
-              >
+              <Kbd aria-hidden="true" class="game-menu__option-switch-shortcut">
                 {displayShortcut()}
               </Kbd>
             )}
@@ -684,7 +708,7 @@ export function TopNavOptionsMenuContent(
           <span
             aria-hidden="true"
             class="game-menu__switch-visual"
-            data-checked={option.checked ? "" : undefined}
+            data-checked={option().checked ? "" : undefined}
           >
             <span class="game-menu__switch-thumb" />
           </span>
@@ -693,165 +717,452 @@ export function TopNavOptionsMenuContent(
     );
   };
 
+  const renderRenderingModeOption = (
+    option: Accessor<TopNavRenderingModeOptionItem>,
+  ): JSX.Element => {
+    const triggerContent = () => (
+      <>
+        <span class="game-menu__rendering-mode-trigger-label">
+          {option().label}
+        </span>
+        <span class="game-menu__rendering-mode-trigger-value">
+          {renderingModeLabel(option().mode)}
+        </span>
+      </>
+    );
+
+    return (
+      <Show
+        when={props.sideSubmenuAvailable()}
+        fallback={
+          <MenuItem
+            aria-label={`${option().label}, ${renderingModeLabel(option().mode)}`}
+            class="game-menu__item game-menu__rendering-mode-trigger"
+            closeOnSelect={false}
+            disabled={option().disabled === true || option().pending === true}
+            onSelect={() => props.openRenderingModePage(option().mode)}
+            value="rendering-mode"
+          >
+            {triggerContent()}
+            <Icon
+              aria-hidden="true"
+              class="menu__sub-icon"
+              icon="chevron_right"
+            />
+          </MenuItem>
+        }
+      >
+        <MenuSub closeOnSelect={false}>
+          <MenuSubTrigger
+            aria-disabled={
+              option().disabled === true || option().pending === true
+                ? "true"
+                : undefined
+            }
+            aria-label={`${option().label}, ${renderingModeLabel(option().mode)}`}
+            class="game-menu__item game-menu__rendering-mode-trigger"
+            data-disabled={
+              option().disabled === true || option().pending === true
+                ? ""
+                : undefined
+            }
+          >
+            {triggerContent()}
+          </MenuSubTrigger>
+          <GameMenuSubContent
+            aria-label={option().label}
+            class="game-menu game-menu--rendering-mode"
+            portalMount={props.portalMount}
+          >
+            <RenderingModeControl
+              hotkeyBindings={props.hotkeyBindings}
+              hotkeyPlatform={props.hotkeyPlatform}
+              option={option}
+            />
+          </GameMenuSubContent>
+        </MenuSub>
+      </Show>
+    );
+  };
+
+  const renderGameplayOption = (id: string): JSX.Element => {
+    const initialOption = props
+      .optionItems()
+      .find((option) => option.id === id);
+    if (initialOption === undefined) return <></>;
+
+    const currentOption = (): TopNavOptionItem =>
+      props.optionItems().find((option) => option.id === id) ?? initialOption;
+
+    if (initialOption.type === "toggle") {
+      const toggleOption = (): TopNavToggleOptionItem => {
+        const current = currentOption();
+        return current.type === "toggle" ? current : initialOption;
+      };
+      return renderToggleOption(toggleOption);
+    }
+
+    const modeOption = (): TopNavRenderingModeOptionItem => {
+      const current = currentOption();
+      return current.type === "rendering-mode" ? current : initialOption;
+    };
+    return renderRenderingModeOption(modeOption);
+  };
+
   return (
     <>
       <MenuAutofocusAnchor />
-      <div class="game-menu__options-content">
-        <MenuGroup class="game-menu__options-group">
-          <MenuLabel class="game-menu__options-heading">Gameplay</MenuLabel>
-          <div class="game-options-grid">
-            <For each={optionSections().toggles}>{renderToggleOption}</For>
-          </div>
-        </MenuGroup>
-
-        <Show when={optionSections().renderingMode}>
-          {(option) => (
-            <MenuGroup class="game-menu__options-group">
-              <MenuLabel class="game-menu__options-heading">
-                {option().label}
-              </MenuLabel>
-              <RenderingModeControl
-                hotkeyBindings={props.hotkeyBindings}
-                hotkeyPlatform={props.hotkeyPlatform}
-                option={option}
+      <Show
+        when={props.page() === "gameplay"}
+        fallback={
+          <div
+            class="game-menu__options-content game-menu__options-content--rendering-mode"
+            data-page="rendering-mode"
+          >
+            <MenuItem
+              aria-label="Back to Gameplay options"
+              class="game-menu__item game-menu__options-back"
+              closeOnSelect={false}
+              onSelect={props.closeRenderingModePage}
+              value="rendering-mode-back"
+            >
+              <Icon
+                aria-hidden="true"
+                class="game-menu__options-back-icon"
+                icon="arrow_left"
               />
-            </MenuGroup>
-          )}
-        </Show>
+              <span>Gameplay</span>
+            </MenuItem>
+            <MenuSeparator />
+            <Show when={renderingModeOption()}>
+              {(option) => (
+                <MenuGroup class="game-menu__options-group">
+                  <MenuLabel class="game-menu__options-heading">
+                    {option().label}
+                  </MenuLabel>
+                  <RenderingModeControl
+                    hotkeyBindings={props.hotkeyBindings}
+                    hotkeyPlatform={props.hotkeyPlatform}
+                    option={option}
+                  />
+                </MenuGroup>
+              )}
+            </Show>
+          </div>
+        }
+      >
+        <div class="game-menu__options-content" data-page="gameplay">
+          <MenuGroup class="game-menu__options-group">
+            <MenuLabel class="game-menu__options-heading">Gameplay</MenuLabel>
+            <div class="game-options-grid">
+              <For each={optionIds()}>{renderGameplayOption}</For>
+            </div>
+          </MenuGroup>
 
-        <div class="game-menu__utility-strip">
-          <div
-            aria-label="Map actions"
-            class="game-menu__utility-actions"
-            role="group"
-          >
-            <Button
-              disabled={gameInteractionDisabled()}
-              size="sm"
-              variant="outline"
-              onClick={props.handleReloadMap}
+          <div class="game-menu__utility-strip">
+            <div
+              aria-label="Map actions"
+              class="game-menu__utility-actions"
+              role="group"
             >
-              Reload Map
-            </Button>
-            <Button
-              disabled={gameInteractionDisabled()}
-              size="sm"
-              variant="outline"
-              onClick={props.handleSetSpawnPoint}
+              <Button
+                disabled={gameInteractionDisabled()}
+                size="sm"
+                variant="outline"
+                onClick={props.handleReloadMap}
+              >
+                Reload Map
+              </Button>
+              <Button
+                disabled={gameInteractionDisabled()}
+                size="sm"
+                variant="outline"
+                onClick={props.handleSetSpawnPoint}
+              >
+                Set Spawnpoint
+              </Button>
+            </div>
+            <div
+              aria-label="Gameplay values"
+              class="game-menu__number-chips"
+              role="group"
             >
-              Set Spawnpoint
-            </Button>
+              <MenuNumberChip
+                disabled={gameInteractionDisabled()}
+                label="Walk Speed"
+                max={99}
+                min={1}
+                onCommit={props.handleSetWalkSpeed}
+                resetValue={8}
+                setValue={props.setWalkSpeed}
+                value={props.walkSpeed}
+              />
+              <MenuNumberChip
+                disabled={gameInteractionDisabled()}
+                label="FPS"
+                max={60}
+                min={1}
+                onCommit={props.handleSetFrameRate}
+                resetValue={24}
+                setValue={props.setFrameRate}
+                value={props.frameRate}
+              />
+            </div>
           </div>
-          <div
-            aria-label="Gameplay values"
-            class="game-menu__number-chips"
-            role="group"
-          >
-            <MenuNumberChip
-              disabled={gameInteractionDisabled()}
-              label="Walk Speed"
-              max={99}
-              min={1}
-              onCommit={props.handleSetWalkSpeed}
-              resetValue={8}
-              setValue={props.setWalkSpeed}
-              value={props.walkSpeed}
-            />
-            <MenuNumberChip
-              disabled={gameInteractionDisabled()}
-              label="FPS"
-              max={60}
-              min={1}
-              onCommit={props.handleSetFrameRate}
-              resetValue={24}
-              setValue={props.setFrameRate}
-              value={props.frameRate}
-            />
-          </div>
+
+          <MenuGroup class="game-menu__options-group">
+            <MenuLabel class="game-menu__options-heading">Identity</MenuLabel>
+            <div class="game-menu__identity-fields">
+              <div
+                class="game-menu__field game-menu__identity-field"
+                data-disabled={gameInteractionDisabled() ? "" : undefined}
+              >
+                <span class="game-menu__field-heading">
+                  <Label class="game-menu__field-label" for="game-custom-name">
+                    Custom Name
+                  </Label>
+                  <span class="game-menu__field-actions">
+                    <ResetCustomValueButton
+                      disabled={
+                        gameInteractionDisabled() ||
+                        !props.customNameConfigured()
+                      }
+                      label="Reset custom name"
+                      onClick={props.handleResetCustomName}
+                    />
+                  </span>
+                </span>
+                <Input
+                  disabled={gameInteractionDisabled()}
+                  fullWidth
+                  id="game-custom-name"
+                  size="sm"
+                  value={props.customName()}
+                  onBlur={props.handleSetCustomName}
+                  onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
+                  onInput={(event) =>
+                    props.setCustomName(event.currentTarget.value)
+                  }
+                />
+              </div>
+              <div
+                class="game-menu__field game-menu__identity-field"
+                data-disabled={gameInteractionDisabled() ? "" : undefined}
+              >
+                <span class="game-menu__field-heading">
+                  <Label class="game-menu__field-label" for="game-custom-guild">
+                    Custom Guild
+                  </Label>
+                  <span class="game-menu__field-actions">
+                    <ResetCustomValueButton
+                      disabled={
+                        gameInteractionDisabled() ||
+                        !props.customGuildConfigured()
+                      }
+                      label="Reset custom guild"
+                      onClick={props.handleResetCustomGuild}
+                    />
+                  </span>
+                </span>
+                <Input
+                  disabled={gameInteractionDisabled()}
+                  fullWidth
+                  id="game-custom-guild"
+                  size="sm"
+                  value={props.customGuild()}
+                  onBlur={props.handleSetCustomGuild}
+                  onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
+                  onInput={(event) =>
+                    props.setCustomGuild(event.currentTarget.value)
+                  }
+                />
+              </div>
+            </div>
+          </MenuGroup>
         </div>
-
-        <MenuGroup class="game-menu__options-group">
-          <MenuLabel class="game-menu__options-heading">Identity</MenuLabel>
-          <div class="game-menu__identity-fields">
-            <div
-              class="game-menu__field game-menu__identity-field"
-              data-disabled={gameInteractionDisabled() ? "" : undefined}
-            >
-              <span class="game-menu__field-heading">
-                <Label class="game-menu__field-label" for="game-custom-name">
-                  Custom Name
-                </Label>
-                <span class="game-menu__field-actions">
-                  <ResetCustomValueButton
-                    disabled={
-                      gameInteractionDisabled() || !props.customNameConfigured()
-                    }
-                    label="Reset custom name"
-                    onClick={props.handleResetCustomName}
-                  />
-                </span>
-              </span>
-              <Input
-                disabled={gameInteractionDisabled()}
-                fullWidth
-                id="game-custom-name"
-                size="sm"
-                value={props.customName()}
-                onBlur={props.handleSetCustomName}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomName)}
-                onInput={(event) =>
-                  props.setCustomName(event.currentTarget.value)
-                }
-              />
-            </div>
-            <div
-              class="game-menu__field game-menu__identity-field"
-              data-disabled={gameInteractionDisabled() ? "" : undefined}
-            >
-              <span class="game-menu__field-heading">
-                <Label class="game-menu__field-label" for="game-custom-guild">
-                  Custom Guild
-                </Label>
-                <span class="game-menu__field-actions">
-                  <ResetCustomValueButton
-                    disabled={
-                      gameInteractionDisabled() ||
-                      !props.customGuildConfigured()
-                    }
-                    label="Reset custom guild"
-                    onClick={props.handleResetCustomGuild}
-                  />
-                </span>
-              </span>
-              <Input
-                disabled={gameInteractionDisabled()}
-                fullWidth
-                id="game-custom-guild"
-                size="sm"
-                value={props.customGuild()}
-                onBlur={props.handleSetCustomGuild}
-                onKeyDown={commitMenuInputOnEnter(props.handleSetCustomGuild)}
-                onInput={(event) =>
-                  props.setCustomGuild(event.currentTarget.value)
-                }
-              />
-            </div>
-          </div>
-        </MenuGroup>
-      </div>
+      </Show>
     </>
   );
 }
 
 export function TopNav(props: TopNavProps): JSX.Element {
   let autoReloginMenuContent: HTMLDivElement | undefined;
+  let optionsMenuContent: HTMLDivElement | undefined;
+  let optionsMenuResizeObserver: ResizeObserver | undefined;
+  let optionsMenuRootObserver: MutationObserver | undefined;
+  let optionsMenuMeasurementFrame: number | undefined;
   let travelMenuContent: HTMLDivElement | undefined;
   const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
+  const [optionsMenuPage, setOptionsMenuPage] =
+    createSignal<TopNavOptionsMenuPage>("gameplay");
+  const [optionsSideSubmenuAvailable, setOptionsSideSubmenuAvailable] =
+    createSignal(false);
+  const [optionsHighlightedValue, setOptionsHighlightedValue] = createSignal<
+    string | null
+  >(null);
   const [travelHighlightedValue, setTravelHighlightedValue] = createSignal<
     string | null
   >(null);
+
+  const renderingModeOption = (): TopNavRenderingModeOptionItem | undefined =>
+    props
+      .optionItems()
+      .find(
+        (option): option is TopNavRenderingModeOptionItem =>
+          option.type === "rendering-mode",
+      );
+
+  const measureOptionsSubmenuSpace = (): void => {
+    optionsMenuMeasurementFrame = undefined;
+    if (props.openMenu() !== "options" || optionsMenuContent === undefined) {
+      return;
+    }
+
+    const viewportWidth = document.documentElement.clientWidth;
+    const parsedRootFontSize = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const rootFontSize = Number.isFinite(parsedRootFontSize)
+      ? parsedRootFontSize
+      : 16;
+    const submenuWidth = Math.min(
+      RENDERING_MODE_SUBMENU_WIDTH_REM * rootFontSize,
+      viewportWidth - rootFontSize * 0.5,
+    );
+    const requiredSideRoom = submenuWidth + FLOATING_MENU_GUTTER_PX;
+    const bounds = optionsMenuContent.getBoundingClientRect();
+    const leftRoom = bounds.left - FLOATING_MENU_GUTTER_PX;
+    const rightRoom = viewportWidth - bounds.right - FLOATING_MENU_GUTTER_PX;
+
+    setOptionsSideSubmenuAvailable(
+      Math.max(leftRoom, rightRoom) >= requiredSideRoom,
+    );
+  };
+
+  const scheduleOptionsSubmenuMeasurement = (): void => {
+    if (optionsMenuMeasurementFrame !== undefined) {
+      cancelAnimationFrame(optionsMenuMeasurementFrame);
+    }
+    optionsMenuMeasurementFrame = requestAnimationFrame(
+      measureOptionsSubmenuSpace,
+    );
+  };
+
+  const setOptionsMenuContentRef = (element: HTMLDivElement): void => {
+    optionsMenuContent = element;
+    optionsMenuResizeObserver?.disconnect();
+    optionsMenuResizeObserver?.observe(element);
+    scheduleOptionsSubmenuMeasurement();
+  };
+
+  const resetOptionsMenuNavigation = (): void => {
+    setOptionsMenuPage("gameplay");
+    setOptionsHighlightedValue(null);
+    setOptionsSideSubmenuAvailable(false);
+  };
+
+  const openRenderingModePage = (mode: RenderingMode): void => {
+    setOptionsMenuPage("rendering-mode");
+    queueMicrotask(() => {
+      if (
+        props.openMenu() === "options" &&
+        optionsMenuPage() === "rendering-mode"
+      ) {
+        setOptionsHighlightedValue(mode);
+      }
+    });
+  };
+
+  const closeRenderingModePage = (): void => {
+    setOptionsMenuPage("gameplay");
+    queueMicrotask(() => {
+      if (props.openMenu() === "options" && optionsMenuPage() === "gameplay") {
+        setOptionsHighlightedValue("rendering-mode");
+      }
+    });
+  };
+
+  const optionsMenuDirection = (): "ltr" | "rtl" => {
+    const direction =
+      optionsMenuContent === undefined
+        ? document.documentElement.dir
+        : getComputedStyle(optionsMenuContent).direction;
+    return direction === "rtl" ? "rtl" : "ltr";
+  };
+
+  const handleOptionsMenuKeyDown: JSX.EventHandler<
+    HTMLDivElement,
+    KeyboardEvent
+  > = (event) => {
+    const direction = optionsMenuDirection();
+    const forwardKey = direction === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const backwardKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
+
+    if (optionsMenuPage() === "rendering-mode" && event.key === backwardKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeRenderingModePage();
+      return;
+    }
+
+    if (
+      optionsMenuPage() !== "gameplay" ||
+      optionsSideSubmenuAvailable() ||
+      optionsHighlightedValue() !== "rendering-mode" ||
+      event.key !== forwardKey
+    ) {
+      return;
+    }
+
+    const option = renderingModeOption();
+    if (
+      option === undefined ||
+      option.disabled === true ||
+      option.pending === true
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openRenderingModePage(option.mode);
+  };
+
+  onMount(() => {
+    optionsMenuResizeObserver = new ResizeObserver(
+      scheduleOptionsSubmenuMeasurement,
+    );
+    if (optionsMenuContent !== undefined) {
+      optionsMenuResizeObserver.observe(optionsMenuContent);
+    }
+
+    optionsMenuRootObserver = new MutationObserver(
+      scheduleOptionsSubmenuMeasurement,
+    );
+    optionsMenuRootObserver.observe(document.documentElement, {
+      attributes: true,
+    });
+    window.addEventListener("resize", scheduleOptionsSubmenuMeasurement);
+  });
+
+  onCleanup(() => {
+    if (optionsMenuMeasurementFrame !== undefined) {
+      cancelAnimationFrame(optionsMenuMeasurementFrame);
+    }
+    optionsMenuResizeObserver?.disconnect();
+    optionsMenuRootObserver?.disconnect();
+    window.removeEventListener("resize", scheduleOptionsSubmenuMeasurement);
+  });
+
+  createEffect(() => {
+    if (props.openMenu() === "options") {
+      scheduleOptionsSubmenuMeasurement();
+      return;
+    }
+    resetOptionsMenuNavigation();
+  });
 
   const handleToggleScriptClick = (): void => {
     void props.toggleScript();
@@ -1248,7 +1559,11 @@ export function TopNav(props: TopNavProps): JSX.Element {
           </Button>
 
           <Menu
+            highlightedValue={optionsHighlightedValue()}
             open={props.openMenu() === "options"}
+            onHighlightChange={(details) =>
+              setOptionsHighlightedValue(details.highlightedValue)
+            }
             onOpenChange={setMenuOpen("options")}
           >
             <TopNavMenuTrigger
@@ -1258,10 +1573,19 @@ export function TopNav(props: TopNavProps): JSX.Element {
               Options
             </TopNavMenuTrigger>
             <GameMenuContent
+              ref={setOptionsMenuContentRef}
               class="game-menu game-menu--options"
+              onKeyDown={handleOptionsMenuKeyDown}
               portalMount={menuPortalMount}
             >
-              <TopNavOptionsMenuContent {...props} />
+              <TopNavOptionsMenuContent
+                {...props}
+                closeRenderingModePage={closeRenderingModePage}
+                openRenderingModePage={openRenderingModePage}
+                page={optionsMenuPage}
+                portalMount={menuPortalMount}
+                sideSubmenuAvailable={optionsSideSubmenuAvailable}
+              />
             </GameMenuContent>
           </Menu>
 
