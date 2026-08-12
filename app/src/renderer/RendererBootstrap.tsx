@@ -7,6 +7,8 @@ import type { AppPlatform } from "../shared/desktopBridge";
 import type { AppSettings } from "@lucent/core/settings";
 import { installRendererThemeSync } from "./theme";
 
+performance.mark("lucent.renderer.bootstrap");
+
 type RendererCleanup = () => void;
 
 interface RendererLifecycleOptions {
@@ -64,9 +66,11 @@ export const mountRenderer = (options: RendererMountOptions): void => {
       root === null
         ? undefined
         : render(() => options.app(themeSync.currentSettings()), root);
+    performance.mark("lucent.renderer.mounted");
 
     if (options.markReady ?? true) {
       document.documentElement.dataset["ready"] = "true";
+      performance.mark("lucent.renderer.ready");
     }
   });
 
