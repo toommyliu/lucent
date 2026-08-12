@@ -1,6 +1,7 @@
 import * as Layer from "effect/Layer";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
+import * as DesktopChromiumPerformanceRecording from "./DesktopChromiumPerformanceRecording";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopObservability from "./DesktopObservability";
 import * as DesktopPerformanceTrace from "./DesktopPerformanceTrace";
@@ -38,6 +39,7 @@ import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
 import * as DesktopAccountGameWindows from "../window/DesktopAccountGameWindows";
 import * as DesktopWindows from "../window/DesktopWindows";
 import * as ElectronApp from "../electron/ElectronApp";
+import * as ElectronChromiumPerformance from "../electron/ElectronChromiumPerformance";
 import * as ElectronDialog from "../electron/ElectronDialog";
 import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
@@ -49,12 +51,14 @@ export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
 ) => {
   const environmentLayer = DesktopEnvironment.layer(envConfig);
+  const electronChromiumPerformanceLayer = ElectronChromiumPerformance.layer;
   const electronSessionLayer = ElectronSession.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );
   const electronLayer = Layer.mergeAll(
     DesktopLifecycle.layer,
     ElectronApp.layer,
+    electronChromiumPerformanceLayer,
     ElectronDialog.layer,
     DesktopIpc.layer,
     electronSessionLayer,
@@ -180,6 +184,19 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const chromiumPerformanceRecordingLayer =
+    DesktopChromiumPerformanceRecording.layer.pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(
+          ElectronApp.layer,
+          electronChromiumPerformanceLayer,
+          environmentLayer,
+          observabilityLayer,
+          windowsLayer,
+        ),
+      ),
+    );
+
   const gameEnvironmentsLayer = GameEnvironments.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
   );
@@ -230,6 +247,7 @@ export const makeDesktopLayer = (
         ElectronShell.layer,
         environmentLayer,
         observabilityLayer,
+        chromiumPerformanceRecordingLayer,
         performanceTraceLayer,
         settingsLayer,
         updatesLayer,
@@ -260,6 +278,7 @@ export const makeDesktopLayer = (
     accountsLayer,
     accountSettingsRepositoryLayer,
     combatProfilesLayer,
+    chromiumPerformanceRecordingLayer,
     gameConsoleObservabilityLayer,
     gameEnvironmentsLayer,
     gameFollowersLayer,

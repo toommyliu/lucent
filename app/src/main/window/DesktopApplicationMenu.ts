@@ -9,6 +9,10 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
 import type { ThemeMode } from "@lucent/core/settings";
+import {
+  DesktopChromiumPerformanceRecording,
+  type DesktopChromiumPerformanceRecordingState,
+} from "../app/DesktopChromiumPerformanceRecording";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { DesktopObservability } from "../app/DesktopObservability";
 import {
@@ -65,6 +69,8 @@ class DesktopAppDataClearError extends Schema.TaggedErrorClass<DesktopAppDataCle
 
 const makeDesktopApplicationMenu = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
+  const chromiumPerformanceRecording =
+    yield* DesktopChromiumPerformanceRecording;
   const dialog = yield* ElectronDialog;
   const env = yield* DesktopEnvironment;
   const observability = yield* DesktopObservability;
@@ -152,6 +158,104 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         Effect.catch((cause) => showPerformanceTraceFailure("save", cause)),
       ),
     ).catch((cause) => logMenuFailure("stop-performance-trace", cause));
+  };
+
+  const showChromiumPerformanceRecordingFailure = (
+    operation: "save" | "snapshot" | "start",
+    cause: unknown,
+  ) =>
+    Effect.gen(function* () {
+      const copy = {
+        save: {
+          title: "Chromium Recording Not Saved",
+          message:
+            "Unable to finish saving the Chromium performance recording.",
+        },
+        snapshot: {
+          title: "Heap Snapshot Not Saved",
+          message: "Unable to save the heap snapshot.",
+        },
+        start: {
+          title: "Chromium Recording Not Started",
+          message: "Unable to start the Chromium performance recording.",
+        },
+      } as const;
+      yield* observability.error(
+        "chromium-performance-recording",
+        copy[operation].message,
+        cause,
+      );
+      yield* dialog.showMessageBox({
+        type: "warning",
+        title: copy[operation].title,
+        message: copy[operation].message,
+        detail:
+          operation === "snapshot"
+            ? "The performance recording is still running. Check the logs and try again."
+            : "Check the logs and try again.",
+        buttons: ["Close"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+    }).pipe(Effect.asVoid);
+
+  const startChromiumPerformanceRecording = (): void => {
+    void runPromise(
+      chromiumPerformanceRecording.start.pipe(
+        Effect.catch((cause) =>
+          showChromiumPerformanceRecordingFailure("start", cause),
+        ),
+      ),
+    ).catch((cause) =>
+      logMenuFailure("start-chromium-performance-recording", cause),
+    );
+  };
+
+  const captureChromiumHeapSnapshot = (): void => {
+    void runPromise(
+      chromiumPerformanceRecording.captureHeapSnapshot.pipe(
+        Effect.flatMap((result) => {
+          if (result.failedSnapshotCount === 0) {
+            return Effect.void;
+          }
+
+          const savedSnapshotCount =
+            result.snapshotCount - result.failedSnapshotCount;
+          return dialog
+            .showMessageBox({
+              type: "warning",
+              title: "Heap Snapshot Incomplete",
+              message: `Saved ${savedSnapshotCount} of ${result.snapshotCount} heap snapshots.`,
+              detail:
+                "The Chromium performance recording is still running. Check the logs for details.",
+              buttons: ["Close"],
+              defaultId: 0,
+              cancelId: 0,
+            })
+            .pipe(Effect.asVoid);
+        }),
+        Effect.catch((cause) =>
+          showChromiumPerformanceRecordingFailure("snapshot", cause),
+        ),
+      ),
+    ).catch((cause) => logMenuFailure("capture-chromium-heap-snapshot", cause));
+  };
+
+  const stopChromiumPerformanceRecording = (): void => {
+    void runPromise(
+      chromiumPerformanceRecording.stop.pipe(
+        Effect.flatMap((result) =>
+          result === undefined
+            ? Effect.void
+            : shell.showItemInFolder(result.manifestPath),
+        ),
+        Effect.catch((cause) =>
+          showChromiumPerformanceRecordingFailure("save", cause),
+        ),
+      ),
+    ).catch((cause) =>
+      logMenuFailure("stop-chromium-performance-recording", cause),
+    );
   };
 
   const removeDirectory = (
@@ -269,9 +373,53 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     }
   };
 
+  const buildChromiumPerformanceRecordingMenuItems = (
+    state: DesktopChromiumPerformanceRecordingState,
+  ): MenuItemConstructorOptions[] => {
+    switch (state.status) {
+      case "idle":
+        return [
+          {
+            label: "Start Chromium Performance Recording",
+            click: startChromiumPerformanceRecording,
+          },
+        ];
+      case "recording":
+        return [
+          {
+            label: "Capture Heap Snapshot",
+            click: captureChromiumHeapSnapshot,
+          },
+          {
+            label: "Stop and Save Chromium Recording",
+            click: stopChromiumPerformanceRecording,
+          },
+        ];
+      case "snapshotting":
+        return [
+          {
+            label: "Capturing Heap Snapshot…",
+            enabled: false,
+          },
+          {
+            label: "Stop and Save Chromium Recording",
+            enabled: false,
+          },
+        ];
+      case "saving":
+        return [
+          {
+            label: "Saving Chromium Recording…",
+            enabled: false,
+          },
+        ];
+    }
+  };
+
   const buildTemplate = (
     currentThemeMode: ThemeMode,
     performanceTraceState: DesktopPerformanceTraceState,
+    chromiumPerformanceRecordingState: DesktopChromiumPerformanceRecordingState,
   ): MenuItemConstructorOptions[] => {
     const settingsMenuItem: MenuItemConstructorOptions = {
       label: "Settings",
@@ -318,6 +466,9 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const helpSubmenu: MenuItemConstructorOptions[] = [
       ...helpUpdateItems,
       buildPerformanceTraceMenuItem(performanceTraceState),
+      ...buildChromiumPerformanceRecordingMenuItems(
+        chromiumPerformanceRecordingState,
+      ),
       { type: "separator" },
       ...dataClearMenuItems,
     ];
@@ -378,9 +529,15 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const rebuild = Effect.gen(function* () {
     const current = yield* settings.get;
     const performanceTraceState = yield* performanceTrace.getState;
+    const chromiumPerformanceRecordingState =
+      yield* chromiumPerformanceRecording.getState;
     Menu.setApplicationMenu(
       Menu.buildFromTemplate(
-        buildTemplate(current.appearance.themeMode, performanceTraceState),
+        buildTemplate(
+          current.appearance.themeMode,
+          performanceTraceState,
+          chromiumPerformanceRecordingState,
+        ),
       ),
     );
   }).pipe(
@@ -409,6 +566,15 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       );
       yield* Effect.addFinalizer(() =>
         Effect.sync(unsubscribePerformanceTrace),
+      );
+      const unsubscribeChromiumPerformanceRecording =
+        yield* chromiumPerformanceRecording.onChanged(() => {
+          void runPromise(rebuild).catch((cause) =>
+            logMenuFailure("rebuild-chromium-performance-recording", cause),
+          );
+        });
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(unsubscribeChromiumPerformanceRecording),
       );
     },
   );
