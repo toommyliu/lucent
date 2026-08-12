@@ -3,8 +3,6 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  Alert,
-  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -124,6 +122,11 @@ import {
 } from "./scripting/fatalAlert";
 import { resolveAccountScript } from "./scripting/accountScriptResolution";
 import { ScriptsDialog } from "./ScriptsDialog";
+import {
+  ScriptInputsErrorAlert,
+  type ScriptInputsDialogError,
+  type ScriptInputsDialogErrorField,
+} from "./ScriptInputsErrorAlert";
 import {
   TopNav,
   type GameTopNavMenu,
@@ -485,17 +488,6 @@ const scriptStatusLabel = (
 type ScriptInputsDialogMode = "manual" | "required";
 type ScriptInputDraftValue = boolean | string;
 type ScriptInputDraftValues = Readonly<Record<string, ScriptInputDraftValue>>;
-
-interface ScriptInputsDialogErrorField {
-  readonly key: string;
-  readonly label: string;
-  readonly message: string;
-}
-
-interface ScriptInputsDialogError {
-  readonly fields: readonly ScriptInputsDialogErrorField[];
-  readonly message: string;
-}
 
 const fieldLabel = (field: ScriptInputField): string =>
   field.label || field.key;
@@ -3642,6 +3634,7 @@ export function App(props: {
         loadedReference={loadedScript()?.reference}
         onChooseFile={chooseScriptFile}
         onCommitRoomNumber={handleCommitScriptRoomNumber}
+        onCopyText={(text) => navigator.clipboard.writeText(text)}
         onEditInputs={openScriptInputs}
         onOpenChange={setScriptsDialogOpen}
         onSelectRoomPolicy={handleSelectScriptRoomPolicy}
@@ -3693,64 +3686,10 @@ export function App(props: {
           </DialogHeader>
           <Show when={scriptInputDialogError()}>
             {(error) => (
-              <Alert class="game-script-inputs-dialog__error" variant="error">
-                <AlertDescription>
-                  <Icon
-                    aria-hidden="true"
-                    class="game-script-inputs-dialog__error-icon"
-                    icon="circle_alert"
-                  />
-                  <span class="game-script-inputs-dialog__error-message">
-                    <span>{error().message} </span>
-                    <Show when={error().fields.length > 0}>
-                      <span class="game-script-inputs-dialog__error-fields">
-                        <For each={error().fields}>
-                          {(field, index) => (
-                            <>
-                              <a
-                                class="game-script-inputs-dialog__error-field-link"
-                                href={`#script-input-${field.key}`}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  focusScriptInputField(field.key);
-                                }}
-                              >
-                                <Show
-                                  when={field.message !== ""}
-                                  fallback={
-                                    <span class="game-script-inputs-dialog__error-field-link-label">
-                                      {field.label}
-                                      <Show
-                                        when={
-                                          index() < error().fields.length - 1
-                                        }
-                                      >
-                                        ,
-                                      </Show>
-                                    </span>
-                                  }
-                                >
-                                  <span>
-                                    <span class="game-script-inputs-dialog__error-field-link-label">
-                                      {field.label}
-                                    </span>
-                                    : {field.message}
-                                    <Show
-                                      when={index() < error().fields.length - 1}
-                                    >
-                                      ,
-                                    </Show>
-                                  </span>
-                                </Show>
-                              </a>{" "}
-                            </>
-                          )}
-                        </For>
-                      </span>
-                    </Show>
-                  </span>
-                </AlertDescription>
-              </Alert>
+              <ScriptInputsErrorAlert
+                error={error()}
+                onFocusField={focusScriptInputField}
+              />
             )}
           </Show>
           <div class="game-script-inputs-dialog__fields">

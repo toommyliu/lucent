@@ -90,7 +90,12 @@ import {
   type ManagedAccountDraft,
 } from "@lucent/core/accounts";
 import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../../shared/accountPolicy";
-import { selectDesktopBridge } from "../../../shared/desktopBridge";
+import {
+  selectDesktopBridge,
+  type AppPlatform,
+  type DesktopAccountsBridge,
+} from "../../../shared/desktopBridge";
+import type { ScriptSelectFileResult } from "../../../shared/ipc/scripting";
 import {
   readStoredAccountLoginServerPreference,
   resolveAccountLoginServerPreference,
@@ -147,7 +152,7 @@ type GroupMemberEditExitRequest =
   | { readonly type: "cancel" }
   | { readonly tab: AccountManagerTab; readonly type: "tab" };
 
-type AccountManagerTab = "launch" | "sessions";
+export type AccountManagerTab = "launch" | "sessions";
 
 type SessionCloseRequest =
   | { readonly type: "all" }
@@ -156,9 +161,46 @@ type SessionCloseRequest =
       readonly type: "single";
     };
 
-const desktop = selectDesktopBridge(window.desktop, "account-manager");
-const desktopAccounts = desktop.accounts;
-const desktopScripting = desktop.scripting;
+export interface AccountManagerViewFixture {
+  readonly activeTab?: AccountManagerTab;
+  readonly dialog?: {
+    readonly account?: ManagedAccount;
+    readonly error?: string;
+    readonly mode: "create" | "edit";
+  };
+  readonly groupDeleteDialog?: {
+    readonly error?: string;
+    readonly name: string;
+  };
+  readonly groupDialog?: {
+    readonly error?: string;
+    readonly name: string;
+  };
+  readonly initialLoadingVisible?: boolean;
+  readonly launchScript?: AccountScriptReference | null;
+  readonly launchServer?: string;
+  readonly scriptError?: string;
+  readonly searchQuery?: string;
+  readonly selectedAccountUsernames?: readonly string[];
+  readonly serverComboboxOpen?: boolean;
+  readonly serverError?: string;
+  readonly serverPings?: readonly AccountGameServerPing[];
+  readonly serverPingsLoading?: boolean;
+  readonly servers?: readonly AccountGameServer[];
+  readonly serversLoading?: boolean;
+  readonly state: AccountManagerState;
+  readonly stateLoaded?: boolean;
+}
+
+export type AccountManagerViewCallbacks = Partial<DesktopAccountsBridge> & {
+  readonly selectScript?: () => Promise<ScriptSelectFileResult>;
+};
+
+export interface AccountManagerViewProps {
+  readonly callbacks?: AccountManagerViewCallbacks;
+  readonly fixture: AccountManagerViewFixture;
+  readonly platform: AppPlatform;
+}
 
 const NO_SERVER_VALUE = "__no_server__";
 const ACCOUNT_USERNAME_INPUT_ID = "account-manager-account-username";
@@ -941,7 +983,10 @@ function MoreActionsMenu(props: {
   );
 }
 
-export function App(): JSX.Element {
+/** Renders Account Manager from typed state and optional interaction callbacks. */
+export function AccountManagerView(
+  props: AccountManagerViewProps,
+): JSX.Element {
   let accountSearchInput: HTMLInputElement | undefined;
   let groupNameInput: HTMLInputElement | undefined;
   let serverFieldElement: HTMLDivElement | undefined;
@@ -959,12 +1004,20 @@ export function App(): JSX.Element {
   let groupDialogNameInput: HTMLInputElement | undefined;
   let serverSelectionSettlingTimeout: number | undefined;
   let serverPingRequestId = 0;
-  const [state, setState] = createSignal<AccountManagerState>(emptyState);
-  const [stateLoaded, setStateLoaded] = createSignal(false);
-  const [initialLoadingVisible, setInitialLoadingVisible] = createSignal(false);
+  const initialDialogAccount = props.fixture.dialog?.account;
+  const initialGroupDialog = props.fixture.groupDialog;
+  const [state, setState] = createSignal<AccountManagerState>(
+    props.fixture.state,
+  );
+  const [stateLoaded, setStateLoaded] = createSignal(
+    props.fixture.stateLoaded ?? true,
+  );
+  const [initialLoadingVisible, setInitialLoadingVisible] = createSignal(
+    props.fixture.initialLoadingVisible ?? false,
+  );
   const [selectedAccountUsernames, setSelectedAccountUsernames] = createSignal<
     ReadonlySet<string>
-  >(new Set());
+  >(new Set(props.fixture.selectedAccountUsernames ?? []));
   const [accountToDelete, setAccountToDelete] =
     createSignal<ManagedAccount | null>(null);
   const [sessionCloseRequest, setSessionCloseRequest] =
@@ -982,15 +1035,31 @@ export function App(): JSX.Element {
   const [groupManagerFocusTarget, setGroupManagerFocusTarget] = createSignal<
     string | null
   >(null);
-  const [groupToDelete, setGroupToDelete] = createSignal<string | null>(null);
-  const [groupDeleteError, setGroupDeleteError] = createSignal("");
-  const [groupDialogOpen, setGroupDialogOpen] = createSignal(false);
-  const [editingGroupName, setEditingGroupName] = createSignal<string | null>(
-    null,
+  const [groupToDelete, setGroupToDelete] = createSignal<string | null>(
+    props.fixture.groupDeleteDialog?.name ?? null,
   );
-  const [groupForm, setGroupForm] =
-    createSignal<GroupFormState>(emptyGroupForm());
-  const [groupDialogError, setGroupDialogError] = createSignal("");
+  const [groupDeleteError, setGroupDeleteError] = createSignal(
+    props.fixture.groupDeleteDialog?.error ?? "",
+  );
+  const [groupDialogOpen, setGroupDialogOpen] = createSignal(
+    initialGroupDialog !== undefined,
+  );
+  const [editingGroupName, setEditingGroupName] = createSignal<string | null>(
+    initialGroupDialog?.name ?? null,
+  );
+  const [groupForm, setGroupForm] = createSignal<GroupFormState>(
+    initialGroupDialog === undefined
+      ? emptyGroupForm()
+      : {
+          name: initialGroupDialog.name,
+          usernames: new Set(
+            props.fixture.state.groups[initialGroupDialog.name] ?? [],
+          ),
+        },
+  );
+  const [groupDialogError, setGroupDialogError] = createSignal(
+    initialGroupDialog?.error ?? "",
+  );
   const [groupNameError, setGroupNameError] = createSignal("");
   const [groupMemberEdit, setGroupMemberEdit] =
     createSignal<GroupMemberEditState | null>(null);
@@ -999,49 +1068,85 @@ export function App(): JSX.Element {
     createSignal("");
   const [groupMemberEditExitRequest, setGroupMemberEditExitRequest] =
     createSignal<GroupMemberEditExitRequest | null>(null);
-  const [form, setForm] = createSignal<AccountFormState>(emptyForm());
+  const [form, setForm] = createSignal<AccountFormState>(
+    initialDialogAccount === undefined
+      ? emptyForm()
+      : toForm(initialDialogAccount),
+  );
   const [formErrors, setFormErrors] = createSignal<AccountFormErrors>({});
   const [passwordVisible, setPasswordVisible] = createSignal(false);
-  const [dialogOpen, setDialogOpen] = createSignal(false);
-  const [dialogMode, setDialogMode] = createSignal<"create" | "edit">("create");
-  const [editingUsername, setEditingUsername] = createSignal<string | null>(
-    null,
+  const [dialogOpen, setDialogOpen] = createSignal(
+    props.fixture.dialog !== undefined,
   );
-  const [dialogError, setDialogError] = createSignal("");
-  const [searchQuery, setSearchQuery] = createSignal("");
+  const [dialogMode, setDialogMode] = createSignal<"create" | "edit">(
+    props.fixture.dialog?.mode ?? "create",
+  );
+  const [editingUsername, setEditingUsername] = createSignal<string | null>(
+    initialDialogAccount?.username ?? null,
+  );
+  const [dialogError, setDialogError] = createSignal(
+    props.fixture.dialog?.error ?? "",
+  );
+  const [searchQuery, setSearchQuery] = createSignal(
+    props.fixture.searchQuery ?? "",
+  );
   const [accountSearchTooltipOpen, setAccountSearchTooltipOpen] =
     createSignal(false);
   const [launchScript, setLaunchScript] =
-    createSignal<AccountScriptReference | null>(null);
+    createSignal<AccountScriptReference | null>(
+      props.fixture.launchScript ?? null,
+    );
   const [scriptSelectionTooltipOpen, setScriptSelectionTooltipOpen] =
     createSignal(false);
-  const [scriptError, setScriptError] = createSignal("");
-  const [launchServer, setLaunchServer] = createSignal("");
+  const [scriptError, setScriptError] = createSignal(
+    props.fixture.scriptError ?? "",
+  );
+  const [launchServer, setLaunchServer] = createSignal(
+    props.fixture.launchServer ?? "",
+  );
   const [loginServerTooltipOpen, setLoginServerTooltipOpen] =
     createSignal(false);
   const [accountLaunchMode, setAccountLaunchMode] =
     createSignal<AccountLaunchMode>(readStoredAccountLaunchMode());
   const [startOptionsOpen, setStartOptionsOpen] = createSignal(false);
-  const [serverComboboxOpen, setServerComboboxOpen] = createSignal(false);
+  const [serverComboboxOpen, setServerComboboxOpen] = createSignal(
+    props.fixture.serverComboboxOpen ?? false,
+  );
   const [serverInputFocused, setServerInputFocused] = createSignal(false);
-  const [serverInputValue, setServerInputValue] = createSignal("");
+  const [serverInputValue, setServerInputValue] = createSignal(
+    props.fixture.launchServer ?? "",
+  );
   const [serverSearchQuery, setServerSearchQuery] = createSignal("");
   const [serverSelectionInitialized, setServerSelectionInitialized] =
-    createSignal(false);
-  const [servers, setServers] = createSignal<readonly AccountGameServer[]>([]);
-  const [serversLoading, setServersLoading] = createSignal(false);
-  const [serverPingsLoading, setServerPingsLoading] = createSignal(false);
+    createSignal(props.fixture.servers !== undefined);
+  const [servers, setServers] = createSignal<readonly AccountGameServer[]>(
+    props.fixture.servers ?? [],
+  );
+  const [serversLoading, setServersLoading] = createSignal(
+    props.fixture.serversLoading ?? false,
+  );
+  const [serverPingsLoading, setServerPingsLoading] = createSignal(
+    props.fixture.serverPingsLoading ?? false,
+  );
   const [serverPings, setServerPings] = createSignal<
     ReadonlyMap<string, AccountGameServerPing>
-  >(new Map());
+  >(
+    new Map(
+      (props.fixture.serverPings ?? []).map((ping) => [ping.serverName, ping]),
+    ),
+  );
   const [serverSelectionSettling, setServerSelectionSettling] =
     createSignal(false);
-  const [serverError, setServerError] = createSignal("");
+  const [serverError, setServerError] = createSignal(
+    props.fixture.serverError ?? "",
+  );
   const [serverRefreshCooldownUntil, setServerRefreshCooldownUntil] =
     createSignal(0);
   const [serverRefreshNow, setServerRefreshNow] = createSignal(Date.now());
   const [busy, setBusy] = createSignal(false);
-  const [activeTab, setActiveTab] = createSignal<AccountManagerTab>("launch");
+  const [activeTab, setActiveTab] = createSignal<AccountManagerTab>(
+    props.fixture.activeTab ?? "launch",
+  );
   const [removeSelectedDialogOpen, setRemoveSelectedDialogOpen] =
     createSignal(false);
   const [closingGameWindowIds, setClosingGameWindowIds] = createSignal<
@@ -1329,55 +1434,55 @@ export function App(): JSX.Element {
   const groupMemberSummary = (usernames: readonly string[]): string =>
     usernames.map(groupMemberLabel).join(", ");
   const searchAccountsHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SEARCH_ACCOUNTS_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(SEARCH_ACCOUNTS_HOTKEY, props.platform),
   );
   const searchAccountsHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SEARCH_ACCOUNTS_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(SEARCH_ACCOUNTS_HOTKEY, props.platform),
   );
   const savedGroupsHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SAVED_GROUPS_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(SAVED_GROUPS_HOTKEY, props.platform),
   );
   const savedGroupsHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SAVED_GROUPS_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(SAVED_GROUPS_HOTKEY, props.platform),
   );
   const newAccountHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(NEW_ACCOUNT_HOTKEY, props.platform),
   );
   const newAccountHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(NEW_ACCOUNT_HOTKEY, props.platform),
   );
   const launchTabHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LAUNCH_TAB_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(LAUNCH_TAB_HOTKEY, props.platform),
   );
   const launchTabHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LAUNCH_TAB_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(LAUNCH_TAB_HOTKEY, props.platform),
   );
   const sessionsTabHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SESSIONS_TAB_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(SESSIONS_TAB_HOTKEY, props.platform),
   );
   const sessionsTabHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SESSIONS_TAB_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(SESSIONS_TAB_HOTKEY, props.platform),
   );
   const loginServerHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(LOGIN_SERVER_HOTKEY, props.platform),
   );
   const loginServerHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(LOGIN_SERVER_HOTKEY, props.platform),
   );
   const selectScriptHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(SELECT_SCRIPT_HOTKEY, props.platform),
   );
   const selectScriptHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(SELECT_SCRIPT_HOTKEY, props.platform),
   );
   const startSelectedHotkeyDisplay = createMemo(() =>
-    formatHotkeyDisplay(START_SELECTED_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplay(START_SELECTED_HOTKEY, props.platform),
   );
   const startSelectedHotkeyDisplayParts = createMemo(() =>
-    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, desktop.platform.os),
+    formatHotkeyDisplayParts(START_SELECTED_HOTKEY, props.platform),
   );
   const modAriaKey = createMemo(() =>
-    desktop.platform.os === "mac" ? "Meta" : "Control",
+    props.platform === "mac" ? "Meta" : "Control",
   );
   const newAccountAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+N`);
   const launchTabAriaKeyshortcuts = createMemo(() => `${modAriaKey()}+1`);
@@ -1857,6 +1962,10 @@ export function App(): JSX.Element {
   const loadServerPings = async (
     serverSnapshot: readonly AccountGameServer[],
   ) => {
+    if (props.callbacks?.getServerPings === undefined) {
+      return;
+    }
+
     const requestId = ++serverPingRequestId;
     setServerPings(new Map());
 
@@ -1868,7 +1977,7 @@ export function App(): JSX.Element {
     const serverNames = new Set(serverSnapshot.map((server) => server.name));
     setServerPingsLoading(true);
     try {
-      const result = await desktopAccounts.getServerPings();
+      const result = await props.callbacks.getServerPings();
       if (requestId !== serverPingRequestId) {
         return;
       }
@@ -1893,6 +2002,13 @@ export function App(): JSX.Element {
   };
 
   const loadServers = async (options?: { readonly refresh?: boolean }) => {
+    const load = options?.refresh
+      ? props.callbacks?.refreshServers
+      : props.callbacks?.getServers;
+    if (load === undefined) {
+      return;
+    }
+
     if (serverSelectionSettlingTimeout !== undefined) {
       window.clearTimeout(serverSelectionSettlingTimeout);
       serverSelectionSettlingTimeout = undefined;
@@ -1901,9 +2017,7 @@ export function App(): JSX.Element {
     setServerSelectionSettling(true);
     setServerError("");
     try {
-      const nextServers = options?.refresh
-        ? await desktopAccounts.refreshServers()
-        : await desktopAccounts.getServers();
+      const nextServers = await load();
       setServerRefreshCooldownUntil(nextServers.refreshAvailableAt);
       setServers(nextServers.servers);
       void loadServerPings(nextServers.servers);
@@ -2127,10 +2241,10 @@ export function App(): JSX.Element {
     setBusy(true);
     setGroupDialogError("");
     try {
-      const nextState = await desktopAccounts.updateGroup(
+      const nextState = await (props.callbacks?.updateGroup?.(
         currentGroupName,
         payload,
-      );
+      ) ?? Promise.resolve(state()));
 
       applyState(nextState);
       if (renamingSelectedGroup) {
@@ -2181,8 +2295,10 @@ export function App(): JSX.Element {
       };
       const nextState =
         edit.mode === "create"
-          ? await desktopAccounts.createGroup(payload)
-          : await desktopAccounts.updateGroup(edit.name, payload);
+          ? await (props.callbacks?.createGroup?.(payload) ??
+              Promise.resolve(state()))
+          : await (props.callbacks?.updateGroup?.(edit.name, payload) ??
+              Promise.resolve(state()));
       applyState(nextState);
       if (edit.mode === "create") {
         setSelectedGroupName(payload.name);
@@ -2224,7 +2340,8 @@ export function App(): JSX.Element {
     setBusy(true);
     setGroupDeleteError("");
     try {
-      const nextState = await desktopAccounts.deleteGroup(groupName);
+      const nextState = await (props.callbacks?.deleteGroup?.(groupName) ??
+        Promise.resolve(state()));
       applyState(nextState);
       setGroupToDelete(null);
     } catch (error) {
@@ -2268,8 +2385,12 @@ export function App(): JSX.Element {
     setDialogError("");
     try {
       const nextState = currentEditingUsername
-        ? await desktopAccounts.updateAccount(currentEditingUsername, payload)
-        : await desktopAccounts.createAccount(payload);
+        ? await (props.callbacks?.updateAccount?.(
+            currentEditingUsername,
+            payload,
+          ) ?? Promise.resolve(state()))
+        : await (props.callbacks?.createAccount?.(payload) ??
+            Promise.resolve(state()));
 
       applyState(nextState);
       if (options.closeAfterSave || currentEditingUsername) {
@@ -2293,7 +2414,8 @@ export function App(): JSX.Element {
     try {
       let nextState = state();
       for (const username of usernames) {
-        nextState = await desktopAccounts.deleteAccount(username);
+        nextState = await (props.callbacks?.deleteAccount?.(username) ??
+          Promise.resolve(nextState));
       }
       applyState(nextState);
       setSelectedAccountUsernames((previous) => {
@@ -2348,12 +2470,12 @@ export function App(): JSX.Element {
             index,
             usernames.length,
           );
-          await desktopAccounts.launch({
+          await (props.callbacks?.launch?.({
             username,
             script,
             ...(server === "" ? {} : { server }),
             ...(tiling === undefined ? {} : { tiling }),
-          });
+          }) ?? Promise.resolve({ gameWindowId: -1 }));
         } catch (error) {
           console.error(`Failed to launch account ${username}:`, error);
         }
@@ -2500,9 +2622,9 @@ export function App(): JSX.Element {
     const gameWindowId = session.gameWindowId;
 
     try {
-      const nextState = await desktopAccounts.focusGameWindow({
+      const nextState = await (props.callbacks?.focusGameWindow?.({
         gameWindowId,
-      });
+      }) ?? Promise.resolve(state()));
       applyState(nextState);
     } catch (error) {
       console.error("Failed to focus tracked game window:", error);
@@ -2533,9 +2655,9 @@ export function App(): JSX.Element {
     for (const session of sessionsByWindowId.values()) {
       const gameWindowId = session.gameWindowId;
       try {
-        const nextState = await desktopAccounts.closeGameWindow({
+        const nextState = await (props.callbacks?.closeGameWindow?.({
           gameWindowId,
-        });
+        }) ?? Promise.resolve(state()));
         applyState(nextState);
       } catch (error) {
         console.error("Failed to close tracked game window:", error);
@@ -2568,7 +2690,8 @@ export function App(): JSX.Element {
     setBusy(true);
     setScriptError("");
     try {
-      const result = await desktopScripting.selectFile();
+      const result = await (props.callbacks?.selectScript?.() ??
+        Promise.resolve({ canceled: true }));
       if (result.canceled) {
         return;
       }
@@ -2635,32 +2758,39 @@ export function App(): JSX.Element {
   };
 
   onMount(() => {
-    const unsubscribe = desktopAccounts.onChanged(applyState);
-    const loadingIndicatorTimeout = window.setTimeout(() => {
-      if (!stateLoaded()) {
-        setInitialLoadingVisible(true);
-      }
-    }, INITIAL_LOADING_INDICATOR_DELAY_MS);
+    const unsubscribe = props.callbacks?.onChanged?.(applyState);
+    const loadingIndicatorTimeout =
+      props.callbacks?.getState === undefined
+        ? undefined
+        : window.setTimeout(() => {
+            if (!stateLoaded()) {
+              setInitialLoadingVisible(true);
+            }
+          }, INITIAL_LOADING_INDICATOR_DELAY_MS);
     const refreshCooldownTimer = window.setInterval(() => {
       setServerRefreshNow(Date.now());
     }, 1_000);
 
-    void desktopAccounts
-      .getState()
-      .then(async (nextState) => {
-        applyState(nextState);
-      })
-      .catch((error) => {
-        console.error("Failed to load accounts:", error);
-        setStateLoaded(true);
-      });
+    if (props.callbacks?.getState !== undefined) {
+      void props.callbacks
+        .getState()
+        .then(async (nextState) => {
+          applyState(nextState);
+        })
+        .catch((error) => {
+          console.error("Failed to load accounts:", error);
+          setStateLoaded(true);
+        });
+    }
 
     void loadServers();
 
     onCleanup(() => {
-      unsubscribe();
+      unsubscribe?.();
       serverPingRequestId += 1;
-      window.clearTimeout(loadingIndicatorTimeout);
+      if (loadingIndicatorTimeout !== undefined) {
+        window.clearTimeout(loadingIndicatorTimeout);
+      }
       window.clearInterval(refreshCooldownTimer);
       if (serverSelectionSettlingTimeout !== undefined) {
         window.clearTimeout(serverSelectionSettlingTimeout);
@@ -4747,5 +4877,36 @@ export function App(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
     </Tabs>
+  );
+}
+
+/** Connects the fixture-driven Account Manager view to Electron IPC. */
+export function App(): JSX.Element {
+  const desktop = selectDesktopBridge(window.desktop, "account-manager");
+  const accounts = desktop.accounts;
+
+  return (
+    <AccountManagerView
+      callbacks={{
+        closeGameWindow: (request) => accounts.closeGameWindow(request),
+        createAccount: (draft) => accounts.createAccount(draft),
+        createGroup: (draft) => accounts.createGroup(draft),
+        deleteAccount: (username) => accounts.deleteAccount(username),
+        deleteGroup: (name) => accounts.deleteGroup(name),
+        focusGameWindow: (request) => accounts.focusGameWindow(request),
+        getServerPings: () => accounts.getServerPings(),
+        getServers: () => accounts.getServers(),
+        getState: () => accounts.getState(),
+        launch: (request) => accounts.launch(request),
+        onChanged: (listener) => accounts.onChanged(listener),
+        refreshServers: () => accounts.refreshServers(),
+        selectScript: () => desktop.scripting.selectFile(),
+        updateAccount: (username, patch) =>
+          accounts.updateAccount(username, patch),
+        updateGroup: (name, patch) => accounts.updateGroup(name, patch),
+      }}
+      fixture={{ state: emptyState, stateLoaded: false }}
+      platform={desktop.platform.os}
+    />
   );
 }

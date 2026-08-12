@@ -118,9 +118,9 @@ const openGitHubTokenPage = (): void => {
   window.open(GITHUB_TOKEN_URL, "_blank", "noopener,noreferrer");
 };
 
-type ScriptsDialogTab = "options" | "packages" | "scripts";
+export type ScriptsDialogTab = "options" | "packages" | "scripts";
 type ScrollableScriptsDialogTab = Exclude<ScriptsDialogTab, "options">;
-type PackageManagementView =
+export type PackageManagementView =
   | "credentials"
   | "details"
   | "install"
@@ -243,11 +243,13 @@ function PackageUpdateCheckButton(
 }
 
 export interface ScriptsDialogProps {
-  readonly bridge: DesktopScriptingBridge;
+  readonly bridge?: DesktopScriptingBridge;
+  readonly fixture?: ScriptsDialogFixture;
   readonly inputsAvailable: boolean;
   readonly loadedReference: ScriptReference | undefined;
   readonly onChooseFile: (replaceRunning: boolean) => Promise<void>;
   readonly onCommitRoomNumber: () => void;
+  readonly onCopyText: (text: string) => Promise<void>;
   readonly onEditInputs: () => void;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSelectRoomPolicy: (
@@ -273,6 +275,29 @@ export interface ScriptsDialogProps {
   readonly scriptLoaded: boolean;
   readonly scriptRunning: boolean;
   readonly scriptStatus: string;
+}
+
+/** Supplies catalog state directly when the dialog is rendered outside Electron. */
+export interface ScriptsDialogFixture {
+  readonly activeTab?: ScriptsDialogTab | undefined;
+  readonly catalog: ScriptCatalogOverview;
+  readonly catalogLoading?: boolean | undefined;
+  readonly confirmation?:
+    | {
+        readonly confirmLabel: string;
+        readonly description: string;
+        readonly destructive?: boolean;
+        readonly error: string;
+        readonly title: string;
+      }
+    | undefined;
+  readonly credentials?: readonly GitHubCredentialSummary[] | undefined;
+  readonly error?: string | undefined;
+  readonly errorRetryable?: boolean | undefined;
+  readonly packageManagementView?: PackageManagementView | undefined;
+  readonly scripts?: readonly ScriptCatalogEntry[] | undefined;
+  readonly search?: string | undefined;
+  readonly selectedPackagePath?: string | undefined;
 }
 
 const emptyCatalog = (): ScriptCatalogOverview => ({
@@ -635,38 +660,54 @@ const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
   entry.update.status === "rate-limited";
 
 export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
+  const fixtureMode = props.fixture !== undefined;
   const [scriptViewport, setScriptViewport] = createSignal<HTMLDivElement>();
   const [scriptViewportWidth, setScriptViewportWidth] = createSignal(0);
   const scriptContextLimit = createMemo(() =>
     scriptContextCharacterLimit(scriptViewportWidth()),
   );
   const [packageViewport, setPackageViewport] = createSignal<HTMLElement>();
-  const [catalog, setCatalog] =
-    createSignal<ScriptCatalogOverview>(emptyCatalog());
-  const [catalogLoading, setCatalogLoading] = createSignal(true);
+  const [catalog, setCatalog] = createSignal<ScriptCatalogOverview>(
+    props.fixture?.catalog ?? emptyCatalog(),
+  );
+  const [catalogLoading, setCatalogLoading] = createSignal(
+    props.fixture?.catalogLoading ?? !fixtureMode,
+  );
   const [catalogSyncing, setCatalogSyncing] = createSignal(false);
   const [pendingCatalogRevision, setPendingCatalogRevision] = createSignal<
     string | null
   >(null);
   const [credentials, setCredentials] = createSignal<
     readonly GitHubCredentialSummary[]
-  >([]);
-  const [activeTab, setActiveTab] = createSignal<ScriptsDialogTab>("scripts");
-  const [search, setSearch] = createSignal("");
-  const [catalogQuery, setCatalogQuery] = createSignal("");
+  >(props.fixture?.credentials ?? []);
+  const [activeTab, setActiveTab] = createSignal<ScriptsDialogTab>(
+    props.fixture?.activeTab ?? "scripts",
+  );
+  const [search, setSearch] = createSignal(props.fixture?.search ?? "");
+  const [catalogQuery, setCatalogQuery] = createSignal(
+    props.fixture?.search?.trim() ?? "",
+  );
   const [scriptPages, setScriptPages] = createSignal<ScriptCatalogPageCache>(
-    new Map(),
+    props.fixture?.scripts === undefined
+      ? new Map()
+      : new Map([[0, props.fixture.scripts]]),
   );
   const [scriptQueryLoading, setScriptQueryLoading] = createSignal(false);
   const [scriptQueryIndicatorVisible, setScriptQueryIndicatorVisible] =
     createSignal(false);
-  const [scriptTotal, setScriptTotal] = createSignal(0);
+  const [scriptTotal, setScriptTotal] = createSignal(
+    props.fixture?.scripts?.length ?? 0,
+  );
   const [busy, setBusy] = createSignal(false);
   const [checkingPackageUpdates, setCheckingPackageUpdates] =
     createSignal(false);
   const [checkingPackageName, setCheckingPackageName] = createSignal<string>();
-  const [error, setErrorText] = createSignal("");
-  const [errorRetryable, setErrorRetryable] = createSignal(false);
+  const [error, setErrorText] = createSignal(
+    props.fixture?.confirmation?.error ?? props.fixture?.error ?? "",
+  );
+  const [errorRetryable, setErrorRetryable] = createSignal(
+    props.fixture?.errorRetryable ?? false,
+  );
   const setError = (message: string): void => {
     setErrorRetryable(false);
     setErrorText(message);
@@ -681,8 +722,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setErrorText("");
   };
   const [packageManagementView, setPackageManagementView] =
-    createSignal<PackageManagementView>("installed");
-  const [selectedPackagePath, setSelectedPackagePath] = createSignal<string>();
+    createSignal<PackageManagementView>(
+      props.fixture?.packageManagementView ?? "installed",
+    );
+  const [selectedPackagePath, setSelectedPackagePath] = createSignal<
+    string | undefined
+  >(props.fixture?.selectedPackagePath);
   const [credentialManagerParentView, setCredentialManagerParentView] =
     createSignal<CredentialManagerParentView>("installed");
   const [credentialEditorReturnView, setCredentialEditorReturnView] =
@@ -690,8 +735,21 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const [installOptionsOpen, setInstallOptionsOpen] = createSignal(false);
   const [roomEditingMode, setRoomEditingMode] =
     createSignal<RoomPolicyMode | null>(null);
+  const initialConfirmation = props.fixture?.confirmation;
   const [confirmation, setConfirmation] =
-    createSignal<ConfirmationState | null>(null);
+    createSignal<ConfirmationState | null>(
+      initialConfirmation === undefined
+        ? null
+        : {
+            confirmLabel: initialConfirmation.confirmLabel,
+            description: initialConfirmation.description,
+            ...(initialConfirmation.destructive === undefined
+              ? {}
+              : { destructive: initialConfirmation.destructive }),
+            onConfirm: () => Promise.resolve(),
+            title: initialConfirmation.title,
+          },
+    );
   let confirmationCancelButton: HTMLButtonElement | null = null;
   const [repositoryUrl, setRepositoryUrl] = createSignal("");
   const [repositoryRef, setRepositoryRef] = createSignal("");
@@ -885,6 +943,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     offsets: readonly number[],
   ): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined || fixtureMode) return;
     const revision = catalog().revision;
     if (revision === "") return;
     const generation = scriptPageGeneration;
@@ -949,6 +1008,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     }
 
     const bridge = props.bridge;
+    if (bridge === undefined || fixtureMode) {
+      setScriptQueryLoading(false);
+      return;
+    }
     const revision = catalog().revision;
     if (revision === "" || !props.open) {
       setScriptQueryLoading(false);
@@ -1135,7 +1198,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     commit: string,
   ): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(commit);
+      await props.onCopyText(commit);
       if (copiedCommitTimer !== undefined) {
         window.clearTimeout(copiedCommitTimer);
       }
@@ -1151,6 +1214,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const loadCatalog = async (refresh: boolean): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined || fixtureMode) {
+      setCatalogLoading(false);
+      return;
+    }
     const requestId = ++catalogRequestId;
     setCatalogLoading(true);
     try {
@@ -1183,6 +1250,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const refreshCredentials = async (): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined || fixtureMode) return;
     try {
       setCredentials(await bridge.listCredentials());
     } catch (cause) {
@@ -1192,6 +1260,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   createEffect(() => {
     const revision = untrack(() => catalog().revision);
+    if (fixtureMode) {
+      setCatalogLoading(props.fixture?.catalogLoading ?? false);
+      return;
+    }
     if (!props.open) {
       catalogRequestId += 1;
       scriptQueryRequestId += 1;
@@ -1244,6 +1316,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const revision = pendingCatalogRevision();
     const bridge = props.bridge;
     if (
+      bridge === undefined ||
+      fixtureMode ||
       revision === null ||
       !props.open ||
       busy() ||
@@ -1280,7 +1354,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       }
     });
 
-    const unsubscribe = props.bridge.onCatalogChanged((change) => {
+    const unsubscribe = props.bridge?.onCatalogChanged((change) => {
       if (change.revision !== catalog().revision) {
         setPendingCatalogRevision(change.revision);
       }
@@ -1436,6 +1510,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     request: ScriptPackageInstallRequest,
   ): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined) return;
     const result = await bridge.installPackage(request);
     if (result.status === "confirmation-required") {
       askForConfirmation({
@@ -1488,6 +1563,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     replaceModified = false,
   ): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined) return;
     const result = await bridge.updatePackage({
       packageName: entry.name,
       ...(replaceModified ? { replaceModified: true } : {}),
@@ -1545,6 +1621,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       destructive: true,
       onConfirm: async () => {
         const bridge = props.bridge;
+        if (bridge === undefined) return;
         const result = await bridge.removePackage({
           packageName: entry.name,
           confirmModified: true,
@@ -1562,6 +1639,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const checkUpdate = async (entry: ValidScriptPackage): Promise<void> => {
     if (packageActiveRateLimit(entry) !== undefined) return;
     const bridge = props.bridge;
+    if (bridge === undefined) return;
     if (busy()) return;
     setBusy(true);
     setCheckingPackageName(entry.name);
@@ -1578,6 +1656,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const checkAllPackageUpdates = async (): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined) return;
     if (busy()) return;
     const packageNames = packagesEligibleForUpdateCheck().map(
       (entry) => entry.name,
@@ -1621,7 +1700,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const openPackage = async (entry: ScriptPackageSummary): Promise<void> => {
     try {
-      if (!(await props.bridge.openPath(entry.path))) {
+      if (!(await props.bridge?.openPath(entry.path))) {
         throw new Error("The package folder could not be opened.");
       }
     } catch (cause) {
@@ -1632,6 +1711,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const openScript = async (entry: ScriptCatalogEntry): Promise<void> => {
     try {
       const bridge = props.bridge;
+      if (bridge === undefined) return;
       if (!(await bridge.openPath(entry.path))) {
         throw new Error("The script could not be opened.");
       }
@@ -1648,6 +1728,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (repositoryUrl === undefined) return;
     try {
       const bridge = props.bridge;
+      if (bridge === undefined) return;
       if (!(await bridge.openRepository(repositoryUrl))) {
         throw new Error("The repository could not be opened.");
       }
@@ -1741,6 +1822,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const saveCredential = async (): Promise<void> => {
     const bridge = props.bridge;
+    if (bridge === undefined) return;
     if (busy()) return;
     setBusy(true);
     setError("");
@@ -1776,6 +1858,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       destructive: true,
       onConfirm: async () => {
         const bridge = props.bridge;
+        if (bridge === undefined) return;
         await bridge.deleteCredential(entry.id);
         setCredentials((current) =>
           current.filter((candidate) => candidate.id !== entry.id),

@@ -81,9 +81,6 @@ import {
 import type { UpdateCheckState } from "../../../shared/updates";
 
 type HotkeyBindings = readonly HotkeyBinding[];
-const desktop = selectDesktopBridge(window.desktop, "settings");
-const desktopSettings = desktop.settings;
-const desktopUpdates = desktop.updates;
 
 const defaultSettings: AppSettings = DEFAULT_APP_SETTINGS;
 const DEFAULT_THEME_TOKENS = {
@@ -93,7 +90,35 @@ const DEFAULT_THEME_TOKENS = {
 const DEFAULT_THEME_PROFILE = DEFAULT_APP_SETTINGS.appearance.themes.dark;
 const GAME_COMMANDS = SETTINGS_COMMANDS;
 
-type SettingsTabId = "general" | "hotkeys" | "appearance";
+export type SettingsTabId = "general" | "hotkeys" | "appearance";
+
+export interface SettingsViewFixture {
+  readonly activeTab?: SettingsTabId;
+  readonly error?: string;
+  readonly settings: AppSettings;
+  readonly updateState?: UpdateCheckState;
+}
+
+export interface SettingsViewProps {
+  readonly fixture: SettingsViewFixture;
+  readonly getSettings?: () => Promise<AppSettings>;
+  readonly getUpdateState?: () => Promise<UpdateCheckState>;
+  readonly onAppearancePatch?: (patch: AppearancePatch) => Promise<AppSettings>;
+  readonly onCheckForUpdates?: () => Promise<UpdateCheckState>;
+  readonly onHotkeysPatch?: (patch: HotkeysPatch) => Promise<AppSettings>;
+  readonly onOpenReleasePage?: () => Promise<boolean>;
+  readonly onPreferencesPatch?: (
+    patch: PreferencesPatch,
+  ) => Promise<AppSettings>;
+  readonly onResetHotkeys?: () => Promise<AppSettings>;
+  readonly onSettingsChanged?: (
+    listener: (settings: AppSettings) => void,
+  ) => () => void;
+  readonly onUpdatesChanged?: (
+    listener: (state: UpdateCheckState) => void,
+  ) => () => void;
+  readonly platform: AppPlatform;
+}
 
 const settingsTabs: ReadonlyArray<{
   readonly label: string;
@@ -1287,22 +1312,26 @@ function AppearanceSettings(props: {
   );
 }
 
-export function App(props: {
-  readonly initialSettings: AppSettings | null;
-  readonly platform: AppPlatform;
-}): JSX.Element {
+/** Renders Settings from typed application and updater state. */
+export function SettingsView(props: SettingsViewProps): JSX.Element {
   const [settings, setSettings] = createSignal<AppSettings>(
-    props.initialSettings ?? defaultSettings,
+    props.fixture.settings,
   );
   const [liveUpdateState, setLiveUpdateState] = createSignal<UpdateCheckState>(
-    initialUpdateState(settings()),
+    props.fixture.updateState ?? initialUpdateState(settings()),
   );
   const [updateCheckPending, setUpdateCheckPending] = createSignal(false);
   const [error, setError] = createSignal<{
     readonly id: number;
     readonly message: string;
-  } | null>(null);
-  const [activeTab, setActiveTab] = createSignal<SettingsTabId>("general");
+  } | null>(
+    props.fixture.error === undefined
+      ? null
+      : { id: 1, message: props.fixture.error },
+  );
+  const [activeTab, setActiveTab] = createSignal<SettingsTabId>(
+    props.fixture.activeTab ?? "general",
+  );
   let nextErrorId = 0;
 
   const showError = (message: string): void => {
@@ -1354,8 +1383,13 @@ export function App(props: {
       startedAt: new Date().toISOString(),
     });
 
-    void desktopUpdates
-      .checkNow({ force: true })
+    const update = props.onCheckForUpdates?.();
+    if (update === undefined) {
+      setUpdateCheckPending(false);
+      return;
+    }
+
+    void update
       .then((state) => applyUpdateState(state, { allowWhenDisabled: true }))
       .catch((cause: unknown) => {
         console.error("Failed to check for updates:", cause);
@@ -1369,46 +1403,52 @@ export function App(props: {
   };
 
   const openReleasePage = (): void => {
-    void desktopUpdates.openReleasePage().catch((cause: unknown) => {
-      console.error("Failed to open release page:", cause);
-      showError(
-        cause instanceof Error ? cause.message : "Release page unavailable",
-      );
-    });
+    void (props.onOpenReleasePage?.() ?? Promise.resolve(false)).catch(
+      (cause: unknown) => {
+        console.error("Failed to open release page:", cause);
+        showError(
+          cause instanceof Error ? cause.message : "Release page unavailable",
+        );
+      },
+    );
   };
 
   onMount(() => {
     let disposed = false;
-    const unsubscribeSettings = desktopSettings.onChanged(setSettings);
-    const unsubscribeUpdates = desktopUpdates.onChanged(applyUpdateState);
+    const unsubscribeSettings = props.onSettingsChanged?.(setSettings);
+    const unsubscribeUpdates = props.onUpdatesChanged?.(applyUpdateState);
 
-    void desktopSettings
-      .get()
-      .then((nextSettings) => {
-        if (!disposed) {
-          setSettings(nextSettings);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (!disposed) {
-          console.error("Failed to load settings:", cause);
-          showError(
-            cause instanceof Error ? cause.message : "Settings unavailable",
-          );
-        }
-      });
+    if (props.getSettings !== undefined) {
+      void props
+        .getSettings()
+        .then((nextSettings) => {
+          if (!disposed) {
+            setSettings(nextSettings);
+          }
+        })
+        .catch((cause: unknown) => {
+          if (!disposed) {
+            console.error("Failed to load settings:", cause);
+            showError(
+              cause instanceof Error ? cause.message : "Settings unavailable",
+            );
+          }
+        });
+    }
 
-    void desktopUpdates
-      .getState()
-      .then(applyUpdateState)
-      .catch((cause: unknown) => {
-        console.error("Failed to load update state:", cause);
-      });
+    if (props.getUpdateState !== undefined) {
+      void props
+        .getUpdateState()
+        .then(applyUpdateState)
+        .catch((cause: unknown) => {
+          console.error("Failed to load update state:", cause);
+        });
+    }
 
     onCleanup(() => {
       disposed = true;
-      unsubscribeSettings();
-      unsubscribeUpdates();
+      unsubscribeSettings?.();
+      unsubscribeUpdates?.();
     });
   });
 
@@ -1440,7 +1480,10 @@ export function App(props: {
                       description="This restores every game-window shortcut to its default binding."
                       label="Reset hotkeys"
                       onConfirm={() =>
-                        void runSettingsUpdate(desktopSettings.resetHotkeys())
+                        void runSettingsUpdate(
+                          props.onResetHotkeys?.() ??
+                            Promise.resolve(settings()),
+                        )
                       }
                       title="Reset all hotkeys?"
                     />
@@ -1452,7 +1495,10 @@ export function App(props: {
                       iconOnly
                       label="Reset hotkeys"
                       onConfirm={() =>
-                        void runSettingsUpdate(desktopSettings.resetHotkeys())
+                        void runSettingsUpdate(
+                          props.onResetHotkeys?.() ??
+                            Promise.resolve(settings()),
+                        )
                       }
                       title="Reset all hotkeys?"
                     />
@@ -1481,7 +1527,8 @@ export function App(props: {
                     onOpenReleasePage={openReleasePage}
                     onPreferencesPatch={(patch) =>
                       void runSettingsUpdate(
-                        desktopSettings.updatePreferences(patch),
+                        props.onPreferencesPatch?.(patch) ??
+                          Promise.resolve(settings()),
                       )
                     }
                     settings={settings()}
@@ -1491,7 +1538,10 @@ export function App(props: {
                 <TabsContent value="hotkeys">
                   <HotkeySettingsSection
                     onHotkeysPatch={(patch) =>
-                      runSettingsUpdate(desktopSettings.updateHotkeys(patch))
+                      runSettingsUpdate(
+                        props.onHotkeysPatch?.(patch) ??
+                          Promise.resolve(settings()),
+                      )
                     }
                     platform={props.platform}
                     settings={settings()}
@@ -1501,7 +1551,8 @@ export function App(props: {
                   <AppearanceSettings
                     onAppearancePatch={(patch) =>
                       void runSettingsUpdate(
-                        desktopSettings.updateAppearance(patch),
+                        props.onAppearancePatch?.(patch) ??
+                          Promise.resolve(settings()),
                       )
                     }
                     settings={settings()}
@@ -1513,5 +1564,33 @@ export function App(props: {
         </main>
       </div>
     </div>
+  );
+}
+
+/** Connects the fixture-driven Settings view to the Electron bridge. */
+export function App(props: {
+  readonly initialSettings: AppSettings | null;
+  readonly platform: AppPlatform;
+}): JSX.Element {
+  const desktop = selectDesktopBridge(window.desktop, "settings");
+  const settings = desktop.settings;
+  const updates = desktop.updates;
+  const initialSettings = props.initialSettings ?? defaultSettings;
+
+  return (
+    <SettingsView
+      fixture={{ settings: initialSettings }}
+      getSettings={() => settings.get()}
+      getUpdateState={() => updates.getState()}
+      onAppearancePatch={(patch) => settings.updateAppearance(patch)}
+      onCheckForUpdates={() => updates.checkNow({ force: true })}
+      onHotkeysPatch={(patch) => settings.updateHotkeys(patch)}
+      onOpenReleasePage={() => updates.openReleasePage()}
+      onPreferencesPatch={(patch) => settings.updatePreferences(patch)}
+      onResetHotkeys={() => settings.resetHotkeys()}
+      onSettingsChanged={(listener) => settings.onChanged(listener)}
+      onUpdatesChanged={(listener) => updates.onChanged(listener)}
+      platform={props.platform}
+    />
   );
 }

@@ -68,10 +68,26 @@ import {
 } from "./profileSelection";
 import { createRandomId } from "../../../shared/randomId";
 
-const combatProfiles = selectDesktopBridge(
-  window.desktop,
-  "combat-profiles",
-).combatProfiles;
+export interface CombatProfilesViewFixture {
+  readonly error?: string;
+  readonly library: CombatProfileLibrary;
+  readonly selectedProfileId?: string;
+}
+
+export interface CombatProfilesViewProps {
+  readonly fixture: CombatProfilesViewFixture;
+  readonly getLibrary?: () => Promise<CombatProfileLibrary>;
+  readonly onCopyText: (text: string) => Promise<void>;
+  readonly onDeleteProfile?: (
+    profileId: string,
+  ) => Promise<CombatProfileLibrary>;
+  readonly onLibraryChanged?: (
+    listener: (library: CombatProfileLibrary) => void,
+  ) => () => void;
+  readonly onSaveProfile?: (
+    profile: CombatProfile,
+  ) => Promise<CombatProfileLibrary>;
+}
 
 type ConditionType = CombatProfileCondition["type"];
 
@@ -281,12 +297,17 @@ function CombatProfilesLabelHelp(props: {
   );
 }
 
-export function App(): JSX.Element {
+/** Renders the Combat Profiles editor from a typed library fixture. */
+export function CombatProfilesView(
+  props: CombatProfilesViewProps,
+): JSX.Element {
   const [library, setLibrary] = createSignal<CombatProfileLibrary>(
-    DEFAULT_COMBAT_PROFILE_LIBRARY,
+    props.fixture.library,
   );
   const [selectedId, setSelectedId] = createSignal(
-    readStoredCombatProfileId() ?? DEFAULT_COMBAT_PROFILE_ID,
+    props.fixture.selectedProfileId ??
+      readStoredCombatProfileId() ??
+      DEFAULT_COMBAT_PROFILE_ID,
   );
   const [label, setLabel] = createSignal("Generic");
   const [className, setClassName] = createSignal("");
@@ -306,7 +327,7 @@ export function App(): JSX.Element {
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.messageTriggers ?? []);
   const [saving, setSaving] = createSignal(false);
   const [profileCopied, setProfileCopied] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const [error, setError] = createSignal(props.fixture.error ?? "");
   let nameInput: HTMLInputElement | undefined;
   let hydratedProfileId = "";
   let profileCopiedTimer: number | undefined;
@@ -385,7 +406,7 @@ export function App(): JSX.Element {
   });
 
   onMount(() => {
-    const unsubscribe = combatProfiles.onChanged((nextLibrary) => {
+    const unsubscribe = props.onLibraryChanged?.((nextLibrary) => {
       setLibrary(nextLibrary);
       if (
         !nextLibrary.profiles.some((profile) => profile.id === selectedId())
@@ -399,23 +420,27 @@ export function App(): JSX.Element {
       }
     });
 
-    void combatProfiles
-      .getState()
-      .then((nextLibrary) => {
-        setLibrary(nextLibrary);
-        selectProfile(
-          resolvePreferredCombatProfileId(
-            nextLibrary.profiles,
-            readStoredCombatProfileId(),
-          ),
-        );
-      })
-      .catch((cause: unknown) => {
-        console.error("Failed to load combat profiles:", cause);
-        setError("Failed to load profiles");
-      });
+    if (props.getLibrary !== undefined) {
+      void props
+        .getLibrary()
+        .then((nextLibrary) => {
+          setLibrary(nextLibrary);
+          selectProfile(
+            resolvePreferredCombatProfileId(
+              nextLibrary.profiles,
+              readStoredCombatProfileId(),
+            ),
+          );
+        })
+        .catch((cause: unknown) => {
+          console.error("Failed to load combat profiles:", cause);
+          setError("Failed to load profiles");
+        });
+    }
 
-    onCleanup(unsubscribe);
+    if (unsubscribe !== undefined) {
+      onCleanup(unsubscribe);
+    }
   });
 
   onCleanup(() => {
@@ -491,7 +516,9 @@ export function App(): JSX.Element {
       return;
     }
 
-    const nextLibrary = await runUpdate(combatProfiles.saveProfile(profile));
+    const nextLibrary = await runUpdate(
+      props.onSaveProfile?.(profile) ?? Promise.resolve(library()),
+    );
     const savedProfile = nextLibrary?.profiles.find(
       (candidate) => candidate.id === profile.id,
     );
@@ -507,9 +534,7 @@ export function App(): JSX.Element {
     }
 
     try {
-      await navigator.clipboard.writeText(
-        formatCombatProfileScriptProperty(profile),
-      );
+      await props.onCopyText(formatCombatProfileScriptProperty(profile));
       setError("");
       markProfileCopied();
     } catch (cause) {
@@ -542,7 +567,9 @@ export function App(): JSX.Element {
       messageTriggers: [],
     };
 
-    const nextLibrary = await runUpdate(combatProfiles.saveProfile(profile));
+    const nextLibrary = await runUpdate(
+      props.onSaveProfile?.(profile) ?? Promise.resolve(library()),
+    );
     if (nextLibrary !== null) {
       selectProfile(id);
     }
@@ -561,7 +588,9 @@ export function App(): JSX.Element {
     const duplicate = duplicateCombatProfile(profile, library().profiles, () =>
       createRandomId("profile"),
     );
-    const nextLibrary = await runUpdate(combatProfiles.saveProfile(duplicate));
+    const nextLibrary = await runUpdate(
+      props.onSaveProfile?.(duplicate) ?? Promise.resolve(library()),
+    );
     if (nextLibrary === null) {
       return;
     }
@@ -587,7 +616,7 @@ export function App(): JSX.Element {
     }
 
     const nextLibrary = await runUpdate(
-      combatProfiles.deleteProfile(profile.id),
+      props.onDeleteProfile?.(profile.id) ?? Promise.resolve(library()),
     );
     if (nextLibrary !== null) {
       selectProfile(
@@ -1520,5 +1549,24 @@ export function App(): JSX.Element {
         </main>
       </div>
     </div>
+  );
+}
+
+/** Connects the fixture-driven Combat Profiles view to the Electron bridge. */
+export function App(): JSX.Element {
+  const combatProfiles = selectDesktopBridge(
+    window.desktop,
+    "combat-profiles",
+  ).combatProfiles;
+
+  return (
+    <CombatProfilesView
+      fixture={{ library: DEFAULT_COMBAT_PROFILE_LIBRARY }}
+      getLibrary={() => combatProfiles.getState()}
+      onCopyText={(text) => navigator.clipboard.writeText(text)}
+      onDeleteProfile={(profileId) => combatProfiles.deleteProfile(profileId)}
+      onLibraryChanged={(listener) => combatProfiles.onChanged(listener)}
+      onSaveProfile={(profile) => combatProfiles.saveProfile(profile)}
+    />
   );
 }

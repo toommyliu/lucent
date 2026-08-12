@@ -58,10 +58,43 @@ import { selectDesktopBridge } from "../../../shared/desktopBridge";
 
 const selectedProfileStorageKey = "lucent.follower.selectedProfileId";
 
-const desktop = selectDesktopBridge(window.desktop, "follower");
-const follower = desktop.follower;
-const combatProfiles = desktop.combatProfiles;
-const windows = desktop.windows;
+export interface FollowerViewFixture {
+  readonly config?: FollowerConfig | null;
+  readonly error?: string;
+  readonly library: CombatProfileLibrary;
+  readonly players?: readonly string[];
+  readonly state: FollowerState;
+}
+
+export interface FollowerViewCallbacks {
+  readonly configure?: (
+    configuration: FollowerStartPayload,
+  ) => Promise<FollowerState>;
+  readonly getConfig?: () => Promise<FollowerConfig | null>;
+  readonly getLibrary?: () => Promise<CombatProfileLibrary>;
+  readonly getPlayers?: () => Promise<readonly string[]>;
+  readonly getState?: () => Promise<FollowerState>;
+  readonly me?: () => Promise<string>;
+  readonly onFollowerChanged?: (
+    listener: (state: FollowerState) => void,
+  ) => () => void;
+  readonly onLibraryChanged?: (
+    listener: (library: CombatProfileLibrary) => void,
+  ) => () => void;
+  readonly onPlayersChanged?: (
+    listener: (players: readonly string[]) => void,
+  ) => () => void;
+  readonly openCombatProfiles?: () => Promise<void>;
+  readonly start?: (
+    configuration: FollowerStartPayload,
+  ) => Promise<FollowerState>;
+  readonly stop?: () => Promise<FollowerState>;
+}
+
+export interface FollowerViewProps {
+  readonly callbacks?: FollowerViewCallbacks;
+  readonly fixture: FollowerViewFixture;
+}
 
 function LabelHelp(props: {
   readonly label: string;
@@ -82,36 +115,49 @@ function LabelHelp(props: {
   );
 }
 
-export function App(): JSX.Element {
-  const [state, setState] = createSignal<FollowerState>(
-    createIdleFollowerState(),
-  );
+/** Renders Follower state from typed fixtures and optional interactions. */
+export function FollowerView(props: FollowerViewProps): JSX.Element {
+  const initialConfig = props.fixture.config ?? null;
+  const [state, setState] = createSignal<FollowerState>(props.fixture.state);
   const [library, setLibrary] = createSignal<CombatProfileLibrary>(
-    DEFAULT_COMBAT_PROFILE_LIBRARY,
+    props.fixture.library,
   );
-  const [targetName, setTargetName] = createSignal("");
-  const [players, setPlayers] = createSignal<readonly string[]>([]);
+  const [targetName, setTargetName] = createSignal(
+    initialConfig?.targetName ?? "",
+  );
+  const [players, setPlayers] = createSignal<readonly string[]>(
+    props.fixture.players ?? [],
+  );
   const [combatEnabled, setCombatEnabled] = createSignal(
-    DEFAULT_FOLLOWER_COMBAT_ENABLED,
+    initialConfig?.combatEnabled ?? DEFAULT_FOLLOWER_COMBAT_ENABLED,
   );
-  const [copyWalk, setCopyWalk] = createSignal(DEFAULT_FOLLOWER_COPY_WALK);
+  const [copyWalk, setCopyWalk] = createSignal(
+    initialConfig?.copyWalk ?? DEFAULT_FOLLOWER_COPY_WALK,
+  );
   const [retryEnabled, setRetryEnabled] = createSignal(
-    DEFAULT_FOLLOWER_RETRY_ENABLED,
+    initialConfig?.retryEnabled ?? DEFAULT_FOLLOWER_RETRY_ENABLED,
   );
-  const [maxAttempts, setMaxAttempts] = createSignal(DEFAULT_FOLLOWER_ATTEMPTS);
+  const [maxAttempts, setMaxAttempts] = createSignal(
+    initialConfig?.maxAttempts ?? DEFAULT_FOLLOWER_ATTEMPTS,
+  );
   const [selectedProfileId, setSelectedProfileId] = createSignal(
-    readLocalStorageValue(selectedProfileStorageKey) ??
+    initialConfig?.selectedProfileId ??
+      readLocalStorageValue(selectedProfileStorageKey) ??
       DEFAULT_COMBAT_PROFILE_ID,
   );
-  const [attackPriority, setAttackPriority] = createSignal("");
+  const [attackPriority, setAttackPriority] = createSignal(
+    initialConfig?.attackPriority.join(", ") ?? "",
+  );
   const [lockedZoneFallbacks, setLockedZoneFallbacks] = createSignal<
     readonly string[]
-  >([]);
+  >(initialConfig?.lockedZoneFallbacks ?? []);
   const [lockedZoneFallbackInput, setLockedZoneFallbackInput] =
     createSignal("");
-  const [lockedZoneRoomOverride, setLockedZoneRoomOverride] = createSignal("");
+  const [lockedZoneRoomOverride, setLockedZoneRoomOverride] = createSignal(
+    initialConfig?.lockedZoneRoomOverride ?? "",
+  );
   const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const [error, setError] = createSignal(props.fixture.error ?? "");
   const [dismissedIssue, setDismissedIssue] = createSignal(false);
   let previousIssueKey = "";
   let configurationEffectReady = false;
@@ -198,7 +244,12 @@ export function App(): JSX.Element {
     }
 
     const revision = ++configurationRevision;
-    void follower.configure(configuration).catch((cause: unknown) => {
+    const update = props.callbacks?.configure?.(configuration);
+    if (update === undefined) {
+      return;
+    }
+
+    void update.catch((cause: unknown) => {
       console.error("Failed to sync follower configuration:", cause);
       if (!disposed && revision === configurationRevision) {
         setError(
@@ -271,7 +322,7 @@ export function App(): JSX.Element {
   const fillMe = async (): Promise<void> => {
     setError("");
     try {
-      const me = await follower.me();
+      const me = await (props.callbacks?.me?.() ?? Promise.resolve(""));
       if (me.trim()) {
         setTargetName(me);
       }
@@ -284,7 +335,7 @@ export function App(): JSX.Element {
   const openCombatProfiles = async (): Promise<void> => {
     setError("");
     try {
-      await windows.open("combat-profiles");
+      await props.callbacks?.openCombatProfiles?.();
     } catch (cause) {
       console.error("Failed to open combat profiles:", cause);
       setError(
@@ -305,10 +356,10 @@ export function App(): JSX.Element {
     setError("");
     setDismissedIssue(false);
     try {
-      const nextState = await follower.start({
+      const nextState = await (props.callbacks?.start?.({
         ...readConfiguration(),
         targetName: trimmedTarget,
-      });
+      }) ?? Promise.resolve(state()));
       applyFollowerState(nextState);
     } catch (cause) {
       console.error("Failed to start follower:", cause);
@@ -328,7 +379,8 @@ export function App(): JSX.Element {
     setBusy(true);
     setError("");
     try {
-      const nextState = await follower.stop();
+      const nextState = await (props.callbacks?.stop?.() ??
+        Promise.resolve(state()));
       applyFollowerState(nextState);
     } catch (cause) {
       console.error("Failed to stop follower:", cause);
@@ -610,44 +662,59 @@ export function App(): JSX.Element {
   );
 
   onMount(() => {
-    const unsubscribeFollower = follower.onChanged(applyFollowerState);
-    const unsubscribePlayers = observePlayerRoster(
-      follower,
-      setPlayers,
-      (cause) => {
-        console.error("Failed to load players in map:", cause);
-      },
-    );
-    const unsubscribeProfiles = combatProfiles.onChanged(applyLibrary);
+    const unsubscribeFollower =
+      props.callbacks?.onFollowerChanged?.(applyFollowerState);
+    const unsubscribePlayers =
+      props.callbacks?.getPlayers !== undefined &&
+      props.callbacks.onPlayersChanged !== undefined
+        ? observePlayerRoster(
+            {
+              getPlayers: props.callbacks.getPlayers,
+              onPlayersChanged: props.callbacks.onPlayersChanged,
+            },
+            setPlayers,
+            (cause) => {
+              console.error("Failed to load players in map:", cause);
+            },
+          )
+        : undefined;
+    const unsubscribeProfiles =
+      props.callbacks?.onLibraryChanged?.(applyLibrary);
 
-    void follower
-      .getConfig()
-      .then(applyFollowerConfig)
-      .catch((cause: unknown) => {
-        console.error("Failed to load follower configuration:", cause);
-        setError("Failed to load follower configuration");
-      });
+    if (props.callbacks?.getConfig !== undefined) {
+      void props.callbacks
+        .getConfig()
+        .then(applyFollowerConfig)
+        .catch((cause: unknown) => {
+          console.error("Failed to load follower configuration:", cause);
+          setError("Failed to load follower configuration");
+        });
+    }
 
-    void follower
-      .getState()
-      .then(applyFollowerState)
-      .catch((cause: unknown) => {
-        console.error("Failed to load follower state:", cause);
-        setError("Failed to load follower state");
-      });
+    if (props.callbacks?.getState !== undefined) {
+      void props.callbacks
+        .getState()
+        .then(applyFollowerState)
+        .catch((cause: unknown) => {
+          console.error("Failed to load follower state:", cause);
+          setError("Failed to load follower state");
+        });
+    }
 
-    void combatProfiles
-      .getState()
-      .then(applyLibrary)
-      .catch((cause: unknown) => {
-        console.error("Failed to load combat profiles:", cause);
-        setError("Failed to load combat profiles");
-      });
+    if (props.callbacks?.getLibrary !== undefined) {
+      void props.callbacks
+        .getLibrary()
+        .then(applyLibrary)
+        .catch((cause: unknown) => {
+          console.error("Failed to load combat profiles:", cause);
+          setError("Failed to load combat profiles");
+        });
+    }
 
     onCleanup(() => {
-      unsubscribeFollower();
-      unsubscribePlayers();
-      unsubscribeProfiles();
+      unsubscribeFollower?.();
+      unsubscribePlayers?.();
+      unsubscribeProfiles?.();
     });
   });
 
@@ -769,5 +836,37 @@ export function App(): JSX.Element {
         </main>
       </div>
     </div>
+  );
+}
+
+/** Connects the fixture-driven Follower view to the Electron bridge. */
+export function App(): JSX.Element {
+  const desktop = selectDesktopBridge(window.desktop, "follower");
+  const follower = desktop.follower;
+  const combatProfiles = desktop.combatProfiles;
+
+  return (
+    <FollowerView
+      callbacks={{
+        configure: (configuration) => follower.configure(configuration),
+        getConfig: () => follower.getConfig(),
+        getLibrary: () => combatProfiles.getState(),
+        getPlayers: () => follower.getPlayers(),
+        getState: () => follower.getState(),
+        me: () => follower.me(),
+        onFollowerChanged: (listener) => follower.onChanged(listener),
+        onLibraryChanged: (listener) => combatProfiles.onChanged(listener),
+        onPlayersChanged: (listener) => follower.onPlayersChanged(listener),
+        openCombatProfiles: async () => {
+          await desktop.windows.open("combat-profiles");
+        },
+        start: (configuration) => follower.start(configuration),
+        stop: () => follower.stop(),
+      }}
+      fixture={{
+        library: DEFAULT_COMBAT_PROFILE_LIBRARY,
+        state: createIdleFollowerState(),
+      }}
+    />
   );
 }
