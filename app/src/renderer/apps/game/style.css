@@ -730,7 +730,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__switch-visual {
   --switch-thumb-press-scale: 1.1;
-  --switch-thumb-size: 0.875rem;
+  --switch-thumb-size: 1rem;
   --switch-track-height: calc(var(--switch-thumb-size) + 2px);
   --switch-track-width: calc(var(--switch-thumb-size) * 2 - 2px);
   --switch-thumb-translate: calc(var(--switch-thumb-size) - 4px);
