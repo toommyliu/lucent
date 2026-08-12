@@ -348,6 +348,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const windows = new Map<DesktopWindowInstanceId, DesktopWindowRecord>();
+  const hiddenTopLevelWindowIds = new Set<DesktopWindowInstanceId>();
   const createdListeners = new Set<
     (event: DesktopWindowCreatedEvent) => Effect.Effect<void, unknown>
   >();
@@ -364,6 +365,15 @@ const makeDesktopWindows = Effect.gen(function* () {
     (event: DesktopWindowRendererReadyEvent) => Effect.Effect<void, unknown>
   >();
   let appIsQuitting = false;
+  let hasOpenedTopLevelWindow = false;
+  let quitRequested = false;
+  // An in-flight top-level open is recoverable UI during a concurrent close.
+  let openingTopLevelWindowCount = 0;
+
+  const forgetWindow = (id: DesktopWindowInstanceId): void => {
+    windows.delete(id);
+    hiddenTopLevelWindowIds.delete(id);
+  };
 
   const openAllowedGameUrl = (rawUrl: string): void => {
     const url = parseAllowedGameWindowOpenUrl(rawUrl);
@@ -389,27 +399,82 @@ const makeDesktopWindows = Effect.gen(function* () {
   });
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeBeforeQuit));
 
-  const hasOpenRootGameWindows = (): boolean =>
-    [...windows.values()].some(
-      (record) =>
-        record.kind === "game" &&
-        record.ownerId === undefined &&
+  const hasPresentableTopLevelWindow = (): boolean =>
+    [...windows.entries()].some(
+      ([id, record]) =>
+        getDesktopWindowDefinition(record.kind).scope !== "game-child" &&
+        !hiddenTopLevelWindowIds.has(id) &&
         isElectronWindowUsable(record.window),
     );
 
-  const hasOpenWindowKind = (kind: DesktopWindowKind): boolean =>
-    [...windows.values()].some(
-      (record) => record.kind === kind && isElectronWindowUsable(record.window),
-    );
+  const quitIfNoTopLevelWindow = (): void => {
+    if (
+      env.platform === "darwin" ||
+      appIsQuitting ||
+      quitRequested ||
+      openingTopLevelWindowCount > 0 ||
+      hasPresentableTopLevelWindow()
+    ) {
+      return;
+    }
+
+    quitRequested = true;
+    void runPromise(app.quit).catch(() => {
+      quitRequested = false;
+    });
+  };
+
+  const destroyFailedWindow = Effect.fn("DesktopWindows.destroyFailedWindow")(
+    function* (id: DesktopWindowInstanceId, kind: DesktopWindowKind) {
+      yield* Effect.try({
+        try: () => {
+          const record = windows.get(id);
+          if (record === undefined) {
+            return;
+          }
+
+          if (record.window.isDestroyed()) {
+            forgetWindow(id);
+            return;
+          }
+
+          record.window.destroy();
+        },
+        catch: (cause) => {
+          forgetWindow(id);
+          return new DesktopWindowError({
+            id,
+            detail: `Failed to destroy incomplete desktop window: ${kind}`,
+            cause,
+          });
+        },
+      }).pipe(
+        Effect.catch((cause) =>
+          observability.warn(
+            "window",
+            "Failed to destroy incomplete desktop window",
+            { cause, id, kind },
+          ),
+        ),
+      );
+    },
+  );
 
   const revealExisting = (id: DesktopWindowInstanceId) => {
     const record = windows.get(id);
     if (record === undefined || !isElectronWindowUsable(record.window)) {
-      windows.delete(id);
+      forgetWindow(id);
       return Effect.succeed(false);
     }
 
-    return electronWindow.reveal(record.window).pipe(Effect.as(true));
+    return electronWindow.reveal(record.window).pipe(
+      Effect.andThen(
+        Effect.sync(() => {
+          hiddenTopLevelWindowIds.delete(id);
+        }),
+      ),
+      Effect.as(true),
+    );
   };
 
   const reveal: DesktopWindowsShape["reveal"] = (id) =>
@@ -434,7 +499,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           return entry;
         }
 
-        windows.delete(id);
+        forgetWindow(id);
         return null;
       }
     }
@@ -641,8 +706,9 @@ const makeDesktopWindows = Effect.gen(function* () {
         return false;
       }
 
-      const [, record] = entry;
+      const [id, record] = entry;
       yield* electronWindow.reveal(record.window);
+      hiddenTopLevelWindowIds.delete(id);
       return true;
     }).pipe(
       Effect.mapError(
@@ -729,7 +795,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       windows.entries(),
       ([id, record]) => {
         if (!isElectronWindowUsable(record.window)) {
-          windows.delete(id);
+          forgetWindow(id);
           return Effect.void;
         }
 
@@ -833,6 +899,10 @@ const makeDesktopWindows = Effect.gen(function* () {
       }
 
       const id = makeInstanceId(kind);
+      const isTopLevelWindow = definition.scope !== "game-child";
+      if (isTopLevelWindow) {
+        openingTopLevelWindowCount += 1;
+      }
       const openEffect = Effect.gen(function* () {
         const bootstrapSettings = yield* getBootstrapSettings;
         const systemPrefersDark = yield* theme.shouldUseDarkColors;
@@ -912,6 +982,10 @@ const makeDesktopWindows = Effect.gen(function* () {
 
             preventWindowClose(event);
             window.hide();
+            if (isTopLevelWindow) {
+              hiddenTopLevelWindowIds.add(id);
+              quitIfNoTopLevelWindow();
+            }
           });
         }
 
@@ -922,7 +996,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             id,
             kind,
           };
-          windows.delete(id);
+          forgetWindow(id);
           for (const record of windows.values()) {
             if (
               record.ownerId === id &&
@@ -934,12 +1008,8 @@ const makeDesktopWindows = Effect.gen(function* () {
           for (const listener of closedListeners) {
             void runPromise(listener(closedEvent)).catch(() => undefined);
           }
-          if (
-            kind === "game" &&
-            !hasOpenRootGameWindows() &&
-            !hasOpenWindowKind("account-manager")
-          ) {
-            void runPromise(app.quit);
+          if (isTopLevelWindow) {
+            quitIfNoTopLevelWindow();
           }
         });
 
@@ -972,6 +1042,10 @@ const makeDesktopWindows = Effect.gen(function* () {
           );
         }
         yield* electronWindow.reveal(window);
+        if (isTopLevelWindow) {
+          hiddenTopLevelWindowIds.delete(id);
+          hasOpenedTopLevelWindow = true;
+        }
         yield* observability.info("window", "Desktop window opened", {
           id,
           kind,
@@ -986,10 +1060,66 @@ const makeDesktopWindows = Effect.gen(function* () {
               cause,
             }),
         ),
+        Effect.onError(() => destroyFailedWindow(id, kind)),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (!isTopLevelWindow) {
+              return;
+            }
+
+            openingTopLevelWindowCount -= 1;
+            quitIfNoTopLevelWindow();
+          }),
+        ),
       );
 
       return yield* openEffect;
     });
+
+  const restorePrimaryWindow = Effect.fn("DesktopWindows.restorePrimaryWindow")(
+    function* () {
+      if (
+        appIsQuitting ||
+        !hasOpenedTopLevelWindow ||
+        openingTopLevelWindowCount > 0 ||
+        hasPresentableTopLevelWindow()
+      ) {
+        return;
+      }
+
+      const accountManager = findOpenInstance("account-manager", undefined);
+      if (accountManager !== null) {
+        const [accountManagerId] = accountManager;
+        if (yield* revealExisting(accountManagerId)) {
+          return;
+        }
+      }
+
+      const currentSettings = yield* getBootstrapSettings;
+      yield* open(
+        currentSettings.preferences.launchMode === "account-manager"
+          ? "account-manager"
+          : "game",
+      );
+    },
+  );
+
+  if (env.platform === "darwin") {
+    const unsubscribeActivate = yield* app.on("activate", () => {
+      void runPromise(
+        restorePrimaryWindow().pipe(
+          Effect.catch((cause) =>
+            observability.warn(
+              "window",
+              "Failed to restore a primary window after macOS activation",
+              { cause },
+            ),
+          ),
+        ),
+      ).catch(() => undefined);
+    });
+    yield* Effect.addFinalizer(() => Effect.sync(unsubscribeActivate));
+  }
 
   return DesktopWindows.of({
     closeBrowserWindow,
