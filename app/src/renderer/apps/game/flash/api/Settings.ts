@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -8,6 +9,8 @@ import type { BridgeService } from "../bridge/Bridge";
 import type { SettingsPatch as SettingsPatchValue } from "../contract/Settings";
 import type { Store } from "../state/Store";
 import type { SettingsState } from "../state/Settings";
+
+export const REDUCED_RENDERING_FRAME_RATE = 2;
 
 const normalizePatch = (input: SettingsPatchValue): SettingsPatchValue => ({
   ...input,
@@ -42,12 +45,21 @@ const recurringActionsPatch = (state: SettingsState): SettingsPatchValue => ({
   skipCutscenesEnabled: state.skipCutscenesEnabled,
 });
 
+const withEffectiveFrameRate = (
+  patch: SettingsPatchValue,
+  renderingReduced: boolean,
+): SettingsPatchValue =>
+  renderingReduced && patch.frameRate !== undefined
+    ? { ...patch, frameRate: REDUCED_RENDERING_FRAME_RATE }
+    : patch;
+
 export const makeSettings = Effect.fnUntraced(function* (
   bridge: BridgeService,
   store: Store,
 ) {
   const scope = yield* Effect.scope;
   const updates = yield* Semaphore.make(1);
+  const renderingReduced = yield* Ref.make(false);
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const command = (
     method: keyof Window["swf"],
@@ -94,7 +106,8 @@ export const makeSettings = Effect.fnUntraced(function* (
     updates.withPermits(1)(
       Effect.gen(function* () {
         const patch = normalizePatch(input);
-        yield* execute(patch);
+        const reduced = yield* Ref.get(renderingReduced);
+        yield* execute(withEffectiveFrameRate(patch, reduced));
         yield* store.settings.patch({
           ...patch,
           ...(patch.customGuild === undefined
@@ -125,10 +138,11 @@ export const makeSettings = Effect.fnUntraced(function* (
 
   const reapply = () =>
     updates.withPermits(1)(
-      store.settings.get.pipe(
-        Effect.map(reapplyPatch),
-        Effect.flatMap(execute),
-      ),
+      Effect.gen(function* () {
+        const state = yield* store.settings.get;
+        const reduced = yield* Ref.get(renderingReduced);
+        yield* execute(withEffectiveFrameRate(reapplyPatch(state), reduced));
+      }),
     );
 
   const reapplyActions = () =>
@@ -156,6 +170,7 @@ export const makeSettings = Effect.fnUntraced(function* (
     action("skipCutscenesEnabled", "settings.skipCutscenes");
   const isAntiCounterEnabled = () =>
     store.settings.get.pipe(Effect.map((state) => state.antiCounterEnabled));
+  const isRenderingReduced = () => Ref.get(renderingReduced);
   const onState = (listener: (state: SettingsState) => void) =>
     store.settings.changes.pipe(
       Stream.runForEach((state) => Effect.sync(() => listener(state))),
@@ -196,6 +211,23 @@ export const makeSettings = Effect.fnUntraced(function* (
   const setProvokeCellEnabled = set("provokeCellEnabled");
   const setSkipCutscenesEnabled = set("skipCutscenesEnabled");
   const setWalkSpeed = set("walkSpeed");
+  const setRenderingReduced = (reduced: boolean) =>
+    updates.withPermits(1)(
+      Effect.gen(function* () {
+        const state = yield* store.settings.get;
+        if (!reduced) {
+          // Always leave reduced mode, even if Flash cannot restore immediately.
+          yield* Ref.set(renderingReduced, false);
+        }
+        yield* command(
+          "settings.setFrameRate",
+          reduced ? REDUCED_RENDERING_FRAME_RATE : state.frameRate,
+        );
+        if (reduced) {
+          yield* Ref.set(renderingReduced, true);
+        }
+      }),
+    );
 
   return {
     apply,
@@ -204,6 +236,7 @@ export const makeSettings = Effect.fnUntraced(function* (
     get,
     infiniteRange,
     isAntiCounterEnabled,
+    isRenderingReduced,
     onState,
     provokeCell,
     reapply,
@@ -222,6 +255,7 @@ export const makeSettings = Effect.fnUntraced(function* (
     setLagKillerEnabled,
     setOtherPlayersVisible,
     setProvokeCellEnabled,
+    setRenderingReduced,
     setSkipCutscenesEnabled,
     setWalkSpeed,
     skipCutscenes,

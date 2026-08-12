@@ -335,6 +335,10 @@ const writeTopNavHidden = (hidden: boolean): void => {
   document.documentElement.toggleAttribute("data-topnav-hidden", hidden);
 };
 
+const writeRenderingReduced = (reduced: boolean): void => {
+  document.documentElement.toggleAttribute("data-rendering-reduced", reduced);
+};
+
 const isEditableHotkeyTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof Element)) {
     return false;
@@ -1184,6 +1188,9 @@ export function App(props: {
   const [frameRate, setFrameRate] = createSignal(
     String(DEFAULT_FLASH_SETTINGS.frameRate),
   );
+  const [renderingReduced, setRenderingReduced] = createSignal(false);
+  const [renderingReductionPending, setRenderingReductionPending] =
+    createSignal(false);
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
   const [scriptRoomPolicy, setScriptRoomPolicy] = createSignal<RoomPolicy>(
@@ -1417,10 +1424,43 @@ export function App(props: {
     );
   };
 
+  const optionsDisabled = () => !gameLoaded() || !playerReady();
+
   const handleSetFrameRate = (fps: number) => {
     runSettingsUpdate("set frame rate", { frameRate: fps }, (settings) =>
       settings.setFrameRate(fps),
     );
+  };
+
+  const handleSetRenderingReduced = (reduced: boolean) => {
+    if (
+      renderingReductionPending() ||
+      renderingReduced() === reduced ||
+      (reduced && optionsDisabled())
+    ) {
+      return;
+    }
+
+    const previous = renderingReduced();
+    setRenderingReduced(reduced);
+    setRenderingReductionPending(true);
+
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const { settings } = yield* Api;
+          yield* settings.setRenderingReduced(reduced);
+          return yield* settings.isRenderingReduced();
+        }),
+      )
+      .then(setRenderingReduced)
+      .catch((error: unknown) => {
+        console.error("[game:settings]", "reduce rendering failed", error);
+        setRenderingReduced(reduced ? previous : false);
+      })
+      .finally(() => {
+        setRenderingReductionPending(false);
+      });
   };
 
   const handleSetCustomName = () => {
@@ -1452,8 +1492,6 @@ export function App(props: {
       (settings) => settings.resetCustomGuild,
     );
   };
-
-  const optionsDisabled = () => !gameLoaded() || !playerReady();
 
   const optionItems = createMemo<readonly TopNavOptionItem[]>(() => [
     {
@@ -1507,6 +1545,13 @@ export function App(props: {
           enabled,
           (settings, enabled) => settings.setLagKillerEnabled(enabled),
         ),
+    },
+    {
+      id: "reduced-rendering",
+      label: "Reduce Rendering",
+      checked: renderingReduced(),
+      disabled: optionsDisabled() || renderingReductionPending(),
+      onCheckedChange: handleSetRenderingReduced,
     },
     {
       id: "hide-players",
@@ -3417,8 +3462,13 @@ export function App(props: {
     writeTopNavHidden(!topNavVisible());
   });
 
+  createEffect(() => {
+    writeRenderingReduced(renderingReduced());
+  });
+
   onCleanup(() => {
     writeTopNavHidden(false);
+    writeRenderingReduced(false);
   });
 
   const renderScriptInputField = (field: ScriptInputField): JSX.Element => {
@@ -3927,6 +3977,41 @@ export function App(props: {
       >
         <div class="game-visual-cover" aria-hidden="true" />
       </section>
+
+      <Show when={renderingReduced()}>
+        <section
+          aria-describedby="reduced-rendering-description"
+          aria-labelledby="reduced-rendering-title"
+          class="game-reduced-rendering"
+        >
+          <div class="game-reduced-rendering__content">
+            <span aria-hidden="true" class="game-reduced-rendering__icon">
+              <Icon icon="eye_off" size="lg" />
+            </span>
+            <h1
+              class="game-reduced-rendering__title"
+              id="reduced-rendering-title"
+            >
+              Rendering reduced
+            </h1>
+            <p
+              class="game-reduced-rendering__description"
+              id="reduced-rendering-description"
+              role="status"
+            >
+              The game and scripts keep running while using fewer resources.
+            </p>
+            <Button
+              disabled={renderingReductionPending()}
+              onClick={() => handleSetRenderingReduced(false)}
+              size="default"
+              variant="secondary"
+            >
+              Resume rendering
+            </Button>
+          </div>
+        </section>
+      </Show>
 
       <Show when={desktop.debug}>
         <DevDebugEvaluator />
