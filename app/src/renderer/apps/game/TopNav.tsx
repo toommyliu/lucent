@@ -646,6 +646,7 @@ function RenderingModeControl(props: {
 }
 
 type TopNavOptionsMenuPage = "gameplay" | "rendering-mode";
+type TopNavOptionsInputMode = "keyboard" | "pointer";
 
 // Keep this in sync with `.game-menu--rendering-mode` in style.css.
 const RENDERING_MODE_SUBMENU_WIDTH_REM = 16;
@@ -857,31 +858,6 @@ export function TopNavOptionsMenuContent(
             <div class="game-options-grid">
               <For each={optionIds()}>{renderGameplayOption}</For>
             </div>
-          </MenuGroup>
-
-          <div class="game-menu__utility-strip">
-            <div
-              aria-label="Map actions"
-              class="game-menu__utility-actions"
-              role="group"
-            >
-              <Button
-                disabled={gameInteractionDisabled()}
-                size="sm"
-                variant="outline"
-                onClick={props.handleReloadMap}
-              >
-                Reload Map
-              </Button>
-              <Button
-                disabled={gameInteractionDisabled()}
-                size="sm"
-                variant="outline"
-                onClick={props.handleSetSpawnPoint}
-              >
-                Set Spawnpoint
-              </Button>
-            </div>
             <div
               aria-label="Gameplay values"
               class="game-menu__number-chips"
@@ -908,7 +884,7 @@ export function TopNavOptionsMenuContent(
                 value={props.frameRate}
               />
             </div>
-          </div>
+          </MenuGroup>
 
           <MenuGroup class="game-menu__options-group">
             <MenuLabel class="game-menu__options-heading">Identity</MenuLabel>
@@ -979,6 +955,30 @@ export function TopNavOptionsMenuContent(
               </div>
             </div>
           </MenuGroup>
+
+          <MenuGroup class="game-menu__options-group">
+            <MenuLabel class="game-menu__options-heading">Actions</MenuLabel>
+            <div class="game-menu__utility-actions">
+              <MenuItem
+                class="game-menu__item game-menu__utility-action"
+                closeOnSelect={false}
+                disabled={gameInteractionDisabled()}
+                onSelect={props.handleReloadMap}
+                value="reload-map"
+              >
+                Reload Map
+              </MenuItem>
+              <MenuItem
+                class="game-menu__item game-menu__utility-action"
+                closeOnSelect={false}
+                disabled={gameInteractionDisabled()}
+                onSelect={props.handleSetSpawnPoint}
+                value="set-spawnpoint"
+              >
+                Set Spawnpoint
+              </MenuItem>
+            </div>
+          </MenuGroup>
         </div>
       </Show>
     </>
@@ -1002,6 +1002,8 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const [optionsHighlightedValue, setOptionsHighlightedValue] = createSignal<
     string | null
   >(null);
+  const [optionsInputMode, setOptionsInputMode] =
+    createSignal<TopNavOptionsInputMode>("pointer");
   const [travelHighlightedValue, setTravelHighlightedValue] = createSignal<
     string | null
   >(null);
@@ -1060,6 +1062,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const resetOptionsMenuNavigation = (): void => {
     setOptionsMenuPage("gameplay");
     setOptionsHighlightedValue(null);
+    setOptionsInputMode("pointer");
     setOptionsSideSubmenuAvailable(false);
   };
 
@@ -1096,6 +1099,10 @@ export function TopNav(props: TopNavProps): JSX.Element {
     HTMLDivElement,
     KeyboardEvent
   > = (event) => {
+    if (event.target === event.currentTarget) {
+      setOptionsInputMode("keyboard");
+    }
+
     const direction = optionsMenuDirection();
     const forwardKey = direction === "rtl" ? "ArrowLeft" : "ArrowRight";
     const backwardKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
@@ -1569,13 +1576,17 @@ export function TopNav(props: TopNavProps): JSX.Element {
             <TopNavMenuTrigger
               expanded={props.openMenu() === "options"}
               onClick={toggleMenu("options")}
+              onKeyDown={() => setOptionsInputMode("keyboard")}
+              onPointerDown={() => setOptionsInputMode("pointer")}
             >
               Options
             </TopNavMenuTrigger>
             <GameMenuContent
               ref={setOptionsMenuContentRef}
               class="game-menu game-menu--options"
+              data-input-mode={optionsInputMode()}
               onKeyDown={handleOptionsMenuKeyDown}
+              onPointerMove={() => setOptionsInputMode("pointer")}
               portalMount={menuPortalMount}
             >
               <TopNavOptionsMenuContent
