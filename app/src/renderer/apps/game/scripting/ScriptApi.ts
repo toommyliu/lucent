@@ -609,6 +609,10 @@ export interface ScriptPlayerApi {
   readonly get: () => Effect.Effect<LivePlayer | null>;
   readonly getCell: () => Effect.Effect<string>;
   readonly getClassName: () => Effect.Effect<string>;
+  readonly getClassRank: (
+    /** @defaultValue equipped inventory class */
+    query?: ItemQuery,
+  ) => Effect.Effect<number | null>;
   readonly getGender: () => Effect.Effect<string>;
   readonly getGold: () => Effect.Effect<number>;
   readonly getHp: () => Effect.Effect<number>;

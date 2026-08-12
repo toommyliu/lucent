@@ -64,6 +64,23 @@ const itemRarityNames: Readonly<Record<number, string>> = {
 export const getItemRarityName = (rarity: number): string =>
   itemRarityNames[rarity] ?? "Unknown";
 
+const classRankPointThresholds = [
+  900, 3_600, 10_000, 22_500, 44_100, 78_400, 129_600, 202_500, 302_500,
+] as const;
+
+/** Returns the class rank for a cumulative class-point total. */
+export const getClassRankFromPoints = (classPoints: number): number => {
+  if (!Number.isFinite(classPoints)) return 1;
+
+  const points = Math.max(0, Math.trunc(classPoints));
+  let rank = 1;
+  for (const threshold of classRankPointThresholds) {
+    if (points < threshold) break;
+    rank += 1;
+  }
+  return rank;
+};
+
 export interface Enhancement {
   readonly dps?: number;
   readonly id?: number;
@@ -114,6 +131,8 @@ export interface Item {
   readonly category: string;
   readonly charItemId: number | undefined;
   readonly classItem: boolean;
+  /** Rank derived from class points, or `null` for a non-class item. */
+  readonly classRank: number | null;
   readonly coins: boolean;
   readonly context: ItemContext;
   readonly cost: number;
@@ -169,6 +188,7 @@ export type ItemSnapshot = Readonly<ItemData> & {
   readonly banked: boolean;
   readonly cape: boolean;
   readonly classItem: boolean;
+  readonly classRank: number | null;
   readonly helm: boolean;
   readonly pet: boolean;
   readonly weapon: boolean;
@@ -194,6 +214,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   }
   get classItem(): boolean {
     return this.category === "Class";
+  }
+  get classRank(): number | null {
+    return this.classItem ? getClassRankFromPoints(this.quantity) : null;
   }
   get coins(): boolean {
     return this.modelData.coins;
@@ -282,6 +305,7 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
       banked: this.banked,
       cape: this.cape,
       classItem: this.classItem,
+      classRank: this.classRank,
       ...(this.enhancement === undefined
         ? {}
         : { enhancement: { ...this.enhancement } }),

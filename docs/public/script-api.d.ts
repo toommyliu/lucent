@@ -459,6 +459,7 @@ interface ScriptPlayerApi {
     get(): Effect<LivePlayer | null, never>;
     getCell(): Effect<string, never>;
     getClassName(): Effect<string, never>;
+    getClassRank(/** @defaultValue equipped inventory class */ query?: ItemQuery): Effect<number | null, never>;
     getGender(): Effect<string, never>;
     getGold(): Effect<number, never>;
     getHp(): Effect<number, never>;
@@ -831,6 +832,7 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly category: string;
   readonly charItemId: number | undefined;
   readonly classItem: boolean;
+  readonly classRank: number | null;
   readonly coins: boolean;
   readonly context: ItemContext;
   readonly cost: number;
@@ -1119,6 +1121,7 @@ type ItemSnapshot = Readonly<ItemData> & {
   readonly banked: boolean;
   readonly cape: boolean;
   readonly classItem: boolean;
+  readonly classRank: number | null;
   readonly helm: boolean;
   readonly pet: boolean;
   readonly weapon: boolean;
@@ -1260,6 +1263,8 @@ interface Item {
   readonly category: string;
   readonly charItemId: number | undefined;
   readonly classItem: boolean;
+  /** Rank derived from class points, or `null` for a non-class item. */
+  readonly classRank: number | null;
   readonly coins: boolean;
   readonly context: ItemContext;
   readonly cost: number;

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  getItemRarityName,
   EntityState,
+  getClassRankFromPoints,
+  getItemRarityName,
   LiveItem,
   LiveMonster,
   LivePlayer,
@@ -68,6 +69,7 @@ describe("game domain models", () => {
     });
 
     expect(item.weapon).toBe(true);
+    expect(item.classRank).toBeNull();
     expect(item.matches("test sword")).toBe(true);
     expect(item.matches("7")).toBe(false);
     expect(item.matches(7)).toBe(true);
@@ -78,6 +80,38 @@ describe("game domain models", () => {
     item.update({ context: "bank", equipped: false, shopItemId: 12 });
     expect(item.matches({ shopItemId: 12 })).toBe(true);
     expect(item.toJSON()).toMatchObject({ context: "bank", weapon: true });
+  });
+
+  it("derives class rank from cumulative class points", () => {
+    const thresholds = [
+      900, 3_600, 10_000, 22_500, 44_100, 78_400, 129_600, 202_500, 302_500,
+    ];
+    expect(getClassRankFromPoints(0)).toBe(1);
+    for (const [index, threshold] of thresholds.entries()) {
+      expect(getClassRankFromPoints(threshold - 1)).toBe(index + 1);
+      expect(getClassRankFromPoints(threshold)).toBe(index + 2);
+    }
+
+    const classItem = new LiveItem({
+      category: "Class",
+      coins: false,
+      context: "inventory",
+      cost: 0,
+      description: "",
+      equipped: true,
+      equipmentSlot: "ar",
+      file: "",
+      houseItem: false,
+      itemId: 8,
+      link: "",
+      memberOnly: false,
+      meta: "",
+      name: "Test Class",
+      quantity: 302_500,
+      temporaryItem: false,
+    });
+    expect(classItem.classRank).toBe(10);
+    expect(classItem.toJSON()).toMatchObject({ classRank: 10 });
   });
 
   it("matches monster selectors and derives server capacity", () => {
