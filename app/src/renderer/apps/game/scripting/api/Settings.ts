@@ -5,6 +5,7 @@ export const makeScriptSettingsApi = (
   settings: ApiService["settings"],
 ): ScriptSettingsApi =>
   Object.freeze({
+    getRenderingMode: settings.getRenderingMode,
     isAntiCounterEnabled: settings.isAntiCounterEnabled,
     setAnimationsEnabled: settings.setAnimationsEnabled,
     setAntiCounterEnabled: settings.setAntiCounterEnabled,
@@ -15,9 +16,9 @@ export const makeScriptSettingsApi = (
     setEnemyMagnetEnabled: settings.setEnemyMagnetEnabled,
     setFrameRate: settings.setFrameRate,
     setInfiniteRangeEnabled: settings.setInfiniteRangeEnabled,
-    setLagKillerEnabled: settings.setLagKillerEnabled,
     setOtherPlayersVisible: settings.setOtherPlayersVisible,
     setProvokeCellEnabled: settings.setProvokeCellEnabled,
+    setRenderingMode: settings.setRenderingMode,
     setSkipCutscenesEnabled: settings.setSkipCutscenesEnabled,
     setWalkSpeed: settings.setWalkSpeed,
   });

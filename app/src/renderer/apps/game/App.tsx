@@ -87,6 +87,7 @@ import { hotkeyInputMatchKey } from "../../../shared/hotkeys";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { Api, type ApiService, flashRuntime as runtime } from "./flash";
 import type {
+  RenderingMode,
   Settings as FlashSettingsSnapshot,
   SettingsPatch as FlashSettingsPatch,
 } from "./flash/contract/Settings";
@@ -272,9 +273,9 @@ const DEFAULT_FLASH_SETTINGS: FlashSettingsSnapshot = {
   enemyMagnetEnabled: false,
   frameRate: 24,
   infiniteRangeEnabled: false,
-  lagKillerEnabled: false,
   otherPlayersVisible: true,
   provokeCellEnabled: false,
+  renderingMode: "full",
   skipCutscenesEnabled: false,
   walkSpeed: 8,
 };
@@ -338,8 +339,8 @@ const writeTopNavHidden = (hidden: boolean): void => {
   document.documentElement.toggleAttribute("data-topnav-hidden", hidden);
 };
 
-const writeRenderingReduced = (reduced: boolean): void => {
-  document.documentElement.toggleAttribute("data-rendering-reduced", reduced);
+const writeRenderingMinimal = (minimal: boolean): void => {
+  document.documentElement.toggleAttribute("data-rendering-minimal", minimal);
 };
 
 const isEditableHotkeyTarget = (target: EventTarget | null): boolean => {
@@ -1180,9 +1181,7 @@ export function App(props: {
   const [frameRate, setFrameRate] = createSignal(
     String(DEFAULT_FLASH_SETTINGS.frameRate),
   );
-  const [renderingReduced, setRenderingReduced] = createSignal(false);
-  const [renderingReductionPending, setRenderingReductionPending] =
-    createSignal(false);
+  const [renderingModePending, setRenderingModePending] = createSignal(false);
   const [customName, setCustomName] = createSignal("");
   const [customGuild, setCustomGuild] = createSignal("");
   const [scriptRoomPolicy, setScriptRoomPolicy] = createSignal<RoomPolicy>(
@@ -1383,7 +1382,6 @@ export function App(props: {
       | "deathAdsVisible"
       | "enemyMagnetEnabled"
       | "infiniteRangeEnabled"
-      | "lagKillerEnabled"
       | "otherPlayersVisible"
       | "provokeCellEnabled"
       | "skipCutscenesEnabled"
@@ -1424,35 +1422,89 @@ export function App(props: {
     );
   };
 
-  const handleSetRenderingReduced = (reduced: boolean) => {
+  const runRenderingModeUpdate = (
+    label: string,
+    optimisticMode: RenderingMode,
+    update: (settings: ApiService["settings"]) => Effect.Effect<void>,
+  ) => {
     if (
-      renderingReductionPending() ||
-      renderingReduced() === reduced ||
-      (reduced && optionsDisabled())
+      renderingModePending() ||
+      flashSettings().renderingMode === optimisticMode ||
+      optionsDisabled()
     ) {
       return;
     }
 
-    const previous = renderingReduced();
-    setRenderingReduced(reduced);
-    setRenderingReductionPending(true);
+    patchFlashSettingsState({ renderingMode: optimisticMode });
+    setRenderingModePending(true);
 
     void runtime
       .runPromise(
         Effect.gen(function* () {
           const { settings } = yield* Api;
-          yield* settings.setRenderingReduced(reduced);
-          return yield* settings.isRenderingReduced();
+          yield* update(settings);
+          return yield* settings.get();
         }),
       )
-      .then(setRenderingReduced)
+      .then(applyFlashSettingsState)
       .catch((error: unknown) => {
-        console.error("[game:settings]", "reduce rendering failed", error);
-        setRenderingReduced(reduced ? previous : false);
+        console.error("[game:settings]", `${label} failed`, error);
+        refreshFlashSettings();
       })
       .finally(() => {
-        setRenderingReductionPending(false);
+        setRenderingModePending(false);
       });
+  };
+
+  const handleSetRenderingMode = (mode: RenderingMode) => {
+    runRenderingModeUpdate("set rendering mode", mode, (settings) =>
+      settings.setRenderingMode(mode),
+    );
+  };
+
+  const handleRestoreRenderingMode = () => {
+    if (renderingModePending() || flashSettings().renderingMode !== "minimal") {
+      return;
+    }
+
+    setRenderingModePending(true);
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const { settings } = yield* Api;
+          yield* settings.restoreRenderingMode();
+          return yield* settings.get();
+        }),
+      )
+      .then(applyFlashSettingsState)
+      .catch((error: unknown) => {
+        console.error(
+          "[game:settings]",
+          "restore rendering mode failed",
+          error,
+        );
+        refreshFlashSettings();
+      })
+      .finally(() => {
+        setRenderingModePending(false);
+      });
+  };
+
+  const handleToggleInterfaceOnlyRendering = () => {
+    handleSetRenderingMode(
+      flashSettings().renderingMode === "interface-only"
+        ? "full"
+        : "interface-only",
+    );
+  };
+
+  const handleToggleMinimalRendering = () => {
+    if (flashSettings().renderingMode === "minimal") {
+      handleRestoreRenderingMode();
+      return;
+    }
+
+    handleSetRenderingMode("minimal");
   };
 
   const handleSetCustomName = () => {
@@ -1489,6 +1541,7 @@ export function App(props: {
     {
       id: "infinite-range",
       label: "Infinite Range",
+      type: "toggle",
       checked: flashSettings().infiniteRangeEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1502,6 +1555,7 @@ export function App(props: {
     {
       id: "provoke-cell",
       label: "Provoke Cell",
+      type: "toggle",
       checked: flashSettings().provokeCellEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1515,6 +1569,7 @@ export function App(props: {
     {
       id: "enemy-magnet",
       label: "Enemy Magnet",
+      type: "toggle",
       checked: flashSettings().enemyMagnetEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1526,28 +1581,18 @@ export function App(props: {
         ),
     },
     {
-      id: "lag-killer",
-      label: "Lag Killer",
-      checked: flashSettings().lagKillerEnabled,
+      id: "rendering-mode",
+      label: "Rendering Mode",
+      mode: flashSettings().renderingMode,
+      pending: renderingModePending(),
+      type: "rendering-mode",
       disabled: optionsDisabled(),
-      onCheckedChange: (enabled) =>
-        setFlashSetting(
-          "toggle lag killer",
-          "lagKillerEnabled",
-          enabled,
-          (settings, enabled) => settings.setLagKillerEnabled(enabled),
-        ),
-    },
-    {
-      id: "reduced-rendering",
-      label: "Reduce Rendering",
-      checked: renderingReduced(),
-      disabled: optionsDisabled() || renderingReductionPending(),
-      onCheckedChange: handleSetRenderingReduced,
+      onModeChange: handleSetRenderingMode,
     },
     {
       id: "hide-players",
       label: "Hide Players",
+      type: "toggle",
       checked: !flashSettings().otherPlayersVisible,
       disabled: optionsDisabled(),
       onCheckedChange: handleHidePlayersCheckedChange,
@@ -1555,6 +1600,7 @@ export function App(props: {
     {
       id: "skip-cutscenes",
       label: "Skip Cutscenes",
+      type: "toggle",
       checked: flashSettings().skipCutscenesEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1568,6 +1614,7 @@ export function App(props: {
     {
       id: "anti-counter",
       label: "Anti-Counter",
+      type: "toggle",
       checked: flashSettings().antiCounterEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1581,6 +1628,7 @@ export function App(props: {
     {
       id: "animations",
       label: "Animations",
+      type: "toggle",
       checked: flashSettings().animationsEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1594,6 +1642,7 @@ export function App(props: {
     {
       id: "collisions",
       label: "Collisions",
+      type: "toggle",
       checked: flashSettings().collisionsEnabled,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -1607,6 +1656,7 @@ export function App(props: {
     {
       id: "death-ads",
       label: "Death Ads",
+      type: "toggle",
       checked: flashSettings().deathAdsVisible,
       disabled: optionsDisabled(),
       onCheckedChange: (enabled) =>
@@ -3120,7 +3170,11 @@ export function App(props: {
     }
 
     const option = optionItems().find((item) => item.id === optionId);
-    if (option === undefined || option.disabled === true) {
+    if (
+      option === undefined ||
+      option.disabled === true ||
+      option.type !== "toggle"
+    ) {
       return;
     }
 
@@ -3140,6 +3194,8 @@ export function App(props: {
       ["toggleAutoattack", handleToggleAutoAttack],
       ["toggleFollower", handleToggleFollower],
       ["toggleBank", handleOpenBank],
+      ["toggleInterfaceOnlyRendering", handleToggleInterfaceOnlyRendering],
+      ["toggleMinimalRendering", handleToggleMinimalRendering],
     ]);
 
     for (const commandId of Object.keys(
@@ -3455,12 +3511,12 @@ export function App(props: {
   });
 
   createEffect(() => {
-    writeRenderingReduced(renderingReduced());
+    writeRenderingMinimal(flashSettings().renderingMode === "minimal");
   });
 
   onCleanup(() => {
     writeTopNavHidden(false);
-    writeRenderingReduced(false);
+    writeRenderingMinimal(false);
   });
 
   const renderScriptInputField = (field: ScriptInputField): JSX.Element => {
@@ -3917,32 +3973,32 @@ export function App(props: {
         <div class="game-visual-cover" aria-hidden="true" />
       </section>
 
-      <Show when={renderingReduced()}>
+      <Show when={flashSettings().renderingMode === "minimal"}>
         <section
-          aria-describedby="reduced-rendering-description"
-          aria-labelledby="reduced-rendering-title"
-          class="game-reduced-rendering"
+          aria-describedby="minimal-rendering-description"
+          aria-labelledby="minimal-rendering-title"
+          class="game-minimal-rendering"
         >
-          <div class="game-reduced-rendering__content">
-            <span aria-hidden="true" class="game-reduced-rendering__icon">
+          <div class="game-minimal-rendering__content">
+            <span aria-hidden="true" class="game-minimal-rendering__icon">
               <Icon icon="eye_off" size="lg" />
             </span>
             <h1
-              class="game-reduced-rendering__title"
-              id="reduced-rendering-title"
+              class="game-minimal-rendering__title"
+              id="minimal-rendering-title"
             >
-              Rendering reduced
+              Minimal rendering
             </h1>
             <p
-              class="game-reduced-rendering__description"
-              id="reduced-rendering-description"
+              class="game-minimal-rendering__description"
+              id="minimal-rendering-description"
               role="status"
             >
               The game and scripts keep running while using fewer resources.
             </p>
             <Button
-              disabled={renderingReductionPending()}
-              onClick={() => handleSetRenderingReduced(false)}
+              disabled={renderingModePending()}
+              onClick={handleRestoreRenderingMode}
               size="default"
               variant="secondary"
             >

@@ -344,6 +344,28 @@
   border-bottom: 0;
 }
 
+.hotkey-subgroup {
+  border-bottom: 1px solid rgb(var(--border));
+  min-width: 0;
+}
+
+.hotkey-subgroup:last-child {
+  border-bottom: 0;
+}
+
+.hotkey-subgroup__title {
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+  padding: 0.75rem 1rem 0.25rem;
+}
+
+.hotkey-subgroup .hotkey-row {
+  padding-inline-start: 2rem;
+}
+
 .hotkey-row__content {
   display: grid;
   flex: 1 1 auto;

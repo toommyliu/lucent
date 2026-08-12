@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { createSignal, type JSX } from "solid-js";
+import { createMemo, createSignal, type JSX } from "solid-js";
 
 import { DEFAULT_HOTKEYS } from "@lucent/core/hotkeys";
 import type { AutoZoneSupportedMap } from "./automation/AutoZone";
+import type { RenderingMode } from "./flash/contract/Settings";
 import {
   TopNav,
   type GameTopNavMenu,
   type TopNavCombatProfile,
   type TopNavOptionItem,
+  type TopNavToggleOptionItem,
 } from "./TopNav";
 
 interface TopNavFixture {
@@ -23,6 +25,8 @@ interface TopNavFixture {
   readonly gameLoaded?: boolean;
   readonly openMenu?: GameTopNavMenu | null;
   readonly playerReady?: boolean;
+  readonly renderingMode?: RenderingMode;
+  readonly renderingModePending?: boolean;
   readonly scriptLoaded?: boolean;
   readonly scriptOptionsReady?: boolean;
   readonly scriptRunning?: boolean;
@@ -50,7 +54,6 @@ const optionFixtures = [
   ["infinite-range", "Infinite range", true],
   ["provoke-cell", "Provoke cell", false],
   ["enemy-magnet", "Enemy magnet", true],
-  ["lag-killer", "Lag killer", false],
   ["hide-players", "Hide players", false],
   ["skip-cutscenes", "Skip cutscenes", true],
   ["anti-counter", "Anti-counter", false],
@@ -90,21 +93,37 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
   const [selectedProfileId, setSelectedProfileId] = createSignal("support");
   const [selectedCell, setSelectedCell] = createSignal("Boss");
   const [selectedPad, setSelectedPad] = createSignal("Spawn");
-  const [optionItems, setOptionItems] = createSignal<
-    readonly TopNavOptionItem[]
-  >(
-    optionFixtures.map(([id, label, checked]) => ({
-      checked,
-      id,
-      label,
-      onCheckedChange: (nextChecked) =>
-        setOptionItems((current) =>
-          current.map((item) =>
-            item.id === id ? { ...item, checked: nextChecked } : item,
-          ),
-        ),
-    })),
+  const toggleOptions = optionFixtures.map(([id, label, initialChecked]) => {
+    const [checked, setChecked] = createSignal(initialChecked);
+    return { checked, id, label, setChecked };
+  });
+  const [renderingMode, setRenderingMode] = createSignal<RenderingMode>(
+    fixture.renderingMode ?? "full",
   );
+  const optionItems = createMemo<readonly TopNavOptionItem[]>(() => {
+    const toggles = toggleOptions.map(
+      (option): TopNavToggleOptionItem => ({
+        checked: option.checked(),
+        id: option.id,
+        label: option.label,
+        onCheckedChange: option.setChecked,
+        type: "toggle",
+      }),
+    );
+
+    return [
+      ...toggles.slice(0, 3),
+      {
+        id: "rendering-mode",
+        label: "Rendering Mode",
+        mode: renderingMode(),
+        onModeChange: setRenderingMode,
+        pending: fixture.renderingModePending ?? false,
+        type: "rendering-mode",
+      },
+      ...toggles.slice(3),
+    ];
+  });
   const selectedProfile = () =>
     profiles.find((profile) => profile.id === selectedProfileId()) ??
     profiles[0];
@@ -265,6 +284,16 @@ export const AutoReloginFailed: Story = {
 
 export const OptionsMenu: Story = {
   args: { fixture: { openMenu: "options" } },
+};
+
+export const RenderingModePending: Story = {
+  args: {
+    fixture: {
+      openMenu: "options",
+      renderingMode: "minimal",
+      renderingModePending: true,
+    },
+  },
 };
 
 export const TravelBusy: Story = {

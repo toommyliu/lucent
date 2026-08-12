@@ -414,7 +414,8 @@ export const createPerformanceTraceDocument = (input: {
   traceEvents: createTraceEvents(input.samples),
 });
 
-const normalizeMetric = (
+/** Normalizes Electron's platform-dependent process metrics for saved artifacts. */
+export const normalizePerformanceTraceMetric = (
   metric: ProcessMetric,
 ): PerformanceTraceProcessSample => ({
   cpuPercent: metric.cpu.percentCPUUsage,
@@ -462,7 +463,7 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       const metrics = runSync(electronApp.getAppMetrics);
       current.samples.push({
         elapsedMs: Math.max(0, Date.now() - current.startedAtMs),
-        processes: metrics.map(normalizeMetric),
+        processes: metrics.map(normalizePerformanceTraceMetric),
       });
     } catch (cause) {
       void runPromise(
@@ -521,7 +522,7 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       const metrics = yield* electronApp.getAppMetrics;
       current.samples.push({
         elapsedMs: Math.max(0, Date.now() - current.startedAtMs),
-        processes: metrics.map(normalizeMetric),
+        processes: metrics.map(normalizePerformanceTraceMetric),
       });
     }
 

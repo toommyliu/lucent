@@ -1039,6 +1039,7 @@ const renderTypeAlias = (
   checker: ts.TypeChecker,
   declaration: ts.TypeAliasDeclaration,
 ): string => {
+  const documentation = getJsDocText(declaration);
   const typeParameters = typeParameterText(
     declaration.getSourceFile(),
     declaration.typeParameters,
@@ -1046,14 +1047,14 @@ const renderTypeAlias = (
   const raw = stripDeclarationText(
     declaration.getText(declaration.getSourceFile()),
   );
-  if (!isSchemaTypeAlias(declaration) && !raw.includes("typeof ")) {
-    return raw;
-  }
-
-  return `type ${declaration.name.text}${typeParameters} = ${formatExpandedType(
-    checker,
-    declaration.type,
-  )};`;
+  const rendered =
+    !isSchemaTypeAlias(declaration) && !raw.includes("typeof ")
+      ? raw
+      : `type ${declaration.name.text}${typeParameters} = ${formatExpandedType(
+          checker,
+          declaration.type,
+        )};`;
+  return documentation === "" ? rendered : `${documentation}\n${rendered}`;
 };
 
 const declarationText = (

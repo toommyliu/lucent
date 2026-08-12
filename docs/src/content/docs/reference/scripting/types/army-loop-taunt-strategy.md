@@ -12,12 +12,16 @@ sidebar:
 Selects the encounter event that starts each taunt attempt.
 
 ```ts
-type ArmyLoopTauntStrategy = {
-    readonly type: "focus";
-} | {
-    readonly message: string;
-    readonly type: "message";
-}
+type ArmyLoopTauntStrategy =
+  | {
+      /** Cast after the target's Focus aura disappears. */
+      readonly type: "focus";
+    }
+  | {
+      /** Case-insensitive text contained in the target's animation or aura message. */
+      readonly message: string;
+      readonly type: "message";
+    }
 ```
 
 <p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/army.ts#L89" aria-label="Open source: packages/core/src/army.ts:89" title="packages/core/src/army.ts:89" target="_blank" rel="noreferrer"><code class="source-reference__path">army.ts:89</code></a></p>

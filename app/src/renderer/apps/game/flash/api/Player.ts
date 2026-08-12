@@ -1,5 +1,5 @@
 import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
-import type { BoostType, ItemQuery } from "@lucent/game";
+import type { BoostType, ItemQuery, LiveItem } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -49,6 +49,16 @@ const OutfitPayloads = Schema.Array(OutfitPayload);
 
 const sameText = (left: string, right: string): boolean =>
   left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+
+const findClassItem = (
+  items: readonly LiveItem[],
+  query?: ItemQuery,
+): LiveItem | undefined =>
+  items.find(
+    (item) =>
+      item.classItem &&
+      (query === undefined ? item.equipped : item.matches(query)),
+  );
 
 const toFaction = (payload: typeof FactionPayload.Type): LiveFaction =>
   new LiveFaction({
@@ -239,6 +249,18 @@ export const makePlayer = (
       ),
     );
   const getClassName = () => read("player.getClassName", Schema.String, "");
+  const getClassRank = Effect.fn("Player.getClassRank")(function* (
+    query?: ItemQuery,
+  ) {
+    const inventoryClass = findClassItem(yield* inventory.getAll(), query);
+    if (inventoryClass !== undefined) return inventoryClass.classRank;
+    if (query === undefined || !(yield* store.items.isHydrated("bank"))) {
+      return null;
+    }
+
+    const bankClass = findClassItem(yield* store.items.getAll("bank"), query);
+    return bankClass?.classRank ?? null;
+  });
   const getGender = () => read("player.getGender", Schema.String, "");
   const getGold = () => read("player.getGold", WireInt, 0);
   const getHp = () => get().pipe(Effect.map((current) => current?.hp ?? 0));
@@ -448,6 +470,7 @@ export const makePlayer = (
     get,
     getCell,
     getClassName,
+    getClassRank,
     getGender,
     getGold,
     getHp,

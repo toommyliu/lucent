@@ -338,6 +338,98 @@ describe("Projection", () => {
     }),
   );
 
+  it.effect("projects class-point gains and absolute class updates", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const pipeline = makePipeline(store, {
+        publishEvent: () => Effect.void,
+      });
+
+      yield* store.auth.setCredentials("Hero", "");
+      yield* pipeline.packet(
+        extension("initUserData", {
+          data: { strUsername: "Hero" },
+          uid: 10,
+        }),
+      );
+      yield* pipeline.packet(
+        extension("loadInventoryBig", {
+          items: [
+            {
+              CharItemID: 101,
+              ItemID: 1,
+              bEquip: true,
+              iQty: 99_400,
+              sES: "ar",
+              sName: "Barber",
+              sType: "Class",
+            },
+            {
+              CharItemID: 102,
+              ItemID: 2,
+              iQty: 3_600,
+              sES: "ar",
+              sName: "Mage",
+              sType: "Class",
+            },
+          ],
+        }),
+      );
+
+      yield* pipeline.packet(
+        extension("addGoldExp", {
+          bonusCP: 18,
+          bonusGold: 6,
+          cmd: "addGoldExp",
+          iCP: 36,
+          id: 1,
+          intExp: 20,
+          intGold: 12,
+          typ: "m",
+        }),
+      );
+      expect((yield* store.items.get("inventory", "Barber"))?.quantity).toBe(
+        99_436,
+      );
+
+      yield* pipeline.packet(
+        extension("addGoldExp", {
+          cmd: "addGoldExp",
+          iCP: -36,
+          id: 0,
+          typ: "q",
+        }),
+      );
+      expect((yield* store.items.get("inventory", "Barber"))?.quantity).toBe(
+        99_400,
+      );
+
+      yield* pipeline.packet(
+        extension("updateClass", {
+          cmd: "updateClass",
+          iCP: 10_000,
+          sClassName: "Mage",
+          uid: 11,
+        }),
+      );
+      expect((yield* store.items.get("inventory", "Mage"))?.quantity).toBe(
+        3_600,
+      );
+
+      yield* pipeline.packet(
+        extension("updateClass", {
+          cmd: "updateClass",
+          iCP: 10_000,
+          sClassName: "Mage",
+          uid: 10,
+        }),
+      );
+      expect((yield* store.items.get("inventory", "Mage"))?.quantity).toBe(
+        10_000,
+      );
+    }),
+  );
+
   it.effect("consumes temporary requirements on quest turn-in", () =>
     Effect.gen(function* () {
       const store = yield* makeStore;

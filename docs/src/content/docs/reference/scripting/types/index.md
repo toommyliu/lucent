@@ -138,6 +138,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-input-value/"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-player-position/"><code>ScriptPlayerPosition</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-rendering-mode/"><code>ScriptRenderingMode</code></a> | type alias | Controls game render visibility. |
 | <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-shop-quantity-options/"><code>ScriptShopQuantityOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-stop-signal/"><code>ScriptStopSignal</code></a> | class |  |

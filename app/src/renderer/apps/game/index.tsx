@@ -17,7 +17,13 @@ const packetsBridge = installPacketsBridge(flashRuntime, desktop.packets);
 const gameRendererGeneration = desktop.gameRenderer.getGeneration();
 
 void Promise.all([flashRuntime.context(), gameRendererGeneration])
-  .then(([, generation]) => desktop.gameRenderer.ready(generation))
+  .then(([, generation]) => {
+    performance.mark("lucent.game.flash-runtime-ready");
+    return desktop.gameRenderer.ready(generation);
+  })
+  .then(() => {
+    performance.mark("lucent.game.renderer-ready-reported");
+  })
   .catch((cause) => {
     console.warn("[flash] runtime initialization failed", cause);
   });

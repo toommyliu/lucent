@@ -1,5 +1,12 @@
 import * as Schema from "effect/Schema";
 
+export const RenderingMode = Schema.Literals([
+  "full",
+  "interface-only",
+  "minimal",
+]);
+export type RenderingMode = typeof RenderingMode.Type;
+
 export const Settings = Schema.Struct({
   animationsEnabled: Schema.Boolean,
   antiCounterEnabled: Schema.Boolean,
@@ -12,9 +19,9 @@ export const Settings = Schema.Struct({
   enemyMagnetEnabled: Schema.Boolean,
   frameRate: Schema.Int,
   infiniteRangeEnabled: Schema.Boolean,
-  lagKillerEnabled: Schema.Boolean,
   otherPlayersVisible: Schema.Boolean,
   provokeCellEnabled: Schema.Boolean,
+  renderingMode: RenderingMode,
   skipCutscenesEnabled: Schema.Boolean,
   walkSpeed: Schema.Int,
 });
@@ -30,9 +37,9 @@ export const SettingsPatch = Schema.Struct({
   enemyMagnetEnabled: Schema.optionalKey(Schema.Boolean),
   frameRate: Schema.optionalKey(Schema.Int),
   infiniteRangeEnabled: Schema.optionalKey(Schema.Boolean),
-  lagKillerEnabled: Schema.optionalKey(Schema.Boolean),
   otherPlayersVisible: Schema.optionalKey(Schema.Boolean),
   provokeCellEnabled: Schema.optionalKey(Schema.Boolean),
+  renderingMode: Schema.optionalKey(RenderingMode),
   skipCutscenesEnabled: Schema.optionalKey(Schema.Boolean),
   walkSpeed: Schema.optionalKey(Schema.Int),
 });

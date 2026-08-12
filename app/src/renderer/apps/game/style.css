@@ -117,7 +117,7 @@ html[data-topnav-hidden] #swf {
   height: 100%;
 }
 
-html[data-rendering-reduced] #swf {
+html[data-rendering-minimal] #swf {
   width: 1px;
   height: 1px;
   pointer-events: none;
@@ -571,6 +571,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   width: min(15rem, calc(100vw - 0.5rem)) !important;
 }
 
+.game-menu--rendering-modes {
+  width: min(14rem, calc(100vw - 0.5rem)) !important;
+}
+
 .game-menu--combat .menu__label {
   padding-top: 6px;
   padding-bottom: 4px;
@@ -799,8 +803,30 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu__server-trigger .game-menu__item-label,
-.game-menu__sub-trigger .game-menu__item-label {
+.game-menu__sub-trigger .game-menu__item-label,
+.game-menu__rendering-mode-trigger .game-menu__item-label {
   flex: 0 0 auto;
+}
+
+.game-menu__rendering-mode-trigger {
+  min-width: 0;
+  padding-inline-start: 1.875rem;
+}
+
+.game-menu__rendering-mode-page {
+  display: grid;
+  min-width: 0;
+}
+
+.game-menu__rendering-mode-back {
+  display: grid;
+  grid-template-columns: 0.875rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+  width: 100%;
+}
+
+.game-menu__rendering-mode-back-icon {
+  justify-self: center;
 }
 
 .game-menu__server-trigger .game-menu__item-value,
@@ -972,10 +998,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 .game-options-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(10rem, 100%), 1fr)
-  );
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   row-gap: 2px;
   column-gap: 0.5rem;
 }
@@ -992,28 +1015,30 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   pointer-events: none;
 }
 
-@media (max-width: 24.5rem) {
-  .game-options-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .game-options-grid::after {
-    display: none;
-  }
-}
-
 .game-menu__fields {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(10rem, 100%), 1fr)
-  );
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 4px;
 }
 
 .game-menu__fields--single-row {
   grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 38rem) {
+  .game-menu--options {
+    width: min(20rem, calc(100vw - 0.5rem));
+  }
+
+  .game-options-grid,
+  .game-menu__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-options-grid::after {
+    display: none;
+  }
 }
 
 .game-menu__field {
@@ -2828,7 +2853,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   display: none;
 }
 
-.game-reduced-rendering {
+.game-minimal-rendering {
   position: fixed;
   inset-block: var(--game-content-top) 0;
   inset-inline: 0;
@@ -2843,7 +2868,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   pointer-events: auto;
 }
 
-.game-reduced-rendering__content {
+.game-minimal-rendering__content {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2851,7 +2876,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   text-align: center;
 }
 
-.game-reduced-rendering__icon {
+.game-minimal-rendering__icon {
   display: inline-grid;
   place-items: center;
   width: 3rem;
@@ -2862,13 +2887,13 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   border-radius: var(--radius-lg);
 }
 
-.game-reduced-rendering__title {
+.game-minimal-rendering__title {
   margin: 0;
   font-size: var(--text-xl);
   line-height: 1.25;
 }
 
-.game-reduced-rendering__description {
+.game-minimal-rendering__description {
   max-width: 42ch;
   margin: 0.5rem 0 1rem;
   color: rgb(var(--muted-foreground));

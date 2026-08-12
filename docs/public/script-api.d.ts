@@ -459,6 +459,7 @@ interface ScriptPlayerApi {
     get(): Effect<LivePlayer | null, never>;
     getCell(): Effect<string, never>;
     getClassName(): Effect<string, never>;
+    getClassRank(/** @defaultValue equipped inventory class */ query?: ItemQuery): Effect<number | null, never>;
     getGender(): Effect<string, never>;
     getGold(): Effect<number, never>;
     getHp(): Effect<number, never>;
@@ -536,6 +537,8 @@ interface ScriptRecipesApi {
     ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
 }
 interface ScriptSettingsApi {
+  /** Returns the active rendering mode. */
+    getRenderingMode(): Effect<ScriptRenderingMode, never>;
     isAntiCounterEnabled(): Effect<boolean, never>;
     setAnimationsEnabled(enabled: boolean): Effect<void, never>;
     setAntiCounterEnabled(enabled: boolean): Effect<void, never>;
@@ -546,9 +549,10 @@ interface ScriptSettingsApi {
     setEnemyMagnetEnabled(enabled: boolean): Effect<void, never>;
     setFrameRate(fps: number): Effect<void, never>;
     setInfiniteRangeEnabled(enabled: boolean): Effect<void, never>;
-    setLagKillerEnabled(enabled: boolean): Effect<void, never>;
     setOtherPlayersVisible(visible: boolean): Effect<void, never>;
     setProvokeCellEnabled(enabled: boolean): Effect<void, never>;
+  /** @param mode The rendering mode to activate. */
+    setRenderingMode(mode: ScriptRenderingMode): Effect<void, never>;
     setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
     setWalkSpeed(speed: number): Effect<void, never>;
 }
@@ -606,6 +610,13 @@ interface ArmyLoopTauntHandle {
   /** Stops this run. Repeated calls are safe. */
   stop(): Effect<void>;
 }
+/**
+ * Ordered target priorities shared by every participant in the Army.
+ *
+ * The first group with a living target is selected. When all of its targets
+ * die, the next eligible group takes over; a respawn preempts lower groups and
+ * restarts that target's rotation from its first assigned player.
+ */
 type ArmyLoopTauntPlan = readonly ArmyLoopTauntPriorityGroup[];
 interface ArmyRunStepOptions {
   readonly timeoutMs?: number;
@@ -692,6 +703,9 @@ interface ConsumableCastResult {
   readonly success: boolean;
 }
 type EntityState = 0 | 2 | 1;
+/**
+ * @scriptingExpandSchema
+ */
 type EnvironmentState = { readonly automation: { readonly boosts: boolean; readonly drops: boolean; readonly quests: boolean; }; readonly questIds: readonly number[]; readonly questAutoRegister: { readonly requirements: boolean; readonly rewards: boolean; }; readonly questRewards: { readonly [x: number]: number; }; readonly itemNames: readonly string[]; readonly itemNotificationNames: readonly string[]; readonly itemRules: { readonly buckets: readonly ('ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member')[]; readonly rejectElse: boolean; }; readonly boosts: readonly string[]; };
 interface EquipOptions {
   /**
@@ -700,6 +714,15 @@ interface EquipOptions {
    */
   readonly wear?: boolean;
 }
+/**
+ * An event-shaped partial selector. `type` chooses the event variant, and every
+ * other field is an exact-match constraint on a scalar field of that variant.
+ *
+ * Omitting a field leaves it unconstrained. With exact optional property types,
+ * explicitly passing `undefined` is invalid; untyped callers that do so safely
+ * fail to match instead of selecting events where the field happens to be
+ * absent.
+ */
 type EventSelector =
   | {
       readonly status?: string;
@@ -809,6 +832,7 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly category: string;
   readonly charItemId: number | undefined;
   readonly classItem: boolean;
+  readonly classRank: number | null;
   readonly coins: boolean;
   readonly context: ItemContext;
   readonly cost: number;
@@ -950,6 +974,11 @@ interface ScriptPlayerPosition {
   readonly x: number;
   readonly y: number;
 }
+/** Controls game render visibility. */
+type ScriptRenderingMode =
+  | "full"
+  | /** A.k.a. Lag Killer. */ "interface-only"
+  | "minimal";
 interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
   readonly roomPolicy: RoomPolicy;
@@ -1092,6 +1121,7 @@ type ItemSnapshot = Readonly<ItemData> & {
   readonly banked: boolean;
   readonly cape: boolean;
   readonly classItem: boolean;
+  readonly classRank: number | null;
   readonly helm: boolean;
   readonly pet: boolean;
   readonly weapon: boolean;
@@ -1233,6 +1263,8 @@ interface Item {
   readonly category: string;
   readonly charItemId: number | undefined;
   readonly classItem: boolean;
+  /** Rank derived from class points, or `null` for a non-class item. */
+  readonly classRank: number | null;
   readonly coins: boolean;
   readonly context: ItemContext;
   readonly cost: number;
@@ -1450,12 +1482,14 @@ type ExtensionPacket = { readonly command: string; readonly data: unknown; reado
 interface PlayerSelectorByUsername {
   readonly username: string;
 }
+/** Returns true when the selected player should yield to the next participant. */
 type ArmyLoopTauntSkipWhen = (
   context: ArmyLoopTauntSkipContext,
 ) =>
   | boolean
   | Effect<boolean, unknown>
   | Generator<Effect<any, any, never>, boolean, any>;
+/** Selects the encounter event that starts each taunt attempt. */
 type ArmyLoopTauntStrategy = {
   /** Cast after the target's Focus aura disappears. */readonly type: "focus";
 } | {

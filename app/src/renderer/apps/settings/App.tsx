@@ -81,6 +81,16 @@ import {
 import type { UpdateCheckState } from "../../../shared/updates";
 
 type HotkeyBindings = readonly HotkeyBinding[];
+type HotkeyListSegment =
+  | {
+      readonly type: "command";
+      readonly command: CommandDefinition;
+    }
+  | {
+      readonly type: "group";
+      readonly label: NonNullable<CommandDefinition["group"]>;
+      readonly commands: readonly CommandDefinition[];
+    };
 
 const defaultSettings: AppSettings = DEFAULT_APP_SETTINGS;
 const DEFAULT_THEME_TOKENS = {
@@ -89,6 +99,36 @@ const DEFAULT_THEME_TOKENS = {
 } as const;
 const DEFAULT_THEME_PROFILE = DEFAULT_APP_SETTINGS.appearance.themes.dark;
 const GAME_COMMANDS = SETTINGS_COMMANDS;
+
+const segmentHotkeyCommands = (
+  commands: readonly CommandDefinition[],
+): readonly HotkeyListSegment[] => {
+  const segments: HotkeyListSegment[] = [];
+
+  for (const command of commands) {
+    if (command.group === undefined) {
+      segments.push({ type: "command", command });
+      continue;
+    }
+
+    const previous = segments.at(-1);
+    if (previous?.type === "group" && previous.label === command.group) {
+      segments[segments.length - 1] = {
+        ...previous,
+        commands: [...previous.commands, command],
+      };
+      continue;
+    }
+
+    segments.push({
+      type: "group",
+      label: command.group,
+      commands: [command],
+    });
+  }
+
+  return segments;
+};
 
 export type SettingsTabId = "general" | "hotkeys" | "appearance";
 
@@ -840,122 +880,143 @@ function HotkeySettingsSection(props: {
     });
   });
 
+  const renderHotkeyRow = (command: CommandDefinition) => {
+    const value = () => readHotkey(props.settings.hotkeys.bindings, command.id);
+    const conflicts = () =>
+      getConflictingLabels(
+        props.settings.hotkeys.bindings,
+        command.id,
+        value(),
+      );
+    const isRecording = () => recordingId() === command.id;
+    const displayParts = () =>
+      isRecording()
+        ? ["Press keys"]
+        : displayHotkeyParts(value(), props.platform);
+
+    const rowError = () => {
+      const err = localError();
+      return err?.commandId === command.id ? err : undefined;
+    };
+
+    return (
+      <div
+        class="hotkey-row"
+        data-conflict={conflicts().length > 0 ? "" : undefined}
+      >
+        <div class="hotkey-row__content">
+          <div class="hotkey-row__title-line">
+            <div class="hotkey-row__title">{command.label}</div>
+            <Show when={conflicts().length > 0}>
+              <HotkeyConflictPill conflicts={conflicts()} />
+            </Show>
+          </div>
+        </div>
+        <div class="hotkey-row__controls">
+          <div class="hotkey-row__binding">
+            <Show when={command.defaultHotkey !== ""}>
+              <TooltipIconButton
+                aria-label={`Restore default shortcut for ${command.label}`}
+                class="hotkey-row__icon-action hotkey-row__default-action"
+                disabled={value() === command.defaultHotkey}
+                onClick={() => void commitBinding(command.id, null)}
+                tooltip="Restore default shortcut"
+              >
+                <Icon icon="rotate_ccw" class="button__icon" />
+              </TooltipIconButton>
+            </Show>
+            <KbdGroup
+              aria-label={
+                isRecording()
+                  ? "Press keys"
+                  : displayHotkey(value(), props.platform)
+              }
+              class="hotkey-row__value"
+            >
+              <For each={displayParts()}>
+                {(part) => (
+                  <Kbd
+                    class="hotkey-row__key"
+                    data-empty={
+                      value() === "" && !isRecording() ? "" : undefined
+                    }
+                  >
+                    {part}
+                  </Kbd>
+                )}
+              </For>
+            </KbdGroup>
+          </div>
+          <Button
+            class={
+              isRecording()
+                ? "hotkey-row__record-action hotkey-row__record-action--recording"
+                : "hotkey-row__record-action"
+            }
+            disabled={recordingId() !== null && !isRecording()}
+            onClick={() => {
+              setLocalError(null);
+              setRecordingId(isRecording() ? null : command.id);
+            }}
+            size="sm"
+            type="button"
+            variant={isRecording() ? "secondary" : "ghost"}
+          >
+            {isRecording() ? "Cancel" : "Record"}
+          </Button>
+          <TooltipIconButton
+            aria-label={`Clear shortcut for ${command.label}`}
+            class="hotkey-row__icon-action hotkey-row__clear-action"
+            disabled={value() === ""}
+            onClick={() => void commitBinding(command.id, "")}
+            tooltip="Clear shortcut"
+          >
+            <Icon icon="x" class="button__icon" />
+          </TooltipIconButton>
+        </div>
+        <Show when={rowError()}>
+          {(error) => (
+            <div
+              class="hotkey-row__inline-error"
+              data-error-id={error().id}
+              role="status"
+              aria-live="polite"
+            >
+              <Icon
+                icon="circle_alert"
+                aria-hidden="true"
+                class="hotkey-row__inline-error-icon"
+                size="xs"
+              />
+              {error().message}
+            </div>
+          )}
+        </Show>
+      </div>
+    );
+  };
+
   const renderHotkeysList = (commands: readonly CommandDefinition[]) => (
     <CardContent class="hotkey-list">
-      <For each={commands}>
-        {(command) => {
-          const value = () =>
-            readHotkey(props.settings.hotkeys.bindings, command.id);
-          const conflicts = () =>
-            getConflictingLabels(
-              props.settings.hotkeys.bindings,
-              command.id,
-              value(),
-            );
-          const isRecording = () => recordingId() === command.id;
-          const displayParts = () =>
-            isRecording()
-              ? ["Press keys"]
-              : displayHotkeyParts(value(), props.platform);
+      <For each={segmentHotkeyCommands(commands)}>
+        {(segment) => {
+          if (segment.type === "command") {
+            return renderHotkeyRow(segment.command);
+          }
 
-          const rowError = () => {
-            const err = localError();
-            return err?.commandId === command.id ? err : undefined;
-          };
-
+          const headingId = `hotkey-group-${segment.commands[0]?.id ?? "unknown"}`;
           return (
             <div
-              class="hotkey-row"
-              data-conflict={conflicts().length > 0 ? "" : undefined}
+              class="hotkey-subgroup"
+              role="group"
+              aria-labelledby={headingId}
             >
-              <div class="hotkey-row__content">
-                <div class="hotkey-row__title-line">
-                  <div class="hotkey-row__title">{command.label}</div>
-                  <Show when={conflicts().length > 0}>
-                    <HotkeyConflictPill conflicts={conflicts()} />
-                  </Show>
-                </div>
+              <h4 class="hotkey-subgroup__title" id={headingId}>
+                {segment.label}
+              </h4>
+              <div class="hotkey-subgroup__rows">
+                <For each={segment.commands}>{renderHotkeyRow}</For>
               </div>
-              <div class="hotkey-row__controls">
-                <div class="hotkey-row__binding">
-                  <Show when={command.defaultHotkey !== ""}>
-                    <TooltipIconButton
-                      aria-label={`Restore default shortcut for ${command.label}`}
-                      class="hotkey-row__icon-action hotkey-row__default-action"
-                      disabled={value() === command.defaultHotkey}
-                      onClick={() => void commitBinding(command.id, null)}
-                      tooltip="Restore default shortcut"
-                    >
-                      <Icon icon="rotate_ccw" class="button__icon" />
-                    </TooltipIconButton>
-                  </Show>
-                  <KbdGroup
-                    aria-label={
-                      isRecording()
-                        ? "Press keys"
-                        : displayHotkey(value(), props.platform)
-                    }
-                    class="hotkey-row__value"
-                  >
-                    <For each={displayParts()}>
-                      {(part) => (
-                        <Kbd
-                          class="hotkey-row__key"
-                          data-empty={
-                            value() === "" && !isRecording() ? "" : undefined
-                          }
-                        >
-                          {part}
-                        </Kbd>
-                      )}
-                    </For>
-                  </KbdGroup>
-                </div>
-                <Button
-                  class={
-                    isRecording()
-                      ? "hotkey-row__record-action hotkey-row__record-action--recording"
-                      : "hotkey-row__record-action"
-                  }
-                  disabled={recordingId() !== null && !isRecording()}
-                  onClick={() => {
-                    setLocalError(null);
-                    setRecordingId(isRecording() ? null : command.id);
-                  }}
-                  size="sm"
-                  type="button"
-                  variant={isRecording() ? "secondary" : "ghost"}
-                >
-                  {isRecording() ? "Cancel" : "Record"}
-                </Button>
-                <TooltipIconButton
-                  aria-label={`Clear shortcut for ${command.label}`}
-                  class="hotkey-row__icon-action hotkey-row__clear-action"
-                  disabled={value() === ""}
-                  onClick={() => void commitBinding(command.id, "")}
-                  tooltip="Clear shortcut"
-                >
-                  <Icon icon="x" class="button__icon" />
-                </TooltipIconButton>
-              </div>
-              <Show when={rowError()}>
-                {(error) => (
-                  <div
-                    class="hotkey-row__inline-error"
-                    data-error-id={error().id}
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <Icon
-                      icon="circle_alert"
-                      aria-hidden="true"
-                      class="hotkey-row__inline-error-icon"
-                      size="xs"
-                    />
-                    {error().message}
-                  </div>
-                )}
-              </Show>
             </div>
           );
         }}

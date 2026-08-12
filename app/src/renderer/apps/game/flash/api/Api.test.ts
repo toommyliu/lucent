@@ -63,6 +63,13 @@ const makeTarget = () => {
           sName: "Banked House Item",
         },
         { ItemID: "44", sName: "Occupied Slot" },
+        {
+          ItemID: "45",
+          iQty: "302500",
+          sES: "ar",
+          sName: "Banked Class",
+          sType: "Class",
+        },
       ];
       bankLoaded = true;
     },
@@ -117,6 +124,9 @@ const makeTarget = () => {
       return true;
     },
     "inventory.getSlots": () => 4,
+    "player.getClassRank": () => {
+      throw new Error("Class rank must not use the bridge");
+    },
     "player.getUserId": () => 1,
     "player.isMember": () => false,
     "shops.isOpen": (shopId = 0) =>
@@ -164,6 +174,64 @@ const makeTarget = () => {
 };
 
 describe("Api", () => {
+  it.effect("reads class ranks from projections without bridge calls", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { calls, target } = makeTarget();
+        const bridge = yield* makeBridge(target);
+        const gateway = yield* makeGateway(target).pipe(
+          Effect.provideService(Bridge, bridge),
+        );
+        const api = yield* makeApi.pipe(
+          Effect.provideService(Bridge, bridge),
+          Effect.provideService(Gateway, gateway),
+        );
+
+        expect(yield* api.player.getClassRank()).toBeNull();
+        expect(yield* api.player.getClassRank(45)).toBeNull();
+        expect(calls.bankLoadForces).toEqual([]);
+
+        expect(yield* api.bank.open()).toBe(true);
+        const bankedClass = yield* api.bank.get(45);
+        expect(bankedClass).not.toBeNull();
+        expect(bankedClass?.category).toBe("Class");
+        expect(bankedClass?.classRank).toBe(10);
+        expect(yield* api.player.getClassRank(45)).toBe(10);
+
+        const inventoryLoad = yield* api.wait.forPacket(
+          {
+            command: "loadInventoryBig",
+            direction: "extension",
+            wireType: "json",
+          },
+          {
+            timeout: "1 second",
+            trigger: Effect.sync(() => {
+              emitExtension(target, {
+                cmd: "loadInventoryBig",
+                items: [
+                  {
+                    ItemID: 46,
+                    bEquip: 1,
+                    iQty: 10_000,
+                    sES: "ar",
+                    sName: "Equipped Class",
+                    sType: "Class",
+                  },
+                ],
+              });
+              return true;
+            }),
+          },
+        );
+        expect(inventoryLoad).not.toBeNull();
+        expect(yield* api.player.getClassRank()).toBe(4);
+        expect(yield* api.player.getClassRank(46)).toBe(4);
+        expect(yield* api.player.getClassRank(45)).toBe(10);
+      }),
+    ),
+  );
+
   it.effect("opens the requested bank view for house withdrawals", () =>
     Effect.scoped(
       Effect.gen(function* () {
