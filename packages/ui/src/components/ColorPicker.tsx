@@ -276,6 +276,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
       data-slot="color-picker"
       disabled={disabled()}
       format="hsba"
+      lazyMount
       onOpenChange={handlePrimitiveOpenChange}
       onValueChange={handlePrimitiveValueChange}
       onValueChangeEnd={handlePrimitiveValueChangeEnd}

@@ -676,6 +676,11 @@ body::-webkit-scrollbar-corner,
   width: 14rem;
 }
 
+/* Preserve Ark's hidden state when the panel's grid layout is inactive. */
+.color-picker__panel[hidden] {
+  display: none;
+}
+
 .color-picker__area {
   background: rgb(var(--black));
   border-radius: calc(var(--radius-md) - 2px);
