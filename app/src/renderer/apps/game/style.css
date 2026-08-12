@@ -552,7 +552,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu--options {
-  width: min(36rem, calc(100vw - 0.5rem));
+  width: min(36rem, calc(100vw - 1rem));
 }
 
 .game-menu--relogin {
@@ -1144,7 +1144,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   }
 }
 
-@media (max-width: 23.5rem) {
+@media (max-width: 31.25rem) {
   .game-options-grid,
   .game-menu__identity-fields {
     grid-template-columns: minmax(0, 1fr);
@@ -1195,7 +1195,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 /* Wrapping costs less height than stacking when both axes are constrained. */
-@media (min-width: 16rem) and (max-width: 23.5rem) and (max-height: 28rem) {
+@media (min-width: 16rem) and (max-width: 31.25rem) and (max-height: 28rem) {
   .game-options-grid,
   .game-menu__identity-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
