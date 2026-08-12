@@ -12,7 +12,10 @@ sidebar:
 Controls game render visibility.
 
 ```ts
-type ScriptRenderingMode = "full" | "interface-only" | "minimal"
+type ScriptRenderingMode =
+  | "full"
+  | /** A.k.a. Lag Killer. */ "interface-only"
+  | "minimal"
 ```
 
 <p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L731" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:731" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:731" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:731</code></a></p>

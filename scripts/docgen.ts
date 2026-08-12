@@ -2384,6 +2384,14 @@ const buildAstReferencedTypeDoc = (
   const sourceType = ts.isTypeAliasDeclaration(declaration)
     ? typeText(declaration.type, sourceFile)
     : null;
+  const sourceDefinition = ts.isTypeAliasDeclaration(declaration)
+    ? declaration
+        .getText(sourceFile)
+        .replace(/^export\s+/, "")
+        .replace(/;$/, "")
+    : null;
+  // TypeScript's expanded representation omits JSDoc nested inside the alias.
+  const hasEmbeddedDocumentation = sourceType?.includes("/**") ?? false;
   const namedValues = ts.isTypeAliasDeclaration(declaration)
     ? getTypeNamedValues(checker, declaration)
     : [];
@@ -2395,6 +2403,7 @@ const buildAstReferencedTypeDoc = (
   const resolvedDefinition =
     sourceType !== null &&
     expandedType !== null &&
+    !hasEmbeddedDocumentation &&
     normalizedTypeText(expandedType) !== normalizedTypeText(sourceType) &&
     normalizedTypeText(expandedType) !== name
       ? printTypeAliasDefinition(name, typeParameters, expandedType)
@@ -2408,7 +2417,9 @@ const buildAstReferencedTypeDoc = (
     aliasOf,
     definition: ts.isInterfaceDeclaration(declaration)
       ? `interface ${name}${typeParameters}`
-      : `type ${name}${typeParameters} = ${sourceType}`,
+      : hasEmbeddedDocumentation
+        ? (sourceDefinition ?? `type ${name}${typeParameters} = ${sourceType}`)
+        : `type ${name}${typeParameters} = ${sourceType}`,
     resolvedDefinition,
     namedValues,
     properties: properties.sort((left, right) =>
