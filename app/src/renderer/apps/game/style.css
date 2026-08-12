@@ -852,7 +852,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__profile-item[data-state="checked"] {
   opacity: 1;
-  font-weight: 600;
   background: rgba(var(--primary), 0.08);
 }
 
@@ -866,7 +865,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__profile-list {
   display: grid;
-  gap: 0.25rem;
 }
 
 .game-menu__profile-heading {
