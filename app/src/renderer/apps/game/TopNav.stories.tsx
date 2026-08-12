@@ -162,6 +162,7 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
         gameLoaded={() => fixture.gameLoaded ?? true}
         handleOpenBank={() => undefined}
         handleOpenWindow={() => undefined}
+        handleReloadMap={() => undefined}
         handleRefreshAutoReloginServers={() => undefined}
         handleRefreshTravelOptions={() => undefined}
         handleResetCustomGuild={() => setCustomGuild("")}
@@ -175,6 +176,7 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
         handleSetCustomGuild={() => undefined}
         handleSetCustomName={() => undefined}
         handleSetFrameRate={(rate) => setFrameRate(String(rate))}
+        handleSetSpawnPoint={() => undefined}
         handleSetWalkSpeed={(speed) => setWalkSpeed(String(speed))}
         handleToggleAutoAttack={() =>
           setAutoAttackEnabled((current) => !current)
