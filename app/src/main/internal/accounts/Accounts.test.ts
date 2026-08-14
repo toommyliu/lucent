@@ -7,6 +7,7 @@ import { afterEach } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
+import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { AccountGameWindows } from "./AccountGameWindows";
 import * as AccountRepository from "./AccountRepository";
@@ -28,6 +29,9 @@ interface HarnessOptions {
   readonly onManagedProfileKey?: (key: string | undefined) => void;
   readonly onRetireProfile?: (key: string) => void;
   readonly onSetName?: (gameWindowId: number, name: string) => void;
+  readonly onWindowTarget?: (
+    windowTarget: AccountLaunchWindowTarget | undefined,
+  ) => void;
 }
 
 const makeHarness = (harnessOptions: HarnessOptions = {}) =>
@@ -62,11 +66,12 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
         }),
       open: (openOptions) =>
         Effect.gen(function* () {
-          yield* Effect.sync(() =>
+          yield* Effect.sync(() => {
             harnessOptions.onManagedProfileKey?.(
               openOptions?.managedProfileKey,
-            ),
-          );
+            );
+            harnessOptions.onWindowTarget?.(openOptions?.windowTarget);
+          });
           const gameWindowId = nextWindowId++;
           if (openOptions?.onCreated !== undefined) {
             yield* openOptions.onCreated(gameWindowId);
@@ -183,8 +188,10 @@ describe("Accounts", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const managedProfileKeys: Array<string | undefined> = [];
+        const windowTargets: Array<AccountLaunchWindowTarget | undefined> = [];
         const layer = yield* makeHarness({
           onManagedProfileKey: (key) => managedProfileKeys.push(key),
+          onWindowTarget: (windowTarget) => windowTargets.push(windowTarget),
         });
         const accounts = yield* Accounts.pipe(Effect.provide(layer));
         yield* accounts.createAccount({
@@ -194,6 +201,7 @@ describe("Accounts", () => {
         const launch = yield* accounts.launch({
           username: "Alice",
           script: { name: "farm.js", path: "/scripts/farm.js" },
+          windowTarget: { kind: "new" },
         });
         const payload = yield* accounts.getGameLaunch(launch.gameWindowId);
         expect(payload?.account.username).toBe("Alice");
@@ -202,6 +210,7 @@ describe("Accounts", () => {
           path: "/scripts/farm.js",
         });
         expect(managedProfileKeys).toEqual(["Alice"]);
+        expect(windowTargets).toEqual([{ kind: "new" }]);
 
         yield* accounts.updateScriptStatus(launch.gameWindowId, {
           status: "running",

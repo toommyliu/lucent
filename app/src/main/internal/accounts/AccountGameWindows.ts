@@ -1,7 +1,10 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
-import type { AccountWindowTilingAlgorithm } from "@lucent/core/accounts";
+import type {
+  AccountLaunchWindowTarget,
+  AccountWindowTilingAlgorithm,
+} from "@lucent/core/accounts";
 
 export interface AccountWindowTilePlacement {
   readonly algorithm: AccountWindowTilingAlgorithm;
@@ -20,6 +23,7 @@ export interface AccountGameWindowsShape {
     readonly name?: string;
     readonly onCreated?: (gameWindowId: number) => Effect.Effect<void, unknown>;
     readonly tile?: AccountWindowTilePlacement;
+    readonly windowTarget?: AccountLaunchWindowTarget;
   }) => Effect.Effect<number, unknown>;
   readonly reveal: (gameWindowId: number) => Effect.Effect<boolean, unknown>;
   readonly retireProfile: (key: string) => Effect.Effect<void, unknown>;

@@ -228,19 +228,26 @@ export interface DesktopWindowTilePlacement {
 }
 
 export interface DesktopWindowOpenOptions {
+  readonly gameHostTarget?: DesktopGameHostTarget;
   readonly gameViewName?: string;
   readonly managedGameProfileKey?: string;
   readonly onCreated?: (
     event: DesktopWindowCreatedEvent,
   ) => Effect.Effect<void, unknown>;
   readonly ownerBrowserWindowId?: number;
-  readonly reuseGameHost?: boolean;
   readonly tile?: DesktopWindowTilePlacement;
 }
 
+export type DesktopGameHostTarget =
+  | { readonly kind: "available" }
+  | { readonly kind: "game-view"; readonly browserWindowId: number }
+  | { readonly kind: "new" };
+
 const usesGameViewGrid = (
   options: DesktopWindowOpenOptions | undefined,
-): boolean => options?.tile?.algorithm === "auto-grid";
+): boolean =>
+  options?.gameHostTarget !== undefined &&
+  options.tile?.algorithm === "auto-grid";
 
 interface DesktopWindowBounds {
   readonly height: number;
@@ -1355,6 +1362,16 @@ const makeDesktopWindows = Effect.gen(function* () {
       ),
     );
 
+  const findGameHostForView = (
+    browserWindowId: number,
+  ): DesktopGameHostRecord | null => {
+    const entry = findBrowserWindowEntry(browserWindowId);
+    if (entry === null || !isGameViewRecord(entry[1])) {
+      return null;
+    }
+    return findGameHost(entry[1].gameHostRendererId);
+  };
+
   const getBrowserWindowGroupId: DesktopWindowsShape["getBrowserWindowGroupId"] =
     (browserWindowId) =>
       Effect.try({
@@ -2050,7 +2067,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     snapshot: AppearanceSnapshot,
     options?: DesktopWindowOpenOptions,
   ) {
-    // Auto-grid lays out BrowserViews when game tabs are enabled, not the host.
+    // Auto-grid lays out BrowserViews within an Account Manager launch batch.
     const bounds = resolveTileBounds(
       usesGameViewGrid(options) ? undefined : options?.tile,
     );
@@ -2697,25 +2714,37 @@ const makeDesktopWindows = Effect.gen(function* () {
         }
 
         if (kind === "game" && bootstrapSettings.preferences.groupGameViews) {
+          const gameHostTarget = options?.gameHostTarget;
           if (
-            options?.reuseGameHost === true &&
-            (options.tile === undefined || usesGameViewGrid(options))
+            gameHostTarget !== undefined &&
+            gameHostTarget.kind !== "new" &&
+            (options?.tile === undefined || usesGameViewGrid(options))
           ) {
-            const availableHost = [...gameHosts.values()].find(
-              (host) =>
-                findGameHost(host.rendererId) !== null &&
-                host.orderedIds.length < MAX_GAME_VIEWS_PER_WINDOW,
-            );
-            if (availableHost !== undefined) {
+            const reusableHost =
+              gameHostTarget.kind === "available"
+                ? [...gameHosts.values()].find(
+                    (host) =>
+                      findGameHost(host.rendererId) !== null &&
+                      host.orderedIds.length < MAX_GAME_VIEWS_PER_WINDOW,
+                  )
+                : (findGameHostForView(gameHostTarget.browserWindowId) ??
+                  undefined);
+            if (reusableHost !== undefined) {
               yield* createGameViewInHost(
-                availableHost,
+                reusableHost,
                 id,
                 bootstrapSettings,
                 snapshot,
                 options,
               );
-              yield* electronWindow.reveal(availableHost.window);
+              yield* electronWindow.reveal(reusableHost.window);
               return id;
+            }
+            if (gameHostTarget.kind === "game-view") {
+              return yield* new DesktopWindowError({
+                detail: `The target game window is not open: ${gameHostTarget.browserWindowId}`,
+                id,
+              });
             }
           }
 

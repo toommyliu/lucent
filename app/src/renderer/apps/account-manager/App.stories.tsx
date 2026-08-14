@@ -89,6 +89,7 @@ const meta = {
       serverPings,
       servers,
       state: populatedState,
+      useGameTabs: true,
     },
     platform: "mac",
   },

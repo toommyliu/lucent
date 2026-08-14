@@ -54,6 +54,7 @@ import {
   KbdGroup,
   Label,
   Menu,
+  MenuCheckboxItem,
   MenuContent,
   MenuItem,
   MenuSeparator,
@@ -96,6 +97,7 @@ import {
   type AppPlatform,
   type DesktopAccountsBridge,
 } from "../../../shared/desktopBridge";
+import type { DesktopRendererProps } from "../../RendererBootstrap";
 import type { ScriptSelectFileResult } from "../../../shared/ipc/scripting";
 import {
   readStoredAccountLoginServerPreference,
@@ -103,12 +105,15 @@ import {
   writeStoredAccountLoginServerPreference,
 } from "./loginServerPreference";
 import {
+  readStoredAccountLaunchInNewWindow,
   readStoredAccountLaunchMode,
+  writeStoredAccountLaunchInNewWindow,
   writeStoredAccountLaunchMode,
 } from "./launchModePreference";
 import {
   type AccountLaunchMode,
   resolveAccountLaunchTiling,
+  resolveAccountLaunchWindowTarget,
 } from "./launchMode";
 import {
   haveSameAccountUsernames,
@@ -181,6 +186,7 @@ export interface AccountManagerViewFixture {
   readonly initialLoadingVisible?: boolean;
   readonly launchScript?: AccountScriptReference | null;
   readonly launchServer?: string;
+  readonly useGameTabs?: boolean;
   readonly scriptError?: string;
   readonly searchQuery?: string;
   readonly selectedAccountUsernames?: readonly string[];
@@ -195,6 +201,9 @@ export interface AccountManagerViewFixture {
 }
 
 export type AccountManagerViewCallbacks = Partial<DesktopAccountsBridge> & {
+  readonly onUseGameTabsChanged?: (
+    listener: (enabled: boolean) => void,
+  ) => () => void;
   readonly selectScript?: () => Promise<ScriptSelectFileResult>;
 };
 
@@ -1161,6 +1170,12 @@ export function AccountManagerView(
     createSignal(false);
   const [accountLaunchMode, setAccountLaunchMode] =
     createSignal<AccountLaunchMode>(readStoredAccountLaunchMode());
+  const [launchInNewWindow, setLaunchInNewWindow] = createSignal(
+    readStoredAccountLaunchInNewWindow(),
+  );
+  const [useGameTabs, setUseGameTabs] = createSignal(
+    props.fixture.useGameTabs ?? false,
+  );
   const [startOptionsOpen, setStartOptionsOpen] = createSignal(false);
   const [serverComboboxOpen, setServerComboboxOpen] = createSignal(
     props.fixture.serverComboboxOpen ?? false,
@@ -1397,7 +1412,7 @@ export function AccountManagerView(
   const hasMultipleSelectedAccounts = createMemo(
     () => selectedAccountCount() > 1,
   );
-  const canConfigureAccountLaunchMode = createMemo(
+  const canConfigureLaunchOptions = createMemo(
     () => groupMemberEdit() === null && !busy(),
   );
   const primaryAccountLaunchMode = createMemo<AccountLaunchMode>(() =>
@@ -1475,11 +1490,22 @@ export function AccountManagerView(
       ? "Launch in a grid"
       : "Launch accounts",
   );
-  const accountLaunchModeTooltip = createMemo(() => {
+  const launchOptionsTooltip = createMemo(() => {
     const currentMode = `Window arrangement: ${accountLaunchModeLabel()}`;
-    return hasMultipleSelectedAccounts()
+    const arrangement = hasMultipleSelectedAccounts()
       ? currentMode
       : `${currentMode}. Applies when launching multiple accounts.`;
+    if (!useGameTabs()) return arrangement;
+    const windowBehavior = launchInNewWindow()
+      ? "Accounts launched together share a new window."
+      : "An available game window may be used.";
+    return `${arrangement} ${windowBehavior}`;
+  });
+  const launchOptionsAriaLabel = createMemo(() => {
+    const arrangement = `Window arrangement: ${accountLaunchModeLabel()}.`;
+    return useGameTabs()
+      ? `Choose launch options. ${arrangement} Launch in new window: ${launchInNewWindow() ? "on" : "off"}.`
+      : `Choose window arrangement. ${arrangement}`;
   });
   const groupMemberLabel = (username: string): string => {
     const accountLookup = accountsByUsername();
@@ -2527,6 +2553,8 @@ export function AccountManagerView(
 
     setBusy(true);
     const server = launchServer();
+    const useNewWindow = useGameTabs() && launchInNewWindow();
+    let firstGameWindowId: number | undefined;
     try {
       for (const [index, username] of usernames.entries()) {
         try {
@@ -2535,12 +2563,20 @@ export function AccountManagerView(
             index,
             usernames.length,
           );
-          await (props.callbacks?.launch?.({
+          const windowTarget = resolveAccountLaunchWindowTarget(
+            useNewWindow,
+            firstGameWindowId,
+          );
+          const result = await (props.callbacks?.launch?.({
             username,
             script,
             ...(server === "" ? {} : { server }),
             ...(tiling === undefined ? {} : { tiling }),
+            ...(windowTarget === undefined ? {} : { windowTarget }),
           }) ?? Promise.resolve({ gameWindowId: -1 }));
+          if (useNewWindow && firstGameWindowId === undefined) {
+            firstGameWindowId = result.gameWindowId;
+          }
         } catch (error) {
           console.error(`Failed to launch account ${username}:`, error);
         }
@@ -2561,6 +2597,11 @@ export function AccountManagerView(
     setAccountLaunchMode(mode);
     writeStoredAccountLaunchMode(mode);
     setStartOptionsOpen(false);
+  };
+
+  const selectLaunchInNewWindow = (enabled: boolean): void => {
+    setLaunchInNewWindow(enabled);
+    writeStoredAccountLaunchInNewWindow(enabled);
   };
 
   const handleLaunch = async () => {
@@ -2794,6 +2835,8 @@ export function AccountManagerView(
 
   onMount(() => {
     const unsubscribe = props.callbacks?.onChanged?.(applyState);
+    const unsubscribeUseGameTabs =
+      props.callbacks?.onUseGameTabsChanged?.(setUseGameTabs);
     const loadingIndicatorTimeout =
       props.callbacks?.getState === undefined
         ? undefined
@@ -2822,6 +2865,7 @@ export function AccountManagerView(
 
     onCleanup(() => {
       unsubscribe?.();
+      unsubscribeUseGameTabs?.();
       serverPingRequestId += 1;
       if (loadingIndicatorTimeout !== undefined) {
         window.clearTimeout(loadingIndicatorTimeout);
@@ -3990,7 +4034,7 @@ export function AccountManagerView(
                     aria-label="Launch selected accounts"
                     class="account-manager__start-actions"
                     data-disabled={
-                      !canStartSelected() && !canConfigureAccountLaunchMode()
+                      !canStartSelected() && !canConfigureLaunchOptions()
                         ? ""
                         : undefined
                     }
@@ -4053,11 +4097,10 @@ export function AccountManagerView(
                                 <Button
                                   {...(tooltipTriggerProps(
                                     menuTriggerProps({
-                                      "aria-label": `Choose window arrangement, currently ${accountLaunchModeLabel()}`,
+                                      "aria-label": launchOptionsAriaLabel(),
                                       class:
                                         "account-manager__start-options-button",
-                                      disabled:
-                                        !canConfigureAccountLaunchMode(),
+                                      disabled: !canConfigureLaunchOptions(),
                                       size: "icon-lg",
                                       type: "button",
                                     } as ButtonProps),
@@ -4113,11 +4156,20 @@ export function AccountManagerView(
                             </span>
                             Auto grid
                           </MenuItem>
+                          <Show when={useGameTabs()}>
+                            <MenuSeparator />
+                            <MenuCheckboxItem
+                              checked={launchInNewWindow()}
+                              closeOnSelect={false}
+                              onCheckedChange={selectLaunchInNewWindow}
+                              value="new-window"
+                            >
+                              Launch in new window
+                            </MenuCheckboxItem>
+                          </Show>
                         </MenuContent>
                       </Menu>
-                      <TooltipContent>
-                        {accountLaunchModeTooltip()}
-                      </TooltipContent>
+                      <TooltipContent>{launchOptionsTooltip()}</TooltipContent>
                     </Tooltip>
                   </div>
 
@@ -4950,7 +5002,7 @@ export function AccountManagerView(
 }
 
 /** Connects the fixture-driven Account Manager view to Electron IPC. */
-export function App(): JSX.Element {
+export function App(props: DesktopRendererProps): JSX.Element {
   const desktop = selectDesktopBridge(window.desktop, "account-manager");
   const accounts = desktop.accounts;
 
@@ -4971,14 +5023,22 @@ export function App(): JSX.Element {
         getState: () => accounts.getState(),
         launch: (request) => accounts.launch(request),
         onChanged: (listener) => accounts.onChanged(listener),
+        onUseGameTabsChanged: (listener) =>
+          desktop.settings.onChanged((settings) =>
+            listener(settings.preferences.groupGameViews),
+          ),
         refreshServers: () => accounts.refreshServers(),
         selectScript: () => desktop.scripting.selectFile(),
         updateAccount: (username, patch) =>
           accounts.updateAccount(username, patch),
         updateGroup: (name, patch) => accounts.updateGroup(name, patch),
       }}
-      fixture={{ state: emptyState, stateLoaded: false }}
-      platform={desktop.platform.os}
+      fixture={{
+        state: emptyState,
+        stateLoaded: false,
+        useGameTabs: props.initialSettings?.preferences.groupGameViews ?? false,
+      }}
+      platform={props.platform}
     />
   );
 }

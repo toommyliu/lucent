@@ -1,8 +1,18 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
+import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
 import { AccountGameWindows } from "../internal/accounts/AccountGameWindows";
-import { DesktopWindows } from "./DesktopWindows";
+import { DesktopWindows, type DesktopGameHostTarget } from "./DesktopWindows";
+
+const resolveGameHostTarget = (
+  target: AccountLaunchWindowTarget | undefined,
+): DesktopGameHostTarget => {
+  if (target === undefined) return { kind: "available" };
+  return target.kind === "new"
+    ? { kind: "new" }
+    : { browserWindowId: target.gameWindowId, kind: "game-view" };
+};
 
 export const layer = Layer.effect(
   AccountGameWindows,
@@ -25,7 +35,7 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         let gameWindowId: number | undefined;
         const instanceId = yield* windows.open("game", {
-          reuseGameHost: true,
+          gameHostTarget: resolveGameHostTarget(options?.windowTarget),
           ...(options?.managedProfileKey === undefined
             ? {}
             : { managedGameProfileKey: options.managedProfileKey }),

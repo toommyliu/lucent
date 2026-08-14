@@ -163,11 +163,23 @@ export const AccountLaunchTilingPlacementSchema = Schema.Struct({
 export type AccountLaunchTilingPlacement =
   typeof AccountLaunchTilingPlacementSchema.Type;
 
+export const AccountLaunchWindowTargetSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("new") }),
+  Schema.Struct({
+    kind: Schema.Literal("same-as-game"),
+    gameWindowId: Schema.Number,
+  }),
+]);
+
+export type AccountLaunchWindowTarget =
+  typeof AccountLaunchWindowTargetSchema.Type;
+
 export const AccountLaunchRequestSchema = Schema.Struct({
   username: Schema.String,
   script: Schema.optionalKey(Schema.NullOr(AccountScriptReferenceSchema)),
   server: Schema.optionalKey(Schema.String),
   tiling: Schema.optionalKey(AccountLaunchTilingPlacementSchema),
+  windowTarget: Schema.optionalKey(AccountLaunchWindowTargetSchema),
 });
 
 export type AccountLaunchRequest = typeof AccountLaunchRequestSchema.Type;

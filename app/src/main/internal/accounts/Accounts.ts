@@ -521,6 +521,9 @@ export const makeAccounts = Effect.gen(function* () {
         .open({
           managedProfileKey: account.username,
           name: account.username,
+          ...(request.windowTarget === undefined
+            ? {}
+            : { windowTarget: request.windowTarget }),
           ...(request.tiling === undefined ? {} : { tile: request.tiling }),
           onCreated: (createdId) =>
             Effect.gen(function* () {
