@@ -17,7 +17,7 @@ describe("GameEnvironments", () => {
           const ipc = DesktopIpc.of({
             handle: () => Effect.void,
             sendToAll: () => Effect.void,
-            sendToBrowserWindowIds: () => Effect.void,
+            sendToRendererIds: () => Effect.void,
           });
           const windows = {
             isRendererReady: () => Effect.succeed(true),
@@ -25,7 +25,7 @@ describe("GameEnvironments", () => {
             onRendererDestroyed: () => Effect.succeed(() => undefined),
             onRendererReloaded: (
               listener: (event: {
-                readonly browserWindowId: number;
+                readonly rendererId: number;
                 readonly generation: number;
                 readonly id: string;
                 readonly kind: "game";
@@ -34,7 +34,7 @@ describe("GameEnvironments", () => {
               Effect.sync(() => {
                 reload = () =>
                   listener({
-                    browserWindowId: 42,
+                    rendererId: 42,
                     generation: 2,
                     id: "game-42",
                     kind: "game",

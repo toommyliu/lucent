@@ -21,25 +21,25 @@ export const open = makeDesktopIpcMethod({
     }
 
     const definition = getDesktopWindowDefinition(payload.kind);
-    const ownerBrowserWindowId =
+    const ownerRendererId =
       definition.scope !== "game-child"
         ? undefined
         : sender.kind === "game"
-          ? sender.browserWindowId
-          : yield* windows.getOwnerBrowserWindowId(sender.browserWindowId).pipe(
-              Effect.flatMap((ownerBrowserWindowId) =>
-                ownerBrowserWindowId === null
+          ? sender.rendererId
+          : yield* windows.getOwnerRendererId(sender.rendererId).pipe(
+              Effect.flatMap((ownerRendererId) =>
+                ownerRendererId === null
                   ? new DesktopWindowError({
                       detail: "Game child window has no owning game.",
-                      id: String(sender.browserWindowId),
+                      id: String(sender.rendererId),
                     })
-                  : Effect.succeed(ownerBrowserWindowId),
+                  : Effect.succeed(ownerRendererId),
               ),
             );
 
     return yield* windows.open(
       payload.kind,
-      ownerBrowserWindowId === undefined ? undefined : { ownerBrowserWindowId },
+      ownerRendererId === undefined ? undefined : { ownerRendererId },
     );
   }),
 });

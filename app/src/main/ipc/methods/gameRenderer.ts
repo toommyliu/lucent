@@ -10,10 +10,7 @@ export const ready = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameRenderer.ready")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      yield* windows.markRendererReady(
-        sender.browserWindowId,
-        payload.generation,
-      );
+      yield* windows.markRendererReady(sender.rendererId, payload.generation);
     },
   ),
 });
@@ -24,7 +21,7 @@ export const getGeneration = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameRenderer.getGeneration")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.getRendererGeneration(sender.browserWindowId);
+      return yield* windows.getRendererGeneration(sender.rendererId);
     },
   ),
 });

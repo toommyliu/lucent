@@ -28,43 +28,41 @@ const emptyBoostDiscovery = (): EnvironmentBoostDiscovery => ({
 });
 
 interface PendingBoostFetch {
-  readonly gameBrowserWindowId: number;
+  readonly gameRendererId: number;
   readonly gate: Deferred.Deferred<EnvironmentBoostDiscovery>;
 }
 
 interface PendingBoostWithdrawal {
-  readonly gameBrowserWindowId: number;
+  readonly gameRendererId: number;
   readonly gate: Deferred.Deferred<readonly number[]>;
 }
 
 export interface GameEnvironmentsShape {
   readonly fetchBoosts: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
   ) => Effect.Effect<EnvironmentBoostDiscovery>;
-  readonly get: (
-    gameBrowserWindowId: number,
-  ) => Effect.Effect<EnvironmentState>;
-  readonly remove: (gameBrowserWindowId: number) => Effect.Effect<void>;
+  readonly get: (gameRendererId: number) => Effect.Effect<EnvironmentState>;
+  readonly remove: (gameRendererId: number) => Effect.Effect<void>;
   readonly respondToBoostFetch: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     requestId: string,
     discovery: EnvironmentBoostDiscovery,
   ) => Effect.Effect<void>;
   readonly respondToBoostWithdrawal: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     requestId: string,
     itemIds: readonly number[],
   ) => Effect.Effect<void>;
   readonly set: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     state: EnvironmentState,
   ) => Effect.Effect<EnvironmentState>;
   readonly update: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     reducer: (state: EnvironmentState) => EnvironmentState,
   ) => Effect.Effect<EnvironmentState>;
   readonly withdrawBoosts: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     itemIds: readonly number[],
   ) => Effect.Effect<readonly number[]>;
 }
@@ -81,67 +79,60 @@ export const makeGameEnvironments = Effect.gen(function* () {
   const pendingBoostFetches = new Map<string, PendingBoostFetch>();
   const pendingBoostWithdrawals = new Map<string, PendingBoostWithdrawal>();
 
-  const get: GameEnvironmentsShape["get"] = (gameBrowserWindowId) =>
+  const get: GameEnvironmentsShape["get"] = (gameRendererId) =>
     Effect.sync(() => {
-      const state =
-        states.get(gameBrowserWindowId) ?? createEmptyEnvironmentState();
+      const state = states.get(gameRendererId) ?? createEmptyEnvironmentState();
       const normalized = normalizeEnvironmentState(state);
-      states.set(gameBrowserWindowId, normalized);
+      states.set(gameRendererId, normalized);
       return normalized;
     });
 
-  const set: GameEnvironmentsShape["set"] = (gameBrowserWindowId, state) =>
+  const set: GameEnvironmentsShape["set"] = (gameRendererId, state) =>
     Effect.sync(() => {
       const normalized = normalizeEnvironmentState(state);
-      states.set(gameBrowserWindowId, normalized);
+      states.set(gameRendererId, normalized);
       return normalized;
     });
 
-  const update: GameEnvironmentsShape["update"] = (
-    gameBrowserWindowId,
-    reducer,
-  ) =>
+  const update: GameEnvironmentsShape["update"] = (gameRendererId, reducer) =>
     Effect.sync(() => {
       const current =
-        states.get(gameBrowserWindowId) ?? createEmptyEnvironmentState();
+        states.get(gameRendererId) ?? createEmptyEnvironmentState();
       const next = normalizeEnvironmentState(reducer(current));
-      states.set(gameBrowserWindowId, next);
+      states.set(gameRendererId, next);
       return next;
     });
 
-  const cancelPending = (gameBrowserWindowId: number) =>
+  const cancelPending = (gameRendererId: number) =>
     Effect.gen(function* () {
       for (const [requestId, pending] of pendingBoostFetches) {
-        if (pending.gameBrowserWindowId === gameBrowserWindowId) {
+        if (pending.gameRendererId === gameRendererId) {
           pendingBoostFetches.delete(requestId);
           yield* Deferred.succeed(pending.gate, emptyBoostDiscovery());
         }
       }
       for (const [requestId, pending] of pendingBoostWithdrawals) {
-        if (pending.gameBrowserWindowId === gameBrowserWindowId) {
+        if (pending.gameRendererId === gameRendererId) {
           pendingBoostWithdrawals.delete(requestId);
           yield* Deferred.succeed(pending.gate, []);
         }
       }
     });
 
-  const remove: GameEnvironmentsShape["remove"] = (gameBrowserWindowId) =>
-    cancelPending(gameBrowserWindowId).pipe(
-      Effect.andThen(Effect.sync(() => states.delete(gameBrowserWindowId))),
+  const remove: GameEnvironmentsShape["remove"] = (gameRendererId) =>
+    cancelPending(gameRendererId).pipe(
+      Effect.andThen(Effect.sync(() => states.delete(gameRendererId))),
       Effect.asVoid,
     );
 
   const respondToBoostFetch: GameEnvironmentsShape["respondToBoostFetch"] = (
-    gameBrowserWindowId,
+    gameRendererId,
     requestId,
     discovery,
   ) =>
     Effect.gen(function* () {
       const pending = pendingBoostFetches.get(requestId);
-      if (
-        pending === undefined ||
-        pending.gameBrowserWindowId !== gameBrowserWindowId
-      ) {
+      if (pending === undefined || pending.gameRendererId !== gameRendererId) {
         return;
       }
 
@@ -150,12 +141,12 @@ export const makeGameEnvironments = Effect.gen(function* () {
     });
 
   const respondToBoostWithdrawal: GameEnvironmentsShape["respondToBoostWithdrawal"] =
-    (gameBrowserWindowId, requestId, itemIds) =>
+    (gameRendererId, requestId, itemIds) =>
       Effect.gen(function* () {
         const pending = pendingBoostWithdrawals.get(requestId);
         if (
           pending === undefined ||
-          pending.gameBrowserWindowId !== gameBrowserWindowId
+          pending.gameRendererId !== gameRendererId
         ) {
           return;
         }
@@ -164,12 +155,10 @@ export const makeGameEnvironments = Effect.gen(function* () {
         yield* Deferred.succeed(pending.gate, [...itemIds]);
       });
 
-  const fetchBoosts: GameEnvironmentsShape["fetchBoosts"] = (
-    gameBrowserWindowId,
-  ) =>
+  const fetchBoosts: GameEnvironmentsShape["fetchBoosts"] = (gameRendererId) =>
     Effect.gen(function* () {
       const rendererReady = yield* windows
-        .isRendererReady(gameBrowserWindowId)
+        .isRendererReady(gameRendererId)
         .pipe(Effect.catch(() => Effect.succeed(false)));
       if (!rendererReady) {
         return emptyBoostDiscovery();
@@ -178,12 +167,12 @@ export const makeGameEnvironments = Effect.gen(function* () {
       const requestId = createRandomId("environment-boost-fetch");
       const gate = yield* Deferred.make<EnvironmentBoostDiscovery>();
       pendingBoostFetches.set(requestId, {
-        gameBrowserWindowId,
+        gameRendererId,
         gate,
       });
 
-      yield* ipc.sendToBrowserWindowIds(
-        [gameBrowserWindowId],
+      yield* ipc.sendToRendererIds(
+        [gameRendererId],
         EnvironmentIpc.fetchBoostsRequest,
         { requestId },
       );
@@ -200,12 +189,12 @@ export const makeGameEnvironments = Effect.gen(function* () {
     });
 
   const withdrawBoosts: GameEnvironmentsShape["withdrawBoosts"] = (
-    gameBrowserWindowId,
+    gameRendererId,
     itemIds,
   ) =>
     Effect.gen(function* () {
       const rendererReady = yield* windows
-        .isRendererReady(gameBrowserWindowId)
+        .isRendererReady(gameRendererId)
         .pipe(Effect.catch(() => Effect.succeed(false)));
       if (!rendererReady) {
         return [];
@@ -219,12 +208,12 @@ export const makeGameEnvironments = Effect.gen(function* () {
       const requestId = createRandomId("environment-boost-withdraw");
       const gate = yield* Deferred.make<readonly number[]>();
       pendingBoostWithdrawals.set(requestId, {
-        gameBrowserWindowId,
+        gameRendererId,
         gate,
       });
 
-      yield* ipc.sendToBrowserWindowIds(
-        [gameBrowserWindowId],
+      yield* ipc.sendToRendererIds(
+        [gameRendererId],
         EnvironmentIpc.withdrawBoostsRequest,
         { itemIds: uniqueItemIds, requestId },
       );
@@ -244,13 +233,13 @@ export const makeGameEnvironments = Effect.gen(function* () {
     });
 
   const unsubscribeClosed = yield* windows.onClosed((event) =>
-    event.kind === "game" ? remove(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? remove(event.rendererId) : Effect.void,
   );
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
-    event.kind === "game" ? cancelPending(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? cancelPending(event.rendererId) : Effect.void,
   );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
-    event.kind === "game" ? cancelPending(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? cancelPending(event.rendererId) : Effect.void,
   );
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {

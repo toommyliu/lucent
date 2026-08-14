@@ -50,7 +50,7 @@ export const getGameLaunch = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.accounts.getGameLaunch")(
     function* (_payload, sender) {
       const accounts = yield* Accounts;
-      return yield* accounts.getGameLaunch(sender.browserWindowId);
+      return yield* accounts.getGameLaunch(sender.rendererId);
     },
   ),
 });
@@ -168,7 +168,7 @@ export const updateScriptStatus = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.accounts.updateScriptStatus")(
     function* (update, sender) {
       const accounts = yield* Accounts;
-      return yield* accounts.updateScriptStatus(sender.browserWindowId, update);
+      return yield* accounts.updateScriptStatus(sender.rendererId, update);
     },
   ),
 });
@@ -206,13 +206,8 @@ export const installEventForwarding = Effect.fn(
     accounts.onChanged((state) => {
       void runPromise(
         Effect.gen(function* () {
-          const browserWindowIds =
-            yield* windows.getBrowserWindowIds("account-manager");
-          yield* ipc.sendToBrowserWindowIds(
-            browserWindowIds,
-            AccountsIpc.changed,
-            state,
-          );
+          const rendererIds = yield* windows.getRendererIds("account-manager");
+          yield* ipc.sendToRendererIds(rendererIds, AccountsIpc.changed, state);
         }),
       );
     }),

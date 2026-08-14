@@ -16,7 +16,7 @@ const makeWindows = (
   kind: DesktopRendererKind | null,
 ): DesktopWindows["Service"] =>
   ({
-    getBrowserWindowKind: () => Effect.succeed(kind),
+    getRendererKind: () => Effect.succeed(kind),
   }) as unknown as DesktopWindows["Service"];
 
 describe("DesktopIpcSenders", () => {
@@ -29,7 +29,7 @@ describe("DesktopIpcSenders", () => {
       const sender = yield* senders.require(event, ["game"]);
 
       expect(sender).toEqual({
-        browserWindowId: 42,
+        rendererId: 42,
         kind: "game",
       });
     }),

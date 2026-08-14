@@ -32,59 +32,59 @@ import type { DesktopIpcSender } from "../DesktopIpcSenders";
 export class EnvironmentOwnerError extends Schema.TaggedErrorClass<EnvironmentOwnerError>()(
   "EnvironmentOwnerError",
   {
-    browserWindowId: Schema.Int,
+    rendererId: Schema.Int,
   },
 ) {
   override get message(): string {
-    return `Environment IPC sender has no owning game: ${this.browserWindowId}`;
+    return `Environment IPC sender has no owning game: ${this.rendererId}`;
   }
 }
 
 const allowedSenders = ["game", "environment"] as const;
 
-const resolveGameBrowserWindowId = Effect.fn(
-  "desktop.ipc.environment.resolveGame",
-)(function* (sender: DesktopIpcSender) {
-  if (sender.kind === "game") {
-    return sender.browserWindowId;
-  }
+const resolveGameRendererId = Effect.fn("desktop.ipc.environment.resolveGame")(
+  function* (sender: DesktopIpcSender) {
+    if (sender.kind === "game") {
+      return sender.rendererId;
+    }
 
-  const windows = yield* DesktopWindows;
-  const ownerBrowserWindowId = yield* windows.getOwnerBrowserWindowId(
-    sender.browserWindowId,
-  );
-  if (ownerBrowserWindowId === null) {
-    return yield* new EnvironmentOwnerError({
-      browserWindowId: sender.browserWindowId,
-    });
-  }
+    const windows = yield* DesktopWindows;
+    const ownerRendererId = yield* windows.getOwnerRendererId(
+      sender.rendererId,
+    );
+    if (ownerRendererId === null) {
+      return yield* new EnvironmentOwnerError({
+        rendererId: sender.rendererId,
+      });
+    }
 
-  const ownerKind = yield* windows.getBrowserWindowKind(ownerBrowserWindowId);
-  if (ownerKind !== "game") {
-    return yield* new EnvironmentOwnerError({
-      browserWindowId: sender.browserWindowId,
-    });
-  }
+    const ownerKind = yield* windows.getRendererKind(ownerRendererId);
+    if (ownerKind !== "game") {
+      return yield* new EnvironmentOwnerError({
+        rendererId: sender.rendererId,
+      });
+    }
 
-  return ownerBrowserWindowId;
-});
+    return ownerRendererId;
+  },
+);
 
 const notifyChanged = Effect.fn("desktop.ipc.environment.notifyChanged")(
   function* (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     state: EnvironmentState,
-    excludedBrowserWindowId: number,
+    excludedRendererId: number,
   ) {
     const ipc = yield* DesktopIpc;
     const windows = yield* DesktopWindows;
-    const environmentWindowIds = yield* windows.getOwnedBrowserWindowIds(
-      gameBrowserWindowId,
+    const environmentWindowIds = yield* windows.getOwnedRendererIds(
+      gameRendererId,
       "environment",
     );
-    const targets = [gameBrowserWindowId, ...environmentWindowIds].filter(
-      (browserWindowId) => browserWindowId !== excludedBrowserWindowId,
+    const targets = [gameRendererId, ...environmentWindowIds].filter(
+      (rendererId) => rendererId !== excludedRendererId,
     );
-    yield* ipc.sendToBrowserWindowIds(targets, EnvironmentIpc.changed, state);
+    yield* ipc.sendToRendererIds(targets, EnvironmentIpc.changed, state);
   },
 );
 
@@ -94,9 +94,9 @@ const mutate = (
 ) =>
   Effect.gen(function* () {
     const environments = yield* GameEnvironments;
-    const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-    const state = yield* environments.update(gameBrowserWindowId, reducer);
-    yield* notifyChanged(gameBrowserWindowId, state, sender.browserWindowId);
+    const gameRendererId = yield* resolveGameRendererId(sender);
+    const state = yield* environments.update(gameRendererId, reducer);
+    yield* notifyChanged(gameRendererId, state, sender.rendererId);
     return state;
   });
 
@@ -106,8 +106,8 @@ export const getState = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.environment.getState")(
     function* (_payload, sender) {
       const environments = yield* GameEnvironments;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-      return yield* environments.get(gameBrowserWindowId);
+      const gameRendererId = yield* resolveGameRendererId(sender);
+      return yield* environments.get(gameRendererId);
     },
   ),
 });
@@ -263,8 +263,8 @@ export const fetchBoosts = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.environment.fetchBoosts")(
     function* (_payload, sender) {
       const environments = yield* GameEnvironments;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-      return yield* environments.fetchBoosts(gameBrowserWindowId);
+      const gameRendererId = yield* resolveGameRendererId(sender);
+      return yield* environments.fetchBoosts(gameRendererId);
     },
   ),
 });
@@ -276,7 +276,7 @@ export const fetchBoostsResponse = makeDesktopIpcMethod({
     function* (payload, sender) {
       const environments = yield* GameEnvironments;
       yield* environments.respondToBoostFetch(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.requestId,
         payload.discovery,
       );
@@ -290,9 +290,9 @@ export const withdrawBoosts = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.environment.withdrawBoosts")(
     function* (payload, sender) {
       const environments = yield* GameEnvironments;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
+      const gameRendererId = yield* resolveGameRendererId(sender);
       return yield* environments.withdrawBoosts(
-        gameBrowserWindowId,
+        gameRendererId,
         payload.itemIds,
       );
     },
@@ -306,7 +306,7 @@ export const withdrawBoostsResponse = makeDesktopIpcMethod({
     function* (payload, sender) {
       const environments = yield* GameEnvironments;
       yield* environments.respondToBoostWithdrawal(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.requestId,
         payload.itemIds,
       );
@@ -321,18 +321,13 @@ export const syncToAll = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const environments = yield* GameEnvironments;
       const windows = yield* DesktopWindows;
-      const sourceGameBrowserWindowId =
-        yield* resolveGameBrowserWindowId(sender);
-      const state = yield* environments.get(sourceGameBrowserWindowId);
-      const gameBrowserWindowIds = yield* windows.getBrowserWindowIds("game");
+      const sourceGameRendererId = yield* resolveGameRendererId(sender);
+      const state = yield* environments.get(sourceGameRendererId);
+      const gameRendererIds = yield* windows.getRendererIds("game");
 
-      for (const gameBrowserWindowId of gameBrowserWindowIds) {
-        const copiedState = yield* environments.set(gameBrowserWindowId, state);
-        yield* notifyChanged(
-          gameBrowserWindowId,
-          copiedState,
-          sender.browserWindowId,
-        );
+      for (const gameRendererId of gameRendererIds) {
+        const copiedState = yield* environments.set(gameRendererId, state);
+        yield* notifyChanged(gameRendererId, copiedState, sender.rendererId);
       }
 
       return state;

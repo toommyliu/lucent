@@ -35,7 +35,7 @@ const method = makeDesktopIpcMethod({
   descriptor,
   allowedSenders: ["game"],
   handler: (payload, sender) =>
-    Effect.succeed(`${payload}:${sender.browserWindowId}`),
+    Effect.succeed(`${payload}:${sender.rendererId}`),
 });
 
 const senders = DesktopIpcSenders.of({
@@ -43,7 +43,7 @@ const senders = DesktopIpcSenders.of({
     Effect.sync(() => {
       expect(allowedKinds).toEqual(["game"]);
       return {
-        browserWindowId: 42,
+        rendererId: 42,
         kind: "game" as const,
       };
     }),
@@ -204,7 +204,7 @@ describe("DesktopIpc", () => {
       );
 
       yield* ipc.sendToAll(eventDescriptor, "all");
-      yield* ipc.sendToBrowserWindowIds([42, 404], eventDescriptor, "target");
+      yield* ipc.sendToRendererIds([42, 404], eventDescriptor, "target");
 
       expect(delivered).toEqual(["host:all", "view:all", "view:target"]);
     }),

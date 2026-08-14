@@ -136,10 +136,8 @@ export interface DesktopIpcShape {
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) => Effect.Effect<void>;
-  readonly sendToBrowserWindowIds: <
-    Descriptor extends IpcEventDescriptor<unknown>,
-  >(
-    browserWindowIds: readonly number[],
+  readonly sendToRendererIds: <Descriptor extends IpcEventDescriptor<unknown>>(
+    rendererIds: readonly number[],
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) => Effect.Effect<void>;
@@ -207,15 +205,13 @@ export const makeDesktopIpc = (
   const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
     sendEvent(descriptor, payload, allWebContents);
 
-  const sendToBrowserWindowIds: DesktopIpcShape["sendToBrowserWindowIds"] = (
-    browserWindowIds,
+  const sendToRendererIds: DesktopIpcShape["sendToRendererIds"] = (
+    rendererIds,
     descriptor,
     payload,
   ) =>
     sendEvent(descriptor, payload, () =>
-      browserWindowIds.map((browserWindowId) =>
-        contents.fromId(browserWindowId),
-      ),
+      rendererIds.map((rendererId) => contents.fromId(rendererId)),
     );
 
   const handle = <E, R>(
@@ -270,7 +266,7 @@ export const makeDesktopIpc = (
   return DesktopIpc.of({
     handle,
     sendToAll,
-    sendToBrowserWindowIds,
+    sendToRendererIds,
   });
 };
 

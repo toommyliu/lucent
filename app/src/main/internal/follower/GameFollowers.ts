@@ -43,7 +43,7 @@ export class GameFollowerRequestError extends Schema.TaggedErrorClass<GameFollow
 }
 
 interface PendingCommand {
-  readonly gameBrowserWindowId: number;
+  readonly gameRendererId: number;
   readonly gate: Deferred.Deferred<
     FollowerCommandOutcome,
     GameFollowerRequestError
@@ -58,27 +58,27 @@ interface FollowerPlayersUpdate {
 
 export interface GameFollowersShape {
   readonly getConfig: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
   ) => Effect.Effect<FollowerConfig | null>;
-  readonly get: (gameBrowserWindowId: number) => Effect.Effect<FollowerState>;
+  readonly get: (gameRendererId: number) => Effect.Effect<FollowerState>;
   readonly getPlayers: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
   ) => Effect.Effect<FollowerPlayers>;
-  readonly remove: (gameBrowserWindowId: number) => Effect.Effect<void>;
+  readonly remove: (gameRendererId: number) => Effect.Effect<void>;
   readonly request: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     input: FollowerCommandInput,
   ) => Effect.Effect<FollowerCommandOutcome, GameFollowerRequestError>;
   readonly respond: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     response: FollowerCommandResponse,
   ) => Effect.Effect<void>;
   readonly set: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     state: FollowerState,
   ) => Effect.Effect<FollowerState>;
   readonly setPlayers: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     players: FollowerPlayers,
   ) => Effect.Effect<FollowerPlayersUpdate>;
 }
@@ -97,49 +97,49 @@ export const makeGameFollowers = Effect.gen(function* () {
   const playersByGame = new Map<number, FollowerPlayers>();
   const pendingCommands = new Map<string, PendingCommand>();
 
-  const get: GameFollowersShape["get"] = (gameBrowserWindowId) =>
-    windows.isRendererReady(gameBrowserWindowId).pipe(
+  const get: GameFollowersShape["get"] = (gameRendererId) =>
+    windows.isRendererReady(gameRendererId).pipe(
       Effect.map((rendererReady) =>
         rendererReady
           ? normalizeFollowerState(
-              states.get(gameBrowserWindowId) ?? createIdleFollowerState(),
+              states.get(gameRendererId) ?? createIdleFollowerState(),
             )
           : createIdleFollowerState(),
       ),
       Effect.catch(() => Effect.succeed(createIdleFollowerState())),
     );
 
-  const getConfig: GameFollowersShape["getConfig"] = (gameBrowserWindowId) =>
-    Effect.sync(() => configs.get(gameBrowserWindowId) ?? null);
+  const getConfig: GameFollowersShape["getConfig"] = (gameRendererId) =>
+    Effect.sync(() => configs.get(gameRendererId) ?? null);
 
-  const set: GameFollowersShape["set"] = (gameBrowserWindowId, state) =>
+  const set: GameFollowersShape["set"] = (gameRendererId, state) =>
     Effect.sync(() => {
       const normalized = normalizeFollowerState(state);
-      states.set(gameBrowserWindowId, normalized);
+      states.set(gameRendererId, normalized);
       return normalized;
     });
 
-  const getPlayers: GameFollowersShape["getPlayers"] = (gameBrowserWindowId) =>
-    windows.isRendererReady(gameBrowserWindowId).pipe(
+  const getPlayers: GameFollowersShape["getPlayers"] = (gameRendererId) =>
+    windows.isRendererReady(gameRendererId).pipe(
       Effect.map((rendererReady) =>
-        rendererReady ? (playersByGame.get(gameBrowserWindowId) ?? []) : [],
+        rendererReady ? (playersByGame.get(gameRendererId) ?? []) : [],
       ),
       Effect.catch(() => Effect.succeed([])),
     );
 
   const setPlayers: GameFollowersShape["setPlayers"] = (
-    gameBrowserWindowId,
+    gameRendererId,
     incoming,
   ) =>
     Effect.sync(() => {
-      const current = playersByGame.get(gameBrowserWindowId);
+      const current = playersByGame.get(gameRendererId);
       const players = [...incoming];
       const changed =
         current === undefined ||
         current.length !== players.length ||
         current.some((player, index) => player !== players[index]);
       if (changed) {
-        playersByGame.set(gameBrowserWindowId, players);
+        playersByGame.set(gameRendererId, players);
       }
       return {
         changed,
@@ -147,23 +147,23 @@ export const makeGameFollowers = Effect.gen(function* () {
       };
     });
 
-  const invalidate = (gameBrowserWindowId: number) =>
+  const invalidate = (gameRendererId: number) =>
     Effect.gen(function* () {
-      states.delete(gameBrowserWindowId);
-      playersByGame.delete(gameBrowserWindowId);
+      states.delete(gameRendererId);
+      playersByGame.delete(gameRendererId);
       const targets = yield* windows
-        .getOwnedBrowserWindowIds(gameBrowserWindowId, "follower")
+        .getOwnedRendererIds(gameRendererId, "follower")
         .pipe(Effect.catch(() => Effect.succeed([])));
       yield* Effect.all([
-        ipc.sendToBrowserWindowIds(
+        ipc.sendToRendererIds(
           targets,
           FollowerIpc.changed,
           createIdleFollowerState(),
         ),
-        ipc.sendToBrowserWindowIds(targets, FollowerIpc.playersChanged, []),
+        ipc.sendToRendererIds(targets, FollowerIpc.playersChanged, []),
       ]);
       for (const [requestId, pending] of pendingCommands) {
-        if (pending.gameBrowserWindowId !== gameBrowserWindowId) {
+        if (pending.gameRendererId !== gameRendererId) {
           continue;
         }
 
@@ -177,21 +177,21 @@ export const makeGameFollowers = Effect.gen(function* () {
       }
     });
 
-  const remove: GameFollowersShape["remove"] = (gameBrowserWindowId) =>
-    invalidate(gameBrowserWindowId).pipe(
-      Effect.andThen(Effect.sync(() => configs.delete(gameBrowserWindowId))),
+  const remove: GameFollowersShape["remove"] = (gameRendererId) =>
+    invalidate(gameRendererId).pipe(
+      Effect.andThen(Effect.sync(() => configs.delete(gameRendererId))),
       Effect.asVoid,
     );
 
   const request: GameFollowersShape["request"] = Effect.fn(
     "GameFollowers.request",
-  )(function* (gameBrowserWindowId, input) {
+  )(function* (gameRendererId, input) {
     if (input.kind === "configure" || input.kind === "start") {
-      configs.set(gameBrowserWindowId, input.config);
+      configs.set(gameRendererId, input.config);
     }
 
     const rendererReady = yield* windows
-      .isRendererReady(gameBrowserWindowId)
+      .isRendererReady(gameRendererId)
       .pipe(Effect.catch(() => Effect.succeed(false)));
     if (!rendererReady) {
       return yield* new GameFollowerRequestError({
@@ -205,7 +205,7 @@ export const makeGameFollowers = Effect.gen(function* () {
       GameFollowerRequestError
     >();
     pendingCommands.set(requestId, {
-      gameBrowserWindowId,
+      gameRendererId,
       gate,
       kind: input.kind,
     });
@@ -214,8 +214,8 @@ export const makeGameFollowers = Effect.gen(function* () {
       requestId,
     } as FollowerCommand;
 
-    yield* ipc.sendToBrowserWindowIds(
-      [gameBrowserWindowId],
+    yield* ipc.sendToRendererIds(
+      [gameRendererId],
       FollowerIpc.command,
       command,
     );
@@ -238,12 +238,9 @@ export const makeGameFollowers = Effect.gen(function* () {
 
   const respond: GameFollowersShape["respond"] = Effect.fn(
     "GameFollowers.respond",
-  )(function* (gameBrowserWindowId, response) {
+  )(function* (gameRendererId, response) {
     const pending = pendingCommands.get(response.requestId);
-    if (
-      pending === undefined ||
-      pending.gameBrowserWindowId !== gameBrowserWindowId
-    ) {
+    if (pending === undefined || pending.gameRendererId !== gameRendererId) {
       return;
     }
 
@@ -272,24 +269,24 @@ export const makeGameFollowers = Effect.gen(function* () {
   });
 
   const unsubscribeClosed = yield* windows.onClosed((event) =>
-    event.kind === "game" ? remove(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? remove(event.rendererId) : Effect.void,
   );
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
-    event.kind === "game" ? invalidate(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
   );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
-    event.kind === "game" ? invalidate(event.browserWindowId) : Effect.void,
+    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
   );
   const unsubscribeReady = yield* windows.onRendererReady((event) =>
     event.kind !== "game"
       ? Effect.void
       : Effect.gen(function* () {
-          const config = configs.get(event.browserWindowId);
+          const config = configs.get(event.rendererId);
           if (config === undefined) {
             return;
           }
 
-          const outcome = yield* request(event.browserWindowId, {
+          const outcome = yield* request(event.rendererId, {
             config,
             kind: "configure",
           });
@@ -297,15 +294,11 @@ export const makeGameFollowers = Effect.gen(function* () {
             return;
           }
 
-          const state = yield* set(event.browserWindowId, outcome.state);
+          const state = yield* set(event.rendererId, outcome.state);
           const targets = yield* windows
-            .getOwnedBrowserWindowIds(event.browserWindowId, "follower")
+            .getOwnedRendererIds(event.rendererId, "follower")
             .pipe(Effect.catch(() => Effect.succeed([])));
-          yield* ipc.sendToBrowserWindowIds(
-            targets,
-            FollowerIpc.changed,
-            state,
-          );
+          yield* ipc.sendToRendererIds(targets, FollowerIpc.changed, state);
         }).pipe(Effect.catch(() => Effect.void)),
   );
   yield* Effect.addFinalizer(() =>

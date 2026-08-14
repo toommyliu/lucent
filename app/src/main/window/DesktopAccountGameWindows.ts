@@ -11,7 +11,7 @@ const resolveGameHostTarget = (
   if (target === undefined) return { kind: "available" };
   return target.kind === "new"
     ? { kind: "new" }
-    : { browserWindowId: target.gameWindowId, kind: "game-view" };
+    : { rendererId: target.gameWindowId, kind: "game-view" };
 };
 
 export const layer = Layer.effect(
@@ -20,15 +20,15 @@ export const layer = Layer.effect(
     const windows = yield* DesktopWindows;
 
     const close: AccountGameWindows["Service"]["close"] = (gameWindowId) =>
-      windows.closeBrowserWindow(gameWindowId);
+      windows.closeRenderer(gameWindowId);
 
     const getGroupId: AccountGameWindows["Service"]["getGroupId"] = (
       gameWindowId,
-    ) => windows.getBrowserWindowGroupId(gameWindowId);
+    ) => windows.getNativeWindowId(gameWindowId);
 
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
       windows.onClosed((event) =>
-        event.kind === "game" ? listener(event.browserWindowId) : Effect.void,
+        event.kind === "game" ? listener(event.rendererId) : Effect.void,
       );
 
     const open: AccountGameWindows["Service"]["open"] = (options) =>
@@ -46,17 +46,17 @@ export const layer = Layer.effect(
           ...(options?.onCreated === undefined
             ? {}
             : {
-                onCreated: ({ browserWindowId }) => {
-                  gameWindowId = browserWindowId;
-                  return options.onCreated!(browserWindowId);
+                onCreated: ({ rendererId }) => {
+                  gameWindowId = rendererId;
+                  return options.onCreated!(rendererId);
                 },
               }),
         });
-        return gameWindowId ?? (yield* windows.getBrowserWindowId(instanceId));
+        return gameWindowId ?? (yield* windows.getRendererId(instanceId));
       });
 
     const reveal: AccountGameWindows["Service"]["reveal"] = (gameWindowId) =>
-      windows.revealBrowserWindow(gameWindowId);
+      windows.revealRenderer(gameWindowId);
 
     const retireProfile: AccountGameWindows["Service"]["retireProfile"] =
       windows.retireManagedGameProfile;

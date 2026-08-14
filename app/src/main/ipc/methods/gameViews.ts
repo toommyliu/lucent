@@ -25,7 +25,7 @@ export const getState = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.getState")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.getGameViewHostState(sender.browserWindowId);
+      return yield* windows.getGameViewHostState(sender.rendererId);
     },
   ),
 });
@@ -35,7 +35,7 @@ export const add = makeDesktopIpcMethod({
   allowedSenders: hostSenders,
   handler: Effect.fn("desktop.ipc.gameViews.add")(function* (_payload, sender) {
     const windows = yield* DesktopWindows;
-    return yield* windows.addGameView(sender.browserWindowId);
+    return yield* windows.addGameView(sender.rendererId);
   }),
 });
 
@@ -46,7 +46,7 @@ export const select = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       return yield* windows.selectGameView(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.id,
         payload.focus,
       );
@@ -60,7 +60,7 @@ export const close = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.close")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.closeGameView(sender.browserWindowId, payload.id);
+      return yield* windows.closeGameView(sender.rendererId, payload.id);
     },
   ),
 });
@@ -71,10 +71,7 @@ export const reorder = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.reorder")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.reorderGameViews(
-        sender.browserWindowId,
-        payload.ids,
-      );
+      return yield* windows.reorderGameViews(sender.rendererId, payload.ids);
     },
   ),
 });
@@ -86,7 +83,7 @@ export const setLayout = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       return yield* windows.setGameViewLayout(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.layout,
       );
     },
@@ -100,7 +97,7 @@ export const setGroupControlsOpen = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       return yield* windows.setGameViewGroupControlsOpen(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.open,
       );
     },
@@ -114,7 +111,7 @@ export const setTabMenuOpen = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       return yield* windows.setGameViewTabMenuOpen(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.open,
       );
     },
@@ -128,7 +125,7 @@ export const setGroupTargets = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       return yield* windows.setGameViewGroupTargets(
-        sender.browserWindowId,
+        sender.rendererId,
         payload.ids,
       );
     },
@@ -142,23 +139,23 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
     function* (request, sender) {
       const ipc = yield* DesktopIpc;
       const windows = yield* DesktopWindows;
-      const state = yield* windows.getGameViewHostState(sender.browserWindowId);
+      const state = yield* windows.getGameViewHostState(sender.rendererId);
       if (!isValidGameViewGroupTargetSnapshot(state, request.targetIds)) {
         return yield* new DesktopWindowError({
           detail:
             "Group command targets must be unique tabs in this game window.",
-          id: String(sender.browserWindowId),
+          id: String(sender.rendererId),
         });
       }
       let { readySessions, skippedCount } = resolveGameViewGroupTargets(
         state,
         request.targetIds,
       );
-      let browserWindowIds = yield* Effect.forEach(readySessions, (session) =>
-        windows.getBrowserWindowId(session.id),
+      let rendererIds = yield* Effect.forEach(readySessions, (session) =>
+        windows.getRendererId(session.id),
       );
 
-      if (browserWindowIds.length === 0) {
+      if (rendererIds.length === 0) {
         return {
           recipientCount: 0,
           skippedCount,
@@ -170,7 +167,7 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
       if (request.command.kind === "load-script") {
         const scripts = yield* DesktopScriptLibrary;
         const result = yield* windows.withGameViewGroupControlsNativeDialog(
-          sender.browserWindowId,
+          sender.rendererId,
           (parentWindowId) => scripts.openFile(parentWindowId),
         );
         if (result.canceled) {
@@ -185,16 +182,16 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
         // Native file selection can outlive a tab or renderer generation.
         // Re-resolve the captured target IDs immediately before delivery.
         const latestState = yield* windows.getGameViewHostState(
-          sender.browserWindowId,
+          sender.rendererId,
         );
         ({ readySessions, skippedCount } = resolveGameViewGroupTargets(
           latestState,
           request.targetIds,
         ));
-        browserWindowIds = yield* Effect.forEach(readySessions, (session) =>
-          windows.getBrowserWindowId(session.id),
+        rendererIds = yield* Effect.forEach(readySessions, (session) =>
+          windows.getRendererId(session.id),
         );
-        if (browserWindowIds.length === 0) {
+        if (rendererIds.length === 0) {
           return {
             recipientCount: 0,
             skippedCount,
@@ -209,14 +206,14 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
         // Queue every login immediately while spacing network submissions
         // enough to avoid tripping AQW's multi-login rate limiting.
         yield* Effect.forEach(
-          browserWindowIds,
-          (browserWindowId, index) => {
+          rendererIds,
+          (rendererId, index) => {
             const envelope: GameViewGroupCommandEnvelope = {
               command,
               delayMs: index * GROUP_LOGIN_STAGGER_MS,
             };
-            return ipc.sendToBrowserWindowIds(
-              [browserWindowId],
+            return ipc.sendToRendererIds(
+              [rendererId],
               GameViewsIpc.groupCommand,
               envelope,
             );
@@ -228,15 +225,15 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
           command,
           delayMs: 0,
         };
-        yield* ipc.sendToBrowserWindowIds(
-          browserWindowIds,
+        yield* ipc.sendToRendererIds(
+          rendererIds,
           GameViewsIpc.groupCommand,
           envelope,
         );
       }
 
       return {
-        recipientCount: browserWindowIds.length,
+        recipientCount: rendererIds.length,
         skippedCount,
         status: "sent" as const,
       };
@@ -250,7 +247,7 @@ export const getPresentation = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.getPresentation")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.getGameViewPresentation(sender.browserWindowId);
+      return yield* windows.getGameViewPresentation(sender.rendererId);
     },
   ),
 });
@@ -261,7 +258,7 @@ export const activate = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.activate")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.activateGameView(sender.browserWindowId);
+      return yield* windows.activateGameView(sender.rendererId);
     },
   ),
 });

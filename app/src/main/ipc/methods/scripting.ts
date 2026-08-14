@@ -264,9 +264,9 @@ export const installEventForwarding = Effect.fn(
     catalog.onChanged((change) => {
       void runPromise(
         Effect.gen(function* () {
-          const browserWindowIds = yield* windows.getBrowserWindowIds("game");
-          yield* ipc.sendToBrowserWindowIds(
-            browserWindowIds,
+          const rendererIds = yield* windows.getRendererIds("game");
+          yield* ipc.sendToRendererIds(
+            rendererIds,
             ScriptingIpc.catalogChanged,
             change,
           );

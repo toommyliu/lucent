@@ -11,7 +11,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 export interface ElectronChromiumRendererTarget {
-  readonly browserWindowId: number;
+  readonly rendererId: number;
   readonly osProcessId: number;
 }
 
@@ -46,7 +46,7 @@ export interface ElectronChromiumPerformanceShape {
   >;
   readonly getMainHeapUsage: Effect.Effect<ElectronMainHeapUsage>;
   readonly getRendererHeapUsage: (
-    browserWindowId: number,
+    rendererId: number,
   ) => Effect.Effect<
     ElectronRendererHeapUsage,
     ElectronChromiumPerformanceError
@@ -65,7 +65,7 @@ export interface ElectronChromiumPerformanceShape {
     filePath: string,
   ) => Effect.Effect<void, ElectronChromiumPerformanceError>;
   readonly takeRendererHeapSnapshot: (
-    browserWindowId: number,
+    rendererId: number,
     filePath: string,
   ) => Effect.Effect<void, ElectronChromiumPerformanceError>;
 }
@@ -75,10 +75,10 @@ export class ElectronChromiumPerformance extends Context.Service<
   ElectronChromiumPerformanceShape
 >()("lucent/desktop/electron/ElectronChromiumPerformance") {}
 
-const rendererWebContents = (browserWindowId: number): WebContents => {
-  const renderer = webContents.fromId(browserWindowId);
+const rendererWebContents = (rendererId: number): WebContents => {
+  const renderer = webContents.fromId(rendererId);
   if (renderer === undefined || renderer.isDestroyed()) {
-    throw new Error(`Electron renderer is not available: ${browserWindowId}`);
+    throw new Error(`Electron renderer is not available: ${rendererId}`);
   }
   return renderer;
 };
@@ -115,32 +115,32 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
     Promise<ElectronRendererHeapUsage>
   >();
   const requestRendererHeapUsage = (
-    browserWindowId: number,
+    rendererId: number,
   ): Promise<ElectronRendererHeapUsage> => {
-    const pendingRequest = rendererHeapUsageRequests.get(browserWindowId);
+    const pendingRequest = rendererHeapUsageRequests.get(rendererId);
     if (pendingRequest !== undefined) {
       return pendingRequest;
     }
 
     const request = (async () => {
-      const renderer = rendererWebContents(browserWindowId);
+      const renderer = rendererWebContents(rendererId);
       const rendererDebugger = renderer.debugger;
 
       if (
-        attachedRendererDebuggers.has(browserWindowId) &&
+        attachedRendererDebuggers.has(rendererId) &&
         !rendererDebugger.isAttached()
       ) {
-        attachedRendererDebuggers.delete(browserWindowId);
+        attachedRendererDebuggers.delete(rendererId);
       }
 
-      if (!attachedRendererDebuggers.has(browserWindowId)) {
+      if (!attachedRendererDebuggers.has(rendererId)) {
         if (renderer.isDevToolsOpened() || rendererDebugger.isAttached()) {
           throw new Error(
-            `Electron renderer debugger is already in use: ${browserWindowId}`,
+            `Electron renderer debugger is already in use: ${rendererId}`,
           );
         }
         rendererDebugger.attach("1.3");
-        attachedRendererDebuggers.add(browserWindowId);
+        attachedRendererDebuggers.add(rendererId);
       }
 
       const response: unknown = await rendererDebugger.sendCommand(
@@ -152,18 +152,18 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
       }
       return usage;
     })().finally(() => {
-      if (rendererHeapUsageRequests.get(browserWindowId) === request) {
-        rendererHeapUsageRequests.delete(browserWindowId);
+      if (rendererHeapUsageRequests.get(rendererId) === request) {
+        rendererHeapUsageRequests.delete(rendererId);
       }
     });
-    rendererHeapUsageRequests.set(browserWindowId, request);
+    rendererHeapUsageRequests.set(rendererId, request);
     return request;
   };
 
   const releaseRendererDebuggers: Effect.Effect<void> = Effect.sync(() => {
     rendererHeapUsageRequests.clear();
-    for (const browserWindowId of attachedRendererDebuggers) {
-      const renderer = webContents.fromId(browserWindowId);
+    for (const rendererId of attachedRendererDebuggers) {
+      const renderer = webContents.fromId(rendererId);
       if (
         renderer !== undefined &&
         !renderer.isDestroyed() &&
@@ -180,13 +180,13 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
   });
 
   const getRendererHeapUsage: ElectronChromiumPerformanceShape["getRendererHeapUsage"] =
-    (browserWindowId) =>
+    (rendererId) =>
       Effect.tryPromise({
-        try: () => requestRendererHeapUsage(browserWindowId),
+        try: () => requestRendererHeapUsage(rendererId),
         catch: (cause) =>
           new ElectronChromiumPerformanceError({
             cause,
-            operation: `get-renderer-heap-usage:${browserWindowId}`,
+            operation: `get-renderer-heap-usage:${rendererId}`,
           }),
       });
 
@@ -218,7 +218,7 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
         }
         return [
           {
-            browserWindowId: renderer.id,
+            rendererId: renderer.id,
             osProcessId: renderer.getOSProcessId(),
           },
         ];
@@ -256,14 +256,13 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
             operation: "take-main-heap-snapshot",
           }),
       }),
-    takeRendererHeapSnapshot: (browserWindowId, filePath) =>
+    takeRendererHeapSnapshot: (rendererId, filePath) =>
       Effect.tryPromise({
-        try: () =>
-          rendererWebContents(browserWindowId).takeHeapSnapshot(filePath),
+        try: () => rendererWebContents(rendererId).takeHeapSnapshot(filePath),
         catch: (cause) =>
           new ElectronChromiumPerformanceError({
             cause,
-            operation: `take-renderer-heap-snapshot:${browserWindowId}`,
+            operation: `take-renderer-heap-snapshot:${rendererId}`,
           }),
       }),
   });
