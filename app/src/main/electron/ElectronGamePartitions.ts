@@ -45,7 +45,7 @@ const partitionName = (partition: string): string => {
 };
 
 const normalizeManagedAccountKey = (key: string): string => {
-  const normalized = key.trim().normalize("NFKC").toLowerCase();
+  const normalized = key.trim().toLowerCase();
   if (normalized === "") {
     throw new Error("Managed game partition key cannot be empty.");
   }

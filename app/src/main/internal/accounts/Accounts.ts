@@ -605,10 +605,7 @@ export const makeAccounts = Effect.gen(function* () {
           };
         }),
       );
-      if (
-        currentUsername.normalize("NFKC").toLowerCase() !==
-        nextUsername.normalize("NFKC").toLowerCase()
-      ) {
+      if (currentUsername.toLowerCase() !== nextUsername.toLowerCase()) {
         yield* retireGameProfiles([currentUsername]);
       }
       return state;
