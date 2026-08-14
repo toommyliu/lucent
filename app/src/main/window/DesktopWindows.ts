@@ -964,14 +964,11 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
 
     cancelGameViewHostRepaint(host);
-    if (env.platform !== "linux") {
-      return;
-    }
-
     if (host.resizeSettleTimer !== undefined) {
       clearTimeout(host.resizeSettleTimer);
     }
-    // Linux does not emit BrowserWindow's `resized` event.
+    // Window managers can resize a window without Electron emitting `resized`.
+    // Keep that event as the immediate path and use this as a final-size fallback.
     host.resizeSettleTimer = setTimeout(
       () => finishGameViewHostResize(host),
       GAME_VIEW_RESIZE_SETTLE_DELAY_MS,
