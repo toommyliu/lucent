@@ -1215,7 +1215,7 @@ export function App(props: {
   const [gameViewPresentation, setGameViewPresentation] =
     createSignal<GameViewPresentation>({
       active: true,
-      layout: "focused",
+      layout: desktop.gameView.initialLayout ?? "focused",
       windowActive: true,
     });
   const effectiveTopNavVisible = createMemo(

@@ -37,6 +37,7 @@ import {
 import {
   serializeDebugModeArgument,
   serializeGameConsoleObservabilityArgument,
+  serializeGameViewLayoutArgument,
   serializeTraceProjectionsArgument,
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
@@ -341,6 +342,7 @@ const createRendererWebPreferences = (
   snapshot: AppearanceSnapshot,
   options: {
     readonly backgroundThrottling?: boolean;
+    readonly gameViewLayout?: GameViewLayout;
     readonly rendererBackgroundColor?: string;
     readonly requiresFlashPlugin: boolean;
   },
@@ -353,6 +355,9 @@ const createRendererWebPreferences = (
     serializeDesktopViewArgument(bridgeView),
     serializeAppearanceSnapshotArgument(snapshot),
     serializeSettingsSnapshotArgument(settings),
+    ...(options.gameViewLayout === undefined
+      ? []
+      : [serializeGameViewLayoutArgument(options.gameViewLayout)]),
     ...(env.debug === true ? [serializeDebugModeArgument()] : []),
     ...(bridgeView === "game" && env.debug === true
       ? [serializeGameConsoleObservabilityArgument()]
@@ -433,10 +438,12 @@ const createGameViewOptions = (
   settings: AppSettings,
   snapshot: AppearanceSnapshot,
   partition: string,
+  layout: GameViewLayout,
 ): BrowserViewConstructorOptions => ({
   webPreferences: {
     ...createRendererWebPreferences(env, "game", settings, snapshot, {
       backgroundThrottling: false,
+      gameViewLayout: layout,
       rendererBackgroundColor: snapshot.backgroundColor,
       requiresFlashPlugin: true,
     }),
@@ -1825,6 +1832,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         });
       }
 
+      const layout = usesGameViewGrid(options) ? "grid" : "focused";
       const gamePartition = yield* electronSession
         .acquireGamePartition(gamePartitionOwner(options))
         .pipe(
@@ -1844,6 +1852,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             bootstrapSettings,
             snapshot,
             gamePartition,
+            layout,
           ),
           openAllowedGameUrl,
         )
@@ -1900,7 +1909,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         host.groupTargetIds.add(id);
       }
       host.selectedId = id;
-      host.layout = usesGameViewGrid(options) ? "grid" : "focused";
+      host.layout = layout;
 
       const createdEvent: DesktopWindowCreatedEvent = {
         browserWindowId,

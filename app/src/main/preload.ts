@@ -11,6 +11,7 @@ import {
 import {
   readDebugModeArgument,
   readGameConsoleObservabilityArgument,
+  readGameViewLayoutArgument,
   readTraceProjectionsArgument,
 } from "../shared/rendererBootstrapArguments";
 import type {
@@ -66,6 +67,18 @@ const applyBootstrapAppearance = (): void => {
 applyBootstrapAppearance();
 
 const initialSettings = readSettingsSnapshotArgument(process.argv);
+const initialGameViewLayout = readGameViewLayoutArgument(process.argv);
+const applyBootstrapGameViewLayout = (): void => {
+  try {
+    // Grid game views should fill their renderer before app code mounts.
+    if (initialGameViewLayout === "grid") {
+      document.documentElement.setAttribute("data-topnav-hidden", "");
+    }
+  } catch {}
+};
+
+applyBootstrapGameViewLayout();
+
 const bridgeView = readDesktopViewArgument(process.argv);
 if (bridgeView === null) {
   throw new Error("Missing or invalid desktop bridge view.");
@@ -233,6 +246,7 @@ const gameViewHostBridge: DesktopGameViewHostBridge = {
 const gameViewBridge: DesktopGameViewBridge = {
   activate: () => invoke(GameViewsIpc.activate, undefined),
   getPresentation: () => invoke(GameViewsIpc.getPresentation, undefined),
+  initialLayout: initialGameViewLayout,
   onGroupCommand: (listener) => subscribe(GameViewsIpc.groupCommand, listener),
   onPresentationChanged: (listener) =>
     subscribe(GameViewsIpc.presentationChanged, listener),

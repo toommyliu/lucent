@@ -315,6 +315,8 @@ export interface DesktopGameViewHostBridge {
 export interface DesktopGameViewBridge {
   readonly activate: () => Promise<GameViewPresentation>;
   readonly getPresentation: () => Promise<GameViewPresentation>;
+  /** Layout known by the main process before the game document loads. */
+  readonly initialLayout: GameViewLayout | null;
   readonly onGroupCommand: (
     listener: (envelope: GameViewGroupCommandEnvelope) => void,
   ) => () => void;
