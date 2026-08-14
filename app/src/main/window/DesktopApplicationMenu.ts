@@ -1,6 +1,12 @@
 import { promises as fs } from "fs";
 
-import { Menu, app, session, type MenuItemConstructorOptions } from "electron";
+import {
+  Menu,
+  app,
+  session,
+  webContents,
+  type MenuItemConstructorOptions,
+} from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -97,6 +103,25 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     void runPromise(windows.open("settings")).catch((cause) =>
       logMenuFailure("open-settings", cause),
     );
+  };
+
+  const toggleDevTools = (): void => {
+    const target = webContents.getFocusedWebContents();
+    if (target === null || target.isDestroyed()) {
+      return;
+    }
+
+    try {
+      if (target.isDevToolsOpened()) {
+        target.closeDevTools();
+      } else {
+        // Docked DevTools are painted below BrowserViews, so they must use a
+        // separate window for game hosts.
+        target.openDevTools({ mode: "detach" });
+      }
+    } catch (cause) {
+      logMenuFailure("toggle-dev-tools", cause);
+    }
   };
 
   const openWindow = (kind: "account-manager" | "game"): void => {
@@ -475,7 +500,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const viewSubmenu: MenuItemConstructorOptions[] = [
       { role: "reload" },
       { role: "forceReload" },
-      { role: "toggleDevTools" },
+      {
+        accelerator: isDarwin ? "Alt+Command+I" : "Control+Shift+I",
+        click: toggleDevTools,
+        label: "Toggle Developer Tools",
+      },
       { type: "separator" },
       { role: "resetZoom" },
       { role: "zoomIn" },

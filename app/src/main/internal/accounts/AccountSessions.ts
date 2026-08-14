@@ -32,11 +32,13 @@ export interface AccountSessionsShape {
   readonly snapshot: () => readonly AccountScriptSession[];
   readonly trackLaunch: (
     gameWindowId: number,
+    gameWindowGroupId: number | undefined,
     pending: PendingAccountLaunch,
   ) => void;
   readonly updateStatus: (
     gameWindowId: number,
     update: AccountScriptStatusUpdate,
+    gameWindowGroupId?: number,
   ) => void;
 }
 
@@ -67,6 +69,7 @@ export const layer = Layer.effect(
 
     const trackLaunch: AccountSessionsShape["trackLaunch"] = (
       gameWindowId,
+      gameWindowGroupId,
       pending,
     ) => {
       const payload: AccountGameLaunchPayload = {
@@ -80,6 +83,7 @@ export const layer = Layer.effect(
       const pendingScriptName = scriptName(payload.script);
       sessions.set(gameWindowId, {
         gameWindowId,
+        ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
         launchUsername: payload.account.username,
         currentUsername: payload.account.username,
         ...(pendingScriptName === undefined
@@ -94,6 +98,7 @@ export const layer = Layer.effect(
     const updateStatus: AccountSessionsShape["updateStatus"] = (
       gameWindowId,
       update,
+      gameWindowGroupId,
     ) => {
       const previous = sessions.get(gameWindowId);
       const payload = launchPayloads.get(gameWindowId);
@@ -102,19 +107,33 @@ export const layer = Layer.effect(
         update.scriptName === undefined
           ? undefined
           : scriptName({ name: update.scriptName, path: update.scriptName });
+      const resolvedGameWindowGroupId =
+        gameWindowGroupId ?? previous?.gameWindowGroupId;
       sessions.set(gameWindowId, {
         gameWindowId,
+        ...(resolvedGameWindowGroupId === undefined
+          ? {}
+          : { gameWindowGroupId: resolvedGameWindowGroupId }),
         ...(payload === undefined
           ? {}
           : { launchUsername: payload.account.username }),
         ...(previous?.launchUsername === undefined
           ? {}
           : { launchUsername: previous.launchUsername }),
+        ...(update.currentUsername === null
+          ? { authenticated: false }
+          : update.currentUsername === undefined
+            ? previous?.authenticated === undefined
+              ? {}
+              : { authenticated: previous.authenticated }
+            : { authenticated: true }),
         ...(update.currentUsername === undefined
           ? previous?.currentUsername === undefined
             ? {}
             : { currentUsername: previous.currentUsername }
-          : { currentUsername: update.currentUsername }),
+          : update.currentUsername === null
+            ? {}
+            : { currentUsername: update.currentUsername }),
         ...(update.scriptName === undefined
           ? previous?.scriptName === undefined
             ? payloadScriptName === undefined

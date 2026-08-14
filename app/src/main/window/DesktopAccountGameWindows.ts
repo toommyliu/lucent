@@ -12,6 +12,10 @@ export const layer = Layer.effect(
     const close: AccountGameWindows["Service"]["close"] = (gameWindowId) =>
       windows.closeBrowserWindow(gameWindowId);
 
+    const getGroupId: AccountGameWindows["Service"]["getGroupId"] = (
+      gameWindowId,
+    ) => windows.getBrowserWindowGroupId(gameWindowId);
+
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
       windows.onClosed((event) =>
         event.kind === "game" ? listener(event.browserWindowId) : Effect.void,
@@ -21,6 +25,13 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         let gameWindowId: number | undefined;
         const instanceId = yield* windows.open("game", {
+          reuseGameHost: true,
+          ...(options?.managedProfileKey === undefined
+            ? {}
+            : { managedGameProfileKey: options.managedProfileKey }),
+          ...(options?.name === undefined
+            ? {}
+            : { gameViewName: options.name }),
           ...(options?.tile === undefined ? {} : { tile: options.tile }),
           ...(options?.onCreated === undefined
             ? {}
@@ -37,11 +48,22 @@ export const layer = Layer.effect(
     const reveal: AccountGameWindows["Service"]["reveal"] = (gameWindowId) =>
       windows.revealBrowserWindow(gameWindowId);
 
+    const retireProfile: AccountGameWindows["Service"]["retireProfile"] =
+      windows.retireManagedGameProfile;
+
+    const setName: AccountGameWindows["Service"]["setName"] = (
+      gameWindowId,
+      name,
+    ) => windows.setGameViewName(gameWindowId, name);
+
     return AccountGameWindows.of({
       close,
+      getGroupId,
       onClosed,
       open,
       reveal,
+      retireProfile,
+      setName,
     });
   }),
 );

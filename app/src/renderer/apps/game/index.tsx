@@ -15,8 +15,16 @@ const loaderGrabberBridge = installLoaderGrabberBridge(
 );
 const packetsBridge = installPacketsBridge(flashRuntime, desktop.packets);
 const gameRendererGeneration = desktop.gameRenderer.getGeneration();
+let markGroupCommandReceiverReady = (): void => {};
+const groupCommandReceiverReady = new Promise<void>((resolve) => {
+  markGroupCommandReceiverReady = resolve;
+});
 
-void Promise.all([flashRuntime.context(), gameRendererGeneration])
+void Promise.all([
+  flashRuntime.context(),
+  gameRendererGeneration,
+  groupCommandReceiverReady,
+])
   .then(([, generation]) => {
     performance.mark("lucent.game.flash-runtime-ready");
     return desktop.gameRenderer.ready(generation);
@@ -28,11 +36,19 @@ void Promise.all([flashRuntime.context(), gameRendererGeneration])
     console.warn("[flash] runtime initialization failed", cause);
   });
 
-mountDesktopRenderer((props) => <App {...props} />, {
-  cleanup: () => {
-    loaderGrabberBridge.dispose();
-    packetsBridge.dispose();
-    void flashRuntime.dispose();
+mountDesktopRenderer(
+  (props) => (
+    <App
+      {...props}
+      onGroupCommandReceiverReady={markGroupCommandReceiverReady}
+    />
+  ),
+  {
+    cleanup: () => {
+      loaderGrabberBridge.dispose();
+      packetsBridge.dispose();
+      void flashRuntime.dispose();
+    },
+    markReady: false,
   },
-  markReady: false,
-});
+);

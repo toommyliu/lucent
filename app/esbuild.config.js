@@ -90,14 +90,23 @@ const formatRendererContentSecurityPolicy = (overrides = {}) =>
     .map(([directive, sources]) => `${directive} ${sources.join(" ")}`)
     .join("; ");
 
-const createRendererView = (id, title, options = {}) => ({
-  entryPoint: `src/renderer/apps/${id}/index.tsx`,
+const createRendererView = (
   id,
+  title,
+  { sourceDir = `src/renderer/apps/${id}`, ...options } = {},
+) => ({
+  entryPoint: `${sourceDir}/index.tsx`,
+  id,
+  sourceDir,
   title,
   ...options,
 });
 
 const rendererViews = [
+  createRendererView("game-group-controls", "Group Controls", {
+    sourceDir: "src/renderer/apps/game-host/group-controls",
+  }),
+  createRendererView("game-host", "Lucent"),
   createRendererView("game", "Lucent", {
     contentSecurityPolicy: {
       "default-src": ["'self'", "https://game.aq.com"],
@@ -178,12 +187,11 @@ ${body}    <div id="root"></div>
 
 const copyRendererFiles = () => {
   for (const view of rendererViews) {
-    const sourceDir = `src/renderer/apps/${view.id}`;
     const targetDir = `dist/renderer/${view.id}`;
     mkdirSync(targetDir, { recursive: true });
     writeFileSync(`${targetDir}/index.html`, rendererIndexHtml(view));
 
-    const stylePath = `${sourceDir}/style.css`;
+    const stylePath = `${view.sourceDir}/style.css`;
     const targetStylePath = `${targetDir}/style.css`;
     if (existsSync(stylePath)) {
       copyFileSync(stylePath, targetStylePath);
@@ -245,7 +253,7 @@ const notifyBuild = (label, options = {}) => {
 };
 
 const rendererStaticFilePaths = () =>
-  rendererViews.map((view) => `src/renderer/apps/${view.id}/style.css`);
+  rendererViews.map((view) => `${view.sourceDir}/style.css`);
 
 const fileChanged = (current, previous) =>
   current.mtimeMs !== previous.mtimeMs ||

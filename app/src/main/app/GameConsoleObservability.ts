@@ -6,7 +6,7 @@ import {
   type ServerResponse,
 } from "http";
 
-import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
+import { ipcMain, type IpcMainEvent } from "electron";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -1274,11 +1274,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
         const payload = decodedPayload.value;
 
-        const window = BrowserWindow.fromWebContents(event.sender);
-        if (window === null) {
-          return;
-        }
-        const browserWindowId = window.id;
+        const browserWindowId = event.sender.id;
 
         void runPromise(
           windows.getBrowserWindowKind(browserWindowId).pipe(

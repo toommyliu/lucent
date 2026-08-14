@@ -1085,7 +1085,7 @@
   min-height: 0;
   overscroll-behavior: contain;
   overflow: auto;
-  padding: 0 0.25rem 0.25rem;
+  padding: 0;
 }
 
 .account-manager__sessions-table-frame::-webkit-scrollbar-track:vertical {
@@ -1126,6 +1126,8 @@
 }
 
 .account-manager__sessions-table-card.card {
+  border: 0;
+  border-radius: 0;
   margin: 0;
   min-width: 42rem;
   overflow: hidden;
@@ -1184,6 +1186,23 @@
 
 .account-manager__sessions-table tbody tr:hover {
   background: rgb(var(--card));
+}
+
+.account-manager__sessions-table
+  tr.account-manager__session-group-heading,
+.account-manager__sessions-table
+  tr.account-manager__session-group-heading:hover {
+  background: rgba(var(--muted), 0.72);
+  transition: none;
+}
+
+.account-manager__session-group-heading th {
+  border-top: 1px solid rgba(var(--border), 0.72);
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 0.4375rem 0.75rem;
+  text-align: start;
 }
 
 .account-manager__sessions-table
@@ -1540,6 +1559,10 @@
     gap: 0.625rem;
   }
 
+  .account-manager__sessions-table tbody + tbody {
+    margin-top: 0.625rem;
+  }
+
   .account-manager__sessions-table tbody tr {
     border: 1px solid rgba(var(--border), 0.86);
     border-radius: var(--radius-lg);
@@ -1547,6 +1570,19 @@
     gap: 0.625rem 1rem;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: 0.75rem;
+  }
+
+  .account-manager__sessions-table
+    tbody
+    tr.account-manager__session-group-heading {
+    display: block;
+    padding: 0;
+  }
+
+  .account-manager__session-group-heading th {
+    border: 0;
+    display: block;
+    padding: 0.5rem 0.75rem;
   }
 
   .account-manager__sessions-table td {

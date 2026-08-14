@@ -155,7 +155,10 @@ describe("DesktopSettings", () => {
       yield* Effect.all(
         [
           settings.updateAppearance({ themeMode: "light" }),
-          settings.updatePreferences({ launchMode: "account-manager" }),
+          settings.updatePreferences({
+            groupGameViews: true,
+            launchMode: "account-manager",
+          }),
         ],
         { concurrency: "unbounded" },
       );
@@ -167,12 +170,17 @@ describe("DesktopSettings", () => {
         ),
       ) as {
         readonly appearance?: { readonly themeMode?: string };
-        readonly preferences?: { readonly launchMode?: string };
+        readonly preferences?: {
+          readonly groupGameViews?: boolean;
+          readonly launchMode?: string;
+        };
       };
 
       expect(current.appearance.themeMode).toBe("light");
+      expect(current.preferences.groupGameViews).toBe(true);
       expect(current.preferences.launchMode).toBe("account-manager");
       expect(persisted.appearance?.themeMode).toBe("light");
+      expect(persisted.preferences?.groupGameViews).toBe(true);
       expect(persisted.preferences?.launchMode).toBe("account-manager");
     }),
   );

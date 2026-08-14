@@ -1,5 +1,6 @@
 import {
   BrowserWindow,
+  type BrowserView,
   screen,
   type BrowserWindowConstructorOptions,
   type WebContents,
@@ -17,11 +18,14 @@ export {
 import { isElectronWindowUsable } from "./windowUsability";
 
 export interface ElectronWindowWebContents {
+  readonly focus: WebContents["focus"];
   readonly id: number;
+  readonly invalidate: WebContents["invalidate"];
   readonly isDestroyed: () => boolean;
   readonly off: WebContents["removeListener"];
   readonly on: WebContents["on"];
   readonly openDevTools: (options?: { readonly mode?: string }) => void;
+  readonly send: WebContents["send"];
   readonly setWindowOpenHandler?: (
     handler: (details: { readonly url: string }) => { readonly action: "deny" },
   ) => void;
@@ -30,19 +34,24 @@ export interface ElectronWindowWebContents {
 export interface ElectronWindowHandle {
   readonly id: number;
   readonly webContents: ElectronWindowWebContents;
+  readonly addBrowserView: (browserView: BrowserView) => void;
   readonly close: () => void;
   readonly destroy: () => void;
   readonly focus: () => void;
   readonly hide: () => void;
   readonly isDestroyed: () => boolean;
+  readonly isFocused: () => boolean;
   readonly isMinimized: () => boolean;
   readonly isVisible: () => boolean;
+  readonly getContentBounds: BrowserWindow["getContentBounds"];
   readonly loadFile: (path: string) => Promise<void>;
   readonly on: BrowserWindow["on"];
   readonly once: BrowserWindow["once"];
   readonly restore: () => void;
+  readonly removeBrowserView: (browserView: BrowserView) => void;
   readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
+  readonly setTopBrowserView: (browserView: BrowserView) => void;
   readonly show: () => void;
 }
 

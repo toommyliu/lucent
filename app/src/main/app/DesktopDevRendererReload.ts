@@ -1,11 +1,11 @@
 import { watchFile, unwatchFile, type Stats } from "fs";
 
-import { BrowserWindow } from "electron";
+import { webContents } from "electron";
 
 import * as Effect from "effect/Effect";
 
 import { DesktopObservability } from "./DesktopObservability";
-import { reloadUsableRendererWindows } from "./DesktopDevRendererReloadWindows";
+import { reloadUsableRendererContents } from "./DesktopDevRendererReloadContents";
 
 const RELOAD_WATCH_INTERVAL_MS = 100;
 
@@ -16,8 +16,10 @@ const shouldIgnoreReloadFileChange = (
   current.mtimeMs === 0 ||
   (current.mtimeMs === previous.mtimeMs && current.size === previous.size);
 
-const reloadOpenRendererWindows = (): number =>
-  reloadUsableRendererWindows(BrowserWindow.getAllWindows());
+// The global registry includes detached BrowserViews, such as the preloaded
+// group-controls view while its popover is closed.
+const reloadOpenRendererContents = (): number =>
+  reloadUsableRendererContents(webContents.getAllWebContents());
 
 export const installDesktopDevRendererReload = Effect.gen(function* () {
   const reloadPath = process.env["LUCENT_DEV_RENDERER_RELOAD"];
@@ -33,11 +35,11 @@ export const installDesktopDevRendererReload = Effect.gen(function* () {
       return;
     }
 
-    const windowCount = reloadOpenRendererWindows();
+    const rendererCount = reloadOpenRendererContents();
     void runPromise(
       observability.info("dev", "Renderer reload requested", {
         reloadPath,
-        windowCount,
+        rendererCount,
       }),
     ).catch(() => undefined);
   };

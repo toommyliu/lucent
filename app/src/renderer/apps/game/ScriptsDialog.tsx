@@ -2187,12 +2187,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                         <span class="game-scripts-dialog__script-name">
                                           {script.name}
                                         </span>
-                                        <Icon
-                                          aria-hidden="true"
-                                          class="game-scripts-dialog__script-open-icon"
-                                          icon="arrow_up_right"
-                                          size="xs"
-                                        />
                                       </button>
                                     </div>
                                     <div class="game-scripts-dialog__row-actions">

@@ -1,5 +1,6 @@
 import {
   app,
+  BrowserWindow,
   dialog,
   type MessageBoxOptions,
   type MessageBoxReturnValue,
@@ -40,6 +41,7 @@ export interface ElectronDialogShape {
   ) => Effect.Effect<MessageBoxReturnValue, ElectronDialogMessageBoxError>;
   readonly showOpenDialog: (
     options: OpenDialogOptions,
+    parentWindowId?: number,
   ) => Effect.Effect<OpenDialogReturnValue, ElectronDialogOpenDialogError>;
   readonly showErrorBox: (
     title: string,
@@ -63,9 +65,22 @@ const showMessageBox: ElectronDialogShape["showMessageBox"] = (options) =>
     catch: (cause) => new ElectronDialogMessageBoxError({ cause }),
   });
 
-const showOpenDialog: ElectronDialogShape["showOpenDialog"] = (options) =>
+const showOpenDialog: ElectronDialogShape["showOpenDialog"] = (
+  options,
+  parentWindowId,
+) =>
   Effect.tryPromise({
-    try: () => dialog.showOpenDialog(options),
+    try: () => {
+      if (parentWindowId === undefined) {
+        return dialog.showOpenDialog(options);
+      }
+
+      const browserWindow = BrowserWindow.fromId(parentWindowId);
+      if (browserWindow === null) {
+        throw new Error(`Browser window is not open: ${parentWindowId}`);
+      }
+      return dialog.showOpenDialog(browserWindow, options);
+    },
     catch: (cause) => new ElectronDialogOpenDialogError({ cause }),
   });
 

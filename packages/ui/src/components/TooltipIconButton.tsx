@@ -1,59 +1,56 @@
-import type { JSX } from "solid-js";
+import { mergeProps, splitProps, type JSX } from "solid-js";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   type TooltipProps,
 } from "./Tooltip";
-import {
-  IconButton,
-  type IconButtonProps,
-  type IconButtonSize,
-} from "./IconButton";
+import { IconButton, type IconButtonProps } from "./IconButton";
 
-export interface TooltipIconButtonProps {
-  readonly "aria-label": string;
-  readonly children: JSX.Element;
-  readonly class?: string;
-  readonly disabled?: boolean;
+export interface TooltipIconButtonProps extends Omit<IconButtonProps, "title"> {
   readonly open?: TooltipProps["open"];
   readonly portal?: boolean;
   readonly positioning?: TooltipProps["positioning"];
-  readonly size?: IconButtonSize;
   readonly tooltip: JSX.Element;
-  readonly type?: IconButtonProps["type"];
-  readonly variant?: IconButtonProps["variant"];
-  readonly onClick?: JSX.EventHandler<HTMLButtonElement, MouseEvent>;
 }
 
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
+  const [local, buttonProps] = splitProps(props, [
+    "open",
+    "portal",
+    "positioning",
+    "tooltip",
+  ]);
+  const resolvedButtonProps = mergeProps(
+    {
+      size: "icon-sm" as const,
+      type: "button" as const,
+      variant: "ghost" as const,
+    },
+    buttonProps,
+  );
+
   return (
     <Tooltip
       closeDelay={0}
-      open={props.open}
+      open={local.open}
       openDelay={200}
-      positioning={{ placement: "top", ...props.positioning }}
+      positioning={{ placement: "top", ...local.positioning }}
     >
       <TooltipTrigger
         asChild={(triggerProps) => (
           <IconButton
-            {...(triggerProps({
-              "aria-label": props["aria-label"],
-              children: props.children,
-              class: props.class,
-              disabled: props.disabled,
-              onClick: props.onClick,
-              size: props.size ?? "icon-sm",
-              type: props.type ?? "button",
-              variant: props.variant ?? "ghost",
-            } as IconButtonProps) as IconButtonProps)}
+            {...(triggerProps(
+              resolvedButtonProps as IconButtonProps,
+            ) as IconButtonProps)}
+            data-tooltip-icon-button=""
           />
         )}
       />
       <TooltipContent
-        {...(props.portal === undefined ? null : { portal: props.portal })}
+        {...(local.portal === undefined ? null : { portal: local.portal })}
       >
-        {props.tooltip}
+        {local.tooltip}
       </TooltipContent>
     </Tooltip>
   );

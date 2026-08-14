@@ -126,7 +126,6 @@ describe("DesktopIpc", () => {
         },
       };
       const ipc = makeDesktopIpc(main, {
-        fromId: () => null,
         getAllWindows: () => [racedWindow, receivingWindow],
       });
 
@@ -161,7 +160,6 @@ describe("DesktopIpc", () => {
           },
         };
         const ipc = makeDesktopIpc(main, {
-          fromId: () => null,
           getAllWindows: () => [failingWindow, receivingWindow],
         });
 
@@ -177,5 +175,38 @@ describe("DesktopIpc", () => {
         }
         expect(delivered).toEqual(["hello"]);
       }),
+  );
+
+  it.effect("delivers events to hosted views and renderer ids", () =>
+    Effect.gen(function* () {
+      const { main } = makeIpcMain();
+      const delivered: string[] = [];
+      const hostedContents = {
+        isDestroyed: () => false,
+        send: (_channel: string, payload: unknown) => {
+          delivered.push(`view:${String(payload)}`);
+        },
+      };
+      const hostWindow: DesktopIpcWindow = {
+        getBrowserViews: () => [{ webContents: hostedContents }],
+        isDestroyed: () => false,
+        webContents: {
+          isDestroyed: () => false,
+          send: (_channel, payload) => {
+            delivered.push(`host:${String(payload)}`);
+          },
+        },
+      };
+      const ipc = makeDesktopIpc(
+        main,
+        { getAllWindows: () => [hostWindow] },
+        { fromId: (id) => (id === 42 ? hostedContents : undefined) },
+      );
+
+      yield* ipc.sendToAll(eventDescriptor, "all");
+      yield* ipc.sendToBrowserWindowIds([42, 404], eventDescriptor, "target");
+
+      expect(delivered).toEqual(["host:all", "view:all", "view:target"]);
+    }),
   );
 });

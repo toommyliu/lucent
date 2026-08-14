@@ -19,6 +19,8 @@ const DesktopBridgeViewSchema = Schema.Literals([
   "environment",
   "follower",
   "game",
+  "game-group-controls",
+  "game-host",
   "loader-grabber",
   "packets",
   "settings",

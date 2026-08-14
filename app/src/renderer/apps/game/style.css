@@ -1825,24 +1825,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   opacity: 0.75;
 }
 
-.game-scripts-dialog__script-open-icon {
-  color: rgb(var(--muted-foreground));
-  flex: 0 0 auto;
-  opacity: 0;
-  transition: opacity var(--duration-fast) ease;
-}
-
 .game-scripts-dialog__script-path:hover
   .game-scripts-dialog__script-name {
   text-decoration: underline;
   text-underline-offset: 0.2rem;
-}
-
-.game-scripts-dialog__script-row:hover
-  .game-scripts-dialog__script-open-icon,
-.game-scripts-dialog__script-path:focus-visible
-  .game-scripts-dialog__script-open-icon {
-  opacity: 0.72;
 }
 
 .game-scripts-dialog__script-path:focus-visible {

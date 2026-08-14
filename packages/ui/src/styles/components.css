@@ -2838,6 +2838,10 @@ a.badge--destructive:hover {
 
 /* Tooltip */
 
+.button[data-tooltip-icon-button]:disabled {
+  pointer-events: auto;
+}
+
 .tooltip__content {
   background: rgb(var(--popover));
   border: 1px solid rgb(var(--border));

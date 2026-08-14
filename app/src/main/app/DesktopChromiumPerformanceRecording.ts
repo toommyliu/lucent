@@ -452,7 +452,11 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     const kind = yield* windows
       .getBrowserWindowKind(target.browserWindowId)
       .pipe(Effect.catch(() => Effect.succeed(null)));
-    if (kind === null) {
+    if (
+      kind === null ||
+      kind === "game-group-controls" ||
+      kind === "game-host"
+    ) {
       return undefined;
     }
 

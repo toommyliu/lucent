@@ -196,6 +196,11 @@ const icons = {
     ["path", { d: "M12 18H7a2 2 0 0 1-2-2V9" }],
     ["path", { d: "m9 15 3 3-3 3" }],
   ],
+  grid_2x2: [
+    ["path", { d: "M12 3v18" }],
+    ["path", { d: "M3 12h18" }],
+    ["rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }],
+  ],
   help_circle: [
     ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
     ["path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3", key: "1u773s" }],
@@ -231,10 +236,30 @@ const icons = {
   // Local spinner arc: 270deg from 12 o'clock to 9 o'clock, so reduced-motion
   // states read as intentional loading instead of a frozen animation frame.
   loader_circle: [["path", { d: "M12 3a9 9 0 1 1-9 9", key: "13zald" }]],
+  maximize_2: [
+    ["path", { d: "M15 3h6v6" }],
+    ["path", { d: "m21 3-7 7" }],
+    ["path", { d: "m3 21 7-7" }],
+    ["path", { d: "M9 21H3v-6" }],
+  ],
   monitor: [
     ["rect", { width: "20", height: "14", x: "2", y: "3", rx: "2" }],
     ["line", { x1: "8", x2: "16", y1: "21", y2: "21" }],
     ["line", { x1: "12", x2: "12", y1: "17", y2: "21" }],
+  ],
+  monitor_cog: [
+    ["path", { d: "M12 17v4" }],
+    ["path", { d: "m14.305 7.53.923-.382" }],
+    ["path", { d: "m15.228 4.852-.923-.383" }],
+    ["path", { d: "m16.852 3.228-.383-.924" }],
+    ["path", { d: "m16.852 8.772-.383.923" }],
+    ["path", { d: "m19.148 3.228.383-.924" }],
+    ["path", { d: "m19.53 9.696-.382-.924" }],
+    ["path", { d: "m20.772 4.852.924-.383" }],
+    ["path", { d: "m20.772 7.148.924.383" }],
+    ["path", { d: "M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" }],
+    ["path", { d: "M8 21h8" }],
+    ["circle", { cx: "18", cy: "6", r: "3" }],
   ],
   pause: [
     [
@@ -354,12 +379,6 @@ const icons = {
     ["path", { d: "M8 10v4", key: "tgpxqk" }],
     ["path", { d: "M8 12H3", key: "a7s4jb" }],
   ],
-  square: [
-    [
-      "rect",
-      { width: "18", height: "18", x: "3", y: "3", rx: "2", key: "afitv7" },
-    ],
-  ],
   trash_2: [
     ["path", { d: "M10 11v6", key: "nco0om" }],
     ["path", { d: "M14 11v6", key: "outv1u" }],
@@ -387,12 +406,6 @@ const icons = {
   user_round: [
     ["circle", { cx: "12", cy: "8", r: "5", key: "1hypcn" }],
     ["path", { d: "M20 21a8 8 0 0 0-16 0", key: "rfgkzh" }],
-  ],
-  users: [
-    ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", key: "1yyitq" }],
-    ["path", { d: "M16 3.128a4 4 0 0 1 0 7.744", key: "16gr8j" }],
-    ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87", key: "kshegd" }],
-    ["circle", { cx: "9", cy: "7", r: "4", key: "nufk8" }],
   ],
   x: [
     ["path", { d: "M18 6 6 18", key: "1bl5f8" }],

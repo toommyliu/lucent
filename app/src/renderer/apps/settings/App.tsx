@@ -79,6 +79,7 @@ import {
   type ThemeVariant,
 } from "@lucent/core/settings";
 import type { UpdateCheckState } from "../../../shared/updates";
+import { MAX_GAME_VIEWS_PER_WINDOW } from "../../../shared/gameViews";
 
 type HotkeyBindings = readonly HotkeyBinding[];
 type HotkeyListSegment =
@@ -687,7 +688,7 @@ function GeneralSettings(props: {
         action={
           <Switch
             aria-label="Check for updates"
-            size="default"
+            size="lg"
             checked={props.settings.preferences.checkForUpdates}
             onChange={(event) =>
               props.onPreferencesPatch({
@@ -746,6 +747,32 @@ function GeneralSettings(props: {
         description="Choose which window opens when the app starts."
         title="Launch mode"
       />
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Use game tabs"
+            checked={props.settings.preferences.groupGameViews}
+            onChange={(event) =>
+              props.onPreferencesPatch({
+                groupGameViews: event.currentTarget.checked,
+              })
+            }
+            size="lg"
+          />
+        }
+        class="settings-row--switch settings-row--with-subitem"
+        description={`Open up to ${MAX_GAME_VIEWS_PER_WINDOW} tabs in one window. Existing windows are unchanged.`}
+        title="Use game tabs"
+      >
+        <div class="settings-policy-note">
+          <div class="settings-policy-note__label">AQW settings</div>
+          <p class="settings-policy-note__description">
+            Each saved account remembers its own settings. Tabs opened without a
+            saved account, or a second tab for the same account, do not remember
+            changes after they close.
+          </p>
+        </div>
+      </SettingsRow>
     </SettingsSection>
   );
 }
@@ -1359,7 +1386,7 @@ function AppearanceSettings(props: {
                 useCursorPointers: event.currentTarget.checked,
               })
             }
-            size="default"
+            size="lg"
           />
         }
         class="settings-row--switch"

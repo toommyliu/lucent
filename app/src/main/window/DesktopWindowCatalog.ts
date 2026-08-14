@@ -7,6 +7,10 @@ export type DesktopWindowKind =
   | "loader-grabber"
   | "packets"
   | "settings";
+export type DesktopRendererKind =
+  | DesktopWindowKind
+  | "game-group-controls"
+  | "game-host";
 export type DesktopWindowCloseBehavior = "destroy" | "hide";
 export type DesktopWindowScope = "application" | "game" | "game-child";
 

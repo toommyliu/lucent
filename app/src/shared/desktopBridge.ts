@@ -102,6 +102,15 @@ import type {
   PacketSendPayload,
   PacketsStatusPayload,
 } from "./packets";
+import type {
+  GameViewGroupCommandDispatchResult,
+  GameViewGroupCommandDispatchRequest,
+  GameViewGroupCommandEnvelope,
+  GameViewHostState,
+  GameViewLayout,
+  GameViewPresentation,
+  GameViewSelectionFocus,
+} from "./gameViews";
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
@@ -110,6 +119,8 @@ export type DesktopBridgeView =
   | "environment"
   | "follower"
   | "game"
+  | "game-group-controls"
+  | "game-host"
   | "loader-grabber"
   | "packets"
   | "settings";
@@ -209,6 +220,9 @@ export interface DesktopAccountsBridge {
   readonly closeGameWindow: (
     request: AccountGameWindowTargetRequest,
   ) => Promise<AccountManagerState>;
+  readonly closeGameWindows: (
+    gameWindowIds: readonly number[],
+  ) => Promise<AccountManagerState>;
   readonly createAccount: (
     draft: ManagedAccountDraft,
   ) => Promise<AccountManagerState>;
@@ -216,6 +230,9 @@ export interface DesktopAccountsBridge {
     draft: ManagedAccountGroupDraft,
   ) => Promise<AccountManagerState>;
   readonly deleteAccount: (username: string) => Promise<AccountManagerState>;
+  readonly deleteAccounts: (
+    usernames: readonly string[],
+  ) => Promise<AccountManagerState>;
   readonly deleteGroup: (name: string) => Promise<AccountManagerState>;
   readonly focusGameWindow: (
     request: AccountGameWindowTargetRequest,
@@ -264,6 +281,46 @@ export interface DesktopGameRendererBridge {
   readonly getGeneration: () => Promise<number>;
   /** Marks the current game renderer generation ready to receive commands. */
   readonly ready: (generation: number) => Promise<void>;
+}
+
+export interface DesktopGameViewHostBridge {
+  readonly add: () => Promise<GameViewHostState>;
+  readonly close: (id: string) => Promise<void>;
+  readonly dispatchGroupCommand: (
+    request: GameViewGroupCommandDispatchRequest,
+  ) => Promise<GameViewGroupCommandDispatchResult>;
+  readonly getState: () => Promise<GameViewHostState>;
+  readonly onChanged: (
+    listener: (state: GameViewHostState) => void,
+  ) => () => void;
+  readonly onShortcutModifierChanged: (
+    listener: (pressed: boolean) => void,
+  ) => () => void;
+  readonly onTabMenuOpenChanged: (
+    listener: (open: boolean) => void,
+  ) => () => void;
+  readonly reorder: (ids: readonly string[]) => Promise<GameViewHostState>;
+  readonly select: (
+    id: string,
+    focus: GameViewSelectionFocus,
+  ) => Promise<GameViewHostState>;
+  readonly setGroupControlsOpen: (open: boolean) => Promise<GameViewHostState>;
+  readonly setGroupTargets: (
+    ids: readonly string[],
+  ) => Promise<GameViewHostState>;
+  readonly setLayout: (layout: GameViewLayout) => Promise<GameViewHostState>;
+  readonly setTabMenuOpen: (open: boolean) => Promise<boolean>;
+}
+
+export interface DesktopGameViewBridge {
+  readonly activate: () => Promise<GameViewPresentation>;
+  readonly getPresentation: () => Promise<GameViewPresentation>;
+  readonly onGroupCommand: (
+    listener: (envelope: GameViewGroupCommandEnvelope) => void,
+  ) => () => void;
+  readonly onPresentationChanged: (
+    listener: (presentation: GameViewPresentation) => void,
+  ) => () => void;
 }
 
 export interface DesktopWindowsBridge {
@@ -442,6 +499,8 @@ interface DesktopBridgeCapabilities {
   readonly gameConsoleObservability: DesktopGameConsoleObservabilityBridge;
   readonly gameFollower: DesktopGameFollowerBridge;
   readonly gameRenderer: DesktopGameRendererBridge;
+  readonly gameView: DesktopGameViewBridge;
+  readonly gameViewHost: DesktopGameViewHostBridge;
   readonly scripting: DesktopScriptingBridge;
   readonly updates: DesktopUpdatesBridge;
   readonly windows: DesktopWindowsBridge;
@@ -467,15 +526,21 @@ interface DesktopBridgeViewCapabilities {
     | "gameAccounts"
     | "gameFollower"
     | "gameRenderer"
+    | "gameView"
     | "scripting"
     | "windows"
   > & {
     readonly loaderGrabber: DesktopGameLoaderGrabberBridge;
     readonly packets: DesktopGamePacketsBridge;
   } & Partial<Pick<DesktopBridgeCapabilities, "gameConsoleObservability">>;
+  readonly "game-group-controls": Pick<
+    DesktopBridgeCapabilities,
+    "gameViewHost"
+  >;
   readonly "loader-grabber": {
     readonly loaderGrabber: DesktopLoaderGrabberWindowBridge;
   };
+  readonly "game-host": Pick<DesktopBridgeCapabilities, "gameViewHost">;
   readonly packets: {
     readonly packets: DesktopPacketsWindowBridge;
   };

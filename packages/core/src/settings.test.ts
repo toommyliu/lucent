@@ -7,6 +7,7 @@ describe("settings", () => {
     const normalized = normalizeAppSettings({
       version: 0,
       preferences: {
+        groupGameViews: true,
         launchMode: "account-manager",
       },
       hotkeys: {
@@ -34,6 +35,9 @@ describe("settings", () => {
       },
     });
     const serialized = serializeAppSettings(normalized) as {
+      readonly preferences: {
+        readonly groupGameViews: boolean;
+      };
       readonly appearance: {
         readonly themes: {
           readonly light: { readonly tokens: Record<string, string> };
@@ -43,7 +47,9 @@ describe("settings", () => {
     };
 
     expect(normalized.version).toBe(1);
+    expect(normalized.preferences.groupGameViews).toBe(true);
     expect(normalized.preferences.launchMode).toBe("account-manager");
+    expect(serialized.preferences.groupGameViews).toBe(true);
     expect(
       normalized.hotkeys.bindings.find(({ id }) => id === "loadScript")?.value,
     ).toBe("Control+Shift+L");

@@ -119,7 +119,7 @@ export const openFile = makeDesktopIpcMethod({
   allowedSenders: scriptingSenders,
   handler: Effect.fn("desktop.ipc.scripting.openFile")(function* () {
     const scripts = yield* DesktopScriptLibrary;
-    return yield* scripts.openFile;
+    return yield* scripts.openFile();
   }),
 });
 

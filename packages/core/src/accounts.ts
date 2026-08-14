@@ -108,6 +108,8 @@ export type AccountGameServerPingsResult =
 
 export const AccountScriptSessionSchema = Schema.Struct({
   gameWindowId: Schema.Number,
+  gameWindowGroupId: Schema.optionalKey(Schema.Number),
+  authenticated: Schema.optionalKey(Schema.Boolean),
   launchUsername: Schema.optionalKey(Schema.String),
   currentUsername: Schema.optionalKey(Schema.String),
   scriptName: Schema.optionalKey(Schema.String),
@@ -195,7 +197,8 @@ export type AccountGameLaunchPayload =
   typeof AccountGameLaunchPayloadSchema.Type;
 
 export const AccountScriptStatusUpdateSchema = Schema.Struct({
-  currentUsername: Schema.optionalKey(Schema.String),
+  // null explicitly clears an authenticated session; undefined preserves it.
+  currentUsername: Schema.optionalKey(Schema.NullOr(Schema.String)),
   scriptName: Schema.optionalKey(Schema.String),
   status: AccountScriptStatusSchema,
   message: Schema.optionalKey(Schema.String),

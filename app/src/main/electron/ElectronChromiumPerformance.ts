@@ -1,4 +1,9 @@
-import { BrowserWindow, contentTracing, type TraceConfig } from "electron";
+import {
+  contentTracing,
+  webContents,
+  type TraceConfig,
+  type WebContents,
+} from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -70,15 +75,12 @@ export class ElectronChromiumPerformance extends Context.Service<
   ElectronChromiumPerformanceShape
 >()("lucent/desktop/electron/ElectronChromiumPerformance") {}
 
-const rendererWindow = (browserWindowId: number): BrowserWindow => {
-  const window = BrowserWindow.fromId(browserWindowId);
-  if (window === null || window.isDestroyed()) {
-    throw new Error(`Electron window is not available: ${browserWindowId}`);
-  }
-  if (window.webContents.isDestroyed()) {
+const rendererWebContents = (browserWindowId: number): WebContents => {
+  const renderer = webContents.fromId(browserWindowId);
+  if (renderer === undefined || renderer.isDestroyed()) {
     throw new Error(`Electron renderer is not available: ${browserWindowId}`);
   }
-  return window;
+  return renderer;
 };
 
 const finiteNumberProperty = (
@@ -121,8 +123,8 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
     }
 
     const request = (async () => {
-      const window = rendererWindow(browserWindowId);
-      const rendererDebugger = window.webContents.debugger;
+      const renderer = rendererWebContents(browserWindowId);
+      const rendererDebugger = renderer.debugger;
 
       if (
         attachedRendererDebuggers.has(browserWindowId) &&
@@ -132,10 +134,7 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
       }
 
       if (!attachedRendererDebuggers.has(browserWindowId)) {
-        if (
-          window.webContents.isDevToolsOpened() ||
-          rendererDebugger.isAttached()
-        ) {
+        if (renderer.isDevToolsOpened() || rendererDebugger.isAttached()) {
           throw new Error(
             `Electron renderer debugger is already in use: ${browserWindowId}`,
           );
@@ -164,15 +163,14 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
   const releaseRendererDebuggers: Effect.Effect<void> = Effect.sync(() => {
     rendererHeapUsageRequests.clear();
     for (const browserWindowId of attachedRendererDebuggers) {
-      const window = BrowserWindow.fromId(browserWindowId);
+      const renderer = webContents.fromId(browserWindowId);
       if (
-        window !== null &&
-        !window.isDestroyed() &&
-        !window.webContents.isDestroyed() &&
-        window.webContents.debugger.isAttached()
+        renderer !== undefined &&
+        !renderer.isDestroyed() &&
+        renderer.debugger.isAttached()
       ) {
         try {
-          window.webContents.debugger.detach();
+          renderer.debugger.detach();
         } catch {
           // The renderer may disappear between the lifecycle checks and detach.
         }
@@ -214,14 +212,14 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
     }),
     getRendererHeapUsage,
     getRendererTargets: Effect.sync(() =>
-      BrowserWindow.getAllWindows().flatMap((window) => {
-        if (window.isDestroyed() || window.webContents.isDestroyed()) {
+      webContents.getAllWebContents().flatMap((renderer) => {
+        if (renderer.isDestroyed()) {
           return [];
         }
         return [
           {
-            browserWindowId: window.id,
-            osProcessId: window.webContents.getOSProcessId(),
+            browserWindowId: renderer.id,
+            osProcessId: renderer.getOSProcessId(),
           },
         ];
       }),
@@ -261,9 +259,7 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
     takeRendererHeapSnapshot: (browserWindowId, filePath) =>
       Effect.tryPromise({
         try: () =>
-          rendererWindow(browserWindowId).webContents.takeHeapSnapshot(
-            filePath,
-          ),
+          rendererWebContents(browserWindowId).takeHeapSnapshot(filePath),
         catch: (cause) =>
           new ElectronChromiumPerformanceError({
             cause,

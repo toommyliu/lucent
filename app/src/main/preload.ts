@@ -26,6 +26,8 @@ import type {
   DesktopGameFollowerBridge,
   DesktopGameLoaderGrabberBridge,
   DesktopGamePacketsBridge,
+  DesktopGameViewBridge,
+  DesktopGameViewHostBridge,
   DesktopLoaderGrabberWindowBridge,
   DesktopPacketsWindowBridge,
   DesktopScriptingBridge,
@@ -41,6 +43,7 @@ import {
   EnvironmentIpc,
   FollowerIpc,
   GameRendererIpc,
+  GameViewsIpc,
   ScriptingIpc,
   SettingsIpc,
   UpdatesIpc,
@@ -128,9 +131,13 @@ const combatProfilesBridge: DesktopCombatProfilesBridge = {
 
 const accountsBridge: DesktopAccountsBridge = {
   closeGameWindow: (request) => invoke(AccountsIpc.closeGameWindow, request),
+  closeGameWindows: (gameWindowIds) =>
+    invoke(AccountsIpc.closeGameWindows, { gameWindowIds }),
   createAccount: (draft) => invoke(AccountsIpc.createAccount, draft),
   createGroup: (draft) => invoke(AccountsIpc.createGroup, draft),
   deleteAccount: (username) => invoke(AccountsIpc.deleteAccount, { username }),
+  deleteAccounts: (usernames) =>
+    invoke(AccountsIpc.deleteAccounts, { usernames }),
   deleteGroup: (name) => invoke(AccountsIpc.deleteGroup, { name }),
   focusGameWindow: (request) => invoke(AccountsIpc.focusGameWindow, request),
   getServerPings: () => invoke(AccountsIpc.getServerPings, undefined),
@@ -201,6 +208,34 @@ const windowsBridge: DesktopWindowsBridge = {
 const loaderGrabberWindowBridge: DesktopLoaderGrabberWindowBridge = {
   grab: (payload) => invoke(LoaderGrabberIpc.grab, payload),
   load: (payload) => invoke(LoaderGrabberIpc.load, payload),
+};
+
+const gameViewHostBridge: DesktopGameViewHostBridge = {
+  add: () => invoke(GameViewsIpc.add, undefined),
+  close: (id) => invoke(GameViewsIpc.close, { id }),
+  dispatchGroupCommand: (request) =>
+    invoke(GameViewsIpc.dispatchGroupCommand, request),
+  getState: () => invoke(GameViewsIpc.getState, undefined),
+  onChanged: (listener) => subscribe(GameViewsIpc.changed, listener),
+  onShortcutModifierChanged: (listener) =>
+    subscribe(GameViewsIpc.shortcutModifierChanged, listener),
+  onTabMenuOpenChanged: (listener) =>
+    subscribe(GameViewsIpc.tabMenuOpenChanged, listener),
+  reorder: (ids) => invoke(GameViewsIpc.reorder, { ids }),
+  select: (id, focus) => invoke(GameViewsIpc.select, { focus, id }),
+  setGroupControlsOpen: (open) =>
+    invoke(GameViewsIpc.setGroupControlsOpen, { open }),
+  setGroupTargets: (ids) => invoke(GameViewsIpc.setGroupTargets, { ids }),
+  setLayout: (layout) => invoke(GameViewsIpc.setLayout, { layout }),
+  setTabMenuOpen: (open) => invoke(GameViewsIpc.setTabMenuOpen, { open }),
+};
+
+const gameViewBridge: DesktopGameViewBridge = {
+  activate: () => invoke(GameViewsIpc.activate, undefined),
+  getPresentation: () => invoke(GameViewsIpc.getPresentation, undefined),
+  onGroupCommand: (listener) => subscribe(GameViewsIpc.groupCommand, listener),
+  onPresentationChanged: (listener) =>
+    subscribe(GameViewsIpc.presentationChanged, listener),
 };
 
 const gameLoaderGrabberBridge: DesktopGameLoaderGrabberBridge = {
@@ -402,6 +437,7 @@ const bridges = {
       getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
       ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
     },
+    gameView: gameViewBridge,
     loaderGrabber: gameLoaderGrabberBridge,
     packets: gamePacketsBridge,
     scripting: scriptingBridge,
@@ -410,6 +446,16 @@ const bridges = {
     ...(gameConsoleObservabilityEnabled
       ? { gameConsoleObservability: gameConsoleObservabilityBridge }
       : {}),
+  },
+  "game-group-controls": {
+    ...commonBridge,
+    gameViewHost: gameViewHostBridge,
+    view: "game-group-controls",
+  },
+  "game-host": {
+    ...commonBridge,
+    gameViewHost: gameViewHostBridge,
+    view: "game-host",
   },
   "loader-grabber": {
     ...commonBridge,
