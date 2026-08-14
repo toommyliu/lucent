@@ -1083,23 +1083,27 @@
   border-color: rgba(var(--border), 0.9);
   max-height: calc(100% - 0.625rem);
   min-height: 0;
-  overscroll-behavior: contain;
-  overflow: auto;
+  overflow: hidden;
   padding: 0;
 }
 
-.account-manager__sessions-table-frame::-webkit-scrollbar-track:vertical {
-  background: linear-gradient(
-    to bottom,
-    var(--account-manager-sessions-header-background) 0
-      var(--account-manager-sessions-header-height),
-    rgb(var(--scrollbar-track))
-      var(--account-manager-sessions-header-height)
-  );
+.account-manager__sessions-table-viewport {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.account-manager__sessions-table-frame::-webkit-scrollbar-thumb:vertical {
-  border-color: transparent;
+.account-manager__sessions-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 42rem;
+  overscroll-behavior: contain;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .account-manager__sessions-table-heading.card-frame__header {
@@ -1115,10 +1119,7 @@
   line-height: 1.25;
   min-width: 42rem;
   padding: 0;
-  position: sticky;
   text-align: start;
-  top: 0;
-  z-index: 2;
 }
 
 .account-manager__sessions-table-heading > span {
@@ -1130,7 +1131,7 @@
   border-radius: 0;
   margin: 0;
   min-width: 42rem;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .account-manager__sessions-table {
@@ -1197,12 +1198,16 @@
 }
 
 .account-manager__session-group-heading th {
+  background: var(--account-manager-sessions-header-background);
   border-top: 1px solid rgba(var(--border), 0.72);
   color: rgb(var(--muted-foreground));
   font-size: var(--text-xs);
   font-weight: 500;
   padding: 0.4375rem 0.75rem;
+  position: sticky;
   text-align: start;
+  top: 0;
+  z-index: 1;
 }
 
 .account-manager__sessions-table
@@ -1535,6 +1540,10 @@
     border-radius: 0;
     box-shadow: none;
     padding: 0;
+  }
+
+  .account-manager__sessions-table-body {
+    min-width: 0;
   }
 
   .account-manager__sessions-table-heading.card-frame__header {
