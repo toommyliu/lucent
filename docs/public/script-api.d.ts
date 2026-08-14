@@ -815,7 +815,7 @@ interface LiveAura extends LiveModel<AuraData> {
   readonly kind: AuraKind;
   readonly name: string;
   readonly stack: number;
-  readonly value: number | undefined;
+  readonly value: string | number | undefined;
   toJSON(): Readonly<AuraData>;
 }
 interface LiveFaction extends LiveModel<FactionData> {
@@ -1055,7 +1055,7 @@ interface AuraData {
   kind: AuraKind;
   name: string;
   stack: number;
-  value?: number;
+  value?: number | string;
 }
 interface FactionData {
   id: number;

@@ -745,6 +745,57 @@ describe("Projection", () => {
         expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
 
         yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: {
+                  isNew: true,
+                  nam: "Skill Locked",
+                  val: "Ravenous",
+                },
+                cmd: "aura+",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getPlayer(10))?.getAura("Skill Locked")?.value,
+        ).toBe("Ravenous");
+
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: {
+                  msgOff: "@Ravenous can now be used again!",
+                  nam: "Skill Locked",
+                  val: "Ravenous",
+                },
+                cmd: "aura-",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect(events.slice(-2)).toEqual([
+          {
+            type: "aura-removed",
+            name: "Skill Locked",
+            targetId: 10,
+            targetType: "player",
+          },
+          {
+            type: "update-message",
+            message: "Ravenous can now be used again!",
+            source: "aura",
+          },
+        ]);
+        expect(
+          (yield* store.world.getPlayer(10))?.getAura("Skill Locked"),
+        ).toBeNull();
+
+        yield* pipeline.packet(
           extension("moveToArea", {
             areaId: 13,
             areaName: "yulgar-1",
