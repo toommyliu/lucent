@@ -13,7 +13,7 @@ export interface Aura {
   readonly kind: AuraKind;
   readonly name: string;
   readonly stack: number;
-  readonly value: number | undefined;
+  readonly value: number | string | undefined;
   toJSON(): AuraSnapshot;
 }
 
@@ -24,7 +24,7 @@ export interface AuraData {
   kind: AuraKind;
   name: string;
   stack: number;
-  value?: number;
+  value?: number | string;
 }
 
 export type AuraSnapshot = Readonly<AuraData>;
@@ -48,7 +48,7 @@ export class LiveAura extends LiveModel<AuraData> implements Aura {
   get stack(): number {
     return this.modelData.stack;
   }
-  get value(): number | undefined {
+  get value(): number | string | undefined {
     return this.modelData.value;
   }
   toJSON(): AuraSnapshot {
