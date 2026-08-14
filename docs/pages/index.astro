@@ -314,7 +314,7 @@ const ogImage =
   }
 
   #lucent-landing .landing-download-group details {
-    position: relative;
+    position: static;
   }
 
   #lucent-landing .landing-download-group > a,
@@ -380,7 +380,7 @@ const ogImage =
     position: absolute;
     z-index: 50;
     top: calc(100% + 0.5rem);
-    right: 0;
+    inset-inline-end: 0;
     display: grid;
     width: 14rem;
     gap: 0.125rem;
@@ -441,7 +441,13 @@ const ogImage =
     );
   }
 
-  @media (max-width: 39.999rem) {
+  /** Keep the compact control within the content edge until the action row fits. */
+  @media (max-width: 42.499rem) {
+    #lucent-landing .landing-download-menu {
+      inset-inline-start: 0;
+      inset-inline-end: auto;
+    }
+
     #lucent-landing .landing-download-label > [data-landing-download-label] {
       display: none;
     }
