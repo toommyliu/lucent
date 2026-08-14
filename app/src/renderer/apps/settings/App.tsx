@@ -763,6 +763,15 @@ function GeneralSettings(props: {
         class="settings-row--switch settings-row--with-subitem"
         description={`Open up to ${MAX_GAME_VIEWS_PER_WINDOW} tabs in one window. Existing windows are unchanged.`}
         title="Use game tabs"
+        titleAction={
+          <TooltipIconButton
+            aria-label="About game tabs memory use"
+            positioning={{ placement: "top-start" }}
+            tooltip="Each additional tab starts another Flash process and increases memory use."
+          >
+            <Icon icon="info" class="button__icon" />
+          </TooltipIconButton>
+        }
       >
         <div class="settings-policy-note">
           <div class="settings-policy-note__label">AQW settings</div>
