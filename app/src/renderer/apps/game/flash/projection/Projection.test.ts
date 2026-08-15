@@ -21,6 +21,14 @@ const extension = (command: string, data: unknown): Packet => ({
   wireType: "json",
 });
 
+const stringExtension = (command: string, data: readonly string[]): Packet => ({
+  command,
+  data,
+  direction: "extension",
+  raw: data.join("%"),
+  wireType: "str",
+});
+
 const server = (command: string, data: unknown): Packet => ({
   command,
   data,
@@ -926,6 +934,60 @@ describe("Projection", () => {
           username: "Leader",
         },
       ]);
+    }),
+  );
+
+  it.effect("emits AFK state events for local and remote players", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore;
+      const events: Event[] = [];
+      const pipeline = makePipeline(store, {
+        publishEvent: (event) =>
+          Effect.sync(() => {
+            events.push(event);
+          }),
+      });
+
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 12,
+          areaName: "battleon-1",
+          monBranch: [],
+          uoBranch: [
+            { entID: 10, strUsername: "Hero" },
+            { entID: 11, strUsername: "Visitor" },
+          ],
+        }),
+      );
+      events.length = 0;
+
+      yield* pipeline.packet(
+        stringExtension("uotls", ["uotls", "12", "Hero", "afk:true"]),
+      );
+      yield* pipeline.packet(
+        stringExtension("uotls", ["uotls", "12", "Visitor", "afk:true"]),
+      );
+      yield* pipeline.packet(
+        extension("uotls", { o: { afk: false }, unm: "Visitor" }),
+      );
+
+      expect(events).toEqual([
+        { afk: true, entityId: 10, type: "player-afk", username: "Hero" },
+        {
+          afk: true,
+          entityId: 11,
+          type: "player-afk",
+          username: "Visitor",
+        },
+        {
+          afk: false,
+          entityId: 11,
+          type: "player-afk",
+          username: "Visitor",
+        },
+      ]);
+      expect((yield* store.world.getPlayer("Hero"))?.afk).toBe(true);
+      expect((yield* store.world.getPlayer("Visitor"))?.afk).toBe(false);
     }),
   );
 });

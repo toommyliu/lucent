@@ -27,6 +27,11 @@ type EventSelector = {
 } | {
     readonly type: "packet";
 } | {
+    readonly afk?: boolean;
+    readonly entityId?: number;
+    readonly type: "player-afk";
+    readonly username?: string;
+} | {
     readonly type: "join-map";
 } | {
     readonly type: "item-drop";
@@ -81,4 +86,4 @@ type EventSelector = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L116" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:116" title="app/src/renderer/apps/game/flash/contract/Event.ts:116" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:116</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L122" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:122" title="app/src/renderer/apps/game/flash/contract/Event.ts:122" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:122</code></a></p>

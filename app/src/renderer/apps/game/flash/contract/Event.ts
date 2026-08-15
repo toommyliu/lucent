@@ -13,6 +13,12 @@ export type ProtocolEvent = {
 
 export type ProjectionEvent =
   | {
+      readonly afk: boolean;
+      readonly entityId: number;
+      readonly type: "player-afk";
+      readonly username: string;
+    }
+  | {
       readonly type: "join-map";
       readonly map: {
         readonly id: number;
@@ -124,6 +130,12 @@ export type EventSelector =
     }
   | {
       readonly type: "packet";
+    }
+  | {
+      readonly afk?: boolean;
+      readonly entityId?: number;
+      readonly type: "player-afk";
+      readonly username?: string;
     }
   | {
       readonly type: "join-map";

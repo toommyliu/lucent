@@ -34,6 +34,7 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 | `monster-death` | <code>{ monsterMapId: number }</code> |
 | `monster-respawn` | <code>{ monsterMapId: number }</code> |
 | `packet` | <code>{ packet: <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="flash-packet" data-script-type-name="FlashPacket" href="/reference/scripting/types/flash-packet/" title="Preview FlashPacket">FlashPacket</a> }</code> |
+| `player-afk` | <code>{ afk: boolean; entityId: number; username: string }</code> |
 | `player-death` | <code>{ entityId: number; username: string }</code> |
 | `player-location` | <code>{ cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; destination: { readonly x: number; readonly y: number; }; kind: &quot;walk&quot; } &#124; { cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; kind: &quot;cell&quot; &#124; &quot;position&quot; }</code> |
 | `players-changed` | <code>{}</code> |

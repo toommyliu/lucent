@@ -665,6 +665,14 @@ export const projectExtensionWorld = (
             username: result.player.username,
           });
         }
+        if (decoded.value.o.afk !== undefined) {
+          events.push({
+            afk: decoded.value.o.afk,
+            entityId: result.player.entityId,
+            type: "player-afk",
+            username: result.player.username,
+          });
+        }
         return events;
       }
       case "mtls": {
