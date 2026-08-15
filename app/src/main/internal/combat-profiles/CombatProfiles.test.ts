@@ -12,6 +12,7 @@ import {
   DEFAULT_COMBAT_PROFILE_ID,
   normalizeCombatProfileLibrary,
   type CombatProfile,
+  type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
@@ -170,6 +171,66 @@ describe("CombatProfiles", () => {
 
       expect(error.operation).toBe("parse");
       expect(saved).toBe(original);
+    }),
+  );
+
+  it.effect(
+    "publishes a successful retry after an invalid file is repaired",
+    () =>
+      Effect.gen(function* () {
+        const { combatProfiles, path } = yield* makeHarness();
+        const changes: CombatProfileLibrary[] = [];
+        yield* combatProfiles.onChanged((library) => changes.push(library));
+        yield* Effect.promise(() =>
+          writeFile(
+            path,
+            JSON.stringify({
+              version: COMBAT_PROFILE_LIBRARY_VERSION + 1,
+              profiles: [testProfile],
+            }),
+            "utf8",
+          ),
+        );
+
+        yield* Effect.flip(combatProfiles.load);
+        yield* Effect.promise(() =>
+          writeFile(
+            path,
+            JSON.stringify({
+              version: COMBAT_PROFILE_LIBRARY_VERSION,
+              profiles: [testProfile],
+            }),
+            "utf8",
+          ),
+        );
+
+        const loaded = yield* combatProfiles.load;
+
+        expect(changes).toEqual([loaded]);
+      }),
+  );
+
+  it.effect("keeps concurrent load and save notifications ordered", () =>
+    Effect.gen(function* () {
+      const { combatProfiles } = yield* makeHarness();
+      const changes: CombatProfileLibrary[] = [];
+      yield* combatProfiles.onChanged((library) => changes.push(library));
+
+      for (let index = 0; index < 8; index += 1) {
+        changes.length = 0;
+        yield* Effect.all(
+          [
+            combatProfiles.load,
+            combatProfiles.saveProfile({
+              ...testProfile,
+              id: `${testProfile.id}-${index}`,
+            }),
+          ],
+          { concurrency: "unbounded" },
+        );
+
+        expect(changes.at(-1)).toEqual(yield* combatProfiles.get);
+      }
     }),
   );
 });
