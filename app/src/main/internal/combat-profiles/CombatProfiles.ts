@@ -177,7 +177,7 @@ const makeCombatProfiles = Effect.gen(function* () {
     readLibraryFromFile.pipe(
       Effect.map((library) => [library, library] as const),
     ),
-  );
+  ).pipe(Effect.tap(libraryChanges.publish));
 
   const get = SynchronizedRef.get(libraryRef).pipe(
     Effect.flatMap((current) =>
