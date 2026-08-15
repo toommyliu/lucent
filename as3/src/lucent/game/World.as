@@ -30,6 +30,11 @@ public class World
       return Number(value);
     }
 
+    private static function sameText(left:*, right:*):Boolean
+    {
+      return left != null && right != null && String(left).toLowerCase() == String(right).toLowerCase();
+    }
+
     [BridgeExport]
     public static function isLoaded():Boolean
     {
@@ -48,6 +53,47 @@ public class World
         }
 
         return game.numChildren > 0 && game.getChildAt((game.numChildren - 1)) != game.mcConnDetail;
+      }
+      catch (e:Error)
+      {
+        return false;
+      }
+
+      return false;
+    }
+
+    /** Reports whether AQW has finished initializing the requested cell. */
+    [BridgeExport]
+    public static function isCellReady(cell:String, pad:String = null):Boolean
+    {
+      var game:Object = Main.Game;
+      var world:Object = game ? game.world : null;
+      if (
+        !world ||
+        !cell ||
+        world.mapLoadInProgress ||
+        !world.mapEntered ||
+        !world.map ||
+        !world.myAvatar ||
+        !world.myAvatar.pMC ||
+        !world.CHARS
+      )
+      {
+        return false;
+      }
+
+      try
+      {
+        return (
+          sameText(world.strFrame, cell) &&
+          (pad == null || sameText(world.strPad, pad)) &&
+          Boolean(world.map.stage) &&
+          sameText(world.map.currentLabel, world.strFrame) &&
+          !world.map.isPlaying &&
+          Boolean(world.bitWalk) &&
+          Boolean(world.myAvatar.pMC.stage) &&
+          world.CHARS.contains(world.myAvatar.pMC)
+        );
       }
       catch (e:Error)
       {

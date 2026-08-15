@@ -162,6 +162,7 @@ package lucent.generated
       external.externalize("world.getMapItem", World.getMapItem);
       external.externalize("world.getMonster", World.getMonster);
       external.externalize("world.isActionAvailable", World.isActionAvailable);
+      external.externalize("world.isCellReady", World.isCellReady);
       external.externalize("world.isLoaded", World.isLoaded);
       external.externalize("world.isMonsterAvailable", World.isMonsterAvailable);
       external.externalize("world.loadSwf", World.loadSwf);

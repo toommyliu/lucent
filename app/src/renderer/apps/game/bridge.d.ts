@@ -206,6 +206,7 @@ declare global {
         selector: FlashTypes.MonsterSelector,
       ) => Record<string, unknown> | null;
       "world.isActionAvailable": (gameAction: string) => boolean;
+      "world.isCellReady": (cell: string, pad?: string) => boolean;
       "world.isLoaded": () => boolean;
       "world.isMonsterAvailable": (monMapId: number) => boolean;
       "world.loadSwf": (swf: string) => void;
