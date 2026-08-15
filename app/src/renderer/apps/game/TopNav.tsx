@@ -314,6 +314,7 @@ function ResetCustomValueButton(props: {
 
 function MenuNumberChip(props: {
   readonly disabled: boolean;
+  readonly inputId: string;
   readonly label: string;
   readonly max: number;
   readonly min: number;
@@ -443,7 +444,9 @@ function MenuNumberChip(props: {
       class="game-menu__number-chip"
       data-disabled={props.disabled ? "" : undefined}
     >
-      <span class="game-menu__number-chip-label">{props.label}</span>
+      <Label class="game-menu__number-chip-label" for={props.inputId}>
+        {props.label}
+      </Label>
       <span class="game-menu__number-chip-controls">
         <Button
           aria-label={`Restore ${props.label}`}
@@ -461,6 +464,7 @@ function MenuNumberChip(props: {
           class="game-menu__number-chip-input"
           data-dragging={dragging() ? "" : undefined}
           disabled={props.disabled}
+          id={props.inputId}
           inputMode="numeric"
           title={
             props.disabled
@@ -882,6 +886,7 @@ export function TopNavOptionsMenuContent(
             >
               <MenuNumberChip
                 disabled={gameInteractionDisabled()}
+                inputId="game-walk-speed"
                 label="Walk Speed"
                 max={99}
                 min={1}
@@ -892,6 +897,7 @@ export function TopNavOptionsMenuContent(
               />
               <MenuNumberChip
                 disabled={gameInteractionDisabled()}
+                inputId="game-frame-rate"
                 label="FPS"
                 max={60}
                 min={1}
