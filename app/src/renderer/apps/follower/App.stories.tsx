@@ -12,7 +12,7 @@ import {
 } from "./App";
 
 const library: CombatProfileLibrary = {
-  version: 2,
+  version: 1,
   profiles: [
     ...DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
     {

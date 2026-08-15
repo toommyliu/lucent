@@ -7,7 +7,7 @@ import {
 import { CombatProfilesView, type CombatProfilesViewProps } from "./App";
 
 const library: CombatProfileLibrary = {
-  version: 2,
+  version: 1,
   profiles: [
     ...DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
     {
@@ -123,7 +123,7 @@ export const EmptyRotation: Story = {
   args: {
     fixture: {
       library: {
-        version: 2,
+        version: 1,
         profiles: [
           {
             cooldownMode: "use-if-ready",

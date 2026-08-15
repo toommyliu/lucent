@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 import { boundedInt, TrimmedNonEmptyString } from "./baseSchemas";
 
-export const COMBAT_PROFILE_LIBRARY_VERSION = 2 as const;
+export const COMBAT_PROFILE_LIBRARY_VERSION = 1 as const;
 
 export const DEFAULT_COMBAT_PROFILE_ID = "generic-base";
 export const DEFAULT_COMBAT_PROFILE_ROLE = "Base";
