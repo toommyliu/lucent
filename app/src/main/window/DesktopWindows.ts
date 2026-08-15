@@ -2180,7 +2180,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           yield* electronSession.prepareGameNetworking;
         }
 
-        if (kind === "game" && bootstrapSettings.preferences.groupGameViews) {
+        if (kind === "game" && bootstrapSettings.preferences.useGameTabs) {
           const gameHostTarget = options?.gameHostTarget;
           if (
             gameHostTarget !== undefined &&

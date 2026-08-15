@@ -5025,7 +5025,7 @@ export function App(props: DesktopRendererProps): JSX.Element {
         onChanged: (listener) => accounts.onChanged(listener),
         onUseGameTabsChanged: (listener) =>
           desktop.settings.onChanged((settings) =>
-            listener(settings.preferences.groupGameViews),
+            listener(settings.preferences.useGameTabs),
           ),
         refreshServers: () => accounts.refreshServers(),
         selectScript: () => desktop.scripting.selectFile(),
@@ -5036,7 +5036,7 @@ export function App(props: DesktopRendererProps): JSX.Element {
       fixture={{
         state: emptyState,
         stateLoaded: false,
-        useGameTabs: props.initialSettings?.preferences.groupGameViews ?? false,
+        useGameTabs: props.initialSettings?.preferences.useGameTabs ?? false,
       }}
       platform={props.platform}
     />

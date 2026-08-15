@@ -751,10 +751,10 @@ function GeneralSettings(props: {
         action={
           <Switch
             aria-label="Use game tabs"
-            checked={props.settings.preferences.groupGameViews}
+            checked={props.settings.preferences.useGameTabs}
             onChange={(event) =>
               props.onPreferencesPatch({
-                groupGameViews: event.currentTarget.checked,
+                useGameTabs: event.currentTarget.checked,
               })
             }
             size="lg"

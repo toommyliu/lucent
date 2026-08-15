@@ -164,8 +164,7 @@ const applyPreferencesPatch = (
       ...current.preferences,
       checkForUpdates:
         patch.checkForUpdates ?? current.preferences.checkForUpdates,
-      groupGameViews:
-        patch.groupGameViews ?? current.preferences.groupGameViews,
+      useGameTabs: patch.useGameTabs ?? current.preferences.useGameTabs,
       launchMode: patch.launchMode ?? current.preferences.launchMode,
     },
   });

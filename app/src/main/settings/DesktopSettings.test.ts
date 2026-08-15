@@ -156,7 +156,7 @@ describe("DesktopSettings", () => {
         [
           settings.updateAppearance({ themeMode: "light" }),
           settings.updatePreferences({
-            groupGameViews: true,
+            useGameTabs: true,
             launchMode: "account-manager",
           }),
         ],
@@ -171,16 +171,16 @@ describe("DesktopSettings", () => {
       ) as {
         readonly appearance?: { readonly themeMode?: string };
         readonly preferences?: {
-          readonly groupGameViews?: boolean;
+          readonly useGameTabs?: boolean;
           readonly launchMode?: string;
         };
       };
 
       expect(current.appearance.themeMode).toBe("light");
-      expect(current.preferences.groupGameViews).toBe(true);
+      expect(current.preferences.useGameTabs).toBe(true);
       expect(current.preferences.launchMode).toBe("account-manager");
       expect(persisted.appearance?.themeMode).toBe("light");
-      expect(persisted.preferences?.groupGameViews).toBe(true);
+      expect(persisted.preferences?.useGameTabs).toBe(true);
       expect(persisted.preferences?.launchMode).toBe("account-manager");
     }),
   );
