@@ -27,10 +27,12 @@ import { DesktopObservability } from "./DesktopObservability";
  * Enable with `--debug`. When enabled, Lucent starts a loopback-only HTTP/SSE
  * server at `http://127.0.0.1:10637` and captures only
  * console messages from windows registered as DesktopWindow kind `"game"`.
+ * `--trace-projections` enables this server and adds projection traces.
  * Renderer reloads start a numbered generation; earlier generations remain
  * available until the bounded message buffer evicts them.
  */
 export const DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT = 10_637;
+export const DEFAULT_GAME_CONSOLE_MAX_BYTES = 32 * 1024 * 1024;
 export const DEFAULT_GAME_CONSOLE_MAX_ROWS = 5_000;
 export const DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES = 1024 * 1024;
 
@@ -79,7 +81,9 @@ export interface GameConsoleWindowState {
 export interface GameConsoleState {
   readonly activeGameWindowCount: number;
   readonly buffer: {
+    readonly bytes: number;
     readonly dropped: number;
+    readonly maxBytes: number;
     readonly maxMessageBytes: number;
     readonly maxRows: number;
     readonly size: number;
@@ -130,6 +134,7 @@ interface GameConsoleSessionSnapshot {
 }
 
 interface GameConsoleStoreOptions {
+  readonly maxBytes?: number;
   readonly maxMessageBytes?: number;
   readonly maxRows?: number;
 }
@@ -166,13 +171,21 @@ export const makeGameConsoleStore = (
   options: GameConsoleStoreOptions = {},
 ): GameConsoleStore => {
   const maxRows = Math.max(1, options.maxRows ?? DEFAULT_GAME_CONSOLE_MAX_ROWS);
-  const maxMessageBytes = Math.max(
+  const maxBytes = Math.max(
     1,
-    options.maxMessageBytes ?? DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES,
+    options.maxBytes ?? DEFAULT_GAME_CONSOLE_MAX_BYTES,
+  );
+  const maxMessageBytes = Math.min(
+    maxBytes,
+    Math.max(
+      1,
+      options.maxMessageBytes ?? DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES,
+    ),
   );
   const messages: GameConsoleMessage[] = [];
   const sessionUsernames = new Map<number, string | null>();
   const windows = new Map<number, GameConsoleWindowState>();
+  let bytes = 0;
   let dropped = 0;
   let nextId = 1;
 
@@ -234,8 +247,11 @@ export const makeGameConsoleStore = (
     nextId += 1;
 
     messages.push(row);
-    if (messages.length > maxRows) {
-      messages.shift();
+    bytes += Buffer.byteLength(message, "utf8");
+    while (messages.length > maxRows || bytes > maxBytes) {
+      const removed = messages.shift();
+      if (removed === undefined) break;
+      bytes -= Buffer.byteLength(removed.message, "utf8");
       dropped += 1;
     }
 
@@ -333,7 +349,9 @@ export const makeGameConsoleStore = (
         (windowState) => windowState.state === "active",
       ).length,
       buffer: {
+        bytes,
         dropped,
+        maxBytes,
         maxMessageBytes,
         maxRows,
         size: messages.length,

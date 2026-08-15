@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
+  DEFAULT_GAME_CONSOLE_MAX_BYTES,
   DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
   DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES,
   makeGameConsoleStore,
@@ -51,7 +52,11 @@ describe("GameConsoleObservability store", () => {
   });
 
   it("bounds rows, counts drops, and caps individual messages", () => {
-    const store = makeGameConsoleStore({ maxMessageBytes: 5, maxRows: 2 });
+    const store = makeGameConsoleStore({
+      maxBytes: 8,
+      maxMessageBytes: 5,
+      maxRows: 2,
+    });
     store.openWindow(1);
 
     store.appendMessage({ gameWindowId: 1, message: "one" });
@@ -63,10 +68,35 @@ describe("GameConsoleObservability store", () => {
       expect.objectContaining({ id: 3, message: "12345" }),
     ]);
     expect(store.state().buffer).toEqual({
+      bytes: 8,
       dropped: 1,
+      maxBytes: 8,
       maxMessageBytes: 5,
       maxRows: 2,
       size: 2,
+    });
+  });
+
+  it("evicts old messages when the byte budget is exhausted", () => {
+    const store = makeGameConsoleStore({
+      maxBytes: 6,
+      maxMessageBytes: 10,
+      maxRows: 10,
+    });
+
+    store.appendMessage({ gameWindowId: 1, message: "first" });
+    store.appendMessage({ gameWindowId: 1, message: "second message" });
+
+    expect(store.queryMessages()).toEqual([
+      expect.objectContaining({ id: 2, message: "second" }),
+    ]);
+    expect(store.state().buffer).toEqual({
+      bytes: 6,
+      dropped: 1,
+      maxBytes: 6,
+      maxMessageBytes: 6,
+      maxRows: 10,
+      size: 1,
     });
   });
 
@@ -206,6 +236,10 @@ describe("GameConsoleObservability store", () => {
 
   it("uses a 1 MiB default message cap", () => {
     expect(DEFAULT_GAME_CONSOLE_MAX_MESSAGE_BYTES).toBe(1024 * 1024);
+  });
+
+  it("uses a 32 MiB default buffer cap", () => {
+    expect(DEFAULT_GAME_CONSOLE_MAX_BYTES).toBe(32 * 1024 * 1024);
   });
 
   it("uses the fixed debug observability port", () => {

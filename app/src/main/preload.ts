@@ -11,6 +11,7 @@ import {
 import {
   readDebugModeArgument,
   readGameConsoleObservabilityArgument,
+  readTraceProjectionsArgument,
 } from "../shared/rendererBootstrapArguments";
 import type {
   AppPlatform,
@@ -70,6 +71,7 @@ const debug = readDebugModeArgument(process.argv);
 const gameConsoleObservabilityEnabled = readGameConsoleObservabilityArgument(
   process.argv,
 );
+const traceProjections = readTraceProjectionsArgument(process.argv);
 
 const platform: AppPlatform =
   process.platform === "darwin"
@@ -345,6 +347,7 @@ const commonBridge = {
     os: platform,
   },
   settings: settingsBridge,
+  traceProjections,
 };
 
 const bridges = {
