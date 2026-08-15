@@ -12,7 +12,7 @@ import {
 } from "./App";
 
 const library: CombatProfileLibrary = {
-  version: 1,
+  version: 2,
   profiles: [
     ...DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
     {
@@ -119,6 +119,21 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const FollowingInCombat: Story = {};
+
+export const ConsumableWarning: Story = {
+  args: {
+    fixture: {
+      config,
+      library,
+      players: ["PartyLead", "LucentHealer", "LoopTaunt", "DamageDealer"],
+      state: {
+        ...followingState,
+        warning:
+          "Lucent could not equip Potent Honor Potion while you were in combat. Skill 5 will use whichever consumable is available.",
+      },
+    },
+  },
+};
 
 export const ReadyToStart: Story = {
   args: {

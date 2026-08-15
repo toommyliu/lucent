@@ -271,6 +271,9 @@ const toScriptProfileDefinition = (
   return {
     delayMs: profile.delayMs,
     cooldownMode: profile.cooldownMode,
+    ...(profile.consumable === undefined
+      ? {}
+      : { consumable: profile.consumable }),
     ...(profile.resetSkillIndexOnMonsterDeath === true
       ? { resetSkillIndexOnMonsterDeath: true }
       : {}),
@@ -315,6 +318,7 @@ export function CombatProfilesView(
   );
   const [label, setLabel] = createSignal("Generic");
   const [className, setClassName] = createSignal("");
+  const [consumable, setConsumable] = createSignal("");
   const [role, setRole] = createSignal(DEFAULT_COMBAT_PROFILE_ROLE);
   const [delayMs, setDelayMs] = createSignal(
     String(DEFAULT_COMBAT_PROFILE_DELAY_MS),
@@ -382,6 +386,7 @@ export function CombatProfilesView(
     hydratedProfileId = profile.id;
     setLabel(profile.label);
     setClassName(profile.className ?? "");
+    setConsumable(profile.consumable ?? "");
     setRole(profile.role);
     setDelayMs(String(profile.delayMs));
     setCooldownMode(profile.cooldownMode);
@@ -479,6 +484,7 @@ export function CombatProfilesView(
 
     const parsedDelay = Number.parseInt(delayMs(), 10);
     const trimmedClassName = className().trim();
+    const trimmedConsumable = consumable().trim();
     const selectedCooldownMode = cooldownMode();
     const profileWithoutClassName = {
       id: profile.id,
@@ -503,6 +509,7 @@ export function CombatProfilesView(
       ...profileWithoutClassName,
       label: label().trim() || profile.label,
       ...(trimmedClassName === "" ? {} : { className: trimmedClassName }),
+      ...(trimmedConsumable === "" ? {} : { consumable: trimmedConsumable }),
       role: role().trim() || DEFAULT_COMBAT_PROFILE_ROLE,
       delayMs: Number.isFinite(parsedDelay)
         ? Math.max(0, parsedDelay)
@@ -978,6 +985,19 @@ export function CombatProfilesView(
                       value={className()}
                       onInput={(event) =>
                         setClassName(event.currentTarget.value)
+                      }
+                    />
+                  </Label>
+                  <Label>
+                    <CombatProfilesLabelHelp
+                      label="Skill 5 item"
+                      tooltip="Equips this inventory item before combat. The first running profile controls preflight equipment."
+                    />
+                    <Input
+                      placeholder="Potent Honor Potion"
+                      value={consumable()}
+                      onInput={(event) =>
+                        setConsumable(event.currentTarget.value)
                       }
                     />
                   </Label>

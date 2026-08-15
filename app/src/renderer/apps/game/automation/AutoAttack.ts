@@ -28,6 +28,7 @@ export interface AutoAttackState {
   readonly profileId?: string;
   readonly profileLabel?: string;
   readonly running: boolean;
+  readonly warning?: string;
 }
 
 interface State {
@@ -35,6 +36,7 @@ interface State {
   readonly lastError: string | undefined;
   readonly profile: CombatProfile | undefined;
   readonly runId: number;
+  readonly warning: string | undefined;
 }
 
 const key = "auto-attack";
@@ -59,6 +61,7 @@ const publicState = (state: State, running: boolean): AutoAttackState => ({
   ...(state.profile === undefined
     ? {}
     : { profileId: state.profile.id, profileLabel: state.profile.label }),
+  ...(state.warning === undefined ? {} : { warning: state.warning }),
 });
 
 export const makeAutoAttack = Effect.fnUntraced(function* (
@@ -70,6 +73,7 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
     lastError: undefined,
     profile: undefined,
     runId: 0,
+    warning: undefined,
   });
   const wakeups = yield* Queue.sliding<void>(1);
   const getState = () =>
@@ -96,6 +100,7 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
               enabled: false,
               lastError,
               profile: undefined,
+              warning: undefined,
             },
           ]
         : [false, current],
@@ -117,6 +122,13 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
           profile,
           targetPriority: priorities,
         });
+        if (runner.warning !== undefined) {
+          yield* SubscriptionRef.update(state, (current) =>
+            current.runId === runId
+              ? { ...current, warning: runner.warning }
+              : current,
+          );
+        }
 
         while (true) {
           const current = yield* SubscriptionRef.get(state);
@@ -159,6 +171,7 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
           lastError: undefined,
           profile: undefined,
           runId: current.runId + 1,
+          warning: undefined,
         })),
       ),
       Effect.andThen(getState()),
@@ -178,6 +191,7 @@ export const makeAutoAttack = Effect.fnUntraced(function* (
               lastError: undefined,
               profile,
               runId: nextRunId,
+              warning: undefined,
             },
           ];
         },

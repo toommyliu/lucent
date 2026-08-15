@@ -128,6 +128,7 @@ export interface TopNavProps extends TopNavOptionsMenuContentProps {
   readonly autoAttackProfileLabel: Accessor<string>;
   readonly autoAttackConfiguredProfileLabel: Accessor<string>;
   readonly autoAttackLastError: Accessor<string>;
+  readonly autoAttackWarning: Accessor<string>;
   readonly autoAttackTargetPriority: Accessor<string>;
   readonly setAutoAttackTargetPriority: Setter<string>;
   readonly combatProfiles: Accessor<readonly TopNavCombatProfile[]>;
@@ -1260,13 +1261,19 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const autoAttackProfileRole = (): string =>
     selectedAutoAttackProfile()?.role.trim() ?? "";
 
+  const autoAttackIssue = (): string =>
+    props.autoAttackLastError() || props.autoAttackWarning();
+
   const autoAttackTriggerLabel = (): string => {
     const profileLabel = autoAttackTriggerText();
     const error = props.autoAttackLastError();
+    const warning = props.autoAttackWarning();
     let label: string;
 
     if (error !== "") {
       label = `Auto Attack failed: ${error}`;
+    } else if (warning !== "") {
+      label = `Auto Attack warning: ${warning}`;
     } else if (!props.autoAttackEnabled()) {
       label =
         profileLabel === ""
@@ -1882,6 +1889,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 "game-topnav__combat-trigger",
                 props.autoAttackLastError() !== "" &&
                   "game-topnav__trigger--alert",
+                props.autoAttackLastError() === "" &&
+                  props.autoAttackWarning() !== "" &&
+                  "game-topnav__trigger--warning",
               )}
               data-enabled={props.autoAttackEnabled() ? "" : undefined}
               disabled={gameInteractionDisabled()}
@@ -1889,6 +1899,14 @@ export function TopNav(props: TopNavProps): JSX.Element {
               onClick={toggleMenu("combat")}
               title={autoAttackTriggerLabel()}
             >
+              <Show when={autoAttackIssue() !== ""}>
+                <Icon
+                  aria-hidden="true"
+                  class="game-topnav__combat-issue-icon"
+                  icon="circle_alert"
+                  size="xs"
+                />
+              </Show>
               <span class="game-topnav__combat-label">
                 {autoAttackTriggerText()}
               </span>
@@ -1908,6 +1926,25 @@ export function TopNav(props: TopNavProps): JSX.Element {
               portalMount={menuPortalMount}
             >
               <MenuAutofocusAnchor />
+              <Show when={autoAttackIssue()}>
+                {(issue) => (
+                  <>
+                    <div
+                      class="game-menu__status game-menu__status--combat-issue"
+                      classList={{
+                        "game-menu__error": props.autoAttackLastError() !== "",
+                        "game-menu__warning":
+                          props.autoAttackLastError() === "",
+                      }}
+                      role="status"
+                    >
+                      <Icon icon="circle_alert" aria-hidden="true" />
+                      <span>{issue()}</span>
+                    </div>
+                    <MenuSeparator />
+                  </>
+                )}
+              </Show>
               <MenuCheckboxItem
                 checked={props.autoAttackEnabled()}
                 class="game-menu__item game-menu__switch-item"

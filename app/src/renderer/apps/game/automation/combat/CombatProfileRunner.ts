@@ -105,10 +105,15 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
   function* (api: ApiService, options: CombatProfileRunnerOptions) {
     const cursor = yield* makeCombatProfileCursor();
     const messageState = yield* makeCombatProfileMessageTriggerState();
+    const prepared = yield* Effect.acquireRelease(
+      api.combat.prepareCombatProfileConsumable(options.profile),
+      (result) => result.release,
+    );
     const dependencies = makeCombatProfileRuntimeDeps(
       api.combat,
       api.player,
       api.players,
+      prepared.skill5ItemId,
     );
 
     if ((options.profile.messageTriggers?.length ?? 0) > 0) {
@@ -213,6 +218,7 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
 
     return {
       runCycle,
+      ...(prepared.warning === undefined ? {} : { warning: prepared.warning }),
     };
   },
 );

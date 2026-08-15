@@ -39,6 +39,7 @@ import { decodeCombatActionAcknowledgements } from "../contract/payload/Combat";
 import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
 import type { AntiCounter } from "./internal/AntiCounter";
+import { makeCombatProfileConsumables } from "./internal/CombatProfileConsumables";
 import {
   readCombatTarget,
   stopCombat as stopCombatControl,
@@ -142,6 +143,7 @@ interface KillProfileRuntime {
   readonly dependencies: CombatProfileRuntimeDeps;
   readonly messageState: CombatProfileMessageTriggerState;
   readonly profile: CombatProfile;
+  readonly releaseConsumable: Effect.Effect<void>;
 }
 
 export const makeCombat = (
@@ -172,6 +174,28 @@ export const makeCombat = (
           : store.world.getPlayerAuras(target.entityId, options);
       }),
     );
+
+  const getConsumableSkillItem = () =>
+    bridge.invoke("combat.getConsumableSkillItem", undefined, Consumable).pipe(
+      Effect.map(
+        Option.match({
+          onNone: () => null,
+          onSome: (item) => {
+            const itemId = item?.itemId ?? item?.ItemID;
+            return itemId === undefined
+              ? null
+              : { itemId, ready: item?.ready === true };
+          },
+        }),
+      ),
+    );
+
+  const prepareCombatProfileConsumable = makeCombatProfileConsumables({
+    getConsumableSkillItem,
+    inventory,
+    player,
+    wait,
+  }).prepare;
 
   const getSkillCooldownRemaining = (index: number) =>
     bridge.invoke("combat.getSkillCooldownRemaining", [index], WireInt).pipe(
@@ -412,24 +436,39 @@ export const makeCombat = (
     }
 
     const profile = normalizeCombatProfile(definition);
-    const dependencies = makeCombatProfileRuntimeDeps(
-      { attackMonster, canUseSkill, target, useSkill },
-      player,
-      players,
-    );
-    return Effect.all({
-      cursor: makeCombatProfileCursor(),
-      messageState: makeCombatProfileMessageTriggerState(),
-    }).pipe(
-      Effect.map(
-        ({ cursor, messageState }): KillProfileRuntime => ({
-          cursor,
-          dependencies,
-          messageState,
-          profile,
-        }),
-      ),
-    );
+    return Effect.gen(function* () {
+      const prepared = yield* prepareCombatProfileConsumable(profile);
+      if (prepared.warning !== undefined) {
+        yield* Effect.logWarning({
+          message: prepared.warning,
+          profile: profile.label,
+        });
+      }
+
+      const dependencies = makeCombatProfileRuntimeDeps(
+        {
+          attackMonster,
+          canUseSkill,
+          getConsumableSkillItem,
+          target,
+          useSkill,
+        },
+        player,
+        players,
+        prepared.skill5ItemId,
+      );
+      const { cursor, messageState } = yield* Effect.all({
+        cursor: makeCombatProfileCursor(),
+        messageState: makeCombatProfileMessageTriggerState(),
+      });
+      return {
+        cursor,
+        dependencies,
+        messageState,
+        profile,
+        releaseConsumable: prepared.release,
+      } satisfies KillProfileRuntime;
+    });
   };
 
   const fight = (
@@ -562,12 +601,12 @@ export const makeCombat = (
   };
 
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>
-    makeKillProfileRuntime(options?.profile).pipe(
-      Effect.flatMap((runtime) =>
+    Effect.acquireUseRelease(
+      makeKillProfileRuntime(options?.profile),
+      (runtime) =>
         withProfileEvents(runtime, killWithRuntime(selector, options, runtime)),
-      ),
-      Effect.ensuring(stopCombat),
-    );
+      (runtime) => runtime?.releaseConsumable ?? Effect.void,
+    ).pipe(Effect.ensuring(stopCombat));
 
   const killFor = (
     selector: MonsterQuery,
@@ -577,8 +616,9 @@ export const makeCombat = (
     options?: CombatKillOptions,
   ) => {
     const wanted = Math.max(1, Math.trunc(requested ?? 1));
-    return makeKillProfileRuntime(options?.profile).pipe(
-      Effect.flatMap((runtime) => {
+    return Effect.acquireUseRelease(
+      makeKillProfileRuntime(options?.profile),
+      (runtime) => {
         const loop = Effect.gen(function* () {
           while (true) {
             if (yield* source.contains(item, wanted)) return true;
@@ -593,9 +633,9 @@ export const makeCombat = (
         });
 
         return withProfileEvents(runtime, loop);
-      }),
-      Effect.ensuring(stopCombat),
-    );
+      },
+      (runtime) => runtime?.releaseConsumable ?? Effect.void,
+    ).pipe(Effect.ensuring(stopCombat));
   };
 
   const cancelAutoAttack = () =>
@@ -664,21 +704,6 @@ export const makeCombat = (
       return yield* waitUntilIdle("1 second");
     });
 
-  const getConsumableSkillItem = () =>
-    bridge.invoke("combat.getConsumableSkillItem", undefined, Consumable).pipe(
-      Effect.map(
-        Option.match({
-          onNone: () => null,
-          onSome: (item) => {
-            const itemId = item?.itemId ?? item?.ItemID;
-            return itemId === undefined
-              ? null
-              : { itemId, ready: item?.ready === true };
-          },
-        }),
-      ),
-    );
-
   const killForItem = (
     selector: MonsterQuery,
     item: ItemQuery,
@@ -738,6 +763,7 @@ export const makeCombat = (
     kill,
     killForItem,
     killForTempItem,
+    prepareCombatProfileConsumable,
     target,
     useSkill,
   };

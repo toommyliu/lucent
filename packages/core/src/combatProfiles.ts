@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 import { boundedInt, TrimmedNonEmptyString } from "./baseSchemas";
 
-export const COMBAT_PROFILE_LIBRARY_VERSION = 1 as const;
+export const COMBAT_PROFILE_LIBRARY_VERSION = 2 as const;
 
 export const DEFAULT_COMBAT_PROFILE_ID = "generic-base";
 export const DEFAULT_COMBAT_PROFILE_ROLE = "Base";
@@ -15,6 +15,7 @@ const MAX_ID_LENGTH = 80;
 const MAX_LABEL_LENGTH = 80;
 const MAX_ROLE_LENGTH = 40;
 const MAX_CLASS_NAME_LENGTH = 80;
+const MAX_CONSUMABLE_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
 const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
 
@@ -89,6 +90,7 @@ export const CombatProfileSchema = Schema.Struct({
   id: TrimmedNonEmptyString,
   label: TrimmedNonEmptyString,
   className: Schema.optionalKey(TrimmedNonEmptyString),
+  consumable: Schema.optionalKey(TrimmedNonEmptyString),
   role: TrimmedNonEmptyString,
   delayMs: boundedInt(0, MAX_DELAY_MS),
   cooldownMode: CombatProfileCooldownModeSchema,
@@ -374,6 +376,10 @@ const normalizeProfile = (
 
   const label = trimString(record["label"], MAX_LABEL_LENGTH) ?? "Profile";
   const className = trimString(record["className"], MAX_CLASS_NAME_LENGTH);
+  const consumable = trimString(
+    record["consumable"],
+    MAX_CONSUMABLE_NAME_LENGTH,
+  );
   const messageTriggers = normalizeArray(
     record["messageTriggers"],
     normalizeMessageTrigger,
@@ -390,6 +396,7 @@ const normalizeProfile = (
     id,
     label,
     ...(className === undefined ? {} : { className }),
+    ...(consumable === undefined ? {} : { consumable }),
     role:
       trimString(record["role"], MAX_ROLE_LENGTH) ??
       DEFAULT_COMBAT_PROFILE_ROLE,

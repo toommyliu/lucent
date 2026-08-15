@@ -15,6 +15,7 @@ import {
 interface TopNavFixture {
   readonly autoAttackEnabled?: boolean;
   readonly autoAttackLastError?: string;
+  readonly autoAttackWarning?: string;
   readonly autoReloginAttempting?: boolean;
   readonly autoReloginAttemptsRemaining?: number | null;
   readonly autoReloginEnabled?: boolean;
@@ -136,6 +137,7 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
         }
         autoAttackEnabled={autoAttackEnabled}
         autoAttackLastError={() => fixture.autoAttackLastError ?? ""}
+        autoAttackWarning={() => fixture.autoAttackWarning ?? ""}
         autoAttackProfileLabel={() => selectedProfile()?.label ?? "Generic"}
         autoAttackTargetPriority={autoAttackPriority}
         autoReloginAttempting={() => fixture.autoReloginAttempting ?? false}
@@ -259,6 +261,17 @@ export const AutoAttackFailure: Story = {
     fixture: {
       autoAttackEnabled: false,
       autoAttackLastError: "Combat profile failed while resolving target 17.",
+      openMenu: "combat",
+    },
+  },
+};
+
+export const AutoAttackConsumableWarning: Story = {
+  args: {
+    fixture: {
+      autoAttackEnabled: true,
+      autoAttackWarning:
+        "Lucent could not equip Potent Honor Potion while you were in combat. Skill 5 will use whichever consumable is available.",
       openMenu: "combat",
     },
   },
