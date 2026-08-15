@@ -11,4 +11,4 @@ sidebar:
 type Skill = number
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L57" aria-label="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:57" title="app/src/renderer/apps/game/flash/api/Combat.ts:57" target="_blank" rel="noreferrer"><code class="source-reference__path">Combat.ts:57</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Combat.ts#L58" aria-label="Open source: app/src/renderer/apps/game/flash/api/Combat.ts:58" title="app/src/renderer/apps/game/flash/api/Combat.ts:58" target="_blank" rel="noreferrer"><code class="source-reference__path">Combat.ts:58</code></a></p>
