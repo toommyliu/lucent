@@ -665,7 +665,7 @@ export const projectExtensionWorld = (
             username: result.player.username,
           });
         }
-        if (packet.wireType === "str" && decoded.value.o.afk !== undefined) {
+        if (decoded.value.o.afk !== undefined) {
           events.push({
             afk: decoded.value.o.afk,
             entityId: result.player.entityId,

@@ -968,7 +968,7 @@ describe("Projection", () => {
         stringExtension("uotls", ["uotls", "12", "Visitor", "afk:true"]),
       );
       yield* pipeline.packet(
-        stringExtension("uotls", ["uotls", "12", "Visitor", "afk:false"]),
+        extension("uotls", { o: { afk: false }, unm: "Visitor" }),
       );
 
       expect(events).toEqual([
