@@ -209,4 +209,28 @@ describe("CombatProfiles", () => {
         expect(changes).toEqual([loaded]);
       }),
   );
+
+  it.effect("keeps concurrent load and save notifications ordered", () =>
+    Effect.gen(function* () {
+      const { combatProfiles } = yield* makeHarness();
+      const changes: CombatProfileLibrary[] = [];
+      yield* combatProfiles.onChanged((library) => changes.push(library));
+
+      for (let index = 0; index < 8; index += 1) {
+        changes.length = 0;
+        yield* Effect.all(
+          [
+            combatProfiles.load,
+            combatProfiles.saveProfile({
+              ...testProfile,
+              id: `${testProfile.id}-${index}`,
+            }),
+          ],
+          { concurrency: "unbounded" },
+        );
+
+        expect(changes.at(-1)).toEqual(yield* combatProfiles.get);
+      }
+    }),
+  );
 });
