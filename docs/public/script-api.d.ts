@@ -736,6 +736,12 @@ type EventSelector =
       readonly type: "packet";
     }
   | {
+      readonly afk?: boolean;
+      readonly entityId?: number;
+      readonly type: "player-afk";
+      readonly username?: string;
+    }
+  | {
       readonly type: "join-map";
     }
   | {
@@ -1339,6 +1345,12 @@ type ProtocolEvent = {
   readonly packet: FlashPacket;
 };
 type ProjectionEvent =
+  | {
+      readonly afk: boolean;
+      readonly entityId: number;
+      readonly type: "player-afk";
+      readonly username: string;
+    }
   | {
       readonly type: "join-map";
       readonly map: {
