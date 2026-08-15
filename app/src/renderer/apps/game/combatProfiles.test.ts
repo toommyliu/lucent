@@ -34,6 +34,10 @@ const profile: CombatProfile = {
 const makeDeps = (overrides?: {
   readonly attackMonster?: (target: unknown) => Effect.Effect<boolean>;
   readonly canUseSkill?: (skill: number | string) => Effect.Effect<boolean>;
+  readonly getConsumableSkillItem?: () => Effect.Effect<{
+    readonly itemId: number;
+    readonly ready: boolean;
+  } | null>;
   readonly useSkill?: (
     skill: number | string,
     options?: unknown,
@@ -42,6 +46,7 @@ const makeDeps = (overrides?: {
   combat: {
     attackMonster: () => Effect.succeed(true),
     canUseSkill: () => Effect.succeed(true),
+    getConsumableSkillItem: () => Effect.succeed(null),
     target: {
       auras: {
         get: () => Effect.succeed(null),
@@ -151,6 +156,46 @@ describe("combat profile runtime", () => {
         ).toBe(true);
         expect(casts).toEqual([3]);
       }),
+  );
+
+  it.effect("skips skill 5 when the prepared item is not ready", () =>
+    Effect.gen(function* () {
+      let slot = { itemId: 200, ready: true };
+      const casts: number[] = [];
+      const cursor = yield* makeCombatProfileCursor();
+      const skill5Profile: CombatProfile = {
+        ...profile,
+        steps: [
+          { skill: 5, conditions: [], priority: true },
+          { skill: 1, conditions: [] },
+        ],
+      };
+      const deps: CombatProfileRuntimeDeps = {
+        ...makeDeps({
+          getConsumableSkillItem: () => Effect.succeed(slot),
+          useSkill: (skill) =>
+            Effect.sync(() => {
+              casts.push(Number(skill));
+              return true;
+            }),
+        }),
+        skill5ItemId: 100,
+      };
+
+      expect(
+        yield* castNextCombatProfileStep(deps, skill5Profile, cursor),
+      ).toBe(true);
+      slot = { itemId: 100, ready: false };
+      expect(
+        yield* castNextCombatProfileStep(deps, skill5Profile, cursor),
+      ).toBe(true);
+      slot = { itemId: 100, ready: true };
+      expect(
+        yield* castNextCombatProfileStep(deps, skill5Profile, cursor),
+      ).toBe(true);
+
+      expect(casts).toEqual([1, 1, 5]);
+    }),
   );
 
   it.effect(

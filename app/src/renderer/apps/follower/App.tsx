@@ -212,7 +212,7 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
       current.stoppedReason !== "Stopped by user"
     );
   });
-  const issueMessage = createMemo(() => {
+  const errorIssueMessage = createMemo(() => {
     const current = state();
     const followerMessages = exhaustedFollowerAttempts()
       ? [current.stoppedReason ?? "", current.lastError ?? ""]
@@ -220,6 +220,12 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
     const messages = [error(), ...followerMessages].filter(Boolean);
     return [...new Set(messages)].join(" - ");
   });
+  const issueMessage = createMemo(
+    () => errorIssueMessage() || state().warning || "",
+  );
+  const issueVariant = createMemo(() =>
+    errorIssueMessage() === "" ? "warning" : "error",
+  );
   const showIssue = createMemo(
     () => issueMessage() !== "" && !dismissedIssue(),
   );
@@ -296,7 +302,9 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
       nextState.running ||
       (nextState.phase === "idle" && nextState.lastError === undefined)
     ) {
-      setDismissedIssue(false);
+      if (nextState.warning === undefined) {
+        setDismissedIssue(false);
+      }
       setError("");
     }
   };
@@ -727,7 +735,7 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
         >
           <section class="follower-shell">
             <Show when={showIssue()}>
-              <Alert class="follower-issue" variant="error">
+              <Alert class="follower-issue" variant={issueVariant()}>
                 <AlertDescription class="follower-issue__message">
                   <Icon icon="circle_alert" aria-hidden="true" />
                   <span>{issueMessage()}</span>

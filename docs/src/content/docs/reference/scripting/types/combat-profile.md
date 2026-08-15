@@ -32,6 +32,7 @@ type CombatProfile = {
         readonly waitMs?: number;
     }[];
     readonly className?: string;
+    readonly consumable?: string;
     readonly resetSkillIndexOnMonsterDeath?: boolean;
     readonly messageTriggers?: readonly {
         readonly messageIncludes: string;
@@ -42,4 +43,4 @@ type CombatProfile = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L101" aria-label="Open source: packages/core/src/combatProfiles.ts:101" title="packages/core/src/combatProfiles.ts:101" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:101</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L103" aria-label="Open source: packages/core/src/combatProfiles.ts:103" title="packages/core/src/combatProfiles.ts:103" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:103</code></a></p>

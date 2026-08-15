@@ -54,6 +54,7 @@ const makeHarness = (options?: {
   readonly alive?: boolean;
   readonly attackMonster?: (monsterMapId: number) => Effect.Effect<boolean>;
   readonly monsters?: readonly LiveMonster[];
+  readonly preflightWarning?: string;
   readonly useSkill?: (skill: number) => Effect.Effect<boolean>;
 }) => {
   const attacks: number[] = [];
@@ -73,6 +74,16 @@ const makeHarness = (options?: {
         return options?.attackMonster?.(monsterMapId) ?? Effect.succeed(true);
       },
       canUseSkill: () => Effect.succeed(true),
+      getConsumableSkillItem: () => Effect.succeed(null),
+      prepareCombatProfileConsumable: () =>
+        Effect.succeed(
+          options?.preflightWarning === undefined
+            ? { release: Effect.void }
+            : {
+                release: Effect.void,
+                warning: options.preflightWarning,
+              },
+        ),
       target: {
         auras: { get: () => Effect.succeed(null) },
         get: () => Effect.succeed(null),
@@ -221,6 +232,37 @@ describe("CombatProfileRunner", () => {
         );
       }),
     ),
+  );
+
+  it.effect(
+    "continues after a preflight warning without guarding skill 5",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const harness = makeHarness({
+            preflightWarning:
+              "Skill 5 will use whichever consumable is available.",
+          });
+          const runner = yield* makeCombatProfileRunner(harness.api, {
+            profile: {
+              ...profile,
+              steps: [{ conditions: [], skill: 5 }],
+            },
+            targetPriority: [],
+          });
+
+          expect(runner.warning).toBe(
+            "Skill 5 will use whichever consumable is available.",
+          );
+          expect(yield* runner.runCycle()).toEqual({
+            cast: true,
+            delayMs: profile.delayMs,
+            kind: "attacked",
+          });
+          expect(harness.attacks).toEqual([first.monsterMapId]);
+          expect(harness.casts).toEqual([5]);
+        }),
+      ),
   );
 
   it.effect("resets rotations on death and disposes scoped listeners", () =>

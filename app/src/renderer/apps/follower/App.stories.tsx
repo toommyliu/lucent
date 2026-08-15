@@ -120,6 +120,21 @@ type Story = StoryObj<typeof meta>;
 
 export const FollowingInCombat: Story = {};
 
+export const ConsumableWarning: Story = {
+  args: {
+    fixture: {
+      config,
+      library,
+      players: ["PartyLead", "LucentHealer", "LoopTaunt", "DamageDealer"],
+      state: {
+        ...followingState,
+        warning:
+          "Lucent could not equip Potent Honor Potion while you were in combat. Skill 5 will use whichever consumable is available.",
+      },
+    },
+  },
+};
+
 export const ReadyToStart: Story = {
   args: {
     fixture: {

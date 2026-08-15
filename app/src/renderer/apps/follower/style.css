@@ -27,12 +27,19 @@
 
 .follower-issue__message.alert__description {
   align-items: center;
-  color: var(--color-destructive-foreground);
   display: flex;
   font-size: var(--text-sm);
   gap: 0.5rem;
   line-height: 1.35;
   min-width: 0;
+}
+
+.follower-issue.alert--error .follower-issue__message {
+  color: var(--color-destructive-foreground);
+}
+
+.follower-issue.alert--warning .follower-issue__message {
+  color: var(--color-warning-foreground);
 }
 
 .follower-issue__message > span {

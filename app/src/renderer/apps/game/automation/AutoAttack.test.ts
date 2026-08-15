@@ -38,6 +38,12 @@ describe("AutoAttack", () => {
               Ref.update(cancellations, (count) => count + 1),
             cancelTarget: () => Ref.update(cancellations, (count) => count + 1),
             canUseSkill: () => Effect.succeed(true),
+            getConsumableSkillItem: () => Effect.succeed(null),
+            prepareCombatProfileConsumable: () =>
+              Effect.succeed({
+                release: Effect.void,
+                warning: "Skill 5 will use whichever consumable is available.",
+              }),
             target: {
               auras: { get: () => Effect.succeed(null) },
               get: () => Effect.succeed(null),
@@ -75,6 +81,10 @@ describe("AutoAttack", () => {
 
         yield* autoAttack.enable(options);
         yield* Effect.yieldNow;
+        expect(yield* autoAttack.getState()).toMatchObject({
+          enabled: true,
+          warning: "Skill 5 will use whichever consumable is available.",
+        });
         yield* autoAttack.enable(options);
         yield* Effect.yieldNow;
         yield* autoAttack.disable();
@@ -102,6 +112,9 @@ describe("AutoAttack", () => {
               Ref.update(cancellations, (count) => count + 1),
             cancelTarget: () => Ref.update(cancellations, (count) => count + 1),
             canUseSkill: () => Effect.succeed(true),
+            getConsumableSkillItem: () => Effect.succeed(null),
+            prepareCombatProfileConsumable: () =>
+              Effect.succeed({ release: Effect.void }),
             target: {
               auras: { get: () => Effect.succeed(null) },
               get: () => Effect.succeed(null),

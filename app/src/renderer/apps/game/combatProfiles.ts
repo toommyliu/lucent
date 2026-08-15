@@ -36,23 +36,31 @@ interface CombatProfileCursorState {
 export interface CombatProfileRuntimeDeps {
   readonly combat: Pick<
     ApiService["combat"],
-    "attackMonster" | "canUseSkill" | "target" | "useSkill"
+    | "attackMonster"
+    | "canUseSkill"
+    | "getConsumableSkillItem"
+    | "target"
+    | "useSkill"
   >;
   readonly player: Pick<
     ApiService["player"],
     "auras" | "getHp" | "getMaxHp" | "getMaxMp" | "getMp"
   >;
   readonly players: Pick<ApiService["players"], "getAll" | "getMe">;
+  /** When set, skill 5 only casts while this item is equipped and ready. */
+  readonly skill5ItemId?: number;
 }
 
 export const makeCombatProfileRuntimeDeps = (
   combat: CombatProfileRuntimeDeps["combat"],
   player: CombatProfileRuntimeDeps["player"],
   players: CombatProfileRuntimeDeps["players"],
+  skill5ItemId?: number,
 ): CombatProfileRuntimeDeps => ({
   combat,
   player,
   players,
+  ...(skill5ItemId === undefined ? {} : { skill5ItemId }),
 });
 
 export const makeCombatProfileCursor = (): Effect.Effect<CombatProfileCursor> =>
@@ -194,6 +202,27 @@ const matchesCondition = (
   }
 };
 
+const isCombatProfileSkillAvailable = (
+  deps: CombatProfileRuntimeDeps,
+  skill: number,
+) => {
+  if (skill !== 5) {
+    return Effect.succeed(true);
+  }
+  if (deps.skill5ItemId === undefined) return Effect.succeed(true);
+
+  return deps.combat
+    .getConsumableSkillItem()
+    .pipe(
+      Effect.map(
+        (item) =>
+          item !== null &&
+          item.itemId === deps.skill5ItemId &&
+          item.ready === true,
+      ),
+    );
+};
+
 export const matchesCombatProfileStep = (
   deps: CombatProfileRuntimeDeps,
   step: CombatProfileStep,
@@ -219,6 +248,9 @@ const prepareCombatProfileStep = Effect.fn("prepareCombatProfileStep")(
     step: CombatProfileStep,
   ): Effect.fn.Return<PreparedCombatProfileStep | null> {
     if (!(yield* matchesCombatProfileStep(deps, step))) {
+      return null;
+    }
+    if (!(yield* isCombatProfileSkillAvailable(deps, step.skill))) {
       return null;
     }
 
@@ -339,6 +371,9 @@ export const castCombatProfileMessageTrigger = (
       const cooldownMs = trigger.cooldownMs ?? 0;
       const lastCast = (yield* Ref.get(state.state)).get(triggerIndex);
       if (lastCast !== undefined && now - lastCast < cooldownMs) {
+        return false;
+      }
+      if (!(yield* isCombatProfileSkillAvailable(deps, trigger.skill))) {
         return false;
       }
 

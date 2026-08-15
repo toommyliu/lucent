@@ -35,6 +35,7 @@ const canonicalLibrary = {
       id: "archpaladin-farm",
       label: "Farm Rotation",
       className: "ArchPaladin",
+      consumable: "Potent Honor Potion",
       role: "Farm",
       delayMs: 150,
       cooldownMode: "use-if-ready",
@@ -79,8 +80,14 @@ describe("combatProfiles", () => {
 
   it("normalizes library envelopes around the generic profile", () => {
     const normalized = normalizeCombatProfileLibrary({
+      version: 1,
       profiles: [
-        { id: "custom", label: "Custom", steps: [{ skill: 1 }] },
+        {
+          id: "custom",
+          label: "Custom",
+          consumable: "Potion",
+          steps: [{ skill: 1 }],
+        },
         { label: "No Id", steps: [{ skill: 2 }] },
         {
           id: DEFAULT_COMBAT_PROFILE_ID,
@@ -96,6 +103,7 @@ describe("combatProfiles", () => {
       "custom",
     ]);
     expect(normalized.profiles[0]?.label).toBe("Generic Custom");
+    expect(normalized.profiles[1]?.consumable).toBe("Potion");
   });
 
   it("recovers colliding profile ids without dropping definitions", () => {
@@ -224,6 +232,7 @@ describe("combatProfiles", () => {
       id: "copy-profile-1",
       label: "Farm Rotation Copy 3",
       className: "ArchPaladin",
+      consumable: "Potent Honor Potion",
       steps: [{ skill: 1, priority: true }],
       messageTriggers: [{ messageIncludes: "enrage" }],
     });
