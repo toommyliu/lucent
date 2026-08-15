@@ -82,7 +82,12 @@ export const makeCombatProfileConsumables = (deps: Dependencies) => {
       }
 
       const claim = yield* claims.acquire(item.itemId);
-      if (!claim.acquired || !claim.first) {
+      if (!claim.acquired) {
+        return unavailable(
+          `Could not equip ${item.name} because another combat profile controls preflight equipment. Skill 5 will use whichever consumable is equipped.`,
+        );
+      }
+      if (!claim.first) {
         return {
           release: claim.release,
           skill5ItemId: item.itemId,
