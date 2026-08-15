@@ -336,20 +336,18 @@ export const makePlayer = (
     if (targetCell === "") return Effect.succeed(false);
     const args: Parameters<Window["swf"]["player.jump"]> =
       pad === undefined ? [targetCell] : [targetCell, pad];
+    const readinessArgs: Parameters<Window["swf"]["world.isCellReady"]> =
+      pad === undefined ? [targetCell] : [targetCell, pad];
     return bridge.invoke("player.jump", args, Schema.Void).pipe(
       Effect.flatMap(
         Option.match({
           onNone: () => Effect.succeed(false),
           onSome: () =>
             wait.until(
-              get().pipe(
-                Effect.map(
-                  (current) =>
-                    current !== null &&
-                    sameText(current.cell, targetCell) &&
-                    (pad === undefined || sameText(current.pad, pad)),
-                ),
-              ),
+              // AQW updates strFrame before its cell timeline and display list settle.
+              bridge
+                .invoke("world.isCellReady", readinessArgs, Schema.Boolean)
+                .pipe(Effect.map(Option.getOrElse(() => false))),
               { timeout: "3 seconds" },
             ),
         }),
@@ -369,6 +367,8 @@ export const makePlayer = (
         (!destination.requireExactRoom ||
           currentMap.roomNumber === destination.roomNumber);
       if (alreadyLoaded) {
+        if (!(yield* wait.until(isReady(), { timeout: "10 seconds" })))
+          return false;
         return targetCell === undefined
           ? true
           : yield* jumpToCell(targetCell, pad);
@@ -405,7 +405,10 @@ export const makePlayer = (
         ),
         { timeout: "20 seconds" },
       );
-      if (!loaded || targetCell === undefined) return loaded;
+      if (!loaded) return false;
+      if (!(yield* wait.until(isReady(), { timeout: "10 seconds" })))
+        return false;
+      if (targetCell === undefined) return true;
       return yield* jumpToCell(targetCell, pad);
     });
 
