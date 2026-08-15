@@ -1157,7 +1157,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   padding-inline-start: 0.5rem;
   padding-inline-end: 2px;
   color: var(--color-foreground);
-  background: rgb(var(--background));
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 500;
@@ -1166,6 +1165,12 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__number-chip[data-disabled] {
   opacity: 0.64;
+}
+
+.game-menu__number-chip-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .game-menu__number-chip-input.input--unstyled {
