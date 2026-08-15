@@ -8,6 +8,7 @@ export interface CliOptions {
   readonly flashPluginPath?: string;
   readonly flashVersion?: string;
   readonly launchMode?: AppLaunchMode;
+  readonly traceProjections?: boolean;
 }
 
 type CliOptionName = "flashPluginPath" | "flashVersion" | "launchMode";
@@ -69,6 +70,7 @@ export const parseCliOptions = (
     flashPluginPath?: string;
     flashVersion?: string;
     launchMode?: AppLaunchMode;
+    traceProjections?: boolean;
   } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -79,6 +81,13 @@ export const parseCliOptions = (
 
     if (arg === "--debug") {
       output.debug = true;
+      continue;
+    }
+
+    if (arg === "--trace-projections") {
+      // Projection traces are inspected through debug console observability.
+      output.debug = true;
+      output.traceProjections = true;
       continue;
     }
 

@@ -7,6 +7,7 @@ export interface DesktopEnvironmentConfig {
   readonly debug?: boolean;
   readonly isDev: boolean;
   readonly platform: NodeJS.Platform;
+  readonly traceProjections?: boolean;
   readonly workspaceDir: string;
 }
 

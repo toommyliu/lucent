@@ -19,6 +19,7 @@ import {
 import {
   serializeDebugModeArgument,
   serializeGameConsoleObservabilityArgument,
+  serializeTraceProjectionsArgument,
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
@@ -268,6 +269,9 @@ const createWindowOptions = (
         ...(env.debug === true ? [serializeDebugModeArgument()] : []),
         ...(definition.kind === "game" && env.debug === true
           ? [serializeGameConsoleObservabilityArgument()]
+          : []),
+        ...(definition.kind === "game" && env.traceProjections === true
+          ? [serializeTraceProjectionsArgument()]
           : []),
       ],
       contextIsolation: true,

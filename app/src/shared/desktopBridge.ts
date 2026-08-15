@@ -428,6 +428,7 @@ interface DesktopBridgeBase {
   readonly platform: {
     readonly os: AppPlatform;
   };
+  readonly traceProjections: boolean;
 }
 
 interface DesktopBridgeCapabilities {

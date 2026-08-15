@@ -91,7 +91,7 @@ export const makeDesktopRuntime = (
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
-      if (cliOptions.debug === true) {
+      if (env.debug === true) {
         yield* gameConsoleObservability
           .install({
             port: DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,

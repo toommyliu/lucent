@@ -1,11 +1,15 @@
 export const DEBUG_MODE_ARGUMENT = "--lucent__debug";
 export const GAME_CONSOLE_OBSERVABILITY_ARGUMENT =
   "--lucent__gameConsoleObservability";
+export const TRACE_PROJECTIONS_ARGUMENT = "--lucent__traceProjections";
 
 export const serializeDebugModeArgument = (): string => DEBUG_MODE_ARGUMENT;
 
 export const serializeGameConsoleObservabilityArgument = (): string =>
   GAME_CONSOLE_OBSERVABILITY_ARGUMENT;
+
+export const serializeTraceProjectionsArgument = (): string =>
+  TRACE_PROJECTIONS_ARGUMENT;
 
 export const readDebugModeArgument = (argv: readonly string[]): boolean =>
   argv.includes(DEBUG_MODE_ARGUMENT);
@@ -13,3 +17,7 @@ export const readDebugModeArgument = (argv: readonly string[]): boolean =>
 export const readGameConsoleObservabilityArgument = (
   argv: readonly string[],
 ): boolean => argv.includes(GAME_CONSOLE_OBSERVABILITY_ARGUMENT);
+
+export const readTraceProjectionsArgument = (
+  argv: readonly string[],
+): boolean => argv.includes(TRACE_PROJECTIONS_ARGUMENT);
