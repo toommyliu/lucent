@@ -35,6 +35,9 @@ export interface AccountsShape {
   readonly closeGameWindow: (
     gameWindowId: number,
   ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly closeGameWindows: (
+    gameWindowIds: readonly number[],
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
   readonly createAccount: (
     draft: ManagedAccountDraft,
   ) => Effect.Effect<AccountManagerState, AccountsError>;
@@ -43,6 +46,9 @@ export interface AccountsShape {
   ) => Effect.Effect<AccountManagerState, AccountsError>;
   readonly deleteAccount: (
     username: string,
+  ) => Effect.Effect<AccountManagerState, AccountsError>;
+  readonly deleteAccounts: (
+    usernames: readonly string[],
   ) => Effect.Effect<AccountManagerState, AccountsError>;
   readonly deleteGroup: (
     name: string,
@@ -273,6 +279,16 @@ export const makeAccounts = Effect.gen(function* () {
   const sessions = yield* AccountSessions;
   const stateChanges = makeListenerRegistry<AccountManagerState>();
 
+  const optionalGameWindowGroupId = (
+    gameWindowId: number,
+  ): Effect.Effect<number | undefined> =>
+    gameWindows.getGroupId(gameWindowId).pipe(
+      Effect.match({
+        onFailure: (): undefined => undefined,
+        onSuccess: (groupId): number | undefined => groupId,
+      }),
+    );
+
   const toState = (storage: AccountManagerStorage): AccountManagerState => ({
     accounts: storage.accounts,
     groups: storage.groups,
@@ -295,6 +311,14 @@ export const makeAccounts = Effect.gen(function* () {
       .update(modify)
       .pipe(Effect.map(toState), Effect.tap(stateChanges.publish));
 
+  const retireGameProfiles = (keys: Iterable<string>) =>
+    Effect.forEach(
+      keys,
+      (key) =>
+        gameWindows.retireProfile(key).pipe(Effect.catch(() => Effect.void)),
+      { discard: true },
+    );
+
   const removeWindowSession = (gameWindowId: number) =>
     Effect.sync(() => sessions.remove(gameWindowId)).pipe(
       Effect.flatMap((removed) =>
@@ -305,20 +329,40 @@ export const makeAccounts = Effect.gen(function* () {
   const unsubscribeWindows = yield* gameWindows.onClosed(removeWindowSession);
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
 
-  const closeGameWindow: AccountsShape["closeGameWindow"] = (gameWindowId) =>
-    gameWindows.close(gameWindowId).pipe(
-      Effect.flatMap(() => removeWindowSession(gameWindowId)),
-      Effect.flatMap(() => getState),
+  const closeGameWindows: AccountsShape["closeGameWindows"] = (
+    gameWindowIds,
+  ) => {
+    const uniqueIds = [...new Set(gameWindowIds)];
+    return Effect.forEach(uniqueIds, gameWindows.close, {
+      discard: true,
+    }).pipe(
+      Effect.andThen(
+        Effect.sync(() => {
+          let changed = false;
+          for (const gameWindowId of uniqueIds) {
+            changed = sessions.remove(gameWindowId) || changed;
+          }
+          return changed;
+        }),
+      ),
+      Effect.flatMap((changed) =>
+        changed ? publishCurrentState : Effect.void,
+      ),
+      Effect.andThen(getState),
       Effect.mapError((cause) =>
         cause instanceof AccountsError
           ? cause
           : accountError(
               "close-game-window",
-              `Failed to close game window: ${gameWindowId}`,
+              "Failed to close game windows",
               cause,
             ),
       ),
     );
+  };
+
+  const closeGameWindow: AccountsShape["closeGameWindow"] = (gameWindowId) =>
+    closeGameWindows([gameWindowId]);
 
   const createAccount: AccountsShape["createAccount"] = (draft) =>
     updateStorage((storage) =>
@@ -351,26 +395,50 @@ export const makeAccounts = Effect.gen(function* () {
       }),
     );
 
+  const deleteAccounts: AccountsShape["deleteAccounts"] = (usernames) =>
+    Effect.gen(function* () {
+      const requestedUsernames = new Set<string>();
+      for (const username of usernames) {
+        requestedUsernames.add(
+          yield* normalizeRequiredString(
+            username,
+            "username",
+            "delete-account",
+          ),
+        );
+      }
+
+      const state = yield* updateStorage((storage) =>
+        Effect.gen(function* () {
+          if (requestedUsernames.size === 0) {
+            return storage;
+          }
+
+          const accounts = storage.accounts.filter(
+            (account) => !requestedUsernames.has(account.username),
+          );
+          if (
+            storage.accounts.length - accounts.length !==
+            requestedUsernames.size
+          ) {
+            return yield* accountError(
+              "delete-account",
+              "One or more accounts were not found",
+            );
+          }
+          let groups = storage.groups;
+          for (const username of requestedUsernames) {
+            groups = removeGroupMemberUsername(groups, username);
+          }
+          return { accounts, groups };
+        }),
+      );
+      yield* retireGameProfiles(requestedUsernames);
+      return state;
+    });
+
   const deleteAccount: AccountsShape["deleteAccount"] = (username) =>
-    updateStorage((storage) =>
-      Effect.gen(function* () {
-        const accountUsername = yield* normalizeRequiredString(
-          username,
-          "username",
-          "delete-account",
-        );
-        const accounts = storage.accounts.filter(
-          (account) => account.username !== accountUsername,
-        );
-        if (accounts.length === storage.accounts.length) {
-          return yield* accountError("delete-account", "Account not found");
-        }
-        return {
-          accounts,
-          groups: removeGroupMemberUsername(storage.groups, accountUsername),
-        };
-      }),
-    );
+    deleteAccounts([username]);
 
   const deleteGroup: AccountsShape["deleteGroup"] = (name) =>
     updateStorage((storage) =>
@@ -451,12 +519,20 @@ export const makeAccounts = Effect.gen(function* () {
       let gameWindowId: number | undefined;
       const resolvedGameWindowId = yield* gameWindows
         .open({
+          managedProfileKey: account.username,
+          name: account.username,
+          ...(request.windowTarget === undefined
+            ? {}
+            : { windowTarget: request.windowTarget }),
           ...(request.tiling === undefined ? {} : { tile: request.tiling }),
           onCreated: (createdId) =>
-            Effect.sync(() => {
+            Effect.gen(function* () {
               gameWindowId = createdId;
-              sessions.trackLaunch(createdId, pending);
-            }).pipe(Effect.andThen(publishCurrentState)),
+              const gameWindowGroupId =
+                yield* optionalGameWindowGroupId(createdId);
+              sessions.trackLaunch(createdId, gameWindowGroupId, pending);
+              yield* publishCurrentState;
+            }),
         })
         .pipe(
           Effect.catch((cause) =>
@@ -468,7 +544,9 @@ export const makeAccounts = Effect.gen(function* () {
           ),
         );
       if (sessions.getLaunch(resolvedGameWindowId) === null) {
-        sessions.trackLaunch(resolvedGameWindowId, pending);
+        const gameWindowGroupId =
+          yield* optionalGameWindowGroupId(resolvedGameWindowId);
+        sessions.trackLaunch(resolvedGameWindowId, gameWindowGroupId, pending);
         yield* publishCurrentState;
       }
       return { gameWindowId: resolvedGameWindowId };
@@ -487,48 +565,54 @@ export const makeAccounts = Effect.gen(function* () {
   const refreshServers: AccountsShape["refreshServers"] = servers.refresh;
 
   const updateAccount: AccountsShape["updateAccount"] = (username, patch) =>
-    updateStorage((storage) =>
-      Effect.gen(function* () {
-        const currentUsername = yield* normalizeRequiredString(
-          username,
-          "username",
-          "update-account",
-        );
-        const accountPatch = yield* normalizeAccountPatch(patch);
-        const nextUsername = accountPatch.username ?? currentUsername;
-        if (
-          hasAccountUsername(storage.accounts, nextUsername, {
-            exceptUsername: currentUsername,
-          })
-        ) {
-          return yield* accountError(
-            "update-account",
-            "An account with this username already exists",
-          );
-        }
-        let found = false;
-        const accounts = storage.accounts.map((account) => {
-          if (account.username !== currentUsername) return account;
-          found = true;
+    Effect.gen(function* () {
+      const currentUsername = yield* normalizeRequiredString(
+        username,
+        "username",
+        "update-account",
+      );
+      const accountPatch = yield* normalizeAccountPatch(patch);
+      const nextUsername = accountPatch.username ?? currentUsername;
+      const state = yield* updateStorage((storage) =>
+        Effect.gen(function* () {
+          if (
+            hasAccountUsername(storage.accounts, nextUsername, {
+              exceptUsername: currentUsername,
+            })
+          ) {
+            return yield* accountError(
+              "update-account",
+              "An account with this username already exists",
+            );
+          }
+          let found = false;
+          const accounts = storage.accounts.map((account) => {
+            if (account.username !== currentUsername) return account;
+            found = true;
+            return {
+              ...account,
+              ...accountPatch,
+              label: accountPatch.label ?? account.label,
+            };
+          });
+          if (!found) {
+            return yield* accountError("update-account", "Account not found");
+          }
           return {
-            ...account,
-            ...accountPatch,
-            label: accountPatch.label ?? account.label,
+            accounts,
+            groups: renameGroupMemberUsername(
+              storage.groups,
+              currentUsername,
+              nextUsername,
+            ),
           };
-        });
-        if (!found) {
-          return yield* accountError("update-account", "Account not found");
-        }
-        return {
-          accounts,
-          groups: renameGroupMemberUsername(
-            storage.groups,
-            currentUsername,
-            nextUsername,
-          ),
-        };
-      }),
-    );
+        }),
+      );
+      if (currentUsername.toLowerCase() !== nextUsername.toLowerCase()) {
+        yield* retireGameProfiles([currentUsername]);
+      }
+      return state;
+    });
 
   const updateGroup: AccountsShape["updateGroup"] = (name, patch) =>
     updateStorage((storage) =>
@@ -569,7 +653,19 @@ export const makeAccounts = Effect.gen(function* () {
     gameWindowId,
     update,
   ) =>
-    Effect.sync(() => sessions.updateStatus(gameWindowId, update)).pipe(
+    optionalGameWindowGroupId(gameWindowId).pipe(
+      Effect.tap((gameWindowGroupId) =>
+        Effect.sync(() =>
+          sessions.updateStatus(gameWindowId, update, gameWindowGroupId),
+        ),
+      ),
+      Effect.andThen(
+        update.currentUsername === undefined
+          ? Effect.void
+          : gameWindows
+              .setName(gameWindowId, update.currentUsername ?? "")
+              .pipe(Effect.catch(() => Effect.void)),
+      ),
       Effect.andThen(publishCurrentState),
       Effect.mapError((cause) =>
         accountError(
@@ -582,9 +678,11 @@ export const makeAccounts = Effect.gen(function* () {
 
   return Accounts.of({
     closeGameWindow,
+    closeGameWindows,
     createAccount,
     createGroup,
     deleteAccount,
+    deleteAccounts,
     deleteGroup,
     focusGameWindow,
     getGameLaunch,

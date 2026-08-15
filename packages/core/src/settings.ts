@@ -135,6 +135,7 @@ export const ThemeProfilePatchSchema = Schema.Struct({
 
 export const PreferencesPatchSchema = Schema.Struct({
   checkForUpdates: Schema.optionalKey(Schema.Boolean),
+  useGameTabs: Schema.optionalKey(Schema.Boolean),
   launchMode: Schema.optionalKey(AppLaunchModeSchema),
 });
 
@@ -154,6 +155,7 @@ export type ThemeTokenName = (typeof THEME_TOKEN_NAMES)[number];
 export type ThemeTokenValues = Record<ThemeTokenName, ThemeRgb>;
 export interface PreferencesPatch {
   readonly checkForUpdates?: boolean;
+  readonly useGameTabs?: boolean;
   readonly launchMode?: AppLaunchMode;
 }
 export interface ThemeProfilePatch {
@@ -184,6 +186,7 @@ export interface AppSettings {
   readonly version: AppSettingsVersion;
   readonly preferences: {
     readonly checkForUpdates: boolean;
+    readonly useGameTabs: boolean;
     readonly launchMode: AppLaunchMode;
   };
   readonly appearance: {
@@ -199,6 +202,7 @@ export const AppSettingsSchema = Schema.Struct({
   version: Schema.Literal(APP_SETTINGS_VERSION),
   preferences: Schema.Struct({
     checkForUpdates: Schema.Boolean,
+    useGameTabs: Schema.Boolean,
     launchMode: AppLaunchModeSchema,
   }),
   appearance: Schema.Struct({
@@ -299,6 +303,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   version: APP_SETTINGS_VERSION,
   preferences: {
     checkForUpdates: false,
+    useGameTabs: false,
     launchMode: "game",
   },
   appearance: {
@@ -469,6 +474,11 @@ export const normalizeAppSettings = (value: unknown): AppSettings => {
         decodeBoolean,
         preferences["checkForUpdates"],
         DEFAULT_APP_SETTINGS.preferences.checkForUpdates,
+      ),
+      useGameTabs: decodeOrElse(
+        decodeBoolean,
+        preferences["useGameTabs"],
+        DEFAULT_APP_SETTINGS.preferences.useGameTabs,
       ),
       launchMode: decodeOrElse(
         decodeAppLaunchMode,

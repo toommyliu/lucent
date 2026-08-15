@@ -164,6 +164,7 @@ const applyPreferencesPatch = (
       ...current.preferences,
       checkForUpdates:
         patch.checkForUpdates ?? current.preferences.checkForUpdates,
+      useGameTabs: patch.useGameTabs ?? current.preferences.useGameTabs,
       launchMode: patch.launchMode ?? current.preferences.launchMode,
     },
   });

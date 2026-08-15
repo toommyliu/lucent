@@ -16,11 +16,11 @@ describe("GamePackets", () => {
         const ipc = DesktopIpc.of({
           handle: () => Effect.void,
           sendToAll: () => Effect.void,
-          sendToBrowserWindowIds: (_ids, _descriptor, payload) =>
+          sendToRendererIds: (_ids, _descriptor, payload) =>
             Ref.set(sent, payload as PacketsRequest),
         });
         const windows = {
-          getOwnedBrowserWindowIds: () => Effect.succeed([]),
+          getOwnedRendererIds: () => Effect.succeed([]),
           isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),

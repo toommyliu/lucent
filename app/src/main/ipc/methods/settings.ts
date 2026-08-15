@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { SettingsIpc } from "../../../shared/ipc";
 import { DesktopSettings } from "../../settings/DesktopSettings";
 import {
-  ALL_DESKTOP_WINDOW_KINDS,
+  ALL_DESKTOP_RENDERER_KINDS,
   DesktopIpc,
   makeDesktopIpcMethod,
 } from "../DesktopIpc";
@@ -12,7 +12,7 @@ const settingsSenders = ["settings"] as const;
 
 export const get = makeDesktopIpcMethod({
   descriptor: SettingsIpc.get,
-  allowedSenders: ALL_DESKTOP_WINDOW_KINDS,
+  allowedSenders: ALL_DESKTOP_RENDERER_KINDS,
   handler: Effect.fn("desktop.ipc.settings.get")(function* () {
     const settings = yield* DesktopSettings;
     return yield* settings.get;

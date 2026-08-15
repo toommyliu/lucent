@@ -108,6 +108,8 @@ export type AccountGameServerPingsResult =
 
 export const AccountScriptSessionSchema = Schema.Struct({
   gameWindowId: Schema.Number,
+  gameWindowGroupId: Schema.optionalKey(Schema.Number),
+  authenticated: Schema.optionalKey(Schema.Boolean),
   launchUsername: Schema.optionalKey(Schema.String),
   currentUsername: Schema.optionalKey(Schema.String),
   scriptName: Schema.optionalKey(Schema.String),
@@ -161,11 +163,23 @@ export const AccountLaunchTilingPlacementSchema = Schema.Struct({
 export type AccountLaunchTilingPlacement =
   typeof AccountLaunchTilingPlacementSchema.Type;
 
+export const AccountLaunchWindowTargetSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("new") }),
+  Schema.Struct({
+    kind: Schema.Literal("same-as-game"),
+    gameWindowId: Schema.Number,
+  }),
+]);
+
+export type AccountLaunchWindowTarget =
+  typeof AccountLaunchWindowTargetSchema.Type;
+
 export const AccountLaunchRequestSchema = Schema.Struct({
   username: Schema.String,
   script: Schema.optionalKey(Schema.NullOr(AccountScriptReferenceSchema)),
   server: Schema.optionalKey(Schema.String),
   tiling: Schema.optionalKey(AccountLaunchTilingPlacementSchema),
+  windowTarget: Schema.optionalKey(AccountLaunchWindowTargetSchema),
 });
 
 export type AccountLaunchRequest = typeof AccountLaunchRequestSchema.Type;
@@ -195,7 +209,8 @@ export type AccountGameLaunchPayload =
   typeof AccountGameLaunchPayloadSchema.Type;
 
 export const AccountScriptStatusUpdateSchema = Schema.Struct({
-  currentUsername: Schema.optionalKey(Schema.String),
+  // null explicitly clears an authenticated session; undefined preserves it.
+  currentUsername: Schema.optionalKey(Schema.NullOr(Schema.String)),
   scriptName: Schema.optionalKey(Schema.String),
   status: AccountScriptStatusSchema,
   message: Schema.optionalKey(Schema.String),

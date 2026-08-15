@@ -53,8 +53,11 @@ import {
   type AppPlatform,
 } from "../../../shared/desktopBridge";
 import type {
+  GameViewGroupCommand,
+  GameViewPresentation,
+} from "../../../shared/gameViews";
+import type {
   AccountGameLaunchPayload,
-  AccountScriptReference,
   AccountScriptStatusUpdate,
 } from "@lucent/core/accounts";
 import {
@@ -116,12 +119,17 @@ import {
 } from "./scripting/roomPolicyInput";
 import { prepareScriptStart } from "./scripting/scriptStartPreparation";
 import { runScriptEval } from "./scripting/ScriptEvaluator";
+import { makeGameViewGroupCommandQueue } from "./groupCommandQueue";
 import {
   fatalScriptAlertFromError,
   fatalScriptAlertFromStatus,
   type FatalScriptAlert,
 } from "./scripting/fatalAlert";
 import { resolveAccountScript } from "./scripting/accountScriptResolution";
+import {
+  accountScriptLabel,
+  accountScriptRunnerStatusUpdate,
+} from "./scripting/accountScriptStatus";
 import { ScriptsDialog } from "./ScriptsDialog";
 import {
   ScriptInputsErrorAlert,
@@ -179,10 +187,41 @@ const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
 const PLAYER_READY_RETRY_INTERVAL_MS = 250;
 const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
 const ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS = 30_000;
+const INACTIVE_FOCUSED_LAYOUT_FRAME_RATE_LIMIT = 2;
+const INACTIVE_GRID_VIEW_FRAME_RATE_LIMIT = 8;
+
+const gameViewFrameRateLimit = (
+  presentation: GameViewPresentation,
+): number | null => {
+  if (presentation.active && presentation.windowActive) return null;
+  return presentation.layout === "grid"
+    ? INACTIVE_GRID_VIEW_FRAME_RATE_LIMIT
+    : INACTIVE_FOCUSED_LAYOUT_FRAME_RATE_LIMIT;
+};
+
+const wait = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => window.setTimeout(resolve, delayMs));
+
+const readAccountCurrentUsername = async (): Promise<string | undefined> => {
+  try {
+    const username = await runtime.runPromise(
+      Effect.gen(function* () {
+        const { auth } = yield* Api;
+        return yield* auth.getUsername();
+      }),
+    );
+    const normalized = username.trim();
+    return normalized === "" ? undefined : normalized;
+  } catch (error) {
+    console.error("[game:account-launch]", "username refresh failed", error);
+    return undefined;
+  }
+};
 
 type ScriptTimingOperation =
   | "catalog-load"
   | "catalog-start"
+  | "group-start"
   | "loaded-start"
   | "required-input-start";
 
@@ -1157,6 +1196,7 @@ function DevDebugEvaluator(): JSX.Element {
 
 export function App(props: {
   readonly initialSettings?: AppSettings | null;
+  readonly onGroupCommandReceiverReady?: () => void;
   readonly platform: AppPlatform;
 }): JSX.Element {
   const [settings, setSettings] = createSignal<AppSettings>(
@@ -1172,6 +1212,15 @@ export function App(props: {
   });
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(null);
   const [topNavVisible, setTopNavVisible] = createSignal(true);
+  const [gameViewPresentation, setGameViewPresentation] =
+    createSignal<GameViewPresentation>({
+      active: true,
+      layout: desktop.gameView.initialLayout ?? "focused",
+      windowActive: true,
+    });
+  const effectiveTopNavVisible = createMemo(
+    () => topNavVisible() && gameViewPresentation().layout === "focused",
+  );
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
     DEFAULT_FLASH_SETTINGS,
   );
@@ -1271,6 +1320,7 @@ export function App(props: {
   let accountScriptRunnerStatusPublishQueue = Promise.resolve();
   let activeAccountScriptMissing = false;
   let lastPublishedDirectGameUsername: string | null = null;
+  let trackedSessionLoggedOut = false;
   let scriptSettingsBindToken = 0;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
@@ -1313,11 +1363,21 @@ export function App(props: {
     });
     resolveGameLoaded?.();
   };
+  const markGameViewActive = () => {
+    if (gameViewPresentation().active) return;
+    void desktop.gameView.activate().catch((cause: unknown) => {
+      console.error("[game:view] activation failed", cause);
+    });
+  };
 
   window.onLoaded = markLoaded;
+  window.onGameInteraction = markGameViewActive;
   window.onProgress = setLoadProgress;
   onCleanup(() => {
     if (window.onLoaded === markLoaded) delete window.onLoaded;
+    if (window.onGameInteraction === markGameViewActive) {
+      delete window.onGameInteraction;
+    }
     if (window.onProgress === setLoadProgress) delete window.onProgress;
   });
 
@@ -1350,14 +1410,13 @@ export function App(props: {
       });
   };
 
-  const runSettingsUpdate = (
-    label: string,
+  const executeSettingsUpdate = (
     optimisticPatch: Partial<FlashSettingsSnapshot>,
     update: (settings: ApiService["settings"]) => Effect.Effect<void>,
-  ) => {
+  ): Promise<FlashSettingsSnapshot> => {
     patchFlashSettingsState(optimisticPatch);
 
-    void runtime
+    return runtime
       .runPromise(
         Effect.gen(function* () {
           const { settings } = yield* Api;
@@ -1365,12 +1424,51 @@ export function App(props: {
           return yield* settings.get();
         }),
       )
-      .then(applyFlashSettingsState)
+      .then((state) => {
+        applyFlashSettingsState(state);
+        return state;
+      })
       .catch((error: unknown) => {
-        console.error("[game:settings]", `${label} failed`, error);
         refreshFlashSettings();
+        throw error;
       });
   };
+
+  const runSettingsUpdate = (
+    label: string,
+    optimisticPatch: Partial<FlashSettingsSnapshot>,
+    update: (settings: ApiService["settings"]) => Effect.Effect<void>,
+  ) => {
+    void executeSettingsUpdate(optimisticPatch, update).catch(
+      (error: unknown) => {
+        console.error("[game:settings]", `${label} failed`, error);
+      },
+    );
+  };
+
+  const executeFlashSetting = (
+    key: keyof Pick<
+      FlashSettingsSnapshot,
+      | "animationsEnabled"
+      | "antiCounterEnabled"
+      | "collisionsEnabled"
+      | "deathAdsVisible"
+      | "enemyMagnetEnabled"
+      | "infiniteRangeEnabled"
+      | "otherPlayersVisible"
+      | "provokeCellEnabled"
+      | "skipCutscenesEnabled"
+    >,
+    enabled: boolean,
+    update: (
+      settings: ApiService["settings"],
+      enabled: boolean,
+    ) => Effect.Effect<void>,
+  ): Promise<FlashSettingsSnapshot> =>
+    executeSettingsUpdate(
+      { [key]: enabled } as FlashSettingsPatch,
+      (settings) => update(settings, enabled),
+    );
 
   const setFlashSetting = (
     label: string,
@@ -1391,12 +1489,10 @@ export function App(props: {
       settings: ApiService["settings"],
       enabled: boolean,
     ) => Effect.Effect<void>,
-  ) => {
-    runSettingsUpdate(
-      label,
-      { [key]: enabled } as FlashSettingsPatch,
-      (settings) => update(settings, enabled),
-    );
+  ): void => {
+    void executeFlashSetting(key, enabled, update).catch((error: unknown) => {
+      console.error("[game:settings]", `${label} failed`, error);
+    });
   };
 
   const handleHidePlayersCheckedChange = (hidden: boolean) => {
@@ -2595,10 +2691,6 @@ export function App(props: {
     await startLoadedScript(prepared.file, inputValues, timing);
   };
 
-  const accountScriptLabel = (
-    script: AccountScriptReference | undefined,
-  ): string | undefined => script?.name ?? script?.path;
-
   const publishAccountStatus = async (
     update: AccountScriptStatusUpdate,
   ): Promise<boolean> => {
@@ -2608,22 +2700,6 @@ export function App(props: {
     } catch (error) {
       console.error("[game:account-launch]", "status publish failed", error);
       return false;
-    }
-  };
-
-  const readAccountCurrentUsername = async (): Promise<string | undefined> => {
-    try {
-      const username = await runtime.runPromise(
-        Effect.gen(function* () {
-          const { auth } = yield* Api;
-          return yield* auth.getUsername();
-        }),
-      );
-      const normalized = username.trim();
-      return normalized === "" ? undefined : normalized;
-    } catch (error) {
-      console.error("[game:account-launch]", "username refresh failed", error);
-      return undefined;
     }
   };
 
@@ -2707,38 +2783,9 @@ export function App(props: {
     });
     if (published) {
       lastPublishedDirectGameUsername = normalized;
+      trackedSessionLoggedOut = false;
     }
   };
-
-  const accountScriptRunnerUpdate = (
-    status: ScriptRunnerStatus,
-    currentUsername: string,
-    scriptName: string | undefined,
-  ): AccountScriptStatusUpdate => ({
-    currentUsername,
-    ...(scriptName === undefined ? {} : { scriptName }),
-    status:
-      status.state === "starting"
-        ? "starting"
-        : status.state === "waiting-to-restart"
-          ? "starting"
-          : status.state === "running" || status.state === "stopping"
-            ? "running"
-            : status.state === "failed"
-              ? "failed"
-              : status.state === "idle"
-                ? "idle"
-                : "stopped",
-    ...(status.state === "failed"
-      ? { message: status.message }
-      : status.state === "waiting-to-restart"
-        ? { message: "Waiting to restart" }
-        : status.state === "stopped"
-          ? { message: status.reason ?? "Stopped" }
-          : status.state === "completed"
-            ? { message: "Completed" }
-            : {}),
-  });
 
   const publishAccountLaunchStatus = async (
     status: AccountScriptStatusUpdate["status"],
@@ -2763,18 +2810,21 @@ export function App(props: {
   const publishAccountScriptRunnerStatus = async (
     status: ScriptRunnerStatus,
   ): Promise<void> => {
+    if (trackedSessionLoggedOut) return;
+
     const payload = activeAccountLaunchPayload;
-    if (payload === null) {
+    const currentUsername = await readAccountCurrentUsername();
+    if (trackedSessionLoggedOut) return;
+    const update = accountScriptRunnerStatusUpdate(
+      status,
+      currentUsername,
+      payload,
+    );
+    if (update === null) {
       return;
     }
 
-    const scriptName =
-      "name" in status ? status.name : accountScriptLabel(payload.script);
-    const currentUsername =
-      (await readAccountCurrentUsername()) ?? payload.account.username;
-    await publishAccountStatus(
-      accountScriptRunnerUpdate(status, currentUsername, scriptName),
-    );
+    await publishAccountStatus(update);
   };
 
   const enqueueAccountScriptRunnerStatus = (
@@ -2798,6 +2848,7 @@ export function App(props: {
     if (currentUsername === undefined) {
       return;
     }
+    trackedSessionLoggedOut = false;
     if (payload === null) {
       await publishDirectGameConnectionStatus(currentUsername);
       return;
@@ -2813,15 +2864,15 @@ export function App(props: {
     }
 
     const status = scriptRunnerStatus();
-    const scriptName =
-      "name" in status ? status.name : accountScriptLabel(payload.script);
-    await publishAccountStatus(
-      accountScriptRunnerUpdate(status, currentUsername, scriptName),
+    const update = accountScriptRunnerStatusUpdate(
+      status,
+      currentUsername,
+      payload,
     );
+    if (update !== null) {
+      await publishAccountStatus(update);
+    }
   };
-
-  const wait = (delayMs: number): Promise<void> =>
-    new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
   const waitForGameLoaded = async (): Promise<boolean> => {
     if (gameLoaded()) return true;
@@ -2833,9 +2884,11 @@ export function App(props: {
 
   const runAccountLaunch = async (
     payload: AccountGameLaunchPayload,
+    options: { readonly startScript?: boolean } = {},
   ): Promise<void> => {
     activeAccountLaunchPayload = payload;
     activeAccountScriptMissing = false;
+    trackedSessionLoggedOut = false;
     await publishAccountLaunchStatus("starting", "Waiting...");
 
     try {
@@ -2871,7 +2924,7 @@ export function App(props: {
       }
 
       await refreshPlayerReady();
-      if (payload.script === undefined) {
+      if (payload.script === undefined || options.startScript === false) {
         await publishAccountLaunchStatus("stopped", "Logged in");
         return;
       }
@@ -2925,6 +2978,225 @@ export function App(props: {
         );
       }
       await publishAccountLaunchStatus("failed", message);
+    }
+  };
+
+  const runGroupLogin = async (): Promise<void> => {
+    if (activeAccountLaunchPayload === null) return;
+    await runAccountLaunch(activeAccountLaunchPayload, { startScript: false });
+  };
+
+  const publishLoggedOutStatus = async (): Promise<void> => {
+    if (
+      trackedSessionLoggedOut ||
+      (activeAccountLaunchPayload === null &&
+        lastPublishedDirectGameUsername === null)
+    ) {
+      return;
+    }
+    trackedSessionLoggedOut = true;
+    lastPublishedDirectGameUsername = null;
+    await publishAccountStatus({
+      currentUsername: null,
+      message: "Logged out",
+      status: "stopped",
+    });
+  };
+
+  const runGroupLogout = async (): Promise<void> => {
+    const previouslyLoggedOut = trackedSessionLoggedOut;
+    trackedSessionLoggedOut = true;
+    try {
+      await stopRunningScript("group logout");
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          const { auth } = yield* Api;
+          yield* auth.logout();
+        }),
+      );
+      stopPlayerReadyRetry();
+      setPlayerReady(false);
+      clearScriptSettingsBinding();
+      resetTravelOptions();
+      trackedSessionLoggedOut = previouslyLoggedOut;
+      await publishLoggedOutStatus();
+    } catch (error) {
+      trackedSessionLoggedOut = previouslyLoggedOut;
+      console.error("[game:group]", "logout failed", error);
+    }
+  };
+
+  const loadGroupScript = async (file: ScriptFile): Promise<void> => {
+    if (scriptBusy()) return;
+
+    setScriptBusy(true);
+    try {
+      await applyLoadedScript(file, {
+        replaceRunning: true,
+        start: false,
+      });
+    } catch (error) {
+      console.error("[game:group]", "load script failed", error);
+    } finally {
+      setScriptBusy(false);
+    }
+  };
+
+  const runGroupLocation = async (
+    map: string,
+    cell: string,
+    pad: string,
+  ): Promise<void> => {
+    if (!(await ensurePlayerReady())) return;
+
+    const targetMap = map.trim();
+    const targetCell = cell.trim();
+    const targetPad = pad.trim();
+    try {
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          const { player } = yield* Api;
+          if (targetMap !== "") {
+            yield* player.joinMap(
+              targetMap,
+              targetCell === "" ? undefined : targetCell,
+              targetPad === "" ? undefined : targetPad,
+            );
+            return;
+          }
+          yield* player.jumpToCell(
+            targetCell === "" ? DEFAULT_CELL : targetCell,
+            targetPad === "" ? undefined : targetPad,
+          );
+        }),
+      );
+      refreshTravelOptionsAfterJump();
+    } catch (error) {
+      console.error("[game:group]", "travel failed", error);
+    }
+  };
+
+  const runGroupGoToPlayer = async (playerName: string): Promise<void> => {
+    if (!(await ensurePlayerReady())) return;
+    try {
+      await runtime.runPromise(
+        Effect.gen(function* () {
+          const { player } = yield* Api;
+          yield* player.goToPlayer(playerName.trim());
+        }),
+      );
+      refreshTravelOptionsAfterJump();
+    } catch (error) {
+      console.error("[game:group]", "go to player failed", error);
+    }
+  };
+
+  const runGroupRenderingMode = async (mode: RenderingMode): Promise<void> => {
+    await executeSettingsUpdate({ renderingMode: mode }, (settings) =>
+      settings.setRenderingMode(mode),
+    );
+  };
+
+  const runGroupOption = async (
+    option: Extract<GameViewGroupCommand, { readonly kind: "set-option" }>,
+  ): Promise<void> => {
+    switch (option.option) {
+      case "hide-players": {
+        const visible = !option.enabled;
+        await executeSettingsUpdate(
+          { otherPlayersVisible: visible },
+          (settings) => settings.setOtherPlayersVisible(visible),
+        );
+        return;
+      }
+      case "animations":
+        await executeFlashSetting(
+          "animationsEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setAnimationsEnabled(enabled),
+        );
+        return;
+      case "anti-counter":
+        await executeFlashSetting(
+          "antiCounterEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setAntiCounterEnabled(enabled),
+        );
+        return;
+      case "collisions":
+        await executeFlashSetting(
+          "collisionsEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setCollisionsEnabled(enabled),
+        );
+        return;
+      case "death-ads":
+        await executeFlashSetting(
+          "deathAdsVisible",
+          option.enabled,
+          (settings, enabled) => settings.setDeathAdsVisible(enabled),
+        );
+        return;
+      case "enemy-magnet":
+        await executeFlashSetting(
+          "enemyMagnetEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setEnemyMagnetEnabled(enabled),
+        );
+        return;
+      case "infinite-range":
+        await executeFlashSetting(
+          "infiniteRangeEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setInfiniteRangeEnabled(enabled),
+        );
+        return;
+      case "provoke-cell":
+        await executeFlashSetting(
+          "provokeCellEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setProvokeCellEnabled(enabled),
+        );
+        return;
+      case "skip-cutscenes":
+        await executeFlashSetting(
+          "skipCutscenesEnabled",
+          option.enabled,
+          (settings, enabled) => settings.setSkipCutscenesEnabled(enabled),
+        );
+    }
+  };
+
+  const runGroupCommand = async (
+    command: GameViewGroupCommand,
+  ): Promise<void> => {
+    switch (command.kind) {
+      case "start-scripts":
+        await startCurrentScript("group-start");
+        return;
+      case "stop-scripts":
+        await stopRunningScript("group stop");
+        return;
+      case "load-script":
+        await loadGroupScript(command.file);
+        return;
+      case "login":
+        await runGroupLogin();
+        return;
+      case "logout":
+        await runGroupLogout();
+        return;
+      case "join-location":
+        await runGroupLocation(command.map, command.cell, command.pad);
+        return;
+      case "go-to-player":
+        await runGroupGoToPlayer(command.player);
+        return;
+      case "set-rendering-mode":
+        await runGroupRenderingMode(command.mode);
+        return;
+      case "set-option":
+        await runGroupOption(command);
     }
   };
 
@@ -3012,39 +3284,35 @@ export function App(props: {
     setScriptInputDialogError(null);
   };
 
-  const toggleScript = async () => {
-    const wasRunning = scriptRunning();
-    if (wasRunning) {
-      if (scriptStopInFlight()) {
-        return;
-      }
+  const stopRunningScript = async (reason: string): Promise<void> => {
+    if (!scriptRunning() || scriptStopInFlight()) return;
 
-      setScriptStopInFlight(true);
-      try {
-        const status = await runtime.runPromise(
-          Effect.gen(function* () {
-            const runner = yield* ScriptRunner;
-            return yield* runner.stop("user requested stop");
-          }),
-        );
-        setScriptRunnerStatus(status);
-      } catch (error) {
-        console.error("[game:script]", "stop failed", error);
-      } finally {
-        setScriptStopInFlight(false);
-      }
-      return;
+    setScriptStopInFlight(true);
+    try {
+      const status = await runtime.runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.stop(reason);
+        }),
+      );
+      setScriptRunnerStatus(status);
+    } catch (error) {
+      console.error("[game:script]", "stop failed", error);
+    } finally {
+      setScriptStopInFlight(false);
     }
+  };
 
-    if (scriptBusy() || !scriptReady()) {
-      return;
-    }
+  const startCurrentScript = async (
+    operation: "group-start" | "loaded-start",
+  ): Promise<void> => {
+    if (scriptRunning() || scriptBusy() || !scriptReady()) return;
 
     const file = loadedScript();
     const timing =
       file === null
         ? undefined
-        : beginScriptTiming("loaded-start", {
+        : beginScriptTiming(operation, {
             name: file.name,
             path: file.path,
             revision: file.revision,
@@ -3064,13 +3332,21 @@ export function App(props: {
       if (timing !== undefined) completeScriptTiming(timing, "completed");
     } catch (error) {
       if (timing !== undefined) completeScriptTiming(timing, "failed", error);
-      console.error("[game:script]", "toggle failed", error);
-      if (!wasRunning && file !== null) {
+      console.error("[game:script]", "start failed", error);
+      if (file !== null) {
         showFatalScriptError(file.name, error, file.path);
       }
     } finally {
       setScriptBusy(false);
     }
+  };
+
+  const toggleScript = async (): Promise<void> => {
+    if (scriptRunning()) {
+      await stopRunningScript("user requested stop");
+      return;
+    }
+    await startCurrentScript("loaded-start");
   };
 
   const syncScriptOptions = () => {
@@ -3302,6 +3578,55 @@ export function App(props: {
   });
 
   onMount(() => {
+    const bridge = desktop.gameView;
+
+    let disposed = false;
+    const groupCommands = makeGameViewGroupCommandQueue({
+      execute: runGroupCommand,
+      onError: (command, cause) => {
+        console.error("[game:group]", `${command.kind} command failed`, cause);
+      },
+    });
+    const applyPresentation = (presentation: GameViewPresentation): void => {
+      if (disposed) return;
+      setGameViewPresentation(presentation);
+      if (presentation.layout === "grid") {
+        setOpenMenu(null);
+      }
+      void runtime
+        .runPromise(
+          Effect.gen(function* () {
+            const { settings } = yield* Api;
+            yield* settings.setFrameRateLimit(
+              gameViewFrameRateLimit(presentation),
+            );
+          }),
+        )
+        .catch((cause: unknown) => {
+          console.error("[game:view] frame rate sync failed", cause);
+        });
+    };
+    const unsubscribe = bridge.onPresentationChanged(applyPresentation);
+    const unsubscribeGroupCommands = bridge.onGroupCommand((envelope) => {
+      if (!disposed) groupCommands.enqueue(envelope);
+    });
+    props.onGroupCommandReceiverReady?.();
+    void bridge
+      .getPresentation()
+      .then(applyPresentation)
+      .catch((cause: unknown) => {
+        console.error("[game:view] presentation sync failed", cause);
+      });
+
+    onCleanup(() => {
+      disposed = true;
+      unsubscribe();
+      unsubscribeGroupCommands();
+      groupCommands.dispose();
+    });
+  });
+
+  onMount(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
@@ -3368,6 +3693,7 @@ export function App(props: {
                 setPlayerReady(false);
                 clearScriptSettingsBinding();
                 resetTravelOptions();
+                void publishLoggedOutStatus();
               }
 
               if (status === "OnConnection") {
@@ -3534,7 +3860,7 @@ export function App(props: {
   });
 
   createEffect(() => {
-    writeTopNavHidden(!topNavVisible());
+    writeTopNavHidden(!effectiveTopNavVisible());
   });
 
   createEffect(() => {
@@ -3708,7 +4034,7 @@ export function App(props: {
   return (
     <main
       class="game-app"
-      classList={{ "game-app--topnav-hidden": !topNavVisible() }}
+      classList={{ "game-app--topnav-hidden": !effectiveTopNavVisible() }}
       data-platform={platformLabel()}
     >
       <ScriptsDialog
@@ -3907,79 +4233,81 @@ export function App(props: {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <TopNav
-        openMenu={openMenu}
-        setOpenMenu={setOpenMenu}
-        hotkeyBindings={() => settings().hotkeys.bindings}
-        hotkeyPlatform={props.platform}
-        gameLoaded={gameLoaded}
-        playerReady={playerReady}
-        optionItems={optionItems}
-        walkSpeed={walkSpeed}
-        setWalkSpeed={setWalkSpeed}
-        handleSetWalkSpeed={handleSetWalkSpeed}
-        frameRate={frameRate}
-        setFrameRate={setFrameRate}
-        handleSetFrameRate={handleSetFrameRate}
-        handleReloadMap={handleReloadMap}
-        handleSetSpawnPoint={handleSetSpawnPoint}
-        customName={customName}
-        customNameConfigured={() => flashSettings().customNameConfigured}
-        setCustomName={setCustomName}
-        handleSetCustomName={handleSetCustomName}
-        handleResetCustomName={handleResetCustomName}
-        customGuild={customGuild}
-        customGuildConfigured={() => flashSettings().customGuildConfigured}
-        setCustomGuild={setCustomGuild}
-        handleSetCustomGuild={handleSetCustomGuild}
-        handleResetCustomGuild={handleResetCustomGuild}
-        autoAttackEnabled={autoAttackEnabled}
-        autoAttackProfileLabel={autoAttackProfileLabel}
-        autoAttackConfiguredProfileLabel={autoAttackConfiguredProfileLabel}
-        autoAttackLastError={autoAttackLastError}
-        autoAttackTargetPriority={autoAttackTargetPriority}
-        setAutoAttackTargetPriority={setAutoAttackTargetPriority}
-        combatProfiles={() => combatProfileLibrary().profiles}
-        selectedAutoAttackProfileId={selectedAutoAttackProfileId}
-        handleToggleAutoAttack={handleToggleAutoAttack}
-        handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
-        scriptLoaded={scriptLoaded}
-        scriptRunning={scriptRunning}
-        scriptTogglePending={scriptTogglePending}
-        scriptOptionsReady={scriptReady}
-        openScripts={openScripts}
-        toggleScript={toggleScript}
-        autoZoneEnabled={autoZoneEnabled}
-        autoZoneMap={autoZoneMap}
-        handleToggleAutoZone={handleToggleAutoZone}
-        handleSelectAutoZoneMap={handleSelectAutoZoneMap}
-        autoReloginEnabled={autoReloginEnabled}
-        autoReloginCaptured={autoReloginCaptured}
-        autoReloginAttempting={autoReloginAttempting}
-        autoReloginWaitingDelay={autoReloginWaitingDelay}
-        autoReloginToggling={autoReloginToggling}
-        autoReloginDelaySeconds={autoReloginDelaySeconds}
-        setAutoReloginDelaySeconds={setAutoReloginDelaySeconds}
-        autoReloginServer={autoReloginServer}
-        autoReloginServers={autoReloginServers}
-        autoReloginLastError={autoReloginLastError}
-        autoReloginAttemptsRemaining={autoReloginAttemptsRemaining}
-        handleToggleAutoRelogin={handleToggleAutoRelogin}
-        handleRefreshAutoReloginServers={refreshAutoReloginServers}
-        handleSelectAutoReloginServer={handleSelectAutoReloginServer}
-        handleSetAutoReloginDelay={handleSetAutoReloginDelay}
-        cells={cells}
-        pads={pads}
-        validPads={validPads}
-        selectedCell={selectedCell}
-        selectedPad={selectedPad}
-        travelBusy={travelBusy}
-        handleRefreshTravelOptions={refreshTravelOptions}
-        handleSelectCell={handleSelectCell}
-        handleSelectPad={handleSelectPad}
-        handleOpenBank={handleOpenBank}
-        handleOpenWindow={handleOpenWindow}
-      />
+      <Show when={effectiveTopNavVisible()}>
+        <TopNav
+          openMenu={openMenu}
+          setOpenMenu={setOpenMenu}
+          hotkeyBindings={() => settings().hotkeys.bindings}
+          hotkeyPlatform={props.platform}
+          gameLoaded={gameLoaded}
+          playerReady={playerReady}
+          optionItems={optionItems}
+          walkSpeed={walkSpeed}
+          setWalkSpeed={setWalkSpeed}
+          handleSetWalkSpeed={handleSetWalkSpeed}
+          frameRate={frameRate}
+          setFrameRate={setFrameRate}
+          handleSetFrameRate={handleSetFrameRate}
+          handleReloadMap={handleReloadMap}
+          handleSetSpawnPoint={handleSetSpawnPoint}
+          customName={customName}
+          customNameConfigured={() => flashSettings().customNameConfigured}
+          setCustomName={setCustomName}
+          handleSetCustomName={handleSetCustomName}
+          handleResetCustomName={handleResetCustomName}
+          customGuild={customGuild}
+          customGuildConfigured={() => flashSettings().customGuildConfigured}
+          setCustomGuild={setCustomGuild}
+          handleSetCustomGuild={handleSetCustomGuild}
+          handleResetCustomGuild={handleResetCustomGuild}
+          autoAttackEnabled={autoAttackEnabled}
+          autoAttackProfileLabel={autoAttackProfileLabel}
+          autoAttackConfiguredProfileLabel={autoAttackConfiguredProfileLabel}
+          autoAttackLastError={autoAttackLastError}
+          autoAttackTargetPriority={autoAttackTargetPriority}
+          setAutoAttackTargetPriority={setAutoAttackTargetPriority}
+          combatProfiles={() => combatProfileLibrary().profiles}
+          selectedAutoAttackProfileId={selectedAutoAttackProfileId}
+          handleToggleAutoAttack={handleToggleAutoAttack}
+          handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
+          scriptLoaded={scriptLoaded}
+          scriptRunning={scriptRunning}
+          scriptTogglePending={scriptTogglePending}
+          scriptOptionsReady={scriptReady}
+          openScripts={openScripts}
+          toggleScript={toggleScript}
+          autoZoneEnabled={autoZoneEnabled}
+          autoZoneMap={autoZoneMap}
+          handleToggleAutoZone={handleToggleAutoZone}
+          handleSelectAutoZoneMap={handleSelectAutoZoneMap}
+          autoReloginEnabled={autoReloginEnabled}
+          autoReloginCaptured={autoReloginCaptured}
+          autoReloginAttempting={autoReloginAttempting}
+          autoReloginWaitingDelay={autoReloginWaitingDelay}
+          autoReloginToggling={autoReloginToggling}
+          autoReloginDelaySeconds={autoReloginDelaySeconds}
+          setAutoReloginDelaySeconds={setAutoReloginDelaySeconds}
+          autoReloginServer={autoReloginServer}
+          autoReloginServers={autoReloginServers}
+          autoReloginLastError={autoReloginLastError}
+          autoReloginAttemptsRemaining={autoReloginAttemptsRemaining}
+          handleToggleAutoRelogin={handleToggleAutoRelogin}
+          handleRefreshAutoReloginServers={refreshAutoReloginServers}
+          handleSelectAutoReloginServer={handleSelectAutoReloginServer}
+          handleSetAutoReloginDelay={handleSetAutoReloginDelay}
+          cells={cells}
+          pads={pads}
+          validPads={validPads}
+          selectedCell={selectedCell}
+          selectedPad={selectedPad}
+          travelBusy={travelBusy}
+          handleRefreshTravelOptions={refreshTravelOptions}
+          handleSelectCell={handleSelectCell}
+          handleSelectPad={handleSelectPad}
+          handleOpenBank={handleOpenBank}
+          handleOpenWindow={handleOpenWindow}
+        />
+      </Show>
 
       <section
         id="loader-container"

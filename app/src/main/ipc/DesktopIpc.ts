@@ -1,4 +1,9 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import {
+  BrowserWindow,
+  ipcMain,
+  webContents,
+  type IpcMainInvokeEvent,
+} from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -10,7 +15,7 @@ import {
   type ElectronWindowUsabilityTarget,
   isElectronWindowUsable,
 } from "../electron/windowUsability";
-import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
+import type { DesktopRendererKind } from "../window/DesktopWindowCatalog";
 import {
   type IpcEventDescriptor,
   type IpcEventPayload,
@@ -99,11 +104,24 @@ export interface DesktopIpcWindow extends ElectronWindowUsabilityTarget {
   readonly webContents: ElectronWindowUsabilityTarget["webContents"] & {
     readonly send: (channel: string, payload: unknown) => void;
   };
+  readonly getBrowserViews?: () => readonly DesktopIpcView[];
+}
+
+export interface DesktopIpcView {
+  readonly webContents: DesktopIpcWebContents;
+}
+
+export interface DesktopIpcWebContents {
+  readonly isDestroyed: () => boolean;
+  readonly send: (channel: string, payload: unknown) => void;
 }
 
 export interface DesktopIpcWindows {
-  readonly fromId: (browserWindowId: number) => DesktopIpcWindow | null;
   readonly getAllWindows: () => readonly DesktopIpcWindow[];
+}
+
+export interface DesktopIpcWebContentsCatalog {
+  readonly fromId: (id: number) => DesktopIpcWebContents | undefined;
 }
 
 export interface DesktopIpcShape {
@@ -118,10 +136,8 @@ export interface DesktopIpcShape {
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) => Effect.Effect<void>;
-  readonly sendToBrowserWindowIds: <
-    Descriptor extends IpcEventDescriptor<unknown>,
-  >(
-    browserWindowIds: readonly number[],
+  readonly sendToRendererIds: <Descriptor extends IpcEventDescriptor<unknown>>(
+    rendererIds: readonly number[],
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) => Effect.Effect<void>;
@@ -132,20 +148,20 @@ export class DesktopIpc extends Context.Service<DesktopIpc, DesktopIpcShape>()(
 ) {}
 
 const sendEncoded = (
-  windows: Iterable<DesktopIpcWindow | null>,
+  targets: Iterable<DesktopIpcWebContents | undefined>,
   channel: string,
   payload: unknown,
 ): void => {
   const unexpectedFailures: unknown[] = [];
-  for (const window of windows) {
-    if (window === null || !isElectronWindowUsable(window)) {
+  for (const target of targets) {
+    if (target === undefined || target.isDestroyed()) {
       continue;
     }
 
     try {
-      window.webContents.send(channel, payload);
+      target.send(channel, payload);
     } catch (cause) {
-      if (isElectronWindowUsable(window)) {
+      if (!target.isDestroyed()) {
         unexpectedFailures.push(cause);
       }
     }
@@ -159,11 +175,12 @@ const sendEncoded = (
 export const makeDesktopIpc = (
   main: DesktopIpcMain,
   windows: DesktopIpcWindows = BrowserWindow,
+  contents: DesktopIpcWebContentsCatalog = webContents,
 ): DesktopIpc["Service"] => {
   const sendEvent = <Descriptor extends IpcEventDescriptor<unknown>>(
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
-    targets: () => Iterable<DesktopIpcWindow | null>,
+    targets: () => Iterable<DesktopIpcWebContents | undefined>,
   ): Effect.Effect<void> =>
     descriptor.encodePayloadEffect(payload).pipe(
       Effect.orDie,
@@ -172,18 +189,29 @@ export const makeDesktopIpc = (
       ),
     );
 
-  const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
-    sendEvent(descriptor, payload, windows.getAllWindows);
+  const allWebContents = function* (): Generator<DesktopIpcWebContents> {
+    for (const window of windows.getAllWindows()) {
+      if (!isElectronWindowUsable(window)) {
+        continue;
+      }
 
-  const sendToBrowserWindowIds: DesktopIpcShape["sendToBrowserWindowIds"] = (
-    browserWindowIds,
+      yield window.webContents;
+      for (const view of window.getBrowserViews?.() ?? []) {
+        yield view.webContents;
+      }
+    }
+  };
+
+  const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
+    sendEvent(descriptor, payload, allWebContents);
+
+  const sendToRendererIds: DesktopIpcShape["sendToRendererIds"] = (
+    rendererIds,
     descriptor,
     payload,
   ) =>
     sendEvent(descriptor, payload, () =>
-      browserWindowIds.map((browserWindowId) =>
-        windows.fromId(browserWindowId),
-      ),
+      rendererIds.map((rendererId) => contents.fromId(rendererId)),
     );
 
   const handle = <E, R>(
@@ -238,19 +266,21 @@ export const makeDesktopIpc = (
   return DesktopIpc.of({
     handle,
     sendToAll,
-    sendToBrowserWindowIds,
+    sendToRendererIds,
   });
 };
 
 export const layer = Layer.succeed(DesktopIpc, makeDesktopIpc(ipcMain));
 
-export const ALL_DESKTOP_WINDOW_KINDS = [
+export const ALL_DESKTOP_RENDERER_KINDS = [
   "account-manager",
   "combat-profiles",
   "environment",
   "follower",
   "game",
+  "game-group-controls",
+  "game-host",
   "loader-grabber",
   "packets",
   "settings",
-] as const satisfies readonly [DesktopWindowKind, ...DesktopWindowKind[]];
+] as const satisfies readonly [DesktopRendererKind, ...DesktopRendererKind[]];

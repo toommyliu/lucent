@@ -19,29 +19,29 @@ import type { DesktopIpcSender } from "../DesktopIpcSenders";
 export class PacketsOwnerError extends Schema.TaggedErrorClass<PacketsOwnerError>()(
   "PacketsOwnerError",
   {
-    browserWindowId: Schema.Int,
+    rendererId: Schema.Int,
   },
 ) {
   override get message(): string {
-    return `The Packets window has no owning game: ${this.browserWindowId}`;
+    return `The Packets window has no owning game: ${this.rendererId}`;
   }
 }
 
 const resolveOwningGame = Effect.fn("desktop.ipc.packets.resolveOwningGame")(
   function* (sender: DesktopIpcSender) {
     const windows = yield* DesktopWindows;
-    const ownerBrowserWindowId = yield* windows.getOwnerBrowserWindowId(
-      sender.browserWindowId,
+    const ownerRendererId = yield* windows.getOwnerRendererId(
+      sender.rendererId,
     );
     if (
-      ownerBrowserWindowId === null ||
-      (yield* windows.getBrowserWindowKind(ownerBrowserWindowId)) !== "game"
+      ownerRendererId === null ||
+      (yield* windows.getRendererKind(ownerRendererId)) !== "game"
     ) {
       return yield* new PacketsOwnerError({
-        browserWindowId: sender.browserWindowId,
+        rendererId: sender.rendererId,
       });
     }
-    return ownerBrowserWindowId;
+    return ownerRendererId;
   },
 );
 
@@ -50,23 +50,23 @@ const requestGame = Effect.fn("desktop.ipc.packets.requestGame")(function* (
   input: PacketsRequestInput,
 ) {
   const packets = yield* GamePackets;
-  const gameBrowserWindowId = yield* resolveOwningGame(sender);
-  yield* packets.request(gameBrowserWindowId, input);
+  const gameRendererId = yield* resolveOwningGame(sender);
+  yield* packets.request(gameRendererId, input);
 });
 
 const notifyPacketsWindow = Effect.fn("desktop.ipc.packets.notifyWindow")(
   function* <Descriptor extends IpcEventDescriptor<unknown>>(
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
   ) {
     const ipc = yield* DesktopIpc;
     const windows = yield* DesktopWindows;
-    const targets = yield* windows.getOwnedBrowserWindowIds(
-      gameBrowserWindowId,
+    const targets = yield* windows.getOwnedRendererIds(
+      gameRendererId,
       "packets",
     );
-    yield* ipc.sendToBrowserWindowIds(targets, descriptor, payload);
+    yield* ipc.sendToRendererIds(targets, descriptor, payload);
   },
 );
 
@@ -82,8 +82,8 @@ export const getStatus = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.packets.getStatus")(
     function* (_payload, sender) {
       const packets = yield* GamePackets;
-      const gameBrowserWindowId = yield* resolveOwningGame(sender);
-      return yield* packets.getStatus(gameBrowserWindowId);
+      const gameRendererId = yield* resolveOwningGame(sender);
+      return yield* packets.getStatus(gameRendererId);
     },
   ),
 });
@@ -133,11 +133,11 @@ export const publishCaptured = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       const rendererReady = yield* windows
-        .isRendererReady(sender.browserWindowId)
+        .isRendererReady(sender.rendererId)
         .pipe(Effect.catch(() => Effect.succeed(false)));
       if (rendererReady) {
         yield* notifyPacketsWindow(
-          sender.browserWindowId,
+          sender.rendererId,
           PacketsIpc.captured,
           payload,
         );
@@ -153,14 +153,14 @@ export const publishStatus = makeDesktopIpcMethod({
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
       const rendererReady = yield* windows
-        .isRendererReady(sender.browserWindowId)
+        .isRendererReady(sender.rendererId)
         .pipe(Effect.catch(() => Effect.succeed(false)));
       if (!rendererReady) {
         return;
       }
 
       const packets = yield* GamePackets;
-      yield* packets.publishStatus(sender.browserWindowId, payload);
+      yield* packets.publishStatus(sender.rendererId, payload);
     },
   ),
 });
@@ -171,7 +171,7 @@ export const respond = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.packets.respond")(
     function* (response, sender) {
       const packets = yield* GamePackets;
-      yield* packets.respond(sender.browserWindowId, response);
+      yield* packets.respond(sender.rendererId, response);
     },
   ),
 });

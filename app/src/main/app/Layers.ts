@@ -41,6 +41,7 @@ import * as DesktopWindows from "../window/DesktopWindows";
 import * as ElectronApp from "../electron/ElectronApp";
 import * as ElectronChromiumPerformance from "../electron/ElectronChromiumPerformance";
 import * as ElectronDialog from "../electron/ElectronDialog";
+import * as ElectronGameView from "../electron/ElectronGameView";
 import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
@@ -60,6 +61,7 @@ export const makeDesktopLayer = (
     ElectronApp.layer,
     electronChromiumPerformanceLayer,
     ElectronDialog.layer,
+    ElectronGameView.layer,
     DesktopIpc.layer,
     electronSessionLayer,
     ElectronShell.layer,
@@ -173,6 +175,7 @@ export const makeDesktopLayer = (
     Layer.provideMerge(
       Layer.mergeAll(
         ElectronApp.layer,
+        ElectronGameView.layer,
         electronSessionLayer,
         ElectronShell.layer,
         ElectronTheme.layer,
@@ -209,7 +212,6 @@ export const makeDesktopLayer = (
   const gamePacketsLayer = GamePackets.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
   );
-
   const accountRepositoryLayer = AccountRepository.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );

@@ -17,66 +17,62 @@ import type { DesktopIpcSender } from "../DesktopIpcSenders";
 export class FollowerOwnerError extends Schema.TaggedErrorClass<FollowerOwnerError>()(
   "FollowerOwnerError",
   {
-    browserWindowId: Schema.Int,
+    rendererId: Schema.Int,
   },
 ) {
   override get message(): string {
-    return `Follower window has no owning game: ${this.browserWindowId}`;
+    return `Follower window has no owning game: ${this.rendererId}`;
   }
 }
 
-const resolveGameBrowserWindowId = Effect.fn(
-  "desktop.ipc.follower.resolveGame",
-)(function* (sender: DesktopIpcSender) {
-  if (sender.kind === "game") {
-    return sender.browserWindowId;
-  }
+const resolveGameRendererId = Effect.fn("desktop.ipc.follower.resolveGame")(
+  function* (sender: DesktopIpcSender) {
+    if (sender.kind === "game") {
+      return sender.rendererId;
+    }
 
-  const windows = yield* DesktopWindows;
-  const ownerBrowserWindowId = yield* windows.getOwnerBrowserWindowId(
-    sender.browserWindowId,
-  );
-  if (
-    ownerBrowserWindowId === null ||
-    (yield* windows.getBrowserWindowKind(ownerBrowserWindowId)) !== "game"
-  ) {
-    return yield* new FollowerOwnerError({
-      browserWindowId: sender.browserWindowId,
-    });
-  }
-  return ownerBrowserWindowId;
-});
+    const windows = yield* DesktopWindows;
+    const ownerRendererId = yield* windows.getOwnerRendererId(
+      sender.rendererId,
+    );
+    if (
+      ownerRendererId === null ||
+      (yield* windows.getRendererKind(ownerRendererId)) !== "game"
+    ) {
+      return yield* new FollowerOwnerError({
+        rendererId: sender.rendererId,
+      });
+    }
+    return ownerRendererId;
+  },
+);
 
 const notifyChanged = Effect.fn("desktop.ipc.follower.notifyChanged")(
   function* (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     state: FollowerState,
-    excludedBrowserWindowId?: number,
+    excludedRendererId?: number,
   ) {
     const ipc = yield* DesktopIpc;
     const windows = yield* DesktopWindows;
-    const targets = (yield* windows.getOwnedBrowserWindowIds(
-      gameBrowserWindowId,
+    const targets = (yield* windows.getOwnedRendererIds(
+      gameRendererId,
       "follower",
-    )).filter((browserWindowId) => browserWindowId !== excludedBrowserWindowId);
-    yield* ipc.sendToBrowserWindowIds(targets, FollowerIpc.changed, state);
+    )).filter((rendererId) => rendererId !== excludedRendererId);
+    yield* ipc.sendToRendererIds(targets, FollowerIpc.changed, state);
   },
 );
 
 const notifyPlayersChanged = Effect.fn(
   "desktop.ipc.follower.notifyPlayersChanged",
-)(function* (gameBrowserWindowId: number, players: readonly string[]) {
+)(function* (gameRendererId: number, players: readonly string[]) {
   const ipc = yield* DesktopIpc;
   const windows = yield* DesktopWindows;
-  const targets = yield* windows.getOwnedBrowserWindowIds(
-    gameBrowserWindowId,
+  const targets = yield* windows.getOwnedRendererIds(
+    gameRendererId,
     "follower",
   );
-  yield* ipc.sendToBrowserWindowIds(
-    targets,
-    FollowerIpc.playersChanged,
-    players,
-  );
+  yield* ipc.sendToRendererIds(targets, FollowerIpc.playersChanged, players);
 });
 
 const requestState = Effect.fn("desktop.ipc.follower.requestState")(function* (
@@ -94,16 +90,16 @@ const requestState = Effect.fn("desktop.ipc.follower.requestState")(function* (
     | { readonly kind: "stop" },
 ) {
   const followers = yield* GameFollowers;
-  const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-  const outcome = yield* followers.request(gameBrowserWindowId, input);
+  const gameRendererId = yield* resolveGameRendererId(sender);
+  const outcome = yield* followers.request(gameRendererId, input);
   if (outcome.kind === "me") {
     return yield* new GameFollowerRequestError({
       detail: `Follower returned ${outcome.kind} for ${input.kind}.`,
     });
   }
 
-  const state = yield* followers.set(gameBrowserWindowId, outcome.state);
-  yield* notifyChanged(gameBrowserWindowId, state, sender.browserWindowId);
+  const state = yield* followers.set(gameRendererId, outcome.state);
+  yield* notifyChanged(gameRendererId, state, sender.rendererId);
   return state;
 });
 
@@ -123,8 +119,8 @@ export const getConfig = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.getConfig")(
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-      return yield* followers.getConfig(gameBrowserWindowId);
+      const gameRendererId = yield* resolveGameRendererId(sender);
+      return yield* followers.getConfig(gameRendererId);
     },
   ),
 });
@@ -135,10 +131,10 @@ export const getState = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.getState")(
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
+      const gameRendererId = yield* resolveGameRendererId(sender);
       return yield* requestState(sender, { kind: "get-state" }).pipe(
         Effect.catchTag("GameFollowerRequestError", () =>
-          followers.get(gameBrowserWindowId),
+          followers.get(gameRendererId),
         ),
       );
     },
@@ -151,8 +147,8 @@ export const getPlayers = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.getPlayers")(
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
-      const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-      return yield* followers.getPlayers(gameBrowserWindowId);
+      const gameRendererId = yield* resolveGameRendererId(sender);
+      return yield* followers.getPlayers(gameRendererId);
     },
   ),
 });
@@ -162,8 +158,8 @@ export const me = makeDesktopIpcMethod({
   allowedSenders: ["follower"],
   handler: Effect.fn("desktop.ipc.follower.me")(function* (_payload, sender) {
     const followers = yield* GameFollowers;
-    const gameBrowserWindowId = yield* resolveGameBrowserWindowId(sender);
-    const outcome = yield* followers.request(gameBrowserWindowId, {
+    const gameRendererId = yield* resolveGameRendererId(sender);
+    const outcome = yield* followers.request(gameRendererId, {
       kind: "me",
     });
     if (outcome.kind !== "me") {
@@ -197,7 +193,7 @@ export const respond = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.respond")(
     function* (response, sender) {
       const followers = yield* GameFollowers;
-      yield* followers.respond(sender.browserWindowId, response);
+      yield* followers.respond(sender.rendererId, response);
     },
   ),
 });
@@ -208,8 +204,8 @@ export const publishState = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.publishState")(
     function* (incoming, sender) {
       const followers = yield* GameFollowers;
-      const state = yield* followers.set(sender.browserWindowId, incoming);
-      yield* notifyChanged(sender.browserWindowId, state);
+      const state = yield* followers.set(sender.rendererId, incoming);
+      yield* notifyChanged(sender.rendererId, state);
     },
   ),
 });
@@ -220,12 +216,9 @@ export const publishPlayers = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.publishPlayers")(
     function* (incoming, sender) {
       const followers = yield* GameFollowers;
-      const update = yield* followers.setPlayers(
-        sender.browserWindowId,
-        incoming,
-      );
+      const update = yield* followers.setPlayers(sender.rendererId, incoming);
       if (update.changed) {
-        yield* notifyPlayersChanged(sender.browserWindowId, update.players);
+        yield* notifyPlayersChanged(sender.rendererId, update.players);
       }
     },
   ),

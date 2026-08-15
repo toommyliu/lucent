@@ -17,11 +17,14 @@ export const MINIMAL_RENDERING_FRAME_RATE = 2;
 
 type NonMinimalRenderingMode = Exclude<RenderingMode, "minimal">;
 
+const normalizeFrameRate = (frameRate: number): number =>
+  Math.max(1, Math.min(60, frameRate));
+
 const normalizePatch = (input: SettingsPatchValue): SettingsPatchValue => ({
   ...input,
   ...(input.frameRate === undefined
     ? {}
-    : { frameRate: Math.max(1, Math.min(60, input.frameRate)) }),
+    : { frameRate: normalizeFrameRate(input.frameRate) }),
   ...(input.walkSpeed === undefined
     ? {}
     : { walkSpeed: Math.max(1, input.walkSpeed) }),
@@ -50,10 +53,17 @@ const recurringActionsPatch = (state: SettingsState): SettingsPatchValue => ({
   skipCutscenesEnabled: state.skipCutscenesEnabled,
 });
 
-const effectiveFrameRate = (state: SettingsState): number =>
-  state.renderingMode === "minimal"
-    ? MINIMAL_RENDERING_FRAME_RATE
-    : state.frameRate;
+const effectiveFrameRate = (
+  state: SettingsState,
+  frameRateLimit: number | null,
+): number => {
+  if (state.renderingMode === "minimal") {
+    return MINIMAL_RENDERING_FRAME_RATE;
+  }
+  return frameRateLimit === null
+    ? state.frameRate
+    : Math.min(state.frameRate, frameRateLimit);
+};
 
 const isNonMinimalRenderingMode = (
   mode: RenderingMode,
@@ -65,6 +75,7 @@ export const makeSettings = Effect.fnUntraced(function* (
 ) {
   const scope = yield* Effect.scope;
   const updates = yield* Semaphore.make(1);
+  const frameRateLimit = yield* Ref.make<number | null>(null);
   const resumeRenderingMode = yield* Ref.make<NonMinimalRenderingMode>("full");
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const command = (
@@ -75,7 +86,10 @@ export const makeSettings = Effect.fnUntraced(function* (
       .invoke(method, value === undefined ? undefined : [value], Schema.Void)
       .pipe(Effect.asVoid);
 
-  const execute = (patch: SettingsPatchValue, state: SettingsState) => {
+  const execute = Effect.fnUntraced(function* (
+    patch: SettingsPatchValue,
+    state: SettingsState,
+  ) {
     const effects: Effect.Effect<void>[] = [];
     const enqueue = <K extends keyof SettingsPatchValue>(
       key: K,
@@ -97,7 +111,10 @@ export const makeSettings = Effect.fnUntraced(function* (
       );
     }
     if (patch.frameRate !== undefined || patch.renderingMode !== undefined) {
-      effects.push(command("settings.setFrameRate", effectiveFrameRate(state)));
+      const limit = yield* Ref.get(frameRateLimit);
+      effects.push(
+        command("settings.setFrameRate", effectiveFrameRate(state, limit)),
+      );
     }
     if (patch.enemyMagnetEnabled === true) {
       effects.push(command("settings.enemyMagnet"));
@@ -111,8 +128,8 @@ export const makeSettings = Effect.fnUntraced(function* (
     if (patch.skipCutscenesEnabled === true) {
       effects.push(command("settings.skipCutscenes"));
     }
-    return Effect.all(effects, { discard: true });
-  };
+    yield* Effect.all(effects, { discard: true });
+  });
 
   const applyUnlocked = Effect.fnUntraced(function* (
     input: SettingsPatchValue,
@@ -227,6 +244,18 @@ export const makeSettings = Effect.fnUntraced(function* (
   const setDeathAdsVisible = set("deathAdsVisible");
   const setEnemyMagnetEnabled = set("enemyMagnetEnabled");
   const setFrameRate = set("frameRate");
+  const setFrameRateLimit = (limit: number | null) =>
+    updates.withPermits(1)(
+      Effect.gen(function* () {
+        const normalized = limit === null ? null : normalizeFrameRate(limit);
+        yield* Ref.set(frameRateLimit, normalized);
+        const state = yield* store.settings.get;
+        yield* command(
+          "settings.setFrameRate",
+          effectiveFrameRate(state, normalized),
+        );
+      }),
+    );
   const setInfiniteRangeEnabled = set("infiniteRangeEnabled");
   const setOtherPlayersVisible = set("otherPlayersVisible");
   const setProvokeCellEnabled = set("provokeCellEnabled");
@@ -264,6 +293,7 @@ export const makeSettings = Effect.fnUntraced(function* (
     setDeathAdsVisible,
     setEnemyMagnetEnabled,
     setFrameRate,
+    setFrameRateLimit,
     setInfiniteRangeEnabled,
     setOtherPlayersVisible,
     setProvokeCellEnabled,

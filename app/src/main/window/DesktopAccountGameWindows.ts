@@ -1,8 +1,18 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
+import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
 import { AccountGameWindows } from "../internal/accounts/AccountGameWindows";
-import { DesktopWindows } from "./DesktopWindows";
+import { DesktopWindows, type DesktopGameHostTarget } from "./DesktopWindows";
+
+const resolveGameHostTarget = (
+  target: AccountLaunchWindowTarget | undefined,
+): DesktopGameHostTarget => {
+  if (target === undefined) return { kind: "available" };
+  return target.kind === "new"
+    ? { kind: "new" }
+    : { rendererId: target.gameWindowId, kind: "game-view" };
+};
 
 export const layer = Layer.effect(
   AccountGameWindows,
@@ -10,38 +20,60 @@ export const layer = Layer.effect(
     const windows = yield* DesktopWindows;
 
     const close: AccountGameWindows["Service"]["close"] = (gameWindowId) =>
-      windows.closeBrowserWindow(gameWindowId);
+      windows.closeRenderer(gameWindowId);
+
+    const getGroupId: AccountGameWindows["Service"]["getGroupId"] = (
+      gameWindowId,
+    ) => windows.getNativeWindowId(gameWindowId);
 
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
       windows.onClosed((event) =>
-        event.kind === "game" ? listener(event.browserWindowId) : Effect.void,
+        event.kind === "game" ? listener(event.rendererId) : Effect.void,
       );
 
     const open: AccountGameWindows["Service"]["open"] = (options) =>
       Effect.gen(function* () {
         let gameWindowId: number | undefined;
         const instanceId = yield* windows.open("game", {
+          gameHostTarget: resolveGameHostTarget(options?.windowTarget),
+          ...(options?.managedProfileKey === undefined
+            ? {}
+            : { managedGameProfileKey: options.managedProfileKey }),
+          ...(options?.name === undefined
+            ? {}
+            : { gameViewName: options.name }),
           ...(options?.tile === undefined ? {} : { tile: options.tile }),
           ...(options?.onCreated === undefined
             ? {}
             : {
-                onCreated: ({ browserWindowId }) => {
-                  gameWindowId = browserWindowId;
-                  return options.onCreated!(browserWindowId);
+                onCreated: ({ rendererId }) => {
+                  gameWindowId = rendererId;
+                  return options.onCreated!(rendererId);
                 },
               }),
         });
-        return gameWindowId ?? (yield* windows.getBrowserWindowId(instanceId));
+        return gameWindowId ?? (yield* windows.getRendererId(instanceId));
       });
 
     const reveal: AccountGameWindows["Service"]["reveal"] = (gameWindowId) =>
-      windows.revealBrowserWindow(gameWindowId);
+      windows.revealRenderer(gameWindowId);
+
+    const retireProfile: AccountGameWindows["Service"]["retireProfile"] =
+      windows.retireManagedGameProfile;
+
+    const setName: AccountGameWindows["Service"]["setName"] = (
+      gameWindowId,
+      name,
+    ) => windows.setGameViewName(gameWindowId, name);
 
     return AccountGameWindows.of({
       close,
+      getGroupId,
       onClosed,
       open,
       reveal,
+      retireProfile,
+      setName,
     });
   }),
 );

@@ -41,7 +41,7 @@ export const start = makeDesktopIpcMethod({
     return yield* coordinator.join(
       config,
       payload.playerName,
-      sender.browserWindowId,
+      sender.rendererId,
     );
   }),
 });
@@ -51,7 +51,7 @@ export const leave = makeDesktopIpcMethod({
   allowedSenders: gameSenders,
   handler: Effect.fn("desktop.ipc.army.leave")(function* (payload, sender) {
     const coordinator = yield* ArmyCoordinator;
-    return yield* coordinator.leave(payload.sessionId, sender.browserWindowId);
+    return yield* coordinator.leave(payload.sessionId, sender.rendererId);
   }),
 });
 
@@ -62,7 +62,7 @@ export const sync = makeDesktopIpcMethod({
     const coordinator = yield* ArmyCoordinator;
     return yield* coordinator.sync(
       payload.sessionId,
-      sender.browserWindowId,
+      sender.rendererId,
       payload,
     );
   }),
@@ -75,7 +75,7 @@ export const progress = makeDesktopIpcMethod({
     const coordinator = yield* ArmyCoordinator;
     return yield* coordinator.progress(
       payload.sessionId,
-      sender.browserWindowId,
+      sender.rendererId,
       payload,
     );
   }),
@@ -88,7 +88,7 @@ export const fail = makeDesktopIpcMethod({
     const coordinator = yield* ArmyCoordinator;
     return yield* coordinator.fail(
       payload.sessionId,
-      sender.browserWindowId,
+      sender.rendererId,
       payload.reason,
     );
   }),
@@ -100,7 +100,7 @@ export const loopTauntRegister = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.loopTauntRegister")(
     function* (payload, sender) {
       const orchestrator = yield* ArmyLoopTauntOrchestrator;
-      return yield* orchestrator.register(payload, sender.browserWindowId);
+      return yield* orchestrator.register(payload, sender.rendererId);
     },
   ),
 });
@@ -111,7 +111,7 @@ export const loopTauntAwait = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.loopTauntAwait")(
     function* (payload, sender) {
       const orchestrator = yield* ArmyLoopTauntOrchestrator;
-      return yield* orchestrator.await(payload, sender.browserWindowId);
+      return yield* orchestrator.await(payload, sender.rendererId);
     },
   ),
 });
@@ -122,7 +122,7 @@ export const loopTauntReady = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.loopTauntReady")(
     function* (payload, sender) {
       const orchestrator = yield* ArmyLoopTauntOrchestrator;
-      return yield* orchestrator.ready(payload, sender.browserWindowId);
+      return yield* orchestrator.ready(payload, sender.rendererId);
     },
   ),
 });
@@ -133,7 +133,7 @@ export const loopTauntReport = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.loopTauntReport")(
     function* (payload, sender) {
       const orchestrator = yield* ArmyLoopTauntOrchestrator;
-      return yield* orchestrator.report(payload, sender.browserWindowId);
+      return yield* orchestrator.report(payload, sender.rendererId);
     },
   ),
 });
@@ -144,7 +144,7 @@ export const loopTauntLeave = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.loopTauntLeave")(
     function* (payload, sender) {
       const orchestrator = yield* ArmyLoopTauntOrchestrator;
-      return yield* orchestrator.leave(payload, sender.browserWindowId);
+      return yield* orchestrator.leave(payload, sender.rendererId);
     },
   ),
 });
@@ -179,7 +179,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
 
     yield* Effect.acquireRelease(
       loopTauntOrchestrator.onCommand((event) =>
-        ipc.sendToBrowserWindowIds(
+        ipc.sendToRendererIds(
           event.participantIds,
           ArmyIpc.loopTauntCommand,
           event.command,
@@ -190,7 +190,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
 
     yield* Effect.acquireRelease(
       coordinator.onSessionEnded((event) =>
-        ipc.sendToBrowserWindowIds(event.participantIds, ArmyIpc.ended, {
+        ipc.sendToRendererIds(event.participantIds, ArmyIpc.ended, {
           reason: event.reason,
           sessionId: event.sessionId,
         }),
@@ -202,7 +202,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
       windows.onRendererReloaded((event) =>
         event.kind === "game"
           ? coordinator.abortParticipant(
-              event.browserWindowId,
+              event.rendererId,
               `Army window reloaded into renderer generation ${event.generation}`,
             )
           : Effect.void,
@@ -214,7 +214,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
       windows.onRendererDestroyed((event) =>
         event.kind === "game"
           ? coordinator.abortParticipant(
-              event.browserWindowId,
+              event.rendererId,
               "Army window destroyed",
             )
           : Effect.void,
@@ -225,10 +225,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onClosed((event) =>
         event.kind === "game"
-          ? coordinator.abortParticipant(
-              event.browserWindowId,
-              "Army window closed",
-            )
+          ? coordinator.abortParticipant(event.rendererId, "Army window closed")
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),

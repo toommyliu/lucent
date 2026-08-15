@@ -1,24 +1,20 @@
-import {
-  BrowserWindow,
-  type IpcMainInvokeEvent,
-  type WebContents,
-} from "electron";
+import type { IpcMainInvokeEvent, WebContents } from "electron";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
+import type { DesktopRendererKind } from "../window/DesktopWindowCatalog";
 import { DesktopWindows } from "../window/DesktopWindows";
 
 export interface DesktopIpcSender {
-  readonly browserWindowId: number;
-  readonly kind: DesktopWindowKind;
+  readonly rendererId: number;
+  readonly kind: DesktopRendererKind;
 }
 
 export type DesktopIpcSenderKinds = readonly [
-  DesktopWindowKind,
-  ...DesktopWindowKind[],
+  DesktopRendererKind,
+  ...DesktopRendererKind[],
 ];
 
 export class DesktopIpcSenderError extends Schema.TaggedErrorClass<DesktopIpcSenderError>()(
@@ -45,33 +41,25 @@ export class DesktopIpcSenders extends Context.Service<
 >()("lucent/desktop/ipc/DesktopIpcSenders") {}
 
 export interface DesktopIpcSendersOptions {
-  readonly fromWebContents: (webContents: WebContents) => BrowserWindow | null;
+  readonly getWebContentsId: (webContents: WebContents) => number;
 }
 
 export const makeDesktopIpcSenders = (
   windows: DesktopWindows["Service"],
   options: DesktopIpcSendersOptions = {
-    fromWebContents: (webContents) =>
-      BrowserWindow.fromWebContents(webContents),
+    getWebContentsId: (webContents) => webContents.id,
   },
 ): DesktopIpcSenders["Service"] => {
   const requireSender = Effect.fn("DesktopIpcSenders.require")(function* (
     event: IpcMainInvokeEvent,
     allowedKinds: DesktopIpcSenderKinds,
   ) {
-    const browserWindow = options.fromWebContents(event.sender);
-    if (browserWindow === null) {
-      return yield* new DesktopIpcSenderError({
-        detail: "IPC sender is not attached to a BrowserWindow.",
-      });
-    }
-
-    const browserWindowId = browserWindow.id;
-    const kind = yield* windows.getBrowserWindowKind(browserWindowId).pipe(
+    const rendererId = options.getWebContentsId(event.sender);
+    const kind = yield* windows.getRendererKind(rendererId).pipe(
       Effect.mapError(
         () =>
           new DesktopIpcSenderError({
-            detail: `Failed to resolve IPC sender window: ${browserWindowId}`,
+            detail: `Failed to resolve IPC sender window: ${rendererId}`,
           }),
       ),
     );
@@ -82,7 +70,7 @@ export const makeDesktopIpcSenders = (
     }
 
     return {
-      browserWindowId,
+      rendererId,
       kind,
     };
   });

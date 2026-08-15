@@ -4,6 +4,7 @@ package lucent {
 	import flash.display.MovieClip;
 	import flash.display.Stage;
 	import flash.events.Event;
+	import flash.events.MouseEvent;
 	import flash.events.ProgressEvent;
 	import flash.net.URLLoader;
 	import flash.net.URLRequest;
@@ -99,8 +100,18 @@ package lucent {
 
 			Modules.init();
 			this.stg.addEventListener(Event.ENTER_FRAME, Modules.handleFrame);
+			// Pepper consumes game clicks without focusing its Electron WebContents.
+			this.stg.addEventListener(
+				MouseEvent.MOUSE_DOWN,
+				this.onGameInteraction,
+				true
+			);
 
 			this.emitLoaded();
+		}
+
+		private function onGameInteraction(event:MouseEvent):void {
+			this.emitGameInteraction();
 		}
 
 		private function onConnection(evt:*):void {
@@ -157,6 +168,11 @@ package lucent {
 		[BridgeEvent("onLoaded")]
 		public function emitLoaded():void {
 			this.external.call("onLoaded");
+		}
+
+		[BridgeEvent("onGameInteraction")]
+		public function emitGameInteraction():void {
+			this.external.call("onGameInteraction");
 		}
 
 		[BridgeEvent("packetFromClient")]

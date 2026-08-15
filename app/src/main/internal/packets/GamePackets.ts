@@ -41,7 +41,7 @@ export class PacketsRequestError extends Schema.TaggedErrorClass<PacketsRequestE
 }
 
 interface PendingRequest {
-  readonly gameBrowserWindowId: number;
+  readonly gameRendererId: number;
   readonly gate: Deferred.Deferred<PacketsOutcome, PacketsRequestError>;
   readonly kind: PacketsRequestInput["kind"];
 }
@@ -54,19 +54,19 @@ const stoppedStatus = (stoppedReason?: string): PacketsStatusPayload => ({
 
 export interface GamePacketsShape {
   readonly getStatus: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
   ) => Effect.Effect<PacketsStatusPayload>;
   readonly publishStatus: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     status: PacketsStatusPayload,
   ) => Effect.Effect<void>;
-  readonly remove: (gameBrowserWindowId: number) => Effect.Effect<void>;
+  readonly remove: (gameRendererId: number) => Effect.Effect<void>;
   readonly request: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     input: PacketsRequestInput,
   ) => Effect.Effect<PacketsOutcome, PacketsRequestError>;
   readonly respond: (
-    gameBrowserWindowId: number,
+    gameRendererId: number,
     response: PacketsResponse,
   ) => Effect.Effect<void>;
 }
@@ -82,11 +82,11 @@ export const makeGamePackets = Effect.gen(function* () {
   const pendingRequests = new Map<string, PendingRequest>();
   const statuses = new Map<number, PacketsStatusPayload>();
 
-  const getStatus: GamePacketsShape["getStatus"] = (gameBrowserWindowId) =>
-    windows.isRendererReady(gameBrowserWindowId).pipe(
+  const getStatus: GamePacketsShape["getStatus"] = (gameRendererId) =>
+    windows.isRendererReady(gameRendererId).pipe(
       Effect.map((rendererReady) =>
         rendererReady
-          ? (statuses.get(gameBrowserWindowId) ?? stoppedStatus())
+          ? (statuses.get(gameRendererId) ?? stoppedStatus())
           : stoppedStatus(),
       ),
       Effect.catch(() =>
@@ -96,19 +96,19 @@ export const makeGamePackets = Effect.gen(function* () {
 
   const publishStatus: GamePacketsShape["publishStatus"] = Effect.fn(
     "GamePackets.publishStatus",
-  )(function* (gameBrowserWindowId, status) {
+  )(function* (gameRendererId, status) {
     const next = { ...status };
-    statuses.set(gameBrowserWindowId, next);
+    statuses.set(gameRendererId, next);
     const targets = yield* windows
-      .getOwnedBrowserWindowIds(gameBrowserWindowId, "packets")
+      .getOwnedRendererIds(gameRendererId, "packets")
       .pipe(Effect.catch(() => Effect.succeed([])));
-    yield* ipc.sendToBrowserWindowIds(targets, PacketsIpc.status, next);
+    yield* ipc.sendToRendererIds(targets, PacketsIpc.status, next);
   });
 
   const remove: GamePacketsShape["remove"] = Effect.fn("GamePackets.remove")(
-    function* (gameBrowserWindowId) {
+    function* (gameRendererId) {
       for (const [requestId, pending] of pendingRequests) {
-        if (pending.gameBrowserWindowId !== gameBrowserWindowId) {
+        if (pending.gameRendererId !== gameRendererId) {
           continue;
         }
 
@@ -124,9 +124,9 @@ export const makeGamePackets = Effect.gen(function* () {
   );
 
   const request: GamePacketsShape["request"] = Effect.fn("GamePackets.request")(
-    function* (gameBrowserWindowId, input) {
+    function* (gameRendererId, input) {
       const rendererReady = yield* windows
-        .isRendererReady(gameBrowserWindowId)
+        .isRendererReady(gameRendererId)
         .pipe(Effect.catch(() => Effect.succeed(false)));
       if (!rendererReady) {
         return yield* new PacketsRequestError({
@@ -137,19 +137,15 @@ export const makeGamePackets = Effect.gen(function* () {
       const requestId = createRandomId("packets");
       const gate = yield* Deferred.make<PacketsOutcome, PacketsRequestError>();
       pendingRequests.set(requestId, {
-        gameBrowserWindowId,
+        gameRendererId,
         gate,
         kind: input.kind,
       });
 
-      yield* ipc.sendToBrowserWindowIds(
-        [gameBrowserWindowId],
-        PacketsIpc.request,
-        {
-          ...input,
-          requestId,
-        } as PacketsRequest,
-      );
+      yield* ipc.sendToRendererIds([gameRendererId], PacketsIpc.request, {
+        ...input,
+        requestId,
+      } as PacketsRequest);
 
       const result = yield* Deferred.await(gate).pipe(
         Effect.timeoutOption(PACKETS_REQUEST_TIMEOUT_MS),
@@ -169,12 +165,9 @@ export const makeGamePackets = Effect.gen(function* () {
   );
 
   const respond: GamePacketsShape["respond"] = Effect.fn("GamePackets.respond")(
-    function* (gameBrowserWindowId, response) {
+    function* (gameRendererId, response) {
       const pending = pendingRequests.get(response.requestId);
-      if (
-        pending === undefined ||
-        pending.gameBrowserWindowId !== gameBrowserWindowId
-      ) {
+      if (pending === undefined || pending.gameRendererId !== gameRendererId) {
         return;
       }
 
@@ -201,22 +194,20 @@ export const makeGamePackets = Effect.gen(function* () {
     },
   );
 
-  const removeGame = (event: { readonly browserWindowId: number }) =>
-    remove(event.browserWindowId);
+  const removeGame = (event: { readonly rendererId: number }) =>
+    remove(event.rendererId);
   const invalidateGame = (
-    event: { readonly browserWindowId: number },
+    event: { readonly rendererId: number },
     stoppedReason?: string,
   ) =>
     Effect.all([
       removeGame(event),
-      publishStatus(event.browserWindowId, stoppedStatus(stoppedReason)),
+      publishStatus(event.rendererId, stoppedStatus(stoppedReason)),
     ]).pipe(Effect.asVoid);
   const unsubscribeClosed = yield* windows.onClosed((event) =>
     event.kind === "game"
       ? removeGame(event).pipe(
-          Effect.andThen(
-            Effect.sync(() => statuses.delete(event.browserWindowId)),
-          ),
+          Effect.andThen(Effect.sync(() => statuses.delete(event.rendererId))),
         )
       : Effect.void,
   );

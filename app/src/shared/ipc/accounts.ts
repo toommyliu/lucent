@@ -72,6 +72,14 @@ export const AccountsIpc = {
     }),
     result: AccountManagerStateSchema,
   }),
+  deleteAccounts: defineInvoke({
+    channel: `${namespace}:delete-accounts`,
+    name: "accounts.deleteAccounts",
+    payload: Schema.Struct({
+      usernames: Schema.Array(Schema.String),
+    }),
+    result: AccountManagerStateSchema,
+  }),
   createGroup: defineInvoke({
     channel: `${namespace}:create-group`,
     name: "accounts.createGroup",
@@ -111,6 +119,14 @@ export const AccountsIpc = {
     channel: `${namespace}:close-game-window`,
     name: "accounts.closeGameWindow",
     payload: AccountGameWindowTargetRequestSchema,
+    result: AccountManagerStateSchema,
+  }),
+  closeGameWindows: defineInvoke({
+    channel: `${namespace}:close-game-windows`,
+    name: "accounts.closeGameWindows",
+    payload: Schema.Struct({
+      gameWindowIds: Schema.Array(Schema.Number),
+    }),
     result: AccountManagerStateSchema,
   }),
   updateScriptStatus: defineInvoke({

@@ -7,6 +7,7 @@ import { afterEach } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
+import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { AccountGameWindows } from "./AccountGameWindows";
 import * as AccountRepository from "./AccountRepository";
@@ -24,7 +25,16 @@ afterEach(async () => {
   tempDirs.clear();
 });
 
-const makeHarness = () =>
+interface HarnessOptions {
+  readonly onManagedProfileKey?: (key: string | undefined) => void;
+  readonly onRetireProfile?: (key: string) => void;
+  readonly onSetName?: (gameWindowId: number, name: string) => void;
+  readonly onWindowTarget?: (
+    windowTarget: AccountLaunchWindowTarget | undefined,
+  ) => void;
+}
+
+const makeHarness = (harnessOptions: HarnessOptions = {}) =>
   Effect.gen(function* () {
     const appDataDir = yield* Effect.promise(() =>
       mkdtemp(join(tmpdir(), "lucent-accounts-data-")),
@@ -48,20 +58,31 @@ const makeHarness = () =>
           (listener) => listener(gameWindowId),
           { discard: true },
         ).pipe(Effect.as(true)),
+      getGroupId: () => Effect.succeed(1),
       onClosed: (listener) =>
         Effect.sync(() => {
           closedListeners.add(listener);
           return () => closedListeners.delete(listener);
         }),
-      open: (options) =>
+      open: (openOptions) =>
         Effect.gen(function* () {
+          yield* Effect.sync(() => {
+            harnessOptions.onManagedProfileKey?.(
+              openOptions?.managedProfileKey,
+            );
+            harnessOptions.onWindowTarget?.(openOptions?.windowTarget);
+          });
           const gameWindowId = nextWindowId++;
-          if (options?.onCreated !== undefined) {
-            yield* options.onCreated(gameWindowId);
+          if (openOptions?.onCreated !== undefined) {
+            yield* openOptions.onCreated(gameWindowId);
           }
           return gameWindowId;
         }),
       reveal: () => Effect.succeed(true),
+      retireProfile: (key) =>
+        Effect.sync(() => harnessOptions.onRetireProfile?.(key)),
+      setName: (gameWindowId, name) =>
+        Effect.sync(() => harnessOptions.onSetName?.(gameWindowId, name)),
     });
     const servers = AccountServers.of({
       get: Effect.succeed({ refreshAvailableAt: 0, servers: [] }),
@@ -111,10 +132,67 @@ describe("Accounts", () => {
     ),
   );
 
+  it.effect("deletes multiple accounts and group memberships atomically", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const retiredProfiles: string[] = [];
+        const layer = yield* makeHarness({
+          onRetireProfile: (key) => retiredProfiles.push(key),
+        });
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+        for (const username of ["Alice", "Bob", "Cara"]) {
+          yield* accounts.createAccount({ password: "secret", username });
+        }
+        yield* accounts.createGroup({
+          name: "Party",
+          usernames: ["Alice", "Bob", "Cara"],
+        });
+
+        yield* Effect.flip(accounts.deleteAccounts(["Alice", "Missing"]));
+        expect((yield* accounts.getState).accounts).toHaveLength(3);
+        expect(retiredProfiles).toEqual([]);
+
+        const state = yield* accounts.deleteAccounts(["Alice", "Bob"]);
+
+        expect(state.accounts.map((account) => account.username)).toEqual([
+          "Cara",
+        ]);
+        expect(state.groups).toEqual({ Party: ["Cara"] });
+        expect(retiredProfiles).toEqual(["Alice", "Bob"]);
+      }),
+    ),
+  );
+
+  it.effect("retires the old profile after an account username changes", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const retiredProfiles: string[] = [];
+        const layer = yield* makeHarness({
+          onRetireProfile: (key) => retiredProfiles.push(key),
+        });
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+
+        yield* accounts.updateAccount("Alice", { username: "Alicia" });
+        yield* accounts.updateAccount("Alicia", { username: "ALICIA" });
+
+        expect(retiredProfiles).toEqual(["Alice"]);
+      }),
+    ),
+  );
+
   it.effect("tracks launch and script sessions independently of windows", () =>
     Effect.scoped(
       Effect.gen(function* () {
-        const layer = yield* makeHarness();
+        const managedProfileKeys: Array<string | undefined> = [];
+        const windowTargets: Array<AccountLaunchWindowTarget | undefined> = [];
+        const layer = yield* makeHarness({
+          onManagedProfileKey: (key) => managedProfileKeys.push(key),
+          onWindowTarget: (windowTarget) => windowTargets.push(windowTarget),
+        });
         const accounts = yield* Accounts.pipe(Effect.provide(layer));
         yield* accounts.createAccount({
           username: "Alice",
@@ -123,6 +201,7 @@ describe("Accounts", () => {
         const launch = yield* accounts.launch({
           username: "Alice",
           script: { name: "farm.js", path: "/scripts/farm.js" },
+          windowTarget: { kind: "new" },
         });
         const payload = yield* accounts.getGameLaunch(launch.gameWindowId);
         expect(payload?.account.username).toBe("Alice");
@@ -130,12 +209,15 @@ describe("Accounts", () => {
           name: "farm.js",
           path: "/scripts/farm.js",
         });
+        expect(managedProfileKeys).toEqual(["Alice"]);
+        expect(windowTargets).toEqual([{ kind: "new" }]);
 
         yield* accounts.updateScriptStatus(launch.gameWindowId, {
           status: "running",
           scriptName: "farm.js",
         });
         expect((yield* accounts.getState).sessions[0]).toMatchObject({
+          gameWindowGroupId: 1,
           gameWindowId: launch.gameWindowId,
           scriptName: "farm.js",
           status: "running",
@@ -171,5 +253,45 @@ describe("Accounts", () => {
           ]);
         }),
       ),
+  );
+
+  it.effect("clears logged-out session usernames and game view names", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const names: Array<{ readonly id: number; readonly name: string }> = [];
+        const layer = yield* makeHarness({
+          onSetName: (id, name) => names.push({ id, name }),
+        });
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+
+        yield* accounts.updateScriptStatus(42, {
+          currentUsername: "DirectPlayer",
+          message: "Logged in",
+          status: "stopped",
+        });
+        yield* accounts.updateScriptStatus(42, {
+          currentUsername: null,
+          message: "Logged out",
+          status: "stopped",
+        });
+        yield* accounts.updateScriptStatus(42, {
+          message: "Stopped",
+          status: "stopped",
+        });
+
+        const [session] = (yield* accounts.getState).sessions;
+        expect(session).not.toHaveProperty("currentUsername");
+        expect(session).toMatchObject({
+          authenticated: false,
+          gameWindowId: 42,
+          message: "Stopped",
+          status: "stopped",
+        });
+        expect(names).toEqual([
+          { id: 42, name: "DirectPlayer" },
+          { id: 42, name: "" },
+        ]);
+      }),
+    ),
   );
 });

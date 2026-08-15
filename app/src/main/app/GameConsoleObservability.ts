@@ -6,7 +6,7 @@ import {
   type ServerResponse,
 } from "http";
 
-import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
+import { ipcMain, type IpcMainEvent } from "electron";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -1274,19 +1274,15 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
         const payload = decodedPayload.value;
 
-        const window = BrowserWindow.fromWebContents(event.sender);
-        if (window === null) {
-          return;
-        }
-        const browserWindowId = window.id;
+        const rendererId = event.sender.id;
 
         void runPromise(
-          windows.getBrowserWindowKind(browserWindowId).pipe(
+          windows.getRendererKind(rendererId).pipe(
             Effect.flatMap((kind) =>
               kind === "game"
                 ? Effect.sync(() => {
                     const row = store.appendMessage({
-                      gameWindowId: browserWindowId,
+                      gameWindowId: rendererId,
                       message: payload.message,
                     });
                     publish("message", row);
@@ -1305,7 +1301,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
 
         return Effect.sync(() => {
           const windowState = store.openWindow(
-            event.browserWindowId,
+            event.rendererId,
             undefined,
             event.generation,
           );
@@ -1319,7 +1315,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
 
         return Effect.sync(() => {
           const windowState = store.beginWindowGeneration(
-            event.browserWindowId,
+            event.rendererId,
             event.generation,
           );
           publish("window-generation", windowState);
@@ -1331,7 +1327,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          const windowState = store.closeWindow(event.browserWindowId);
+          const windowState = store.closeWindow(event.rendererId);
           publish("window-closed", windowState);
         });
       });

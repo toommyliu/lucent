@@ -174,11 +174,11 @@ interface ChromiumResourceSample {
 }
 
 interface ChromiumRendererTargetMetadata {
-  readonly browserWindowId: number;
+  readonly rendererId: number;
   readonly generation: number;
   readonly kind: DesktopWindowKind;
   readonly osProcessId: number;
-  readonly ownerBrowserWindowId: number | null;
+  readonly ownerRendererId: number | null;
 }
 
 interface ChromiumRendererHeapSample extends ChromiumRendererTargetMetadata {
@@ -198,7 +198,7 @@ interface ChromiumTraceSegment {
 }
 
 interface ChromiumHeapSnapshotArtifact {
-  readonly browserWindowId?: number;
+  readonly rendererId?: number;
   readonly error?: string;
   readonly fileName: string;
   readonly generation?: number;
@@ -450,28 +450,32 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     target: ElectronChromiumRendererTarget,
   ): Effect.fn.Return<ChromiumRendererTargetMetadata | undefined> {
     const kind = yield* windows
-      .getBrowserWindowKind(target.browserWindowId)
+      .getRendererKind(target.rendererId)
       .pipe(Effect.catch(() => Effect.succeed(null)));
-    if (kind === null) {
+    if (
+      kind === null ||
+      kind === "game-group-controls" ||
+      kind === "game-host"
+    ) {
       return undefined;
     }
 
     const generation = yield* windows
-      .getRendererGeneration(target.browserWindowId)
+      .getRendererGeneration(target.rendererId)
       .pipe(Effect.catch(() => Effect.void));
     if (generation === undefined) {
       return undefined;
     }
 
-    const ownerBrowserWindowId = yield* windows
-      .getOwnerBrowserWindowId(target.browserWindowId)
+    const ownerRendererId = yield* windows
+      .getOwnerRendererId(target.rendererId)
       .pipe(Effect.catch(() => Effect.succeed(null)));
     return {
-      browserWindowId: target.browserWindowId,
+      rendererId: target.rendererId,
       generation,
       kind,
       osProcessId: target.osProcessId,
-      ownerBrowserWindowId,
+      ownerRendererId,
     };
   });
 
@@ -524,14 +528,14 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
           }
 
           const usage = yield* chromium
-            .getRendererHeapUsage(target.browserWindowId)
+            .getRendererHeapUsage(target.rendererId)
             .pipe(
               Effect.timeout(CHROMIUM_RENDERER_HEAP_SAMPLE_TIMEOUT_MS),
               Effect.catch((cause) =>
                 recordWarning(
                   current,
-                  `renderer-heap:${target.browserWindowId}:${metadata.generation}`,
-                  `Renderer V8 heap usage is unavailable for ${metadata.kind} window ${target.browserWindowId}`,
+                  `renderer-heap:${target.rendererId}:${metadata.generation}`,
+                  `Renderer V8 heap usage is unavailable for ${metadata.kind} window ${target.rendererId}`,
                   cause,
                 ).pipe(Effect.as(undefined)),
               ),
@@ -883,14 +887,14 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     const rendererSnapshots = yield* Effect.forEach(
       rendererMetadata,
       (metadata) => {
-        const fileName = `${metadata.kind}-window-${metadata.browserWindowId}-generation-${metadata.generation}.heapsnapshot`;
+        const fileName = `${metadata.kind}-window-${metadata.rendererId}-generation-${metadata.generation}.heapsnapshot`;
         return snapshotArtifact({
           effect: chromium.takeRendererHeapSnapshot(
-            metadata.browserWindowId,
+            metadata.rendererId,
             join(checkpointPath, fileName),
           ),
           failed: {
-            browserWindowId: metadata.browserWindowId,
+            rendererId: metadata.rendererId,
             fileName,
             generation: metadata.generation,
             kind: "renderer",

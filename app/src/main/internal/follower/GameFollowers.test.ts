@@ -25,14 +25,14 @@ describe("GameFollowers", () => {
         const ipc = DesktopIpc.of({
           handle: () => Effect.void,
           sendToAll: () => Effect.void,
-          sendToBrowserWindowIds: (ids, descriptor, payload) =>
+          sendToRendererIds: (ids, descriptor, payload) =>
             descriptor.channel === FollowerIpc.playersChanged.channel
               ? Ref.update(sent, (messages) => [...messages, { ids, payload }])
               : Effect.void,
         });
         const windows = {
-          getOwnedBrowserWindowIds: (browserWindowId: number) =>
-            Effect.succeed([browserWindowId + 100]),
+          getOwnedRendererIds: (rendererId: number) =>
+            Effect.succeed([rendererId + 100]),
           isRendererReady: () => Effect.succeed(true),
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
@@ -68,7 +68,7 @@ describe("GameFollowers", () => {
         const ipc = DesktopIpc.of({
           handle: () => Effect.void,
           sendToAll: () => Effect.void,
-          sendToBrowserWindowIds: (_ids, _descriptor, payload) =>
+          sendToRendererIds: (_ids, _descriptor, payload) =>
             Ref.set(sent, payload as FollowerCommand),
         });
         const windows = {

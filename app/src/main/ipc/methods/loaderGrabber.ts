@@ -13,11 +13,11 @@ import type { DesktopIpcSender } from "../DesktopIpcSenders";
 export class LoaderGrabberOwnerError extends Schema.TaggedErrorClass<LoaderGrabberOwnerError>()(
   "LoaderGrabberOwnerError",
   {
-    browserWindowId: Schema.Int,
+    rendererId: Schema.Int,
   },
 ) {
   override get message(): string {
-    return `The Loader grabber has no owning game: ${this.browserWindowId}`;
+    return `The Loader grabber has no owning game: ${this.rendererId}`;
   }
 }
 
@@ -25,18 +25,16 @@ const resolveOwningGame = Effect.fn(
   "desktop.ipc.loaderGrabber.resolveOwningGame",
 )(function* (sender: DesktopIpcSender) {
   const windows = yield* DesktopWindows;
-  const ownerBrowserWindowId = yield* windows.getOwnerBrowserWindowId(
-    sender.browserWindowId,
-  );
+  const ownerRendererId = yield* windows.getOwnerRendererId(sender.rendererId);
   if (
-    ownerBrowserWindowId === null ||
-    (yield* windows.getBrowserWindowKind(ownerBrowserWindowId)) !== "game"
+    ownerRendererId === null ||
+    (yield* windows.getRendererKind(ownerRendererId)) !== "game"
   ) {
     return yield* new LoaderGrabberOwnerError({
-      browserWindowId: sender.browserWindowId,
+      rendererId: sender.rendererId,
     });
   }
-  return ownerBrowserWindowId;
+  return ownerRendererId;
 });
 
 export const load = makeDesktopIpcMethod({
@@ -45,8 +43,8 @@ export const load = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.loaderGrabber.load")(
     function* (payload, sender) {
       const loaderGrabbers = yield* GameLoaderGrabbers;
-      const gameBrowserWindowId = yield* resolveOwningGame(sender);
-      const outcome = yield* loaderGrabbers.request(gameBrowserWindowId, {
+      const gameRendererId = yield* resolveOwningGame(sender);
+      const outcome = yield* loaderGrabbers.request(gameRendererId, {
         kind: "load",
         payload,
       });
@@ -65,8 +63,8 @@ export const grab = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.loaderGrabber.grab")(
     function* (payload, sender) {
       const loaderGrabbers = yield* GameLoaderGrabbers;
-      const gameBrowserWindowId = yield* resolveOwningGame(sender);
-      const outcome = yield* loaderGrabbers.request(gameBrowserWindowId, {
+      const gameRendererId = yield* resolveOwningGame(sender);
+      const outcome = yield* loaderGrabbers.request(gameRendererId, {
         kind: "grab",
         payload,
       });
@@ -86,7 +84,7 @@ export const respond = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.loaderGrabber.respond")(
     function* (response, sender) {
       const loaderGrabbers = yield* GameLoaderGrabbers;
-      yield* loaderGrabbers.respond(sender.browserWindowId, response);
+      yield* loaderGrabbers.respond(sender.rendererId, response);
     },
   ),
 });
