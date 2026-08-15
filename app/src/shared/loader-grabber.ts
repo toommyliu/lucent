@@ -151,7 +151,7 @@ const AuraSchema = Schema.Struct({
   kind: Schema.Literals(["active", "passive"]),
   name: Schema.String,
   stack: Schema.Number,
-  value: Schema.optionalKey(Schema.Number),
+  value: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
 });
 
 export const GrabbedMonsterSchema = Schema.Struct({
