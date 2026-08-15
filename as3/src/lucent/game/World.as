@@ -81,9 +81,9 @@ public class World
       if (!monster)
       {
         return false;
-      } 
+      }
 
-      return Boolean(monster.pMC) && monster.pMC.visible && monster.dataLeaf.intState > 0;
+      return Boolean(monster.pMC) && monster.dataLeaf.intState > 0;
     }
 
     [BridgeExport]
