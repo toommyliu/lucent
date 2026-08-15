@@ -289,6 +289,9 @@ const MenuAutofocusAnchor = (): JSX.Element => (
   />
 );
 
+const DEFAULT_WALK_SPEED = 8;
+const DEFAULT_FRAME_RATE = 24;
+
 function ResetCustomValueButton(props: {
   readonly disabled: boolean;
   readonly label: string;
@@ -436,57 +439,70 @@ function MenuNumberChip(props: {
   };
 
   return (
-    <Label
+    <div
       class="game-menu__number-chip"
       data-disabled={props.disabled ? "" : undefined}
     >
       <span class="game-menu__number-chip-label">{props.label}</span>
-      <Input
-        aria-label={props.label}
-        class="game-menu__number-chip-input"
-        data-dragging={dragging() ? "" : undefined}
-        disabled={props.disabled}
-        inputMode="numeric"
-        title={
-          props.disabled
-            ? undefined
-            : `Drag to adjust ${props.label.toLowerCase()}, or select to type`
-        }
-        type="text"
-        unstyled
-        value={draftValue()}
-        onBlur={commitEdit}
-        onFocus={(event) => {
-          setDraftValue(String(value()));
-          setEditing(true);
-          event.currentTarget.select();
-        }}
-        onInput={(event) => setDraftValue(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            cancelEdit();
-            event.currentTarget.blur();
-            return;
+      <span class="game-menu__number-chip-controls">
+        <Button
+          aria-label={`Restore ${props.label}`}
+          disabled={props.disabled || value() === props.resetValue}
+          size="icon-xs"
+          title={`Restore ${props.label}`}
+          type="button"
+          variant="ghost"
+          onClick={() => commit(props.resetValue)}
+        >
+          <Icon aria-hidden="true" icon="rotate_ccw" size="sm" />
+        </Button>
+        <Input
+          aria-label={props.label}
+          class="game-menu__number-chip-input"
+          data-dragging={dragging() ? "" : undefined}
+          disabled={props.disabled}
+          inputMode="numeric"
+          title={
+            props.disabled
+              ? undefined
+              : `Drag to adjust ${props.label.toLowerCase()}, or select to type`
           }
+          type="text"
+          unstyled
+          value={draftValue()}
+          onBlur={commitEdit}
+          onFocus={(event) => {
+            setDraftValue(String(value()));
+            setEditing(true);
+            event.currentTarget.select();
+          }}
+          onInput={(event) => setDraftValue(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelEdit();
+              event.currentTarget.blur();
+              return;
+            }
 
-          if (event.key === "Enter") {
-            event.preventDefault();
-            event.stopPropagation();
-            commitEdit();
-            event.currentTarget.blur();
-            return;
-          }
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              commitEdit();
+              event.currentTarget.blur();
+              return;
+            }
 
-          if (event.key !== "Tab") event.stopPropagation();
-        }}
-        onPointerCancel={handlePointerCancel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      />
-    </Label>
+            if (event.key !== "Tab") event.stopPropagation();
+          }}
+          onPointerCancel={handlePointerCancel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        />
+      </span>
+    </div>
   );
 }
 
@@ -870,7 +886,7 @@ export function TopNavOptionsMenuContent(
                 max={99}
                 min={1}
                 onCommit={props.handleSetWalkSpeed}
-                resetValue={8}
+                resetValue={DEFAULT_WALK_SPEED}
                 setValue={props.setWalkSpeed}
                 value={props.walkSpeed}
               />
@@ -880,7 +896,7 @@ export function TopNavOptionsMenuContent(
                 max={60}
                 min={1}
                 onCommit={props.handleSetFrameRate}
-                resetValue={24}
+                resetValue={DEFAULT_FRAME_RATE}
                 setValue={props.setFrameRate}
                 value={props.frameRate}
               />
