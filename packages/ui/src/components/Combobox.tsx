@@ -13,11 +13,13 @@ import {
   onCleanup,
   splitProps,
   useContext,
+  type Accessor,
   type JSX,
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
+import { createPositioningReady, getPositionerStyle } from "./Positioning";
 
 export interface ComboboxOption extends CollectionItem {
   readonly disabled?: boolean;
@@ -31,6 +33,15 @@ interface ComboboxContextValue {
 }
 
 const ComboboxItemsContext = createContext<ComboboxContextValue>();
+const ComboboxPositionedContext = createContext<Accessor<boolean>>();
+
+function useComboboxPositioned(): Accessor<boolean> {
+  const positioned = useContext(ComboboxPositionedContext);
+  if (positioned === undefined) {
+    throw new Error("ComboboxContent must be rendered within Combobox");
+  }
+  return positioned;
+}
 
 export interface ComboboxProps extends Omit<
   Parameters<typeof ComboboxPrimitive.Root<ComboboxOption>>[0],
@@ -109,20 +120,26 @@ export function Combobox(props: ComboboxProps): JSX.Element {
       );
     },
   };
+  const { positioned, positioning } = createPositioningReady(() => ({
+    ...defaultComboboxPositioning,
+    ...local.positioning,
+  }));
 
   return (
-    <ComboboxItemsContext.Provider value={context}>
-      <ComboboxPrimitive.Root
-        {...rest}
-        class={cn("combobox", local.class)}
-        collection={collection()}
-        data-slot="combobox"
-        positioning={{ ...defaultComboboxPositioning, ...local.positioning }}
-        scrollToIndexFn={local.scrollToIndexFn ?? scrollComboboxItemIntoView}
-      >
-        {local.children}
-      </ComboboxPrimitive.Root>
-    </ComboboxItemsContext.Provider>
+    <ComboboxPositionedContext.Provider value={positioned}>
+      <ComboboxItemsContext.Provider value={context}>
+        <ComboboxPrimitive.Root
+          {...rest}
+          class={cn("combobox", local.class)}
+          collection={collection()}
+          data-slot="combobox"
+          positioning={positioning()}
+          scrollToIndexFn={local.scrollToIndexFn ?? scrollComboboxItemIntoView}
+        >
+          {local.children}
+        </ComboboxPrimitive.Root>
+      </ComboboxItemsContext.Provider>
+    </ComboboxPositionedContext.Provider>
   );
 }
 
@@ -214,10 +231,9 @@ export function ComboboxContent(props: ComboboxContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class"]);
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
-  const positionerStyle = (): JSX.CSSProperties | undefined =>
-    dialogFloatingZIndex === undefined
-      ? undefined
-      : { "z-index": dialogFloatingZIndex };
+  const positioned = useComboboxPositioned();
+  const positionerStyle = () =>
+    getPositionerStyle(positioned(), dialogFloatingZIndex);
   const content = () => (
     <ComboboxPrimitive.Positioner
       class="combobox__positioner"
