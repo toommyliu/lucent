@@ -3,18 +3,18 @@ title: Enhancements
 description: Apply enhancements and equip matching gear from scripts.
 ---
 
-[`api.recipes.enhanceItem()`][enhance-item] applies or upgrades an enhancement.
+[`api.shops.enhanceItem()`][enhance-item] applies or upgrades an enhancement.
 [`api.inventory.equipByEnhancement()`][equip-by-enhancement] equips an inventory
 item that already has a matching enhancement.
 
-[enhance-item]: /reference/scripting/api/recipes/#member-api-recipes-enhanceitem
+[enhance-item]: /reference/scripting/api/shops/#member-api-shops-enhanceitem
 [equip-by-enhancement]: /reference/scripting/api/inventory/#member-api-inventory-equipbyenhancement
 
 ## Apply an enhancement
 
 {/* prettier-ignore */}
 ```js
-yield* api.recipes.enhanceItem("ArchPaladin", {
+yield* api.shops.enhanceItem("ArchPaladin", {
   enhancement: "lucky",
 });
 ```
@@ -25,7 +25,7 @@ trait:
 
 {/* prettier-ignore */}
 ```js
-yield* api.recipes.enhanceItem("My Weapon", {
+yield* api.shops.enhanceItem("My Weapon", {
   enhancement: "lucky",
   special: "spiral carve",
 });

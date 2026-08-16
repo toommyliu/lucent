@@ -1,49 +1,14 @@
-import { PositiveInt, TrimmedNonEmptyString } from "@lucent/core";
-import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
-
-import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
-import type { BridgeService } from "../../flash/bridge/Bridge";
-import type { ScriptEnhanceItemOptions, ScriptRecipesApi } from "../ScriptApi";
-import { enhanceItem } from "../recipes/EnhanceItem";
+import type { ScriptRecipesApi } from "../ScriptApi";
 import type { ScriptRecipeDependencies } from "../recipes/Dependencies";
 import { ensureLifeSteal, ensureScrollOfEnrage } from "../recipes/Supplies";
 import { doWheelOfDoom } from "../recipes/WheelOfDoom";
 import type { ScriptRuntimeServices } from "./Services";
 
-const ScriptItemQuerySchema = Schema.Union([
-  PositiveInt,
-  TrimmedNonEmptyString,
-  Schema.Struct({
-    itemId: PositiveInt,
-    name: Schema.optionalKey(Schema.Never),
-  }),
-  Schema.Struct({
-    itemId: Schema.optionalKey(Schema.Never),
-    name: TrimmedNonEmptyString,
-  }),
-]);
-
-export const ScriptEnhanceItemOptionsSchema =
-  EnhancementSelectorSchema satisfies Schema.Schema<ScriptEnhanceItemOptions>;
-
-const ScriptEnhanceItemRequestSchema = Schema.Struct({
-  item: ScriptItemQuerySchema,
-  options: ScriptEnhanceItemOptionsSchema,
-});
-
-const decodeScriptEnhanceItemRequest = Schema.decodeUnknownOption(
-  ScriptEnhanceItemRequestSchema,
-);
-
 export const makeScriptRecipesApi = (
   services: ScriptRuntimeServices,
-  bridge: BridgeService,
 ): ScriptRecipesApi => {
   const dependencies: ScriptRecipeDependencies = {
     bank: services.bank,
-    bridge,
     drops: services.drops,
     inventory: services.inventory,
     player: services.player,
@@ -54,12 +19,6 @@ export const makeScriptRecipesApi = (
 
   const recipes: ScriptRecipesApi = {
     doWheelOfDoom: (toBank) => doWheelOfDoom(dependencies, toBank),
-    enhanceItem: (item, options) =>
-      Option.match(decodeScriptEnhanceItemRequest({ item, options }), {
-        onNone: () => Effect.succeed(false),
-        onSome: (request) =>
-          enhanceItem(dependencies, request.item, request.options),
-      }),
     ensureLifeSteal: (quantity) => ensureLifeSteal(dependencies, quantity),
     ensureScrollOfEnrage: (quantity) =>
       ensureScrollOfEnrage(dependencies, quantity),

@@ -11,6 +11,7 @@ import { makeScriptPlayerApis } from "./api/Player";
 import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
+import { makeScriptShopsApi } from "./api/Shops";
 import type {
   ScriptApi,
   ScriptAutoReloginApi,
@@ -66,11 +67,10 @@ export const makeScriptBuiltinModules = (
     { policy: options.roomPolicy },
   );
   const settings = makeScriptSettingsApi(options.services.settings);
-  const recipes = makeScriptRecipesApi(
-    { ...options.services, player },
-    options.bridge,
-  );
-  const services = { ...options.services, army, player, players };
+  const scriptServices = { ...options.services, player };
+  const recipes = makeScriptRecipesApi(scriptServices);
+  const shops = makeScriptShopsApi(scriptServices, options.bridge);
+  const services = { ...scriptServices, army, players, shops };
 
   return Object.freeze({
     effect: scriptEffectStd,
