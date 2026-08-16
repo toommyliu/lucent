@@ -40,12 +40,15 @@ declare global {
         selector: FlashTypes.MonsterSelector,
         expectedItemId: number,
       ) => FlashTypes.ConsumableCastDispatch | null;
-      "combat.forceUseSkill": (index: string) => boolean;
       "combat.getConsumableSkillItem": () => FlashTypes.ConsumableSkillItem | null;
       "combat.getSkillCooldownRemaining": (index: number) => number;
       "combat.getTarget": () => FlashTypes.TargetInfo | null;
       "combat.hasTarget": () => boolean;
-      "combat.useSkill": (index: string) => boolean;
+      "combat.useSkill": (
+        index: string,
+        selector?: FlashTypes.MonsterSelector | null,
+        force?: boolean,
+      ) => boolean;
       "drops.acceptDrop": (itemId: number) => boolean;
       "drops.isUsingCustomDrops": () => boolean;
       "drops.rejectDrop": (itemId: number) => boolean;

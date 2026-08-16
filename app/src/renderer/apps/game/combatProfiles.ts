@@ -36,11 +36,7 @@ interface CombatProfileCursorState {
 export interface CombatProfileRuntimeDeps {
   readonly combat: Pick<
     ApiService["combat"],
-    | "attackMonster"
-    | "canUseSkill"
-    | "getConsumableSkillItem"
-    | "target"
-    | "useSkill"
+    "canUseSkill" | "getConsumableSkillItem" | "target" | "useSkill"
   >;
   readonly player: Pick<
     ApiService["player"],
@@ -377,17 +373,9 @@ export const castCombatProfileMessageTrigger = (
         return false;
       }
 
-      if (event.monMapId !== undefined) {
-        const targeted = yield* deps.combat.attackMonster({
-          monMapId: event.monMapId,
-        });
-        if (!targeted) {
-          return false;
-        }
-      }
-
       const cast = yield* deps.combat.useSkill(trigger.skill, {
         force: true,
+        ...(event.monMapId === undefined ? {} : { target: event.monMapId }),
         wait: true,
       });
       if (!cast) {

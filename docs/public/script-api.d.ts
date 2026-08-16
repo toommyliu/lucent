@@ -1000,10 +1000,12 @@ interface ScriptShopQuantityOptions {
 type ShopItemQuery = ShopItemSelector | number | string;
 interface SkillUseOptions {
   /**
-   * Whether to bypass the client's normal skill-use path.
+   * Whether to force the skill-use attempt without approaching the target.
    * @defaultValue false
    */
   readonly force?: boolean;
+  /** The monster to use the skill on. */
+  readonly target?: MonsterQuery;
   /**
    * Whether to wait for the skill to become ready.
    * @defaultValue false

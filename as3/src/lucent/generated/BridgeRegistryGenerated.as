@@ -43,7 +43,6 @@ package lucent.generated
       external.externalize("combat.cancelAutoAttack", Combat.cancelAutoAttack);
       external.externalize("combat.cancelTarget", Combat.cancelTarget);
       external.externalize("combat.castConsumableOnMonster", Combat.castConsumableOnMonster);
-      external.externalize("combat.forceUseSkill", Combat.forceUseSkill);
       external.externalize("combat.getConsumableSkillItem", Combat.getConsumableSkillItem);
       external.externalize("combat.getSkillCooldownRemaining", Combat.getSkillCooldownRemaining);
       external.externalize("combat.getTarget", Combat.getTarget);

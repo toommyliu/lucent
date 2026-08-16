@@ -32,7 +32,6 @@ const profile: CombatProfile = {
 };
 
 const makeDeps = (overrides?: {
-  readonly attackMonster?: (target: unknown) => Effect.Effect<boolean>;
   readonly canUseSkill?: (skill: number | string) => Effect.Effect<boolean>;
   readonly getConsumableSkillItem?: () => Effect.Effect<{
     readonly itemId: number;
@@ -44,7 +43,6 @@ const makeDeps = (overrides?: {
   ) => Effect.Effect<boolean>;
 }): CombatProfileRuntimeDeps => ({
   combat: {
-    attackMonster: () => Effect.succeed(true),
     canUseSkill: () => Effect.succeed(true),
     getConsumableSkillItem: () => Effect.succeed(null),
     target: {
@@ -416,20 +414,16 @@ describe("combat profile runtime", () => {
     ).toBe(false);
   });
 
-  it.effect("targets message monsters and respects trigger cooldowns", () =>
+  it.effect("casts on message monsters and respects trigger cooldowns", () =>
     Effect.gen(function* () {
-      const targets: unknown[] = [];
       const skills: number[] = [];
+      const skillOptions: unknown[] = [];
       const state = yield* makeCombatProfileMessageTriggerState();
       const deps = makeDeps({
-        attackMonster: (target) =>
-          Effect.sync(() => {
-            targets.push(target);
-            return true;
-          }),
-        useSkill: (skill) =>
+        useSkill: (skill, options) =>
           Effect.sync(() => {
             skills.push(Number(skill));
+            skillOptions.push(options);
             return true;
           }),
       });
@@ -486,12 +480,12 @@ describe("combat profile runtime", () => {
         ),
       ).toBe(true);
 
-      expect(targets).toEqual([
-        { monMapId: 7 },
-        { monMapId: 7 },
-        { monMapId: 7 },
-      ]);
       expect(skills).toEqual([5, 5, 5]);
+      expect(skillOptions).toEqual([
+        { force: true, target: 7, wait: true },
+        { force: true, target: 7, wait: true },
+        { force: true, target: 7, wait: true },
+      ]);
     }),
   );
 

@@ -74,10 +74,12 @@ export interface HuntOptions {
 
 export interface SkillUseOptions {
   /**
-   * Whether to bypass the client's normal skill-use path.
+   * Whether to force the skill-use attempt without approaching the target.
    * @defaultValue false
    */
   readonly force?: boolean;
+  /** The monster to use the skill on. */
+  readonly target?: MonsterQuery;
   /**
    * Whether to wait for the skill to become ready.
    * @defaultValue false
@@ -336,15 +338,33 @@ export const makeCombat = (
       );
 
   const stopCombat = stopCombatControl(bridge);
+  const resolveMonsterMapId = (query: MonsterQuery) =>
+    monsters
+      .getAvailable()
+      .pipe(
+        Effect.map(
+          (available) =>
+            available.find((monster) => monster.matches(query))?.monsterMapId,
+        ),
+      );
 
   const useSkill = (skill: Skill, options?: SkillUseOptions) => {
     const index = skillIndex(skill);
     if (index === null) return Effect.succeed(false);
     return Effect.gen(function* () {
+      const requestedTarget = options?.target;
       if (!(yield* player.isAlive())) return false;
-      const target = yield* targetValue;
+      const selectedTarget =
+        requestedTarget === undefined ? yield* targetValue : null;
       const initialMonsterMapId =
-        target?.type === "monster" ? target.monsterMapId : undefined;
+        requestedTarget !== undefined
+          ? yield* resolveMonsterMapId(requestedTarget)
+          : selectedTarget?.type === "monster"
+            ? selectedTarget.monsterMapId
+            : undefined;
+      if (requestedTarget !== undefined && initialMonsterMapId === undefined) {
+        return false;
+      }
       if (
         initialMonsterMapId !== undefined &&
         (yield* antiCounterActive(initialMonsterMapId))
@@ -357,24 +377,41 @@ export const makeCombat = (
           ? yield* waitForSkillReady(index)
           : yield* canUseSkill(index);
       if (!ready || !(yield* player.isAlive())) return false;
-      const targetBeforeCast = yield* targetValue;
+      const selectedTargetBeforeCast =
+        requestedTarget === undefined ? yield* targetValue : null;
       const guardedMonsterMapId =
-        targetBeforeCast?.type === "monster"
-          ? targetBeforeCast.monsterMapId
-          : targetBeforeCast === null
-            ? initialMonsterMapId
-            : undefined;
+        requestedTarget !== undefined
+          ? yield* resolveMonsterMapId(requestedTarget)
+          : selectedTargetBeforeCast?.type === "monster"
+            ? selectedTargetBeforeCast.monsterMapId
+            : selectedTargetBeforeCast === null
+              ? initialMonsterMapId
+              : undefined;
+      if (requestedTarget !== undefined && guardedMonsterMapId === undefined) {
+        return false;
+      }
       if (
         guardedMonsterMapId !== undefined &&
         (yield* antiCounterActive(guardedMonsterMapId))
       ) {
-        if (targetBeforeCast?.type === "monster") yield* stopCombat;
+        if (
+          requestedTarget !== undefined ||
+          selectedTargetBeforeCast?.type === "monster"
+        ) {
+          yield* stopCombat;
+        }
         return false;
       }
       return yield* bridge
         .invoke(
-          options?.force === true ? "combat.forceUseSkill" : "combat.useSkill",
-          [String(index)],
+          "combat.useSkill",
+          [
+            String(index),
+            requestedTarget === undefined || guardedMonsterMapId === undefined
+              ? null
+              : toMonsterSelector(guardedMonsterMapId),
+            options?.force === true,
+          ],
           Schema.Boolean,
         )
         .pipe(Effect.map(Option.getOrElse(() => false)));
@@ -447,7 +484,6 @@ export const makeCombat = (
 
       const dependencies = makeCombatProfileRuntimeDeps(
         {
-          attackMonster,
           canUseSkill,
           getConsumableSkillItem,
           target,
