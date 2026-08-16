@@ -84,9 +84,9 @@ import {
 import {
   type AccountGameServer,
   type AccountGameServerPing,
+  type AccountGameSession,
   type AccountManagerState,
   type AccountScriptReference,
-  type AccountScriptSession,
   type ManagedAccount,
   type ManagedAccountGroups,
   type ManagedAccountDraft,
@@ -164,7 +164,7 @@ export type AccountManagerTab = "launch" | "sessions";
 type SessionCloseRequest =
   | { readonly type: "all" }
   | {
-      readonly session: AccountScriptSession;
+      readonly session: AccountGameSession;
       readonly type: "single";
     };
 
@@ -366,89 +366,97 @@ const serverPingQuality = (
 const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
   count === 1 ? singular : plural;
 
-const statusVariant = (
-  status: AccountScriptSession["status"] | undefined,
-): "outline" | "success" | "warning" | "error" | "secondary" => {
-  switch (status) {
-    case "running":
-      return "success";
-    case "starting":
-      return "warning";
-    case "failed":
-      return "error";
-    case "stopped":
-      return "secondary";
-    default:
-      return "outline";
-  }
+type ActiveWindowStatus = {
+  readonly label: string;
+  readonly variant: "outline" | "success" | "warning" | "error" | "secondary";
 };
 
-const statusLabel = (status: AccountScriptSession["status"]): string => {
-  switch (status) {
+const activeWindowStatus = (
+  session: AccountGameSession,
+): ActiveWindowStatus => {
+  switch (session.login.state) {
+    case "failed":
+      return { label: "Login failed", variant: "error" };
+    case "waiting-for-game":
+      return { label: "Waiting", variant: "warning" };
+    case "authenticating":
+      return { label: "Logging in", variant: "warning" };
+    case "waiting-for-server":
+      return { label: "Select server", variant: "warning" };
+    case "selecting-server":
+      return { label: "Connecting", variant: "warning" };
+    case "waiting-for-player":
+      return { label: "Loading player", variant: "warning" };
     case "idle":
-      return "Idle";
-    case "running":
-      return "Running";
-    case "starting":
-      return "Starting";
+      break;
+  }
+
+  if (session.connection.state === "offline") {
+    return { label: "Offline", variant: "secondary" };
+  }
+  if (session.connection.state === "connecting") {
+    return { label: "Connecting", variant: "warning" };
+  }
+
+  switch (session.script.state) {
     case "failed":
-      return "Failed";
+      return { label: "Failed", variant: "error" };
+    case "running":
+      return { label: "Running", variant: "success" };
+    case "starting":
+      return { label: "Starting", variant: "warning" };
     case "stopped":
-      return "Stopped";
+      return session.script.name === undefined
+        ? { label: "Online", variant: "success" }
+        : { label: "Stopped", variant: "secondary" };
+    case "idle":
+      return session.script.name === undefined
+        ? { label: "Online", variant: "success" }
+        : { label: "Idle", variant: "outline" };
   }
 };
-
-const activeWindowStatusLabel = (session: AccountScriptSession): string =>
-  session.authenticated === false ? "Logged out" : statusLabel(session.status);
 
 const sameAccount = (previous: ManagedAccount, next: ManagedAccount): boolean =>
   previous.label === next.label &&
   previous.username === next.username &&
   previous.password === next.password;
 
-const sameVisibleSession = (
-  previous: AccountScriptSession,
-  next: AccountScriptSession,
-): boolean =>
-  previous.gameWindowId === next.gameWindowId &&
-  previous.gameWindowGroupId === next.gameWindowGroupId &&
-  previous.authenticated === next.authenticated &&
-  previous.launchUsername === next.launchUsername &&
-  previous.currentUsername === next.currentUsername &&
-  previous.status === next.status &&
-  previous.scriptName === next.scriptName &&
-  previous.message === next.message;
-
 const activeWindowAccountUsername = (
-  session: AccountScriptSession,
+  session: AccountGameSession,
 ): string | undefined => {
-  const currentUsername = session.currentUsername?.trim();
-  if (currentUsername && currentUsername !== "") {
-    return currentUsername;
-  }
-
-  const launchUsername = session.launchUsername?.trim();
-  return launchUsername && launchUsername !== "" ? launchUsername : undefined;
+  const username =
+    session.connection.state === "online"
+      ? session.connection.username
+      : (session.connection.lastUsername ?? session.launch?.username);
+  const normalized = username?.trim();
+  return normalized === undefined || normalized === "" ? undefined : normalized;
 };
 
+const activeWindowScriptName = (
+  session: AccountGameSession,
+): string | undefined => session.script.name ?? session.launch?.scriptName;
+
 const activeWindowDetailMessage = (
-  session: AccountScriptSession,
+  session: AccountGameSession,
 ): string | undefined => {
-  const message = session.message?.trim();
-  if (message === undefined || message === "") {
+  const message =
+    ("message" in session.login ? session.login.message : undefined) ??
+    ("message" in session.script ? session.script.message : undefined);
+  const normalized = message?.trim();
+  if (normalized === undefined || normalized === "") {
     return undefined;
   }
 
-  const status = activeWindowStatusLabel(session).toLowerCase();
-  const scriptName = session.scriptName?.trim();
-  const normalizedMessage = message.toLowerCase();
+  const status = activeWindowStatus(session).label.toLowerCase();
+  const scriptName = activeWindowScriptName(session)?.trim();
+  const normalizedMessage = normalized.toLowerCase();
 
   if (normalizedMessage === status) {
     return undefined;
   }
 
   if (scriptName === undefined || scriptName === "") {
-    return message;
+    return normalized;
   }
 
   const normalizedScriptName = scriptName.toLowerCase();
@@ -459,7 +467,7 @@ const activeWindowDetailMessage = (
     return undefined;
   }
 
-  return message;
+  return normalized;
 };
 
 const confirmRemoveDescription = (label: string): string =>
@@ -509,25 +517,34 @@ const reconcileAccounts = (
   return changed ? accounts : previousAccounts;
 };
 
-const sessionIdentityKey = (session: AccountScriptSession): string =>
+const sessionIdentityKey = (session: AccountGameSession): string =>
   `window:${session.gameWindowId}`;
 
 const reconcileSessions = (
-  previousSessions: readonly AccountScriptSession[],
-  nextSessions: readonly AccountScriptSession[],
-): readonly AccountScriptSession[] => {
+  previousSessions: readonly AccountGameSession[],
+  nextSessions: readonly AccountGameSession[],
+): readonly AccountGameSession[] => {
   const previousByIdentity = new Map(
     previousSessions.map((session) => [sessionIdentityKey(session), session]),
   );
   let changed = previousSessions.length !== nextSessions.length;
   const sessions = nextSessions.map((session, index) => {
     const previous = previousByIdentity.get(sessionIdentityKey(session));
-    if (previous !== undefined && previous.updatedAt > session.updatedAt) {
+    if (
+      previous !== undefined &&
+      (previous.rendererGeneration > session.rendererGeneration ||
+        (previous.rendererGeneration === session.rendererGeneration &&
+          previous.revision > session.revision))
+    ) {
       changed ||= previousSessions[index] !== previous;
       return previous;
     }
 
-    if (previous !== undefined && sameVisibleSession(previous, session)) {
+    if (
+      previous !== undefined &&
+      previous.rendererGeneration === session.rendererGeneration &&
+      previous.revision === session.revision
+    ) {
       changed ||= previousSessions[index] !== previous;
       return previous;
     }
@@ -2616,7 +2633,7 @@ export function AccountManagerView(
   const accountDisplayLabel = (username: string): string =>
     accountsByUsername().get(username)?.label ?? username;
 
-  const activeWindowAccountIdentity = (session: AccountScriptSession) => {
+  const activeWindowAccountIdentity = (session: AccountGameSession) => {
     const username = activeWindowAccountUsername(session);
     const accountLabel =
       username === undefined
@@ -2632,11 +2649,9 @@ export function AccountManagerView(
     };
   };
 
-  const closeGameWindowDescription = (
-    session: AccountScriptSession,
-  ): string => {
+  const closeGameWindowDescription = (session: AccountGameSession): string => {
     const hasActiveScript =
-      session.status === "starting" || session.status === "running";
+      session.script.state === "starting" || session.script.state === "running";
     const username = activeWindowAccountUsername(session);
     const accountLabel =
       username === undefined ? undefined : accountDisplayLabel(username);
@@ -2651,11 +2666,12 @@ export function AccountManagerView(
   };
 
   const closeAllGameWindowsDescription = (
-    sessions: readonly AccountScriptSession[],
+    sessions: readonly AccountGameSession[],
   ): string => {
     const activeScriptCount = sessions.filter(
       (session) =>
-        session.status === "starting" || session.status === "running",
+        session.script.state === "starting" ||
+        session.script.state === "running",
     ).length;
     const windowCount = sessions.length;
     const sessionLabel = `${windowCount} ${pluralize(
@@ -2682,9 +2698,7 @@ export function AccountManagerView(
     setSessionCloseDialogOpen(true);
   };
 
-  const handleFocusTrackedGameWindow = async (
-    session: AccountScriptSession,
-  ) => {
+  const handleFocusTrackedGameWindow = async (session: AccountGameSession) => {
     const gameWindowId = session.gameWindowId;
 
     try {
@@ -2698,7 +2712,7 @@ export function AccountManagerView(
   };
 
   const handleCloseTrackedGameWindows = async (
-    sessions: readonly AccountScriptSession[],
+    sessions: readonly AccountGameSession[],
   ) => {
     const alreadyClosing = closingGameWindowIds();
     const sessionsByWindowId = new Map(
@@ -4301,6 +4315,10 @@ export function AccountManagerView(
                                     activeWindowAccountIdentity(session());
                                   const detailMessage = () =>
                                     activeWindowDetailMessage(session());
+                                  const status = () =>
+                                    activeWindowStatus(session());
+                                  const scriptName = () =>
+                                    activeWindowScriptName(session());
 
                                   return (
                                     <tr
@@ -4328,23 +4346,18 @@ export function AccountManagerView(
                                       <td>
                                         <Badge
                                           class="account-manager__session-status"
-                                          variant={statusVariant(
-                                            session().status,
-                                          )}
+                                          variant={status().variant}
                                         >
-                                          {activeWindowStatusLabel(session())}
+                                          {status().label}
                                         </Badge>
                                       </td>
                                       <td>
                                         <div class="account-manager__session-meta">
                                           <OverflowText
                                             as="strong"
-                                            text={
-                                              session().scriptName ??
-                                              "No script"
-                                            }
+                                            text={scriptName() ?? "No script"}
                                             translate={
-                                              session().scriptName === undefined
+                                              scriptName() === undefined
                                                 ? "yes"
                                                 : "no"
                                             }

@@ -206,22 +206,29 @@ describe("GameConsoleObservability store", () => {
     expect(messagesToNdjson(rows)).toBe(`${JSON.stringify(rows[0])}\n`);
   });
 
-  it("maps account sessions to one username field", () => {
+  it("maps only online account identity to the username field", () => {
     const state: AccountManagerState = {
       accounts: [],
       groups: {},
       sessions: [
         {
-          currentUsername: "current",
+          connection: { state: "online", username: "current" },
           gameWindowId: 1,
-          launchUsername: "launch",
-          status: "running",
+          launch: { requestedAt: 1, username: "launch" },
+          login: { state: "idle" },
+          rendererGeneration: 1,
+          revision: 1,
+          script: { name: "script", state: "running" },
           updatedAt: 1,
         },
         {
+          connection: { state: "offline" },
           gameWindowId: 2,
-          launchUsername: "launch-only",
-          status: "starting",
+          launch: { requestedAt: 2, username: "launch-only" },
+          login: { state: "waiting-for-game" },
+          rendererGeneration: 1,
+          revision: 1,
+          script: { state: "idle" },
           updatedAt: 2,
         },
       ],
@@ -230,7 +237,7 @@ describe("GameConsoleObservability store", () => {
 
     expect(sessionsFromAccountState(state)).toEqual([
       { gameWindowId: 1, username: "current" },
-      { gameWindowId: 2, username: "launch-only" },
+      { gameWindowId: 2, username: null },
     ]);
   });
 

@@ -1,16 +1,16 @@
-import type { AccountScriptSession } from "@lucent/core/accounts";
+import type { AccountGameSession } from "@lucent/core/accounts";
 
 export interface ActiveWindowSessionGroup {
   readonly key: string;
-  readonly sessions: readonly AccountScriptSession[];
+  readonly sessions: readonly AccountGameSession[];
   readonly shared: boolean;
 }
 
 /** Groups tracked sessions by their owning native BrowserWindow. */
 export const groupActiveWindowSessions = (
-  sessions: readonly AccountScriptSession[],
+  sessions: readonly AccountGameSession[],
 ): readonly ActiveWindowSessionGroup[] => {
-  const sessionsByGroup = new Map<string, AccountScriptSession[]>();
+  const sessionsByGroup = new Map<string, AccountGameSession[]>();
   for (const session of sessions) {
     const key =
       session.gameWindowGroupId === undefined

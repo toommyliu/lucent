@@ -162,13 +162,13 @@ export const closeGameWindows = makeDesktopIpcMethod({
   ),
 });
 
-export const updateScriptStatus = makeDesktopIpcMethod({
-  descriptor: AccountsIpc.updateScriptStatus,
+export const reportSession = makeDesktopIpcMethod({
+  descriptor: AccountsIpc.reportSession,
   allowedSenders: gameSenders,
-  handler: Effect.fn("desktop.ipc.accounts.updateScriptStatus")(
-    function* (update, sender) {
+  handler: Effect.fn("desktop.ipc.accounts.reportSession")(
+    function* (report, sender) {
       const accounts = yield* Accounts;
-      return yield* accounts.updateScriptStatus(sender.rendererId, update);
+      return yield* accounts.reportSession(sender.rendererId, report);
     },
   ),
 });
@@ -190,7 +190,7 @@ export const methods = [
   focusGameWindow,
   closeGameWindow,
   closeGameWindows,
-  updateScriptStatus,
+  reportSession,
 ] as const;
 
 export const installEventForwarding = Effect.fn(

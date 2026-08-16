@@ -76,7 +76,7 @@ import type {
   AccountLaunchRequest,
   AccountLaunchResult,
   AccountManagerState,
-  AccountScriptStatusUpdate,
+  AccountSessionReport,
   ManagedAccountDraft,
   ManagedAccountGroupDraft,
   ManagedAccountGroupPatch,
@@ -259,9 +259,7 @@ export interface DesktopAccountsBridge {
 
 export interface DesktopGameAccountsBridge {
   readonly getGameLaunch: () => Promise<AccountGameLaunchPayload | null>;
-  readonly updateScriptStatus: (
-    update: AccountScriptStatusUpdate,
-  ) => Promise<void>;
+  readonly reportSession: (report: AccountSessionReport) => Promise<void>;
 }
 
 export interface DesktopAccountSettingsBridge {

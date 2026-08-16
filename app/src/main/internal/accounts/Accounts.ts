@@ -12,7 +12,7 @@ import {
   type AccountLaunchResult,
   type AccountManagerState,
   type AccountManagerStorage,
-  type AccountScriptStatusUpdate,
+  type AccountSessionReport,
   type ManagedAccount,
   type ManagedAccountDraft,
   type ManagedAccountGroupDraft,
@@ -21,7 +21,10 @@ import {
   type ManagedAccountPatch,
 } from "@lucent/core/accounts";
 import { makeListenerRegistry } from "../../app/ListenerRegistry";
-import { AccountGameWindows } from "./AccountGameWindows";
+import {
+  AccountGameWindows,
+  type AccountGameWindowEvent,
+} from "./AccountGameWindows";
 import { AccountRepository } from "./AccountRepository";
 import { AccountServers } from "./AccountServers";
 import { AccountSessions, type PendingAccountLaunch } from "./AccountSessions";
@@ -84,9 +87,9 @@ export interface AccountsShape {
     name: string,
     patch: ManagedAccountGroupPatch,
   ) => Effect.Effect<AccountManagerState, AccountsError>;
-  readonly updateScriptStatus: (
+  readonly reportSession: (
     gameWindowId: number,
-    update: AccountScriptStatusUpdate,
+    report: AccountSessionReport,
   ) => Effect.Effect<void, AccountsError>;
 }
 
@@ -326,6 +329,46 @@ export const makeAccounts = Effect.gen(function* () {
       ),
     );
 
+  const registerWindowSession = (event: AccountGameWindowEvent) =>
+    Effect.sync(() =>
+      sessions.openWindow(
+        event.gameWindowId,
+        event.gameWindowGroupId,
+        event.rendererGeneration,
+      ),
+    ).pipe(
+      Effect.flatMap((changed) =>
+        changed ? publishCurrentState : Effect.void,
+      ),
+    );
+
+  const reloadWindowSession = (event: AccountGameWindowEvent) =>
+    Effect.sync(() =>
+      sessions.reloadWindow(
+        event.gameWindowId,
+        event.gameWindowGroupId,
+        event.rendererGeneration,
+      ),
+    ).pipe(
+      Effect.flatMap((changed) =>
+        changed
+          ? gameWindows.setName(event.gameWindowId, "").pipe(
+              Effect.catch(() => Effect.void),
+              Effect.andThen(publishCurrentState),
+            )
+          : Effect.void,
+      ),
+    );
+
+  const unsubscribeCreated = yield* gameWindows.onCreated(
+    registerWindowSession,
+  );
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeCreated));
+
+  const unsubscribeReloaded =
+    yield* gameWindows.onReloaded(reloadWindowSession);
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeReloaded));
+
   const unsubscribeWindows = yield* gameWindows.onClosed(removeWindowSession);
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
 
@@ -477,9 +520,6 @@ export const makeAccounts = Effect.gen(function* () {
 
   const getGameLaunch: AccountsShape["getGameLaunch"] = (gameWindowId) =>
     Effect.sync(() => sessions.getLaunch(gameWindowId)).pipe(
-      Effect.tap((payload) =>
-        payload === null ? Effect.void : publishCurrentState,
-      ),
       Effect.mapError((cause) =>
         accountError(
           "get-game-launch",
@@ -525,12 +565,20 @@ export const makeAccounts = Effect.gen(function* () {
             ? {}
             : { windowTarget: request.windowTarget }),
           ...(request.tiling === undefined ? {} : { tile: request.tiling }),
-          onCreated: (createdId) =>
+          onCreated: (event) =>
             Effect.gen(function* () {
-              gameWindowId = createdId;
-              const gameWindowGroupId =
-                yield* optionalGameWindowGroupId(createdId);
-              sessions.trackLaunch(createdId, gameWindowGroupId, pending);
+              gameWindowId = event.gameWindowId;
+              sessions.openWindow(
+                event.gameWindowId,
+                event.gameWindowGroupId,
+                event.rendererGeneration,
+              );
+              sessions.trackLaunch(
+                event.gameWindowId,
+                event.gameWindowGroupId,
+                event.rendererGeneration,
+                pending,
+              );
               yield* publishCurrentState;
             }),
         })
@@ -544,9 +592,16 @@ export const makeAccounts = Effect.gen(function* () {
           ),
         );
       if (sessions.getLaunch(resolvedGameWindowId) === null) {
-        const gameWindowGroupId =
-          yield* optionalGameWindowGroupId(resolvedGameWindowId);
-        sessions.trackLaunch(resolvedGameWindowId, gameWindowGroupId, pending);
+        const [gameWindowGroupId, rendererGeneration] = yield* Effect.all([
+          optionalGameWindowGroupId(resolvedGameWindowId),
+          gameWindows.getGeneration(resolvedGameWindowId),
+        ]);
+        sessions.trackLaunch(
+          resolvedGameWindowId,
+          gameWindowGroupId,
+          rendererGeneration,
+          pending,
+        );
         yield* publishCurrentState;
       }
       return { gameWindowId: resolvedGameWindowId };
@@ -649,28 +704,25 @@ export const makeAccounts = Effect.gen(function* () {
       }),
     );
 
-  const updateScriptStatus: AccountsShape["updateScriptStatus"] = (
+  const reportSession: AccountsShape["reportSession"] = (
     gameWindowId,
-    update,
+    report,
   ) =>
-    optionalGameWindowGroupId(gameWindowId).pipe(
-      Effect.tap((gameWindowGroupId) =>
-        Effect.sync(() =>
-          sessions.updateStatus(gameWindowId, update, gameWindowGroupId),
-        ),
-      ),
-      Effect.andThen(
-        update.currentUsername === undefined
-          ? Effect.void
-          : gameWindows
-              .setName(gameWindowId, update.currentUsername ?? "")
-              .pipe(Effect.catch(() => Effect.void)),
-      ),
-      Effect.andThen(publishCurrentState),
+    Effect.sync(() => sessions.applyReport(gameWindowId, report)).pipe(
+      Effect.flatMap((result) => {
+        if (result === null) return Effect.void;
+        const rename =
+          result.windowName === undefined
+            ? Effect.void
+            : gameWindows
+                .setName(gameWindowId, result.windowName)
+                .pipe(Effect.catch(() => Effect.void));
+        return rename.pipe(Effect.andThen(publishCurrentState));
+      }),
       Effect.mapError((cause) =>
         accountError(
-          "update-script-status",
-          `Failed to update script status for game window: ${gameWindowId}`,
+          "report-session",
+          `Failed to report session for game window: ${gameWindowId}`,
           cause,
         ),
       ),
@@ -693,9 +745,9 @@ export const makeAccounts = Effect.gen(function* () {
     load,
     onChanged,
     refreshServers,
+    reportSession,
     updateAccount,
     updateGroup,
-    updateScriptStatus,
   });
 });
 

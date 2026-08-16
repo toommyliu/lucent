@@ -58,7 +58,7 @@ import type {
 } from "../../../shared/gameViews";
 import type {
   AccountGameLaunchPayload,
-  AccountScriptStatusUpdate,
+  AccountSessionLogin,
 } from "@lucent/core/accounts";
 import {
   DEFAULT_ACCOUNT_SETTINGS,
@@ -128,8 +128,9 @@ import {
 import { resolveAccountScript } from "./scripting/accountScriptResolution";
 import {
   accountScriptLabel,
-  accountScriptRunnerStatusUpdate,
+  accountSessionScriptState,
 } from "./scripting/accountScriptStatus";
+import { makeAccountSessionTracker } from "./accountSessionTracker";
 import { ScriptsDialog } from "./ScriptsDialog";
 import {
   ScriptInputsErrorAlert,
@@ -201,22 +202,6 @@ const gameViewFrameRateLimit = (
 
 const wait = (delayMs: number): Promise<void> =>
   new Promise((resolve) => window.setTimeout(resolve, delayMs));
-
-const readAccountCurrentUsername = async (): Promise<string | undefined> => {
-  try {
-    const username = await runtime.runPromise(
-      Effect.gen(function* () {
-        const { auth } = yield* Api;
-        return yield* auth.getUsername();
-      }),
-    );
-    const normalized = username.trim();
-    return normalized === "" ? undefined : normalized;
-  } catch (error) {
-    console.error("[game:account-launch]", "username refresh failed", error);
-    return undefined;
-  }
-};
 
 type ScriptTimingOperation =
   | "catalog-load"
@@ -352,6 +337,34 @@ const accountLaunchLifecycleMessage = (
       return "Logging in...";
     case "ready":
       return "Waiting for player...";
+  }
+};
+
+const accountLaunchLoginState = (
+  event: AutoReloginLifecycleEvent,
+  server: string | undefined,
+): AccountSessionLogin => {
+  const message = accountLaunchLifecycleMessage(event, server);
+  switch (event.step) {
+    case "connect":
+      return {
+        attemptsRemaining: event.attemptsRemaining,
+        message,
+        ...(server === undefined || server === "" ? {} : { server }),
+        state: "selecting-server",
+      };
+    case "login":
+      return {
+        attemptsRemaining: event.attemptsRemaining,
+        message,
+        state: "authenticating",
+      };
+    case "ready":
+      return {
+        attemptsRemaining: event.attemptsRemaining,
+        message,
+        state: "waiting-for-player",
+      };
   }
 };
 
@@ -799,11 +812,16 @@ const readBridgeTravelOptions = (): Promise<TravelOptions> =>
     }),
   );
 
-const readPlayerReady = (): Promise<boolean> =>
+/** Reads identity only from a ready projected self, never cached credentials. */
+const readReadyPlayerUsername = (): Promise<string | undefined> =>
   runtime.runPromise(
     Effect.gen(function* () {
       const { player } = yield* Api;
-      return yield* player.isReady();
+      if (!(yield* player.isReady())) return undefined;
+
+      const current = yield* player.get();
+      const username = current?.username.trim();
+      return username === undefined || username === "" ? undefined : username;
     }),
   );
 
@@ -1317,11 +1335,15 @@ export function App(props: {
   let playerReadyRefreshVersion = 0;
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
+  let accountLaunchController: AbortController | undefined;
   let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
-  let accountScriptRunnerStatusPublishQueue = Promise.resolve();
-  let activeAccountScriptMissing = false;
-  let lastPublishedDirectGameUsername: string | null = null;
-  let trackedSessionLoggedOut = false;
+  const accountSessionTracker = makeAccountSessionTracker({
+    onReportError: (error) => {
+      console.error("[game:account-session]", "status report failed", error);
+    },
+    rendererGeneration: desktop.gameRenderer.getGeneration(),
+    report: desktop.gameAccounts.reportSession,
+  });
   let scriptSettingsBindToken = 0;
   let lastShownFatalScriptAlertKey = "";
   let fatalScriptAlertCopiedTimer: number | undefined;
@@ -1968,14 +1990,24 @@ export function App(props: {
 
   const refreshPlayerReady = async (): Promise<boolean> => {
     const version = ++playerReadyRefreshVersion;
+    const identityEpoch = accountSessionTracker.currentIdentityEpoch();
     try {
-      const ready = await readPlayerReady();
+      const username = await readReadyPlayerUsername();
       // Once a session is ready, transient cell/map transition reads must not
       // disable the controls. Explicit unload and disconnect events reset it.
-      if (version !== playerReadyRefreshVersion || !ready) return false;
+      if (version !== playerReadyRefreshVersion || username === undefined) {
+        return false;
+      }
 
-      const settingsBound = await bindScriptSettingsForAuthenticatedAccount();
-      if (version !== playerReadyRefreshVersion || !settingsBound) {
+      if (!accountSessionTracker.markOnline(identityEpoch, username)) {
+        return false;
+      }
+      const settingsBound = await bindScriptSettingsForAccount(username);
+      if (
+        version !== playerReadyRefreshVersion ||
+        identityEpoch !== accountSessionTracker.currentIdentityEpoch() ||
+        !settingsBound
+      ) {
         return false;
       }
 
@@ -2048,6 +2080,16 @@ export function App(props: {
 
   const ensurePlayerReady = (): Promise<boolean> =>
     playerReady() ? Promise.resolve(true) : refreshPlayerReady();
+
+  const waitForPlayerReadyUntilCancelled = async (
+    signal: AbortSignal,
+  ): Promise<boolean> => {
+    while (!signal.aborted) {
+      if (playerReady() || (await refreshPlayerReady())) return true;
+      await wait(PLAYER_READY_RETRY_INTERVAL_MS);
+    }
+    return false;
+  };
 
   const applyTravelOptions = ({
     currentCell,
@@ -2693,18 +2735,6 @@ export function App(props: {
     await startLoadedScript(prepared.file, inputValues, timing);
   };
 
-  const publishAccountStatus = async (
-    update: AccountScriptStatusUpdate,
-  ): Promise<boolean> => {
-    try {
-      await desktop.gameAccounts.updateScriptStatus(update);
-      return true;
-    } catch (error) {
-      console.error("[game:account-launch]", "status publish failed", error);
-      return false;
-    }
-  };
-
   const applyScriptOptions = (options: ScriptRuntimeOptions): void => {
     setScriptRestartAfterReconnect(options.restartAfterReconnect);
     setScriptRoomPolicy({ ...options.roomPolicy });
@@ -2724,155 +2754,34 @@ export function App(props: {
     setBoundScriptSettingsUsername(null);
   };
 
-  const bindScriptSettingsForAuthenticatedAccount =
-    async (): Promise<boolean> => {
-      const username = await readAccountCurrentUsername();
-      if (username === undefined) {
-        clearScriptSettingsBinding();
-        return false;
+  const bindScriptSettingsForAccount = async (
+    username: string,
+  ): Promise<boolean> => {
+    const normalized = username.toLowerCase();
+    if (boundScriptSettingsUsername() === normalized) {
+      return true;
+    }
+
+    const token = ++scriptSettingsBindToken;
+    setBoundScriptSettingsUsername(null);
+    try {
+      const options = await runtime.runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.bindAccount(username);
+        }),
+      );
+      if (token !== scriptSettingsBindToken) return false;
+
+      applyScriptOptions(options);
+      setBoundScriptSettingsUsername(normalized);
+      return true;
+    } catch (error) {
+      if (token === scriptSettingsBindToken) {
+        setBoundScriptSettingsUsername(null);
       }
-
-      void publishDirectGameConnectionStatus(username);
-
-      const normalized = username.toLowerCase();
-      if (boundScriptSettingsUsername() === normalized) {
-        return true;
-      }
-
-      const token = ++scriptSettingsBindToken;
-      setBoundScriptSettingsUsername(null);
-      try {
-        const options = await runtime.runPromise(
-          Effect.gen(function* () {
-            const runner = yield* ScriptRunner;
-            return yield* runner.bindAccount(username);
-          }),
-        );
-        if (token !== scriptSettingsBindToken) return false;
-
-        applyScriptOptions(options);
-        setBoundScriptSettingsUsername(normalized);
-        return true;
-      } catch (error) {
-        if (token === scriptSettingsBindToken) {
-          setBoundScriptSettingsUsername(null);
-        }
-        console.error(
-          "[game:script]",
-          "account settings binding failed",
-          error,
-        );
-        return false;
-      }
-    };
-
-  const publishDirectGameConnectionStatus = async (
-    currentUsername: string,
-  ): Promise<void> => {
-    if (activeAccountLaunchPayload !== null) {
-      return;
-    }
-
-    const normalized = currentUsername.trim().toLowerCase();
-    if (normalized === "" || normalized === lastPublishedDirectGameUsername) {
-      return;
-    }
-
-    const published = await publishAccountStatus({
-      currentUsername,
-      status: "stopped",
-      message: "Logged in",
-    });
-    if (published) {
-      lastPublishedDirectGameUsername = normalized;
-      trackedSessionLoggedOut = false;
-    }
-  };
-
-  const publishAccountLaunchStatus = async (
-    status: AccountScriptStatusUpdate["status"],
-    message?: string,
-  ): Promise<void> => {
-    const payload = activeAccountLaunchPayload;
-    if (payload === null) {
-      return;
-    }
-
-    const scriptName = accountScriptLabel(payload.script);
-    const currentUsername =
-      (await readAccountCurrentUsername()) ?? payload.account.username;
-    await publishAccountStatus({
-      currentUsername,
-      ...(scriptName === undefined ? {} : { scriptName }),
-      status,
-      ...(message === undefined ? {} : { message }),
-    });
-  };
-
-  const publishAccountScriptRunnerStatus = async (
-    status: ScriptRunnerStatus,
-  ): Promise<void> => {
-    if (trackedSessionLoggedOut) return;
-
-    const payload = activeAccountLaunchPayload;
-    const currentUsername = await readAccountCurrentUsername();
-    if (trackedSessionLoggedOut) return;
-    const update = accountScriptRunnerStatusUpdate(
-      status,
-      currentUsername,
-      payload,
-    );
-    if (update === null) {
-      return;
-    }
-
-    await publishAccountStatus(update);
-  };
-
-  const enqueueAccountScriptRunnerStatus = (
-    status: ScriptRunnerStatus,
-  ): void => {
-    accountScriptRunnerStatusPublishQueue =
-      accountScriptRunnerStatusPublishQueue
-        .then(() => publishAccountScriptRunnerStatus(status))
-        .catch((error: unknown) => {
-          console.error(
-            "[game:account-launch]",
-            "runner status publish failed",
-            error,
-          );
-        });
-  };
-
-  const publishAccountConnectionStatus = async (): Promise<void> => {
-    const payload = activeAccountLaunchPayload;
-    const currentUsername = await readAccountCurrentUsername();
-    if (currentUsername === undefined) {
-      return;
-    }
-    trackedSessionLoggedOut = false;
-    if (payload === null) {
-      await publishDirectGameConnectionStatus(currentUsername);
-      return;
-    }
-
-    if (payload.script === undefined || activeAccountScriptMissing) {
-      await publishAccountStatus({
-        currentUsername,
-        status: "stopped",
-        message: "Logged in",
-      });
-      return;
-    }
-
-    const status = scriptRunnerStatus();
-    const update = accountScriptRunnerStatusUpdate(
-      status,
-      currentUsername,
-      payload,
-    );
-    if (update !== null) {
-      await publishAccountStatus(update);
+      console.error("[game:script]", "account settings binding failed", error);
+      return false;
     }
   };
 
@@ -2888,13 +2797,41 @@ export function App(props: {
     payload: AccountGameLaunchPayload,
     options: { readonly startScript?: boolean } = {},
   ): Promise<void> => {
+    accountLaunchController?.abort();
+    const controller = new AbortController();
+    accountLaunchController = controller;
     activeAccountLaunchPayload = payload;
-    activeAccountScriptMissing = false;
-    trackedSessionLoggedOut = false;
-    await publishAccountLaunchStatus("starting", "Waiting...");
+    stopPlayerReadyRetry();
+    const launchAttempt = accountSessionTracker.beginLaunch(
+      payload.account.username,
+    );
+    accountSessionTracker.setLaunchScript(
+      launchAttempt,
+      accountSessionScriptState(
+        scriptRunnerStatus(),
+        accountScriptLabel(payload.script),
+      ),
+    );
+    accountSessionTracker.start();
+    let loginComplete = false;
+    let authenticatedIdentityEpoch: number | undefined;
+
+    const requireLaunchIdentity = (): void => {
+      if (
+        authenticatedIdentityEpoch === undefined ||
+        !accountSessionTracker.isOnlineAs(
+          authenticatedIdentityEpoch,
+          payload.account.username,
+        )
+      ) {
+        throw new Error("Account connection changed during script setup");
+      }
+    };
 
     try {
-      if (!(await waitForGameLoaded())) {
+      const loaded = await waitForGameLoaded();
+      if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+      if (!loaded) {
         throw new Error(`Game did not finish loading (${progress()}%)`);
       }
 
@@ -2903,10 +2840,10 @@ export function App(props: {
           const { autoRelogin } = yield* Automation;
           return yield* autoRelogin.runLogin({
             onLifecycle: (event) =>
-              Effect.promise(() =>
-                publishAccountLaunchStatus(
-                  "starting",
-                  accountLaunchLifecycleMessage(event, payload.server),
+              Effect.sync(() =>
+                accountSessionTracker.setLogin(
+                  launchAttempt,
+                  accountLaunchLoginState(event, payload.server),
                 ),
               ),
             password: payload.account.password,
@@ -2914,24 +2851,56 @@ export function App(props: {
             username: payload.account.username,
           });
         }),
+        { signal: controller.signal },
       );
+      if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
 
       if (loginResult.status === "server-select") {
-        if (payload.script !== undefined) {
-          throw new Error("Login server required to start script");
+        accountSessionTracker.setLogin(launchAttempt, {
+          state: "waiting-for-server",
+        });
+        if (payload.script === undefined || options.startScript === false) {
+          return;
         }
 
-        await publishAccountLaunchStatus("stopped", "Logged in");
-        return;
+        const manuallyConnected = await waitForPlayerReadyUntilCancelled(
+          controller.signal,
+        );
+        if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+        if (!manuallyConnected) return;
       }
 
-      await refreshPlayerReady();
+      const ready = await refreshPlayerReady();
+      if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+      const connection = accountSessionTracker.getRuntime().connection;
+      if (connection.state !== "online") {
+        throw new Error("Player did not become ready");
+      }
+      if (
+        connection.username.localeCompare(payload.account.username, undefined, {
+          sensitivity: "accent",
+        }) !== 0
+      ) {
+        throw new Error(
+          `Expected ${payload.account.username}, connected as ${connection.username}`,
+        );
+      }
+      loginComplete = true;
+      authenticatedIdentityEpoch = accountSessionTracker.currentIdentityEpoch();
+      if (!ready) {
+        throw new Error("Player settings could not be loaded");
+      }
       if (payload.script === undefined || options.startScript === false) {
-        await publishAccountLaunchStatus("stopped", "Logged in");
         return;
       }
 
-      await publishAccountLaunchStatus("starting", "Loading script...");
+      const scriptName =
+        accountScriptLabel(payload.script) ?? payload.script.path;
+      accountSessionTracker.setLaunchScript(launchAttempt, {
+        message: "Loading script",
+        name: scriptName,
+        state: "starting",
+      });
       const file = await resolveAccountScript(
         (path) =>
           payload.script?.reference === undefined
@@ -2939,13 +2908,18 @@ export function App(props: {
             : desktop.scripting.resolveReference(payload.script.reference),
         payload.script.path,
       );
+      if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+      requireLaunchIdentity();
       if (file === null) {
-        activeAccountScriptMissing = true;
         setLoadedScript(null);
         setScriptRunnerStatus({ state: "idle" });
         setScriptInputValues({});
         setScriptInputDialogError(null);
-        await publishAccountLaunchStatus("stopped", "Logged in");
+        accountSessionTracker.setLaunchScript(launchAttempt, {
+          message: "Script not found",
+          name: scriptName,
+          state: "stopped",
+        });
         return;
       }
       setLoadedScript(file);
@@ -2955,6 +2929,8 @@ export function App(props: {
       let inputValues: ScriptInputValues = {};
       if (file.inputs !== null) {
         const refreshed = await refreshScriptInputValues(file.inputs);
+        if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+        requireLaunchIdentity();
         const validation = validateScriptInputValues(file.inputs, refreshed);
         if (validation.status === "missing-required") {
           throw new Error("Script inputs required");
@@ -2963,12 +2939,20 @@ export function App(props: {
           file.inputs,
           validation.values,
         );
+        if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+        requireLaunchIdentity();
       }
       setScriptInputValues(inputValues);
 
-      await publishAccountLaunchStatus("starting", "Starting script...");
+      accountSessionTracker.setLaunchScript(launchAttempt, {
+        message: "Starting script",
+        name: scriptName,
+        state: "starting",
+      });
+      requireLaunchIdentity();
       await startLoadedScript(file, inputValues);
     } catch (error) {
+      if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
       const message =
         error instanceof Error ? error.message : "Account launch failed";
       console.error("[game:account-launch]", message, error);
@@ -2979,7 +2963,22 @@ export function App(props: {
           payload.script.path,
         );
       }
-      await publishAccountLaunchStatus("failed", message);
+      if (loginComplete) {
+        if (payload.script !== undefined) {
+          const scriptName = accountScriptLabel(payload.script);
+          accountSessionTracker.setLaunchScript(launchAttempt, {
+            message,
+            ...(scriptName === undefined ? {} : { name: scriptName }),
+            state: "failed",
+          });
+        }
+      } else {
+        accountSessionTracker.failLaunch(launchAttempt, message);
+      }
+    } finally {
+      if (accountLaunchController === controller) {
+        accountLaunchController = undefined;
+      }
     }
   };
 
@@ -2988,26 +2987,9 @@ export function App(props: {
     await runAccountLaunch(activeAccountLaunchPayload, { startScript: false });
   };
 
-  const publishLoggedOutStatus = async (): Promise<void> => {
-    if (
-      trackedSessionLoggedOut ||
-      (activeAccountLaunchPayload === null &&
-        lastPublishedDirectGameUsername === null)
-    ) {
-      return;
-    }
-    trackedSessionLoggedOut = true;
-    lastPublishedDirectGameUsername = null;
-    await publishAccountStatus({
-      currentUsername: null,
-      message: "Logged out",
-      status: "stopped",
-    });
-  };
-
   const runGroupLogout = async (): Promise<void> => {
-    const previouslyLoggedOut = trackedSessionLoggedOut;
-    trackedSessionLoggedOut = true;
+    accountLaunchController?.abort();
+    accountSessionTracker.cancelLaunch();
     try {
       await stopRunningScript("group logout");
       await runtime.runPromise(
@@ -3016,15 +2998,14 @@ export function App(props: {
           yield* auth.logout();
         }),
       );
+      accountSessionTracker.disconnected();
       stopPlayerReadyRetry();
       setPlayerReady(false);
       clearScriptSettingsBinding();
       resetTravelOptions();
-      trackedSessionLoggedOut = previouslyLoggedOut;
-      await publishLoggedOutStatus();
     } catch (error) {
-      trackedSessionLoggedOut = previouslyLoggedOut;
       console.error("[game:group]", "logout failed", error);
+      schedulePlayerReadyRefresh({ retry: true });
     }
   };
 
@@ -3670,7 +3651,6 @@ export function App(props: {
     let scriptOptionsDisposer: (() => void) | undefined;
     let scriptStatusDisposer: (() => void) | undefined;
     let cleanedUp = false;
-
     const travelEventFiber = runtime.runFork(
       Effect.scoped(
         Effect.gen(function* () {
@@ -3691,16 +3671,16 @@ export function App(props: {
                 status === "OnConnectionLost" ||
                 status === "OnConnectionFailed"
               ) {
+                accountSessionTracker.disconnected();
                 stopPlayerReadyRetry();
                 setPlayerReady(false);
                 clearScriptSettingsBinding();
                 resetTravelOptions();
-                void publishLoggedOutStatus();
               }
 
               if (status === "OnConnection") {
+                accountSessionTracker.connectionStarted();
                 schedulePlayerReadyRefresh({ retry: true });
-                void publishAccountConnectionStatus();
               }
               refreshAutoReloginState();
             }),
@@ -3796,7 +3776,9 @@ export function App(props: {
           const options = yield* runner.getOptions();
           const dispose = yield* runner.onStatus((nextStatus) => {
             applyScriptRunnerStatus(nextStatus);
-            enqueueAccountScriptRunnerStatus(nextStatus);
+            accountSessionTracker.setScript(
+              accountSessionScriptState(nextStatus),
+            );
           });
           const disposeOptions = yield* runner.onOptions((nextOptions) => {
             applyScriptOptions(nextOptions);
@@ -3806,6 +3788,7 @@ export function App(props: {
       )
       .then(({ dispose, disposeOptions, options, status }) => {
         applyScriptRunnerStatus(status);
+        accountSessionTracker.setScript(accountSessionScriptState(status));
         applyScriptOptions(options);
 
         if (cleanedUp) {
@@ -3826,10 +3809,13 @@ export function App(props: {
       .then((payload) => {
         if (payload !== null) {
           void runAccountLaunch(payload);
+          return;
         }
+        accountSessionTracker.start();
       })
       .catch((error: unknown) => {
         console.error("[game:account-launch]", "payload load failed", error);
+        accountSessionTracker.start();
       });
 
     onCleanup(() => {
@@ -3840,6 +3826,7 @@ export function App(props: {
       flashSettingsDisposer?.();
       scriptOptionsDisposer?.();
       scriptStatusDisposer?.();
+      accountLaunchController?.abort();
       stopPlayerReadyRetry();
       resetTravelOptions();
       runtime.runFork(Fiber.interrupt(travelEventFiber));

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccountGameLaunchPayload } from "@lucent/core/accounts";
 import type { ScriptRunnerStatus } from "./ScriptRunner";
-import { accountScriptRunnerStatusUpdate } from "./accountScriptStatus";
+import { accountSessionScriptState } from "./accountScriptStatus";
 
 const runningStatus: ScriptRunnerStatus = {
   name: "farm.js",
@@ -11,38 +10,48 @@ const runningStatus: ScriptRunnerStatus = {
 };
 
 describe("account script status", () => {
-  it("publishes runner status for a directly opened authenticated game", () => {
+  it("projects a running script without account identity", () => {
+    expect(accountSessionScriptState(runningStatus)).toEqual({
+      name: "farm.js",
+      state: "running",
+    });
+  });
+
+  it("uses an explicit fallback name while the runner is idle", () => {
+    expect(accountSessionScriptState({ state: "idle" }, "farm.js")).toEqual({
+      name: "farm.js",
+      state: "idle",
+    });
+  });
+
+  it("preserves runner failures as script failures", () => {
     expect(
-      accountScriptRunnerStatusUpdate(runningStatus, "DirectPlayer", null),
+      accountSessionScriptState({
+        failedAt: "2026-08-09T00:00:00.000Z",
+        message: "boom",
+        name: "farm.js",
+        state: "failed",
+      }),
     ).toEqual({
-      currentUsername: "DirectPlayer",
-      scriptName: "farm.js",
-      status: "running",
+      message: "boom",
+      name: "farm.js",
+      state: "failed",
     });
   });
 
-  it("uses an Account Manager launch as the username fallback", () => {
-    const launchPayload: AccountGameLaunchPayload = {
-      account: {
-        label: "Alice",
-        password: "secret",
-        username: "Alice",
-      },
-      gameWindowId: 42,
-      requestedAt: 0,
-    };
-
-    expect(
-      accountScriptRunnerStatusUpdate(runningStatus, undefined, launchPayload),
-    ).toMatchObject({
-      currentUsername: "Alice",
-      status: "running",
+  it("keeps an idle directly opened game idle", () => {
+    expect(accountSessionScriptState({ state: "idle" })).toEqual({
+      state: "idle",
     });
   });
 
-  it("does not create a session before a direct game is authenticated", () => {
+  it("does not attribute a stopped runner to an old launch", () => {
     expect(
-      accountScriptRunnerStatusUpdate({ state: "idle" }, undefined, null),
-    ).toBeNull();
+      accountSessionScriptState({
+        reason: "Stopped by user",
+        state: "stopped",
+        stoppedAt: "2026-08-09T00:00:00.000Z",
+      }),
+    ).toEqual({ message: "Stopped by user", state: "stopped" });
   });
 });
