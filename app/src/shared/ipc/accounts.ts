@@ -8,7 +8,7 @@ import {
   AccountLaunchRequestSchema,
   AccountLaunchResultSchema,
   AccountManagerStateSchema,
-  AccountScriptStatusUpdateSchema,
+  AccountSessionReportSchema,
   ManagedAccountDraftSchema,
   ManagedAccountGroupDraftSchema,
   ManagedAccountGroupPatchSchema,
@@ -129,10 +129,10 @@ export const AccountsIpc = {
     }),
     result: AccountManagerStateSchema,
   }),
-  updateScriptStatus: defineInvoke({
-    channel: `${namespace}:update-script-status`,
-    name: "accounts.updateScriptStatus",
-    payload: AccountScriptStatusUpdateSchema,
+  reportSession: defineInvoke({
+    channel: `${namespace}:report-session`,
+    name: "accounts.reportSession",
+    payload: AccountSessionReportSchema,
     result: Schema.Void,
   }),
   changed: defineEvent({

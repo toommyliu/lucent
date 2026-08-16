@@ -54,15 +54,87 @@ export const AccountScriptReferenceSchema = ScriptFileReferenceSchema;
 
 export type AccountScriptReference = typeof AccountScriptReferenceSchema.Type;
 
-export const AccountScriptStatusSchema = Schema.Literals([
-  "idle",
-  "starting",
-  "running",
-  "stopped",
-  "failed",
+export const AccountSessionConnectionSchema = Schema.Union([
+  Schema.Struct({
+    state: Schema.Literal("offline"),
+    lastUsername: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("connecting"),
+    lastUsername: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("online"),
+    username: Schema.String,
+  }),
 ]);
 
-export type AccountScriptStatus = typeof AccountScriptStatusSchema.Type;
+export type AccountSessionConnection =
+  typeof AccountSessionConnectionSchema.Type;
+
+const AccountSessionActiveLoginSchema = <State extends string>(state: State) =>
+  Schema.Struct({
+    state: Schema.Literal(state),
+    attemptsRemaining: Schema.optionalKey(Schema.Number),
+    message: Schema.optionalKey(Schema.String),
+  });
+
+export const AccountSessionLoginSchema = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("idle") }),
+  Schema.Struct({ state: Schema.Literal("waiting-for-game") }),
+  AccountSessionActiveLoginSchema("authenticating"),
+  AccountSessionActiveLoginSchema("waiting-for-server"),
+  Schema.Struct({
+    state: Schema.Literal("selecting-server"),
+    attemptsRemaining: Schema.optionalKey(Schema.Number),
+    message: Schema.optionalKey(Schema.String),
+    server: Schema.optionalKey(Schema.String),
+  }),
+  AccountSessionActiveLoginSchema("waiting-for-player"),
+  Schema.Struct({
+    state: Schema.Literal("failed"),
+    message: Schema.String,
+  }),
+]);
+
+export type AccountSessionLogin = typeof AccountSessionLoginSchema.Type;
+
+export const AccountSessionScriptSchema = Schema.Union([
+  Schema.Struct({
+    state: Schema.Literal("idle"),
+    name: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("starting"),
+    name: Schema.String,
+    message: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("running"),
+    name: Schema.String,
+  }),
+  Schema.Struct({
+    state: Schema.Literal("stopped"),
+    name: Schema.optionalKey(Schema.String),
+    message: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("failed"),
+    name: Schema.optionalKey(Schema.String),
+    message: Schema.String,
+  }),
+]);
+
+export type AccountSessionScript = typeof AccountSessionScriptSchema.Type;
+
+/** Separate runtime facts reconciled by the renderer's session reducer. */
+export const AccountSessionRuntimeSchema = Schema.Struct({
+  connection: AccountSessionConnectionSchema,
+  login: AccountSessionLoginSchema,
+  script: AccountSessionScriptSchema,
+});
+
+export type AccountSessionRuntime = typeof AccountSessionRuntimeSchema.Type;
 
 export const AccountGameServerSchema = Schema.Struct({
   name: Schema.String,
@@ -106,24 +178,33 @@ export const AccountGameServerPingsResultSchema = Schema.Struct({
 export type AccountGameServerPingsResult =
   typeof AccountGameServerPingsResultSchema.Type;
 
-export const AccountScriptSessionSchema = Schema.Struct({
+export const AccountSessionLaunchSchema = Schema.Struct({
+  requestedAt: Schema.Number,
+  scriptName: Schema.optionalKey(Schema.String),
+  server: Schema.optionalKey(Schema.String),
+  username: Schema.String,
+});
+
+export type AccountSessionLaunch = typeof AccountSessionLaunchSchema.Type;
+
+export const AccountGameSessionSchema = Schema.Struct({
   gameWindowId: Schema.Number,
   gameWindowGroupId: Schema.optionalKey(Schema.Number),
-  authenticated: Schema.optionalKey(Schema.Boolean),
-  launchUsername: Schema.optionalKey(Schema.String),
-  currentUsername: Schema.optionalKey(Schema.String),
-  scriptName: Schema.optionalKey(Schema.String),
-  status: AccountScriptStatusSchema,
-  message: Schema.optionalKey(Schema.String),
+  rendererGeneration: Schema.Int,
+  revision: Schema.Int,
+  launch: Schema.optionalKey(AccountSessionLaunchSchema),
+  connection: AccountSessionConnectionSchema,
+  login: AccountSessionLoginSchema,
+  script: AccountSessionScriptSchema,
   updatedAt: Schema.Number,
 });
 
-export type AccountScriptSession = typeof AccountScriptSessionSchema.Type;
+export type AccountGameSession = typeof AccountGameSessionSchema.Type;
 
 export const AccountManagerStateSchema = Schema.Struct({
   accounts: Schema.Array(ManagedAccountSchema),
   groups: ManagedAccountGroupsSchema,
-  sessions: Schema.Array(AccountScriptSessionSchema),
+  sessions: Schema.Array(AccountGameSessionSchema),
   storagePath: Schema.String,
 });
 
@@ -208,16 +289,14 @@ export const AccountGameLaunchPayloadSchema = Schema.Struct({
 export type AccountGameLaunchPayload =
   typeof AccountGameLaunchPayloadSchema.Type;
 
-export const AccountScriptStatusUpdateSchema = Schema.Struct({
-  // null explicitly clears an authenticated session; undefined preserves it.
-  currentUsername: Schema.optionalKey(Schema.NullOr(Schema.String)),
-  scriptName: Schema.optionalKey(Schema.String),
-  status: AccountScriptStatusSchema,
-  message: Schema.optionalKey(Schema.String),
+/** A full renderer snapshot ordered within one renderer document generation. */
+export const AccountSessionReportSchema = Schema.Struct({
+  rendererGeneration: Schema.Int,
+  revision: Schema.Int,
+  runtime: AccountSessionRuntimeSchema,
 });
 
-export type AccountScriptStatusUpdate =
-  typeof AccountScriptStatusUpdateSchema.Type;
+export type AccountSessionReport = typeof AccountSessionReportSchema.Type;
 
 export interface AccountManagerStorage {
   readonly accounts: readonly ManagedAccount[];

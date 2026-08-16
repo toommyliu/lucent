@@ -12,12 +12,12 @@ export const AccountOperationSchema = Schema.Literals([
   "mkdir",
   "parse",
   "read",
+  "report-session",
   "rename",
   "refresh-servers",
   "unlink",
   "update-account",
   "update-group",
-  "update-script-status",
   "write",
 ]);
 
