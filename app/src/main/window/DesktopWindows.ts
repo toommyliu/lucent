@@ -173,6 +173,12 @@ export interface DesktopWindowsShape {
     hostRendererId: number,
     ids: readonly DesktopWindowInstanceId[],
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
+  /** Reloads the tab strip and selected client when they form one focused view. */
+  readonly reloadFocusedGameContents: (
+    nativeWindowId: number,
+    focusedRendererId: number,
+    bypassCache: boolean,
+  ) => Effect.Effect<boolean, DesktopWindowError>;
   readonly selectGameView: (
     hostRendererId: number,
     id: DesktopWindowInstanceId,
@@ -840,6 +846,61 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
     return gameHosts.find(entry[1].gameHostRendererId);
   };
+
+  const findGameHostForNativeWindow = (
+    nativeWindowId: number,
+  ): DesktopGameHostRecord | null => {
+    for (const candidate of gameHosts.values()) {
+      const host = gameHosts.find(candidate.rendererId);
+      if (host !== null && host.window.id === nativeWindowId) {
+        return host;
+      }
+    }
+    return null;
+  };
+
+  const reloadFocusedGameContents: DesktopWindowsShape["reloadFocusedGameContents"] =
+    (nativeWindowId, focusedRendererId, bypassCache) =>
+      Effect.try({
+        try: () => {
+          const host = findGameHostForNativeWindow(nativeWindowId);
+          if (host === null || host.layout !== "focused") {
+            return false;
+          }
+
+          const selected = renderers.get(host.selectedId);
+          if (
+            selected === undefined ||
+            !isGameViewRecord(selected) ||
+            selected.gameHostRendererId !== host.rendererId ||
+            (focusedRendererId !== host.rendererId &&
+              focusedRendererId !== selected.rendererId)
+          ) {
+            return false;
+          }
+
+          // The tab strip and selected Flash client are separate renderers but
+          // present as one focused view.
+          const targets = [
+            host.hostView.webContents,
+            selected.gameView.webContents,
+          ];
+          for (const target of targets) {
+            if (bypassCache) {
+              target.reloadIgnoringCache();
+            } else {
+              target.reload();
+            }
+          }
+          return true;
+        },
+        catch: (cause) =>
+          new DesktopWindowError({
+            cause,
+            detail: "Failed to reload the focused game view.",
+            id: String(nativeWindowId),
+          }),
+      });
 
   const getNativeWindowId: DesktopWindowsShape["getNativeWindowId"] = (
     rendererId,
@@ -2499,6 +2560,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         ),
       ),
     reorderGameViews,
+    reloadFocusedGameContents,
     selectGameView,
     setBackgroundColor,
     setGameViewGroupControlsOpen,
