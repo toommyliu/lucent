@@ -102,14 +102,7 @@ package lucent.game {
       return null;
     }
 
-    [BridgeExport]
-    public static function forceUseSkill(index:String):Boolean {
-      var game:Object = Main.Game;
-      var skill:Object = game.world.actions.active[parseInt(index)];
-      if (!skill) {
-        return false;
-      }
-
+    private static function tryUseSkill(game:Object, skill:Object):Boolean {
       if (!skill.isOK || skill.skillLock)
         return false;
 
@@ -149,16 +142,29 @@ package lucent.game {
       };
     }
 
+    [BridgeTsParamType("selector: FlashTypes.MonsterSelector | null")]
     [BridgeExport]
-    public static function useSkill(index:String):Boolean {
+    public static function useSkill(index:String, selector:Object = null, force:Boolean = false):Boolean {
       var game:Object = Main.Game;
       var skill:Object = game.world.actions.active[parseInt(index)];
       if (!skill) {
         return false;
       }
 
-      if (skill.tgt == "s" || skill.tgt == "f") {
-        return forceUseSkill(index);
+      if (selector != null) {
+        var monster:Object = World.getMonster(selector);
+        if (!isMonsterAttackable(monster)) {
+          return false;
+        }
+
+        game.world.setTarget(monster);
+        if (game.world.myAvatar.target !== monster) {
+          return false;
+        }
+      }
+
+      if (force || skill.tgt == "s" || skill.tgt == "f") {
+        return tryUseSkill(game, skill);
       }
 
       if (game.world.myAvatar.target == game.world.myAvatar) {
@@ -168,7 +174,7 @@ package lucent.game {
 
       if (game.world.myAvatar.target != null && game.world.myAvatar.target.dataLeaf.intHP > 0) {
         game.world.approachTarget();
-        return forceUseSkill(index);
+        return tryUseSkill(game, skill);
       }
 
       return false;

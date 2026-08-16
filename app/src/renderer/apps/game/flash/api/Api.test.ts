@@ -20,6 +20,11 @@ const makeTarget = () => {
     equips: 0,
     hairShopLoads: 0,
     shopLoads: 0,
+    skillUses: [] as {
+      force: boolean;
+      index: string;
+      selector: { monMapId: number } | { name: string } | null;
+    }[],
     swaps: 0,
     wears: 0,
     withdrawals: 0,
@@ -94,6 +99,15 @@ const makeTarget = () => {
       calls.withdrawalViews.push(bankView);
       return false;
     },
+    "combat.getSkillCooldownRemaining": () => 0,
+    "combat.useSkill": (
+      index: string,
+      selector: { monMapId: number } | { name: string } | null = null,
+      force = false,
+    ) => {
+      calls.skillUses.push({ force, index, selector });
+      return true;
+    },
     "house.getSlots": () => 1,
     "inventory.equip": (selector: { itemId: number }) => {
       calls.equips += 1;
@@ -150,6 +164,7 @@ const makeTarget = () => {
       calls.actions.push(action);
       return true;
     },
+    "world.getAvailableMonsterMapIds": () => [2],
   } as unknown as Window["swf"];
 
   return {
@@ -174,6 +189,79 @@ const makeTarget = () => {
 };
 
 describe("Api", () => {
+  it.effect("resolves named skill targets from available monsters", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { calls, target } = makeTarget();
+        const bridge = yield* makeBridge(target);
+        const gateway = yield* makeGateway(target).pipe(
+          Effect.provideService(Bridge, bridge),
+        );
+        const api = yield* makeApi.pipe(
+          Effect.provideService(Bridge, bridge),
+          Effect.provideService(Gateway, gateway),
+        );
+
+        const loaded = yield* api.wait.forPacket(
+          {
+            command: "moveToArea",
+            direction: "extension",
+            wireType: "json",
+          },
+          {
+            timeout: "1 second",
+            trigger: Effect.sync(() => {
+              emitExtension(target, {
+                areaId: 1,
+                areaName: "test-1",
+                cmd: "moveToArea",
+                monBranch: [
+                  {
+                    MonID: 1,
+                    MonMapID: 1,
+                    intHP: 0,
+                    intHPMax: 100,
+                    intState: 0,
+                    strMonName: "Slime",
+                  },
+                  {
+                    MonID: 1,
+                    MonMapID: 2,
+                    intHP: 100,
+                    intHPMax: 100,
+                    intState: 1,
+                    strMonName: "Slime",
+                  },
+                ],
+                uoBranch: [
+                  {
+                    entID: 1,
+                    intHP: 100,
+                    intHPMax: 100,
+                    intState: 1,
+                    strUsername: "Hero",
+                  },
+                ],
+              });
+              return true;
+            }),
+          },
+        );
+        expect(loaded).not.toBeNull();
+
+        expect(
+          yield* api.combat.useSkill(1, {
+            force: true,
+            target: "Slime",
+          }),
+        ).toBe(true);
+        expect(calls.skillUses).toEqual([
+          { force: true, index: "1", selector: { monMapId: 2 } },
+        ]);
+      }),
+    ),
+  );
+
   it.effect("reads class ranks from projections without bridge calls", () =>
     Effect.scoped(
       Effect.gen(function* () {
