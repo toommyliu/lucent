@@ -203,6 +203,7 @@ export default defineConfig({
       display: "inter",
       mono: "jetbrains-mono",
     },
+    mode: "system",
   },
   title: "Lucent",
   toc: {

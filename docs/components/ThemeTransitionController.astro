@@ -1,8 +1,74 @@
-<lucent-theme-transition-controller hidden></lucent-theme-transition-controller>
+---
+import Icon from "blume/components/Icon.astro";
+
+const iconButton =
+  "inline-flex size-9 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden";
+const optionButton =
+  "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-start text-muted-foreground text-sm hover:bg-muted hover:text-foreground aria-[pressed=true]:bg-muted aria-[pressed=true]:text-foreground";
+---
+
+<lucent-theme-transition-controller hidden>
+  <details class="group relative" data-lucent-theme-picker>
+    <summary aria-label="Theme: System" class={iconButton}>
+      <span class="inline-flex" data-lucent-theme-trigger-icon="system">
+        <Icon name="monitor" size={18} />
+      </span>
+      <span class="inline-flex" data-lucent-theme-trigger-icon="light" hidden>
+        <Icon name="sun" size={18} />
+      </span>
+      <span class="inline-flex" data-lucent-theme-trigger-icon="dark" hidden>
+        <Icon name="moon" size={18} />
+      </span>
+    </summary>
+    <div
+      aria-label="Theme"
+      class="absolute end-0 z-50 mt-2 min-w-36 rounded-blume border border-border bg-background p-1 shadow-xl"
+      role="group"
+    >
+      <button
+        aria-pressed="true"
+        class={optionButton}
+        data-lucent-theme-option="system"
+        type="button"
+      >
+        <Icon name="monitor" size={16} />
+        <span class="flex-1">System</span>
+        <span data-lucent-theme-check><Icon name="check" size={14} /></span>
+      </button>
+      <button
+        aria-pressed="false"
+        class={optionButton}
+        data-lucent-theme-option="light"
+        type="button"
+      >
+        <Icon name="sun" size={16} />
+        <span class="flex-1">Light</span>
+        <span data-lucent-theme-check hidden>
+          <Icon name="check" size={14} />
+        </span>
+      </button>
+      <button
+        aria-pressed="false"
+        class={optionButton}
+        data-lucent-theme-option="dark"
+        type="button"
+      >
+        <Icon name="moon" size={16} />
+        <span class="flex-1">Dark</span>
+        <span data-lucent-theme-check hidden>
+          <Icon name="check" size={14} />
+        </span>
+      </button>
+    </div>
+  </details>
+</lucent-theme-transition-controller>
 
 <script>
   const THEME_STORAGE_KEY = "blume-theme";
   const FALLBACK_TRANSITION_DURATION_MS = 240;
+
+  type Theme = "dark" | "light";
+  type ThemePreference = Theme | "system";
 
   type ViewTransitionDocument = Document & {
     startViewTransition?: (update: () => void) => {
@@ -10,18 +76,66 @@
     };
   };
 
-  /** Animate user-triggered theme changes while leaving Blume's stored preference intact. */
+  /** Apply explicit or system theme preferences with Lucent's theme transition. */
   class LucentThemeTransitionController extends HTMLElement {
     #fallbackTimer: number | undefined;
+    #picker: HTMLDetailsElement | undefined;
+    #systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
 
-    #applyTheme = (theme: "dark" | "light"): void => {
-      document.documentElement.dataset.theme = theme;
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    #getPreference = (): ThemePreference => {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      return stored === "dark" || stored === "light" ? stored : "system";
+    };
+
+    #resolveTheme = (preference: ThemePreference): Theme =>
+      preference === "system"
+        ? this.#systemTheme.matches
+          ? "dark"
+          : "light"
+        : preference;
+
+    #syncPicker = (preference: ThemePreference): void => {
+      if (this.#picker === undefined) {
+        return;
+      }
+
+      const label = preference[0].toUpperCase() + preference.slice(1);
+      const summary = this.#picker.querySelector("summary");
+      summary?.setAttribute("aria-label", `Theme: ${label}`);
+
+      for (const icon of this.#picker.querySelectorAll<HTMLElement>(
+        "[data-lucent-theme-trigger-icon]",
+      )) {
+        icon.hidden = icon.dataset.lucentThemeTriggerIcon !== preference;
+      }
+
+      for (const option of this.#picker.querySelectorAll<HTMLButtonElement>(
+        "[data-lucent-theme-option]",
+      )) {
+        const selected = option.dataset.lucentThemeOption === preference;
+        option.setAttribute("aria-pressed", String(selected));
+        const check = option.querySelector<HTMLElement>(
+          "[data-lucent-theme-check]",
+        );
+        if (check !== null) {
+          check.hidden = !selected;
+        }
+      }
+    };
+
+    #applyPreference = (preference: ThemePreference): void => {
+      document.documentElement.dataset.theme = this.#resolveTheme(preference);
+      if (preference === "system") {
+        localStorage.removeItem(THEME_STORAGE_KEY);
+      } else {
+        localStorage.setItem(THEME_STORAGE_KEY, preference);
+      }
+      this.#syncPicker(preference);
     };
 
     #toggleWithViewTransition = (
       documentWithTransition: ViewTransitionDocument,
-      nextTheme: "dark" | "light",
+      preference: ThemePreference,
     ): void => {
       const transitionBlocker = document.createElement("style");
       transitionBlocker.textContent =
@@ -29,13 +143,13 @@
       document.head.append(transitionBlocker);
 
       const transition = documentWithTransition.startViewTransition?.(() => {
-        this.#applyTheme(nextTheme);
+        this.#applyPreference(preference);
         void window.getComputedStyle(document.documentElement).opacity;
       });
 
       if (transition === undefined) {
         transitionBlocker.remove();
-        this.#toggleWithFallback(nextTheme);
+        this.#toggleWithFallback(preference);
         return;
       }
 
@@ -45,13 +159,13 @@
       );
     };
 
-    #toggleWithFallback = (nextTheme: "dark" | "light"): void => {
+    #toggleWithFallback = (preference: ThemePreference): void => {
       const root = document.documentElement;
       window.clearTimeout(this.#fallbackTimer);
       root.setAttribute("data-lucent-theme-transition", "");
 
       requestAnimationFrame(() => {
-        this.#applyTheme(nextTheme);
+        this.#applyPreference(preference);
         this.#fallbackTimer = window.setTimeout(() => {
           root.removeAttribute("data-lucent-theme-transition");
         }, FALLBACK_TRANSITION_DURATION_MS);
@@ -63,39 +177,69 @@
         return;
       }
 
-      const toggle = event.target.closest("[data-blume-theme-toggle]");
-      if (toggle === null) {
+      const option = event.target.closest<HTMLElement>(
+        "[data-lucent-theme-option]",
+      );
+      const preference = option?.dataset.lucentThemeOption;
+      if (
+        preference !== "system" &&
+        preference !== "light" &&
+        preference !== "dark"
+      ) {
         return;
       }
 
+      if (this.#picker !== undefined) {
+        this.#picker.removeAttribute("open");
+        this.#picker.querySelector<HTMLElement>("summary")?.focus();
+        void this.#picker.offsetWidth;
+      }
+
+      const root = document.documentElement;
+      const nextTheme = this.#resolveTheme(preference);
+      const documentWithTransition = document as ViewTransitionDocument;
       const reduceMotion = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
-      if (reduceMotion) {
-        return;
-      }
 
-      // Blume also delegates this click. Capture it first so the theme changes once.
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      const root = document.documentElement;
-      const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
-      const documentWithTransition = document as ViewTransitionDocument;
-
-      if (typeof documentWithTransition.startViewTransition === "function") {
-        this.#toggleWithViewTransition(documentWithTransition, nextTheme);
+      if (reduceMotion || root.dataset.theme === nextTheme) {
+        this.#applyPreference(preference);
+      } else if (
+        typeof documentWithTransition.startViewTransition === "function"
+      ) {
+        this.#toggleWithViewTransition(documentWithTransition, preference);
       } else {
-        this.#toggleWithFallback(nextTheme);
+        this.#toggleWithFallback(preference);
+      }
+    };
+
+    #onSystemThemeChange = (): void => {
+      if (this.#getPreference() === "system") {
+        this.#applyPreference("system");
       }
     };
 
     connectedCallback(): void {
-      document.addEventListener("click", this.#onClick, { capture: true });
+      const toggle = document.querySelector("[data-blume-theme-toggle]");
+      const picker = this.querySelector<HTMLDetailsElement>(
+        "[data-lucent-theme-picker]",
+      );
+      if (toggle !== null && picker !== null) {
+        this.#picker = picker;
+        toggle.replaceWith(picker);
+        this.#syncPicker(this.#getPreference());
+      }
+
+      document.addEventListener("click", this.#onClick);
+      this.#systemTheme.addEventListener("change", this.#onSystemThemeChange);
     }
 
     disconnectedCallback(): void {
-      document.removeEventListener("click", this.#onClick, { capture: true });
+      document.removeEventListener("click", this.#onClick);
+      this.#systemTheme.removeEventListener(
+        "change",
+        this.#onSystemThemeChange,
+      );
       window.clearTimeout(this.#fallbackTimer);
       document.documentElement.removeAttribute(
         "data-lucent-theme-transition",
