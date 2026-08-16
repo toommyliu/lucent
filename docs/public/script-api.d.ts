@@ -532,7 +532,6 @@ interface ScriptQuestsApi {
 interface ScriptRecipesApi {
   /** @param toBank Whether to send wheel rewards to the bank. */
     doWheelOfDoom(/** @defaultValue false */ toBank?: boolean): Effect<boolean, never>;
-    enhanceItem(item: ItemQuery, options: ScriptEnhanceItemOptions): Effect<boolean, never>;
     ensureLifeSteal(quantity: number): Effect<boolean, never>;
     ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
 }
@@ -560,6 +559,7 @@ interface ScriptShopsApi {
     buy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
     canBuy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
     close(shopId?: number): Effect<boolean, never>;
+    enhanceItem(item: ItemQuery, options: ScriptEnhanceItemOptions): Effect<boolean, never>;
     get(query: ShopItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
     getInfo(): Effect<LiveShop | null, never>;

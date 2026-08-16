@@ -719,10 +719,6 @@ export interface ScriptRecipesApi {
     /** @defaultValue false */
     toBank?: boolean,
   ) => Effect.Effect<boolean>;
-  readonly enhanceItem: (
-    item: ItemQuery,
-    options: ScriptEnhanceItemOptions,
-  ) => Effect.Effect<boolean>;
   readonly ensureLifeSteal: (quantity: number) => Effect.Effect<boolean>;
   readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
 }
@@ -772,6 +768,10 @@ export interface ScriptShopsApi {
     options?: ScriptShopQuantityOptions,
   ) => Effect.Effect<boolean>;
   readonly close: (shopId?: number) => Effect.Effect<boolean>;
+  readonly enhanceItem: (
+    item: ItemQuery,
+    options: ScriptEnhanceItemOptions,
+  ) => Effect.Effect<boolean>;
   readonly get: (query: ShopItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
   readonly getInfo: () => Effect.Effect<LiveShop | null>;
