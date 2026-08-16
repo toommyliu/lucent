@@ -4,9 +4,10 @@ import * as Layer from "effect/Layer";
 
 import type {
   AccountGameLaunchPayload,
+  AccountGameLaunchIntent,
+  AccountGameSession,
+  AccountGameSessionReport,
   AccountScriptReference,
-  AccountScriptSession,
-  AccountScriptStatusUpdate,
   ManagedAccount,
 } from "@lucent/core/accounts";
 
@@ -17,30 +18,178 @@ export interface PendingAccountLaunch {
   readonly server?: string;
 }
 
-const scriptName = (
-  script: AccountScriptReference | null | undefined,
-): string | undefined => {
-  const name = script?.name?.trim();
-  if (name !== undefined && name !== "") return name;
-  const path = script?.path?.trim();
-  return path === undefined || path === "" ? undefined : path;
-};
-
-export interface AccountSessionsShape {
+export interface AccountSessionRegistry {
   readonly getLaunch: (gameWindowId: number) => AccountGameLaunchPayload | null;
   readonly remove: (gameWindowId: number) => boolean;
-  readonly snapshot: () => readonly AccountScriptSession[];
+  readonly snapshot: () => readonly AccountGameSession[];
   readonly trackLaunch: (
     gameWindowId: number,
+    rendererGeneration: number,
     gameWindowGroupId: number | undefined,
     pending: PendingAccountLaunch,
   ) => void;
-  readonly updateStatus: (
+  readonly ensureDirect: (
     gameWindowId: number,
-    update: AccountScriptStatusUpdate,
-    gameWindowGroupId?: number,
-  ) => void;
+    rendererGeneration: number,
+    gameWindowGroupId: number | undefined,
+  ) => boolean;
+  readonly reload: (
+    gameWindowId: number,
+    rendererGeneration: number,
+  ) => boolean;
+  readonly acceptReport: (
+    gameWindowId: number,
+    report: AccountGameSessionReport,
+    gameWindowGroupId: number | undefined,
+  ) => boolean;
 }
+
+const launchIntent = (
+  pending: PendingAccountLaunch,
+): AccountGameLaunchIntent => ({
+  username: pending.account.username,
+  ...(pending.script === undefined ? {} : { script: pending.script }),
+  ...(pending.server === undefined ? {} : { server: pending.server }),
+  requestedAt: pending.requestedAt,
+});
+
+const launchPayload = (
+  gameWindowId: number,
+  pending: PendingAccountLaunch,
+): AccountGameLaunchPayload => ({
+  account: pending.account,
+  ...(pending.script === undefined ? {} : { script: pending.script }),
+  ...(pending.server === undefined ? {} : { server: pending.server }),
+  gameWindowId,
+  requestedAt: pending.requestedAt,
+});
+
+const initialRuntime = (launch: AccountGameLaunchIntent | undefined) => ({
+  connection: { state: "offline" as const },
+  login: {
+    state:
+      launch === undefined ? ("idle" as const) : ("waiting-for-game" as const),
+  },
+  script: { state: "idle" as const },
+});
+
+/**
+ * Owns accepted renderer reports and enforces the generation/revision barriers.
+ * This object is intentionally synchronous so its causal rules are easy to test.
+ */
+export const makeAccountSessionRegistry = (
+  now: () => number = Date.now,
+): AccountSessionRegistry => {
+  const sessions = new Map<number, AccountGameSession>();
+  const launchPayloads = new Map<number, AccountGameLaunchPayload>();
+
+  const snapshot: AccountSessionRegistry["snapshot"] = () =>
+    [...sessions.values()].toSorted(
+      (left, right) => right.updatedAt - left.updatedAt,
+    );
+
+  const trackLaunch: AccountSessionRegistry["trackLaunch"] = (
+    gameWindowId,
+    rendererGeneration,
+    gameWindowGroupId,
+    pending,
+  ) => {
+    const payload = launchPayload(gameWindowId, pending);
+    const launch = launchIntent(pending);
+    launchPayloads.set(gameWindowId, payload);
+    sessions.set(gameWindowId, {
+      gameWindowId,
+      ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
+      rendererGeneration,
+      revision: 0,
+      launch,
+      ...initialRuntime(launch),
+      updatedAt: now(),
+    });
+  };
+
+  const ensureDirect: AccountSessionRegistry["ensureDirect"] = (
+    gameWindowId,
+    rendererGeneration,
+    gameWindowGroupId,
+  ) => {
+    if (sessions.has(gameWindowId)) return false;
+    sessions.set(gameWindowId, {
+      gameWindowId,
+      ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
+      rendererGeneration,
+      revision: 0,
+      ...initialRuntime(undefined),
+      updatedAt: now(),
+    });
+    return true;
+  };
+
+  const reload: AccountSessionRegistry["reload"] = (
+    gameWindowId,
+    rendererGeneration,
+  ) => {
+    const previous = sessions.get(gameWindowId);
+    if (previous === undefined) return false;
+    const runtime = initialRuntime(previous.launch);
+    sessions.set(gameWindowId, {
+      ...previous,
+      rendererGeneration,
+      revision: 0,
+      ...runtime,
+      updatedAt: now(),
+    });
+    return true;
+  };
+
+  const acceptReport: AccountSessionRegistry["acceptReport"] = (
+    gameWindowId,
+    report,
+    gameWindowGroupId,
+  ) => {
+    const previous = sessions.get(gameWindowId);
+    if (
+      previous === undefined ||
+      previous.rendererGeneration !== report.rendererGeneration ||
+      report.revision <= previous.revision
+    ) {
+      return false;
+    }
+
+    sessions.set(gameWindowId, {
+      gameWindowId,
+      ...(gameWindowGroupId === undefined
+        ? previous.gameWindowGroupId === undefined
+          ? {}
+          : { gameWindowGroupId: previous.gameWindowGroupId }
+        : { gameWindowGroupId }),
+      rendererGeneration: report.rendererGeneration,
+      revision: report.revision,
+      ...(previous.launch === undefined ? {} : { launch: previous.launch }),
+      connection: report.connection,
+      login: report.login,
+      script: report.script,
+      updatedAt: now(),
+    });
+    return true;
+  };
+
+  return {
+    acceptReport,
+    ensureDirect,
+    getLaunch: (gameWindowId) => launchPayloads.get(gameWindowId) ?? null,
+    reload,
+    remove: (gameWindowId) => {
+      const removedSession = sessions.delete(gameWindowId);
+      const removedLaunch = launchPayloads.delete(gameWindowId);
+      return removedSession || removedLaunch;
+    },
+    snapshot,
+    trackLaunch,
+  };
+};
+
+export interface AccountSessionsShape extends AccountSessionRegistry {}
 
 export class AccountSessions extends Context.Service<
   AccountSessions,
@@ -49,112 +198,5 @@ export class AccountSessions extends Context.Service<
 
 export const layer = Layer.effect(
   AccountSessions,
-  Effect.sync(() => {
-    const sessions = new Map<number, AccountScriptSession>();
-    const launchPayloads = new Map<number, AccountGameLaunchPayload>();
-
-    const getLaunch: AccountSessionsShape["getLaunch"] = (gameWindowId) =>
-      launchPayloads.get(gameWindowId) ?? null;
-
-    const remove: AccountSessionsShape["remove"] = (gameWindowId) => {
-      const removedSession = sessions.delete(gameWindowId);
-      const removedLaunch = launchPayloads.delete(gameWindowId);
-      return removedSession || removedLaunch;
-    };
-
-    const snapshot: AccountSessionsShape["snapshot"] = () =>
-      [...sessions.values()].toSorted(
-        (left, right) => right.updatedAt - left.updatedAt,
-      );
-
-    const trackLaunch: AccountSessionsShape["trackLaunch"] = (
-      gameWindowId,
-      gameWindowGroupId,
-      pending,
-    ) => {
-      const payload: AccountGameLaunchPayload = {
-        account: pending.account,
-        ...(pending.script === undefined ? {} : { script: pending.script }),
-        ...(pending.server === undefined ? {} : { server: pending.server }),
-        gameWindowId,
-        requestedAt: pending.requestedAt,
-      };
-      launchPayloads.set(gameWindowId, payload);
-      const pendingScriptName = scriptName(payload.script);
-      sessions.set(gameWindowId, {
-        gameWindowId,
-        ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
-        launchUsername: payload.account.username,
-        currentUsername: payload.account.username,
-        ...(pendingScriptName === undefined
-          ? {}
-          : { scriptName: pendingScriptName }),
-        status: "starting",
-        message: "Waiting...",
-        updatedAt: Date.now(),
-      });
-    };
-
-    const updateStatus: AccountSessionsShape["updateStatus"] = (
-      gameWindowId,
-      update,
-      gameWindowGroupId,
-    ) => {
-      const previous = sessions.get(gameWindowId);
-      const payload = launchPayloads.get(gameWindowId);
-      const payloadScriptName = scriptName(payload?.script);
-      const updateScriptName =
-        update.scriptName === undefined
-          ? undefined
-          : scriptName({ name: update.scriptName, path: update.scriptName });
-      const resolvedGameWindowGroupId =
-        gameWindowGroupId ?? previous?.gameWindowGroupId;
-      sessions.set(gameWindowId, {
-        gameWindowId,
-        ...(resolvedGameWindowGroupId === undefined
-          ? {}
-          : { gameWindowGroupId: resolvedGameWindowGroupId }),
-        ...(payload === undefined
-          ? {}
-          : { launchUsername: payload.account.username }),
-        ...(previous?.launchUsername === undefined
-          ? {}
-          : { launchUsername: previous.launchUsername }),
-        ...(update.currentUsername === null
-          ? { authenticated: false }
-          : update.currentUsername === undefined
-            ? previous?.authenticated === undefined
-              ? {}
-              : { authenticated: previous.authenticated }
-            : { authenticated: true }),
-        ...(update.currentUsername === undefined
-          ? previous?.currentUsername === undefined
-            ? {}
-            : { currentUsername: previous.currentUsername }
-          : update.currentUsername === null
-            ? {}
-            : { currentUsername: update.currentUsername }),
-        ...(update.scriptName === undefined
-          ? previous?.scriptName === undefined
-            ? payloadScriptName === undefined
-              ? {}
-              : { scriptName: payloadScriptName }
-            : { scriptName: previous.scriptName }
-          : updateScriptName === undefined
-            ? {}
-            : { scriptName: updateScriptName }),
-        status: update.status,
-        ...(update.message === undefined ? {} : { message: update.message }),
-        updatedAt: Date.now(),
-      });
-    };
-
-    return AccountSessions.of({
-      getLaunch,
-      remove,
-      snapshot,
-      trackLaunch,
-      updateStatus,
-    });
-  }),
+  Effect.sync(() => AccountSessions.of(makeAccountSessionRegistry())),
 );

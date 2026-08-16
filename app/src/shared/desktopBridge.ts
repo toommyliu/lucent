@@ -70,13 +70,13 @@ import type {
 import type { UpdateCheckState } from "./updates";
 import type {
   AccountGameLaunchPayload,
+  AccountGameSessionReport,
   AccountGameServerPingsResult,
   AccountGameServersResult,
   AccountGameWindowTargetRequest,
   AccountLaunchRequest,
   AccountLaunchResult,
   AccountManagerState,
-  AccountScriptStatusUpdate,
   ManagedAccountDraft,
   ManagedAccountGroupDraft,
   ManagedAccountGroupPatch,
@@ -259,9 +259,7 @@ export interface DesktopAccountsBridge {
 
 export interface DesktopGameAccountsBridge {
   readonly getGameLaunch: () => Promise<AccountGameLaunchPayload | null>;
-  readonly updateScriptStatus: (
-    update: AccountScriptStatusUpdate,
-  ) => Promise<void>;
+  readonly reportSession: (report: AccountGameSessionReport) => Promise<void>;
 }
 
 export interface DesktopAccountSettingsBridge {

@@ -14,10 +14,10 @@ export const AccountOperationSchema = Schema.Literals([
   "read",
   "rename",
   "refresh-servers",
+  "report-session",
   "unlink",
   "update-account",
   "update-group",
-  "update-script-status",
   "write",
 ]);
 

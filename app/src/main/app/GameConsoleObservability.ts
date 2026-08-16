@@ -373,7 +373,8 @@ export const makeGameConsoleStore = (
 
 export const usernameFromAccountStateSession = (
   session: AccountManagerState["sessions"][number],
-): string | null => session.currentUsername ?? session.launchUsername ?? null;
+): string | null =>
+  session.connection.state === "online" ? session.connection.username : null;
 
 export const sessionsFromAccountState = (
   state: AccountManagerState,

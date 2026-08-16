@@ -1,51 +1,55 @@
 import type {
   AccountGameLaunchPayload,
-  AccountScriptReference,
-  AccountScriptStatusUpdate,
+  AccountGameScriptState,
 } from "@lucent/core/accounts";
 import type { ScriptRunnerStatus } from "./ScriptRunner";
 
 export const accountScriptLabel = (
-  script: AccountScriptReference | undefined,
+  script: AccountGameLaunchPayload["script"] | undefined,
 ): string | undefined => script?.name ?? script?.path;
 
-/** Builds an Account Manager update for any authenticated game session. */
-export const accountScriptRunnerStatusUpdate = (
+/** Converts runner state into the renderer-owned script state. */
+export const accountScriptRunnerState = (
   status: ScriptRunnerStatus,
-  authenticatedUsername: string | undefined,
   launchPayload: AccountGameLaunchPayload | null,
-): AccountScriptStatusUpdate | null => {
-  const currentUsername =
-    authenticatedUsername ?? launchPayload?.account.username;
-  if (currentUsername === undefined) {
-    return null;
+  previousScriptName?: string,
+): AccountGameScriptState => {
+  const name =
+    "name" in status
+      ? status.name
+      : (previousScriptName ?? accountScriptLabel(launchPayload?.script));
+  switch (status.state) {
+    case "starting":
+    case "waiting-to-restart":
+      return {
+        state: "starting",
+        ...(name === undefined ? {} : { name }),
+        ...(status.state === "waiting-to-restart"
+          ? { message: "Waiting to restart" }
+          : {}),
+      };
+    case "running":
+    case "stopping":
+      return { state: "running", ...(name === undefined ? {} : { name }) };
+    case "failed":
+      return {
+        state: "failed",
+        ...(name === undefined ? {} : { name }),
+        message: status.message,
+      };
+    case "stopped":
+      return {
+        state: "stopped",
+        ...(name === undefined ? {} : { name }),
+        ...(status.reason === undefined ? {} : { reason: status.reason }),
+      };
+    case "completed":
+      return {
+        state: "stopped",
+        ...(name === undefined ? {} : { name }),
+        reason: "Completed",
+      };
+    case "idle":
+      return { state: "idle" };
   }
-
-  const scriptName =
-    "name" in status ? status.name : accountScriptLabel(launchPayload?.script);
-  return {
-    currentUsername,
-    ...(scriptName === undefined ? {} : { scriptName }),
-    status:
-      status.state === "starting"
-        ? "starting"
-        : status.state === "waiting-to-restart"
-          ? "starting"
-          : status.state === "running" || status.state === "stopping"
-            ? "running"
-            : status.state === "failed"
-              ? "failed"
-              : status.state === "idle"
-                ? "idle"
-                : "stopped",
-    ...(status.state === "failed"
-      ? { message: status.message }
-      : status.state === "waiting-to-restart"
-        ? { message: "Waiting to restart" }
-        : status.state === "stopped"
-          ? { message: status.reason ?? "Stopped" }
-          : status.state === "completed"
-            ? { message: "Completed" }
-            : {}),
-  };
 };

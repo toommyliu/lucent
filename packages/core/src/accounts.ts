@@ -64,6 +64,68 @@ export const AccountScriptStatusSchema = Schema.Literals([
 
 export type AccountScriptStatus = typeof AccountScriptStatusSchema.Type;
 
+export const AccountGameConnectionStateSchema = Schema.Union([
+  Schema.Struct({
+    state: Schema.Literal("offline"),
+    lastUsername: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("connecting"),
+    lastUsername: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("online"),
+    username: Schema.String,
+  }),
+]);
+
+export type AccountGameConnectionState =
+  typeof AccountGameConnectionStateSchema.Type;
+
+export const AccountGameLoginStateSchema = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("idle") }),
+  Schema.Struct({ state: Schema.Literal("waiting-for-game") }),
+  Schema.Struct({ state: Schema.Literal("authenticating") }),
+  Schema.Struct({
+    state: Schema.Literal("connecting"),
+    server: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({ state: Schema.Literal("waiting-for-player") }),
+  Schema.Struct({ state: Schema.Literal("select-server") }),
+  Schema.Struct({
+    state: Schema.Literal("failed"),
+    message: Schema.String,
+  }),
+]);
+
+export type AccountGameLoginState = typeof AccountGameLoginStateSchema.Type;
+
+export const AccountGameScriptStateSchema = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("idle") }),
+  Schema.Struct({
+    state: Schema.Literal("starting"),
+    name: Schema.optionalKey(Schema.String),
+    message: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("running"),
+    name: Schema.optionalKey(Schema.String),
+    message: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("stopped"),
+    name: Schema.optionalKey(Schema.String),
+    reason: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("failed"),
+    name: Schema.optionalKey(Schema.String),
+    message: Schema.String,
+  }),
+]);
+
+export type AccountGameScriptState = typeof AccountGameScriptStateSchema.Type;
+
 export const AccountGameServerSchema = Schema.Struct({
   name: Schema.String,
   language: Schema.String,
@@ -106,24 +168,44 @@ export const AccountGameServerPingsResultSchema = Schema.Struct({
 export type AccountGameServerPingsResult =
   typeof AccountGameServerPingsResultSchema.Type;
 
-export const AccountScriptSessionSchema = Schema.Struct({
+export const AccountGameLaunchIntentSchema = Schema.Struct({
+  username: Schema.String,
+  script: Schema.optionalKey(AccountScriptReferenceSchema),
+  server: Schema.optionalKey(Schema.String),
+  requestedAt: Schema.Number,
+});
+
+export type AccountGameLaunchIntent = typeof AccountGameLaunchIntentSchema.Type;
+
+export const AccountGameSessionReportSchema = Schema.Struct({
+  rendererGeneration: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  connection: AccountGameConnectionStateSchema,
+  login: AccountGameLoginStateSchema,
+  script: AccountGameScriptStateSchema,
+});
+
+export type AccountGameSessionReport =
+  typeof AccountGameSessionReportSchema.Type;
+
+export const AccountGameSessionSchema = Schema.Struct({
   gameWindowId: Schema.Number,
   gameWindowGroupId: Schema.optionalKey(Schema.Number),
-  authenticated: Schema.optionalKey(Schema.Boolean),
-  launchUsername: Schema.optionalKey(Schema.String),
-  currentUsername: Schema.optionalKey(Schema.String),
-  scriptName: Schema.optionalKey(Schema.String),
-  status: AccountScriptStatusSchema,
-  message: Schema.optionalKey(Schema.String),
+  rendererGeneration: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  launch: Schema.optionalKey(AccountGameLaunchIntentSchema),
+  connection: AccountGameConnectionStateSchema,
+  login: AccountGameLoginStateSchema,
+  script: AccountGameScriptStateSchema,
   updatedAt: Schema.Number,
 });
 
-export type AccountScriptSession = typeof AccountScriptSessionSchema.Type;
+export type AccountGameSession = typeof AccountGameSessionSchema.Type;
 
 export const AccountManagerStateSchema = Schema.Struct({
   accounts: Schema.Array(ManagedAccountSchema),
   groups: ManagedAccountGroupsSchema,
-  sessions: Schema.Array(AccountScriptSessionSchema),
+  sessions: Schema.Array(AccountGameSessionSchema),
   storagePath: Schema.String,
 });
 
@@ -207,17 +289,6 @@ export const AccountGameLaunchPayloadSchema = Schema.Struct({
 
 export type AccountGameLaunchPayload =
   typeof AccountGameLaunchPayloadSchema.Type;
-
-export const AccountScriptStatusUpdateSchema = Schema.Struct({
-  // null explicitly clears an authenticated session; undefined preserves it.
-  currentUsername: Schema.optionalKey(Schema.NullOr(Schema.String)),
-  scriptName: Schema.optionalKey(Schema.String),
-  status: AccountScriptStatusSchema,
-  message: Schema.optionalKey(Schema.String),
-});
-
-export type AccountScriptStatusUpdate =
-  typeof AccountScriptStatusUpdateSchema.Type;
 
 export interface AccountManagerStorage {
   readonly accounts: readonly ManagedAccount[];
@@ -402,3 +473,149 @@ export const serializeAccountManagerStorage = (
 
 export const emptyAccountManagerStorage = (): AccountManagerStorage =>
   normalizeAccountManagerStorage(emptyStorage);
+
+const accountScriptName = (
+  script: AccountScriptReference | undefined,
+): string | undefined => {
+  const name = script?.name?.trim();
+  if (name !== undefined && name !== "") return name;
+  const path = script?.path?.trim();
+  return path === undefined || path === "" ? undefined : path;
+};
+
+export interface AccountGameSessionPresentation {
+  readonly username?: string;
+  readonly scriptName?: string;
+  readonly status: AccountScriptStatus;
+  readonly message?: string;
+}
+
+/** Derives the Account Manager's compact status view from runtime state. */
+export const presentAccountGameSession = (
+  session: AccountGameSession,
+): AccountGameSessionPresentation => {
+  const scriptName = accountScriptName(session.launch?.script);
+  const username =
+    session.connection.state === "online"
+      ? session.connection.username
+      : session.connection.state === "offline" ||
+          session.connection.state === "connecting"
+        ? (session.connection.lastUsername ?? session.launch?.username)
+        : session.launch?.username;
+
+  if (session.login.state === "select-server") {
+    return {
+      ...(username === undefined ? {} : { username }),
+      ...(scriptName === undefined ? {} : { scriptName }),
+      message: "Select a server",
+      status: "stopped",
+    };
+  }
+
+  if (session.login.state === "failed") {
+    return {
+      ...(username === undefined ? {} : { username }),
+      ...(scriptName === undefined ? {} : { scriptName }),
+      message: session.login.message,
+      status: "failed",
+    };
+  }
+
+  switch (session.login.state) {
+    case "waiting-for-game":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(scriptName === undefined ? {} : { scriptName }),
+        message: "Waiting...",
+        status: "starting",
+      };
+    case "authenticating":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(scriptName === undefined ? {} : { scriptName }),
+        message: "Logging in...",
+        status: "starting",
+      };
+    case "connecting":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(scriptName === undefined ? {} : { scriptName }),
+        message:
+          session.login.server === undefined
+            ? "Connecting..."
+            : `Connecting to ${session.login.server}...`,
+        status: "starting",
+      };
+    case "waiting-for-player":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(scriptName === undefined ? {} : { scriptName }),
+        message: "Waiting for player...",
+        status: "starting",
+      };
+    case "idle":
+      break;
+  }
+
+  switch (session.script.state) {
+    case "starting":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(session.script.name === undefined
+          ? scriptName === undefined
+            ? {}
+            : { scriptName }
+          : { scriptName: session.script.name }),
+        ...(session.script.message === undefined
+          ? {}
+          : { message: session.script.message }),
+        status: "starting",
+      };
+    case "running":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(session.script.name === undefined
+          ? scriptName === undefined
+            ? {}
+            : { scriptName }
+          : { scriptName: session.script.name }),
+        ...(session.script.message === undefined
+          ? {}
+          : { message: session.script.message }),
+        status: "running",
+      };
+    case "failed":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(session.script.name === undefined
+          ? scriptName === undefined
+            ? {}
+            : { scriptName }
+          : { scriptName: session.script.name }),
+        message: session.script.message,
+        status: "failed",
+      };
+    case "stopped":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(session.script.name === undefined
+          ? scriptName === undefined
+            ? {}
+            : { scriptName }
+          : { scriptName: session.script.name }),
+        ...(session.script.reason === undefined
+          ? {}
+          : { message: session.script.reason }),
+        status: "stopped",
+      };
+    case "idle":
+      return {
+        ...(username === undefined ? {} : { username }),
+        ...(scriptName === undefined ? {} : { scriptName }),
+        ...(session.connection.state === "online"
+          ? { message: "Logged in" }
+          : {}),
+        status: session.connection.state === "connecting" ? "starting" : "idle",
+      };
+  }
+};

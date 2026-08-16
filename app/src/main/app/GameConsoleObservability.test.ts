@@ -212,16 +212,21 @@ describe("GameConsoleObservability store", () => {
       groups: {},
       sessions: [
         {
-          currentUsername: "current",
           gameWindowId: 1,
-          launchUsername: "launch",
-          status: "running",
+          rendererGeneration: 1,
+          revision: 1,
+          connection: { state: "online", username: "current" },
+          login: { state: "idle" },
+          script: { state: "running" },
           updatedAt: 1,
         },
         {
           gameWindowId: 2,
-          launchUsername: "launch-only",
-          status: "starting",
+          rendererGeneration: 1,
+          revision: 1,
+          connection: { state: "offline" },
+          login: { state: "waiting-for-game" },
+          script: { state: "idle" },
           updatedAt: 2,
         },
       ],
@@ -230,7 +235,7 @@ describe("GameConsoleObservability store", () => {
 
     expect(sessionsFromAccountState(state)).toEqual([
       { gameWindowId: 1, username: "current" },
-      { gameWindowId: 2, username: "launch-only" },
+      { gameWindowId: 2, username: null },
     ]);
   });
 

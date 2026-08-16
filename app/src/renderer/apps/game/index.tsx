@@ -41,6 +41,7 @@ mountDesktopRenderer(
     <App
       {...props}
       onGroupCommandReceiverReady={markGroupCommandReceiverReady}
+      rendererGeneration={gameRendererGeneration}
     />
   ),
   {

@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 
 import {
   AccountLaunchRequestSchema,
+  presentAccountGameSession,
   normalizeAccountManagerStorage,
   renameGroupMemberUsername,
   removeGroupMemberUsername,
@@ -103,5 +104,41 @@ describe("account launch request", () => {
         tiling: { algorithm: "horizontal", count: 2.5, index: 0 },
       }),
     ).toBe(false);
+  });
+});
+
+describe("account session presentation", () => {
+  it("keeps a launch without a server offline", () => {
+    expect(
+      presentAccountGameSession({
+        connection: { state: "offline" },
+        gameWindowId: 1,
+        launch: { requestedAt: 0, username: "Hero" },
+        login: { state: "select-server" },
+        rendererGeneration: 1,
+        revision: 1,
+        script: { state: "idle" },
+        updatedAt: 0,
+      }),
+    ).toEqual({
+      message: "Select a server",
+      status: "stopped",
+      username: "Hero",
+    });
+  });
+
+  it("keeps the last observed identity ahead of launch intent", () => {
+    expect(
+      presentAccountGameSession({
+        connection: { lastUsername: "Bob", state: "offline" },
+        gameWindowId: 1,
+        launch: { requestedAt: 0, username: "Alice" },
+        login: { state: "idle" },
+        rendererGeneration: 1,
+        revision: 2,
+        script: { state: "idle" },
+        updatedAt: 1,
+      }),
+    ).toMatchObject({ username: "Bob" });
   });
 });

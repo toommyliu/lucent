@@ -4,10 +4,14 @@ import { join } from "path";
 
 import { describe, expect, it } from "@effect/vitest";
 import { afterEach } from "vitest";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
+import type {
+  AccountGameSessionReport,
+  AccountLaunchWindowTarget,
+} from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { AccountGameWindows } from "./AccountGameWindows";
 import * as AccountRepository from "./AccountRepository";
@@ -26,6 +30,8 @@ afterEach(async () => {
 });
 
 interface HarnessOptions {
+  readonly failClose?: boolean;
+  readonly onClose?: (gameWindowId: number) => boolean;
   readonly onManagedProfileKey?: (key: string | undefined) => void;
   readonly onRetireProfile?: (key: string) => void;
   readonly onSetName?: (gameWindowId: number, name: string) => void;
@@ -33,6 +39,8 @@ interface HarnessOptions {
     windowTarget: AccountLaunchWindowTarget | undefined,
   ) => void;
 }
+
+class CloseRequestError extends Data.TaggedError("CloseRequestError")<{}> {}
 
 const makeHarness = (harnessOptions: HarnessOptions = {}) =>
   Effect.gen(function* () {
@@ -50,20 +58,34 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
     const closedListeners = new Set<
       (gameWindowId: number) => Effect.Effect<void, unknown>
     >();
+    const createdListeners = new Set<
+      (
+        gameWindowId: number,
+        rendererGeneration: number,
+      ) => Effect.Effect<void, unknown>
+    >();
     let nextWindowId = 1;
     const gameWindows = AccountGameWindows.of({
       close: (gameWindowId) =>
-        Effect.forEach(
-          [...closedListeners],
-          (listener) => listener(gameWindowId),
-          { discard: true },
-        ).pipe(Effect.as(true)),
+        Effect.gen(function* () {
+          if (harnessOptions.failClose === true) {
+            return yield* new CloseRequestError();
+          }
+          return harnessOptions.onClose?.(gameWindowId) ?? true;
+        }),
       getGroupId: () => Effect.succeed(1),
+      getRendererGeneration: () => Effect.succeed(1),
+      onCreated: (listener) =>
+        Effect.sync(() => {
+          createdListeners.add(listener);
+          return () => createdListeners.delete(listener);
+        }),
       onClosed: (listener) =>
         Effect.sync(() => {
           closedListeners.add(listener);
           return () => closedListeners.delete(listener);
         }),
+      onRendererReloaded: () => Effect.succeed(() => undefined),
       open: (openOptions) =>
         Effect.gen(function* () {
           yield* Effect.sync(() => {
@@ -73,6 +95,11 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
             harnessOptions.onWindowTarget?.(openOptions?.windowTarget);
           });
           const gameWindowId = nextWindowId++;
+          yield* Effect.forEach(
+            [...createdListeners],
+            (listener) => listener(gameWindowId, 1),
+            { discard: true },
+          );
           if (openOptions?.onCreated !== undefined) {
             yield* openOptions.onCreated(gameWindowId);
           }
@@ -184,13 +211,14 @@ describe("Accounts", () => {
     ),
   );
 
-  it.effect("tracks launch and script sessions independently of windows", () =>
+  it.effect("tracks launch intent and accepts full renderer reports", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const managedProfileKeys: Array<string | undefined> = [];
         const windowTargets: Array<AccountLaunchWindowTarget | undefined> = [];
         const layer = yield* makeHarness({
           onManagedProfileKey: (key) => managedProfileKeys.push(key),
+          onClose: () => false,
           onWindowTarget: (windowTarget) => windowTargets.push(windowTarget),
         });
         const accounts = yield* Accounts.pipe(Effect.provide(layer));
@@ -212,15 +240,20 @@ describe("Accounts", () => {
         expect(managedProfileKeys).toEqual(["Alice"]);
         expect(windowTargets).toEqual([{ kind: "new" }]);
 
-        yield* accounts.updateScriptStatus(launch.gameWindowId, {
-          status: "running",
-          scriptName: "farm.js",
-        });
+        const report: AccountGameSessionReport = {
+          connection: { state: "online", username: "Alice" },
+          login: { state: "idle" },
+          rendererGeneration: 1,
+          revision: 1,
+          script: { name: "farm.js", state: "running" },
+        };
+        yield* accounts.reportSession(launch.gameWindowId, report);
         expect((yield* accounts.getState).sessions[0]).toMatchObject({
+          connection: { state: "online", username: "Alice" },
           gameWindowGroupId: 1,
           gameWindowId: launch.gameWindowId,
-          scriptName: "farm.js",
-          status: "running",
+          revision: 1,
+          script: { state: "running" },
         });
 
         const closed = yield* accounts.closeGameWindow(launch.gameWindowId);
@@ -230,68 +263,113 @@ describe("Accounts", () => {
     ),
   );
 
+  it.effect("preserves a session when a close request fails", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const layer = yield* makeHarness({
+          failClose: true,
+        });
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+        const launch = yield* accounts.launch({ username: "Alice" });
+
+        const error = yield* Effect.flip(
+          accounts.closeGameWindow(launch.gameWindowId),
+        );
+        expect(error).toBeInstanceOf(AccountsError);
+        expect((yield* accounts.getState).sessions).toHaveLength(1);
+      }),
+    ),
+  );
+
+  it.effect("does not claim an online session when no server is selected", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const layer = yield* makeHarness();
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+        const launch = yield* accounts.launch({ username: "Alice" });
+        const report: AccountGameSessionReport = {
+          connection: { state: "offline" },
+          login: { state: "select-server" },
+          rendererGeneration: 1,
+          revision: 1,
+          script: { state: "idle" },
+        };
+        yield* accounts.reportSession(launch.gameWindowId, report);
+        expect((yield* accounts.getState).sessions[0]).toMatchObject({
+          connection: { state: "offline" },
+          gameWindowId: launch.gameWindowId,
+          login: { state: "select-server" },
+        });
+      }),
+    ),
+  );
+
+  it.effect("does not create a session from an unregistered report", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const layer = yield* makeHarness();
+        const accounts = yield* Accounts.pipe(Effect.provide(layer));
+        yield* accounts.reportSession(42, {
+          connection: { state: "offline" },
+          login: { state: "select-server" },
+          rendererGeneration: 1,
+          revision: 1,
+          script: { state: "idle" },
+        });
+
+        expect((yield* accounts.getState).sessions).toEqual([]);
+      }),
+    ),
+  );
+
   it.effect(
-    "tracks authenticated usernames for directly opened game windows",
+    "ignores stale reports after logout and keeps online naming authoritative",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
-          const layer = yield* makeHarness();
-          const accounts = yield* Accounts.pipe(Effect.provide(layer));
-
-          yield* accounts.updateScriptStatus(42, {
-            currentUsername: "DirectPlayer",
-            message: "Logged in",
-            status: "stopped",
+          const names: Array<{ readonly id: number; readonly name: string }> =
+            [];
+          const layer = yield* makeHarness({
+            onSetName: (id, name) => names.push({ id, name }),
           });
+          const accounts = yield* Accounts.pipe(Effect.provide(layer));
+          yield* accounts.createAccount({
+            username: "Alice",
+            password: "secret",
+          });
+          const launch = yield* accounts.launch({ username: "Alice" });
+          const online: AccountGameSessionReport = {
+            connection: { state: "online", username: "DirectPlayer" },
+            login: { state: "idle" },
+            rendererGeneration: 1,
+            revision: 1,
+            script: { state: "idle" },
+          };
+          yield* accounts.reportSession(launch.gameWindowId, online);
+          yield* accounts.reportSession(launch.gameWindowId, {
+            ...online,
+            connection: { state: "offline", lastUsername: "DirectPlayer" },
+            revision: 2,
+          });
+          yield* accounts.reportSession(launch.gameWindowId, online);
 
-          expect((yield* accounts.getState).sessions).toEqual([
-            expect.objectContaining({
-              currentUsername: "DirectPlayer",
-              gameWindowId: 42,
-              status: "stopped",
-            }),
+          const [session] = (yield* accounts.getState).sessions;
+          expect(session?.connection).toEqual({
+            lastUsername: "DirectPlayer",
+            state: "offline",
+          });
+          expect(names).toEqual([
+            { id: launch.gameWindowId, name: "DirectPlayer" },
           ]);
         }),
       ),
-  );
-
-  it.effect("clears logged-out session usernames and game view names", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const names: Array<{ readonly id: number; readonly name: string }> = [];
-        const layer = yield* makeHarness({
-          onSetName: (id, name) => names.push({ id, name }),
-        });
-        const accounts = yield* Accounts.pipe(Effect.provide(layer));
-
-        yield* accounts.updateScriptStatus(42, {
-          currentUsername: "DirectPlayer",
-          message: "Logged in",
-          status: "stopped",
-        });
-        yield* accounts.updateScriptStatus(42, {
-          currentUsername: null,
-          message: "Logged out",
-          status: "stopped",
-        });
-        yield* accounts.updateScriptStatus(42, {
-          message: "Stopped",
-          status: "stopped",
-        });
-
-        const [session] = (yield* accounts.getState).sessions;
-        expect(session).not.toHaveProperty("currentUsername");
-        expect(session).toMatchObject({
-          authenticated: false,
-          gameWindowId: 42,
-          message: "Stopped",
-          status: "stopped",
-        });
-        expect(names).toEqual([
-          { id: 42, name: "DirectPlayer" },
-          { id: 42, name: "" },
-        ]);
-      }),
-    ),
   );
 });

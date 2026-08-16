@@ -26,10 +26,28 @@ export const layer = Layer.effect(
       gameWindowId,
     ) => windows.getNativeWindowId(gameWindowId);
 
+    const getRendererGeneration: AccountGameWindows["Service"]["getRendererGeneration"] =
+      (gameWindowId) => windows.getRendererGeneration(gameWindowId);
+
+    const onCreated: AccountGameWindows["Service"]["onCreated"] = (listener) =>
+      windows.onCreated((event) =>
+        event.kind === "game"
+          ? listener(event.rendererId, event.generation)
+          : Effect.void,
+      );
+
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
       windows.onClosed((event) =>
         event.kind === "game" ? listener(event.rendererId) : Effect.void,
       );
+
+    const onRendererReloaded: AccountGameWindows["Service"]["onRendererReloaded"] =
+      (listener) =>
+        windows.onRendererReloaded((event) =>
+          event.kind === "game"
+            ? listener(event.rendererId, event.generation)
+            : Effect.void,
+        );
 
     const open: AccountGameWindows["Service"]["open"] = (options) =>
       Effect.gen(function* () {
@@ -69,7 +87,10 @@ export const layer = Layer.effect(
     return AccountGameWindows.of({
       close,
       getGroupId,
+      getRendererGeneration,
+      onCreated,
       onClosed,
+      onRendererReloaded,
       open,
       reveal,
       retireProfile,

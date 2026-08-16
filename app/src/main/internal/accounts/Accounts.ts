@@ -1,18 +1,20 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Result from "effect/Result";
+import * as Semaphore from "effect/Semaphore";
 
 import {
   removeGroupMemberUsername,
   renameGroupMemberUsername,
   type AccountGameLaunchPayload,
+  type AccountGameSessionReport,
   type AccountGameServerPingsResult,
   type AccountGameServersResult,
   type AccountLaunchRequest,
   type AccountLaunchResult,
   type AccountManagerState,
   type AccountManagerStorage,
-  type AccountScriptStatusUpdate,
   type ManagedAccount,
   type ManagedAccountDraft,
   type ManagedAccountGroupDraft,
@@ -84,9 +86,9 @@ export interface AccountsShape {
     name: string,
     patch: ManagedAccountGroupPatch,
   ) => Effect.Effect<AccountManagerState, AccountsError>;
-  readonly updateScriptStatus: (
+  readonly reportSession: (
     gameWindowId: number,
-    update: AccountScriptStatusUpdate,
+    report: AccountGameSessionReport,
   ) => Effect.Effect<void, AccountsError>;
 }
 
@@ -277,6 +279,7 @@ export const makeAccounts = Effect.gen(function* () {
   const repository = yield* AccountRepository;
   const servers = yield* AccountServers;
   const sessions = yield* AccountSessions;
+  const sessionMutationGate = yield* Semaphore.make(1);
   const stateChanges = makeListenerRegistry<AccountManagerState>();
 
   const optionalGameWindowGroupId = (
@@ -311,6 +314,10 @@ export const makeAccounts = Effect.gen(function* () {
       .update(modify)
       .pipe(Effect.map(toState), Effect.tap(stateChanges.publish));
 
+  const withSessionMutation = <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E, R> => sessionMutationGate.withPermit(effect);
+
   const retireGameProfiles = (keys: Iterable<string>) =>
     Effect.forEach(
       keys,
@@ -320,35 +327,84 @@ export const makeAccounts = Effect.gen(function* () {
     );
 
   const removeWindowSession = (gameWindowId: number) =>
-    Effect.sync(() => sessions.remove(gameWindowId)).pipe(
-      Effect.flatMap((removed) =>
-        removed ? publishCurrentState : Effect.void,
+    withSessionMutation(
+      Effect.sync(() => sessions.remove(gameWindowId)).pipe(
+        Effect.flatMap((removed) =>
+          removed ? publishCurrentState : Effect.void,
+        ),
       ),
     );
 
+  const unsubscribeCreated = yield* gameWindows.onCreated(
+    (gameWindowId, rendererGeneration) =>
+      withSessionMutation(
+        optionalGameWindowGroupId(gameWindowId).pipe(
+          Effect.flatMap((gameWindowGroupId) =>
+            Effect.sync(() =>
+              sessions.ensureDirect(
+                gameWindowId,
+                rendererGeneration,
+                gameWindowGroupId,
+              ),
+            ).pipe(
+              Effect.flatMap((changed) =>
+                changed ? publishCurrentState : Effect.void,
+              ),
+            ),
+          ),
+        ),
+      ),
+  );
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeCreated));
+
   const unsubscribeWindows = yield* gameWindows.onClosed(removeWindowSession);
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
+
+  const unsubscribeReloads = yield* gameWindows.onRendererReloaded(
+    (gameWindowId, generation) =>
+      withSessionMutation(
+        Effect.sync(() => sessions.reload(gameWindowId, generation)).pipe(
+          Effect.flatMap((changed) =>
+            changed ? publishCurrentState : Effect.void,
+          ),
+        ),
+      ),
+  );
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeReloads));
 
   const closeGameWindows: AccountsShape["closeGameWindows"] = (
     gameWindowIds,
   ) => {
     const uniqueIds = [...new Set(gameWindowIds)];
-    return Effect.forEach(uniqueIds, gameWindows.close, {
-      discard: true,
-    }).pipe(
-      Effect.andThen(
-        Effect.sync(() => {
-          let changed = false;
-          for (const gameWindowId of uniqueIds) {
-            changed = sessions.remove(gameWindowId) || changed;
-          }
-          return changed;
-        }),
+    // Issue native close requests outside the registry gate. Reports and
+    // closed events may interleave, but the successful-request barrier below
+    // removes their records before any later report can be accepted.
+    return Effect.forEach(uniqueIds, (gameWindowId) =>
+      gameWindows.close(gameWindowId).pipe(
+        Effect.map(() => gameWindowId),
+        Effect.result,
       ),
-      Effect.flatMap((changed) =>
-        changed ? publishCurrentState : Effect.void,
+    ).pipe(
+      Effect.flatMap((results) =>
+        withSessionMutation(
+          Effect.gen(function* () {
+            const closedIds = results.flatMap((result) =>
+              Result.isSuccess(result) ? [result.success] : [],
+            );
+            let changed = false;
+            for (const gameWindowId of closedIds) {
+              changed = sessions.remove(gameWindowId) || changed;
+            }
+            if (changed) yield* publishCurrentState;
+
+            const failure = results.find(Result.isFailure);
+            if (failure !== undefined) {
+              return yield* Effect.fail(failure.failure);
+            }
+            return yield* getState;
+          }),
+        ),
       ),
-      Effect.andThen(getState),
       Effect.mapError((cause) =>
         cause instanceof AccountsError
           ? cause
@@ -520,7 +576,6 @@ export const makeAccounts = Effect.gen(function* () {
       const resolvedGameWindowId = yield* gameWindows
         .open({
           managedProfileKey: account.username,
-          name: account.username,
           ...(request.windowTarget === undefined
             ? {}
             : { windowTarget: request.windowTarget }),
@@ -530,8 +585,18 @@ export const makeAccounts = Effect.gen(function* () {
               gameWindowId = createdId;
               const gameWindowGroupId =
                 yield* optionalGameWindowGroupId(createdId);
-              sessions.trackLaunch(createdId, gameWindowGroupId, pending);
-              yield* publishCurrentState;
+              const rendererGeneration =
+                yield* gameWindows.getRendererGeneration(createdId);
+              yield* withSessionMutation(
+                Effect.sync(() =>
+                  sessions.trackLaunch(
+                    createdId,
+                    rendererGeneration,
+                    gameWindowGroupId,
+                    pending,
+                  ),
+                ).pipe(Effect.andThen(publishCurrentState)),
+              );
             }),
         })
         .pipe(
@@ -546,8 +611,18 @@ export const makeAccounts = Effect.gen(function* () {
       if (sessions.getLaunch(resolvedGameWindowId) === null) {
         const gameWindowGroupId =
           yield* optionalGameWindowGroupId(resolvedGameWindowId);
-        sessions.trackLaunch(resolvedGameWindowId, gameWindowGroupId, pending);
-        yield* publishCurrentState;
+        const rendererGeneration =
+          yield* gameWindows.getRendererGeneration(resolvedGameWindowId);
+        yield* withSessionMutation(
+          Effect.sync(() =>
+            sessions.trackLaunch(
+              resolvedGameWindowId,
+              rendererGeneration,
+              gameWindowGroupId,
+              pending,
+            ),
+          ).pipe(Effect.andThen(publishCurrentState)),
+        );
       }
       return { gameWindowId: resolvedGameWindowId };
     }).pipe(
@@ -649,28 +724,54 @@ export const makeAccounts = Effect.gen(function* () {
       }),
     );
 
-  const updateScriptStatus: AccountsShape["updateScriptStatus"] = (
+  const reportSession: AccountsShape["reportSession"] = (
     gameWindowId,
-    update,
+    report,
   ) =>
-    optionalGameWindowGroupId(gameWindowId).pipe(
-      Effect.tap((gameWindowGroupId) =>
-        Effect.sync(() =>
-          sessions.updateStatus(gameWindowId, update, gameWindowGroupId),
-        ),
-      ),
-      Effect.andThen(
-        update.currentUsername === undefined
-          ? Effect.void
-          : gameWindows
-              .setName(gameWindowId, update.currentUsername ?? "")
-              .pipe(Effect.catch(() => Effect.void)),
-      ),
-      Effect.andThen(publishCurrentState),
+    Effect.gen(function* () {
+      const rendererGeneration = yield* gameWindows
+        .getRendererGeneration(gameWindowId)
+        .pipe(
+          Effect.match({
+            onFailure: () => null,
+            onSuccess: (value) => value,
+          }),
+        );
+      const gameWindowGroupId = yield* optionalGameWindowGroupId(gameWindowId);
+      yield* withSessionMutation(
+        Effect.gen(function* () {
+          if (
+            rendererGeneration === null ||
+            rendererGeneration !== report.rendererGeneration
+          ) {
+            return;
+          }
+
+          // Direct windows are registered from the main-process created
+          // event. Reports can update a record, but can never create one.
+          const accepted = sessions.acceptReport(
+            gameWindowId,
+            report,
+            gameWindowGroupId,
+          );
+          if (!accepted) return;
+
+          // The mutation gate also covers naming. A reload, close, or newer
+          // report cannot pass its barrier until this accepted name update is
+          // complete, so an older report cannot rename afterward.
+          if (report.connection.state === "online") {
+            yield* gameWindows
+              .setName(gameWindowId, report.connection.username)
+              .pipe(Effect.catch(() => Effect.void));
+          }
+          yield* publishCurrentState;
+        }),
+      );
+    }).pipe(
       Effect.mapError((cause) =>
         accountError(
-          "update-script-status",
-          `Failed to update script status for game window: ${gameWindowId}`,
+          "report-session",
+          `Failed to accept account session report for game window: ${gameWindowId}`,
           cause,
         ),
       ),
@@ -695,7 +796,7 @@ export const makeAccounts = Effect.gen(function* () {
     refreshServers,
     updateAccount,
     updateGroup,
-    updateScriptStatus,
+    reportSession,
   });
 });
 

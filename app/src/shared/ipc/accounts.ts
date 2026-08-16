@@ -2,13 +2,13 @@ import * as Schema from "effect/Schema";
 
 import {
   AccountGameLaunchPayloadSchema,
+  AccountGameSessionReportSchema,
   AccountGameServerPingsResultSchema,
   AccountGameServersResultSchema,
   AccountGameWindowTargetRequestSchema,
   AccountLaunchRequestSchema,
   AccountLaunchResultSchema,
   AccountManagerStateSchema,
-  AccountScriptStatusUpdateSchema,
   ManagedAccountDraftSchema,
   ManagedAccountGroupDraftSchema,
   ManagedAccountGroupPatchSchema,
@@ -129,10 +129,10 @@ export const AccountsIpc = {
     }),
     result: AccountManagerStateSchema,
   }),
-  updateScriptStatus: defineInvoke({
-    channel: `${namespace}:update-script-status`,
-    name: "accounts.updateScriptStatus",
-    payload: AccountScriptStatusUpdateSchema,
+  reportSession: defineInvoke({
+    channel: `${namespace}:report-session`,
+    name: "accounts.reportSession",
+    payload: AccountGameSessionReportSchema,
     result: Schema.Void,
   }),
   changed: defineEvent({

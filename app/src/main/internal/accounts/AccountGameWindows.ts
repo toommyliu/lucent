@@ -15,8 +15,23 @@ export interface AccountWindowTilePlacement {
 export interface AccountGameWindowsShape {
   readonly close: (gameWindowId: number) => Effect.Effect<boolean, unknown>;
   readonly getGroupId: (gameWindowId: number) => Effect.Effect<number, unknown>;
+  readonly getRendererGeneration: (
+    gameWindowId: number,
+  ) => Effect.Effect<number, unknown>;
+  readonly onCreated: (
+    listener: (
+      gameWindowId: number,
+      rendererGeneration: number,
+    ) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
   readonly onClosed: (
     listener: (gameWindowId: number) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
+  readonly onRendererReloaded: (
+    listener: (
+      gameWindowId: number,
+      generation: number,
+    ) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
   readonly open: (options?: {
     readonly managedProfileKey?: string;

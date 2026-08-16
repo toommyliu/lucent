@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccountScriptSession } from "@lucent/core/accounts";
+import type { AccountGameSession } from "@lucent/core/accounts";
 import { groupActiveWindowSessions } from "./activeWindowSessionGroups";
 
 const session = (
   gameWindowId: number,
   gameWindowGroupId?: number,
-): AccountScriptSession => ({
+): AccountGameSession => ({
   gameWindowId,
   ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
-  status: "stopped",
+  connection: { state: "offline" },
+  login: { state: "idle" },
+  rendererGeneration: 1,
+  revision: 1,
+  script: { state: "idle" },
   updatedAt: gameWindowId,
 });
 

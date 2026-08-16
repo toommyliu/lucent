@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 
 import type {
+  AccountGameSession,
   AccountGameServer,
   AccountGameServerPing,
   AccountManagerState,
@@ -80,6 +81,28 @@ const serverPings: readonly AccountGameServerPing[] = [
   { serverName: "Espada", status: "offline" },
   { serverName: "TestingServer", status: "unreachable" },
 ];
+
+const storySession = (
+  gameWindowId: number,
+  username: string,
+  scriptName: string | undefined,
+  script: AccountGameSession["script"],
+): AccountGameSession => ({
+  connection: { state: "online", username },
+  gameWindowId,
+  launch: {
+    ...(scriptName === undefined
+      ? {}
+      : { script: { name: scriptName, path: `/scripts/${scriptName}` } }),
+    requestedAt: gameWindowId,
+    username,
+  },
+  login: { state: "idle" },
+  rendererGeneration: 1,
+  revision: gameWindowId,
+  script,
+  updatedAt: gameWindowId,
+});
 
 const meta = {
   args: {
@@ -190,48 +213,27 @@ export const MixedSessionStatuses: Story = {
       state: {
         ...populatedState,
         sessions: [
-          {
-            currentUsername: "PrimaryHero",
-            gameWindowId: 101,
-            launchUsername: "PrimaryHero",
+          storySession(101, "PrimaryHero", "Legion farm", {
             message: "Farming Legion Tokens",
-            scriptName: "Legion farm",
-            status: "running",
-            updatedAt: 5,
-          },
-          {
-            gameWindowId: 102,
-            launchUsername: "LucentHealer",
+            name: "Legion farm",
+            state: "running",
+          }),
+          storySession(102, "LucentHealer", "Support loop", {
             message: "Loading the game client",
-            scriptName: "Support loop",
-            status: "starting",
-            updatedAt: 4,
-          },
-          {
-            currentUsername: "LoopTaunt",
-            gameWindowId: 103,
-            launchUsername: "LoopTaunt",
-            message: "Script stopped after completing 12 cycles",
-            scriptName: "Taunt loop",
-            status: "stopped",
-            updatedAt: 3,
-          },
-          {
-            currentUsername: "DamageDealer",
-            gameWindowId: 104,
-            launchUsername: "DamageDealer",
+            name: "Support loop",
+            state: "starting",
+          }),
+          storySession(103, "LoopTaunt", "Taunt loop", {
+            name: "Taunt loop",
+            reason: "Script stopped after completing 12 cycles",
+            state: "stopped",
+          }),
+          storySession(104, "DamageDealer", "Darkon DPS", {
             message: "Package dependency could not be resolved",
-            scriptName: "Darkon DPS",
-            status: "failed",
-            updatedAt: 2,
-          },
-          {
-            currentUsername: "VaultKeeper",
-            gameWindowId: 105,
-            launchUsername: "VaultKeeper",
-            status: "idle",
-            updatedAt: 1,
-          },
+            name: "Darkon DPS",
+            state: "failed",
+          }),
+          storySession(105, "VaultKeeper", undefined, { state: "idle" }),
         ],
       },
     },
