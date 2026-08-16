@@ -2929,8 +2929,10 @@ export function App(props: {
       }
 
       await refreshPlayerReady();
-      const currentUsername =
-        (await readAuthenticatedAccountUsername()) ?? payload.account.username;
+      const currentUsername = await readAuthenticatedAccountUsername();
+      if (currentUsername === undefined) {
+        throw new Error("Account authentication could not be verified");
+      }
       if (payload.script === undefined || options.startScript === false) {
         await publishAccountLaunchStatus(
           "stopped",
