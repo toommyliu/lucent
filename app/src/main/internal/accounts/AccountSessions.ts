@@ -85,7 +85,6 @@ export const layer = Layer.effect(
         gameWindowId,
         ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
         launchUsername: payload.account.username,
-        currentUsername: payload.account.username,
         ...(pendingScriptName === undefined
           ? {}
           : { scriptName: pendingScriptName }),

@@ -202,14 +202,18 @@ const gameViewFrameRateLimit = (
 const wait = (delayMs: number): Promise<void> =>
   new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
-const readAccountCurrentUsername = async (): Promise<string | undefined> => {
+const readAuthenticatedAccountUsername = async (): Promise<
+  string | undefined
+> => {
   try {
     const username = await runtime.runPromise(
       Effect.gen(function* () {
         const { auth } = yield* Api;
+        if (!(yield* auth.isLoggedIn())) return undefined;
         return yield* auth.getUsername();
       }),
     );
+    if (username === undefined) return undefined;
     const normalized = username.trim();
     return normalized === "" ? undefined : normalized;
   } catch (error) {
@@ -2726,7 +2730,7 @@ export function App(props: {
 
   const bindScriptSettingsForAuthenticatedAccount =
     async (): Promise<boolean> => {
-      const username = await readAccountCurrentUsername();
+      const username = await readAuthenticatedAccountUsername();
       if (username === undefined) {
         clearScriptSettingsBinding();
         return false;
@@ -2792,6 +2796,7 @@ export function App(props: {
   const publishAccountLaunchStatus = async (
     status: AccountScriptStatusUpdate["status"],
     message?: string,
+    currentUsername?: string | null,
   ): Promise<void> => {
     const payload = activeAccountLaunchPayload;
     if (payload === null) {
@@ -2799,10 +2804,8 @@ export function App(props: {
     }
 
     const scriptName = accountScriptLabel(payload.script);
-    const currentUsername =
-      (await readAccountCurrentUsername()) ?? payload.account.username;
     await publishAccountStatus({
-      currentUsername,
+      ...(currentUsername === undefined ? {} : { currentUsername }),
       ...(scriptName === undefined ? {} : { scriptName }),
       status,
       ...(message === undefined ? {} : { message }),
@@ -2815,7 +2818,7 @@ export function App(props: {
     if (trackedSessionLoggedOut) return;
 
     const payload = activeAccountLaunchPayload;
-    const currentUsername = await readAccountCurrentUsername();
+    const currentUsername = await readAuthenticatedAccountUsername();
     if (trackedSessionLoggedOut) return;
     const update = accountScriptRunnerStatusUpdate(
       status,
@@ -2846,7 +2849,7 @@ export function App(props: {
 
   const publishAccountConnectionStatus = async (): Promise<void> => {
     const payload = activeAccountLaunchPayload;
-    const currentUsername = await readAccountCurrentUsername();
+    const currentUsername = await readAuthenticatedAccountUsername();
     if (currentUsername === undefined) {
       return;
     }
@@ -2921,17 +2924,27 @@ export function App(props: {
           throw new Error("Login server required to start script");
         }
 
-        await publishAccountLaunchStatus("stopped", "Logged in");
+        await publishAccountLaunchStatus("stopped", "Select a server", null);
         return;
       }
 
       await refreshPlayerReady();
+      const currentUsername =
+        (await readAuthenticatedAccountUsername()) ?? payload.account.username;
       if (payload.script === undefined || options.startScript === false) {
-        await publishAccountLaunchStatus("stopped", "Logged in");
+        await publishAccountLaunchStatus(
+          "stopped",
+          "Logged in",
+          currentUsername,
+        );
         return;
       }
 
-      await publishAccountLaunchStatus("starting", "Loading script...");
+      await publishAccountLaunchStatus(
+        "starting",
+        "Loading script...",
+        currentUsername,
+      );
       const file = await resolveAccountScript(
         (path) =>
           payload.script?.reference === undefined
@@ -2945,7 +2958,11 @@ export function App(props: {
         setScriptRunnerStatus({ state: "idle" });
         setScriptInputValues({});
         setScriptInputDialogError(null);
-        await publishAccountLaunchStatus("stopped", "Logged in");
+        await publishAccountLaunchStatus(
+          "stopped",
+          "Logged in",
+          currentUsername,
+        );
         return;
       }
       setLoadedScript(file);
@@ -2966,7 +2983,11 @@ export function App(props: {
       }
       setScriptInputValues(inputValues);
 
-      await publishAccountLaunchStatus("starting", "Starting script...");
+      await publishAccountLaunchStatus(
+        "starting",
+        "Starting script...",
+        currentUsername,
+      );
       await startLoadedScript(file, inputValues);
     } catch (error) {
       const message =

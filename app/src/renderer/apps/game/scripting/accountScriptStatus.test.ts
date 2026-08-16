@@ -21,7 +21,7 @@ describe("account script status", () => {
     });
   });
 
-  it("uses an Account Manager launch as the username fallback", () => {
+  it("does not treat an Account Manager launch as authentication", () => {
     const launchPayload: AccountGameLaunchPayload = {
       account: {
         label: "Alice",
@@ -34,10 +34,7 @@ describe("account script status", () => {
 
     expect(
       accountScriptRunnerStatusUpdate(runningStatus, undefined, launchPayload),
-    ).toMatchObject({
-      currentUsername: "Alice",
-      status: "running",
-    });
+    ).toBeNull();
   });
 
   it("does not create a session before a direct game is authenticated", () => {

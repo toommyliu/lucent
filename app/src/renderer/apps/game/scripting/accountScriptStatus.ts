@@ -15,16 +15,14 @@ export const accountScriptRunnerStatusUpdate = (
   authenticatedUsername: string | undefined,
   launchPayload: AccountGameLaunchPayload | null,
 ): AccountScriptStatusUpdate | null => {
-  const currentUsername =
-    authenticatedUsername ?? launchPayload?.account.username;
-  if (currentUsername === undefined) {
+  if (authenticatedUsername === undefined) {
     return null;
   }
 
   const scriptName =
     "name" in status ? status.name : accountScriptLabel(launchPayload?.script);
   return {
-    currentUsername,
+    currentUsername: authenticatedUsername,
     ...(scriptName === undefined ? {} : { scriptName }),
     status:
       status.state === "starting"

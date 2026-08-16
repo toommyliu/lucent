@@ -212,6 +212,10 @@ describe("Accounts", () => {
         expect(managedProfileKeys).toEqual(["Alice"]);
         expect(windowTargets).toEqual([{ kind: "new" }]);
 
+        const launchSession = (yield* accounts.getState).sessions[0];
+        expect(launchSession).not.toHaveProperty("currentUsername");
+        expect(launchSession).not.toHaveProperty("authenticated");
+
         yield* accounts.updateScriptStatus(launch.gameWindowId, {
           status: "running",
           scriptName: "farm.js",
