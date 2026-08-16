@@ -13,11 +13,13 @@ import {
   onCleanup,
   splitProps,
   useContext,
+  type Accessor,
   type JSX,
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
+import { createPositioningReady, getPositionerStyle } from "./Positioning";
 
 export interface SelectOption extends CollectionItem {
   readonly disabled?: boolean;
@@ -31,6 +33,15 @@ interface SelectContextValue {
 }
 
 const SelectItemsContext = createContext<SelectContextValue>();
+const SelectPositionedContext = createContext<Accessor<boolean>>();
+
+function useSelectPositioned(): Accessor<boolean> {
+  const positioned = useContext(SelectPositionedContext);
+  if (positioned === undefined) {
+    throw new Error("SelectContent must be rendered within Select");
+  }
+  return positioned;
+}
 
 export interface SelectProps extends Omit<
   Parameters<typeof SelectPrimitive.Root<SelectOption>>[0],
@@ -75,19 +86,25 @@ export function Select(props: SelectProps): JSX.Element {
       );
     },
   };
+  const { positioned, positioning } = createPositioningReady(() => ({
+    ...defaultSelectPositioning,
+    ...local.positioning,
+  }));
 
   return (
-    <SelectItemsContext.Provider value={context}>
-      <SelectPrimitive.Root
-        {...rest}
-        class={cn("select", local.class)}
-        collection={collection()}
-        data-slot="select"
-        positioning={{ ...defaultSelectPositioning, ...local.positioning }}
-      >
-        {local.children}
-      </SelectPrimitive.Root>
-    </SelectItemsContext.Provider>
+    <SelectPositionedContext.Provider value={positioned}>
+      <SelectItemsContext.Provider value={context}>
+        <SelectPrimitive.Root
+          {...rest}
+          class={cn("select", local.class)}
+          collection={collection()}
+          data-slot="select"
+          positioning={positioning()}
+        >
+          {local.children}
+        </SelectPrimitive.Root>
+      </SelectItemsContext.Provider>
+    </SelectPositionedContext.Provider>
   );
 }
 
@@ -184,10 +201,9 @@ export function SelectContent(props: SelectContentProps): JSX.Element {
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
   const portalMount = () => local.portalMount ?? dialogPortalMount();
-  const positionerStyle = (): JSX.CSSProperties | undefined =>
-    dialogFloatingZIndex === undefined
-      ? undefined
-      : { "z-index": dialogFloatingZIndex };
+  const positioned = useSelectPositioned();
+  const positionerStyle = () =>
+    getPositionerStyle(positioned(), dialogFloatingZIndex);
   const content = () => (
     <SelectPrimitive.Positioner
       class="select__positioner"

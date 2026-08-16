@@ -1,19 +1,42 @@
 import { Icon } from "./Icon";
 import { Menu as MenuPrimitive } from "@ark-ui/solid/menu";
-import { Show, splitProps, type JSX } from "solid-js";
+import {
+  createContext,
+  Show,
+  splitProps,
+  type Accessor,
+  type JSX,
+  useContext,
+} from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
+import { createPositioningReady, getPositionerStyle } from "./Positioning";
 
 export type MenuProps = Parameters<typeof MenuPrimitive.Root>[0];
 
+const MenuPositionedContext = createContext<Accessor<boolean>>();
+
+function useMenuPositioned(): Accessor<boolean> {
+  const positioned = useContext(MenuPositionedContext);
+  if (positioned === undefined) {
+    throw new Error("MenuContent must be rendered within Menu");
+  }
+  return positioned;
+}
+
 export function Menu(props: MenuProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["positioning"]);
+  const [local, rest] = splitProps(props, ["children", "positioning"]);
+  const { positioned, positioning } = createPositioningReady(
+    () => local.positioning ?? { gutter: 4 },
+  );
+
   return (
-    <MenuPrimitive.Root
-      positioning={local.positioning ?? { gutter: 4 }}
-      {...rest}
-    />
+    <MenuPositionedContext.Provider value={positioned}>
+      <MenuPrimitive.Root positioning={positioning()} {...rest}>
+        {local.children}
+      </MenuPrimitive.Root>
+    </MenuPositionedContext.Provider>
   );
 }
 
@@ -43,10 +66,9 @@ export function MenuContent(props: MenuContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class", "portal"]);
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
-  const positionerStyle = (): JSX.CSSProperties | undefined =>
-    dialogFloatingZIndex === undefined
-      ? undefined
-      : { "z-index": dialogFloatingZIndex };
+  const positioned = useMenuPositioned();
+  const positionerStyle = () =>
+    getPositionerStyle(positioned(), dialogFloatingZIndex);
   const content = () => (
     <MenuPrimitive.Positioner
       class="menu__positioner"

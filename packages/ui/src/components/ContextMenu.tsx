@@ -1,18 +1,39 @@
 import { Icon } from "./Icon";
 import { Menu as MenuPrimitive } from "@ark-ui/solid/menu";
-import { splitProps, type JSX } from "solid-js";
+import {
+  createContext,
+  splitProps,
+  type Accessor,
+  type JSX,
+  useContext,
+} from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
+import { createPositioningReady, getPositionerStyle } from "./Positioning";
 
 export type ContextMenuProps = Parameters<typeof MenuPrimitive.Root>[0];
 
+const ContextMenuPositionedContext = createContext<Accessor<boolean>>();
+
+function useContextMenuPositioned(): Accessor<boolean> {
+  const positioned = useContext(ContextMenuPositionedContext);
+  if (positioned === undefined) {
+    throw new Error("ContextMenuContent must be rendered within ContextMenu");
+  }
+  return positioned;
+}
+
 export function ContextMenu(props: ContextMenuProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["positioning"]);
+  const [local, rest] = splitProps(props, ["children", "positioning"]);
+  const { positioned, positioning } = createPositioningReady(
+    () => local.positioning ?? { gutter: 4 },
+  );
   return (
-    <MenuPrimitive.Root
-      positioning={local.positioning ?? { gutter: 4 }}
-      {...rest}
-    />
+    <ContextMenuPositionedContext.Provider value={positioned}>
+      <MenuPrimitive.Root positioning={positioning()} {...rest}>
+        {local.children}
+      </MenuPrimitive.Root>
+    </ContextMenuPositionedContext.Provider>
   );
 }
 
@@ -45,10 +66,12 @@ export function ContextMenuContent(
   props: ContextMenuContentProps,
 ): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class", "portal"]);
+  const positioned = useContextMenuPositioned();
   const content = () => (
     <MenuPrimitive.Positioner
       class="context-menu__positioner menu__positioner"
       data-slot="context-menu-positioner"
+      style={getPositionerStyle(positioned())}
     >
       <MenuPrimitive.Content
         {...rest}

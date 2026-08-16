@@ -3,29 +3,49 @@ import {
   useTooltipContext,
 } from "@ark-ui/solid/tooltip";
 import {
+  createContext,
   createEffect,
   createSignal,
   onCleanup,
   Show,
   splitProps,
+  type Accessor,
   type JSX,
+  useContext,
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
+import { createPositioningReady, getPositionerStyle } from "./Positioning";
 
 // Tolerate fractional layout pixels while requiring an effectively visible trigger.
 const TOOLTIP_TRIGGER_VISIBILITY_THRESHOLD = 0.99;
 
 export type TooltipProps = Parameters<typeof TooltipPrimitive.Root>[0];
 
+const TooltipPositionedContext = createContext<Accessor<boolean>>();
+
+function useTooltipPositioned(): Accessor<boolean> {
+  const positioned = useContext(TooltipPositionedContext);
+  if (positioned === undefined) {
+    throw new Error("TooltipContent must be rendered within Tooltip");
+  }
+  return positioned;
+}
+
 export function Tooltip(props: TooltipProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["positioning"]);
+  const [local, rest] = splitProps(props, ["children", "positioning"]);
+  const { positioned, positioning } = createPositioningReady(() => ({
+    gutter: 4,
+    hideWhenDetached: true,
+    ...local.positioning,
+  }));
   return (
-    <TooltipPrimitive.Root
-      positioning={{ gutter: 4, hideWhenDetached: true, ...local.positioning }}
-      {...rest}
-    />
+    <TooltipPositionedContext.Provider value={positioned}>
+      <TooltipPrimitive.Root positioning={positioning()} {...rest}>
+        {local.children}
+      </TooltipPrimitive.Root>
+    </TooltipPositionedContext.Provider>
   );
 }
 
@@ -101,10 +121,9 @@ export function TooltipContent(props: TooltipContentProps): JSX.Element {
   const [local, rest] = splitProps(props, ["children", "class", "portal"]);
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
-  const positionerStyle = (): JSX.CSSProperties | undefined =>
-    dialogFloatingZIndex === undefined
-      ? undefined
-      : { "z-index": dialogFloatingZIndex };
+  const positioned = useTooltipPositioned();
+  const positionerStyle = () =>
+    getPositionerStyle(positioned(), dialogFloatingZIndex);
   const content = () => (
     <TooltipPrimitive.Positioner
       class="tooltip__positioner"
