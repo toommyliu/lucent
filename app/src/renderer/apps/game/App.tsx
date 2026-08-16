@@ -2799,7 +2799,7 @@ export function App(props: {
     currentUsername?: string | null,
   ): Promise<void> => {
     const payload = activeAccountLaunchPayload;
-    if (payload === null) {
+    if (payload === null || trackedSessionLoggedOut) {
       return;
     }
 
