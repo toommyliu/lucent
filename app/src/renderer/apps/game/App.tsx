@@ -2083,9 +2083,14 @@ export function App(props: {
 
   const waitForPlayerReadyUntilCancelled = async (
     signal: AbortSignal,
+    timeoutMs?: number,
   ): Promise<boolean> => {
+    const startedAt = Date.now();
     while (!signal.aborted) {
-      if (playerReady() || (await refreshPlayerReady())) return true;
+      if (await refreshPlayerReady()) return true;
+      if (timeoutMs !== undefined && Date.now() - startedAt >= timeoutMs) {
+        return false;
+      }
       await wait(PLAYER_READY_RETRY_INTERVAL_MS);
     }
     return false;
@@ -2855,6 +2860,7 @@ export function App(props: {
       );
       if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
 
+      let ready: boolean;
       if (loginResult.status === "server-select") {
         accountSessionTracker.setLogin(launchAttempt, {
           state: "waiting-for-server",
@@ -2863,15 +2869,16 @@ export function App(props: {
           return;
         }
 
-        const manuallyConnected = await waitForPlayerReadyUntilCancelled(
+        ready = await waitForPlayerReadyUntilCancelled(controller.signal);
+      } else {
+        ready = await waitForPlayerReadyUntilCancelled(
           controller.signal,
+          PLAYER_READY_RETRY_TIMEOUT_MS,
         );
-        if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
-        if (!manuallyConnected) return;
       }
-
-      const ready = await refreshPlayerReady();
       if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
+      if (!ready && controller.signal.aborted) return;
+
       const connection = accountSessionTracker.getRuntime().connection;
       if (connection.state !== "online") {
         throw new Error("Player did not become ready");
