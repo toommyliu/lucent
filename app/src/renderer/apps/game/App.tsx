@@ -2799,13 +2799,35 @@ export function App(props: {
     currentUsername?: string | null,
   ): Promise<void> => {
     const payload = activeAccountLaunchPayload;
-    if (payload === null || trackedSessionLoggedOut) {
+    if (payload === null) {
       return;
+    }
+
+    if (trackedSessionLoggedOut) {
+      if (typeof currentUsername === "string") {
+        throw new Error("Authenticated account changed during launch");
+      }
+      return;
+    }
+
+    let verifiedCurrentUsername = currentUsername;
+    if (typeof currentUsername === "string") {
+      const authenticatedUsername = await readAuthenticatedAccountUsername();
+      if (
+        trackedSessionLoggedOut ||
+        authenticatedUsername === undefined ||
+        authenticatedUsername.toLowerCase() !== currentUsername.toLowerCase()
+      ) {
+        throw new Error("Authenticated account changed during launch");
+      }
+      verifiedCurrentUsername = authenticatedUsername;
     }
 
     const scriptName = accountScriptLabel(payload.script);
     await publishAccountStatus({
-      ...(currentUsername === undefined ? {} : { currentUsername }),
+      ...(verifiedCurrentUsername === undefined
+        ? {}
+        : { currentUsername: verifiedCurrentUsername }),
       ...(scriptName === undefined ? {} : { scriptName }),
       status,
       ...(message === undefined ? {} : { message }),
