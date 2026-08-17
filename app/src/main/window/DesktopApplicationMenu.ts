@@ -6,6 +6,7 @@ import {
   session,
   webContents,
   type MenuItemConstructorOptions,
+  type WebContents,
 } from "electron";
 
 import * as Context from "effect/Context";
@@ -73,6 +74,18 @@ class DesktopAppDataClearError extends Schema.TaggedErrorClass<DesktopAppDataCle
   }
 }
 
+const reloadContents = (target: WebContents, bypassCache: boolean): void => {
+  if (target.isDestroyed()) {
+    return;
+  }
+
+  if (bypassCache) {
+    target.reloadIgnoringCache();
+  } else {
+    target.reload();
+  }
+};
+
 const makeDesktopApplicationMenu = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
   const chromiumPerformanceRecording =
@@ -123,6 +136,48 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       logMenuFailure("toggle-dev-tools", cause);
     }
   };
+
+  const reload =
+    (bypassCache: boolean): NonNullable<MenuItemConstructorOptions["click"]> =>
+    (_menuItem, browserWindow) => {
+      const target = webContents.getFocusedWebContents();
+      if (target === null || target.isDestroyed()) {
+        return;
+      }
+
+      const reloadTarget = (): void => {
+        try {
+          reloadContents(target, bypassCache);
+        } catch (cause) {
+          logMenuFailure(
+            bypassCache ? "force-reload-renderer" : "reload-renderer",
+            cause,
+          );
+        }
+      };
+
+      if (browserWindow === undefined) {
+        reloadTarget();
+        return;
+      }
+
+      void runPromise(
+        windows.reloadFocusedGameContents(
+          browserWindow.id,
+          target.id,
+          bypassCache,
+        ),
+      )
+        .then((handled) => {
+          if (!handled) reloadTarget();
+        })
+        .catch((cause) =>
+          logMenuFailure(
+            bypassCache ? "force-reload-game-view" : "reload-game-view",
+            cause,
+          ),
+        );
+    };
 
   const openWindow = (kind: "account-manager" | "game"): void => {
     void runPromise(windows.open(kind)).catch((cause) =>
@@ -498,8 +553,16 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       ...dataClearMenuItems,
     ];
     const viewSubmenu: MenuItemConstructorOptions[] = [
-      { role: "reload" },
-      { role: "forceReload" },
+      {
+        accelerator: "CmdOrCtrl+R",
+        click: reload(false),
+        label: "Reload",
+      },
+      {
+        accelerator: "CmdOrCtrl+Shift+R",
+        click: reload(true),
+        label: "Force Reload",
+      },
       {
         accelerator: isDarwin ? "Alt+Command+I" : "Control+Shift+I",
         click: toggleDevTools,
