@@ -75,6 +75,7 @@ import type { ScriptReference } from "@lucent/core/scriptPackages";
 import {
   normalizeScriptInputValues,
   validateScriptInputValues,
+  type ScriptFileReference,
   type ScriptInputField,
   type ScriptInputValue,
   type ScriptInputValues,
@@ -110,6 +111,7 @@ import {
 } from "./automation/AutoZone";
 import {
   ScriptRunner,
+  type ScriptRunHandle,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
 import type { ScriptRuntimeOptions } from "./scripting/ScriptApi";
@@ -120,6 +122,7 @@ import {
 import { prepareScriptStart } from "./scripting/scriptStartPreparation";
 import { runScriptEval } from "./scripting/ScriptEvaluator";
 import { makeGameViewGroupCommandQueue } from "./groupCommandQueue";
+import { makeScriptCommandCoordinator } from "./scriptCommandCoordinator";
 import {
   fatalScriptAlertFromError,
   fatalScriptAlertFromStatus,
@@ -133,6 +136,12 @@ import {
 import { makeAccountSessionTracker } from "./accountSessionTracker";
 import { ScriptsDialog } from "./ScriptsDialog";
 import {
+  makeScriptQueue,
+  type ScriptQueue,
+  type ScriptQueueInputRequest,
+  type ScriptQueueState,
+} from "./scripting/ScriptQueue";
+import {
   ScriptInputsErrorAlert,
   type ScriptInputsDialogError,
   type ScriptInputsDialogErrorField,
@@ -145,6 +154,7 @@ import {
   topNavOptionCommandIds,
   windowCommandIds,
 } from "./TopNav";
+import { createRandomId } from "../../../shared/randomId";
 
 const desktop = selectDesktopBridge(window.desktop, "game");
 
@@ -538,9 +548,25 @@ const scriptStatusLabel = (
   return loaded === null ? "No script loaded" : `Loaded ${loaded.name}`;
 };
 
-type ScriptInputsDialogMode = "manual" | "required";
+type ScriptInputsDialogMode =
+  | "manual"
+  | "queue-add"
+  | "queue-edit"
+  | "queue-preflight"
+  | "required";
 type ScriptInputDraftValue = boolean | string;
 type ScriptInputDraftValues = Readonly<Record<string, ScriptInputDraftValue>>;
+
+interface PendingQueueInputDialog {
+  readonly abort: () => void;
+  readonly reopenScriptsDialog: boolean;
+  readonly resolve: (values: ScriptInputValues | null) => void;
+}
+
+interface PendingQueueReplacementConfirmation {
+  readonly abort: () => void;
+  readonly resolve: (confirmed: boolean) => void;
+}
 
 const fieldLabel = (field: ScriptInputField): string =>
   field.label || field.key;
@@ -1270,6 +1296,10 @@ export function App(props: {
   const [scriptInputDialogOpen, setScriptInputDialogOpen] = createSignal(false);
   const [scriptInputDialogMode, setScriptInputDialogMode] =
     createSignal<ScriptInputsDialogMode>("manual");
+  const [scriptInputDialogDefinition, setScriptInputDialogDefinition] =
+    createSignal<ScriptInputsDefinition | null>(null);
+  const [scriptInputDialogScriptName, setScriptInputDialogScriptName] =
+    createSignal("script");
   const [scriptInputDraftValues, setScriptInputDraftValues] =
     createSignal<ScriptInputDraftValues>({});
   const [scriptInputDialogError, setScriptInputDialogError] =
@@ -1279,10 +1309,19 @@ export function App(props: {
   const [scriptsDialogOpen, setScriptsDialogOpen] = createSignal(false);
   const [scriptReplacementDialogOpen, setScriptReplacementDialogOpen] =
     createSignal(false);
+  const [queueReplacementDialogOpen, setQueueReplacementDialogOpen] =
+    createSignal(false);
   const [scriptRunnerStatus, setScriptRunnerStatus] =
     createSignal<ScriptRunnerStatus>({ state: "idle" });
   const [scriptBusy, setScriptBusy] = createSignal(false);
   const [scriptStopInFlight, setScriptStopInFlight] = createSignal(false);
+  const [scriptQueueState, setScriptQueueState] =
+    createSignal<ScriptQueueState>({
+      currentIndex: null,
+      definition: { entries: [] },
+      latestRun: null,
+      phase: "idle",
+    });
   const [fatalScriptAlert, setFatalScriptAlert] =
     createSignal<FatalScriptAlert | null>(null);
   const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
@@ -1290,6 +1329,11 @@ export function App(props: {
     createSignal(false);
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
   const scriptInputEditorRefs = new Map<string, HTMLElement>();
+  const scriptCommandCoordinator = makeScriptCommandCoordinator();
+  let scriptQueue: ScriptQueue;
+  let pendingQueueInputDialog: PendingQueueInputDialog | null = null;
+  let pendingQueueReplacementConfirmation: PendingQueueReplacementConfirmation | null =
+    null;
   const [selectedAutoAttackProfileId, setSelectedAutoAttackProfileId] =
     createSignal(DEFAULT_COMBAT_PROFILE_ID);
   const [combatProfileLibrary, setCombatProfileLibrary] =
@@ -1357,10 +1401,21 @@ export function App(props: {
       state === "waiting-to-restart"
     );
   });
+  const scriptQueueActive = createMemo(
+    () => scriptQueueState().phase !== "idle",
+  );
+  const scriptControlActive = createMemo(
+    () => scriptQueueActive() || scriptRunning(),
+  );
+  const scriptControlAvailable = createMemo(
+    () => scriptLoaded() || scriptQueueActive(),
+  );
   const scriptTogglePending = createMemo(() => {
     const state = scriptRunnerStatus().state;
     return (
       scriptStopInFlight() ||
+      scriptQueueState().phase === "preparing" ||
+      scriptQueueState().phase === "stopping" ||
       state === "stopping" ||
       (scriptBusy() && state !== "running" && state !== "starting")
     );
@@ -1370,7 +1425,15 @@ export function App(props: {
       loadedScript()?.inputs !== null && loadedScript()?.inputs !== undefined,
   );
   const scriptStatus = createMemo(() =>
-    scriptStatusLabel(loadedScript(), scriptRunnerStatus()),
+    scriptQueueState().phase === "idle"
+      ? scriptStatusLabel(loadedScript(), scriptRunnerStatus())
+      : scriptQueueState().phase === "preparing"
+        ? "Preparing script queue"
+        : scriptQueueState().phase === "stopping"
+          ? "Stopping script queue"
+          : scriptQueueState().phase === "paused"
+            ? "Script queue paused after a failure"
+            : `Queue ${(scriptQueueState().currentIndex ?? 0) + 1} of ${scriptQueueState().latestRun?.items.length ?? scriptQueueState().definition.entries.length}: ${scriptStatusLabel(null, scriptRunnerStatus())}`,
   );
   const setLoadProgress = (percent: number) => {
     const progress = Math.max(0, Math.min(100, Math.round(percent)));
@@ -2350,7 +2413,7 @@ export function App(props: {
   };
 
   const getScriptInputsDefinition = (): ScriptInputsDefinition | null =>
-    loadedScript()?.inputs ?? null;
+    scriptInputDialogDefinition();
 
   const resetScriptInputDialogRefs = (): void => {
     scriptInputFieldRefs.clear();
@@ -2443,7 +2506,10 @@ export function App(props: {
 
   const applyScriptRunnerStatus = (status: ScriptRunnerStatus): void => {
     setScriptRunnerStatus(status);
-    if (status.state === "failed") {
+    const queuePhase = scriptQueueState().phase;
+    const queueOwnsRunner =
+      queuePhase === "running" || queuePhase === "stopping";
+    if (status.state === "failed" && !queueOwnsRunner) {
       showFatalScriptAlert(fatalScriptAlertFromStatus(status));
     }
   };
@@ -2474,14 +2540,21 @@ export function App(props: {
     }
   };
 
-  const stopScriptForReplacement = async (): Promise<void> => {
-    const status = await runtime.runPromise(
-      Effect.gen(function* () {
-        const runner = yield* ScriptRunner;
-        return yield* runner.stop("replaced");
-      }),
+  const stopScriptRun = async (reason: string): Promise<ScriptRunnerStatus> => {
+    const status = await scriptCommandCoordinator.run(() =>
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.stop(reason);
+        }),
+      ),
     );
     applyScriptRunnerStatus(status);
+    return status;
+  };
+
+  const stopScriptForReplacement = async (): Promise<void> => {
+    await stopScriptRun("replaced");
   };
 
   const applyLoadedScript = async (
@@ -2502,16 +2575,21 @@ export function App(props: {
               refreshScriptInputValues(inputDefinition),
             );
 
-    if (scriptRunning()) {
+    if (scriptControlActive()) {
       if (!options.replaceRunning) {
         throw new Error("A script is already running.");
       }
-      if (timing === undefined) {
-        await stopScriptForReplacement();
-      } else {
-        await timeScriptStage(timing, "stop-replaced-script", () =>
-          stopScriptForReplacement(),
-        );
+      if (scriptQueueActive()) {
+        await scriptQueue.cancel("Replaced by a manual script load");
+      }
+      if (scriptRunning()) {
+        if (timing === undefined) {
+          await stopScriptForReplacement();
+        } else {
+          await timeScriptStage(timing, "stop-replaced-script", () =>
+            stopScriptForReplacement(),
+          );
+        }
       }
     }
 
@@ -2592,7 +2670,7 @@ export function App(props: {
     }
 
     setOpenMenu(null);
-    if (scriptRunning()) {
+    if (scriptControlActive()) {
       setScriptReplacementDialogOpen(true);
       return;
     }
@@ -2609,9 +2687,12 @@ export function App(props: {
     mode: ScriptInputsDialogMode,
     definition: ScriptInputsDefinition,
     values: ScriptInputValues,
+    scriptName = loadedScript()?.name ?? "script",
   ): void => {
     resetScriptInputDialogRefs();
     setScriptInputDialogMode(mode);
+    setScriptInputDialogDefinition(definition);
+    setScriptInputDialogScriptName(scriptName);
     setScriptInputDraftValues(scriptInputDraftFromValues(definition, values));
     setScriptInputDialogError(null);
     setScriptInputDialogSaving(false);
@@ -2619,9 +2700,79 @@ export function App(props: {
     setOpenMenu(null);
   };
 
+  const settleQueueInputDialog = (values: ScriptInputValues | null): void => {
+    const pending = pendingQueueInputDialog;
+    if (pending === null) return;
+    pendingQueueInputDialog = null;
+    pending.abort();
+    resetScriptInputDialogRefs();
+    setScriptInputDialogOpen(false);
+    setScriptInputDialogError(null);
+    setScriptInputDialogDefinition(null);
+    pending.resolve(values);
+    if (pending.reopenScriptsDialog) {
+      queueMicrotask(() => setScriptsDialogOpen(true));
+    }
+  };
+
+  const requestQueueInputs = (
+    request: ScriptQueueInputRequest,
+  ): Promise<ScriptInputValues | null> => {
+    if (request.signal.aborted) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const reopenScriptsDialog = scriptsDialogOpen();
+      const onAbort = () => settleQueueInputDialog(null);
+      request.signal.addEventListener("abort", onAbort, { once: true });
+      pendingQueueInputDialog = {
+        abort: () => request.signal.removeEventListener("abort", onAbort),
+        reopenScriptsDialog,
+        resolve,
+      };
+      if (reopenScriptsDialog) setScriptsDialogOpen(false);
+      openScriptInputsDialog(
+        request.reason === "add"
+          ? "queue-add"
+          : request.reason === "edit"
+            ? "queue-edit"
+            : "queue-preflight",
+        request.definition,
+        request.values,
+        request.file.name,
+      );
+    });
+  };
+
+  const settleQueueReplacementConfirmation = (confirmed: boolean): void => {
+    const pending = pendingQueueReplacementConfirmation;
+    if (pending === null) return;
+    pendingQueueReplacementConfirmation = null;
+    pending.abort();
+    setQueueReplacementDialogOpen(false);
+    pending.resolve(confirmed);
+  };
+
+  const confirmQueueStandaloneReplacement = (
+    signal: AbortSignal,
+  ): Promise<boolean> => {
+    if (signal.aborted) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const onAbort = () => settleQueueReplacementConfirmation(false);
+      signal.addEventListener("abort", onAbort, { once: true });
+      pendingQueueReplacementConfirmation = {
+        abort: () => signal.removeEventListener("abort", onAbort),
+        resolve,
+      };
+      setQueueReplacementDialogOpen(true);
+    });
+  };
+
   const openScriptInputs = () => {
-    const definition = getScriptInputsDefinition();
-    if (definition === null || scriptRunning() || scriptInputDialogSaving()) {
+    const definition = loadedScript()?.inputs ?? null;
+    if (
+      definition === null ||
+      scriptControlActive() ||
+      scriptInputDialogSaving()
+    ) {
       return;
     }
 
@@ -2633,9 +2784,41 @@ export function App(props: {
       return;
     }
 
+    if (scriptInputDialogMode().startsWith("queue-")) {
+      settleQueueInputDialog(null);
+      return;
+    }
+
     resetScriptInputDialogRefs();
     setScriptInputDialogOpen(false);
     setScriptInputDialogError(null);
+    setScriptInputDialogDefinition(null);
+  };
+
+  const startScriptRun = async (
+    file: ScriptFile,
+    inputValues: ScriptInputValues,
+    timing?: ScriptTimingTrace,
+  ) => {
+    const start = () =>
+      scriptCommandCoordinator.run(() =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.start(file, inputValues);
+          }),
+        ),
+      );
+    const handle: ScriptRunHandle =
+      timing === undefined
+        ? await start()
+        : await timeScriptStage(timing, "runner-start", start);
+    applyScriptRunnerStatus(handle.initialStatus);
+    return {
+      id: handle.id,
+      initialStatus: handle.initialStatus,
+      terminal: runtime.runPromise(handle.terminal),
+    };
   };
 
   const startLoadedScript = async (
@@ -2643,19 +2826,66 @@ export function App(props: {
     inputValues: ScriptInputValues,
     timing?: ScriptTimingTrace,
   ): Promise<void> => {
-    const start = () =>
+    if (scriptQueueActive()) {
+      await scriptQueue.cancel("Replaced by a manual script start");
+    }
+    await startScriptRun(file, inputValues, timing);
+    setOpenMenu(null);
+  };
+
+  const resolveScriptQueueFile = async (
+    reference: ScriptFileReference,
+  ): Promise<ScriptFile> => {
+    const result =
+      reference.reference === undefined
+        ? await desktop.scripting.resolveFile(reference.path)
+        : await desktop.scripting.resolveReference(reference.reference);
+    switch (result.status) {
+      case "found":
+        return result.file;
+      case "missing":
+        throw new Error(
+          `${reference.name} could not be found. Restore the file or remove it from the queue.`,
+        );
+      case "failed":
+        throw new Error(result.message);
+    }
+  };
+
+  scriptQueue = makeScriptQueue({
+    confirmStandaloneReplacement: confirmQueueStandaloneReplacement,
+    createId: createRandomId,
+    isRunnerActive: () =>
       runtime.runPromise(
         Effect.gen(function* () {
           const runner = yield* ScriptRunner;
-          return yield* runner.start(file, inputValues);
+          return yield* runner.isRunning();
         }),
-      );
-    const status =
-      timing === undefined
-        ? await start()
-        : await timeScriptStage(timing, "runner-start", start);
-    applyScriptRunnerStatus(status);
-    setOpenMenu(null);
+      ),
+    onUnexpectedError: (cause) => {
+      console.error("[game:script-queue]", "unexpected queue failure", cause);
+    },
+    requestInputs: requestQueueInputs,
+    resolve: resolveScriptQueueFile,
+    startScript: (file, inputValues) => startScriptRun(file, inputValues),
+    stopScript: async (reason) => {
+      await stopScriptRun(reason);
+    },
+  });
+  const disposeScriptQueueState = scriptQueue.onState(setScriptQueueState);
+  onCleanup(() => {
+    disposeScriptQueueState();
+    scriptQueue.dispose();
+  });
+
+  const enqueueCatalogScript = async (
+    reference: ScriptReference,
+  ): Promise<boolean> => {
+    if (scriptQueueState().phase !== "idle") return false;
+    const file = await desktop.scripting.loadReference(reference);
+    const inputValues =
+      file.inputs === null ? {} : await refreshScriptInputValues(file.inputs);
+    return (await scriptQueue.add(file, inputValues)) !== null;
   };
 
   const prepareAndStartLoadedScript = async (
@@ -3191,12 +3421,11 @@ export function App(props: {
   };
 
   const persistScriptInputs = async () => {
-    const file = loadedScript();
-    if (file?.inputs === null || file?.inputs === undefined) {
+    const definition = getScriptInputsDefinition();
+    if (definition === null) {
       setScriptInputDialogOpen(false);
       return;
     }
-    const definition = file.inputs;
 
     if (scriptInputDialogSaving()) {
       return;
@@ -3214,6 +3443,20 @@ export function App(props: {
           focusScriptInputField(first.key);
         }
       });
+      return;
+    }
+
+    if (scriptInputDialogMode().startsWith("queue-")) {
+      setScriptInputDialogSaving(true);
+      settleQueueInputDialog(result.values);
+      setScriptInputDialogSaving(false);
+      return;
+    }
+
+    const file = loadedScript();
+    if (file === null) {
+      setScriptInputDialogOpen(false);
+      setScriptInputDialogDefinition(null);
       return;
     }
 
@@ -3275,17 +3518,16 @@ export function App(props: {
   };
 
   const stopRunningScript = async (reason: string): Promise<void> => {
-    if (!scriptRunning() || scriptStopInFlight()) return;
+    if (!scriptControlActive() || scriptStopInFlight()) return;
 
     setScriptStopInFlight(true);
     try {
-      const status = await runtime.runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.stop(reason);
-        }),
-      );
-      setScriptRunnerStatus(status);
+      if (scriptQueueActive()) {
+        await scriptQueue.cancel(reason);
+      }
+      if (scriptRunning()) {
+        await stopScriptRun(reason);
+      }
     } catch (error) {
       console.error("[game:script]", "stop failed", error);
     } finally {
@@ -3296,7 +3538,7 @@ export function App(props: {
   const startCurrentScript = async (
     operation: "group-start" | "loaded-start",
   ): Promise<void> => {
-    if (scriptRunning() || scriptBusy() || !scriptReady()) return;
+    if (scriptControlActive() || scriptBusy() || !scriptReady()) return;
 
     const file = loadedScript();
     const timing =
@@ -3332,7 +3574,7 @@ export function App(props: {
   };
 
   const toggleScript = async (): Promise<void> => {
-    if (scriptRunning()) {
+    if (scriptControlActive()) {
       await stopRunningScript("user requested stop");
       return;
     }
@@ -4041,7 +4283,14 @@ export function App(props: {
         onCommitRoomNumber={handleCommitScriptRoomNumber}
         onCopyText={(text) => navigator.clipboard.writeText(text)}
         onEditInputs={openScriptInputs}
+        onEnqueueScript={enqueueCatalogScript}
         onOpenChange={setScriptsDialogOpen}
+        onQueueEditInputs={(entryId) => scriptQueue.editInputs(entryId)}
+        onQueueMove={(entryId, offset) => scriptQueue.move(entryId, offset)}
+        onQueueRemove={(entryId) => scriptQueue.remove(entryId)}
+        onQueueRunNext={() => scriptQueue.runNext()}
+        onQueueStart={() => scriptQueue.start()}
+        onQueueStop={() => scriptQueue.cancel("User stopped the queue")}
         onSelectRoomPolicy={handleSelectScriptRoomPolicy}
         onSelectScript={selectCatalogScript}
         onSetRoomNumberDraft={(value) => {
@@ -4053,14 +4302,15 @@ export function App(props: {
         onToggleScript={toggleScript}
         open={scriptsDialogOpen()}
         optionsReady={scriptReady()}
+        queueState={scriptQueueState()}
         restartAfterReconnect={scriptRestartAfterReconnect()}
         roomNumberDraft={scriptRoomNumberDraft()}
         roomNumberError={scriptRoomNumberError()}
         roomPolicy={scriptRoomPolicy()}
         safeStartStop={scriptSafeStartStop()}
         scriptBusy={scriptBusy()}
-        scriptLoaded={scriptLoaded()}
-        scriptRunning={scriptRunning()}
+        scriptLoaded={scriptControlAvailable()}
+        scriptRunning={scriptControlActive()}
         scriptStatus={scriptStatus()}
       />
       <Dialog
@@ -4083,10 +4333,14 @@ export function App(props: {
             <DialogTitle>
               {scriptInputDialogMode() === "required"
                 ? "Script inputs required"
-                : "Script inputs"}
+                : scriptInputDialogMode() === "queue-edit"
+                  ? "Queue script inputs"
+                  : scriptInputDialogMode().startsWith("queue-")
+                    ? "Queue inputs required"
+                    : "Script inputs"}
             </DialogTitle>
             <DialogDescription>
-              {loadedScript()?.name ?? "script"}
+              {scriptInputDialogScriptName()}
             </DialogDescription>
           </DialogHeader>
           <Show when={scriptInputDialogError()}>
@@ -4122,7 +4376,11 @@ export function App(props: {
             >
               {scriptInputDialogMode() === "required"
                 ? "Save and Start"
-                : "Save"}
+                : scriptInputDialogMode() === "queue-add"
+                  ? "Add to queue"
+                  : scriptInputDialogMode() === "queue-preflight"
+                    ? "Save and continue"
+                    : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4146,6 +4404,34 @@ export function App(props: {
               variant="destructive"
             >
               Choose replacement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={queueReplacementDialogOpen()}
+        onOpenChange={(details) => {
+          if (!details.open) settleQueueReplacementConfirmation(false);
+        }}
+      >
+        <AlertDialogContent showCloseButton={false}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace the running script?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The queue is ready. Stop the current script and start the queue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => settleQueueReplacementConfirmation(false)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => settleQueueReplacementConfirmation(true)}
+              variant="destructive"
+            >
+              Stop and start queue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4267,8 +4553,8 @@ export function App(props: {
           selectedAutoAttackProfileId={selectedAutoAttackProfileId}
           handleToggleAutoAttack={handleToggleAutoAttack}
           handleSelectAutoAttackProfile={handleSelectAutoAttackProfile}
-          scriptLoaded={scriptLoaded}
-          scriptRunning={scriptRunning}
+          scriptLoaded={scriptControlAvailable}
+          scriptRunning={scriptControlActive}
           scriptTogglePending={scriptTogglePending}
           scriptOptionsReady={scriptReady}
           openScripts={openScripts}

@@ -8,6 +8,11 @@ import type {
   ScriptPackageSummary,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
+import type { ScriptQueueEntry } from "@lucent/core/scriptQueues";
+import type {
+  ScriptQueueRunItem,
+  ScriptQueueState,
+} from "./scripting/ScriptQueue";
 import {
   ScriptsDialog,
   type PackageManagementView,
@@ -246,6 +251,70 @@ const catalog: ScriptCatalogOverview = {
   scriptCount: scripts.length,
 };
 
+const queueEntries: readonly ScriptQueueEntry[] = scripts
+  .slice(0, 3)
+  .map((script, index) => ({
+    file: {
+      name: script.name,
+      path: script.path,
+      reference: script.reference,
+    },
+    id: `queue-entry-${index + 1}`,
+    inputDefinitionId: null,
+    inputValues: {},
+    revision: `story-revision-${index + 1}`,
+  }));
+
+const readyQueueState: ScriptQueueState = {
+  currentIndex: null,
+  definition: { entries: queueEntries },
+  latestRun: null,
+  phase: "idle",
+};
+
+const pausedQueueItem = (
+  entry: ScriptQueueEntry,
+  index: number,
+): ScriptQueueRunItem => ({
+  entry,
+  file: {
+    ...entry.file,
+    inputs: null,
+    revision: entry.revision,
+    source: "export function* main() {}",
+  },
+  inputValues: entry.inputValues,
+  ...(index === 0
+    ? {
+        durationMs: 12_340,
+        result: {
+          kind: "failed",
+          status: {
+            failedAt: "2026-08-17T19:42:12.340Z",
+            message: "The target map could not be reached.",
+            name: entry.file.name,
+            path: entry.file.path,
+            state: "failed",
+          },
+        },
+        startedAt: "2026-08-17T19:42:00.000Z",
+        state: "finished",
+      }
+    : { state: "pending" }),
+});
+
+const pausedQueueState: ScriptQueueState = {
+  currentIndex: 0,
+  definition: { entries: queueEntries },
+  latestRun: {
+    id: "queue-run-1",
+    items: queueEntries.map(pausedQueueItem),
+    startedAt: "2026-08-17T19:42:00.000Z",
+    status: "paused",
+  },
+  phase: "paused",
+};
+
 interface ScriptsDialogStoryFixture {
   readonly activeTab?: ScriptsDialogTab;
   readonly catalog?: ScriptCatalogOverview;
@@ -257,6 +326,7 @@ interface ScriptsDialogStoryFixture {
   readonly loadedReference?: ScriptReference;
   readonly optionsReady?: boolean;
   readonly packageManagementView?: PackageManagementView;
+  readonly queueState?: ScriptQueueState;
   readonly roomNumberDraft?: string;
   readonly roomNumberError?: string;
   readonly scriptBusy?: boolean;
@@ -290,6 +360,14 @@ function ScriptsDialogStory(props: {
   const [scriptRunning, setScriptRunning] = createSignal(
     fixture.scriptRunning ?? false,
   );
+  const [queueState] = createSignal<ScriptQueueState>({
+    ...(fixture.queueState ?? {
+      currentIndex: null,
+      definition: { entries: [] },
+      latestRun: null,
+      phase: "idle" as const,
+    }),
+  });
   const selectedScriptName = () =>
     scripts.find(
       (entry) =>
@@ -324,7 +402,14 @@ function ScriptsDialogStory(props: {
         }}
         onCopyText={() => Promise.resolve()}
         onEditInputs={() => undefined}
+        onEnqueueScript={() => Promise.resolve(true)}
         onOpenChange={setOpen}
+        onQueueEditInputs={() => Promise.resolve(true)}
+        onQueueMove={() => undefined}
+        onQueueRemove={() => undefined}
+        onQueueRunNext={() => undefined}
+        onQueueStart={() => Promise.resolve(true)}
+        onQueueStop={() => Promise.resolve()}
         onSelectRoomPolicy={setRoomPolicy}
         onSelectScript={(reference, start) => {
           setLoadedReference(reference);
@@ -342,6 +427,7 @@ function ScriptsDialogStory(props: {
         }}
         open={open()}
         optionsReady={fixture.optionsReady ?? true}
+        queueState={queueState()}
         restartAfterReconnect={restartAfterReconnect()}
         roomNumberDraft={roomNumberDraft()}
         roomNumberError={fixture.roomNumberError ?? ""}
@@ -381,6 +467,25 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ScriptCatalog: Story = {};
+
+export const QueueReady: Story = {
+  args: {
+    fixture: {
+      activeTab: "queue",
+      queueState: readyQueueState,
+    },
+  },
+};
+
+export const QueuePausedAfterFailure: Story = {
+  args: {
+    fixture: {
+      activeTab: "queue",
+      queueState: pausedQueueState,
+      scriptRunning: true,
+    },
+  },
+};
 
 export const CatalogLoading: Story = {
   args: {

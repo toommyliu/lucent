@@ -9,4 +9,5 @@ export * from "./follower";
 export * from "./hotkeys";
 export * from "./scriptInputs";
 export * from "./scriptPackages";
+export * from "./scriptQueues";
 export * from "./settings";

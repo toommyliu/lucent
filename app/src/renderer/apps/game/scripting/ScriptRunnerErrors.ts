@@ -51,9 +51,9 @@ export const makeScriptExitSignal = (options?: {
     closeWindow: options?.closeWindow === true,
     logout: options?.logout === true,
   };
-  if (request.closeWindow || request.logout) {
-    scriptExitRequests.set(signal, request);
-  }
+  // Keep an explicit marker even when no actions were requested. The runner
+  // must distinguish script.exit() from script.stop().
+  scriptExitRequests.set(signal, request);
   return signal;
 };
 

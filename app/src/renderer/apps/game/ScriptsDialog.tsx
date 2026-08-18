@@ -71,6 +71,10 @@ import type {
   ValidScriptPackage,
 } from "@lucent/core/scriptPackages";
 import type { DesktopScriptingBridge } from "../../../shared/desktopBridge";
+import type {
+  ScriptQueueRunItem,
+  ScriptQueueState,
+} from "./scripting/ScriptQueue";
 import { parseGitHubRepositoryInput } from "../../../shared/githubRepositoryUrl";
 import {
   parseRoomNumberInput,
@@ -118,8 +122,11 @@ const openGitHubTokenPage = (): void => {
   window.open(GITHUB_TOKEN_URL, "_blank", "noopener,noreferrer");
 };
 
-export type ScriptsDialogTab = "options" | "packages" | "scripts";
-type ScrollableScriptsDialogTab = Exclude<ScriptsDialogTab, "options">;
+export type ScriptsDialogTab = "options" | "packages" | "queue" | "scripts";
+type ScrollableScriptsDialogTab = Extract<
+  ScriptsDialogTab,
+  "packages" | "scripts"
+>;
 export type PackageManagementView =
   | "credentials"
   | "details"
@@ -251,6 +258,7 @@ export interface ScriptsDialogProps {
   readonly onCommitRoomNumber: () => void;
   readonly onCopyText: (text: string) => Promise<void>;
   readonly onEditInputs: () => void;
+  readonly onEnqueueScript: (reference: ScriptReference) => Promise<boolean>;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSelectRoomPolicy: (
     policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
@@ -261,11 +269,18 @@ export interface ScriptsDialogProps {
     replaceRunning: boolean,
   ) => Promise<void>;
   readonly onSetRoomNumberDraft: (value: string) => void;
+  readonly onQueueEditInputs: (entryId: string) => Promise<boolean>;
+  readonly onQueueMove: (entryId: string, offset: -1 | 1) => void;
+  readonly onQueueRemove: (entryId: string) => void;
+  readonly onQueueRunNext: () => void;
+  readonly onQueueStart: () => Promise<boolean>;
+  readonly onQueueStop: () => Promise<void>;
   readonly onToggleRestartAfterReconnect: () => void;
   readonly onToggleSafeStartStop: () => void;
   readonly onToggleScript: () => void | Promise<void>;
   readonly open: boolean;
   readonly optionsReady: boolean;
+  readonly queueState: ScriptQueueState;
   readonly restartAfterReconnect: boolean;
   readonly roomNumberDraft: string;
   readonly roomNumberError: string;
@@ -324,6 +339,32 @@ const scriptLocation = (entry: ScriptCatalogEntry): string =>
   entry.packageName === undefined
     ? entry.relativePath
     : `${entry.packageName}/${entry.relativePath}`;
+
+const queueItemStatus = (item: ScriptQueueRunItem): string => {
+  if (item.state === "active") return "Running";
+  if (item.state === "pending") return "Pending";
+  const result = item.result;
+  if (result === undefined) return "Stopped";
+  switch (result.kind) {
+    case "completed":
+      return "Completed";
+    case "failed":
+      return `Failed: ${result.status.message}`;
+    case "script-exited":
+      return "Exited";
+    case "externally-stopped":
+    case "script-stopped":
+      return result.status.reason === undefined
+        ? "Stopped"
+        : `Stopped: ${result.status.reason}`;
+  }
+};
+
+const queueItemDuration = (item: ScriptQueueRunItem): string | undefined => {
+  if (item.durationMs === undefined) return undefined;
+  if (item.durationMs < 1_000) return `${Math.round(item.durationMs)} ms`;
+  return `${(item.durationMs / 1_000).toFixed(1)} s`;
+};
 
 const scriptContext = (entry: ScriptCatalogEntry): string | undefined => {
   const separatorIndex = entry.relativePath.lastIndexOf("/");
@@ -661,6 +702,7 @@ const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
 
 export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const fixtureMode = props.fixture !== undefined;
+  const queueEntryRefs = new Map<string, HTMLElement>();
   const [scriptViewport, setScriptViewport] = createSignal<HTMLDivElement>();
   const [scriptViewportWidth, setScriptViewportWidth] = createSignal(0);
   const scriptContextLimit = createMemo(() =>
@@ -1155,7 +1197,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     }
 
     const next: ScriptsDialogTab =
-      value === "options" || value === "packages" ? value : "scripts";
+      value === "options" || value === "packages" || value === "queue"
+        ? value
+        : "scripts";
     setActiveTab(next);
     if (next === "scripts") {
       const viewport = scriptViewport();
@@ -1374,6 +1418,17 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     onCleanup(() => observer.unobserve(viewport));
   });
 
+  createEffect(() => {
+    const entryId = props.queueState.attentionEntryId;
+    if (!props.open || entryId === undefined) return;
+    changeActiveTab("queue");
+    requestAnimationFrame(() => {
+      const row = queueEntryRefs.get(entryId);
+      row?.scrollIntoView({ block: "center", inline: "nearest" });
+      row?.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
+    });
+  });
+
   onCleanup(() => {
     if (searchTimer !== undefined) {
       window.clearTimeout(searchTimer);
@@ -1433,7 +1488,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const selectScript = (entry: ScriptCatalogEntry, start: boolean): void => {
     if (busy() || props.scriptBusy) return;
     const selected = sameReference(props.loadedReference, entry.reference);
-    if (props.scriptRunning && !selected) {
+    if (
+      props.scriptRunning &&
+      (!selected || props.queueState.phase !== "idle")
+    ) {
       askForConfirmation({
         confirmLabel: start ? "Stop and start" : "Stop and load",
         description: `${props.scriptStatus}. Stop it and ${start ? "start" : "load"} ${entry.name}?`,
@@ -1443,6 +1501,21 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       return;
     }
     void runScriptSelection(entry, start, false);
+  };
+
+  const enqueueScript = async (entry: ScriptCatalogEntry): Promise<void> => {
+    if (busy() || props.scriptBusy || props.queueState.phase !== "idle") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (await props.onEnqueueScript(entry.reference)) {
+        changeActiveTab("queue");
+      }
+    } catch (cause) {
+      setOperationError(`Failed to add ${entry.name} to the queue.`, cause);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const clearScriptSearch = (): void => {
@@ -1998,6 +2071,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           >
             <TabsList variant="underline">
               <TabsTrigger value="scripts">Scripts</TabsTrigger>
+              <TabsTrigger value="queue">Queue</TabsTrigger>
               <TabsTrigger value="packages">Packages</TabsTrigger>
               <TabsTrigger value="options">Options</TabsTrigger>
             </TabsList>
@@ -2194,7 +2268,23 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                         disabled={
                                           busy() ||
                                           props.scriptBusy ||
-                                          (selected() && props.scriptRunning)
+                                          props.queueState.phase !== "idle"
+                                        }
+                                        onClick={() =>
+                                          void enqueueScript(script)
+                                        }
+                                        size="sm"
+                                        variant="ghost"
+                                      >
+                                        Add to queue
+                                      </Button>
+                                      <Button
+                                        disabled={
+                                          busy() ||
+                                          props.scriptBusy ||
+                                          (selected() &&
+                                            props.scriptRunning &&
+                                            props.queueState.phase === "idle")
                                         }
                                         onClick={() =>
                                           selectScript(script, false)
@@ -2208,7 +2298,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                         disabled={
                                           busy() ||
                                           props.scriptBusy ||
-                                          (selected() && props.scriptRunning) ||
+                                          (selected() &&
+                                            props.scriptRunning &&
+                                            props.queueState.phase ===
+                                              "idle") ||
                                           !props.optionsReady
                                         }
                                         onClick={() =>
@@ -2230,6 +2323,210 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   </Show>
                 </Show>
               </div>
+            </TabsContent>
+
+            <TabsContent
+              class="game-scripts-dialog__tab-content game-scripts-dialog__queue"
+              value="queue"
+            >
+              <div class="game-scripts-dialog__queue-toolbar">
+                <div
+                  aria-live="polite"
+                  class="game-scripts-dialog__queue-summary"
+                >
+                  <span>
+                    {props.queueState.definition.entries.length === 1
+                      ? "1 script"
+                      : `${props.queueState.definition.entries.length} scripts`}
+                  </span>
+                  <Show when={props.queueState.phase !== "idle"}>
+                    <span class="game-scripts-dialog__queue-phase">
+                      {props.queueState.phase === "paused"
+                        ? "Paused after failure"
+                        : props.queueState.phase === "preparing"
+                          ? "Preparing"
+                          : props.queueState.phase === "stopping"
+                            ? "Stopping"
+                            : "Running"}
+                    </span>
+                  </Show>
+                </div>
+                <div class="game-scripts-dialog__queue-actions">
+                  <Show
+                    when={props.queueState.phase === "idle"}
+                    fallback={
+                      <>
+                        <Show when={props.queueState.phase === "paused"}>
+                          <Button
+                            onClick={props.onQueueRunNext}
+                            size="sm"
+                            variant="secondary"
+                          >
+                            Run next script
+                          </Button>
+                        </Show>
+                        <Button
+                          disabled={props.queueState.phase === "stopping"}
+                          onClick={() => void props.onQueueStop()}
+                          size="sm"
+                          variant="destructive"
+                        >
+                          Stop queue
+                        </Button>
+                      </>
+                    }
+                  >
+                    <Button
+                      disabled={
+                        props.queueState.definition.entries.length === 0 ||
+                        !props.optionsReady
+                      }
+                      onClick={() => void props.onQueueStart()}
+                      size="sm"
+                    >
+                      Start queue
+                    </Button>
+                  </Show>
+                </div>
+              </div>
+
+              <Show when={props.queueState.error !== undefined}>
+                <Alert class="game-scripts-dialog__queue-error" variant="error">
+                  <AlertDescription>{props.queueState.error}</AlertDescription>
+                </Alert>
+              </Show>
+
+              <Show
+                when={props.queueState.definition.entries.length > 0}
+                fallback={
+                  <div class="game-scripts-dialog__empty game-scripts-dialog__collection-empty">
+                    <p class="game-scripts-dialog__collection-empty-title">
+                      Queue is empty
+                    </p>
+                    <p class="game-scripts-dialog__collection-empty-description">
+                      Add scripts from the Scripts tab.
+                    </p>
+                    <Button
+                      onClick={() => changeActiveTab("scripts")}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      Browse scripts
+                    </Button>
+                  </div>
+                }
+              >
+                <ol class="game-scripts-dialog__queue-list">
+                  <For each={props.queueState.definition.entries}>
+                    {(entry, index) => (
+                      <li
+                        ref={(element) => queueEntryRefs.set(entry.id, element)}
+                        class="game-scripts-dialog__queue-row"
+                        data-attention={
+                          props.queueState.attentionEntryId === entry.id
+                            ? ""
+                            : undefined
+                        }
+                      >
+                        <span class="game-scripts-dialog__queue-position">
+                          {index() + 1}
+                        </span>
+                        <span class="game-scripts-dialog__queue-copy">
+                          <span class="game-scripts-dialog__queue-name">
+                            {entry.file.name}
+                          </span>
+                          <span
+                            class="game-scripts-dialog__queue-path"
+                            title={entry.file.path}
+                          >
+                            {entry.file.path}
+                          </span>
+                        </span>
+                        <span class="game-scripts-dialog__queue-row-actions">
+                          <Button
+                            aria-label={`Edit inputs for ${entry.file.name}`}
+                            disabled={props.queueState.phase !== "idle"}
+                            onClick={() =>
+                              void props.onQueueEditInputs(entry.id)
+                            }
+                            size="xs"
+                            variant="ghost"
+                          >
+                            Edit
+                          </Button>
+                          <IconButton
+                            aria-label={`Move ${entry.file.name} up`}
+                            disabled={
+                              props.queueState.phase !== "idle" || index() === 0
+                            }
+                            onClick={() => props.onQueueMove(entry.id, -1)}
+                            size="icon-xs"
+                            variant="ghost"
+                          >
+                            <Icon icon="arrow_up" size="xs" />
+                          </IconButton>
+                          <IconButton
+                            aria-label={`Move ${entry.file.name} down`}
+                            disabled={
+                              props.queueState.phase !== "idle" ||
+                              index() ===
+                                props.queueState.definition.entries.length - 1
+                            }
+                            onClick={() => props.onQueueMove(entry.id, 1)}
+                            size="icon-xs"
+                            variant="ghost"
+                          >
+                            <Icon icon="arrow_down" size="xs" />
+                          </IconButton>
+                          <IconButton
+                            aria-label={`Remove ${entry.file.name}`}
+                            disabled={props.queueState.phase !== "idle"}
+                            onClick={() => props.onQueueRemove(entry.id)}
+                            size="icon-xs"
+                            variant="ghost"
+                          >
+                            <Icon icon="trash_2" size="xs" />
+                          </IconButton>
+                        </span>
+                      </li>
+                    )}
+                  </For>
+                </ol>
+              </Show>
+
+              <Show when={props.queueState.latestRun} keyed>
+                {(run) => (
+                  <section
+                    aria-labelledby="game-scripts-dialog-latest-queue-run"
+                    class="game-scripts-dialog__queue-results"
+                  >
+                    <div class="game-scripts-dialog__queue-results-heading">
+                      <span id="game-scripts-dialog-latest-queue-run">
+                        Latest run
+                      </span>
+                      <span>{run.status}</span>
+                    </div>
+                    <ol class="game-scripts-dialog__queue-result-list">
+                      <For each={run.items}>
+                        {(item, index) => (
+                          <li class="game-scripts-dialog__queue-result-row">
+                            <span>{index() + 1}</span>
+                            <span class="game-scripts-dialog__queue-result-copy">
+                              <span>{item.file.name}</span>
+                              <span title={queueItemStatus(item)}>
+                                {queueItemStatus(item)}
+                              </span>
+                            </span>
+                            <Show when={queueItemDuration(item)}>
+                              {(duration) => <span>{duration()}</span>}
+                            </Show>
+                          </li>
+                        )}
+                      </For>
+                    </ol>
+                  </section>
+                )}
+              </Show>
             </TabsContent>
 
             <TabsContent
