@@ -2335,9 +2335,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   class="game-scripts-dialog__queue-summary"
                 >
                   <span>
-                    {props.queueState.definition.entries.length === 1
+                    {props.queueState.entries.length === 1
                       ? "1 script"
-                      : `${props.queueState.definition.entries.length} scripts`}
+                      : `${props.queueState.entries.length} scripts`}
                   </span>
                   <Show when={props.queueState.phase !== "idle"}>
                     <span class="game-scripts-dialog__queue-phase">
@@ -2378,7 +2378,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   >
                     <Button
                       disabled={
-                        props.queueState.definition.entries.length === 0 ||
+                        props.queueState.entries.length === 0 ||
                         !props.optionsReady
                       }
                       onClick={() => void props.onQueueStart()}
@@ -2397,7 +2397,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               </Show>
 
               <Show
-                when={props.queueState.definition.entries.length > 0}
+                when={props.queueState.entries.length > 0}
                 fallback={
                   <div class="game-scripts-dialog__empty game-scripts-dialog__collection-empty">
                     <p class="game-scripts-dialog__collection-empty-title">
@@ -2417,7 +2417,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 }
               >
                 <ol class="game-scripts-dialog__queue-list">
-                  <For each={props.queueState.definition.entries}>
+                  <For each={props.queueState.entries}>
                     {(entry, index) => (
                       <li
                         ref={(element) => queueEntryRefs.set(entry.id, element)}
@@ -2469,8 +2469,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                             aria-label={`Move ${entry.file.name} down`}
                             disabled={
                               props.queueState.phase !== "idle" ||
-                              index() ===
-                                props.queueState.definition.entries.length - 1
+                              index() === props.queueState.entries.length - 1
                             }
                             onClick={() => props.onQueueMove(entry.id, 1)}
                             size="icon-xs"

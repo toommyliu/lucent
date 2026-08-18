@@ -104,13 +104,6 @@ export type ScriptRunnerStatus =
 
 export type StateDisposer = () => void;
 
-declare const ScriptRunIdBrand: unique symbol;
-
-/** Identifies one logical run, including any reconnect attempts. */
-export type ScriptRunId = number & {
-  readonly [ScriptRunIdBrand]: "ScriptRunId";
-};
-
 export type ScriptRunTerminalOutcome =
   | {
       readonly kind: "completed";
@@ -134,7 +127,6 @@ export type ScriptRunTerminalOutcome =
       >;
     }
   | {
-      readonly exitRequest: ScriptExitRequest;
       readonly kind: "script-exited";
       readonly status: Extract<
         ScriptRunnerStatus,
@@ -150,11 +142,19 @@ export type ScriptRunTerminalOutcome =
     };
 
 export interface ScriptRunHandle {
-  readonly id: ScriptRunId;
   readonly initialStatus: ScriptRunnerStatus;
   /** Completes after every resource owned by this run has been released. */
   readonly terminal: Effect.Effect<ScriptRunTerminalOutcome>;
 }
+
+interface ScriptFinalization {
+  readonly outcome?: ScriptRunTerminalOutcome;
+  readonly status: ScriptRunnerStatus;
+}
+
+const terminalFinalization = (
+  outcome: ScriptRunTerminalOutcome,
+): ScriptFinalization => ({ outcome, status: outcome.status });
 
 const runtimeOptionsFrom = (settings: AccountSettings): ScriptRuntimeOptions =>
   snapshotScriptRuntimeOptions(settings.scripts);
@@ -282,37 +282,12 @@ const snapshotStatus = (status: ScriptRunnerStatus): ScriptRunnerStatus => ({
   ...status,
 });
 
-const scriptRunId = (id: number): ScriptRunId => id as ScriptRunId;
-
-const snapshotTerminalOutcome = (
-  outcome: ScriptRunTerminalOutcome,
-): ScriptRunTerminalOutcome => {
-  switch (outcome.kind) {
-    case "completed":
-      return { kind: outcome.kind, status: { ...outcome.status } };
-    case "externally-stopped":
-      return { kind: outcome.kind, status: { ...outcome.status } };
-    case "failed":
-      return { kind: outcome.kind, status: { ...outcome.status } };
-    case "script-exited":
-      return {
-        exitRequest: { ...outcome.exitRequest },
-        kind: outcome.kind,
-        status: { ...outcome.status },
-      };
-    case "script-stopped":
-      return { kind: outcome.kind, status: { ...outcome.status } };
-  }
-};
-
 const makeRunHandle = (
-  id: number,
   initialStatus: ScriptRunnerStatus,
   terminal: Deferred.Deferred<ScriptRunTerminalOutcome>,
 ): ScriptRunHandle => ({
-  id: scriptRunId(id),
   initialStatus: snapshotStatus(initialStatus),
-  terminal: Deferred.await(terminal).pipe(Effect.map(snapshotTerminalOutcome)),
+  terminal: Deferred.await(terminal),
 });
 
 const externalStopOutcome = (
@@ -641,17 +616,15 @@ export const layer = Layer.effect(
       readonly beforeComplete?: Effect.Effect<void>;
       readonly cause?: Cause.Cause<unknown>;
       readonly done: PendingFinalization["done"];
-      readonly terminalOutcome?: () => ScriptRunTerminalOutcome;
-      readonly terminalStatus: () => ScriptRunnerStatus;
+      readonly result: () => ScriptFinalization;
     }
 
     const completeFinalization = Effect.fn("ScriptRunner.completeFinalization")(
       function* (
         id: number,
         done: PendingFinalization["done"],
-        status: ScriptRunnerStatus,
         terminal: Deferred.Deferred<ScriptRunTerminalOutcome>,
-        outcome?: ScriptRunTerminalOutcome,
+        finalization: ScriptFinalization,
       ) {
         yield* lifecycleGate.withPermit(
           Effect.gen(function* () {
@@ -662,13 +635,10 @@ export const layer = Layer.effect(
             }
 
             yield* Ref.set(pendingFinalizationRef, null);
-            yield* setStatus(status);
-            yield* Deferred.succeed(done, snapshotStatus(status));
-            if (outcome !== undefined) {
-              yield* Deferred.succeed(
-                terminal,
-                snapshotTerminalOutcome(outcome),
-              );
+            yield* setStatus(finalization.status);
+            yield* Deferred.succeed(done, snapshotStatus(finalization.status));
+            if (finalization.outcome !== undefined) {
+              yield* Deferred.succeed(terminal, finalization.outcome);
             }
           }),
         );
@@ -688,12 +658,12 @@ export const layer = Layer.effect(
       if (options.beforeComplete !== undefined) {
         yield* options.beforeComplete;
       }
+      const result = options.result();
       yield* completeFinalization(
         options.active.id,
         options.done,
-        options.terminalStatus(),
         options.active.terminal,
-        options.terminalOutcome?.(),
+        result,
       );
     });
 
@@ -706,8 +676,7 @@ export const layer = Layer.effect(
           readonly cause?: Cause.Cause<unknown>;
           readonly intermediateStatus?: ScriptRunnerStatus;
           readonly interrupt: boolean;
-          readonly terminalOutcome?: () => ScriptRunTerminalOutcome;
-          readonly terminalStatus: () => ScriptRunnerStatus;
+          readonly result: () => ScriptFinalization;
         },
       ) {
         return yield* Effect.uninterruptible(
@@ -732,10 +701,7 @@ export const layer = Layer.effect(
                 : { beforeComplete: options.beforeComplete }),
               ...(options.cause === undefined ? {} : { cause: options.cause }),
               done,
-              ...(options.terminalOutcome === undefined
-                ? {}
-                : { terminalOutcome: options.terminalOutcome }),
-              terminalStatus: options.terminalStatus,
+              result: options.result,
             }).pipe(Effect.forkDetach);
             return done;
           }),
@@ -791,16 +757,6 @@ export const layer = Layer.effect(
             return { kind: "status", status: yield* getStatus() } as const;
           }
 
-          const stoppedStatus = (): Extract<
-            ScriptRunnerStatus,
-            { readonly state: "stopped" }
-          > => ({
-            ...(reason === undefined ? {} : { reason }),
-            state: "stopped",
-            stoppedAt: nowIso(),
-          });
-          let terminalStatus: ReturnType<typeof stoppedStatus> | undefined;
-          const getTerminalStatus = () => (terminalStatus ??= stoppedStatus());
           const done = yield* beginFinalization(active, {
             awaitFiber: true,
             intermediateStatus: {
@@ -808,8 +764,14 @@ export const layer = Layer.effect(
               state: "stopping",
             },
             interrupt: true,
-            terminalOutcome: () => externalStopOutcome(getTerminalStatus()),
-            terminalStatus: getTerminalStatus,
+            result: () => {
+              const status = {
+                ...(reason === undefined ? {} : { reason }),
+                state: "stopped",
+                stoppedAt: nowIso(),
+              } as const;
+              return terminalFinalization(externalStopOutcome(status));
+            },
           });
           return { done, kind: "waiting" } as const;
         }),
@@ -824,8 +786,7 @@ export const layer = Layer.effect(
       id: number,
       options: {
         readonly beforeComplete?: Effect.Effect<void>;
-        readonly terminalOutcome: () => ScriptRunTerminalOutcome;
-        readonly terminalStatus: () => ScriptRunnerStatus;
+        readonly result: () => ScriptFinalization;
       },
     ) {
       const done = yield* lifecycleGate.withPermit(
@@ -841,8 +802,7 @@ export const layer = Layer.effect(
                   ? {}
                   : { beforeComplete: options.beforeComplete }),
                 interrupt: false,
-                terminalOutcome: options.terminalOutcome,
-                terminalStatus: options.terminalStatus,
+                result: options.result,
               })
             : null;
         }),
@@ -865,27 +825,20 @@ export const layer = Layer.effect(
 
             const active = yield* Ref.get(activeRef);
             if (active?.id !== id) return null;
-            const failedStatus = (): Extract<
-              ScriptRunnerStatus,
-              { readonly state: "failed" }
-            > => ({
-              ...activeStatusFields(active),
-              ...(detailsText === undefined ? {} : { detailsText }),
-              failedAt: nowIso(),
-              message: causeMessage(cause),
-              state: "failed",
-            });
-            let terminalStatus: ReturnType<typeof failedStatus> | undefined;
-            const getTerminalStatus = () => (terminalStatus ??= failedStatus());
             return yield* beginFinalization(active, {
               awaitFiber: true,
               cause,
               interrupt: true,
-              terminalOutcome: () => ({
-                kind: "failed",
-                status: getTerminalStatus(),
-              }),
-              terminalStatus: getTerminalStatus,
+              result: () => {
+                const status = {
+                  ...activeStatusFields(active),
+                  ...(detailsText === undefined ? {} : { detailsText }),
+                  failedAt: nowIso(),
+                  message: causeMessage(cause),
+                  state: "failed",
+                } as const;
+                return terminalFinalization({ kind: "failed", status });
+              },
             });
           }),
         );
@@ -939,84 +892,59 @@ export const layer = Layer.effect(
                 termination.kind === "script-exited"
                   ? termination.exitRequest
                   : undefined;
-              let status:
-                | Extract<ScriptRunnerStatus, { readonly state: "stopped" }>
-                | undefined;
-              const terminalStatus = () =>
-                (status ??= {
-                  ...(reason === undefined ? {} : { reason }),
-                  state: "stopped",
-                  stoppedAt: nowIso(),
-                });
               return finishIfActive(id, {
                 beforeComplete: runScriptExitActions(exitRequest, {
                   closeWindow: () => window.close(),
                   logout: auth.logout,
                 }),
-                terminalOutcome: () =>
-                  termination.kind === "script-exited"
-                    ? {
-                        exitRequest: { ...termination.exitRequest },
-                        kind: "script-exited",
-                        status: terminalStatus(),
-                      }
-                    : termination.kind === "script-stopped"
-                      ? {
-                          kind: "script-stopped",
-                          status: terminalStatus(),
-                        }
-                      : {
-                          kind: "externally-stopped",
-                          status: terminalStatus(),
-                        },
-                terminalStatus,
+                result: () => {
+                  const status = {
+                    ...(reason === undefined ? {} : { reason }),
+                    state: "stopped",
+                    stoppedAt: nowIso(),
+                  } as const;
+                  const outcome: ScriptRunTerminalOutcome =
+                    termination.kind === "script-exited"
+                      ? { kind: "script-exited", status }
+                      : termination.kind === "script-stopped"
+                        ? { kind: "script-stopped", status }
+                        : { kind: "externally-stopped", status };
+                  return terminalFinalization(outcome);
+                },
               }).pipe(Effect.uninterruptible);
             }
 
             const detailsText = causeDetailsText(cause);
-            let status:
-              | Extract<ScriptRunnerStatus, { readonly state: "failed" }>
-              | undefined;
-            const terminalStatus = () =>
-              (status ??= {
-                ...(detailsText === undefined ? {} : { detailsText }),
-                failedAt: nowIso(),
-                message: causeMessage(cause),
-                name: statusName(file),
-                ...(file.path === undefined ? {} : { path: file.path }),
-                state: "failed",
-              });
             return logScriptFailureCause(cause).pipe(
               Effect.andThen(
                 finishIfActive(id, {
-                  terminalOutcome: () => ({
-                    kind: "failed",
-                    status: terminalStatus(),
-                  }),
-                  terminalStatus,
+                  result: () => {
+                    const status = {
+                      ...(detailsText === undefined ? {} : { detailsText }),
+                      failedAt: nowIso(),
+                      message: causeMessage(cause),
+                      name: statusName(file),
+                      ...(file.path === undefined ? {} : { path: file.path }),
+                      state: "failed",
+                    } as const;
+                    return terminalFinalization({ kind: "failed", status });
+                  },
                 }),
               ),
             );
           },
-          onSuccess: () => {
-            let status:
-              | Extract<ScriptRunnerStatus, { readonly state: "completed" }>
-              | undefined;
-            const terminalStatus = () =>
-              (status ??= {
-                completedAt: nowIso(),
-                name: statusName(file),
-                ...(file.path === undefined ? {} : { path: file.path }),
-                state: "completed",
-              });
-            return finishIfActive(id, {
-              terminalOutcome: () => ({
-                kind: "completed",
-                status: terminalStatus(),
-              }),
-              terminalStatus,
-            });
-          },
+          onSuccess: () =>
+            finishIfActive(id, {
+              result: () => {
+                const status = {
+                  completedAt: nowIso(),
+                  name: statusName(file),
+                  ...(file.path === undefined ? {} : { path: file.path }),
+                  state: "completed",
+                } as const;
+                return terminalFinalization({ kind: "completed", status });
+              },
+            }),
         }),
       );
 
@@ -1484,20 +1412,6 @@ export const layer = Layer.effect(
                   yield* Ref.set(pendingRestartRef, restart);
                 }
 
-                let stoppedStatus:
-                  | Extract<ScriptRunnerStatus, { readonly state: "stopped" }>
-                  | undefined;
-                const terminalStatus = (): ScriptRunnerStatus =>
-                  restart === null
-                    ? (stoppedStatus ??= {
-                        state: "stopped",
-                        stoppedAt: nowIso(),
-                      })
-                    : {
-                        ...activeStatusFields(restart),
-                        disconnectedAt: restart.disconnectedAt,
-                        state: "waiting-to-restart",
-                      };
                 const finalized = yield* beginFinalization(active, {
                   awaitFiber: true,
                   intermediateStatus: {
@@ -1505,13 +1419,22 @@ export const layer = Layer.effect(
                     state: "stopping",
                   },
                   interrupt: true,
-                  ...(restart === null
-                    ? {
-                        terminalOutcome: () =>
-                          externalStopOutcome(stoppedStatus!),
-                      }
-                    : {}),
-                  terminalStatus,
+                  result: () => {
+                    if (restart === null) {
+                      const status = {
+                        state: "stopped",
+                        stoppedAt: nowIso(),
+                      } as const;
+                      return terminalFinalization(externalStopOutcome(status));
+                    }
+                    return {
+                      status: {
+                        ...activeStatusFields(restart),
+                        disconnectedAt: restart.disconnectedAt,
+                        state: "waiting-to-restart",
+                      },
+                    };
+                  },
                 });
                 return restart === null ? null : { finalized, restart };
               }),
@@ -1566,7 +1489,7 @@ export const layer = Layer.effect(
                   externalStopOutcome(status),
                 );
                 return {
-                  handle: makeRunHandle(identity.id, status, identity.terminal),
+                  handle: makeRunHandle(status, identity.terminal),
                   kind: "superseded",
                 } as const;
               }
@@ -1595,15 +1518,6 @@ export const layer = Layer.effect(
 
               const active = yield* Ref.get(activeRef);
               if (active !== null) {
-                let stoppedStatus:
-                  | Extract<ScriptRunnerStatus, { readonly state: "stopped" }>
-                  | undefined;
-                const terminalStatus = () =>
-                  (stoppedStatus ??= {
-                    reason: "Replaced by another script",
-                    state: "stopped",
-                    stoppedAt: nowIso(),
-                  });
                 const done = yield* beginFinalization(active, {
                   awaitFiber: true,
                   intermediateStatus: {
@@ -1611,8 +1525,14 @@ export const layer = Layer.effect(
                     state: "stopping",
                   },
                   interrupt: true,
-                  terminalOutcome: () => externalStopOutcome(terminalStatus()),
-                  terminalStatus,
+                  result: () => {
+                    const status = {
+                      reason: "Replaced by another script",
+                      state: "stopped",
+                      stoppedAt: nowIso(),
+                    } as const;
+                    return terminalFinalization(externalStopOutcome(status));
+                  },
                 });
                 return { done, kind: "waiting" } as const;
               }
@@ -1641,11 +1561,7 @@ export const layer = Layer.effect(
             result.kind === "starting" ? result.started.done : result.done,
           );
           if (result.kind === "starting") {
-            return makeRunHandle(
-              result.started.id,
-              status,
-              result.started.terminal,
-            );
+            return makeRunHandle(status, result.started.terminal);
           }
         }
       });

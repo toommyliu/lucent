@@ -4,18 +4,15 @@ import type {
   ScriptInputValues,
   ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
-import type {
-  ScriptQueueDefinition,
-  ScriptQueueEntry,
-} from "@lucent/core/scriptQueues";
 
-import type {
-  ScriptRunId,
-  ScriptRunnerStatus,
-  ScriptRunTerminalOutcome,
-} from "./ScriptRunner";
+import type { ScriptRunTerminalOutcome } from "./ScriptRunner";
 import { validateScriptInputValues } from "@lucent/core/scriptInputs";
-import { scriptQueueTerminalDecision } from "./scriptQueuePolicy";
+
+export interface ScriptQueueEntry {
+  readonly file: ScriptFileReference;
+  readonly id: string;
+  readonly inputValues: ScriptInputValues;
+}
 
 export type ScriptQueuePhase =
   | "idle"
@@ -34,28 +31,22 @@ export type ScriptQueueRunStatus =
   | "stopped";
 
 export interface ScriptQueueRunItem {
-  readonly entry: ScriptQueueEntry;
+  readonly durationMs?: number;
   readonly file: ScriptFile;
   readonly inputValues: ScriptInputValues;
   readonly result?: ScriptRunTerminalOutcome;
-  readonly runId?: ScriptRunId;
-  readonly startedAt?: string;
-  readonly durationMs?: number;
   readonly state: "active" | "finished" | "pending";
 }
 
 export interface ScriptQueueRun {
-  readonly finishedAt?: string;
-  readonly id: string;
   readonly items: readonly ScriptQueueRunItem[];
-  readonly startedAt: string;
   readonly status: ScriptQueueRunStatus;
 }
 
 export interface ScriptQueueState {
   readonly attentionEntryId?: string | undefined;
   readonly currentIndex: number | null;
-  readonly definition: ScriptQueueDefinition;
+  readonly entries: readonly ScriptQueueEntry[];
   readonly error?: string | undefined;
   readonly latestRun: ScriptQueueRun | null;
   readonly phase: ScriptQueuePhase;
@@ -73,8 +64,6 @@ export interface ScriptQueueInputRequest {
 }
 
 export interface ScriptQueueSession {
-  readonly id: ScriptRunId;
-  readonly initialStatus: ScriptRunnerStatus;
   readonly terminal: Promise<ScriptRunTerminalOutcome>;
 }
 
@@ -128,42 +117,11 @@ const errorMessage = (cause: unknown, fallback: string): string =>
     ? cause.message
     : fallback;
 
-const snapshotEntry = (entry: ScriptQueueEntry): ScriptQueueEntry => ({
-  file: {
-    ...entry.file,
-    ...(entry.file.reference === undefined
-      ? {}
-      : { reference: { ...entry.file.reference } }),
-  },
-  id: entry.id,
-  inputDefinitionId: entry.inputDefinitionId,
-  inputValues: { ...entry.inputValues },
-  revision: entry.revision,
-});
-
 const fileReference = (file: ScriptFile): ScriptFileReference => ({
   name: file.name,
   path: file.path,
-  ...(file.reference === undefined ? {} : { reference: { ...file.reference } }),
+  ...(file.reference === undefined ? {} : { reference: file.reference }),
 });
-
-const deepFreeze = <Value>(value: Value): Value => {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
-    return value;
-  }
-  for (const nested of Object.values(value as Record<string, unknown>)) {
-    deepFreeze(nested);
-  }
-  return Object.freeze(value);
-};
-
-const frozenFileSnapshot = (file: ScriptFile): ScriptFile =>
-  deepFreeze(structuredClone(file));
-
-const withRunId = (
-  item: ScriptQueueRunItem,
-  runId: ScriptRunId,
-): ScriptQueueRunItem => ({ ...item, runId });
 
 const queueEntryFor = (
   id: string,
@@ -172,26 +130,8 @@ const queueEntryFor = (
 ): ScriptQueueEntry => ({
   file: fileReference(file),
   id,
-  inputDefinitionId: file.inputs?.id ?? null,
   inputValues: { ...inputValues },
-  revision: file.revision,
 });
-
-const terminalRunStatus = (
-  outcome: ScriptRunTerminalOutcome,
-): Exclude<ScriptQueueRunStatus, "canceled" | "paused" | "running"> => {
-  switch (outcome.kind) {
-    case "completed":
-    case "script-stopped":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "externally-stopped":
-      return "stopped";
-    case "script-exited":
-      return "exited";
-  }
-};
 
 export const makeScriptQueue = (
   dependencies: ScriptQueueDependencies,
@@ -200,12 +140,11 @@ export const makeScriptQueue = (
   const listeners = new Set<(state: ScriptQueueState) => void>();
   let state: ScriptQueueState = {
     currentIndex: null,
-    definition: { entries: [] },
+    entries: [],
     latestRun: null,
     phase: "idle",
   };
   let draftController: AbortController | null = null;
-  let preparationId = 0;
   let preparationController: AbortController | null = null;
   let runVersion = 0;
   let activeSettlement: Promise<void> | null = null;
@@ -225,11 +164,9 @@ export const makeScriptQueue = (
 
   const replaceEntry = (entry: ScriptQueueEntry): void => {
     patchState({
-      definition: {
-        entries: state.definition.entries.map((current) =>
-          current.id === entry.id ? snapshotEntry(entry) : current,
-        ),
-      },
+      entries: state.entries.map((current) =>
+        current.id === entry.id ? entry : current,
+      ),
     });
   };
 
@@ -256,7 +193,7 @@ export const makeScriptQueue = (
       signal,
       values: validation.values,
     });
-    if (edited === null || signal.aborted) return null;
+    if (edited === null) return null;
 
     const result = validateScriptInputValues(definition, edited);
     if (result.status === "missing-required") {
@@ -279,12 +216,7 @@ export const makeScriptQueue = (
         "add",
         controller.signal,
       );
-      if (
-        values === null ||
-        controller.signal.aborted ||
-        draftController !== controller ||
-        state.phase !== "idle"
-      ) {
+      if (values === null || draftController !== controller) {
         return null;
       }
 
@@ -292,9 +224,7 @@ export const makeScriptQueue = (
       const entry = queueEntryFor(id, file, values);
       patchState({
         attentionEntryId: undefined,
-        definition: {
-          entries: [...state.definition.entries, entry],
-        },
+        entries: [...state.entries, entry],
         error: undefined,
       });
       return id;
@@ -305,20 +235,14 @@ export const makeScriptQueue = (
 
   const editInputs: ScriptQueue["editInputs"] = async (entryId) => {
     if (state.phase !== "idle" || draftController !== null) return false;
-    const entry = state.definition.entries.find(
-      (candidate) => candidate.id === entryId,
-    );
+    const entry = state.entries.find((candidate) => candidate.id === entryId);
     if (entry === undefined) return false;
 
     const controller = new AbortController();
     draftController = controller;
     try {
       const file = await dependencies.resolve(entry.file);
-      if (
-        controller.signal.aborted ||
-        draftController !== controller ||
-        state.phase !== "idle"
-      ) {
+      if (draftController !== controller) {
         return false;
       }
       const values = await requestValidatedInputs(
@@ -328,12 +252,7 @@ export const makeScriptQueue = (
         controller.signal,
         entry.id,
       );
-      if (
-        values === null ||
-        controller.signal.aborted ||
-        draftController !== controller ||
-        state.phase !== "idle"
-      ) {
+      if (values === null || draftController !== controller) {
         return false;
       }
 
@@ -341,11 +260,7 @@ export const makeScriptQueue = (
       patchState({ attentionEntryId: undefined, error: undefined });
       return true;
     } catch (cause) {
-      if (
-        !controller.signal.aborted &&
-        draftController === controller &&
-        state.phase === "idle"
-      ) {
+      if (draftController === controller) {
         patchState({
           attentionEntryId: entry.id,
           error: errorMessage(cause, `Failed to configure ${entry.file.name}.`),
@@ -366,7 +281,6 @@ export const makeScriptQueue = (
       currentIndex: null,
       latestRun: {
         ...state.latestRun,
-        finishedAt: new Date(now()).toISOString(),
         status,
       },
       phase: "idle",
@@ -378,9 +292,9 @@ export const makeScriptQueue = (
     index: number,
     outcome: ScriptRunTerminalOutcome,
     startedAtMs: number,
-  ): void => {
+  ): ScriptQueueRun | null => {
     const run = state.latestRun;
-    if (version !== runVersion || run === null) return;
+    if (version !== runVersion || run === null) return null;
     const items = run.items.map((item, itemIndex) =>
       itemIndex === index
         ? {
@@ -391,7 +305,9 @@ export const makeScriptQueue = (
           }
         : item,
     );
-    patchState({ latestRun: { ...run, items } });
+    const latestRun = { ...run, items };
+    patchState({ latestRun });
+    return latestRun;
   };
 
   const unexpectedFailure = (
@@ -421,11 +337,7 @@ export const makeScriptQueue = (
     }
 
     const startedAtMs = now();
-    const activeItem: ScriptQueueRunItem = {
-      ...item,
-      startedAt: new Date(startedAtMs).toISOString(),
-      state: "active",
-    };
+    const activeItem: ScriptQueueRunItem = { ...item, state: "active" };
     patchState({
       currentIndex: index,
       latestRun: {
@@ -442,49 +354,50 @@ export const makeScriptQueue = (
         item.file,
         item.inputValues,
       );
-      const currentRun = state.latestRun;
-      if (version === runVersion && currentRun !== null) {
-        patchState({
-          latestRun: {
-            ...currentRun,
-            items: currentRun.items.map((current, itemIndex) =>
-              itemIndex === index ? withRunId(current, session.id) : current,
-            ),
-          },
-        });
-      }
       outcome = await session.terminal;
     } catch (cause) {
       dependencies.onUnexpectedError(cause);
       outcome = unexpectedFailure(item, cause);
     }
 
-    if (version !== runVersion || state.latestRun === null) return;
-    applyTerminalOutcome(version, index, outcome, startedAtMs);
-    const currentRun = state.latestRun;
+    const currentRun = applyTerminalOutcome(
+      version,
+      index,
+      outcome,
+      startedAtMs,
+    );
     if (currentRun === null) return;
 
-    if (
-      (state as ScriptQueueState).phase === "stopping" ||
-      currentRun.status === "canceled"
-    ) {
+    if (getState().phase === "stopping") {
       finishRun(version, "canceled");
       return;
     }
 
     const hasNext = index + 1 < currentRun.items.length;
-    switch (scriptQueueTerminalDecision(outcome, hasNext)) {
-      case "advance":
-        launchItem(version, index + 1);
+    switch (outcome.kind) {
+      case "completed":
+      case "script-stopped":
+        if (hasNext) {
+          launchItem(version, index + 1);
+        } else {
+          finishRun(version, "completed");
+        }
         return;
-      case "pause":
+      case "failed":
+        if (!hasNext) {
+          finishRun(version, "failed");
+          return;
+        }
         patchState({
-          latestRun: { ...state.latestRun!, status: "paused" },
+          latestRun: { ...currentRun, status: "paused" },
           phase: "paused",
         });
         return;
-      case "finish":
-        finishRun(version, terminalRunStatus(outcome));
+      case "externally-stopped":
+        finishRun(version, "stopped");
+        return;
+      case "script-exited":
+        finishRun(version, "exited");
     }
   };
 
@@ -496,23 +409,15 @@ export const makeScriptQueue = (
     });
   };
 
-  const preparationIsCurrent = (
-    id: number,
-    controller: AbortController,
-  ): boolean =>
-    !disposed &&
-    state.phase === "preparing" &&
-    preparationId === id &&
-    preparationController === controller &&
-    !controller.signal.aborted;
+  const preparationIsCurrent = (controller: AbortController): boolean =>
+    preparationController === controller;
 
   const abandonPreparation = (
-    id: number,
     controller: AbortController,
     error?: string,
     attentionEntryId?: string,
   ): void => {
-    if (!preparationIsCurrent(id, controller)) return;
+    if (!preparationIsCurrent(controller)) return;
     preparationController = null;
     patchState({
       ...(attentionEntryId === undefined ? {} : { attentionEntryId }),
@@ -524,14 +429,13 @@ export const makeScriptQueue = (
 
   const start: ScriptQueue["start"] = async () => {
     if (state.phase !== "idle" || draftController !== null) return false;
-    if (state.definition.entries.length === 0) {
+    if (state.entries.length === 0) {
       patchState({
         error: "Add at least one script before starting the queue.",
       });
       return false;
     }
 
-    const id = ++preparationId;
     const controller = new AbortController();
     preparationController = controller;
     patchState({
@@ -540,13 +444,16 @@ export const makeScriptQueue = (
       error: undefined,
       phase: "preparing",
     });
-    const entries = state.definition.entries.map(snapshotEntry);
+    const entries = state.entries;
 
     try {
-      const resolvedFiles = await Promise.all(
+      const resolvedEntries = await Promise.all(
         entries.map(async (entry) => {
           try {
-            return await dependencies.resolve(entry.file);
+            return {
+              entry,
+              file: await dependencies.resolve(entry.file),
+            };
           } catch (cause) {
             throw new ScriptQueuePreparationError(
               errorMessage(cause, `Failed to resolve ${entry.file.name}.`),
@@ -555,12 +462,10 @@ export const makeScriptQueue = (
           }
         }),
       );
-      if (!preparationIsCurrent(id, controller)) return false;
+      if (!preparationIsCurrent(controller)) return false;
 
       const items: ScriptQueueRunItem[] = [];
-      for (const [index, entry] of entries.entries()) {
-        const file = resolvedFiles[index];
-        if (file === undefined) continue;
+      for (const { entry, file } of resolvedEntries) {
         const values = await requestValidatedInputs(
           file,
           entry.inputValues,
@@ -568,49 +473,42 @@ export const makeScriptQueue = (
           controller.signal,
           entry.id,
         );
-        if (!preparationIsCurrent(id, controller)) return false;
+        if (!preparationIsCurrent(controller)) return false;
         if (values === null) {
-          abandonPreparation(id, controller, undefined, entry.id);
+          abandonPreparation(controller, undefined, entry.id);
           return false;
         }
 
         const configuredEntry = queueEntryFor(entry.id, file, values);
         replaceEntry(configuredEntry);
         items.push({
-          entry: snapshotEntry(configuredEntry),
-          file: frozenFileSnapshot(file),
-          inputValues: deepFreeze({ ...values }),
+          file,
+          inputValues: { ...values },
           state: "pending",
         });
       }
 
       if (await dependencies.isRunnerActive()) {
-        if (!preparationIsCurrent(id, controller)) return false;
+        if (!preparationIsCurrent(controller)) return false;
         const confirmed = await dependencies.confirmStandaloneReplacement(
           controller.signal,
         );
-        if (!preparationIsCurrent(id, controller)) return false;
+        if (!preparationIsCurrent(controller)) return false;
         if (!confirmed) {
-          abandonPreparation(id, controller);
+          abandonPreparation(controller);
           return false;
         }
-        if (await dependencies.isRunnerActive()) {
-          await dependencies.stopScript("Replaced by script queue");
-        }
+        await dependencies.stopScript("Replaced by script queue");
       }
-      if (!preparationIsCurrent(id, controller)) return false;
+      if (!preparationIsCurrent(controller)) return false;
 
       preparationController = null;
-      const startedAt = new Date(now()).toISOString();
       const version = ++runVersion;
       patchState({
         attentionEntryId: undefined,
-        currentIndex: 0,
         error: undefined,
         latestRun: {
-          id: dependencies.createId("queue-run"),
           items,
-          startedAt,
           status: "running",
         },
         phase: "running",
@@ -618,11 +516,10 @@ export const makeScriptQueue = (
       launchItem(version, 0);
       return true;
     } catch (cause) {
-      if (!preparationIsCurrent(id, controller)) return false;
+      if (!preparationIsCurrent(controller)) return false;
       const preparationError =
         cause instanceof ScriptQueuePreparationError ? cause : undefined;
       abandonPreparation(
-        id,
         controller,
         errorMessage(cause, "Failed to prepare the script queue."),
         preparationError?.entryId,
@@ -636,7 +533,6 @@ export const makeScriptQueue = (
     if (state.phase === "preparing") {
       preparationController?.abort();
       preparationController = null;
-      preparationId += 1;
       patchState({ currentIndex: null, phase: "idle" });
       return;
     }
@@ -648,7 +544,6 @@ export const makeScriptQueue = (
           currentIndex: null,
           latestRun: {
             ...run,
-            finishedAt: new Date(now()).toISOString(),
             status: "canceled",
           },
           phase: "idle",
@@ -684,7 +579,6 @@ export const makeScriptQueue = (
       return;
     }
     patchState({
-      currentIndex: currentIndex + 1,
       latestRun: { ...run, status: "running" },
       phase: "running",
     });
@@ -697,7 +591,9 @@ export const makeScriptQueue = (
     dispose: () => {
       if (disposed) return;
       draftController?.abort();
+      draftController = null;
       preparationController?.abort();
+      preparationController = null;
       listeners.clear();
       void cancel("Renderer closed");
       disposed = true;
@@ -706,14 +602,14 @@ export const makeScriptQueue = (
     getState,
     move: (entryId, offset) => {
       if (state.phase !== "idle") return;
-      const entries = [...state.definition.entries];
+      const entries = [...state.entries];
       const index = entries.findIndex((entry) => entry.id === entryId);
       const nextIndex = index + offset;
       if (index < 0 || nextIndex < 0 || nextIndex >= entries.length) return;
       const [entry] = entries.splice(index, 1);
       if (entry === undefined) return;
       entries.splice(nextIndex, 0, entry);
-      patchState({ definition: { entries } });
+      patchState({ entries });
     },
     onState: (listener) => {
       listeners.add(listener);
@@ -725,11 +621,7 @@ export const makeScriptQueue = (
       const removesAttention = state.attentionEntryId === entryId;
       patchState({
         attentionEntryId: removesAttention ? undefined : state.attentionEntryId,
-        definition: {
-          entries: state.definition.entries.filter(
-            (entry) => entry.id !== entryId,
-          ),
-        },
+        entries: state.entries.filter((entry) => entry.id !== entryId),
         ...(removesAttention ? { error: undefined } : {}),
       });
     },

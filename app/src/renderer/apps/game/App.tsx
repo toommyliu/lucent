@@ -122,7 +122,6 @@ import {
 import { prepareScriptStart } from "./scripting/scriptStartPreparation";
 import { runScriptEval } from "./scripting/ScriptEvaluator";
 import { makeGameViewGroupCommandQueue } from "./groupCommandQueue";
-import { makeScriptCommandCoordinator } from "./scriptCommandCoordinator";
 import {
   fatalScriptAlertFromError,
   fatalScriptAlertFromStatus,
@@ -1318,7 +1317,7 @@ export function App(props: {
   const [scriptQueueState, setScriptQueueState] =
     createSignal<ScriptQueueState>({
       currentIndex: null,
-      definition: { entries: [] },
+      entries: [],
       latestRun: null,
       phase: "idle",
     });
@@ -1329,7 +1328,6 @@ export function App(props: {
     createSignal(false);
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
   const scriptInputEditorRefs = new Map<string, HTMLElement>();
-  const scriptCommandCoordinator = makeScriptCommandCoordinator();
   let scriptQueue: ScriptQueue;
   let pendingQueueInputDialog: PendingQueueInputDialog | null = null;
   let pendingQueueReplacementConfirmation: PendingQueueReplacementConfirmation | null =
@@ -1433,7 +1431,7 @@ export function App(props: {
           ? "Stopping script queue"
           : scriptQueueState().phase === "paused"
             ? "Script queue paused after a failure"
-            : `Queue ${(scriptQueueState().currentIndex ?? 0) + 1} of ${scriptQueueState().latestRun?.items.length ?? scriptQueueState().definition.entries.length}: ${scriptStatusLabel(null, scriptRunnerStatus())}`,
+            : `Queue ${(scriptQueueState().currentIndex ?? 0) + 1} of ${scriptQueueState().latestRun?.items.length ?? scriptQueueState().entries.length}: ${scriptStatusLabel(null, scriptRunnerStatus())}`,
   );
   const setLoadProgress = (percent: number) => {
     const progress = Math.max(0, Math.min(100, Math.round(percent)));
@@ -2541,13 +2539,11 @@ export function App(props: {
   };
 
   const stopScriptRun = async (reason: string): Promise<ScriptRunnerStatus> => {
-    const status = await scriptCommandCoordinator.run(() =>
-      runtime.runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.stop(reason);
-        }),
-      ),
+    const status = await runtime.runPromise(
+      Effect.gen(function* () {
+        const runner = yield* ScriptRunner;
+        return yield* runner.stop(reason);
+      }),
     );
     applyScriptRunnerStatus(status);
     return status;
@@ -2801,13 +2797,11 @@ export function App(props: {
     timing?: ScriptTimingTrace,
   ) => {
     const start = () =>
-      scriptCommandCoordinator.run(() =>
-        runtime.runPromise(
-          Effect.gen(function* () {
-            const runner = yield* ScriptRunner;
-            return yield* runner.start(file, inputValues);
-          }),
-        ),
+      runtime.runPromise(
+        Effect.gen(function* () {
+          const runner = yield* ScriptRunner;
+          return yield* runner.start(file, inputValues);
+        }),
       );
     const handle: ScriptRunHandle =
       timing === undefined
@@ -2815,8 +2809,6 @@ export function App(props: {
         : await timeScriptStage(timing, "runner-start", start);
     applyScriptRunnerStatus(handle.initialStatus);
     return {
-      id: handle.id,
-      initialStatus: handle.initialStatus,
       terminal: runtime.runPromise(handle.terminal),
     };
   };

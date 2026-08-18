@@ -122,16 +122,6 @@
         "default": "./dist/scriptPackages.cjs"
       }
     },
-    "./scriptQueues": {
-      "import": {
-        "types": "./dist/scriptQueues.d.mts",
-        "default": "./dist/scriptQueues.mjs"
-      },
-      "require": {
-        "types": "./dist/scriptQueues.d.cts",
-        "default": "./dist/scriptQueues.cjs"
-      }
-    },
     "./settings": {
       "import": {
         "types": "./dist/settings.d.mts",
@@ -145,7 +135,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown --format esm,cjs --dts --outDir dist src/index.ts src/accounts.ts src/accountSettings.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/follower.ts src/hotkeys.ts src/scriptInputs.ts src/scriptPackages.ts src/scriptQueues.ts src/settings.ts",
+    "build": "tsdown --format esm,cjs --dts --outDir dist src/index.ts src/accounts.ts src/accountSettings.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/follower.ts src/hotkeys.ts src/scriptInputs.ts src/scriptPackages.ts src/settings.ts",
     "postinstall": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

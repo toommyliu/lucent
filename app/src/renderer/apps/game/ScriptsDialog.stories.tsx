@@ -8,8 +8,8 @@ import type {
   ScriptPackageSummary,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
-import type { ScriptQueueEntry } from "@lucent/core/scriptQueues";
 import type {
+  ScriptQueueEntry,
   ScriptQueueRunItem,
   ScriptQueueState,
 } from "./scripting/ScriptQueue";
@@ -260,14 +260,12 @@ const queueEntries: readonly ScriptQueueEntry[] = scripts
       reference: script.reference,
     },
     id: `queue-entry-${index + 1}`,
-    inputDefinitionId: null,
     inputValues: {},
-    revision: `story-revision-${index + 1}`,
   }));
 
 const readyQueueState: ScriptQueueState = {
   currentIndex: null,
-  definition: { entries: queueEntries },
+  entries: queueEntries,
   latestRun: null,
   phase: "idle",
 };
@@ -276,11 +274,10 @@ const pausedQueueItem = (
   entry: ScriptQueueEntry,
   index: number,
 ): ScriptQueueRunItem => ({
-  entry,
   file: {
     ...entry.file,
     inputs: null,
-    revision: entry.revision,
+    revision: `story-revision-${index + 1}`,
     source: "export function* main() {}",
   },
   inputValues: entry.inputValues,
@@ -297,7 +294,6 @@ const pausedQueueItem = (
             state: "failed",
           },
         },
-        startedAt: "2026-08-17T19:42:00.000Z",
         state: "finished",
       }
     : { state: "pending" }),
@@ -305,11 +301,9 @@ const pausedQueueItem = (
 
 const pausedQueueState: ScriptQueueState = {
   currentIndex: 0,
-  definition: { entries: queueEntries },
+  entries: queueEntries,
   latestRun: {
-    id: "queue-run-1",
     items: queueEntries.map(pausedQueueItem),
-    startedAt: "2026-08-17T19:42:00.000Z",
     status: "paused",
   },
   phase: "paused",
@@ -363,7 +357,7 @@ function ScriptsDialogStory(props: {
   const [queueState] = createSignal<ScriptQueueState>({
     ...(fixture.queueState ?? {
       currentIndex: null,
-      definition: { entries: [] },
+      entries: [],
       latestRun: null,
       phase: "idle" as const,
     }),
