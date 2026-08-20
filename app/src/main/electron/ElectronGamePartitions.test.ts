@@ -8,6 +8,7 @@ import { afterEach } from "vitest";
 import {
   activateManagedGamePartitionProfile,
   cleanupStaleGamePartitionProfiles,
+  defaultGamePartition,
   managedGamePartition,
   resolveGamePartitionProfilePath,
   retireManagedGamePartitionProfile,
@@ -63,11 +64,15 @@ describe("Electron game partitions", () => {
       ),
     );
     const removable = [
-      `lucent-game-standalone-10-${"a".repeat(24)}`,
+      `lucent-game-standalone-10-${"c".repeat(24)}`,
+      `lucent-game-temporary-10-${"a".repeat(24)}`,
       retiredManaged,
     ];
     const retained = [
-      `lucent-game-standalone-20-${"b".repeat(24)}`,
+      `lucent-game-temporary-20-${"b".repeat(24)}`,
+      basename(
+        resolveGamePartitionProfilePath(appDataDir, defaultGamePartition),
+      ),
       activeManaged,
       "unrelated",
     ];

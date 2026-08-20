@@ -9,19 +9,33 @@ import {
 import { join } from "path";
 
 const PERSISTENT_PARTITION_PREFIX = "persist:";
+const DEFAULT_PARTITION_NAME = "lucent-game-default";
 const MANAGED_PARTITION_PREFIX = "lucent-game-account-";
-const STANDALONE_PARTITION_PREFIX = "lucent-game-standalone-";
+const TEMPORARY_PARTITION_PREFIX = "lucent-game-temporary-";
 const MANAGED_PARTITION_PATTERN = /^lucent-game-account-[a-f0-9]{64}$/;
-const STANDALONE_PARTITION_PATTERN =
+const TEMPORARY_PARTITION_PATTERN =
+  /^lucent-game-temporary-([1-9][0-9]*)-([a-f0-9]{24})$/;
+const OBSOLETE_STANDALONE_PARTITION_PATTERN =
   /^lucent-game-standalone-([1-9][0-9]*)-([a-f0-9]{24})$/;
 const RETIRED_PROFILE_MARKER = ".lucent-retired";
 
 export type GamePartitionOwner =
-  | { readonly kind: "managed-account"; readonly key: string }
-  | { readonly kind: "standalone" };
+  | { readonly kind: "default" }
+  | { readonly kind: "managed-account"; readonly key: string };
+
+export type GamePartitionLease =
+  | {
+      readonly kind: "persistent";
+      readonly partition: string;
+    }
+  | {
+      readonly kind: "temporary";
+      readonly partition: string;
+      readonly sourcePartition: string;
+    };
 
 export interface GamePartitionRegistry {
-  readonly acquire: (owner: GamePartitionOwner) => string;
+  readonly acquire: (owner: GamePartitionOwner) => GamePartitionLease;
   readonly release: (partition: string) => void;
 }
 
@@ -36,8 +50,9 @@ const partitionName = (partition: string): string => {
   }
   const name = partition.slice(PERSISTENT_PARTITION_PREFIX.length);
   if (
+    name !== DEFAULT_PARTITION_NAME &&
     !MANAGED_PARTITION_PATTERN.test(name) &&
-    !STANDALONE_PARTITION_PATTERN.test(name)
+    !TEMPORARY_PARTITION_PATTERN.test(name)
   ) {
     throw new Error(`Invalid game partition: ${partition}`);
   }
@@ -59,7 +74,9 @@ export const managedGamePartition = (key: string): string => {
   return `${PERSISTENT_PARTITION_PREFIX}${MANAGED_PARTITION_PREFIX}${digest}`;
 };
 
-const standaloneGamePartition = (
+export const defaultGamePartition = `${PERSISTENT_PARTITION_PREFIX}${DEFAULT_PARTITION_NAME}`;
+
+const temporaryGamePartition = (
   processId: number,
   randomId: string,
 ): string => {
@@ -69,12 +86,12 @@ const standaloneGamePartition = (
   if (!/^[a-f0-9]{24}$/.test(randomId)) {
     throw new Error(`Invalid game partition random ID: ${randomId}`);
   }
-  return `${PERSISTENT_PARTITION_PREFIX}${STANDALONE_PARTITION_PREFIX}${processId}-${randomId}`;
+  return `${PERSISTENT_PARTITION_PREFIX}${TEMPORARY_PARTITION_PREFIX}${processId}-${randomId}`;
 };
 
 /**
- * Managed accounts reuse only their own stable profile. Standalone and
- * duplicate-account views receive unique profiles that are never reused.
+ * Each owner leases its persistent profile exclusively. Concurrent clients
+ * receive temporary profiles cloned by ElectronSession and never write back.
  */
 export const makeGamePartitionRegistry = (
   options: {
@@ -87,26 +104,32 @@ export const makeGamePartitionRegistry = (
     options.makeRandomId ?? (() => randomBytes(12).toString("hex"));
   const processId = options.processId ?? process.pid;
 
-  const acquireStandalone = (): string => {
+  const acquireTemporary = (): string => {
     let partition: string;
     do {
-      partition = standaloneGamePartition(processId, makeRandomId());
+      partition = temporaryGamePartition(processId, makeRandomId());
     } while (inUse.has(partition));
     return partition;
   };
 
   return {
     acquire: (owner) => {
-      const managedPartition =
+      const persistentPartition =
         owner.kind === "managed-account"
           ? managedGamePartition(owner.key)
-          : undefined;
-      const partition =
-        managedPartition !== undefined && !inUse.has(managedPartition)
-          ? managedPartition
-          : acquireStandalone();
+          : defaultGamePartition;
+      if (!inUse.has(persistentPartition)) {
+        inUse.add(persistentPartition);
+        return { kind: "persistent", partition: persistentPartition };
+      }
+
+      const partition = acquireTemporary();
       inUse.add(partition);
-      return partition;
+      return {
+        kind: "temporary",
+        partition,
+        sourcePartition: persistentPartition,
+      };
     },
     release: (partition) => {
       inUse.delete(partition);
@@ -177,11 +200,13 @@ export const cleanupStaleGamePartitionProfiles = (
 
   for (const name of directoryNames(directory)) {
     const path = join(directory, name);
-    const standaloneMatch = STANDALONE_PARTITION_PATTERN.exec(name);
+    const temporaryMatch =
+      TEMPORARY_PARTITION_PATTERN.exec(name) ??
+      OBSOLETE_STANDALONE_PARTITION_PATTERN.exec(name);
     const removable =
       (MANAGED_PARTITION_PATTERN.test(name) &&
         existsSync(join(path, RETIRED_PROFILE_MARKER))) ||
-      (standaloneMatch !== null && !isProcessAlive(Number(standaloneMatch[1])));
+      (temporaryMatch !== null && !isProcessAlive(Number(temporaryMatch[1])));
     if (!removable) continue;
 
     try {

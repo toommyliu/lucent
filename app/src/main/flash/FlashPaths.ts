@@ -26,7 +26,3 @@ export const resolvePepperFlashPluginPath = (options: {
 
 export const resolveFlashTrustRootPath = (appDataDir: string): string =>
   join(appDataDir, "Pepper Data", "Shockwave Flash", "WritableRoot");
-
-export const resolveFlashPreferenceTemplateRootPath = (
-  appDataDir: string,
-): string => join(appDataDir, "Game Profiles", "Shared Preferences");

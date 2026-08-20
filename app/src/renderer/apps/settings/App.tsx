@@ -744,9 +744,20 @@ function GeneralSettings(props: {
             value={props.settings.preferences.launchMode}
           />
         }
+        class="settings-row--with-subitem"
         description="Choose which window opens when the app starts."
         title="Launch mode"
-      />
+      >
+        <div class="settings-policy-note">
+          <div class="settings-policy-note__label">AQW settings</div>
+          <p class="settings-policy-note__description">
+            Each account saved in Lucent keeps its own AQW settings. Game
+            clients opened without a saved account use one shared set. A second
+            client using the same settings gets a temporary copy. Lucent
+            discards changes to that copy when the client closes.
+          </p>
+        </div>
+      </SettingsRow>
       <SettingsRow
         action={
           <Switch
@@ -760,7 +771,7 @@ function GeneralSettings(props: {
             size="lg"
           />
         }
-        class="settings-row--switch settings-row--with-subitem"
+        class="settings-row--switch"
         description={`Open up to ${MAX_GAME_VIEWS_PER_WINDOW} tabs in one window. Existing windows are unchanged.`}
         title="Use game tabs"
         titleAction={
@@ -772,16 +783,7 @@ function GeneralSettings(props: {
             <Icon icon="info" class="button__icon" />
           </TooltipIconButton>
         }
-      >
-        <div class="settings-policy-note">
-          <div class="settings-policy-note__label">AQW settings</div>
-          <p class="settings-policy-note__description">
-            Each saved account remembers its own settings. Tabs opened without a
-            saved account, or a second tab for the same account, do not remember
-            changes after they close.
-          </p>
-        </div>
-      </SettingsRow>
+      />
     </SettingsSection>
   );
 }
