@@ -1,17 +1,10 @@
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  writeFileSync,
-} from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { basename, dirname, join } from "path";
 
 const AQW_PREFERENCE_FILE_NAMES = [
   "AQLite_Data.sol",
   "AQWUserPref.sol",
 ] as const;
-const PREFERENCE_SEED_MARKER = ".lucent-aqw-preferences-v1";
 
 const isMissing = (cause: unknown): boolean =>
   cause instanceof Error &&
@@ -46,42 +39,15 @@ const findSourcePreferences = (
   return null;
 };
 
-export const initializeAqwFlashPreferenceTemplate = (input: {
-  readonly sourceRootPaths: readonly string[];
-  readonly templateRootPath: string;
-}): boolean => {
-  if (findSourcePreferences(input.templateRootPath) !== null) return false;
-
-  const source = input.sourceRootPaths
-    .map(findSourcePreferences)
-    .find((candidate) => candidate !== null);
-  if (source === undefined) return false;
-
-  const destination = join(
-    input.templateRootPath,
-    "#SharedObjects",
-    basename(dirname(source.directory)),
-    "game.aq.com",
-  );
-  mkdirSync(destination, { recursive: true });
-  for (const fileName of source.fileNames) {
-    copyFileSync(join(source.directory, fileName), join(destination, fileName));
-  }
-  return true;
-};
-
 /**
- * Seeds an isolated Flash profile from the neutral AQW preference template.
- * The marker makes this a migration rather than a recurring overwrite.
+ * Copies AQW preference shared objects into a temporary profile without
+ * copying the rest of its owning Electron partition.
  */
-export const seedAqwFlashPreferences = (input: {
+export const cloneAqwFlashPreferences = (input: {
+  readonly sourceRootPath: string;
   readonly targetRootPath: string;
-  readonly templateRootPath: string;
 }): boolean => {
-  const markerPath = join(input.targetRootPath, PREFERENCE_SEED_MARKER);
-  if (existsSync(markerPath)) return false;
-
-  const source = findSourcePreferences(input.templateRootPath);
+  const source = findSourcePreferences(input.sourceRootPath);
   if (source === null) return false;
 
   const targetRoots = sharedObjectRoots(input.targetRootPath);
@@ -106,7 +72,5 @@ export const seedAqwFlashPreferences = (input: {
       );
     }
   }
-
-  writeFileSync(markerPath, "1\n", "utf8");
   return true;
 };

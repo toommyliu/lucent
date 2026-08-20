@@ -5,10 +5,7 @@ import { dirname, join } from "path";
 import { describe, expect, it } from "@effect/vitest";
 import { afterEach } from "vitest";
 
-import {
-  initializeAqwFlashPreferenceTemplate,
-  seedAqwFlashPreferences,
-} from "./FlashPreferences";
+import { cloneAqwFlashPreferences } from "./FlashPreferences";
 
 const tempDirs = new Set<string>();
 
@@ -31,10 +28,9 @@ afterEach(async () => {
 });
 
 describe("Flash preferences", () => {
-  it("seeds only AQW preferences into an existing profile once", async () => {
+  it("clones only AQW preferences into an existing profile", async () => {
     const root = await makeTempDir("lucent-flash-preferences-");
     const sourceRootPath = join(root, "source");
-    const templateRootPath = join(root, "template");
     const targetRootPath = join(root, "target");
     const sourceDirectory = join(
       sourceRootPath,
@@ -55,13 +51,7 @@ describe("Flash preferences", () => {
       write(join(targetDirectory, "AQWUserPref.sol"), "old"),
     ]);
 
-    expect(
-      initializeAqwFlashPreferenceTemplate({
-        sourceRootPaths: [sourceRootPath],
-        templateRootPath,
-      }),
-    ).toBe(true);
-    expect(seedAqwFlashPreferences({ targetRootPath, templateRootPath })).toBe(
+    expect(cloneAqwFlashPreferences({ sourceRootPath, targetRootPath })).toBe(
       true,
     );
     await expect(
@@ -73,20 +63,11 @@ describe("Flash preferences", () => {
     await expect(
       readFile(join(targetDirectory, "AQWChars.ssl"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
-
-    await write(join(targetDirectory, "AQWUserPref.sol"), "changed");
-    expect(seedAqwFlashPreferences({ targetRootPath, templateRootPath })).toBe(
-      false,
-    );
-    await expect(
-      readFile(join(targetDirectory, "AQWUserPref.sol"), "utf8"),
-    ).resolves.toBe("changed");
   });
 
   it("reuses the source shared-object root for a fresh profile", async () => {
     const root = await makeTempDir("lucent-flash-preferences-");
     const sourceRootPath = join(root, "source");
-    const templateRootPath = join(root, "template");
     const targetRootPath = join(root, "target");
     const sourceFile = join(
       sourceRootPath,
@@ -97,13 +78,7 @@ describe("Flash preferences", () => {
     );
     await write(sourceFile, "preferences");
 
-    expect(
-      initializeAqwFlashPreferenceTemplate({
-        sourceRootPaths: [sourceRootPath],
-        templateRootPath,
-      }),
-    ).toBe(true);
-    expect(seedAqwFlashPreferences({ targetRootPath, templateRootPath })).toBe(
+    expect(cloneAqwFlashPreferences({ sourceRootPath, targetRootPath })).toBe(
       true,
     );
     await expect(
@@ -118,5 +93,16 @@ describe("Flash preferences", () => {
         "utf8",
       ),
     ).resolves.toBe("preferences");
+  });
+
+  it("leaves a temporary profile empty when its owner has no preferences", async () => {
+    const root = await makeTempDir("lucent-flash-preferences-");
+
+    expect(
+      cloneAqwFlashPreferences({
+        sourceRootPath: join(root, "source"),
+        targetRootPath: join(root, "target"),
+      }),
+    ).toBe(false);
   });
 });

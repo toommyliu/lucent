@@ -7,14 +7,8 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import {
-  resolveFlashPreferenceTemplateRootPath,
-  resolveFlashTrustRootPath,
-} from "../flash/FlashPaths";
-import {
-  initializeAqwFlashPreferenceTemplate,
-  seedAqwFlashPreferences,
-} from "../flash/FlashPreferences";
+import { resolveFlashTrustRootPath } from "../flash/FlashPaths";
+import { cloneAqwFlashPreferences } from "../flash/FlashPreferences";
 import { writeTrustFile } from "../flash/FlashTrust";
 import {
   getArtixLauncherRequestHeaders,
@@ -66,16 +60,9 @@ export const layer = Layer.effect(
     const gameUserAgent = getArtixLauncherUserAgent(env.platform);
     const configuredSessions = new Set<Session>();
     const gamePartitions = makeGamePartitionRegistry();
-    const preferenceTemplateRootPath = resolveFlashPreferenceTemplateRootPath(
-      env.appDataDir,
-    );
     let sessionCreatedHookInstalled = false;
 
     yield* Effect.sync(() => {
-      initializeAqwFlashPreferenceTemplate({
-        sourceRootPaths: [resolveFlashTrustRootPath(env.appDataDir)],
-        templateRootPath: preferenceTemplateRootPath,
-      });
       cleanupStaleGamePartitionProfiles(env.appDataDir);
     }).pipe(Effect.catchCause(() => Effect.void));
 
@@ -110,7 +97,8 @@ export const layer = Layer.effect(
       owner,
     ) =>
       Effect.suspend(() => {
-        const partition = gamePartitions.acquire(owner);
+        const lease = gamePartitions.acquire(owner);
+        const partition = lease.partition;
         return Effect.try({
           try: () => {
             if (owner.kind === "managed-account") {
@@ -126,10 +114,16 @@ export const layer = Layer.effect(
               partition,
             );
             const flashRootPath = resolveFlashTrustRootPath(profilePath);
-            seedAqwFlashPreferences({
-              targetRootPath: flashRootPath,
-              templateRootPath: preferenceTemplateRootPath,
-            });
+            if (lease.kind === "temporary") {
+              const sourceProfilePath = resolveGamePartitionProfilePath(
+                env.appDataDir,
+                lease.sourcePartition,
+              );
+              cloneAqwFlashPreferences({
+                sourceRootPath: resolveFlashTrustRootPath(sourceProfilePath),
+                targetRootPath: flashRootPath,
+              });
+            }
             writeTrustFile({
               appName: "lucent",
               rootPath: flashRootPath,

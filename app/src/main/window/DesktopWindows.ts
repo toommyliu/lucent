@@ -430,10 +430,10 @@ const createWindowOptions = (
 const gamePartitionOwner = (
   options?: DesktopWindowOpenOptions,
 ):
-  | { readonly kind: "managed-account"; readonly key: string }
-  | { readonly kind: "standalone" } =>
+  | { readonly kind: "default" }
+  | { readonly kind: "managed-account"; readonly key: string } =>
   options?.managedGameProfileKey === undefined
-    ? { kind: "standalone" }
+    ? { kind: "default" }
     : { kind: "managed-account", key: options.managedGameProfileKey };
 
 const createGameViewOptions = (
