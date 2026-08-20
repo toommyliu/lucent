@@ -1075,7 +1075,6 @@
   --account-manager-sessions-columns: 28% 8rem minmax(0, 1fr) 11.75rem;
   --account-manager-sessions-header-background: rgb(var(--muted));
   --account-manager-sessions-header-height: 2.375rem;
-  --account-manager-sessions-scrollbar-width: 0.875rem;
 
   align-self: start;
   background: var(--account-manager-sessions-header-background);
@@ -1118,11 +1117,6 @@
   background: var(--account-manager-sessions-header-background);
   box-shadow: inset 0 -1px 0 rgba(var(--border), 0.72);
   display: block;
-}
-
-.account-manager__sessions-table-frame--scrollable
-  .account-manager__sessions-table-head {
-  padding-inline-end: var(--account-manager-sessions-scrollbar-width);
 }
 
 .account-manager__sessions-table-head tr,

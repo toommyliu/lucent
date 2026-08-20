@@ -661,19 +661,27 @@ function OverflowText(props: {
   );
 }
 
-/** Tracks whether a conditionally mounted element needs a vertical scrollbar. */
-function createVerticalOverflowObserver(): {
-  readonly overflowing: () => boolean;
+/** Tracks the space consumed by a conditionally mounted vertical scrollbar. */
+function createScrollbarGutterObserver(): {
+  readonly gutterWidth: () => number;
   readonly ref: (element: HTMLElement) => void;
 } {
   let target: HTMLElement | undefined;
+  let measurementFrame: number | undefined;
   let mutationObserver: MutationObserver | undefined;
   let resizeObserver: ResizeObserver | undefined;
-  const [overflowing, setOverflowing] = createSignal(false);
+  const [gutterWidth, setGutterWidth] = createSignal(0);
   const measure = (): void => {
-    setOverflowing(
-      target !== undefined && target.scrollHeight > target.clientHeight + 1,
+    measurementFrame = undefined;
+    setGutterWidth(
+      target === undefined
+        ? 0
+        : Math.max(0, target.offsetWidth - target.clientWidth),
     );
+  };
+  const scheduleMeasure = (): void => {
+    if (measurementFrame !== undefined) return;
+    measurementFrame = window.requestAnimationFrame(measure);
   };
   const observeTarget = (): void => {
     mutationObserver?.disconnect();
@@ -685,21 +693,24 @@ function createVerticalOverflowObserver(): {
       subtree: true,
     });
     resizeObserver?.observe(target);
-    measure();
+    scheduleMeasure();
   };
 
   onMount(() => {
-    mutationObserver = new MutationObserver(measure);
-    resizeObserver = new ResizeObserver(measure);
+    mutationObserver = new MutationObserver(scheduleMeasure);
+    resizeObserver = new ResizeObserver(scheduleMeasure);
     observeTarget();
     onCleanup(() => {
+      if (measurementFrame !== undefined) {
+        window.cancelAnimationFrame(measurementFrame);
+      }
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
     });
   });
 
   return {
-    overflowing,
+    gutterWidth,
     ref: (element) => {
       target = element;
       observeTarget();
@@ -1284,7 +1295,7 @@ export function AccountManagerView(
   >(new Set());
   const [bulkClosingGameWindows, setBulkClosingGameWindows] =
     createSignal(false);
-  const sessionsTableOverflow = createVerticalOverflowObserver();
+  const sessionsTableScrollbar = createScrollbarGutterObserver();
   const isAccountSelected = createSelector(
     selectedAccountUsernames,
     (username: string, selected) => selected.has(username),
@@ -4306,19 +4317,18 @@ export function AccountManagerView(
                 </Empty>
               }
             >
-              <div
-                classList={{
-                  "account-manager__sessions-table-frame": true,
-                  "account-manager__sessions-table-frame--scrollable":
-                    sessionsTableOverflow.overflowing(),
-                }}
-              >
+              <div class="account-manager__sessions-table-frame">
                 <div class="account-manager__sessions-table-viewport">
                   <table class="account-manager__sessions-table">
                     <caption class="visually-hidden">
                       Active game sessions grouped by game window
                     </caption>
-                    <thead class="account-manager__sessions-table-head">
+                    <thead
+                      class="account-manager__sessions-table-head"
+                      style={{
+                        "padding-inline-end": `${sessionsTableScrollbar.gutterWidth()}px`,
+                      }}
+                    >
                       <tr>
                         <th scope="col">Account</th>
                         <th scope="col">Status</th>
@@ -4328,7 +4338,7 @@ export function AccountManagerView(
                     </thead>
                     <tbody
                       class="account-manager__sessions-table-body"
-                      ref={sessionsTableOverflow.ref}
+                      ref={sessionsTableScrollbar.ref}
                     >
                       <For each={activeWindowSessionGroups()}>
                         {(group) => (
