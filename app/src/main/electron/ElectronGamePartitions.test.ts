@@ -64,7 +64,6 @@ describe("Electron game partitions", () => {
       ),
     );
     const removable = [
-      `lucent-game-standalone-10-${"c".repeat(24)}`,
       `lucent-game-temporary-10-${"a".repeat(24)}`,
       retiredManaged,
     ];

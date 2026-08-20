@@ -15,8 +15,12 @@ const TEMPORARY_PARTITION_PREFIX = "lucent-game-temporary-";
 const MANAGED_PARTITION_PATTERN = /^lucent-game-account-[a-f0-9]{64}$/;
 const TEMPORARY_PARTITION_PATTERN =
   /^lucent-game-temporary-([1-9][0-9]*)-([a-f0-9]{24})$/;
-const OBSOLETE_STANDALONE_PARTITION_PATTERN =
-  /^lucent-game-standalone-([1-9][0-9]*)-([a-f0-9]{24})$/;
+/**
+ * Electron may keep a Session alive after its game client closes, so account
+ * deletion and identity-changing renames cannot safely remove the profile at
+ * once. This marker schedules removal for the next cold start. Reopening the
+ * same account before then cancels the removal.
+ */
 const RETIRED_PROFILE_MARKER = ".lucent-retired";
 
 export type GamePartitionOwner =
@@ -90,8 +94,18 @@ const temporaryGamePartition = (
 };
 
 /**
+ * Chromium 87 reuses a PPAPI process when the plugin path and profile data
+ * directory match and the origin lock is compatible. Lucent gives every live
+ * client a distinct Electron partition and profile directory, so Chromium
+ * starts a separate Pepper Flash process instead of concentrating their work in
+ * one.
+ * This avoids the shared-process bottleneck at the cost of more memory in both
+ * tabs and separate windows.
+ *
  * Each owner leases its persistent profile exclusively. Concurrent clients
  * receive temporary profiles cloned by ElectronSession and never write back.
+ *
+ * @see https://chromium.googlesource.com/chromium/src/+/refs/tags/87.0.4280.141/content/browser/plugin_service_impl.cc#132
  */
 export const makeGamePartitionRegistry = (
   options: {
@@ -200,9 +214,7 @@ export const cleanupStaleGamePartitionProfiles = (
 
   for (const name of directoryNames(directory)) {
     const path = join(directory, name);
-    const temporaryMatch =
-      TEMPORARY_PARTITION_PATTERN.exec(name) ??
-      OBSOLETE_STANDALONE_PARTITION_PATTERN.exec(name);
+    const temporaryMatch = TEMPORARY_PARTITION_PATTERN.exec(name);
     const removable =
       (MANAGED_PARTITION_PATTERN.test(name) &&
         existsSync(join(path, RETIRED_PROFILE_MARKER))) ||
