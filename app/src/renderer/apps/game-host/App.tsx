@@ -1069,7 +1069,7 @@ export function App(): JSX.Element {
           </Show>
 
           <TooltipIconButton
-            aria-label={atCapacity() ? "Game view limit reached" : "Add tab"}
+            aria-label={atCapacity() ? "Tab limit reached" : "Add tab"}
             class="game-view-tabs__action game-view-tabs__add"
             disabled={atCapacity()}
             onClick={() => void addView()}
@@ -1078,7 +1078,7 @@ export function App(): JSX.Element {
             size="icon-sm"
             tooltip={
               atCapacity()
-                ? `${state()?.capacity ?? 0}-view limit reached · use another window`
+                ? `${state()?.capacity ?? 0}-tab limit reached · use another window`
                 : "Add tab"
             }
             variant="ghost"
