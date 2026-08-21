@@ -272,6 +272,25 @@ export {
 export { Spinner, type SpinnerProps } from "./components/Spinner";
 export { Switch, type SwitchProps, type SwitchSize } from "./components/Switch";
 export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+  type TableBodyProps,
+  type TableCaptionProps,
+  type TableCellProps,
+  type TableFooterProps,
+  type TableHeadProps,
+  type TableHeaderProps,
+  type TableProps,
+  type TableRowProps,
+  type TableVariant,
+} from "./components/Table";
+export {
   Tabs,
   TabsContent,
   TabsList,
