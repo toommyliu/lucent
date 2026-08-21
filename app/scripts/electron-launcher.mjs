@@ -16,7 +16,7 @@ import { createRequire } from "module";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
-const LAUNCHER_VERSION = 3;
+const LAUNCHER_VERSION = 5;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const appDir = resolve(__dirname, "..");
@@ -26,6 +26,10 @@ const appBranding = JSON.parse(
 );
 const repoRoot = resolve(appDir, "..");
 const runtimeDir = join(appDir, ".electron-runtime");
+const devInstanceLabel = process.env.LUCENT_DEV_LABEL?.trim();
+const devDisplayName = devInstanceLabel
+  ? `${appBranding.dev.displayName} ${devInstanceLabel}`
+  : appBranding.dev.displayName;
 const devIconComposerPath = join(
   repoRoot,
   "branding",
@@ -309,9 +313,9 @@ function patchMainBundleInfoPlist(appBundlePath, iconAssets) {
   setPlistString(
     infoPlistPath,
     "CFBundleDisplayName",
-    appBranding.dev.displayName,
+    devDisplayName,
   );
-  setPlistString(infoPlistPath, "CFBundleName", appBranding.dev.displayName);
+  setPlistString(infoPlistPath, "CFBundleName", devDisplayName);
   setPlistString(infoPlistPath, "CFBundleIdentifier", appBranding.dev.bundleId);
   setPlistString(infoPlistPath, "CFBundleIconFile", "icon.icns");
   if (iconAssets.kind === "icon-composer") {
@@ -351,7 +355,7 @@ function buildMacLauncher(electronBinaryPath) {
 
   const targetAppBundlePath = join(
     runtimeDir,
-    `${appBranding.dev.displayName}.app`,
+    `${devDisplayName}.app`,
   );
   const targetBinaryPath = join(
     targetAppBundlePath,
@@ -366,7 +370,7 @@ function buildMacLauncher(electronBinaryPath) {
 
   const expectedMetadata = {
     launcherVersion: LAUNCHER_VERSION,
-    displayName: appBranding.dev.displayName,
+    displayName: devDisplayName,
     bundleId: appBranding.dev.bundleId,
     sourceAppBundlePath,
     sourceAppMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
@@ -384,6 +388,17 @@ function buildMacLauncher(electronBinaryPath) {
     hasExpectedFrameworkSymlinks(targetAppBundlePath)
   ) {
     return targetBinaryPath;
+  }
+
+  const staleAppBundlePaths = new Set([
+    join(runtimeDir, `${appBranding.dev.displayName}.app`),
+    ...(typeof currentMetadata?.displayName === "string"
+      ? [join(runtimeDir, `${currentMetadata.displayName}.app`)]
+      : []),
+  ]);
+  staleAppBundlePaths.delete(targetAppBundlePath);
+  for (const staleAppBundlePath of staleAppBundlePaths) {
+    rmSync(staleAppBundlePath, { recursive: true, force: true });
   }
 
   rmSync(targetAppBundlePath, { recursive: true, force: true });

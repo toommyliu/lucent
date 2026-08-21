@@ -103,10 +103,18 @@ const resolveEnvironmentConfig = (
   const isDev = !app.isPackaged;
   const platform = process.platform;
   const activeBranding = isDev ? appBranding.dev : appBranding.production;
+  const devInstanceLabel = isDev ? process.env["LUCENT_DEV_LABEL"] : undefined;
+  const displayName =
+    devInstanceLabel === undefined
+      ? activeBranding.displayName
+      : `${activeBranding.displayName} ${devInstanceLabel}`;
   const appDataDir = resolveUserDataPath({ isDev, platform });
 
   app.setPath("userData", appDataDir);
-  app.setName(activeBranding.displayName);
+  app.setName(displayName);
+  if (devInstanceLabel !== undefined && platform === "darwin") {
+    app.once("ready", () => app.dock.setBadge(devInstanceLabel));
+  }
   if (platform === "win32") {
     app.setAppUserModelId(activeBranding.bundleId);
   }

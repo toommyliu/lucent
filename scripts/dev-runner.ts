@@ -5,12 +5,13 @@ import {
 import {
   readFileSync,
   rmSync,
+  statSync,
   unwatchFile,
   watchFile,
   writeFileSync,
   type Stats,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -30,14 +31,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
 const APP_DIR = join(REPO_ROOT, "app");
 const DOCS_DIR = join(REPO_ROOT, "docs");
-const DEV_ELECTRON_RUNTIME_BINARY = join(
-  APP_DIR,
-  ".electron-runtime",
-  "Lucent (Dev).app",
-  "Contents",
-  "MacOS",
-  "Electron",
-);
+const DEV_ELECTRON_RUNTIME_DIR = join(APP_DIR, ".electron-runtime");
 const APP_DEV_ROOT_ARG = `--app-dev-root=${APP_DIR}`;
 const DEV_BUILD_NOTIFY_PATH = join(APP_DIR, "dist", ".lucent-dev-build.json");
 const DEV_RENDERER_RELOAD_PATH = join(
@@ -50,6 +44,7 @@ const DEV_PROCESS_LEASE_PATH = join(
   "dist",
   ".lucent-dev-processes.json",
 );
+const DEV_INSTANCE_LABEL_ENV = "LUCENT_DEV_LABEL";
 const RESTART_DEBOUNCE_MS = 300;
 const FORCE_KILL_AFTER_MS = 1500;
 const FORCE_KILL_AFTER = `${FORCE_KILL_AFTER_MS} millis`;
@@ -113,10 +108,41 @@ const isErrnoException = (cause: unknown): cause is NodeJS.ErrnoException =>
 const isNoSuchProcessError = (cause: unknown): boolean =>
   isErrnoException(cause) && cause.code === "ESRCH";
 
-const createBaseEnv = (): NodeJS.ProcessEnv => ({
-  ...process.env,
-  NODE_ENV: "development",
-});
+const toDevInstanceLabel = (value: string): string =>
+  value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toLowerCase();
+
+const resolveDevInstanceLabel = (): string | undefined => {
+  const override = process.env[DEV_INSTANCE_LABEL_ENV];
+  if (override !== undefined) {
+    const label = toDevInstanceLabel(override);
+    return label.length > 0 ? label : undefined;
+  }
+
+  try {
+    if (statSync(join(REPO_ROOT, ".git")).isDirectory()) {
+      return undefined;
+    }
+  } catch {
+    // A missing .git entry behaves like a linked worktree for labeling.
+  }
+
+  return toDevInstanceLabel(basename(dirname(REPO_ROOT))) || "dev";
+};
+
+const DEV_INSTANCE_LABEL = resolveDevInstanceLabel();
+
+const createBaseEnv = (): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: "development",
+  };
+  if (DEV_INSTANCE_LABEL === undefined) {
+    delete env[DEV_INSTANCE_LABEL_ENV];
+  } else {
+    env[DEV_INSTANCE_LABEL_ENV] = DEV_INSTANCE_LABEL;
+  }
+  return env;
+};
 
 const createWatchEnv = (): NodeJS.ProcessEnv => ({
   ...createBaseEnv(),
@@ -524,11 +550,9 @@ const commandHasAppDevRootArg = (command: string): boolean => {
 };
 
 const commandMatchesDevElectronRuntime = (command: string): boolean => {
-  const devElectronCommand = `${DEV_ELECTRON_RUNTIME_BINARY} .`;
-  return (
-    command === devElectronCommand ||
-    command.startsWith(`${devElectronCommand} `)
-  );
+  const runtimePrefix = `${DEV_ELECTRON_RUNTIME_DIR}/`;
+  const electronCommand = ".app/Contents/MacOS/Electron .";
+  return command.startsWith(runtimePrefix) && command.includes(electronCommand);
 };
 
 const parseExistingDevElectronProcess = (
@@ -1050,6 +1074,9 @@ const dryRun = (mode: DevMode, electronArgs: ReadonlyArray<string>) =>
     yield* Console.log("[dev-runner] dry run");
     yield* Console.log(`mode=${mode}`);
     yield* Console.log(`repoRoot=${REPO_ROOT}`);
+    yield* Console.log(
+      `env.${DEV_INSTANCE_LABEL_ENV}=${DEV_INSTANCE_LABEL ?? "<unset>"}`,
+    );
     yield* Console.log("env.NODE_ENV=development");
 
     if (mode === "dev" || mode === "app") {
