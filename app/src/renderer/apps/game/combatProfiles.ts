@@ -17,6 +17,11 @@ export interface CombatProfileCursor {
   readonly state: Ref.Ref<CombatProfileCursorState>;
 }
 
+export interface CombatProfileTargetTracker {
+  readonly cursor: CombatProfileCursor;
+  readonly monsterMapId: Ref.Ref<number | null>;
+}
+
 export interface CombatProfileMessageTriggerState {
   readonly semaphore: Semaphore.Semaphore;
   readonly state: Ref.Ref<ReadonlyMap<number, number>>;
@@ -69,6 +74,56 @@ export const resetCombatProfileCursor = (
     index: 0,
     resetVersion: state.resetVersion + 1,
   }));
+
+export const makeCombatProfileTargetTracker = Effect.fn(
+  "makeCombatProfileTargetTracker",
+)(function* (cursor: CombatProfileCursor) {
+  return {
+    cursor,
+    monsterMapId: yield* Ref.make<number | null>(null),
+  } satisfies CombatProfileTargetTracker;
+});
+
+const setCombatProfileTarget = (
+  tracker: CombatProfileTargetTracker,
+  monsterMapId: number,
+): Effect.Effect<void> => Ref.set(tracker.monsterMapId, monsterMapId);
+
+const clearCombatProfileTargetIfCurrent = (
+  tracker: CombatProfileTargetTracker,
+  monsterMapId: number,
+): Effect.Effect<void> =>
+  Ref.update(tracker.monsterMapId, (current) =>
+    current === monsterMapId ? null : current,
+  );
+
+export const trackCombatProfileAttack = Effect.fn("trackCombatProfileAttack")(
+  function* <E, R>(
+    tracker: CombatProfileTargetTracker,
+    monsterMapId: number,
+    attack: Effect.Effect<boolean, E, R>,
+  ): Effect.fn.Return<boolean, E, R> {
+    yield* setCombatProfileTarget(tracker, monsterMapId);
+    const attacked = yield* attack;
+    if (!attacked) {
+      yield* clearCombatProfileTargetIfCurrent(tracker, monsterMapId);
+    }
+    return attacked;
+  },
+);
+
+export const resetCombatProfileOnTargetDeath = Effect.fn(
+  "resetCombatProfileOnTargetDeath",
+)(function* (tracker: CombatProfileTargetTracker, monsterMapId: number) {
+  const targetDied = yield* Ref.modify(
+    tracker.monsterMapId,
+    (current): readonly [boolean, number | null] =>
+      current === monsterMapId ? [true, null] : [false, current],
+  );
+  if (targetDied) {
+    yield* resetCombatProfileCursor(tracker.cursor);
+  }
+});
 
 export const makeCombatProfileMessageTriggerState =
   (): Effect.Effect<CombatProfileMessageTriggerState> =>

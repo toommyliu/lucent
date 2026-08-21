@@ -33,7 +33,7 @@ type CombatProfile = {
     }[];
     readonly className?: string;
     readonly consumable?: string;
-    readonly resetSkillIndexOnMonsterDeath?: boolean;
+    readonly resetSkillIndexOnTargetDeath?: boolean;
     readonly messageTriggers?: readonly {
         readonly messageIncludes: string;
         readonly skill: number;

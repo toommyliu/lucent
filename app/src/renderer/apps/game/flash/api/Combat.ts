@@ -23,10 +23,13 @@ import {
   makeCombatProfileCursor,
   makeCombatProfileMessageTriggerState,
   makeCombatProfileRuntimeDeps,
-  resetCombatProfileCursor,
+  makeCombatProfileTargetTracker,
+  resetCombatProfileOnTargetDeath,
+  trackCombatProfileAttack,
   type CombatProfileCursor,
   type CombatProfileMessageTriggerState,
   type CombatProfileRuntimeDeps,
+  type CombatProfileTargetTracker,
 } from "../../combatProfiles";
 import type { BridgeService } from "../bridge/Bridge";
 import {
@@ -146,6 +149,7 @@ interface KillProfileRuntime {
   readonly messageState: CombatProfileMessageTriggerState;
   readonly profile: CombatProfile;
   readonly releaseConsumable: Effect.Effect<void>;
+  readonly targetTracker: CombatProfileTargetTracker | null;
 }
 
 export const makeCombat = (
@@ -497,12 +501,17 @@ export const makeCombat = (
         cursor: makeCombatProfileCursor(),
         messageState: makeCombatProfileMessageTriggerState(),
       });
+      const targetTracker =
+        profile.resetSkillIndexOnTargetDeath === true
+          ? yield* makeCombatProfileTargetTracker(cursor)
+          : null;
       return {
         cursor,
         dependencies,
         messageState,
         profile,
         releaseConsumable: prepared.release,
+        targetTracker,
       } satisfies KillProfileRuntime;
     });
   };
@@ -541,7 +550,17 @@ export const makeCombat = (
           yield* Effect.sleep("100 millis");
           return;
         }
-        if (!(yield* attackMonster(target.monsterMapId))) {
+        const targetTracker = runtime?.targetTracker ?? null;
+        const attack = attackMonster(target.monsterMapId);
+        const attacked =
+          targetTracker === null
+            ? yield* attack
+            : yield* trackCombatProfileAttack(
+                targetTracker,
+                target.monsterMapId,
+                attack,
+              );
+        if (!attacked) {
           yield* Effect.sleep("250 millis");
           return;
         }
@@ -617,10 +636,11 @@ export const makeCombat = (
         }),
       );
     }
-    if (runtime.profile.resetSkillIndexOnMonsterDeath === true) {
+    if (runtime.targetTracker !== null) {
+      const targetTracker = runtime.targetTracker;
       subscriptions.push(
-        events.on({ type: "monster-death" }, () =>
-          resetCombatProfileCursor(runtime.cursor),
+        events.on({ type: "monster-death" }, (event) =>
+          resetCombatProfileOnTargetDeath(targetTracker, event.monsterMapId),
         ),
       );
     }

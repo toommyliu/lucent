@@ -53,6 +53,7 @@ type EventHandler = (event: Event) => Effect.Effect<void, unknown>;
 const makeHarness = (options?: {
   readonly alive?: boolean;
   readonly attackMonster?: (monsterMapId: number) => Effect.Effect<boolean>;
+  readonly getMonsters?: () => readonly LiveMonster[];
   readonly monsters?: readonly LiveMonster[];
   readonly preflightWarning?: string;
   readonly useSkill?: (skill: number) => Effect.Effect<boolean>;
@@ -107,7 +108,9 @@ const makeHarness = (options?: {
     },
     monsters: {
       getAvailable: () =>
-        Effect.succeed(options?.monsters ?? [first, priority]),
+        Effect.succeed(
+          options?.getMonsters?.() ?? options?.monsters ?? [first, priority],
+        ),
     },
     player: {
       auras: { get: () => Effect.succeed(null) },
@@ -265,44 +268,48 @@ describe("CombatProfileRunner", () => {
       ),
   );
 
-  it.effect("resets rotations on death and disposes scoped listeners", () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-      const eventProfile: CombatProfile = {
-        ...profile,
-        messageTriggers: [
-          {
-            messageIncludes: "enrage",
-            skill: 5,
-            source: "any",
-          },
-        ],
-        resetSkillIndexOnMonsterDeath: true,
-      };
+  it.effect(
+    "resets rotations only when the automation target dies and disposes scoped listeners",
+    () =>
+      Effect.gen(function* () {
+        const harness = makeHarness();
+        const eventProfile: CombatProfile = {
+          ...profile,
+          messageTriggers: [
+            {
+              messageIncludes: "enrage",
+              skill: 5,
+              source: "any",
+            },
+          ],
+          resetSkillIndexOnTargetDeath: true,
+        };
 
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const runner = yield* makeCombatProfileRunner(harness.api, {
-            profile: eventProfile,
-            targetPriority: [],
-          });
-          expect(harness.handlerCount()).toBe(2);
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const runner = yield* makeCombatProfileRunner(harness.api, {
+              profile: eventProfile,
+              targetPriority: [],
+            });
+            expect(harness.handlerCount()).toBe(2);
 
-          yield* runner.runCycle();
-          yield* harness.emit({ monsterMapId: 1, type: "monster-death" });
-          yield* runner.runCycle();
-          yield* harness.emit({
-            message: "Boss enrage",
-            source: "animation",
-            type: "update-message",
-          });
+            yield* runner.runCycle();
+            yield* harness.emit({ monsterMapId: 2, type: "monster-death" });
+            yield* runner.runCycle();
+            yield* harness.emit({ monsterMapId: 1, type: "monster-death" });
+            yield* runner.runCycle();
+            yield* harness.emit({
+              message: "Boss enrage",
+              source: "animation",
+              type: "update-message",
+            });
 
-          expect(harness.casts).toEqual([1, 1, 5]);
-        }),
-      );
+            expect(harness.casts).toEqual([1, 2, 1, 5]);
+          }),
+        );
 
-      expect(harness.handlerCount()).toBe(0);
-    }),
+        expect(harness.handlerCount()).toBe(0);
+      }),
   );
 
   it.effect("reports asynchronous trigger failures by stage", () =>

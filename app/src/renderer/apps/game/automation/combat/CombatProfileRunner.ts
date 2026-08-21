@@ -14,7 +14,9 @@ import {
   makeCombatProfileCursor,
   makeCombatProfileMessageTriggerState,
   makeCombatProfileRuntimeDeps,
-  resetCombatProfileCursor,
+  makeCombatProfileTargetTracker,
+  resetCombatProfileOnTargetDeath,
+  trackCombatProfileAttack,
 } from "../../combatProfiles";
 import type { ApiService } from "../../flash/api/Api";
 
@@ -104,6 +106,10 @@ export const selectCombatProfileTarget = (
 export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
   function* (api: ApiService, options: CombatProfileRunnerOptions) {
     const cursor = yield* makeCombatProfileCursor();
+    const targetTracker =
+      options.profile.resetSkillIndexOnTargetDeath === true
+        ? yield* makeCombatProfileTargetTracker(cursor)
+        : null;
     const messageState = yield* makeCombatProfileMessageTriggerState();
     const prepared = yield* Effect.acquireRelease(
       api.combat.prepareCombatProfileConsumable(options.profile),
@@ -148,10 +154,11 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
       yield* Effect.addFinalizer(() => Effect.sync(disposeMessages));
     }
 
-    if (options.profile.resetSkillIndexOnMonsterDeath === true) {
+    if (targetTracker !== null) {
       const disposeMonsterDeath = yield* api.events.on(
         { type: "monster-death" },
-        () => resetCombatProfileCursor(cursor),
+        (event) =>
+          resetCombatProfileOnTargetDeath(targetTracker, event.monsterMapId),
       );
       yield* Effect.addFinalizer(() => Effect.sync(disposeMonsterDeath));
     }
@@ -192,9 +199,16 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
         );
       }
 
+      const attack = api.combat.attackMonster(target.monsterMapId);
       const attacked = yield* withFailureStage(
         "attack",
-        api.combat.attackMonster(target.monsterMapId),
+        targetTracker === null
+          ? attack
+          : trackCombatProfileAttack(
+              targetTracker,
+              target.monsterMapId,
+              attack,
+            ),
       );
       if (!attacked) {
         return {
