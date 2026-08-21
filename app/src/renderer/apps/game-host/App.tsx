@@ -993,7 +993,7 @@ export function App(): JSX.Element {
                       tabIndex={-1}
                       type="button"
                     >
-                      <Icon aria-hidden="true" icon="x" size="sm" />
+                      <Icon aria-hidden="true" icon="x" size="xs" />
                     </button>
                   </div>
                 );
