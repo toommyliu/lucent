@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Ref from "effect/Ref";
 import * as Semaphore from "effect/Semaphore";
 
@@ -104,11 +105,13 @@ export const trackCombatProfileAttack = Effect.fn("trackCombatProfileAttack")(
     attack: Effect.Effect<boolean, E, R>,
   ): Effect.fn.Return<boolean, E, R> {
     yield* setCombatProfileTarget(tracker, monsterMapId);
-    const attacked = yield* attack;
-    if (!attacked) {
-      yield* clearCombatProfileTargetIfCurrent(tracker, monsterMapId);
-    }
-    return attacked;
+    return yield* attack.pipe(
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit) && exit.value
+          ? Effect.void
+          : clearCombatProfileTargetIfCurrent(tracker, monsterMapId),
+      ),
+    );
   },
 );
 
