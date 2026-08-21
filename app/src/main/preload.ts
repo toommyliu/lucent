@@ -240,6 +240,7 @@ const gameViewHostBridge: DesktopGameViewHostBridge = {
   setGroupTargets: (ids) => invoke(GameViewsIpc.setGroupTargets, { ids }),
   setLayout: (layout) => invoke(GameViewsIpc.setLayout, { layout }),
   setTabMenuOpen: (open) => invoke(GameViewsIpc.setTabMenuOpen, { open }),
+  syncTabBarLayout: () => invoke(GameViewsIpc.syncTabBarLayout, undefined),
 };
 
 const gameViewBridge: DesktopGameViewBridge = {

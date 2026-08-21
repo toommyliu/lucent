@@ -5,6 +5,10 @@ import { ScriptFileSchema } from "@lucent/core/scriptInputs";
 export const MAX_GAME_VIEWS_PER_WINDOW = 7;
 export const GAME_VIEW_TAB_BAR_HEIGHT = 30;
 
+/** Returns the native tab-strip height required for a renderer zoom factor. */
+export const scaledGameViewTabBarHeight = (zoomFactor: number): number =>
+  Math.max(1, Math.ceil(GAME_VIEW_TAB_BAR_HEIGHT * zoomFactor));
+
 /** Returns the transient label for an unnamed view at a tab position. */
 export const gameViewFallbackName = (index: number): string =>
   `Tab ${index + 1}`;

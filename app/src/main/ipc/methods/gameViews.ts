@@ -118,6 +118,17 @@ export const setTabMenuOpen = makeDesktopIpcMethod({
   ),
 });
 
+export const syncTabBarLayout = makeDesktopIpcMethod({
+  descriptor: GameViewsIpc.syncTabBarLayout,
+  allowedSenders: gameHostSenders,
+  handler: Effect.fn("desktop.ipc.gameViews.syncTabBarLayout")(
+    function* (_payload, sender) {
+      const windows = yield* DesktopWindows;
+      return yield* windows.syncGameViewTabBarLayout(sender.rendererId);
+    },
+  ),
+});
+
 export const setGroupTargets = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.setGroupTargets,
   allowedSenders: hostSenders,
@@ -273,6 +284,7 @@ export const methods = [
   setGroupTargets,
   setGroupControlsOpen,
   setTabMenuOpen,
+  syncTabBarLayout,
   dispatchGroupCommand,
   getPresentation,
   activate,
