@@ -216,6 +216,7 @@ body {
 
 .game-view-tab__shortcut--visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .game-view-tab:hover .game-view-tab__shortcut--visible,
