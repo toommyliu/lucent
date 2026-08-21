@@ -20,6 +20,7 @@ import {
   Button,
   type ButtonProps,
   Card,
+  CardFrame,
   Checkbox,
   Combobox,
   ComboboxContent,
@@ -58,6 +59,13 @@ import {
   MenuSeparator,
   MenuTrigger,
   Spinner,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Tabs,
   TabsContent,
   TabsList,
@@ -4317,182 +4325,176 @@ export function AccountManagerView(
                 </Empty>
               }
             >
-              <div class="account-manager__sessions-table-frame">
-                <div class="account-manager__sessions-table-viewport">
-                  <table class="account-manager__sessions-table">
-                    <caption class="visually-hidden">
-                      Active game sessions grouped by game window
-                    </caption>
-                    <thead
-                      class="account-manager__sessions-table-head"
-                      style={{
-                        "padding-inline-end": `${sessionsTableScrollbar.gutterWidth()}px`,
-                      }}
-                    >
-                      <tr>
-                        <th scope="col">Account</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Script</th>
-                        <th aria-label="Session actions" scope="col" />
-                      </tr>
-                    </thead>
-                    <tbody
-                      class="account-manager__sessions-table-body"
-                      ref={sessionsTableScrollbar.ref}
-                    >
-                      <For each={activeWindowSessionGroups()}>
-                        {(group) => (
-                          <>
-                            <Show when={group.shared}>
-                              <tr class="account-manager__session-group-heading">
-                                <th colSpan={4}>
-                                  <span>
-                                    {group.sessions.length}{" "}
-                                    {pluralize(
-                                      group.sessions.length,
-                                      "game session",
-                                    )}{" "}
-                                    in this window
-                                  </span>
-                                </th>
-                              </tr>
-                            </Show>
-                            <Index each={group.sessions}>
-                              {(session) => {
-                                const gameWindowId = () =>
-                                  session().gameWindowId;
-                                const isClosing = () =>
-                                  closingGameWindowIds().has(gameWindowId());
-                                const identity = () =>
-                                  activeWindowAccountIdentity(session());
-                                const detailMessage = () =>
-                                  activeWindowDetailMessage(session());
-                                const status = () =>
-                                  activeWindowStatus(session());
-                                const scriptName = () =>
-                                  activeWindowScriptName(session());
+              <CardFrame class="account-manager__sessions-table-frame">
+                <Table class="account-manager__sessions-table" variant="card">
+                  <TableCaption class="visually-hidden">
+                    Active game sessions grouped by game window
+                  </TableCaption>
+                  <TableHeader
+                    class="account-manager__sessions-table-head"
+                    style={{
+                      "padding-inline-end": `${sessionsTableScrollbar.gutterWidth()}px`,
+                    }}
+                  >
+                    <TableRow>
+                      <TableHead scope="col">Account</TableHead>
+                      <TableHead scope="col">Status</TableHead>
+                      <TableHead scope="col">Script</TableHead>
+                      <TableHead aria-label="Session actions" scope="col" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody
+                    class="account-manager__sessions-table-body"
+                    ref={sessionsTableScrollbar.ref}
+                  >
+                    <For each={activeWindowSessionGroups()}>
+                      {(group) => (
+                        <>
+                          <Show when={group.shared}>
+                            <TableRow class="account-manager__session-group-heading">
+                              <TableHead colSpan={4}>
+                                <span>
+                                  {group.sessions.length}{" "}
+                                  {pluralize(
+                                    group.sessions.length,
+                                    "game session",
+                                  )}{" "}
+                                  in this window
+                                </span>
+                              </TableHead>
+                            </TableRow>
+                          </Show>
+                          <Index each={group.sessions}>
+                            {(session) => {
+                              const gameWindowId = () => session().gameWindowId;
+                              const isClosing = () =>
+                                closingGameWindowIds().has(gameWindowId());
+                              const identity = () =>
+                                activeWindowAccountIdentity(session());
+                              const detailMessage = () =>
+                                activeWindowDetailMessage(session());
+                              const status = () =>
+                                activeWindowStatus(session());
+                              const scriptName = () =>
+                                activeWindowScriptName(session());
 
-                                return (
-                                  <tr
-                                    classList={{
-                                      "account-manager__session-row--closing":
-                                        isClosing(),
-                                    }}
-                                  >
-                                    <td>
-                                      <div class="account-manager__session-identity">
-                                        <OverflowText
-                                          as="strong"
-                                          text={identity().label}
-                                        />
-                                        <Show when={identity().username}>
-                                          {(username) => (
+                              return (
+                                <TableRow
+                                  classList={{
+                                    "account-manager__session-row--closing":
+                                      isClosing(),
+                                  }}
+                                >
+                                  <TableCell>
+                                    <div class="account-manager__session-identity">
+                                      <OverflowText
+                                        as="strong"
+                                        text={identity().label}
+                                      />
+                                      <Show when={identity().username}>
+                                        {(username) => (
+                                          <OverflowText
+                                            text={username()}
+                                            translate="no"
+                                          />
+                                        )}
+                                      </Show>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={status().variant}>
+                                      <OverflowText
+                                        class="account-manager__session-status-label"
+                                        text={status().label}
+                                      />
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div
+                                      classList={{
+                                        "account-manager__session-meta": true,
+                                        "account-manager__session-meta--with-detail":
+                                          detailMessage() !== undefined,
+                                      }}
+                                    >
+                                      <OverflowText
+                                        as="strong"
+                                        text={scriptName() ?? "No script"}
+                                        translate={
+                                          scriptName() === undefined
+                                            ? "yes"
+                                            : "no"
+                                        }
+                                      />
+                                      <Show when={detailMessage()}>
+                                        {(message) => (
+                                          <span class="account-manager__session-detail">
                                             <OverflowText
-                                              text={username()}
-                                              translate="no"
+                                              class="account-manager__session-detail-text"
+                                              text={message()}
                                             />
-                                          )}
-                                        </Show>
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <Badge
-                                        class="account-manager__session-status"
-                                        variant={status().variant}
+                                          </span>
+                                        )}
+                                      </Show>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div class="account-manager__session-actions">
+                                      <Button
+                                        aria-label={`Show ${identity().label} game window`}
+                                        disabled={isClosing()}
+                                        onClick={() =>
+                                          void handleFocusTrackedGameWindow(
+                                            session(),
+                                          )
+                                        }
+                                        size="sm"
+                                        type="button"
+                                        variant="secondary"
                                       >
-                                        <OverflowText
-                                          class="account-manager__session-status-label"
-                                          text={status().label}
+                                        <Icon
+                                          aria-hidden="true"
+                                          class="button__icon"
+                                          icon="monitor"
                                         />
-                                      </Badge>
-                                    </td>
-                                    <td>
-                                      <div
-                                        classList={{
-                                          "account-manager__session-meta": true,
-                                          "account-manager__session-meta--with-detail":
-                                            detailMessage() !== undefined,
-                                        }}
+                                        Show
+                                      </Button>
+                                      <Button
+                                        aria-label={
+                                          "Close " +
+                                          identity().label +
+                                          " game session"
+                                        }
+                                        disabled={busy() || isClosing()}
+                                        onClick={() =>
+                                          openSessionCloseDialog({
+                                            session: session(),
+                                            type: "single",
+                                          })
+                                        }
+                                        size="sm"
+                                        type="button"
+                                        variant="destructive-outline"
                                       >
-                                        <OverflowText
-                                          as="strong"
-                                          text={scriptName() ?? "No script"}
-                                          translate={
-                                            scriptName() === undefined
-                                              ? "yes"
-                                              : "no"
-                                          }
+                                        <Icon
+                                          aria-hidden="true"
+                                          class="button__icon"
+                                          icon="trash_2"
                                         />
-                                        <Show when={detailMessage()}>
-                                          {(message) => (
-                                            <span class="account-manager__session-detail">
-                                              <OverflowText
-                                                class="account-manager__session-detail-text"
-                                                text={message()}
-                                              />
-                                            </span>
-                                          )}
-                                        </Show>
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <div class="account-manager__session-actions">
-                                        <Button
-                                          aria-label={`Show ${identity().label} game window`}
-                                          disabled={isClosing()}
-                                          onClick={() =>
-                                            void handleFocusTrackedGameWindow(
-                                              session(),
-                                            )
-                                          }
-                                          size="sm"
-                                          type="button"
-                                          variant="secondary"
-                                        >
-                                          <Icon
-                                            aria-hidden="true"
-                                            class="button__icon"
-                                            icon="monitor"
-                                          />
-                                          Show
-                                        </Button>
-                                        <Button
-                                          aria-label={
-                                            "Close " +
-                                            identity().label +
-                                            " game session"
-                                          }
-                                          disabled={busy() || isClosing()}
-                                          onClick={() =>
-                                            openSessionCloseDialog({
-                                              session: session(),
-                                              type: "single",
-                                            })
-                                          }
-                                          size="sm"
-                                          type="button"
-                                          variant="destructive-outline"
-                                        >
-                                          <Icon
-                                            aria-hidden="true"
-                                            class="button__icon"
-                                            icon="trash_2"
-                                          />
-                                          Close
-                                        </Button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              }}
-                            </Index>
-                          </>
-                        )}
-                      </For>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                                        Close
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            }}
+                          </Index>
+                        </>
+                      )}
+                    </For>
+                  </TableBody>
+                </Table>
+              </CardFrame>
             </Show>
           </section>
         </TabsContent>
