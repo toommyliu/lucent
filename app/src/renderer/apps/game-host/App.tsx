@@ -966,6 +966,16 @@ export function App(): JSX.Element {
                             <span class="game-view-tab__label">
                               {session.name}
                             </span>
+                            <kbd
+                              aria-hidden="true"
+                              class="game-view-tab__shortcut"
+                              classList={{
+                                "game-view-tab__shortcut--visible":
+                                  shortcutHintsVisible(),
+                              }}
+                            >
+                              {index() + 1}
+                            </kbd>
                           </button>
                         )}
                       />
@@ -975,16 +985,6 @@ export function App(): JSX.Element {
                           : session.name}
                       </TooltipContent>
                     </Tooltip>
-                    <kbd
-                      aria-hidden="true"
-                      class="game-view-tab__shortcut"
-                      classList={{
-                        "game-view-tab__shortcut--visible":
-                          shortcutHintsVisible(),
-                      }}
-                    >
-                      {index() + 1}
-                    </kbd>
                     <button
                       aria-label={`Close ${session.name}`}
                       class="game-view-tab__close"
@@ -993,7 +993,7 @@ export function App(): JSX.Element {
                       tabIndex={-1}
                       type="button"
                     >
-                      <Icon aria-hidden="true" icon="x" size="sm" />
+                      <Icon aria-hidden="true" icon="x" size="xs" />
                     </button>
                   </div>
                 );
