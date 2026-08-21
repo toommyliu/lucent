@@ -90,26 +90,18 @@ const setCombatProfileTarget = (
   monsterMapId: number,
 ): Effect.Effect<void> => Ref.set(tracker.monsterMapId, monsterMapId);
 
-const clearCombatProfileTargetIfCurrent = (
-  tracker: CombatProfileTargetTracker,
-  monsterMapId: number,
-): Effect.Effect<void> =>
-  Ref.update(tracker.monsterMapId, (current) =>
-    current === monsterMapId ? null : current,
-  );
-
 export const trackCombatProfileAttack = Effect.fn("trackCombatProfileAttack")(
   function* <E, R>(
     tracker: CombatProfileTargetTracker,
     monsterMapId: number,
     attack: Effect.Effect<boolean, E, R>,
   ): Effect.fn.Return<boolean, E, R> {
-    yield* setCombatProfileTarget(tracker, monsterMapId);
+    yield* Ref.set(tracker.monsterMapId, null);
     return yield* attack.pipe(
       Effect.onExit((exit) =>
         Exit.isSuccess(exit) && exit.value
-          ? Effect.void
-          : clearCombatProfileTargetIfCurrent(tracker, monsterMapId),
+          ? setCombatProfileTarget(tracker, monsterMapId)
+          : Effect.void,
       ),
     );
   },
