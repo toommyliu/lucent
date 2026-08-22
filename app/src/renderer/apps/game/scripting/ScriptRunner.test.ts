@@ -58,7 +58,7 @@ describe("ScriptRunner", () => {
     expect(
       classifyScriptTermination(Cause.fail(makeScriptExitSignal())),
     ).toEqual({
-      exitRequest: { closeWindow: false, logout: false },
+      exitRequest: { closeClient: false, logout: false },
       kind: "script-exited",
       reason: "Requested by the script",
     });
@@ -67,10 +67,10 @@ describe("ScriptRunner", () => {
   it("classifies action-bearing script.exit()", () => {
     expect(
       classifyScriptTermination(
-        Cause.fail(makeScriptExitSignal({ closeWindow: true, logout: true })),
+        Cause.fail(makeScriptExitSignal({ closeClient: true, logout: true })),
       ),
     ).toEqual({
-      exitRequest: { closeWindow: true, logout: true },
+      exitRequest: { closeClient: true, logout: true },
       kind: "script-exited",
       reason: "Requested by the script",
     });

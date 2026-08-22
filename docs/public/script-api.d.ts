@@ -208,11 +208,20 @@ interface ScriptRuntimeApi {
     beep(/** @defaultValue 1 */ times?: number): Effect<void, ScriptExecutionError>;
     readonly inputs: ScriptInputsApi;
     readonly options: ScriptOptionsApi;
-  /** @param options Exit actions. */
-    exit(/** @defaultValue { closeWindow: false, logout: false } */ options?: { readonly closeWindow?: boolean; readonly logout?: boolean; }): Effect<never, ScriptStopSignal>;
+  /**
+  * Exits the current script and prevents later queued scripts from running.
+  * Use this as an explicit escape hatch.
+  *
+  * @param options Exit actions.
+  */
+    exit(/** @defaultValue { closeClient: false, logout: false } */ options?: ScriptExitOptions): Effect<never, ScriptStopSignal>;
     log(message: unknown): Effect<void, never>;
     sleep(ms: number): Effect<void, ScriptExecutionError>;
-  /** @param reason Stop message. */
+  /**
+  * Stops the current script. If it is part of a queue, the next script runs.
+  *
+  * @param reason Stop message.
+  */
     stop(/** @defaultValue "Script stopped." */ reason?: string): Effect<never, ScriptStopSignal>;
 }
 interface ScriptAutoReloginApi {
@@ -976,6 +985,11 @@ type ScriptEventSelectorForType<T extends ScriptEventType> =
     readonly type: T;
   };
 type ScriptEventType = ScriptEvent["type"];
+interface ScriptExitOptions {
+  /** Closes this game client. In a tabbed window, closes only its tab. */
+  readonly closeClient?: boolean;
+  readonly logout?: boolean;
+}
 interface ScriptPlayerPosition {
   readonly x: number;
   readonly y: number;

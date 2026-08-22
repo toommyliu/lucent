@@ -245,6 +245,11 @@ const gameViewHostBridge: DesktopGameViewHostBridge = {
 
 const gameViewBridge: DesktopGameViewBridge = {
   activate: () => invoke(GameViewsIpc.activate, undefined),
+  close: () => {
+    void invoke(GameViewsIpc.closeCurrent, undefined).catch((cause) => {
+      console.error("Failed to close the current game client.", cause);
+    });
+  },
   getPresentation: () => invoke(GameViewsIpc.getPresentation, undefined),
   initialLayout: initialGameViewLayout,
   onGroupCommand: (listener) => subscribe(GameViewsIpc.groupCommand, listener),

@@ -42,6 +42,12 @@ export const GameViewsIpc = {
     payload: SessionIdPayloadSchema,
     result: Schema.Void,
   }),
+  closeCurrent: defineInvoke({
+    channel: `${namespace}:close-current`,
+    name: "gameViews.closeCurrent",
+    payload: Schema.Void,
+    result: Schema.Void,
+  }),
   reorder: defineInvoke({
     channel: `${namespace}:reorder`,
     name: "gameViews.reorder",

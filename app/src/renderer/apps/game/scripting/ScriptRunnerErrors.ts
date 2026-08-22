@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema";
 
+import type { ScriptExitOptions } from "./ScriptApi";
+
 export class ScriptExecutionError extends Schema.TaggedErrorClass<ScriptExecutionError>()(
   "ScriptExecutionError",
   {
@@ -36,19 +38,18 @@ export class ScriptStopSignal extends Schema.TaggedErrorClass<ScriptStopSignal>(
 }
 
 export interface ScriptExitRequest {
-  readonly closeWindow: boolean;
+  readonly closeClient: boolean;
   readonly logout: boolean;
 }
 
 const scriptExitRequests = new WeakMap<ScriptStopSignal, ScriptExitRequest>();
 
-export const makeScriptExitSignal = (options?: {
-  readonly closeWindow?: boolean;
-  readonly logout?: boolean;
-}): ScriptStopSignal => {
+export const makeScriptExitSignal = (
+  options?: ScriptExitOptions,
+): ScriptStopSignal => {
   const signal = new ScriptStopSignal({ reason: "Requested by the script" });
   const request: ScriptExitRequest = {
-    closeWindow: options?.closeWindow === true,
+    closeClient: options?.closeClient === true,
     logout: options?.logout === true,
   };
   // Keep an explicit marker even when no actions were requested. The runner
