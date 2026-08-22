@@ -175,7 +175,7 @@ export const makeAutoZone = Effect.fnUntraced(function* (
   });
   const move = (destination: Target) =>
     destination.kind === "point"
-      ? api.player.walkTo(destination.x, destination.y)
+      ? api.player.walkTo(destination)
       : Effect.all({
           x: Random.nextIntBetween(
             destination.range[0][0],
@@ -186,7 +186,7 @@ export const makeAutoZone = Effect.fnUntraced(function* (
             destination.range[1][1],
           ),
         }).pipe(
-          Effect.flatMap(({ x, y }) => api.player.walkTo(x, y)),
+          Effect.flatMap((position) => api.player.walkTo(position)),
           Effect.asVoid,
         );
 

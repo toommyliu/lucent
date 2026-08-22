@@ -612,10 +612,7 @@ export const makeFollower = Effect.fnUntraced(function* (
       }
 
       yield* setPhase(runId, "walking");
-      const completed = yield* api.player.walkTo(
-        pending.position.x,
-        pending.position.y,
-      );
+      const completed = yield* api.player.walkTo(pending.position);
       if (completed) {
         yield* completeTargetWalk(pending.revision);
       }

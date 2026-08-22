@@ -1,5 +1,5 @@
 import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
-import type { BoostType, ItemQuery, LiveItem } from "@lucent/game";
+import type { BoostType, ItemQuery, LiveItem, Position } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -70,6 +70,11 @@ const toFaction = (payload: typeof FactionPayload.Type): LiveFaction =>
 
 const equippedItemId = (value: number | undefined): number | undefined =>
   value === undefined || value === 0 ? undefined : value;
+
+export interface WalkToOptions {
+  /** Movement speed override. */
+  readonly speed?: number;
+}
 
 const toOutfit = (payload: typeof OutfitPayload.Type): LiveOutfit =>
   new LiveOutfit({
@@ -482,11 +487,12 @@ export const makePlayer = (
 
   const useBoost = (selector: ItemQuery) => inventory.use(selector);
 
-  const walkTo = (x: number, y: number, speed?: number) =>
+  const walkTo = (position: Position, options?: WalkToOptions) =>
     Effect.gen(function* () {
       if (!(yield* isAlive())) return false;
-      const targetX = Math.trunc(x);
-      const targetY = Math.trunc(y);
+      const targetX = Math.trunc(position.x);
+      const targetY = Math.trunc(position.y);
+      const speed = options?.speed;
       const args: Parameters<Window["swf"]["player.walkTo"]> =
         speed === undefined ? [targetX, targetY] : [targetX, targetY, speed];
       const started = yield* bridge

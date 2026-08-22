@@ -4,6 +4,7 @@ import * as FiberMap from "effect/FiberMap";
 import * as Ref from "effect/Ref";
 import * as TestClock from "effect/testing/TestClock";
 
+import type { Position } from "@lucent/game";
 import type { ApiService } from "../flash/api/Api";
 import type { Event, EventSelector } from "../flash/contract/Event";
 import { makeAutoZone } from "./AutoZone";
@@ -30,8 +31,8 @@ describe("AutoZone", () => {
           map: { getName: () => Effect.succeed("queeniona") },
           player: {
             auras: { get: () => Effect.succeed({}) },
-            walkTo: (x: number, y: number) =>
-              Ref.update(positions, (current) => [...current, { x, y }]).pipe(
+            walkTo: (position: Position) =>
+              Ref.update(positions, (current) => [...current, position]).pipe(
                 Effect.as(true),
               ),
           },
