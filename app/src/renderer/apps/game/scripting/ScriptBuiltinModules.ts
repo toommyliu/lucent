@@ -41,6 +41,31 @@ export interface ScriptBuiltinModulesOptions {
   readonly services: ScriptRuntimeServices;
 }
 
+const makeScriptAutoReloginApi = (
+  api: ScriptAutoReloginApi,
+): ScriptAutoReloginApi =>
+  Object.freeze({
+    disable: api.disable,
+    enable: api.enable,
+    getDelay: api.getDelay,
+    getServer: api.getServer,
+    getState: api.getState,
+    isEnabled: api.isEnabled,
+    runLogin: api.runLogin,
+    setDelay: api.setDelay,
+    setEnabled: api.setEnabled,
+    setServer: api.setServer,
+  });
+
+const makeScriptAutoZoneApi = (api: ScriptAutoZoneApi): ScriptAutoZoneApi =>
+  Object.freeze({
+    getMap: api.getMap,
+    getState: api.getState,
+    isEnabled: api.isEnabled,
+    setEnabled: api.setEnabled,
+    setMap: api.setMap,
+  });
+
 /** Creates the frozen built-in module registry for one script execution. */
 export const makeScriptBuiltinModules = (
   options: ScriptBuiltinModulesOptions,
@@ -82,8 +107,8 @@ export const makeScriptBuiltinModules = (
       recipes,
       settings,
     }),
-    "lucent/autorelogin": options.autoRelogin,
-    "lucent/autozone": options.autoZone,
+    "lucent/autorelogin": makeScriptAutoReloginApi(options.autoRelogin),
+    "lucent/autozone": makeScriptAutoZoneApi(options.autoZone),
     "lucent/script": options.script,
   });
 };
