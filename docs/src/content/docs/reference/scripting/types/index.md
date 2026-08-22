@@ -81,7 +81,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/live-entity/"><code>LiveEntity</code></a> | class |  |
 | <a href="/reference/scripting/types/live-faction/"><code>LiveFaction</code></a> | class |  |
 | <a href="/reference/scripting/types/live-item/"><code>LiveItem</code></a> | class |  |
-| <a href="/reference/scripting/types/live-model/"><code>LiveModel</code></a> | class |  |
 | <a href="/reference/scripting/types/live-monster/"><code>LiveMonster</code></a> | class |  |
 | <a href="/reference/scripting/types/live-outfit/"><code>LiveOutfit</code></a> | class |  |
 | <a href="/reference/scripting/types/live-player/"><code>LivePlayer</code></a> | class |  |
