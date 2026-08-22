@@ -248,7 +248,7 @@ interface ScriptArmyApi {
     isLeader(): Effect<boolean, never>;
     isMember(): Effect<boolean, never>;
     isStarted(): Effect<boolean, never>;
-    joinMap(map: string, cell?: string, pad?: string): Effect<void, ArmyError>;
+    joinMap(map: string, options?: CellPositionOptions): Effect<void, ArmyError>;
     kill(target: MonsterQuery, options?: CombatKillOptions): Effect<void, ArmyError>;
   /** @param quantity The minimum quantity to collect. */
     killForItem(target: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
@@ -417,12 +417,8 @@ interface ScriptMapApi {
     isLoaded(): Effect<boolean, never>;
     loadSwf(swf: string): Effect<void, never>;
     reload(): Effect<void, never>;
-  /**
-  * @param cell Spawn cell.
-  * @param pad Spawn pad.
-  * @returns
-  */
-    setSpawnPoint(/** @defaultValue current cell */ cell?: string, /** @defaultValue current pad */ pad?: string): Effect<void, never>;
+  /** Sets the spawn point, using the current cell or pad when omitted. */
+    setSpawnPoint(options?: CellPositionOptions): Effect<void, never>;
 }
 interface ScriptMonstersApi {
     get(query: MonsterQuery): Effect<LiveMonster | null, never>;
@@ -480,7 +476,7 @@ interface ScriptPlayerApi {
   * Use before actions that require a fully loaded player.
   */
     isReady(): Effect<boolean, never>;
-    joinMap(target: string, cell?: string, pad?: string): Effect<boolean, never>;
+    joinMap(target: string, options?: CellPositionOptions): Effect<boolean, never>;
     jumpToCell(cell: string, pad?: string): Effect<boolean, never>;
     readonly outfits: ScriptPlayerOutfitsApi;
   /** @param full Whether to perform a full rest. */
@@ -669,6 +665,12 @@ interface BankOpenOptions {
 }
 type BankView = "house" | "regular";
 type BoostType = "classPoints" | "exp" | "gold" | "rep";
+interface CellPositionOptions {
+  /** Destination cell. */
+  readonly cell?: string;
+  /** Destination pad. */
+  readonly pad?: string;
+}
 interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfileDefinition;

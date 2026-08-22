@@ -64,6 +64,7 @@ import type {
   SkillUseOptions,
 } from "../flash/api/Combat";
 import type { EquipOptions } from "../flash/api/Inventory";
+import type { CellPositionOptions } from "../flash/api/Map";
 import type {
   EventSelector,
   ProjectionEvent,
@@ -139,8 +140,7 @@ export interface ScriptArmyApi {
   readonly isStarted: () => Effect.Effect<boolean>;
   readonly joinMap: (
     map: string,
-    cell?: string,
-    pad?: string,
+    options?: CellPositionOptions,
   ) => Effect.Effect<void, ArmyError>;
   readonly kill: (
     target: MonsterQuery,
@@ -510,16 +510,9 @@ export interface ScriptMapApi {
   readonly isLoaded: () => Effect.Effect<boolean>;
   readonly loadSwf: (swf: string) => Effect.Effect<void>;
   readonly reload: () => Effect.Effect<void>;
-  /**
-   * @param cell Spawn cell.
-   * @param pad Spawn pad.
-   * @returns
-   */
+  /** Sets the spawn point, using the current cell or pad when omitted. */
   readonly setSpawnPoint: (
-    /** @defaultValue current cell */
-    cell?: string,
-    /** @defaultValue current pad */
-    pad?: string,
+    options?: CellPositionOptions,
   ) => Effect.Effect<void>;
 }
 
@@ -635,8 +628,7 @@ export interface ScriptPlayerApi {
   readonly isReady: () => Effect.Effect<boolean>;
   readonly joinMap: (
     target: string,
-    cell?: string,
-    pad?: string,
+    options?: CellPositionOptions,
   ) => Effect.Effect<boolean>;
   readonly jumpToCell: (cell: string, pad?: string) => Effect.Effect<boolean>;
   readonly outfits: ScriptPlayerOutfitsApi;
