@@ -633,7 +633,7 @@ export function App(): JSX.Element {
                     class="group-controls__rendering-label"
                     id="group-controls-rendering"
                   >
-                    Rendering
+                    Rendering mode
                   </span>
                   <div
                     aria-labelledby="group-controls-rendering"
