@@ -274,8 +274,8 @@ const toScriptProfileDefinition = (
     ...(profile.consumable === undefined
       ? {}
       : { consumable: profile.consumable }),
-    ...(profile.resetSkillIndexOnMonsterDeath === true
-      ? { resetSkillIndexOnMonsterDeath: true }
+    ...(profile.resetSkillIndexOnTargetDeath === true
+      ? { resetSkillIndexOnTargetDeath: true }
       : {}),
     steps: profile.steps.map(toScriptProfileStep),
     ...(messageTriggers === undefined ? {} : { messageTriggers }),
@@ -325,7 +325,7 @@ export function CombatProfilesView(
   );
   const [cooldownMode, setCooldownMode] =
     createSignal<CombatProfileCooldownMode>("use-if-ready");
-  const [resetSkillIndexOnMonsterDeath, setResetSkillIndexOnMonsterDeath] =
+  const [resetSkillIndexOnTargetDeath, setResetSkillIndexOnTargetDeath] =
     createSignal(false);
   const [draftSteps, setDraftSteps] = createSignal<
     readonly CombatProfileStep[]
@@ -390,8 +390,8 @@ export function CombatProfilesView(
     setRole(profile.role);
     setDelayMs(String(profile.delayMs));
     setCooldownMode(profile.cooldownMode);
-    setResetSkillIndexOnMonsterDeath(
-      profile.resetSkillIndexOnMonsterDeath === true,
+    setResetSkillIndexOnTargetDeath(
+      profile.resetSkillIndexOnTargetDeath === true,
     );
     setDraftSteps(profile.steps.map((step) => Object.assign({}, step)));
     setDraftMessageTriggers(
@@ -492,8 +492,8 @@ export function CombatProfilesView(
       role: profile.role,
       delayMs: profile.delayMs,
       cooldownMode: selectedCooldownMode,
-      ...(resetSkillIndexOnMonsterDeath()
-        ? { resetSkillIndexOnMonsterDeath: true }
+      ...(resetSkillIndexOnTargetDeath()
+        ? { resetSkillIndexOnTargetDeath: true }
         : {}),
       steps: draftSteps().map((step) => {
         if (step.cooldownMode === selectedCooldownMode) {
@@ -1046,20 +1046,20 @@ export function CombatProfilesView(
                   </Label>
                   <div class="combat-profiles-checkbox-field">
                     <Checkbox
-                      checked={resetSkillIndexOnMonsterDeath()}
+                      checked={resetSkillIndexOnTargetDeath()}
                       onChange={(event) =>
-                        setResetSkillIndexOnMonsterDeath(
+                        setResetSkillIndexOnTargetDeath(
                           event.currentTarget.checked,
                         )
                       }
                     >
-                      Reset rotation on monster death
+                      Reset rotation on target death
                     </Checkbox>
                     <TooltipIconButton
-                      aria-label="Reset rotation on monster death help"
+                      aria-label="Reset rotation on target death help"
                       class="combat-profiles-help-button"
                       size="icon-sm"
-                      tooltip="Start the rotation from the first matching skill after a monster death."
+                      tooltip="Restart at the first matching skill when the active target dies."
                     >
                       <Icon icon="help_circle" class="button__icon" />
                     </TooltipIconButton>

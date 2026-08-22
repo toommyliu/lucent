@@ -6,7 +6,6 @@ import {
 import type { ItemQuery, MonsterQuery } from "@lucent/game";
 import {
   normalizeCombatProfile,
-  type CombatProfile,
   type CombatProfileDefinition,
 } from "@lucent/core/combatProfiles";
 import * as Clock from "effect/Clock";
@@ -18,16 +17,10 @@ import * as Semaphore from "effect/Semaphore";
 import type * as Duration from "effect/Duration";
 
 import {
-  castCombatProfileMessageTriggers,
-  castNextCombatProfileStep,
-  makeCombatProfileCursor,
-  makeCombatProfileMessageTriggerState,
-  makeCombatProfileRuntimeDeps,
-  resetCombatProfileCursor,
-  type CombatProfileCursor,
-  type CombatProfileMessageTriggerState,
-  type CombatProfileRuntimeDeps,
-} from "../../combatProfiles";
+  makeCombatProfileSession,
+  type CombatProfileSession,
+} from "../../combatProfileSession";
+import { makeCombatProfileRuntimeDeps } from "../../combatProfiles";
 import type { BridgeService } from "../bridge/Bridge";
 import {
   NonNegativeWireInt,
@@ -139,14 +132,6 @@ const normalizeSkillDelay = (delay: number | undefined): number =>
   delay === undefined || !Number.isFinite(delay)
     ? 150
     : Math.max(0, Math.trunc(delay));
-
-interface KillProfileRuntime {
-  readonly cursor: CombatProfileCursor;
-  readonly dependencies: CombatProfileRuntimeDeps;
-  readonly messageState: CombatProfileMessageTriggerState;
-  readonly profile: CombatProfile;
-  readonly releaseConsumable: Effect.Effect<void>;
-}
 
 export const makeCombat = (
   bridge: BridgeService,
@@ -469,48 +454,70 @@ export const makeCombat = (
     definition: CombatProfileDefinition | undefined,
   ) => {
     if (definition === undefined) {
-      return Effect.succeed<KillProfileRuntime | null>(null);
+      return Effect.succeed<CombatProfileSession | null>(null);
     }
 
     const profile = normalizeCombatProfile(definition);
     return Effect.gen(function* () {
-      const prepared = yield* prepareCombatProfileConsumable(profile);
-      if (prepared.warning !== undefined) {
+      const session = yield* makeCombatProfileSession(
+        {
+          attackMonster,
+          getAvailableMonsters: monsters.getAvailable,
+          isAttackBlocked: antiCounterActive,
+          isPlayerAlive: player.isAlive,
+          onMessage: (handler) =>
+            events.on({ type: "update-message" }, (event) =>
+              handler({
+                message: event.message,
+                ...(event.monsterMapId === undefined
+                  ? {}
+                  : { monMapId: event.monsterMapId }),
+                source: event.source,
+              }),
+            ),
+          onMonsterDeath: (handler) =>
+            events.on({ type: "monster-death" }, (event) =>
+              handler(event.monsterMapId),
+            ),
+          prepare: (sessionProfile) =>
+            Effect.gen(function* () {
+              const prepared =
+                yield* prepareCombatProfileConsumable(sessionProfile);
+              return {
+                dependencies: makeCombatProfileRuntimeDeps(
+                  {
+                    canUseSkill,
+                    getConsumableSkillItem,
+                    target,
+                    useSkill,
+                  },
+                  player,
+                  players,
+                  prepared.skill5ItemId,
+                ),
+                release: prepared.release,
+                ...(prepared.warning === undefined
+                  ? {}
+                  : { warning: prepared.warning }),
+              };
+            }),
+        },
+        { profile },
+      );
+      if (session.warning !== undefined) {
         yield* Effect.logWarning({
-          message: prepared.warning,
+          message: session.warning,
           profile: profile.label,
         });
       }
-
-      const dependencies = makeCombatProfileRuntimeDeps(
-        {
-          canUseSkill,
-          getConsumableSkillItem,
-          target,
-          useSkill,
-        },
-        player,
-        players,
-        prepared.skill5ItemId,
-      );
-      const { cursor, messageState } = yield* Effect.all({
-        cursor: makeCombatProfileCursor(),
-        messageState: makeCombatProfileMessageTriggerState(),
-      });
-      return {
-        cursor,
-        dependencies,
-        messageState,
-        profile,
-        releaseConsumable: prepared.release,
-      } satisfies KillProfileRuntime;
+      return session;
     });
   };
 
   const fight = (
     selector: MonsterQuery,
     options: CombatKillOptions | undefined,
-    runtime: KillProfileRuntime | null,
+    runtime: CombatProfileSession | null,
   ) => {
     const skills = normalizeSkillSet(options?.skillSet);
     const skillDelay = normalizeSkillDelay(options?.skillDelay);
@@ -530,6 +537,20 @@ export const makeCombat = (
 
     return Effect.forever(
       Effect.gen(function* () {
+        if (runtime !== null) {
+          const result = yield* runtime
+            .runCycle({
+              allowTargetFallback: false,
+              targetPriority: attackOrder,
+            })
+            .pipe(Effect.orDie);
+          if (result.kind === "no-target") {
+            yield* stopCombat;
+          }
+          yield* Effect.sleep(result.delayMs);
+          return;
+        }
+
         if (!(yield* player.isAlive())) {
           yield* Effect.sleep("250 millis");
           return;
@@ -546,18 +567,6 @@ export const makeCombat = (
           return;
         }
 
-        if (runtime !== null) {
-          const cast = yield* castNextCombatProfileStep(
-            runtime.dependencies,
-            runtime.profile,
-            runtime.cursor,
-          );
-          yield* Effect.sleep(
-            cast ? Math.max(50, runtime.profile.delayMs) : 250,
-          );
-          return;
-        }
-
         for (const skill of skills) {
           yield* useSkill(skill);
           yield* Effect.sleep(skillDelay);
@@ -569,7 +578,7 @@ export const makeCombat = (
   const killWithRuntime = (
     selector: MonsterQuery,
     options: CombatKillOptions | undefined,
-    runtime: KillProfileRuntime | null,
+    runtime: CombatProfileSession | null,
   ) =>
     Effect.gen(function* () {
       const available = yield* monsters.getAvailable();
@@ -592,56 +601,12 @@ export const makeCombat = (
       return death !== null;
     });
 
-  const withProfileEvents = <A>(
-    runtime: KillProfileRuntime | null,
-    effect: Effect.Effect<A>,
-  ) => {
-    if (runtime === null) return effect;
-
-    const subscriptions: Effect.Effect<() => void>[] = [];
-    if ((runtime.profile.messageTriggers?.length ?? 0) > 0) {
-      subscriptions.push(
-        events.on({ type: "update-message" }, (event) => {
-          return castCombatProfileMessageTriggers(
-            runtime.dependencies,
-            runtime.profile,
-            {
-              message: event.message,
-              ...(event.monsterMapId === undefined
-                ? {}
-                : { monMapId: event.monsterMapId }),
-              source: event.source,
-            },
-            runtime.messageState,
-          );
-        }),
-      );
-    }
-    if (runtime.profile.resetSkillIndexOnMonsterDeath === true) {
-      subscriptions.push(
-        events.on({ type: "monster-death" }, () =>
-          resetCombatProfileCursor(runtime.cursor),
-        ),
-      );
-    }
-    if (subscriptions.length === 0) return effect;
-
-    return Effect.acquireUseRelease(
-      Effect.all(subscriptions),
-      () => effect,
-      (disposers) =>
-        Effect.sync(() => {
-          for (const dispose of disposers) dispose();
-        }),
-    );
-  };
-
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>
-    Effect.acquireUseRelease(
-      makeKillProfileRuntime(options?.profile),
-      (runtime) =>
-        withProfileEvents(runtime, killWithRuntime(selector, options, runtime)),
-      (runtime) => runtime?.releaseConsumable ?? Effect.void,
+    Effect.scoped(
+      Effect.gen(function* () {
+        const runtime = yield* makeKillProfileRuntime(options?.profile);
+        return yield* killWithRuntime(selector, options, runtime);
+      }),
     ).pipe(Effect.ensuring(stopCombat));
 
   const killFor = (
@@ -652,9 +617,9 @@ export const makeCombat = (
     options?: CombatKillOptions,
   ) => {
     const wanted = Math.max(1, Math.trunc(requested ?? 1));
-    return Effect.acquireUseRelease(
-      makeKillProfileRuntime(options?.profile),
-      (runtime) => {
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const runtime = yield* makeKillProfileRuntime(options?.profile);
         const loop = Effect.gen(function* () {
           while (true) {
             if (yield* source.contains(item, wanted)) return true;
@@ -667,10 +632,8 @@ export const makeCombat = (
             }
           }
         });
-
-        return withProfileEvents(runtime, loop);
-      },
-      (runtime) => runtime?.releaseConsumable ?? Effect.void,
+        return yield* loop;
+      }),
     ).pipe(Effect.ensuring(stopCombat));
   };
 
@@ -796,6 +759,7 @@ export const makeCombat = (
     getConsumableSkillItem,
     getSkillCooldownRemaining,
     hunt,
+    isAttackBlocked: antiCounterActive,
     kill,
     killForItem,
     killForTempItem,

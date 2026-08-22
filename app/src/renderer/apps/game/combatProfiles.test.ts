@@ -205,6 +205,7 @@ describe("combat profile runtime", () => {
         const casts: number[] = [];
         const castOptions: unknown[] = [];
         const cursor = yield* makeCombatProfileCursor();
+        const target = { getAura: () => null, monsterMapId: 7 };
         const priorityProfile: CombatProfile = {
           ...profile,
           steps: [
@@ -245,10 +246,15 @@ describe("combat profile runtime", () => {
         };
 
         expect(
-          yield* castNextCombatProfileStep(deps, priorityProfile, cursor),
+          yield* castNextCombatProfileStep(
+            deps,
+            priorityProfile,
+            cursor,
+            target,
+          ),
         ).toBe(false);
         expect(casts).toEqual([1]);
-        expect(castOptions).toEqual([{ wait: true }]);
+        expect(castOptions).toEqual([{ target: 7, wait: true }]);
 
         hp = 100;
         laterPriorityReady = false;
@@ -368,8 +374,15 @@ describe("combat profile runtime", () => {
           { type: "target-aura", auraName: "Guard", op: ">=", value: 1 },
         ],
       };
+      const unguardedTarget = {
+        getAura: () => null,
+        monsterMapId: 8,
+      };
 
       expect(yield* matchesCombatProfileStep(deps, step)).toBe(true);
+      expect(yield* matchesCombatProfileStep(deps, step, unguardedTarget)).toBe(
+        false,
+      );
       expect(
         yield* matchesCombatProfileStep(
           {

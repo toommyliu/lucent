@@ -53,6 +53,7 @@ type EventHandler = (event: Event) => Effect.Effect<void, unknown>;
 const makeHarness = (options?: {
   readonly alive?: boolean;
   readonly attackMonster?: (monsterMapId: number) => Effect.Effect<boolean>;
+  readonly isAttackBlocked?: (monsterMapId: number) => boolean;
   readonly monsters?: readonly LiveMonster[];
   readonly preflightWarning?: string;
   readonly useSkill?: (skill: number) => Effect.Effect<boolean>;
@@ -75,6 +76,8 @@ const makeHarness = (options?: {
       },
       canUseSkill: () => Effect.succeed(true),
       getConsumableSkillItem: () => Effect.succeed(null),
+      isAttackBlocked: (monsterMapId: number) =>
+        Effect.succeed(options?.isAttackBlocked?.(monsterMapId) ?? false),
       prepareCombatProfileConsumable: () =>
         Effect.succeed(
           options?.preflightWarning === undefined
@@ -137,7 +140,7 @@ const makeHarness = (options?: {
 };
 
 describe("CombatProfileRunner", () => {
-  it("selects living priority targets before the first available fallback", () => {
+  it("selects by priority while retaining an equal-rank target", () => {
     const dead = makeMonster(3, "Dead", {
       hp: 0,
       state: EntityState.Dead,
@@ -146,7 +149,82 @@ describe("CombatProfileRunner", () => {
       selectCombatProfileTarget([dead, first, priority], ["Priority"]),
     ).toBe(priority);
     expect(selectCombatProfileTarget([dead, first, priority], [])).toBe(first);
+    expect(
+      selectCombatProfileTarget([first, priority], [], {
+        currentMonsterMapId: priority.monsterMapId,
+      }),
+    ).toBe(priority);
+    expect(
+      selectCombatProfileTarget([first, priority], ["Priority"], {
+        currentMonsterMapId: first.monsterMapId,
+      }),
+    ).toBe(priority);
   });
+
+  it.effect(
+    "does not abandon an equal-rank target when another monster respawns",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const harnessOptions: { monsters: readonly LiveMonster[] } = {
+            monsters: [first, priority],
+          };
+          const harness = makeHarness(harnessOptions);
+          const runner = yield* makeCombatProfileRunner(harness.api, {
+            profile,
+            targetPriority: [],
+          });
+
+          yield* runner.runCycle();
+          yield* harness.emit({
+            monsterMapId: first.monsterMapId,
+            type: "monster-death",
+          });
+          harnessOptions.monsters = [priority];
+          yield* runner.runCycle();
+          harnessOptions.monsters = [first, priority];
+          yield* runner.runCycle();
+
+          expect(harness.attacks).toEqual([
+            first.monsterMapId,
+            priority.monsterMapId,
+            priority.monsterMapId,
+          ]);
+        }),
+      ),
+  );
+
+  it.effect(
+    "skips Anti-Counter targets without switching back at equal rank",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const blocked = new Set<number>();
+          const harness = makeHarness({
+            isAttackBlocked: (monsterMapId) => blocked.has(monsterMapId),
+          });
+          const runner = yield* makeCombatProfileRunner(harness.api, {
+            profile,
+            targetPriority: [],
+          });
+
+          yield* runner.runCycle();
+          blocked.add(first.monsterMapId);
+          yield* runner.runCycle();
+          blocked.delete(first.monsterMapId);
+          yield* runner.runCycle();
+          blocked.add(first.monsterMapId);
+          blocked.add(priority.monsterMapId);
+
+          expect(yield* runner.runCycle()).toMatchObject({ kind: "no-target" });
+          expect(harness.attacks).toEqual([
+            first.monsterMapId,
+            priority.monsterMapId,
+            priority.monsterMapId,
+          ]);
+        }),
+      ),
+  );
 
   it.effect("gates dead players and returns the shared cycle delays", () =>
     Effect.scoped(
@@ -265,9 +343,12 @@ describe("CombatProfileRunner", () => {
       ),
   );
 
-  it.effect("resets rotations on death and disposes scoped listeners", () =>
+  it.effect("guards triggers and resets only on active-target death", () =>
     Effect.gen(function* () {
-      const harness = makeHarness();
+      const blocked = new Set<number>();
+      const harness = makeHarness({
+        isAttackBlocked: (monsterMapId) => blocked.has(monsterMapId),
+      });
       const eventProfile: CombatProfile = {
         ...profile,
         messageTriggers: [
@@ -277,7 +358,7 @@ describe("CombatProfileRunner", () => {
             source: "any",
           },
         ],
-        resetSkillIndexOnMonsterDeath: true,
+        resetSkillIndexOnTargetDeath: true,
       };
 
       yield* Effect.scoped(
@@ -289,6 +370,21 @@ describe("CombatProfileRunner", () => {
           expect(harness.handlerCount()).toBe(2);
 
           yield* runner.runCycle();
+          yield* harness.emit({ monsterMapId: 2, type: "monster-death" });
+          yield* runner.runCycle();
+          yield* harness.emit({
+            message: "Boss enrage",
+            monsterMapId: priority.monsterMapId,
+            source: "animation",
+            type: "update-message",
+          });
+          blocked.add(first.monsterMapId);
+          yield* harness.emit({
+            message: "Boss enrage",
+            source: "animation",
+            type: "update-message",
+          });
+          blocked.clear();
           yield* harness.emit({ monsterMapId: 1, type: "monster-death" });
           yield* runner.runCycle();
           yield* harness.emit({
@@ -297,7 +393,7 @@ describe("CombatProfileRunner", () => {
             type: "update-message",
           });
 
-          expect(harness.casts).toEqual([1, 1, 5]);
+          expect(harness.casts).toEqual([1, 2, 1, 5]);
         }),
       );
 
@@ -310,7 +406,8 @@ describe("CombatProfileRunner", () => {
       Effect.gen(function* () {
         const failures: string[] = [];
         const harness = makeHarness({
-          useSkill: () => Effect.die("trigger failed"),
+          useSkill: (skill) =>
+            skill === 5 ? Effect.die("trigger failed") : Effect.succeed(true),
         });
         const eventProfile: CombatProfile = {
           ...profile,
@@ -322,7 +419,7 @@ describe("CombatProfileRunner", () => {
             },
           ],
         };
-        yield* makeCombatProfileRunner(harness.api, {
+        const runner = yield* makeCombatProfileRunner(harness.api, {
           onAsyncFailure: (failure) =>
             Effect.sync(() => {
               failures.push(failure.stage);
@@ -330,6 +427,7 @@ describe("CombatProfileRunner", () => {
           profile: eventProfile,
           targetPriority: [],
         });
+        yield* runner.runCycle();
 
         yield* harness.emit({
           message: "Boss enrage",
