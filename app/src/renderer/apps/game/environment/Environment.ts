@@ -666,8 +666,9 @@ const makeEnvironment = Effect.gen(function* () {
                 ? api.quests.accept(intent.questId, true)
                 : api.quests.complete(
                     intent.questId,
-                    undefined,
-                    intent.rewardItemId,
+                    intent.rewardItemId === undefined
+                      ? undefined
+                      : { rewardItemId: intent.rewardItemId },
                   );
             const completed = yield* mutation.pipe(
               Effect.timeoutOption(QUEST_ACTION_TIMEOUT),
