@@ -46,6 +46,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/bank-view/"><code>BankView</code></a> | type alias |  |
 | <a href="/reference/scripting/types/boost-type/"><code>BoostType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/client-packet/"><code>ClientPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/client-packet-encoding/"><code>ClientPacketEncoding</code></a> | type alias |  |
 | <a href="/reference/scripting/types/combat-kill-options/"><code>CombatKillOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/combat-profile/"><code>CombatProfile</code></a> | type alias |  |
 | <a href="/reference/scripting/types/combat-profile-definition/"><code>CombatProfileDefinition</code></a> | interface |  |
@@ -121,7 +122,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/room-policy/"><code>RoomPolicy</code></a> | type alias |  |
 | <a href="/reference/scripting/types/runtime-event/"><code>RuntimeEvent</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-callback-result/"><code>ScriptCallbackResult</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-client-packet-send-type/"><code>ScriptClientPacketSendType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-combat-monster-target/"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-combat-player-target/"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-combat-target/"><code>ScriptCombatTarget</code></a> | type alias |  |
@@ -144,6 +144,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-stop-signal/"><code>ScriptStopSignal</code></a> | class |  |
 | <a href="/reference/scripting/types/server-data/"><code>ServerData</code></a> | interface |  |
 | <a href="/reference/scripting/types/server-packet/"><code>ServerPacket</code></a> | type alias |  |
+| <a href="/reference/scripting/types/server-packet-encoding/"><code>ServerPacketEncoding</code></a> | type alias |  |
 | <a href="/reference/scripting/types/server-snapshot/"><code>ServerSnapshot</code></a> | type alias |  |
 | <a href="/reference/scripting/types/shop-data/"><code>ShopData</code></a> | interface |  |
 | <a href="/reference/scripting/types/shop-item-query/"><code>ShopItemQuery</code></a> | type alias |  |

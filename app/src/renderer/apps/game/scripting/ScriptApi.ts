@@ -552,22 +552,23 @@ export interface ScriptWaitForPacket {
   ): Effect.Effect<Packet | null, E, Exclude<R, Scope.Scope>>;
 }
 
-export type ScriptClientPacketSendType = "str" | "json" | "xml";
+export type ClientPacketEncoding = "string" | "json" | "xml";
+export type ServerPacketEncoding = "string" | "json";
 
 export interface ScriptPacketApi {
   readonly on: ScriptPacketOn;
   readonly once: ScriptWaitForPacket;
-  /** @param type The client packet encoding. */
+  /** @param encoding The client packet encoding. */
   readonly sendClient: (
     packet: string,
-    /** @defaultValue "str" */
-    type?: ScriptClientPacketSendType,
+    /** @defaultValue "string" */
+    encoding?: ClientPacketEncoding,
   ) => Effect.Effect<boolean>;
-  /** @param type The server packet encoding. */
+  /** @param encoding The server packet encoding. */
   readonly sendServer: (
     packet: string,
-    /** @defaultValue "String" */
-    type?: "String" | "Json",
+    /** @defaultValue "string" */
+    encoding?: ServerPacketEncoding,
   ) => Effect.Effect<boolean>;
   readonly stream: <
     const S extends PacketSelector | undefined = PacketSelector | undefined,
