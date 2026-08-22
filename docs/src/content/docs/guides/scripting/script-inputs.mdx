@@ -1,0 +1,94 @@
+---
+title: Script inputs
+description: Define values that control how a script runs.
+---
+
+Script inputs are values supplied before a script runs. The script can use them
+to change its behavior without requiring code edits. Lucent remembers the last
+values for next time.
+
+## Define the inputs
+
+Export an `inputs` object alongside your script's main function:
+
+```js
+module.exports.inputs = {
+  id: "item-farmer",
+  fields: [
+    {
+      key: "item",
+      type: "string",
+      label: "Item name",
+      description: "Enter the item exactly as it appears in game.",
+      required: true,
+    },
+    {
+      key: "quantity",
+      type: "number",
+      label: "Quantity",
+      default: 1,
+      required: true,
+    },
+    {
+      key: "mode",
+      type: "select",
+      label: "Farming mode",
+      options: ["fast", "safe"],
+      default: "safe",
+    },
+    {
+      key: "useBoost",
+      type: "boolean",
+      label: "Use a boost",
+      default: false,
+    },
+  ],
+};
+```
+
+Make sure to use a unique `id`, Lucent uses it to remember values between runs.
+
+## Input types
+
+Lucent supports four field types:
+
+- `string`
+- `number`
+- `boolean`
+- `select`
+
+Each field needs a `type`, a unique `key`, and a `label`. Pass the key to
+[`script.inputs.get()`][inputs-get]. Lucent shows the label and optional
+`description` in the input form. Select fields also need an `options` array.
+
+Set `required: true` to prevent the script from starting without a value. Use
+`default` to fill in an initial value.
+
+## Read the values
+
+Inside `run()`, pass a field's key to [`script.inputs.get()`][inputs-get]:
+
+{/* prettier-ignore */}
+```js
+const quantity = yield* script.inputs.get("quantity");
+```
+
+To read every field at once, use
+[`script.inputs.getAll()`][inputs-get-all]:
+
+{/* prettier-ignore */}
+```js
+const { item, quantity } = yield* script.inputs.getAll();
+```
+
+:::note
+Lucent reads `module.exports.inputs` before it runs the script. Keep the
+definition as a plain object literal instead of building it with variables or
+spread syntax.
+:::
+
+See the [`lucent/script` reference](/reference/scripting/script/) for the full
+`inputs` API.
+
+[inputs-get]: /reference/scripting/script/#member-script-inputs-get
+[inputs-get-all]: /reference/scripting/script/#member-script-inputs-getall
