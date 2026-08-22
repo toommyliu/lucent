@@ -340,7 +340,7 @@ export type ScriptTermination =
 export const classifyScriptTermination = (
   cause: Cause.Cause<unknown>,
 ): ScriptTermination => {
-  let closeWindow = false;
+  let closeClient = false;
   let logout = false;
   let stopReason: string | undefined;
   let sawExitRequest = false;
@@ -359,7 +359,7 @@ export const classifyScriptTermination = (
       stopReason ??= reason.error.reason;
       const exitRequest = getScriptExitRequest(reason.error);
       sawExitRequest ||= exitRequest !== undefined;
-      closeWindow ||= exitRequest?.closeWindow === true;
+      closeClient ||= exitRequest?.closeClient === true;
       logout ||= exitRequest?.logout === true;
       continue;
     }
@@ -370,7 +370,7 @@ export const classifyScriptTermination = (
   if (sawStopSignal) {
     return sawExitRequest
       ? {
-          exitRequest: { closeWindow, logout },
+          exitRequest: { closeClient, logout },
           kind: "script-exited",
           ...(stopReason === undefined ? {} : { reason: stopReason }),
         }
@@ -445,10 +445,10 @@ export const layer = Layer.effect(
     const automation = yield* Automation;
     const environment = yield* Environment;
     const bridge = yield* Bridge;
-    const accountSettings = selectDesktopBridge(
+    const { accountSettings, gameView } = selectDesktopBridge(
       window.desktop,
       "game",
-    ).accountSettings;
+    );
     const {
       auth,
       combat,
@@ -894,7 +894,7 @@ export const layer = Layer.effect(
                   : undefined;
               return finishIfActive(id, {
                 beforeComplete: runScriptExitActions(exitRequest, {
-                  closeWindow: () => window.close(),
+                  closeClient: gameView.close,
                   logout: auth.logout,
                 }),
                 result: () => {

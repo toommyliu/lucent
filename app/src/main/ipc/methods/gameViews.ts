@@ -263,6 +263,17 @@ export const getPresentation = makeDesktopIpcMethod({
   ),
 });
 
+export const closeCurrent = makeDesktopIpcMethod({
+  descriptor: GameViewsIpc.closeCurrent,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.gameViews.closeCurrent")(
+    function* (_payload, sender) {
+      const windows = yield* DesktopWindows;
+      yield* windows.closeRenderer(sender.rendererId);
+    },
+  ),
+});
+
 export const activate = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.activate,
   allowedSenders: gameSenders,
@@ -287,5 +298,6 @@ export const methods = [
   syncTabBarLayout,
   dispatchGroupCommand,
   getPresentation,
+  closeCurrent,
   activate,
 ] as const;

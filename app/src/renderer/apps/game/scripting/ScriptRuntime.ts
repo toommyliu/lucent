@@ -55,7 +55,7 @@ export interface ScriptRuntimeApiOptions {
 }
 
 export interface ScriptExitActions {
-  readonly closeWindow: () => void;
+  readonly closeClient: () => void;
   readonly logout: () => Effect.Effect<void>;
 }
 
@@ -68,11 +68,11 @@ export const runScriptExitActions = Effect.fn(
   if (request?.logout === true) {
     yield* actions.logout();
   }
-  if (request?.logout === true && request.closeWindow === true) {
+  if (request?.logout === true && request.closeClient === true) {
     yield* Effect.sleep("1 second");
   }
-  if (request?.closeWindow === true) {
-    yield* Effect.sync(actions.closeWindow);
+  if (request?.closeClient === true) {
+    yield* Effect.sync(actions.closeClient);
   }
 });
 

@@ -134,6 +134,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-event-selector-for-type/"><code>ScriptEventSelectorForType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-type/"><code>ScriptEventType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-execution-error/"><code>ScriptExecutionError</code></a> | class |  |
+| <a href="/reference/scripting/types/script-exit-options/"><code>ScriptExitOptions</code></a> | interface | Actions performed when a script exits. |
 | <a href="/reference/scripting/types/script-generator/"><code>ScriptGenerator</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-value/"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
