@@ -826,10 +826,6 @@ export interface ScriptWaitApi {
 
 /** Controls automatic login recovery. */
 export interface ScriptAutoReloginApi {
-  readonly onState: (
-    listener: (state: AutoReloginState) => void,
-  ) => Effect.Effect<() => void>;
-  readonly changes: Stream.Stream<AutoReloginState>;
   readonly disable: () => Effect.Effect<AutoReloginState>;
   readonly enable: () => Effect.Effect<AutoReloginState>;
   readonly getDelay: () => Effect.Effect<number>;
@@ -846,10 +842,6 @@ export interface ScriptAutoReloginApi {
 
 /** Controls automatic movement for supported encounter zones. */
 export interface ScriptAutoZoneApi {
-  readonly onState: (
-    listener: (state: AutoZoneState) => void,
-  ) => Effect.Effect<() => void>;
-  readonly changes: Stream.Stream<AutoZoneState>;
   readonly getMap: () => Effect.Effect<AutoZoneSupportedMap | undefined>;
   readonly getState: () => Effect.Effect<AutoZoneState>;
   readonly isEnabled: () => Effect.Effect<boolean>;
