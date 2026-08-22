@@ -8,6 +8,7 @@ import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
 import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
+import { ProjectionReadiness } from "../flash/api/ProjectionReadiness";
 import { Bridge } from "../flash/bridge/Bridge";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
@@ -84,6 +85,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
   function* (source: string, debugConsole: Console) {
     const gameView = selectDesktopBridge(window.desktop, "game").gameView;
     const api = yield* Api;
+    const projectionReadiness = yield* ProjectionReadiness;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
     const environment = yield* Environment;
@@ -108,7 +110,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
       const readiness = makeScriptStartReadiness({
         auth: api.auth,
         player: api.player,
-        projectionReadiness: api.projectionReadiness,
+        projectionReadiness,
         wait: api.wait,
       });
       yield* Effect.raceFirst(

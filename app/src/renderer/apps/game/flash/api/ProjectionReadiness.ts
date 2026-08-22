@@ -1,3 +1,4 @@
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
 import { projectionKeys, type ProjectionKey } from "../state/Projection";
@@ -59,4 +60,7 @@ export const makeProjectionReadiness = (store: Store) => {
   return { get, inspect, isReady };
 };
 
-export type ProjectionReadiness = ReturnType<typeof makeProjectionReadiness>;
+export class ProjectionReadiness extends Context.Service<
+  ProjectionReadiness,
+  ReturnType<typeof makeProjectionReadiness>
+>()("lucent/renderer/flash/ProjectionReadiness") {}

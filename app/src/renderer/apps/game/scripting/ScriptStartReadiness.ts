@@ -2,7 +2,10 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type * as Duration from "effect/Duration";
 
-import type { ProjectionReadinessSnapshot } from "../flash/api/ProjectionReadiness";
+import {
+  ProjectionReadiness,
+  type ProjectionReadinessSnapshot,
+} from "../flash/api/ProjectionReadiness";
 import type { ApiService } from "../flash/api/Api";
 import { projectionKeys, type ProjectionKey } from "../flash/state/Projection";
 import { ScriptNotReadyError } from "./ScriptRunnerErrors";
@@ -27,10 +30,7 @@ type AwaitedProjectionReadiness = ProjectionReadinessSnapshot;
 interface ScriptStartReadinessServices {
   readonly auth: Pick<ApiService["auth"], "getUsername" | "isLoggedIn">;
   readonly player: Pick<ApiService["player"], "isReady">;
-  readonly projectionReadiness: Pick<
-    ApiService["projectionReadiness"],
-    "inspect"
-  >;
+  readonly projectionReadiness: Pick<ProjectionReadiness["Service"], "inspect">;
   readonly wait: Pick<ApiService["wait"], "untilSome">;
 }
 
