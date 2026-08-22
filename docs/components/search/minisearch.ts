@@ -13,6 +13,70 @@ const defaultTokenizer = MiniSearch.getDefault("tokenize");
 const LOWER_TO_UPPER = /(\p{Ll}|\d)(\p{Lu})/gu;
 const ACRONYM_TO_WORD = /(\p{Lu})(\p{Lu}\p{Ll})/gu;
 const IDENTIFIER_SEPARATOR = /[_-]+/gu;
+const API_MEMBER = /\bapi(?:\.[A-Za-z_$][\w$]*)+\(\)/gu;
+
+interface ApiMember {
+  readonly content: string;
+  readonly title: string;
+}
+
+const normalizeApiMember = (value: string): string =>
+  value
+    .trim()
+    .replace(/;$/u, "")
+    .replace(/\s+/gu, "")
+    .replace(/[()]+$/u, "")
+    .toLocaleLowerCase();
+
+/** Match a full API member query to the generated member anchor and excerpt. */
+const findApiMember = (content: string, query: string): ApiMember | null => {
+  const normalizedQuery = normalizeApiMember(query);
+  const matches = [...content.matchAll(API_MEMBER)];
+  const matchIndex = matches.findIndex(
+    (match) => normalizeApiMember(match[0]) === normalizedQuery,
+  );
+  const match = matches[matchIndex];
+  if (match === undefined || match.index === undefined) {
+    return null;
+  }
+
+  const nextMember = matches
+    .slice(matchIndex + 1)
+    .find(
+      (candidate) =>
+        normalizeApiMember(candidate[0]) !== normalizeApiMember(match[0]),
+    );
+
+  return {
+    content: content.slice(match.index, nextMember?.index).trim(),
+    title: match[0],
+  };
+};
+
+const memberAnchor = (title: string): string =>
+  `member-${title
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9_-]+/gu, "-")
+    .replace(/^-+|-+$/gu, "")}`;
+
+/** Point an exact generated API member match at its heading rather than its page. */
+export const resolveApiMemberHit = (
+  document: IndexedDocument,
+  query: string,
+): IndexedDocument => {
+  const member = findApiMember(document.content, query);
+  if (member === null) {
+    return document;
+  }
+
+  return {
+    ...document,
+    content: member.content,
+    route: `${document.route}#${memberAnchor(member.title)}`,
+    title: member.title,
+  };
+};
 
 /** Split a camel-case identifier while preserving normal prose tokens. */
 const identifierParts = (term: string): string[] =>
@@ -84,7 +148,7 @@ export const createSearchFromDocuments = (
       })
       .flatMap((result) => {
         const document = documentsByRoute.get(String(result.id));
-        return document ? [document] : [];
+        return document ? [resolveApiMemberHit(document, query)] : [];
       })
       .filter(
         (document) =>
