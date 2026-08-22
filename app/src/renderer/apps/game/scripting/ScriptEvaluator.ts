@@ -3,6 +3,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Ref from "effect/Ref";
 
+import { selectDesktopBridge } from "../../../../shared/desktopBridge";
 import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
 import { Environment } from "../environment/Environment";
@@ -81,6 +82,7 @@ ${source}
 
 export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
   function* (source: string, debugConsole: Console) {
+    const gameView = selectDesktopBridge(window.desktop, "game").gameView;
     const api = yield* Api;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
@@ -152,7 +154,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         Effect.catch((error) =>
           error instanceof ScriptStopSignal
             ? runScriptExitActions(getScriptExitRequest(error), {
-                closeWindow: () => window.close(),
+                closeClient: gameView.close,
                 logout: api.auth.logout,
               }).pipe(Effect.andThen(Effect.fail(error)))
             : Effect.fail(error),

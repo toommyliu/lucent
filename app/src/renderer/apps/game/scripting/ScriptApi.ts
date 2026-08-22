@@ -893,6 +893,13 @@ export interface ScriptRuntimeOptions {
   readonly safeStartStop: boolean;
 }
 
+/** Actions performed when a script exits. */
+export interface ScriptExitOptions {
+  /** Closes this game client. In a tabbed window, closes only its tab. */
+  readonly closeClient?: boolean;
+  readonly logout?: boolean;
+}
+
 export interface ScriptOptionsApi {
   readonly getAll: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly getRestartAfterReconnect: () => Effect.Effect<boolean>;
@@ -919,17 +926,23 @@ export interface ScriptRuntimeApi {
   ) => Effect.Effect<void, ScriptExecutionError>;
   readonly inputs: ScriptInputsApi;
   readonly options: ScriptOptionsApi;
-  /** @param options Exit actions. */
+  /**
+   * Exits the current script and prevents later queued scripts from running.
+   * Use this as an explicit escape hatch.
+   *
+   * @param options Exit actions.
+   */
   readonly exit: (
-    /** @defaultValue { closeWindow: false, logout: false } */
-    options?: {
-      readonly closeWindow?: boolean;
-      readonly logout?: boolean;
-    },
+    /** @defaultValue { closeClient: false, logout: false } */
+    options?: ScriptExitOptions,
   ) => Effect.Effect<never, ScriptStopSignal>;
   readonly log: (message: unknown) => Effect.Effect<void>;
   readonly sleep: (ms: number) => Effect.Effect<void, ScriptExecutionError>;
-  /** @param reason Stop message. */
+  /**
+   * Stops the current script. If it is part of a queue, the next script runs.
+   *
+   * @param reason Stop message.
+   */
   readonly stop: (
     /** @defaultValue "Script stopped." */
     reason?: string,
