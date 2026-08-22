@@ -148,7 +148,12 @@ export const ensureLifeSteal = Effect.fn("ScriptRecipes.ensureLifeSteal")(
 
     yield* deps.bank.withdraw(LIFE_STEAL);
     if (yield* deps.inventory.contains(LIFE_STEAL, targetQuantity)) return true;
-    if (!(yield* deps.player.joinMap("arcangrove", "Potion", "Right"))) {
+    if (
+      !(yield* deps.player.joinMap("arcangrove", {
+        cell: "Potion",
+        pad: "Right",
+      }))
+    ) {
       return false;
     }
     if (!(yield* deps.shops.load(211))) return false;
