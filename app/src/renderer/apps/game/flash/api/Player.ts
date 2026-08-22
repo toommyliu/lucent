@@ -331,29 +331,65 @@ export const makePlayer = (
       ),
     );
 
-  const jumpToCell = (cell: string, pad?: string) => {
+  const readLiveLocation = () =>
+    Effect.all({
+      cell: bridge
+        .invoke("player.getCell", undefined, Schema.String)
+        .pipe(Effect.map(Option.getOrElse(() => ""))),
+      pad: bridge
+        .invoke("player.getPad", undefined, Schema.String)
+        .pipe(Effect.map(Option.getOrElse(() => ""))),
+    });
+
+  const isCellReady = (cell: string, pad?: string) => {
+    const args: Parameters<Window["swf"]["world.isCellReady"]> =
+      pad === undefined ? [cell] : [cell, pad];
+    return bridge
+      .invoke("world.isCellReady", args, Schema.Boolean)
+      .pipe(Effect.map(Option.getOrElse(() => false)));
+  };
+
+  const jumpToCell = Effect.fn("Player.jumpToCell")(function* (
+    cell: string,
+    pad?: string,
+  ) {
     const targetCell = cell.trim();
-    if (targetCell === "") return Effect.succeed(false);
+    if (targetCell === "") return false;
     const args: Parameters<Window["swf"]["player.jump"]> =
       pad === undefined ? [targetCell] : [targetCell, pad];
-    const readinessArgs: Parameters<Window["swf"]["world.isCellReady"]> =
-      pad === undefined ? [targetCell] : [targetCell, pad];
-    return bridge.invoke("player.jump", args, Schema.Void).pipe(
-      Effect.flatMap(
-        Option.match({
-          onNone: () => Effect.succeed(false),
-          onSome: () =>
-            wait.until(
-              // AQW updates strFrame before its cell timeline and display list settle.
-              bridge
-                .invoke("world.isCellReady", readinessArgs, Schema.Boolean)
-                .pipe(Effect.map(Option.getOrElse(() => false))),
-              { timeout: "3 seconds" },
-            ),
-        }),
-      ),
+    const invoked = yield* bridge.invoke("player.jump", args, Schema.Void);
+    if (Option.isNone(invoked)) return false;
+
+    let requestedLocationObserved = false;
+    let settledAtRequestedLocation = false;
+    const settled = yield* wait.until(
+      Effect.gen(function* () {
+        const observed = yield* readLiveLocation();
+        const atRequestedLocation =
+          sameText(observed.cell, targetCell) &&
+          (pad === undefined || sameText(observed.pad, pad));
+        // Do not detect a redirect until AQW has reported the requested location.
+        if (atRequestedLocation) requestedLocationObserved = true;
+        if (!requestedLocationObserved) return false;
+
+        const readinessCell = atRequestedLocation
+          ? targetCell
+          : observed.cell.trim();
+        const readinessPad = atRequestedLocation
+          ? pad
+          : observed.pad.trim() || undefined;
+        if (readinessCell === "") return false;
+
+        // AQW updates strFrame before its cell timeline and display list settle.
+        const ready = yield* isCellReady(readinessCell, readinessPad);
+        if (ready) settledAtRequestedLocation = atRequestedLocation;
+        return ready;
+      }),
+      { timeout: "3 seconds" },
     );
-  };
+    if (!settled) return false;
+    return settledAtRequestedLocation;
+  });
 
   const joinMap = (target: string, cell?: string, pad?: string) =>
     Effect.gen(function* () {
