@@ -448,7 +448,7 @@ describe("combat profile runtime", () => {
       };
       const event = {
         message: "Boss enrage",
-        monMapId: 7,
+        monsterMapId: 7,
         source: "aura" as const,
       };
 

@@ -264,8 +264,8 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
             if (
               observed.resetPending ||
               observedTarget?.confirmed !== true ||
-              (event.monMapId !== undefined &&
-                event.monMapId !== observedTarget.monsterMapId)
+              (event.monsterMapId !== undefined &&
+                event.monsterMapId !== observedTarget.monsterMapId)
             ) {
               return;
             }
@@ -294,7 +294,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
                   options.profile,
                   {
                     ...event,
-                    monMapId: observedTarget.monsterMapId,
+                    monsterMapId: observedTarget.monsterMapId,
                   },
                   messageState,
                 );

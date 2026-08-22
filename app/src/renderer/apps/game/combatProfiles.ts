@@ -24,7 +24,7 @@ export interface CombatProfileMessageTriggerState {
 
 export interface CombatProfileMessageTriggerEvent {
   readonly message: string;
-  readonly monMapId?: number;
+  readonly monsterMapId?: number;
   readonly source: "animation" | "aura";
 }
 
@@ -413,7 +413,9 @@ export const castCombatProfileMessageTrigger = (
 
       const cast = yield* deps.combat.useSkill(trigger.skill, {
         force: true,
-        ...(event.monMapId === undefined ? {} : { target: event.monMapId }),
+        ...(event.monsterMapId === undefined
+          ? {}
+          : { target: event.monsterMapId }),
         wait: true,
       });
       if (!cast) {
