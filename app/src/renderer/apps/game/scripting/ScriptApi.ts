@@ -526,7 +526,9 @@ export interface ScriptMapApi {
 export interface ScriptMonstersApi {
   readonly get: (query: MonsterQuery) => Effect.Effect<LiveMonster | null>;
   readonly getAll: () => Effect.Effect<LiveMonster[]>;
+  /** Gets monsters in the current cell that are alive and can be targeted for combat. Hidden monsters are included. */
   readonly getAvailable: () => Effect.Effect<LiveMonster[]>;
+  /** Checks whether a monster in the current cell is alive and can be targeted for combat. Hidden monsters count as available. */
   readonly isAvailable: (query: MonsterQuery) => Effect.Effect<boolean>;
 }
 
