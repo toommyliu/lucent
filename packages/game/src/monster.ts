@@ -30,19 +30,26 @@ export interface MonsterDrop {
 }
 
 export interface MonsterSelectorByMapId {
-  readonly monMapId: number;
+  readonly monsterMapId: number;
   readonly name?: never;
 }
 
 export interface MonsterSelectorByName {
-  readonly monMapId?: never;
+  readonly monsterMapId?: never;
   readonly name: string;
 }
 
 export type MonsterSelector = MonsterSelectorByMapId | MonsterSelectorByName;
+
+/**
+ * Selects a monster by name, map ID, or selector object.
+ *
+ * String map IDs require `id` followed by `.`, `:`, `-`, or `'`:
+ * `id.123`, `id:123`, `id-123`, or `id'123`.
+ */
 export type MonsterQuery = MonsterSelector | number | string;
 
-const monsterMapIdToken = /^(?:id[.:'-]?)?([1-9]\d*)$/iu;
+const monsterMapIdToken = /^id[.:'-]([1-9]\d*)$/iu;
 
 export const parseMonsterMapId = (value: string): number | undefined => {
   const match = value.trim().match(monsterMapIdToken);
@@ -50,15 +57,13 @@ export const parseMonsterMapId = (value: string): number | undefined => {
 };
 
 export const toMonsterSelector = (query: MonsterQuery): MonsterSelector => {
-  if (typeof query === "number") return { monMapId: query };
+  if (typeof query === "number") return { monsterMapId: query };
   if (typeof query === "object") {
-    return "monMapId" in query ? query : { name: query.name.trim() };
+    return "monsterMapId" in query ? query : { name: query.name.trim() };
   }
 
   const monsterMapId = parseMonsterMapId(query);
-  return monsterMapId === undefined
-    ? { name: query.trim() }
-    : { monMapId: monsterMapId };
+  return monsterMapId === undefined ? { name: query.trim() } : { monsterMapId };
 };
 
 export interface Monster extends Entity {
@@ -139,8 +144,8 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
         normalizeGameText(this.name).includes(normalizeGameText(value))
       );
     }
-    return "monMapId" in selector
-      ? this.monsterMapId === selector.monMapId
+    return "monsterMapId" in selector
+      ? this.monsterMapId === selector.monsterMapId
       : selector.name === "*" ||
           normalizeGameText(this.name).includes(
             normalizeGameText(selector.name),

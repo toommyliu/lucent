@@ -920,6 +920,12 @@ interface LiveShop extends LiveModel<ShopData> {
   readonly name: string;
   toJSON(): ShopSnapshot;
 }
+/**
+ * Selects a monster by name, map ID, or selector object.
+ *
+ * String map IDs require `id` followed by `.`, `:`, `-`, or `'`:
+ * `id.123`, `id:123`, `id-123`, or `id'123`.
+ */
 type MonsterQuery = MonsterSelector | number | string;
 type Packet = FlashPacket;
 type PacketDirection = 'client' | 'server' | 'extension';
@@ -1483,11 +1489,11 @@ type EntitySnapshot = Readonly<EntityData> & {
   readonly mpPercent: number;
 };
 interface MonsterSelectorByMapId {
-  readonly monMapId: number;
+  readonly monsterMapId: number;
   readonly name?: never;
 }
 interface MonsterSelectorByName {
-  readonly monMapId?: never;
+  readonly monsterMapId?: never;
   readonly name: string;
 }
 type ClientPacket = { readonly command: string; readonly direction: 'client'; readonly params: readonly string[]; readonly raw: string; readonly wireType: 'str' | 'json'; };

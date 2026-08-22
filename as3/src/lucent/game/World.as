@@ -120,10 +120,10 @@ public class World
     }
 
     [BridgeExport]
-    public static function isMonsterAvailable(monMapId:Number):Boolean
+    public static function isMonsterAvailable(monsterMapId:Number):Boolean
     {
       var game:Object = Main.Game;
-      var monster:Object = game.world.getMonster(monMapId);
+      var monster:Object = game.world.getMonster(monsterMapId);
       if (!monster)
       {
         return false;
@@ -146,10 +146,10 @@ public class World
           continue;
         }
 
-        var monMapId:Number = Number(mon.dataLeaf.MonMapID);
-        if (!isNaN(monMapId) && isMonsterAvailable(monMapId))
+        var monsterMapId:Number = Number(mon.dataLeaf.MonMapID);
+        if (!isNaN(monsterMapId) && isMonsterAvailable(monsterMapId))
         {
-          ids.push(monMapId);
+          ids.push(monsterMapId);
         }
       }
 
@@ -157,19 +157,19 @@ public class World
     }
 
     [BridgeExport]
-    public static function requestMonsterDrops(monMapId:Number):Boolean
+    public static function requestMonsterDrops(monsterMapId:Number):Boolean
     {
       var game:Object = Main.Game;
-      if (!game || !game.world || isNaN(monMapId) || monMapId <= 0)
+      if (!game || !game.world || isNaN(monsterMapId) || monsterMapId <= 0)
       {
         return false;
       }
 
       for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
       {
-        if (mon && mon.dataLeaf && Number(mon.dataLeaf.MonMapID) == monMapId)
+        if (mon && mon.dataLeaf && Number(mon.dataLeaf.MonMapID) == monsterMapId)
         {
-          game.sfc.sendXtMessage("zm", "getMonsterDrops", [monMapId], "str", game.world.curRoom);
+          game.sfc.sendXtMessage("zm", "getMonsterDrops", [monsterMapId], "str", game.world.curRoom);
           return true;
         }
       }
@@ -202,9 +202,9 @@ public class World
     }
 
 
-    private static function getMonsterByMonMapId(monMapId:Number):Object
+    private static function getMonsterByMonsterMapId(monsterMapId:Number):Object
     {
-      if (isNaN(monMapId) || monMapId <= 0)
+      if (isNaN(monsterMapId) || monsterMapId <= 0)
       {
         return null;
       }
@@ -214,7 +214,7 @@ public class World
       {
         if (mon.pMC)
         {
-          if (mon != null && mon.dataLeaf != null && mon.dataLeaf.MonMapID == monMapId)
+          if (mon != null && mon.dataLeaf != null && mon.dataLeaf.MonMapID == monsterMapId)
           {
             return mon;
           }
@@ -239,9 +239,9 @@ public class World
         return getMonsterByName(getStringSelector(selector, "name"));
       }
 
-      if ("monMapId" in selector)
+      if ("monsterMapId" in selector)
       {
-        return getMonsterByMonMapId(getNumberSelector(selector, "monMapId"));
+        return getMonsterByMonsterMapId(getNumberSelector(selector, "monsterMapId"));
       }
 
       return null;

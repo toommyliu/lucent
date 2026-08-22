@@ -23,7 +23,7 @@ const makeTarget = () => {
     skillUses: [] as {
       force: boolean;
       index: string;
-      selector: { monMapId: number } | { name: string } | null;
+      selector: { monsterMapId: number } | { name: string } | null;
     }[],
     swaps: 0,
     wears: 0,
@@ -102,7 +102,7 @@ const makeTarget = () => {
     "combat.getSkillCooldownRemaining": () => 0,
     "combat.useSkill": (
       index: string,
-      selector: { monMapId: number } | { name: string } | null = null,
+      selector: { monsterMapId: number } | { name: string } | null = null,
       force = false,
     ) => {
       calls.skillUses.push({ force, index, selector });
@@ -256,7 +256,7 @@ describe("Api", () => {
           }),
         ).toBe(true);
         expect(calls.skillUses).toEqual([
-          { force: true, index: "1", selector: { monMapId: 2 } },
+          { force: true, index: "1", selector: { monsterMapId: 2 } },
         ]);
       }),
     ),

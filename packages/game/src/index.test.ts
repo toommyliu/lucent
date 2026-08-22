@@ -140,7 +140,12 @@ describe("game domain models", () => {
 
     expect(monster.matches("undead")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
-    expect(toMonsterSelector("id:9")).toEqual({ monMapId: 9 });
+    for (const query of ["id:9", "id.9", "id-9", "id'9"]) {
+      expect(toMonsterSelector(query)).toEqual({ monsterMapId: 9 });
+    }
+    for (const query of ["9", "id9"]) {
+      expect(toMonsterSelector(query)).toEqual({ name: query });
+    }
     monster.replaceDrops([
       {
         eventDrop: true,
