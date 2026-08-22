@@ -11,4 +11,4 @@ sidebar:
 type ServerPacketEncoding = "string" | "json"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L538" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:538" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:538" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:538</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L540" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:540" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:540" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:540</code></a></p>
