@@ -26,7 +26,7 @@ export const makeScriptEventsApi = (
       )) as ScriptEventsOn;
 
   return {
-    ...events,
     on,
+    once: events.once,
   };
 };

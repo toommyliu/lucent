@@ -30,6 +30,5 @@ export const makeScriptPacketApi = (
     once: packet.once,
     sendClient: packet.sendClient,
     sendServer: packet.sendServer,
-    stream: packet.stream,
   };
 };
