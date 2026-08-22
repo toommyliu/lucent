@@ -795,11 +795,24 @@ export function App(): JSX.Element {
 
   onMount(() => {
     let disposed = false;
+    let rendererScale = window.devicePixelRatio;
+    const syncTabBarLayout = (): void => {
+      void gameViewHost.syncTabBarLayout().catch((cause: unknown) => {
+        if (!disposed) setRequestError(errorMessage(cause));
+      });
+    };
+    const handleViewportResize = (): void => {
+      if (window.devicePixelRatio === rendererScale) return;
+      rendererScale = window.devicePixelRatio;
+      syncTabBarLayout();
+    };
     const tabStripResizeObserver = new ResizeObserver(fitTabs);
     if (tabStrip !== undefined) {
       tabStripResizeObserver.observe(tabStrip);
       fitTabs();
     }
+    window.addEventListener("resize", handleViewportResize);
+    syncTabBarLayout();
     const unsubscribe = gameViewHost.onChanged((nextState) => {
       if (!disposed) applyState(nextState);
     });
@@ -830,6 +843,7 @@ export function App(): JSX.Element {
       unsubscribeShortcutModifier();
       unsubscribeTabMenu();
       tabStripResizeObserver.disconnect();
+      window.removeEventListener("resize", handleViewportResize);
       tabLayoutVersion += 1;
       stopPointerDrag?.();
       if (selectSuppressionTimer !== undefined) {

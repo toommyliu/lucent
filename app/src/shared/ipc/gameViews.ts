@@ -72,6 +72,12 @@ export const GameViewsIpc = {
     payload: Schema.Struct({ open: Schema.Boolean }),
     result: Schema.Boolean,
   }),
+  syncTabBarLayout: defineInvoke({
+    channel: `${namespace}:sync-tab-bar-layout`,
+    name: "gameViews.syncTabBarLayout",
+    payload: Schema.Void,
+    result: Schema.Void,
+  }),
   dispatchGroupCommand: defineInvoke({
     channel: `${namespace}:dispatch-group-command`,
     name: "gameViews.dispatchGroupCommand",

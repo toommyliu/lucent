@@ -205,6 +205,9 @@ export interface DesktopWindowsShape {
     hostRendererId: number,
     open: boolean,
   ) => Effect.Effect<boolean, DesktopWindowError>;
+  readonly syncGameViewTabBarLayout: (
+    hostRendererId: number,
+  ) => Effect.Effect<void, DesktopWindowError>;
   readonly withGameViewGroupControlsNativeDialog: <A, E, R>(
     hostRendererId: number,
     use: (parentWindowId: number) => Effect.Effect<A, E, R>,
@@ -1883,6 +1886,21 @@ const makeDesktopWindows = Effect.gen(function* () {
         return host.tabMenuOpen;
       });
 
+  const syncGameViewTabBarLayout: DesktopWindowsShape["syncGameViewTabBarLayout"] =
+    (hostRendererId) =>
+      Effect.gen(function* () {
+        const host = yield* requireGameHost(hostRendererId);
+        yield* Effect.try({
+          try: () => gameHosts.syncTabBarLayout(host),
+          catch: (cause) =>
+            new DesktopWindowError({
+              cause,
+              detail: "Failed to synchronize the game view tab bar layout.",
+              id: String(hostRendererId),
+            }),
+        });
+      });
+
   const addGameView: DesktopWindowsShape["addGameView"] = (hostRendererId) =>
     Effect.gen(function* () {
       const host = yield* requireGameHost(hostRendererId);
@@ -2568,6 +2586,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     setGameViewLayout,
     setGameViewName,
     setGameViewTabMenuOpen,
+    syncGameViewTabBarLayout,
     withGameViewGroupControlsNativeDialog,
   });
 });

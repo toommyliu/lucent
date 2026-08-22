@@ -1,9 +1,9 @@
 import type { Event as ElectronEvent, Input } from "electron";
 
 import {
-  GAME_VIEW_TAB_BAR_HEIGHT,
   MAX_GAME_VIEWS_PER_WINDOW,
   gameViewFallbackName,
+  scaledGameViewTabBarHeight,
   type GameViewHostState,
   type GameViewLayout,
   type GameViewPresentation,
@@ -122,6 +122,7 @@ const gameViewPresentation = (
 const gameGroupControlsBounds = (
   width: number,
   height: number,
+  topInset: number,
 ): {
   readonly height: number;
   readonly width: number;
@@ -131,7 +132,7 @@ const gameGroupControlsBounds = (
   const availableWidth = Math.max(1, width - GAME_GROUP_CONTROLS_MARGIN * 2);
   const availableHeight = Math.max(
     1,
-    height - GAME_VIEW_TAB_BAR_HEIGHT - GAME_GROUP_CONTROLS_MARGIN * 2,
+    height - topInset - GAME_GROUP_CONTROLS_MARGIN * 2,
   );
   const panelWidth = Math.min(GAME_GROUP_CONTROLS_WIDTH, availableWidth);
   const panelHeight = Math.min(GAME_GROUP_CONTROLS_HEIGHT, availableHeight);
@@ -142,7 +143,7 @@ const gameGroupControlsBounds = (
       GAME_GROUP_CONTROLS_MARGIN,
       width - panelWidth - GAME_GROUP_CONTROLS_MARGIN,
     ),
-    y: GAME_VIEW_TAB_BAR_HEIGHT + GAME_GROUP_CONTROLS_MARGIN,
+    y: topInset + GAME_GROUP_CONTROLS_MARGIN,
   };
 };
 
@@ -232,11 +233,12 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     host: DesktopGameHostRecord,
     width: number,
     height: number,
+    topInset: number,
   ): void => {
     if (!host.groupControlsOpen) return;
     setGameViewBounds(
       host.groupControlsView,
-      gameGroupControlsBounds(width, height),
+      gameGroupControlsBounds(width, height, topInset),
     );
     host.window.setTopBrowserView(host.groupControlsView);
   };
@@ -245,9 +247,10 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     host: DesktopGameHostRecord,
     width: number,
     height: number,
+    topInset: number,
   ): void => {
     setGameViewBounds(host.hostView, {
-      height: host.tabMenuOpen ? Math.max(1, height) : GAME_VIEW_TAB_BAR_HEIGHT,
+      height: host.tabMenuOpen ? Math.max(1, height) : topInset,
       width: Math.max(1, width),
       x: 0,
       y: 0,
@@ -259,7 +262,9 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     if (!isElectronWindowUsable(host.window)) return;
 
     const { height, width } = host.window.getContentBounds();
-    const topInset = GAME_VIEW_TAB_BAR_HEIGHT;
+    const topInset = scaledGameViewTabBarHeight(
+      host.hostView.webContents.getZoomFactor(),
+    );
     if (host.layout === "focused") {
       const bounds = focusedGameViewBounds(width, height, topInset);
       const selected = options.getGameViewRecord(host.selectedId);
@@ -296,8 +301,8 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       }
     }
 
-    applyGroupControlsLayout(host, width, height);
-    applyHostViewLayout(host, width, height);
+    applyGroupControlsLayout(host, width, height, topInset);
+    applyHostViewLayout(host, width, height, topInset);
   };
 
   const repaint = (host: DesktopGameHostRecord): void => {
@@ -353,6 +358,11 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       () => finishResize(host),
       GAME_VIEW_RESIZE_SETTLE_DELAY_MS,
     );
+  };
+
+  const syncTabBarLayout = (host: DesktopGameHostRecord): void => {
+    applyLayout(host);
+    scheduleRepaint(host);
   };
 
   const presentation = (
@@ -560,6 +570,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     setGroupControlsOpen,
     setShortcutModifierPressed,
     setTabMenuOpen,
+    syncTabBarLayout,
     state,
     unregister,
     values: () => hosts.values(),

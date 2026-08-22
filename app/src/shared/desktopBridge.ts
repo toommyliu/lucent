@@ -308,6 +308,7 @@ export interface DesktopGameViewHostBridge {
   ) => Promise<GameViewHostState>;
   readonly setLayout: (layout: GameViewLayout) => Promise<GameViewHostState>;
   readonly setTabMenuOpen: (open: boolean) => Promise<boolean>;
+  readonly syncTabBarLayout: () => Promise<void>;
 }
 
 export interface DesktopGameViewBridge {
