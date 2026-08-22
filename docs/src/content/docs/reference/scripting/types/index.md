@@ -137,7 +137,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-generator/"><code>ScriptGenerator</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-value/"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-player-position/"><code>ScriptPlayerPosition</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-rendering-mode/"><code>ScriptRenderingMode</code></a> | type alias | Controls game render visibility. |
 | <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-shop-quantity-options/"><code>ScriptShopQuantityOptions</code></a> | interface |  |
@@ -154,3 +153,4 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/skill-use-options/"><code>SkillUseOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/triggered-wait-options/"><code>TriggeredWaitOptions</code></a> | interface | Runs `trigger` only after the subscription is live. A `true` result means the<br>command was sent and a matching response should be awaited; `false` closes<br>the scoped subscription immediately and returns `null`. |
 | <a href="/reference/scripting/types/wait-options/"><code>WaitOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/walk-to-options/"><code>WalkToOptions</code></a> | interface |  |
