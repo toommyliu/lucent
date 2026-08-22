@@ -20,7 +20,6 @@ import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 import type * as Scope from "effect/Scope";
-import type * as Stream from "effect/Stream";
 import type { pipe } from "effect/Function";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
@@ -75,7 +74,6 @@ import type {
   Packet,
   PacketDirection,
   PacketForDirection,
-  PacketForSelector,
   PacketSelector,
   WaitOptions,
 } from "../flash/contract/Packet";
@@ -103,13 +101,6 @@ export type ScriptEventForType<T extends ScriptEventType> = Extract<
   ScriptEvent,
   { readonly type: T }
 >;
-
-export type ScriptEventForSelector<S extends EventSelector | undefined> =
-  S extends {
-    readonly type: infer T extends ScriptEventType;
-  }
-    ? ScriptEventForType<T>
-    : ScriptEvent;
 
 export type ScriptEventSelectorForType<T extends ScriptEventType> =
   EventSelector & {
@@ -454,11 +445,6 @@ export interface ScriptWaitForEvent {
 export interface ScriptEventsApi {
   readonly on: ScriptEventsOn;
   readonly once: ScriptWaitForEvent;
-  readonly stream: <
-    const S extends EventSelector | undefined = EventSelector | undefined,
-  >(
-    selector?: S,
-  ) => Stream.Stream<ScriptEventForSelector<S>>;
 }
 
 export interface ScriptHouseApi {
@@ -569,11 +555,6 @@ export interface ScriptPacketApi {
     /** @defaultValue "String" */
     type?: "String" | "Json",
   ) => Effect.Effect<boolean>;
-  readonly stream: <
-    const S extends PacketSelector | undefined = PacketSelector | undefined,
-  >(
-    selector?: S,
-  ) => Stream.Stream<PacketForSelector<S>>;
 }
 
 export interface ScriptPlayerFactionsApi {
@@ -829,7 +810,6 @@ export interface ScriptAutoReloginApi {
   readonly onState: (
     listener: (state: AutoReloginState) => void,
   ) => Effect.Effect<() => void>;
-  readonly changes: Stream.Stream<AutoReloginState>;
   readonly disable: () => Effect.Effect<AutoReloginState>;
   readonly enable: () => Effect.Effect<AutoReloginState>;
   readonly getDelay: () => Effect.Effect<number>;
@@ -849,7 +829,6 @@ export interface ScriptAutoZoneApi {
   readonly onState: (
     listener: (state: AutoZoneState) => void,
   ) => Effect.Effect<() => void>;
-  readonly changes: Stream.Stream<AutoZoneState>;
   readonly getMap: () => Effect.Effect<AutoZoneSupportedMap | undefined>;
   readonly getState: () => Effect.Effect<AutoZoneState>;
   readonly isEnabled: () => Effect.Effect<boolean>;

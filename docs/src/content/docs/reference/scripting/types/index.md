@@ -102,7 +102,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/packet/"><code>Packet</code></a> | type alias | Alias of FlashPacket. |
 | <a href="/reference/scripting/types/packet-direction/"><code>PacketDirection</code></a> | type alias |  |
 | <a href="/reference/scripting/types/packet-for-direction/"><code>PacketForDirection</code></a> | type alias |  |
-| <a href="/reference/scripting/types/packet-for-selector/"><code>PacketForSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/packet-selector/"><code>PacketSelector</code></a> | interface |  |
 | <a href="/reference/scripting/types/packet-wire-type/"><code>PacketWireType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/player-data/"><code>PlayerData</code></a> | interface |  |
@@ -129,7 +128,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-enhance-item-options/"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-equip-enhancement-selector/"><code>ScriptEquipEnhancementSelector</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-event/"><code>ScriptEvent</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-event-for-selector/"><code>ScriptEventForSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-for-type/"><code>ScriptEventForType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-selector-for-type/"><code>ScriptEventSelectorForType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-type/"><code>ScriptEventType</code></a> | type alias |  |
