@@ -11,4 +11,4 @@ sidebar:
 type ScriptClientPacketSendType = "str" | "json" | "xml"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L534" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:534" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:534" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:534</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L535" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:535" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:535" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:535</code></a></p>

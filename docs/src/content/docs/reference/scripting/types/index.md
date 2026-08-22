@@ -54,6 +54,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/combat-profile-message-trigger-definition/"><code>CombatProfileMessageTriggerDefinition</code></a> | type alias |  |
 | <a href="/reference/scripting/types/combat-profile-step/"><code>CombatProfileStep</code></a> | type alias |  |
 | <a href="/reference/scripting/types/combat-profile-step-definition/"><code>CombatProfileStepDefinition</code></a> | type alias |  |
+| <a href="/reference/scripting/types/complete-quest-options/"><code>CompleteQuestOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/connect-outcome/"><code>ConnectOutcome</code></a> | interface |  |
 | <a href="/reference/scripting/types/consumable-cast-result/"><code>ConsumableCastResult</code></a> | interface | Retains local dispatch identity because rejected acknowledgements omit their target. |
 | <a href="/reference/scripting/types/enhancement/"><code>Enhancement</code></a> | interface |  |

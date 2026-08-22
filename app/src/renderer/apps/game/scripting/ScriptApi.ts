@@ -64,6 +64,7 @@ import type {
 } from "../flash/api/Combat";
 import type { EquipOptions } from "../flash/api/Inventory";
 import type { CellPositionOptions } from "../flash/api/Map";
+import type { CompleteQuestOptions } from "../flash/api/Quests";
 import type {
   EventSelector,
   ProjectionEvent,
@@ -647,19 +648,9 @@ export interface ScriptQuestsApi {
     silent?: boolean,
   ) => Effect.Effect<boolean[]>;
   readonly canComplete: (questId: number) => Effect.Effect<boolean>;
-  /**
-   * @param requestedTurnIns Number of turn-ins.
-   * @param itemId Reward item ID. -1 does not select a specific reward.
-   * @param special Whether to use special completion handling.
-   */
   readonly complete: (
     questId: number,
-    /** @defaultValue maximum currently possible */
-    requestedTurnIns?: number,
-    /** @defaultValue -1 */
-    itemId?: number,
-    /** @defaultValue false */
-    special?: boolean,
+    options?: CompleteQuestOptions,
   ) => Effect.Effect<boolean>;
   readonly get: (questId: number) => Effect.Effect<LiveQuest | null>;
   readonly getAccepted: () => Effect.Effect<LiveQuest[]>;
