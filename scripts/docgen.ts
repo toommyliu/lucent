@@ -86,6 +86,8 @@ const TYPE_REFERENCE_WRAPPERS = new Set([
   "Required",
 ]);
 
+const INTERNAL_REFERENCED_TYPE_NAMES = new Set(["LiveModel"]);
+
 const BUILTIN_TYPE_NAMES = new Set([
   "AbortSignal",
   "Boolean",
@@ -2010,10 +2012,14 @@ const declarationDefinition = (reflection: DeclarationReflection): string => {
   }
 };
 
+const isInternalReflection = (reflection: Reflection): boolean =>
+  reflection.comment?.hasModifier("@internal") ?? false;
+
 const isVisibleInstanceMember = (reflection: DeclarationReflection): boolean =>
   !reflection.flags.isPrivate &&
   !reflection.flags.isProtected &&
-  !reflection.flags.isStatic;
+  !reflection.flags.isStatic &&
+  !isInternalReflection(reflection);
 
 const getDirectAliasTarget = (
   reflection: DeclarationReflection,
@@ -2073,7 +2079,10 @@ const buildReferencedTypeDoc = (
 
     if (child.kind === ReflectionKind.Method) {
       for (const signature of child.signatures ?? []) {
-        if (!isDocSourceReflection(options, signature)) {
+        if (
+          isInternalReflection(signature) ||
+          !isDocSourceReflection(options, signature)
+        ) {
           continue;
         }
         methods.push({
@@ -2451,6 +2460,7 @@ const collectReferencedTypeDocs = (
     if (
       name === undefined ||
       seen.has(name) ||
+      INTERNAL_REFERENCED_TYPE_NAMES.has(name) ||
       BUILTIN_TYPE_NAMES.has(name) ||
       TYPE_REFERENCE_WRAPPERS.has(name)
     ) {
@@ -2461,6 +2471,9 @@ const collectReferencedTypeDocs = (
     const reflection = reflections.get(name);
     const declaration = declarations.get(name);
     if (reflection === undefined && declaration === undefined) {
+      continue;
+    }
+    if (reflection !== undefined && isInternalReflection(reflection)) {
       continue;
     }
     if (

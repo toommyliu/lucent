@@ -115,6 +115,7 @@ export abstract class LiveEntity<State extends EntityData>
     return this.modelData.state;
   }
 
+  /** @internal */
   addAura(aura: LiveAura, operation: "add" | "refresh"): void {
     const key = this.auraKey(aura.name, aura.kind);
     const current = this.#auras.get(key);
@@ -127,6 +128,7 @@ export abstract class LiveEntity<State extends EntityData>
     current.update({ ...aura.toJSON(), stack });
   }
 
+  /** @internal */
   clearAuras(): void {
     this.#auras.clear();
   }
@@ -148,6 +150,7 @@ export abstract class LiveEntity<State extends EntityData>
     return this.getAura(name, options) !== null;
   }
 
+  /** @internal */
   removeAura(name: string, kind?: AuraKind): void {
     const normalizedName = normalizeGameText(name);
     for (const [key, aura] of this.#auras) {

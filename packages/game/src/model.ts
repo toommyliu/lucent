@@ -12,10 +12,12 @@ export abstract class LiveModel<State extends object> {
     return this.#data;
   }
 
+  /** @internal */
   update(patch: Partial<State>): void {
     Object.assign(this.#data, patch);
   }
 
+  /** @internal */
   replaceFrom(model: LiveModel<State>): void {
     if (this.#data === model.#data) return;
 
@@ -25,6 +27,7 @@ export abstract class LiveModel<State extends object> {
     Object.assign(this.#data, model.#data);
   }
 
+  /** @internal */
   snapshot(): State {
     return { ...this.#data };
   }
