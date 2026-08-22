@@ -3269,11 +3269,10 @@ export function App(props: {
         Effect.gen(function* () {
           const { player } = yield* Api;
           if (targetMap !== "") {
-            yield* player.joinMap(
-              targetMap,
-              targetCell === "" ? undefined : targetCell,
-              targetPad === "" ? undefined : targetPad,
-            );
+            yield* player.joinMap(targetMap, {
+              ...(targetCell === "" ? {} : { cell: targetCell }),
+              ...(targetPad === "" ? {} : { pad: targetPad }),
+            });
             return;
           }
           yield* player.jumpToCell(

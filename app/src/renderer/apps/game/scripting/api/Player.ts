@@ -14,9 +14,9 @@ const makeScriptPlayerJoinMap = (
   joinMap: ApiService["player"]["joinMap"],
   script: ScriptRoomPolicyContext,
 ): ApiService["player"]["joinMap"] =>
-  Effect.fn("ScriptPlayer.joinMap")(function* (map, cell, pad) {
+  Effect.fn("ScriptPlayer.joinMap")(function* (map, options) {
     const policy = yield* script.policy;
-    return yield* joinMap(yield* applyRoomPolicy(map, policy), cell, pad);
+    return yield* joinMap(yield* applyRoomPolicy(map, policy), options);
   });
 
 export const makeScriptPlayerApis = (
@@ -30,7 +30,7 @@ export const makeScriptPlayerApis = (
   const playerApi = {
     ...player,
     joinMap: makeScriptPlayerJoinMap(
-      (map, cell, pad) => player.joinMap(map, cell, pad),
+      (map, options) => player.joinMap(map, options),
       script,
     ),
   };

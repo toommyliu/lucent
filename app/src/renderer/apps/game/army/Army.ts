@@ -485,7 +485,7 @@ const makeArmyApi = (
         }),
       );
 
-    const joinMap: ScriptArmyApi["joinMap"] = (map, cell, pad) =>
+    const joinMap: ScriptArmyApi["joinMap"] = (map, options) =>
       withCoordination(
         Effect.gen(function* () {
           const targetStep = yield* nextStep;
@@ -495,7 +495,7 @@ const makeArmyApi = (
           const label = `join:${resolvedMap}`;
           yield* waitAtSync(session, targetStep, `join-ready:${resolvedMap}`);
 
-          const joined = yield* player.joinMap(resolvedMap, cell, pad);
+          const joined = yield* player.joinMap(resolvedMap, options);
           if (!joined) {
             const reason = `Failed to join army map: ${resolvedMap}`;
             yield* failSession(session, reason, { label, step: joinedStep });
