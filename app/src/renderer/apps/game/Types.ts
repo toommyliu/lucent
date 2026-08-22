@@ -59,7 +59,7 @@ export type ObjectSelector<Shape extends Record<string, unknown>> = {
 
 type MonsterSelectorShape = {
   name: string;
-  monMapId: number;
+  monsterMapId: number;
 };
 
 type ItemSelectorShape = {
