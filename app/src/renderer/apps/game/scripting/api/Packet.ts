@@ -10,6 +10,17 @@ import {
   type ScriptCallbackResult,
 } from "./Callbacks";
 
+const clientPacketTypes = {
+  json: "json",
+  string: "str",
+  xml: "xml",
+} as const;
+
+const serverPacketTypes = {
+  json: "Json",
+  string: "String",
+} as const;
+
 export const makeScriptPacketApi = (
   packet: ApiService["packet"],
   scope: ScriptAsyncScope,
@@ -25,10 +36,19 @@ export const makeScriptPacketApi = (
         Effect.tap((dispose) => scope.addCleanup(dispose)),
       )) as ScriptPacketOn;
 
+  const sendClient: ScriptPacketApi["sendClient"] = (
+    rawPacket,
+    encoding = "string",
+  ) => packet.sendClient(rawPacket, clientPacketTypes[encoding]);
+  const sendServer: ScriptPacketApi["sendServer"] = (
+    rawPacket,
+    encoding = "string",
+  ) => packet.sendServer(rawPacket, serverPacketTypes[encoding]);
+
   return {
     on,
     once: packet.once,
-    sendClient: packet.sendClient,
-    sendServer: packet.sendServer,
+    sendClient,
+    sendServer,
   };
 };
