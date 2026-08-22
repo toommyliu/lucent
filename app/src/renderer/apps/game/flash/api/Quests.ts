@@ -12,6 +12,13 @@ const QuestIds = Schema.Array(PositiveWireInt);
 const isQuestId = (questId: number): boolean =>
   Number.isSafeInteger(questId) && questId > 0;
 
+export interface CompleteQuestOptions {
+  /** Number of turn-ins to complete. Must be finite. Omit to use the maximum currently possible. */
+  readonly turnIns?: number;
+  /** Preferred reward item. Omit when no specific reward is requested. */
+  readonly rewardItemId?: number;
+}
+
 export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
   const load = (questId: number, silent = false) => {
     if (!isQuestId(questId)) return Effect.succeed(false);
@@ -106,13 +113,11 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
     );
   };
 
-  const complete = (
-    questId: number,
-    requestedTurnIns?: number,
-    itemId = -1,
-    special = false,
-  ) => {
+  const complete = (questId: number, options?: CompleteQuestOptions) => {
     if (!isQuestId(questId)) return Effect.succeed(false);
+    if (options?.turnIns !== undefined && !Number.isFinite(options.turnIns)) {
+      return Effect.succeed(false);
+    }
     return Effect.gen(function* () {
       if (!(yield* isInProgress(questId))) return false;
       if (!(yield* canComplete(questId))) return false;
@@ -124,9 +129,9 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
         return false;
       }
       const turnIns =
-        requestedTurnIns === undefined || !Number.isFinite(requestedTurnIns)
+        options?.turnIns === undefined
           ? yield* getMaxTurnIns(questId)
-          : Math.max(1, Math.trunc(requestedTurnIns));
+          : Math.max(1, Math.trunc(options.turnIns));
       const event = yield* wait.forEvent(
         { questId, type: "quest-complete" },
         {
@@ -134,7 +139,7 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
           trigger: bridge
             .invoke(
               "quests.complete",
-              [questId, turnIns, itemId, special],
+              [questId, turnIns, options?.rewardItemId ?? -1, false],
               Schema.Void,
             )
             .pipe(Effect.map(Option.isSome)),
