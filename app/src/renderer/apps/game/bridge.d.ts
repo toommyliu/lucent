@@ -49,9 +49,9 @@ declare global {
         selector?: FlashTypes.MonsterSelector | null,
         force?: boolean,
       ) => boolean;
-      "drops.acceptDrop": (itemId: number) => boolean;
+      "drops.accept": (itemId: number) => boolean;
       "drops.isUsingCustomDrops": () => boolean;
-      "drops.rejectDrop": (itemId: number) => boolean;
+      "drops.reject": (itemId: number) => boolean;
       "drops.toggleUi": () => void;
       "flash.callGameFunction": (path: string, ...args: unknown[]) => string;
       "flash.callGameFunction0": (path: string) => string;

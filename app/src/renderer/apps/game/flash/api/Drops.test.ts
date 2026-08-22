@@ -41,7 +41,7 @@ describe("Drops", () => {
           let outcome: "failure" | boolean = false;
           const target = {
             swf: {
-              "drops.rejectDrop": () => {
+              "drops.reject": () => {
                 if (outcome === "failure") {
                   throw new Error("Flash rejection failed");
                 }

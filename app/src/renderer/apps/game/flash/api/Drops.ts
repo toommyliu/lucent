@@ -62,7 +62,7 @@ export const makeDrops = Effect.fnUntraced(function* (
           {
             timeout: "10 seconds",
             trigger: bridge
-              .invoke("drops.acceptDrop", [drop.itemId], Schema.Boolean)
+              .invoke("drops.accept", [drop.itemId], Schema.Boolean)
               .pipe(Effect.map(Option.getOrElse(() => false))),
           },
         );
@@ -101,7 +101,7 @@ export const makeDrops = Effect.fnUntraced(function* (
       const drop = yield* store.items.get("drop", selector);
       if (drop === null) return false;
       const rejected = yield* bridge.invoke(
-        "drops.rejectDrop",
+        "drops.reject",
         [drop.itemId],
         Schema.Boolean,
       );
