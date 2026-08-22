@@ -48,9 +48,9 @@ package lucent.generated
       external.externalize("combat.getTarget", Combat.getTarget);
       external.externalize("combat.hasTarget", Combat.hasTarget);
       external.externalize("combat.useSkill", Combat.useSkill);
-      external.externalize("drops.acceptDrop", DropList.acceptDrop);
+      external.externalize("drops.accept", DropList.accept);
       external.externalize("drops.isUsingCustomDrops", DropList.isUsingCustomDrops);
-      external.externalize("drops.rejectDrop", DropList.rejectDrop);
+      external.externalize("drops.reject", DropList.reject);
       external.externalize("drops.toggleUi", DropList.toggleUi);
       external.externalize("flash.callGameFunction", Main.callGameFunction);
       external.externalize("flash.callGameFunction0", Main.callGameFunction0);
