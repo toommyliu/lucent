@@ -94,7 +94,7 @@ export const CombatProfileSchema = Schema.Struct({
   role: TrimmedNonEmptyString,
   delayMs: boundedInt(0, MAX_DELAY_MS),
   cooldownMode: CombatProfileCooldownModeSchema,
-  resetSkillIndexOnMonsterDeath: Schema.optionalKey(Schema.Boolean),
+  resetSkillIndexOnTargetDeath: Schema.optionalKey(Schema.Boolean),
   steps: Schema.Array(CombatProfileStepSchema),
   messageTriggers: Schema.optionalKey(
     Schema.Array(CombatProfileMessageTriggerSchema),
@@ -409,8 +409,8 @@ const normalizeProfile = (
     cooldownMode:
       fromOption(decodeCombatProfileCooldownMode, record["cooldownMode"]) ??
       "use-if-ready",
-    ...(fromOption(decodeBoolean, record["resetSkillIndexOnMonsterDeath"])
-      ? { resetSkillIndexOnMonsterDeath: true }
+    ...(fromOption(decodeBoolean, record["resetSkillIndexOnTargetDeath"])
+      ? { resetSkillIndexOnTargetDeath: true }
       : {}),
     steps: normalizedSteps,
     ...(messageTriggers.length === 0 ? {} : { messageTriggers }),

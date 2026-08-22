@@ -39,6 +39,7 @@ describe("AutoAttack", () => {
             cancelTarget: () => Ref.update(cancellations, (count) => count + 1),
             canUseSkill: () => Effect.succeed(true),
             getConsumableSkillItem: () => Effect.succeed(null),
+            isAttackBlocked: () => Effect.succeed(false),
             prepareCombatProfileConsumable: () =>
               Effect.succeed({
                 release: Effect.void,
@@ -113,6 +114,7 @@ describe("AutoAttack", () => {
             cancelTarget: () => Ref.update(cancellations, (count) => count + 1),
             canUseSkill: () => Effect.succeed(true),
             getConsumableSkillItem: () => Effect.succeed(null),
+            isAttackBlocked: () => Effect.succeed(false),
             prepareCombatProfileConsumable: () =>
               Effect.succeed({ release: Effect.void }),
             target: {

@@ -24,7 +24,7 @@ const library: CombatProfileLibrary = {
           source: "aura",
         },
       ],
-      resetSkillIndexOnMonsterDeath: true,
+      resetSkillIndexOnTargetDeath: true,
       role: "DPS",
       steps: [
         {

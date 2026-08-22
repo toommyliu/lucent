@@ -10,7 +10,7 @@ import type {
   CombatProfileStatCondition,
   CombatProfileStep,
 } from "@lucent/core/combatProfiles";
-import type { Aura } from "@lucent/game";
+import type { Aura, Monster } from "@lucent/game";
 import type { ApiService } from "./flash/api/Api";
 
 export interface CombatProfileCursor {
@@ -27,6 +27,8 @@ export interface CombatProfileMessageTriggerEvent {
   readonly monMapId?: number;
   readonly source: "animation" | "aura";
 }
+
+export type CombatProfileCastTarget = Pick<Monster, "getAura" | "monsterMapId">;
 
 interface CombatProfileCursorState {
   readonly index: number;
@@ -155,8 +157,13 @@ const matchesStatCondition = (
 const getTargetAura = (
   deps: CombatProfileRuntimeDeps,
   condition: CombatProfileAuraCondition,
+  castTarget?: CombatProfileCastTarget,
 ) =>
   Effect.gen(function* () {
+    if (castTarget !== undefined) {
+      return auraValue(castTarget.getAura(condition.auraName));
+    }
+
     const target = yield* deps.combat.target.get();
     if (target === null) {
       return 0;
@@ -173,24 +180,30 @@ const getTargetAura = (
 const matchesAuraCondition = (
   deps: CombatProfileRuntimeDeps,
   condition: CombatProfileAuraCondition,
+  castTarget?: CombatProfileCastTarget,
 ) =>
   Effect.gen(function* () {
-    const actual =
-      condition.type === "target-aura"
-        ? yield* getTargetAura(deps, condition)
-        : auraValue(yield* deps.player.auras.get(condition.auraName));
+    if (condition.type === "target-aura") {
+      const actual = yield* getTargetAura(deps, condition, castTarget);
+      return compare(actual, condition.op, condition.value);
+    }
 
-    return compare(actual, condition.op, condition.value);
+    return compare(
+      auraValue(yield* deps.player.auras.get(condition.auraName)),
+      condition.op,
+      condition.value,
+    );
   });
 
 const matchesCondition = (
   deps: CombatProfileRuntimeDeps,
   condition: CombatProfileCondition,
+  castTarget?: CombatProfileCastTarget,
 ) => {
   switch (condition.type) {
     case "self-aura":
     case "target-aura":
-      return matchesAuraCondition(deps, condition);
+      return matchesAuraCondition(deps, condition, castTarget);
     case "self-hp":
     case "self-mp":
     case "ally-hp":
@@ -222,10 +235,11 @@ const isCombatProfileSkillAvailable = (
 export const matchesCombatProfileStep = (
   deps: CombatProfileRuntimeDeps,
   step: CombatProfileStep,
+  castTarget?: CombatProfileCastTarget,
 ) =>
   Effect.gen(function* () {
     for (const condition of step.conditions) {
-      if (!(yield* matchesCondition(deps, condition))) {
+      if (!(yield* matchesCondition(deps, condition, castTarget))) {
         return false;
       }
     }
@@ -242,8 +256,9 @@ const prepareCombatProfileStep = Effect.fn("prepareCombatProfileStep")(
     deps: CombatProfileRuntimeDeps,
     profile: CombatProfile,
     step: CombatProfileStep,
+    castTarget?: CombatProfileCastTarget,
   ): Effect.fn.Return<PreparedCombatProfileStep | null> {
-    if (!(yield* matchesCombatProfileStep(deps, step))) {
+    if (!(yield* matchesCombatProfileStep(deps, step, castTarget))) {
       return null;
     }
     if (!(yield* isCombatProfileSkillAvailable(deps, step.skill))) {
@@ -266,8 +281,10 @@ const castPreparedCombatProfileStep = Effect.fn(
   deps: CombatProfileRuntimeDeps,
   step: CombatProfileStep,
   prepared: PreparedCombatProfileStep,
+  castTarget?: CombatProfileCastTarget,
 ): Effect.fn.Return<boolean> {
   const cast = yield* deps.combat.useSkill(step.skill, {
+    ...(castTarget === undefined ? {} : { target: castTarget.monsterMapId }),
     wait: prepared.waitForCooldown,
   });
   if (cast && step.waitMs !== undefined && step.waitMs > 0) {
@@ -281,6 +298,7 @@ export const castNextCombatProfileStep = Effect.fn("castNextCombatProfileStep")(
     deps: CombatProfileRuntimeDeps,
     profile: CombatProfile,
     cursor: CombatProfileCursor,
+    castTarget?: CombatProfileCastTarget,
   ): Effect.fn.Return<boolean> {
     const steps = profile.steps;
     if (steps.length === 0) {
@@ -292,12 +310,22 @@ export const castNextCombatProfileStep = Effect.fn("castNextCombatProfileStep")(
         continue;
       }
 
-      const prepared = yield* prepareCombatProfileStep(deps, profile, step);
+      const prepared = yield* prepareCombatProfileStep(
+        deps,
+        profile,
+        step,
+        castTarget,
+      );
       if (prepared === null) {
         continue;
       }
 
-      return yield* castPreparedCombatProfileStep(deps, step, prepared);
+      return yield* castPreparedCombatProfileStep(
+        deps,
+        step,
+        prepared,
+        castTarget,
+      );
     }
 
     const startState = yield* Ref.get(cursor.state);
@@ -308,14 +336,24 @@ export const castNextCombatProfileStep = Effect.fn("castNextCombatProfileStep")(
         continue;
       }
 
-      const prepared = yield* prepareCombatProfileStep(deps, profile, step);
+      const prepared = yield* prepareCombatProfileStep(
+        deps,
+        profile,
+        step,
+        castTarget,
+      );
       if (prepared === null) {
         continue;
       }
 
       const resetVersionBeforeCast = (yield* Ref.get(cursor.state))
         .resetVersion;
-      const cast = yield* castPreparedCombatProfileStep(deps, step, prepared);
+      const cast = yield* castPreparedCombatProfileStep(
+        deps,
+        step,
+        prepared,
+        castTarget,
+      );
       const nextIndex = (stepIndex + 1) % steps.length;
       yield* Ref.update(cursor.state, (state) =>
         state.resetVersion === resetVersionBeforeCast
