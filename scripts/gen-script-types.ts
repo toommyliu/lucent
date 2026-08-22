@@ -97,7 +97,6 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptPipe",
   "Scope",
   "Skill",
-  "Stream",
 ]);
 
 const SUPPORT_DECLARATIONS = `
@@ -197,14 +196,6 @@ interface Effect<
 }
 
 interface Scope {
-  readonly [key: string]: unknown;
-}
-
-interface Stream<
-  Value = unknown,
-  Error = never,
-  Requirements = never,
-> {
   readonly [key: string]: unknown;
 }
 
@@ -421,7 +412,6 @@ const transformTypeText = (type: string): string => {
   output = output.replace(/\bEffect\.Yieldable\s*</g, "EffectYieldable<");
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
   output = output.replace(/\bScope\.Scope\b/g, "Scope");
-  output = output.replace(/\bStream\.Stream\s*</g, "Stream<");
   output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
   output = output.replace(/\bReadonlyArray\s*</g, "readonly ");
   output = output.replace(
@@ -1257,9 +1247,6 @@ const validateGeneratedTypes = (content: string): void => {
   }
   if (content.includes("Scope.Scope")) {
     fail("Generated scripting types must normalize Scope.Scope to Scope");
-  }
-  if (content.includes("Stream.Stream")) {
-    fail("Generated scripting types must normalize Stream.Stream to Stream");
   }
   if (/\binterface\s+Extract\b/u.test(content)) {
     fail("Generated scripting types must use the built-in Extract type");

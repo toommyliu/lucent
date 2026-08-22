@@ -55,13 +55,26 @@ export const makeAutomation = Effect.gen(function* () {
   };
 
   const autoReloginApi = {
-    ...autoRelogin,
+    disable: autoRelogin.disable,
+    enable: autoRelogin.enable,
+    getDelay: autoRelogin.getDelay,
+    getServer: autoRelogin.getServer,
+    getState: autoRelogin.getState,
+    isEnabled: autoRelogin.isEnabled,
     onState: observeAutoRelogin,
+    runLogin: autoRelogin.runLogin,
+    setDelay: autoRelogin.setDelay,
+    setEnabled: autoRelogin.setEnabled,
+    setServer: autoRelogin.setServer,
   };
 
   const autoZoneApi = {
-    ...autoZone,
+    getMap: autoZone.getMap,
+    getState: autoZone.getState,
+    isEnabled: autoZone.isEnabled,
     onState: observeAutoZone,
+    setEnabled: autoZone.setEnabled,
+    setMap: autoZone.setMap,
   };
 
   const followerApi = {

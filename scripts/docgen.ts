@@ -2878,8 +2878,6 @@ const GENERATED_MEMBER_SUMMARIES: Readonly<Record<string, string>> = {
   "api.events.on":
     "Runs a handler for every matching event until the script stops or the yielded disposer is called.",
   "api.events.once": "Waits for the next matching event.",
-  "api.events.stream":
-    "Creates a lazy Effect Stream of matching events for advanced stream composition.",
 };
 
 const memberCopyCall = (member: MemberDoc): string => {
@@ -3245,11 +3243,9 @@ const renderEventsReference = (
     "",
     "Use `on` to run a handler for every matching event, or `once` when the script only needs the next match. Both return Effects that fit normal generator scripts.",
     "",
-    "`stream` exposes the same events as a lazy Effect `Stream` for advanced filtering, mapping, and composition. It does no work until the stream is consumed, so most scripts should start with `on` or `once`.",
-    "",
     "## Supported Events",
     "",
-    "`on`, `once`, and `stream` accept every event below. Payload shapes are generated from the current `ScriptEvent` union.",
+    "`on` and `once` accept every event below. Payload shapes are generated from the current `ScriptEvent` union.",
     "",
     "| Event | Payload |",
     "| --- | --- |",
@@ -3273,7 +3269,7 @@ const renderGroup = (
   const summary =
     group.summary ||
     (group.id === "api/events"
-      ? "Listen for one event, subscribe to repeated events, or compose an event stream."
+      ? "Listen for one event or subscribe to repeated events."
       : "");
   const lines = [
     frontmatter(group.title, {
