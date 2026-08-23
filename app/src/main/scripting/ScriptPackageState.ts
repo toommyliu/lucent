@@ -9,8 +9,10 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import {
+  ScriptPackageRevisionSchema,
   ScriptPackageSourceSchema,
   ScriptPackageUpdateStateSchema,
+  type ScriptPackageRevision,
   type ScriptPackageSource,
   type ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
@@ -25,7 +27,7 @@ const ManagedScriptPackageSchema = Schema.Struct({
   files: FileHashesSchema,
   source: ScriptPackageSourceSchema,
   etag: Schema.optionalKey(Schema.String),
-  remoteCommit: Schema.optionalKey(Schema.String),
+  remoteRevision: Schema.optionalKey(ScriptPackageRevisionSchema),
   update: Schema.optionalKey(ScriptPackageUpdateStateSchema),
 });
 
@@ -43,9 +45,10 @@ export interface ManagedScriptPackage {
   readonly installedAt: string;
   readonly files: Readonly<Record<string, string>>;
   readonly source: ScriptPackageSource;
+  /** ETag for a repository-root commit lookup. */
   readonly etag?: string;
-  /** Commit returned by the request that produced `etag`. */
-  readonly remoteCommit?: string;
+  /** Revision returned by the most recent successful update lookup. */
+  readonly remoteRevision?: ScriptPackageRevision;
   readonly update?: ScriptPackageUpdateState;
 }
 

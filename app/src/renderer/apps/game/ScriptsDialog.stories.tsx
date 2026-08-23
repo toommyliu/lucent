@@ -75,13 +75,17 @@ const packages: readonly ScriptPackageSummary[] = [
     name: "lucent-scripts",
     path: "/scripts/packages/lucent-scripts",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/lucent-scripts",
       resolvedCommit: "3bd26da74fb17b39d48ea878b751b077f26c6c77",
     },
     status: "valid",
     update: {
       checkedAt: "2026-08-11T19:42:00.000Z",
-      commit: "5c328e31dc30c5778d638f2fd6043a8fac58e078",
+      revision: {
+        kind: "commit",
+        sha: "5c328e31dc30c5778d638f2fd6043a8fac58e078",
+      },
       status: "available",
     },
     version: "2.3.1",
@@ -98,6 +102,7 @@ const packages: readonly ScriptPackageSummary[] = [
     name: "boss-automation",
     path: "/scripts/packages/boss-automation",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/boss-automation",
       requestedRef: "main",
       resolvedCommit: "446b5aca42c76f0b75d5b83085c27e7c82f0f965",
@@ -118,6 +123,7 @@ const packages: readonly ScriptPackageSummary[] = [
     name: "future-package",
     path: "/scripts/packages/future-package",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/future-package",
       resolvedCommit: "c45b095ea2151d8d1406a1c121bec8d6db5e9a35",
     },
@@ -171,13 +177,17 @@ const additionalAlertPackages: readonly ScriptPackageSummary[] = [
     name: "modified-update-package",
     path: "/scripts/packages/modified-update-package",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/modified-update-package",
       resolvedCommit: "adf65f20afc497b45d97fb3d3f8bb7dd1a5d427b",
     },
     status: "valid",
     update: {
       checkedAt: "2026-08-11T20:00:00.000Z",
-      commit: "6fa6b3f8f5b64224845aa706818adb2f014d791a",
+      revision: {
+        kind: "commit",
+        sha: "6fa6b3f8f5b64224845aa706818adb2f014d791a",
+      },
       status: "available",
     },
   },
@@ -205,6 +215,7 @@ const additionalAlertPackages: readonly ScriptPackageSummary[] = [
     name: "unknown-compatibility-package",
     path: "/scripts/packages/unknown-compatibility-package",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/unknown-compatibility-package",
       resolvedCommit: "7965d355eb0291e0b96e390f7f8fb83553a45d89",
     },
@@ -222,8 +233,11 @@ const additionalAlertPackages: readonly ScriptPackageSummary[] = [
     name: "warning-package",
     path: "/scripts/packages/warning-package",
     source: {
+      kind: "directory",
       repositoryUrl: "https://github.com/example/warning-package",
       resolvedCommit: "b9c09d2b5eb8cfc51631ffc4f91efeab72e4450d",
+      resolvedTree: "f62af9937f09f5f28e8f1e1325fd8934af5aae5f",
+      subdirectory: "script-packages/warning-package",
     },
     status: "valid",
     update: {
@@ -243,6 +257,7 @@ const additionalAlertPackages: readonly ScriptPackageSummary[] = [
     name: "rate-limited-package",
     path: "/scripts/packages/rate-limited-package",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/rate-limited-package",
       resolvedCommit: "4e60e4ba135b30943ec3e65b005486605ee3d92d",
     },
@@ -264,6 +279,7 @@ const additionalAlertPackages: readonly ScriptPackageSummary[] = [
     name: "check-failed-package",
     path: "/scripts/packages/check-failed-package",
     source: {
+      kind: "repository",
       repositoryUrl: "https://github.com/example/check-failed-package",
       resolvedCommit: "a77cde7da0ade671e33c58b050d0f6f5aff09864",
     },

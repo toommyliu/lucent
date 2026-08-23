@@ -30,6 +30,7 @@ const packageEntry = (
   name,
   path: `/packages/${name}`,
   source: {
+    kind: "repository",
     repositoryUrl: `https://github.com/example/${name}`,
     resolvedCommit: "9141d4488219b3351f6ce3eee6a76783cdf1e15d",
     ...(credentialId === undefined ? {} : { credentialId }),

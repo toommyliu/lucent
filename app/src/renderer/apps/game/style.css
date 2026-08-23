@@ -2201,7 +2201,13 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   gap: 0.375rem;
 }
 
-.game-scripts-dialog__repository-feedback {
+.game-scripts-dialog__install-directory-field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.game-scripts-dialog__repository-feedback,
+.game-scripts-dialog__install-field-feedback {
   color: rgb(var(--muted-foreground));
   font-size: var(--text-xs);
   line-height: 1.35;
@@ -2214,7 +2220,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   vertical-align: baseline;
 }
 
-.game-scripts-dialog__repository-feedback[data-invalid] {
+.game-scripts-dialog__repository-feedback[data-invalid],
+.game-scripts-dialog__install-field-feedback[data-invalid] {
   color: rgb(var(--destructive));
 }
 
@@ -2805,7 +2812,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   opacity: 0.72;
 }
 
-.game-scripts-dialog__package-source-commit {
+.game-scripts-dialog__package-source-revision {
   align-items: center;
   border-left: 1px solid rgba(var(--border), 0.75);
   display: flex;
@@ -2814,7 +2821,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   padding-left: 0.5rem;
 }
 
-.game-scripts-dialog__package-source-commit-label {
+.game-scripts-dialog__package-source-revision-label {
   color: rgb(var(--muted-foreground));
   font-size: var(--text-xs);
 }
@@ -2827,9 +2834,9 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   transition: opacity var(--duration-fast) ease;
 }
 
-.game-scripts-dialog__package-source-commit:hover
+.game-scripts-dialog__package-source-revision:hover
   .game-scripts-dialog__package-source-copy.button,
-.game-scripts-dialog__package-source-commit:focus-within
+.game-scripts-dialog__package-source-revision:focus-within
   .game-scripts-dialog__package-source-copy.button {
   opacity: 1;
   pointer-events: auto;
