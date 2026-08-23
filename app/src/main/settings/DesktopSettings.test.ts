@@ -156,8 +156,9 @@ describe("DesktopSettings", () => {
         [
           settings.updateAppearance({ themeMode: "light" }),
           settings.updatePreferences({
-            useGameTabs: true,
             launchMode: "account-manager",
+            showGameUsernameInWindowTitle: true,
+            useGameTabs: true,
           }),
         ],
         { concurrency: "unbounded" },
@@ -171,17 +172,20 @@ describe("DesktopSettings", () => {
       ) as {
         readonly appearance?: { readonly themeMode?: string };
         readonly preferences?: {
-          readonly useGameTabs?: boolean;
           readonly launchMode?: string;
+          readonly showGameUsernameInWindowTitle?: boolean;
+          readonly useGameTabs?: boolean;
         };
       };
 
       expect(current.appearance.themeMode).toBe("light");
       expect(current.preferences.useGameTabs).toBe(true);
       expect(current.preferences.launchMode).toBe("account-manager");
+      expect(current.preferences.showGameUsernameInWindowTitle).toBe(true);
       expect(persisted.appearance?.themeMode).toBe("light");
       expect(persisted.preferences?.useGameTabs).toBe(true);
       expect(persisted.preferences?.launchMode).toBe("account-manager");
+      expect(persisted.preferences?.showGameUsernameInWindowTitle).toBe(true);
     }),
   );
 });

@@ -64,6 +64,7 @@ import {
   type DesktopGameViewRecord,
 } from "./DesktopGameHost";
 import { parseAllowedGameWindowOpenUrl } from "./GameWindowOpenPolicy";
+import { formatGameWindowTitle } from "./GameWindowTitle";
 import {
   INITIAL_WINDOW_GENERATION,
   observeWindowReloads,
@@ -410,6 +411,9 @@ const createWindowOptions = (
       ? {}
       : { minHeight: Math.min(definition.minHeight, height) }),
     ...(env.platform === "linux" ? { icon: appIconPath } : {}),
+    ...(definition.kind === "game"
+      ? { title: activeBranding.displayName }
+      : {}),
     backgroundColor: snapshot.backgroundColor,
     show: false,
     webPreferences: {
@@ -498,6 +502,7 @@ interface DesktopBrowserWindowRecord extends DesktopRendererRecordBase {
   readonly gamePartition?: string;
   readonly gameHostRendererId?: never;
   readonly gameView?: never;
+  loggedInUsername?: string;
   publishedPresentation?: GameViewPresentation;
   readonly window: ElectronWindowHandle;
 }
@@ -603,8 +608,50 @@ const makeDesktopWindows = Effect.gen(function* () {
   const theme = yield* ElectronTheme;
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
+  const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
+  const getBootstrapSettings = settings.get.pipe(
+    Effect.catch((cause) =>
+      observability
+        .warn(
+          "window",
+          "Falling back to default settings for window bootstrap",
+          { cause },
+        )
+        .pipe(Effect.as(DEFAULT_APP_SETTINGS)),
+    ),
+  );
+  const initialSettings = yield* getBootstrapSettings;
+  let showGameUsernameInWindowTitle =
+    initialSettings.preferences.showGameUsernameInWindowTitle;
   const renderers = new Map<DesktopWindowInstanceId, DesktopRendererRecord>();
   const hiddenTopLevelWindowIds = new Set<DesktopWindowInstanceId>();
+  const setGameWindowTitle = (
+    window: ElectronWindowHandle,
+    username: string | undefined,
+  ): void => {
+    if (!isElectronWindowUsable(window)) return;
+    try {
+      window.setTitle(
+        formatGameWindowTitle(
+          activeBranding.displayName,
+          showGameUsernameInWindowTitle,
+          username,
+        ),
+      );
+    } catch {}
+  };
+  const refreshGameHostWindowTitle = (host: DesktopGameHostRecord): void => {
+    const selected = renderers.get(host.selectedId);
+    setGameWindowTitle(
+      host.window,
+      selected !== undefined && isGameViewRecord(selected)
+        ? selected.loggedInUsername
+        : undefined,
+    );
+  };
+  const refreshStandaloneGameWindowTitle = (
+    record: DesktopBrowserWindowRecord,
+  ): void => setGameWindowTitle(record.window, record.loggedInUsername);
   const gameHosts = makeDesktopGameHosts({
     getGameViewRecord: (id) => {
       const record = renderers.get(id);
@@ -621,8 +668,25 @@ const makeDesktopWindows = Effect.gen(function* () {
         }),
       ).catch(() => undefined);
     },
+    onStateChanged: refreshGameHostWindowTitle,
     platform: env.platform,
   });
+  const unsubscribeWindowTitleSettings = yield* settings.onChanged(
+    (nextSettings) => {
+      const nextValue = nextSettings.preferences.showGameUsernameInWindowTitle;
+      if (showGameUsernameInWindowTitle === nextValue) return;
+      showGameUsernameInWindowTitle = nextValue;
+      for (const host of gameHosts.values()) {
+        refreshGameHostWindowTitle(host);
+      }
+      for (const record of renderers.values()) {
+        if (record.kind === "game" && !isGameViewRecord(record)) {
+          refreshStandaloneGameWindowTitle(record);
+        }
+      }
+    },
+  );
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindowTitleSettings));
   const createdListeners = new Set<
     (event: DesktopWindowCreatedEvent) => Effect.Effect<void, unknown>
   >();
@@ -1327,20 +1391,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
     return null;
   };
-
-  const getBootstrapSettings = settings.get.pipe(
-    Effect.catch((cause) =>
-      observability
-        .warn(
-          "window",
-          "Falling back to default settings for window bootstrap",
-          {
-            cause,
-          },
-        )
-        .pipe(Effect.as(DEFAULT_APP_SETTINGS)),
-    ),
-  );
 
   const updateGameViewPhase = (
     id: DesktopWindowInstanceId,
@@ -2171,17 +2221,29 @@ const makeDesktopWindows = Effect.gen(function* () {
           throw new Error(`Game renderer is not open: ${gameRendererId}`);
         }
         const [, record] = entry;
+        const gameViewName = normalizeGameViewName(name);
         if (!isGameViewRecord(record)) {
+          if (record.loggedInUsername === gameViewName) return;
+          if (gameViewName === undefined) {
+            delete record.loggedInUsername;
+          } else {
+            record.loggedInUsername = gameViewName;
+          }
+          refreshStandaloneGameWindowTitle(record);
           return;
         }
-        const gameViewName = normalizeGameViewName(name);
-        if (record.gameViewName === gameViewName) {
+        if (
+          record.gameViewName === gameViewName &&
+          record.loggedInUsername === gameViewName
+        ) {
           return;
         }
         if (gameViewName === undefined) {
           delete record.gameViewName;
+          delete record.loggedInUsername;
         } else {
           record.gameViewName = gameViewName;
+          record.loggedInUsername = gameViewName;
         }
         const host = gameHosts.find(record.gameHostRendererId);
         if (host !== null) {
@@ -2349,12 +2411,17 @@ const makeDesktopWindows = Effect.gen(function* () {
         };
         renderers.set(id, record);
         if (kind === "game" && !isGameViewRecord(record)) {
+          window.on("page-title-updated", (event) => {
+            event.preventDefault();
+            refreshStandaloneGameWindowTitle(record);
+          });
           window.on("focus", () =>
             publishStandaloneGameViewPresentation(record),
           );
           window.on("blur", () =>
             publishStandaloneGameViewPresentation(record),
           );
+          refreshStandaloneGameWindowTitle(record);
         }
         const createdEvent: DesktopWindowCreatedEvent = {
           rendererId,

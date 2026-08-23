@@ -164,6 +164,9 @@ const applyPreferencesPatch = (
       ...current.preferences,
       checkForUpdates:
         patch.checkForUpdates ?? current.preferences.checkForUpdates,
+      showGameUsernameInWindowTitle:
+        patch.showGameUsernameInWindowTitle ??
+        current.preferences.showGameUsernameInWindowTitle,
       useGameTabs: patch.useGameTabs ?? current.preferences.useGameTabs,
       launchMode: patch.launchMode ?? current.preferences.launchMode,
     },
