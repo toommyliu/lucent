@@ -1,367 +1,555 @@
-import { Icon } from "./Icon";
 import {
   createEffect,
+  createMemo,
   createSignal,
-  Index,
+  For,
   onCleanup,
+  onMount,
   Show,
   splitProps,
-  type Accessor,
   type JSX,
 } from "solid-js";
 import { cn } from "../lib/cn";
+import { Icon } from "./Icon";
+import { Spinner } from "./Spinner";
 
-export type ToastVariant = "default" | "error" | "info" | "success" | "warning";
+const DEFAULT_DURATION = 5000;
+const DEFAULT_TOAST_HEIGHT = 64;
+const MAX_TOASTS = 4;
+const TOAST_GAP = 12;
+
+export type ToastVariant =
+  | "default"
+  | "error"
+  | "info"
+  | "loading"
+  | "success"
+  | "warning";
+
 export type ToastPlacement =
   | "bottom-center"
+  | "bottom-left"
   | "bottom-right"
   | "top-center"
+  | "top-left"
   | "top-right";
 
-export interface ToastHandle {
-  readonly close: () => void;
+export interface ToastAction {
+  readonly label: string;
+  readonly onClick: VoidFunction;
 }
 
-export interface ToastOptions {
-  readonly action?: JSX.Element;
-  readonly class?: string;
-  readonly description?: JSX.Element;
-  readonly dismissible?: boolean;
-  readonly duration?: number | null;
-  readonly icon?: JSX.Element | null;
-  readonly id?: string;
-  readonly onRemove?: () => void;
-  readonly testId?: string;
-  readonly title?: JSX.Element;
+interface ToastContentOptions {
+  readonly action?: ToastAction | undefined;
+  readonly class?: string | undefined;
+  readonly closable?: boolean | undefined;
+  readonly description?: JSX.Element | undefined;
+  readonly icon?: JSX.Element | null | undefined;
+  readonly title?: JSX.Element | undefined;
+  readonly variant?: ToastVariant | undefined;
 }
 
-export interface ToastItem extends Required<Pick<ToastOptions, "dismissible">> {
-  readonly action?: JSX.Element;
-  readonly class?: string;
-  readonly description?: JSX.Element;
+export interface ToastProps
+  extends
+    Omit<JSX.HTMLAttributes<HTMLDivElement>, "children" | "class" | "title">,
+    ToastContentOptions {
+  readonly onOpenChange?: ((open: boolean) => void) | undefined;
+  readonly open?: boolean | undefined;
+}
+
+export interface ToastOptions extends ToastContentOptions {
+  /** Milliseconds before dismissal. `null` keeps the toast open. */
+  readonly duration?: number | null | undefined;
+  readonly id?: string | undefined;
+}
+
+export type ToastPromiseState<Value> =
+  | string
+  | Omit<ToastOptions, "id">
+  | ((value: Value) => string | Omit<ToastOptions, "id">);
+
+/** Messages shown while a promise is pending and after it settles. */
+export interface ToastPromiseOptions<Value> {
+  readonly error: ToastPromiseState<unknown>;
+  readonly loading: string | Omit<ToastOptions, "variant">;
+  readonly success: ToastPromiseState<Value>;
+}
+
+interface ProgrammaticToast {
+  readonly action: ToastAction | undefined;
+  readonly class: string | undefined;
+  readonly closable: boolean;
+  readonly description: JSX.Element;
   readonly duration: number | null;
-  readonly icon?: JSX.Element | null;
+  readonly icon: JSX.Element | null | undefined;
   readonly id: string;
-  readonly key?: string;
-  readonly onRemove?: () => void;
-  readonly open: boolean;
-  readonly testId?: string;
-  readonly title?: JSX.Element;
+  readonly title: JSX.Element;
   readonly variant: ToastVariant;
-  readonly version: number;
 }
 
-export interface ToastController {
-  readonly close: (id: string) => void;
-  readonly closeAll: () => void;
-  readonly error: (
-    title: JSX.Element,
-    options?: Omit<ToastOptions, "title">,
-  ) => ToastHandle;
-  readonly info: (
-    title: JSX.Element,
-    options?: Omit<ToastOptions, "title">,
-  ) => ToastHandle;
-  readonly remove: (id: string) => void;
-  readonly show: (
-    options: ToastOptions & { variant?: ToastVariant },
-  ) => ToastHandle;
-  readonly success: (
-    title: JSX.Element,
-    options?: Omit<ToastOptions, "title">,
-  ) => ToastHandle;
-  readonly toasts: Accessor<readonly ToastItem[]>;
-  readonly warning: (
-    title: JSX.Element,
-    options?: Omit<ToastOptions, "title">,
-  ) => ToastHandle;
-}
-
-export interface CreateToastControllerOptions {
-  readonly defaultDuration?: number;
-  readonly limit?: number;
+export interface ToastApi {
+  readonly create: (options: ToastOptions) => string;
+  readonly dismiss: (id?: string) => void;
+  readonly error: (options: Omit<ToastOptions, "variant">) => string;
+  readonly info: (options: Omit<ToastOptions, "variant">) => string;
+  readonly loading: (options: Omit<ToastOptions, "variant">) => string;
+  readonly promise: <Value>(
+    promise: PromiseLike<Value>,
+    options: ToastPromiseOptions<Value>,
+  ) => Promise<Value>;
+  readonly success: (options: Omit<ToastOptions, "variant">) => string;
+  readonly update: (id: string, options: Omit<ToastOptions, "id">) => void;
+  readonly warning: (options: Omit<ToastOptions, "variant">) => string;
 }
 
 export interface ToasterProps extends Omit<
   JSX.HTMLAttributes<HTMLDivElement>,
   "class"
 > {
-  readonly class?: string;
-  readonly controller: ToastController;
-  readonly placement?: ToastPlacement;
-  readonly removeDelay?: number;
+  readonly class?: string | undefined;
+  readonly placement?: ToastPlacement | undefined;
 }
 
-export interface ToastBannerProps extends Omit<
-  JSX.HTMLAttributes<HTMLDivElement>,
-  "class"
-> {
-  readonly class?: string;
-  readonly controller: Pick<ToastController, "close" | "remove">;
-  readonly removeDelay?: number;
-  readonly toast: ToastItem;
+const [programmaticToasts, setProgrammaticToasts] = createSignal<
+  readonly ProgrammaticToast[]
+>([]);
+let nextToastId = 1;
+
+function defaultDuration(
+  variant: ToastVariant,
+  action: ToastAction | undefined,
+): number | null {
+  return variant === "error" || variant === "loading" || action !== undefined
+    ? null
+    : DEFAULT_DURATION;
 }
 
-const DEFAULT_TOAST_DURATION = 5000;
-const DEFAULT_REMOVE_DELAY = 180;
+function createToast(options: ToastOptions): string {
+  const id = options.id ?? `toast-${nextToastId++}`;
 
-const defaultToastIcon = (variant: ToastVariant): JSX.Element | null => {
-  if (variant === "success") {
-    return <Icon icon="circle_check" aria-hidden="true" />;
-  }
+  setProgrammaticToasts((current) => {
+    const existing = current.find((item) => item.id === id);
+    const variant = options.variant ?? existing?.variant ?? "default";
+    const action = options.action ?? existing?.action;
+    const duration =
+      options.duration === undefined
+        ? existing === undefined
+          ? defaultDuration(variant, action)
+          : existing.duration
+        : options.duration;
+    const toastItem: ProgrammaticToast = {
+      action,
+      class: options.class ?? existing?.class,
+      closable: options.closable ?? existing?.closable ?? duration === null,
+      description: options.description ?? existing?.description,
+      duration,
+      icon: options.icon === undefined ? existing?.icon : options.icon,
+      id,
+      title: options.title ?? existing?.title,
+      variant,
+    };
 
-  if (variant === "info") {
-    return <Icon icon="info" aria-hidden="true" />;
-  }
+    return [toastItem, ...current.filter((item) => item.id !== id)].slice(
+      0,
+      MAX_TOASTS,
+    );
+  });
 
-  if (variant === "warning") {
-    return <Icon icon="triangle_alert" aria-hidden="true" />;
-  }
+  return id;
+}
 
-  if (variant === "error") {
-    return <Icon icon="circle_alert" aria-hidden="true" />;
-  }
+function dismissToast(id?: string): void {
+  setProgrammaticToasts((current) =>
+    id === undefined ? [] : current.filter((item) => item.id !== id),
+  );
+}
 
-  return null;
+function createVariantToast(
+  variant: ToastVariant,
+  options: Omit<ToastOptions, "variant">,
+): string {
+  return createToast({ ...options, variant });
+}
+
+function resolvePromiseState<Value>(
+  state: ToastPromiseState<Value>,
+  value: Value,
+): Omit<ToastOptions, "id"> {
+  const resolved = typeof state === "function" ? state(value) : state;
+  return typeof resolved === "string" ? { description: resolved } : resolved;
+}
+
+function settlePromiseToast(
+  id: string,
+  options: Omit<ToastOptions, "id">,
+  fallbackVariant: ToastVariant,
+): void {
+  setProgrammaticToasts((current) =>
+    current.map((item) => {
+      if (item.id !== id) return item;
+
+      const variant = options.variant ?? fallbackVariant;
+      const action = Object.hasOwn(options, "action")
+        ? options.action
+        : item.action;
+      const duration =
+        options.duration === undefined
+          ? defaultDuration(variant, action)
+          : options.duration;
+
+      return {
+        action,
+        class: Object.hasOwn(options, "class") ? options.class : item.class,
+        closable: options.closable ?? duration === null,
+        description: Object.hasOwn(options, "description")
+          ? options.description
+          : item.description,
+        duration,
+        icon: Object.hasOwn(options, "icon") ? options.icon : item.icon,
+        id,
+        title: Object.hasOwn(options, "title") ? options.title : item.title,
+        variant,
+      };
+    }),
+  );
+}
+
+function createPromiseToast<Value>(
+  promiseValue: PromiseLike<Value>,
+  options: ToastPromiseOptions<Value>,
+): Promise<Value> {
+  const loadingOptions =
+    typeof options.loading === "string"
+      ? { description: options.loading }
+      : options.loading;
+  const id = createToast({
+    ...loadingOptions,
+    duration: null,
+    variant: "loading",
+  });
+
+  return Promise.resolve(promiseValue)
+    .then((value) => {
+      settlePromiseToast(
+        id,
+        resolvePromiseState(options.success, value),
+        "success",
+      );
+      return value;
+    })
+    .catch((cause: unknown) => {
+      settlePromiseToast(
+        id,
+        resolvePromiseState(options.error, cause),
+        "error",
+      );
+      throw cause;
+    });
+}
+
+export const toast: ToastApi = {
+  create: createToast,
+  dismiss: dismissToast,
+  error: (options) => createVariantToast("error", options),
+  info: (options) => createVariantToast("info", options),
+  loading: (options) => createVariantToast("loading", options),
+  promise: createPromiseToast,
+  success: (options) => createVariantToast("success", options),
+  update: (id, options) => {
+    createToast({ ...options, id });
+  },
+  warning: (options) => createVariantToast("warning", options),
 };
 
-export const createToastController = (
-  options: CreateToastControllerOptions = {},
-): ToastController => {
-  const defaultDuration = options.defaultDuration ?? DEFAULT_TOAST_DURATION;
-  const limit = options.limit ?? 4;
-  const [toasts, setToasts] = createSignal<readonly ToastItem[]>([]);
-  let nextToastId = 1;
-
-  const close = (id: string): void => {
-    setToasts((current) =>
-      current.map((toast) =>
-        toast.id === id ? { ...toast, open: false } : toast,
-      ),
-    );
+function DefaultToastIcon(props: {
+  readonly icon?: JSX.Element | null;
+  readonly variant: ToastVariant;
+}): JSX.Element {
+  const icon = (): JSX.Element | null => {
+    if (props.icon !== undefined) return props.icon;
+    if (props.variant === "success") {
+      return <Icon aria-hidden="true" icon="circle_check" />;
+    }
+    if (props.variant === "error") {
+      return <Icon aria-hidden="true" icon="circle_alert" />;
+    }
+    if (props.variant === "info") {
+      return <Icon aria-hidden="true" icon="info" />;
+    }
+    if (props.variant === "warning") {
+      return <Icon aria-hidden="true" icon="triangle_alert" />;
+    }
+    if (props.variant === "loading") {
+      return <Spinner aria-hidden="true" size="md" />;
+    }
+    return null;
   };
 
-  const closeAll = (): void => {
-    setToasts((current) => current.map((toast) => ({ ...toast, open: false })));
-  };
+  return (
+    <Show when={icon()}>
+      {(toastIcon) => <div class="toast__icon">{toastIcon()}</div>}
+    </Show>
+  );
+}
 
-  const remove = (id: string): void => {
-    let removed: ToastItem | undefined;
-    setToasts((current) =>
-      current.filter((toast) => {
-        if (toast.id === id) {
-          removed = toast;
-          return false;
-        }
-        return true;
-      }),
-    );
-    removed?.onRemove?.();
-  };
+export function Toast(props: ToastProps): JSX.Element {
+  const [local, rest] = splitProps(props, [
+    "action",
+    "class",
+    "closable",
+    "description",
+    "icon",
+    "onOpenChange",
+    "open",
+    "title",
+    "variant",
+  ]);
+  const variant = () => local.variant ?? "default";
+  const close = (): void => local.onOpenChange?.(false);
 
-  const show = (
-    toastOptions: ToastOptions & { variant?: ToastVariant },
-  ): ToastHandle => {
-    const id = toastOptions.id ?? `${nextToastId++}`;
-    let toastId = id;
-    let evictedToasts: ToastItem[] = [];
+  return (
+    <Show when={local.open ?? true}>
+      <div
+        {...rest}
+        aria-atomic="true"
+        aria-live={variant() === "error" ? "assertive" : "polite"}
+        class={cn("toast toast--standalone", local.class)}
+        data-slot="toast"
+        data-type={variant()}
+        role={variant() === "error" ? "alert" : "status"}
+      >
+        <div class="toast__content">
+          <div class="toast__message">
+            <DefaultToastIcon icon={local.icon} variant={variant()} />
+            <div class="toast__body">
+              <Show when={local.title}>
+                {(title) => <div class="toast__title">{title()}</div>}
+              </Show>
+              <Show when={local.description}>
+                {(description) => (
+                  <div class="toast__description">{description()}</div>
+                )}
+              </Show>
+            </div>
+          </div>
+          <Show when={local.action}>
+            {(action) => (
+              <button
+                class="button button--default button--xs toast__action"
+                onClick={() => {
+                  action().onClick();
+                  close();
+                }}
+                type="button"
+              >
+                <span class="button__content">{action().label}</span>
+              </button>
+            )}
+          </Show>
+          <Show when={local.closable}>
+            <button
+              aria-label="Dismiss notification"
+              class="toast__close"
+              onClick={close}
+              type="button"
+            >
+              <Icon aria-hidden="true" icon="x" size="xs" />
+            </button>
+          </Show>
+        </div>
+      </div>
+    </Show>
+  );
+}
 
-    setToasts((current) => {
-      const existingToast = current.find((toast) => toast.id === id);
-      toastId = existingToast?.id ?? id;
+interface ProgrammaticToastItemProps {
+  readonly frontmostHeight: number;
+  readonly id: string;
+  readonly index: number;
+  readonly offset: number;
+  readonly onHeightChange: (id: string, height?: number) => void;
+  readonly ownHeight: number;
+}
 
-      const nextToast: ToastItem = {
-        dismissible: toastOptions.dismissible ?? true,
-        duration:
-          toastOptions.duration === undefined
-            ? defaultDuration
-            : toastOptions.duration,
-        id: toastId,
-        open: true,
-        variant: toastOptions.variant ?? "default",
-        version: (existingToast?.version ?? 0) + 1,
-        ...(toastOptions.action === undefined
-          ? {}
-          : { action: toastOptions.action }),
-        ...(toastOptions.class === undefined
-          ? {}
-          : { class: toastOptions.class }),
-        ...(toastOptions.description === undefined
-          ? {}
-          : { description: toastOptions.description }),
-        ...(toastOptions.icon === undefined ? {} : { icon: toastOptions.icon }),
-        ...(toastOptions.onRemove === undefined
-          ? {}
-          : { onRemove: toastOptions.onRemove }),
-        ...(toastOptions.testId === undefined
-          ? {}
-          : { testId: toastOptions.testId }),
-        ...(toastOptions.title === undefined
-          ? {}
-          : { title: toastOptions.title }),
-      };
+function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
+  let itemElement: HTMLDivElement | undefined;
+  let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+  let resizeObserver: ResizeObserver | undefined;
+  const item = createMemo(() =>
+    programmaticToasts().find((candidate) => candidate.id === props.id),
+  );
 
-      const nextToasts = [
-        nextToast,
-        ...current.filter((toast) => toast.id !== nextToast.id),
-      ];
-      evictedToasts = nextToasts.slice(limit);
-      return nextToasts.slice(0, limit);
-    });
+  createEffect(() => {
+    const currentItem = item();
 
-    for (const toast of evictedToasts) {
-      toast.onRemove?.();
+    if (dismissTimer !== undefined) {
+      clearTimeout(dismissTimer);
+      dismissTimer = undefined;
     }
 
-    return { close: () => close(toastId) };
-  };
+    if (currentItem?.duration === undefined || currentItem.duration === null) {
+      return;
+    }
 
-  const showWithVariant =
-    (variant: ToastVariant) =>
-    (title: JSX.Element, toastOptions: Omit<ToastOptions, "title"> = {}) =>
-      show({ ...toastOptions, title, variant });
+    dismissTimer = setTimeout(
+      () => dismissToast(props.id),
+      currentItem.duration,
+    );
+  });
 
-  return {
-    close,
-    closeAll,
-    error: showWithVariant("error"),
-    info: showWithVariant("info"),
-    remove,
-    show,
-    success: showWithVariant("success"),
-    toasts,
-    warning: showWithVariant("warning"),
-  };
-};
+  onMount(() => {
+    const contentElement =
+      itemElement?.querySelector<HTMLElement>(".toast__content") ?? undefined;
+    const toastElement =
+      contentElement?.closest<HTMLElement>(".toast") ?? undefined;
+    const measure = (): void => {
+      if (contentElement === undefined || toastElement === undefined) return;
+      const styles = window.getComputedStyle(toastElement);
+      const borderHeight =
+        Number.parseFloat(styles.borderTopWidth) +
+        Number.parseFloat(styles.borderBottomWidth);
+      props.onHeightChange(
+        props.id,
+        Math.ceil(contentElement.offsetHeight + borderHeight),
+      );
+    };
 
-export function Toaster(props: ToasterProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
-    "class",
-    "controller",
-    "placement",
-    "removeDelay",
-  ]);
+    measure();
+    if (contentElement !== undefined && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(contentElement);
+    }
+  });
+
+  onCleanup(() => {
+    if (dismissTimer !== undefined) clearTimeout(dismissTimer);
+    resizeObserver?.disconnect();
+    props.onHeightChange(props.id);
+  });
 
   return (
     <div
-      {...rest}
-      class={cn(
-        "toaster",
-        `toaster--${local.placement ?? "top-center"}`,
-        local.class,
-      )}
-      data-slot="toaster"
+      class="toaster__item"
+      data-behind={props.index > 0 ? "" : undefined}
+      ref={(element) => {
+        itemElement = element;
+      }}
+      style={
+        {
+          "--toast-frontmost-height": `${props.frontmostHeight}px`,
+          "--toast-height": `${props.ownHeight}px`,
+          "--toast-index": props.index,
+          "--toast-offset-y": `${props.offset}px`,
+        } as JSX.CSSProperties
+      }
     >
-      <Index each={local.controller.toasts()}>
-        {(toast) => (
-          <ToastBanner
-            controller={local.controller}
-            {...(local.removeDelay === undefined
-              ? {}
-              : { removeDelay: local.removeDelay })}
-            toast={toast()}
+      <Show when={item()}>
+        {(currentItem) => (
+          <Toast
+            action={currentItem().action}
+            class={currentItem().class}
+            closable={currentItem().closable}
+            description={currentItem().description}
+            icon={currentItem().icon}
+            onOpenChange={() => dismissToast(props.id)}
+            title={currentItem().title}
+            variant={currentItem().variant}
           />
         )}
-      </Index>
+      </Show>
     </div>
   );
 }
 
-export function ToastBanner(props: ToastBannerProps): JSX.Element {
-  const [dismissed, setDismissed] = createSignal(false);
-  let autoCloseTimer: ReturnType<typeof setTimeout> | undefined;
-  let removeTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const visible = () => props.toast.open && !dismissed();
-  const close = (): void => {
-    setDismissed(true);
-    props.controller.close(props.toast.id);
+/** Mount once near the app root to display programmatic toasts. */
+export function Toaster(props: ToasterProps): JSX.Element {
+  const [local, rest] = splitProps(props, ["class", "placement"]);
+  const [expanded, setExpanded] = createSignal(false);
+  const [toastHeights, setToastHeights] = createSignal<
+    Readonly<Record<string, number>>
+  >({});
+  const placement = (): ToastPlacement => local.placement ?? "bottom-right";
+  const heightFor = (id: string): number =>
+    toastHeights()[id] ?? DEFAULT_TOAST_HEIGHT;
+  const frontmostHeight = (): number => {
+    const frontmostToast = programmaticToasts()[0];
+    return frontmostToast === undefined ? 0 : heightFor(frontmostToast.id);
   };
-
-  createEffect(() => {
-    props.toast.version;
-    if (!props.toast.open) return;
-
-    setDismissed(false);
-    if (removeTimer !== undefined) {
-      clearTimeout(removeTimer);
-      removeTimer = undefined;
-    }
-  });
-
-  createEffect(() => {
-    if (autoCloseTimer !== undefined) {
-      clearTimeout(autoCloseTimer);
-      autoCloseTimer = undefined;
-    }
-
-    const duration = props.toast.duration;
-    props.toast.version;
-    if (visible() && duration !== null && duration > 0) {
-      autoCloseTimer = setTimeout(close, duration);
-    }
-  });
-
-  createEffect(() => {
-    if (visible()) return;
-    if (removeTimer !== undefined) return;
-
-    removeTimer = setTimeout(
-      () => props.controller.remove(props.toast.id),
-      props.removeDelay ?? DEFAULT_REMOVE_DELAY,
+  const offsetFor = (index: number): number =>
+    programmaticToasts()
+      .slice(0, index)
+      .reduce((offset, item) => offset + heightFor(item.id) + TOAST_GAP, 0);
+  const expandedHeight = (): number => {
+    const items = programmaticToasts();
+    if (items.length === 0) return 0;
+    return (
+      items.reduce((height, item) => height + heightFor(item.id), 0) +
+      TOAST_GAP * (items.length - 1)
     );
-  });
-
-  onCleanup(() => {
-    if (autoCloseTimer !== undefined) clearTimeout(autoCloseTimer);
-    if (removeTimer !== undefined) clearTimeout(removeTimer);
-  });
-
-  const icon = () =>
-    props.toast.icon === undefined
-      ? defaultToastIcon(props.toast.variant)
-      : props.toast.icon;
+  };
+  const isExpanded = (): boolean =>
+    expanded() && programmaticToasts().length > 1;
+  const setToastHeight = (id: string, height?: number): void => {
+    setToastHeights((current) => {
+      if (height === undefined) {
+        if (current[id] === undefined) return current;
+        const next = { ...current };
+        delete next[id];
+        return next;
+      }
+      if (current[id] === height) return current;
+      return { ...current, [id]: height };
+    });
+  };
 
   return (
     <div
-      class={cn(
-        "toast-banner",
-        `toast-banner--${props.toast.variant}`,
-        props.toast.class,
-        props.class,
-      )}
-      data-slot="toast"
-      data-state={visible() ? "open" : "closed"}
-      data-testid={props.toast.testId}
-      role={props.toast.variant === "error" ? "alert" : "status"}
-      aria-live={props.toast.variant === "error" ? "assertive" : "polite"}
+      {...rest}
+      aria-label="Notifications"
+      class={cn("toaster", `toaster--${placement()}`, local.class)}
+      data-expanded={isExpanded() ? "" : undefined}
+      data-slot="toaster"
+      onFocusIn={() => setExpanded(true)}
+      onFocusOut={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          !(
+            nextTarget instanceof Node &&
+            event.currentTarget.contains(nextTarget)
+          ) &&
+          !event.currentTarget.matches(":hover")
+        ) {
+          setExpanded(false);
+        }
+      }}
+      onPointerEnter={() => setExpanded(true)}
+      onPointerLeave={(event) => {
+        if (!event.currentTarget.contains(document.activeElement)) {
+          setExpanded(false);
+        }
+      }}
+      role="region"
+      tabIndex={programmaticToasts().length > 1 ? 0 : undefined}
     >
-      <Show when={icon()}>
-        {(toastIcon) => <div class="toast-banner__icon">{toastIcon()}</div>}
-      </Show>
-      <div class="toast-banner__body">
-        <Show when={props.toast.title}>
-          {(title) => <div class="toast-banner__title">{title()}</div>}
-        </Show>
-        <Show when={props.toast.description}>
-          {(description) => (
-            <div class="toast-banner__description">{description()}</div>
+      <div
+        class="toaster__stack"
+        style={{
+          height: `${isExpanded() ? expandedHeight() : frontmostHeight()}px`,
+        }}
+      >
+        <For each={programmaticToasts().map((item) => item.id)}>
+          {(id, index) => (
+            <ProgrammaticToastItem
+              frontmostHeight={frontmostHeight()}
+              id={id}
+              index={index()}
+              offset={offsetFor(index())}
+              onHeightChange={setToastHeight}
+              ownHeight={heightFor(id)}
+            />
           )}
-        </Show>
+        </For>
       </div>
-      <Show when={props.toast.action}>
-        {(action) => <div class="toast-banner__action">{action()}</div>}
-      </Show>
-      <Show when={props.toast.dismissible}>
-        <button
-          aria-label="Dismiss notification"
-          class="toast-banner__close"
-          onClick={close}
-          type="button"
-        >
-          <Icon icon="x" aria-hidden="true" />
-        </button>
-      </Show>
     </div>
   );
 }

@@ -323,16 +323,16 @@ export {
   type TooltipIconButtonProps,
 } from "./components/TooltipIconButton";
 export {
-  createToastController,
+  toast,
+  Toast,
   Toaster,
-  ToastBanner,
-  type CreateToastControllerOptions,
-  type ToastBannerProps,
-  type ToastController,
-  type ToastHandle,
-  type ToastItem,
+  type ToastAction,
+  type ToastApi,
   type ToastOptions,
   type ToastPlacement,
+  type ToastPromiseOptions,
+  type ToastPromiseState,
+  type ToastProps,
   type ToasterProps,
   type ToastVariant,
 } from "./components/Toast";
