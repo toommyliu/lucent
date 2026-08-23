@@ -459,7 +459,7 @@ interface ScriptPlayerApi {
     getMaxMp(): Effect<number, never>;
     getMp(): Effect<number, never>;
     getPad(): Effect<string, never>;
-    getPosition(): Effect<ScriptPlayerPosition, never>;
+    getPosition(): Effect<Position, never>;
     getState(): Effect<EntityState, never>;
     goToPlayer(name: string): Effect<void, never>;
     hasActiveBoost(boostType: BoostType): Effect<boolean, never>;
@@ -477,7 +477,7 @@ interface ScriptPlayerApi {
   /** @param full Whether to perform a full rest. */
     rest(/** @defaultValue false */ full?: boolean): Effect<void, never>;
     useBoost(query: ItemQuery): Effect<boolean, never>;
-    walkTo(x: number, y: number, speed?: number): Effect<boolean, never>;
+    walkTo(position: Position, options?: WalkToOptions): Effect<boolean, never>;
 }
 interface ScriptPlayerFactionsApi {
     get(query: string | number): Effect<LiveFaction | null, never>;
@@ -939,6 +939,10 @@ interface PacketSelector {
   readonly wireType?: PacketWireType;
 }
 type PlayerQuery = PlayerSelector | string;
+interface Position {
+  readonly x: number;
+  readonly y: number;
+}
 type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
 type ScriptCallbackResult<A = unknown> =
   | Effect<A, unknown>
@@ -972,10 +976,6 @@ interface ScriptExitOptions {
   /** Closes this game client. In a tabbed window, closes only its tab. */
   readonly closeClient?: boolean;
   readonly logout?: boolean;
-}
-interface ScriptPlayerPosition {
-  readonly x: number;
-  readonly y: number;
 }
 /** Controls game render visibility. */
 type ScriptRenderingMode =
@@ -1027,6 +1027,10 @@ interface WaitOptions {
    * @defaultValue undefined
    */
   readonly timeout?: DurationInput;
+}
+interface WalkToOptions {
+  /** Movement speed override. */
+  readonly speed?: number;
 }
 interface ArmyLoopTauntPriorityGroup {
   /** Target rotations that may run together while this group is selected. */
@@ -1218,10 +1222,6 @@ interface PlayerData extends EntityData {
   pad: string;
   position: Position;
   username: string;
-}
-interface Position {
-  readonly x: number;
-  readonly y: number;
 }
 type PlayerSnapshot = Readonly<PlayerData> & EntitySnapshot;
 interface QuestData {

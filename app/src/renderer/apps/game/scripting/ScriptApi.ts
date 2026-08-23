@@ -14,6 +14,7 @@ import type {
   LiveShop,
   MonsterQuery,
   PlayerQuery,
+  Position,
   ShopItemQuery,
 } from "@lucent/game";
 import type * as Duration from "effect/Duration";
@@ -64,6 +65,7 @@ import type {
 } from "../flash/api/Combat";
 import type { EquipOptions } from "../flash/api/Inventory";
 import type { CellPositionOptions } from "../flash/api/Map";
+import type { WalkToOptions } from "../flash/api/Player";
 import type { CompleteQuestOptions } from "../flash/api/Quests";
 import type {
   EventSelector,
@@ -574,11 +576,6 @@ export interface ScriptPlayerOutfitsApi {
   ) => Effect.Effect<boolean>;
 }
 
-export interface ScriptPlayerPosition {
-  readonly x: number;
-  readonly y: number;
-}
-
 export interface ScriptPlayerApi {
   readonly auras: ScriptAurasApi;
   readonly factions: ScriptPlayerFactionsApi;
@@ -597,7 +594,7 @@ export interface ScriptPlayerApi {
   readonly getMaxMp: () => Effect.Effect<number>;
   readonly getMp: () => Effect.Effect<number>;
   readonly getPad: () => Effect.Effect<string>;
-  readonly getPosition: () => Effect.Effect<ScriptPlayerPosition>;
+  readonly getPosition: () => Effect.Effect<Position>;
   readonly getState: () => Effect.Effect<EntityState>;
   readonly goToPlayer: (name: string) => Effect.Effect<void>;
   readonly hasActiveBoost: (boostType: BoostType) => Effect.Effect<boolean>;
@@ -622,9 +619,8 @@ export interface ScriptPlayerApi {
   ) => Effect.Effect<void>;
   readonly useBoost: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly walkTo: (
-    x: number,
-    y: number,
-    speed?: number,
+    position: Position,
+    options?: WalkToOptions,
   ) => Effect.Effect<boolean>;
 }
 
