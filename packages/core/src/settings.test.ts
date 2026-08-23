@@ -7,8 +7,9 @@ describe("settings", () => {
     const normalized = normalizeAppSettings({
       version: 0,
       preferences: {
-        useGameTabs: true,
         launchMode: "account-manager",
+        showGameUsernameInWindowTitle: true,
+        useGameTabs: true,
       },
       hotkeys: {
         bindings: [{ id: "loadScript", value: "ctrl shift l" }],
@@ -36,6 +37,7 @@ describe("settings", () => {
     });
     const serialized = serializeAppSettings(normalized) as {
       readonly preferences: {
+        readonly showGameUsernameInWindowTitle: boolean;
         readonly useGameTabs: boolean;
       };
       readonly appearance: {
@@ -49,7 +51,9 @@ describe("settings", () => {
     expect(normalized.version).toBe(1);
     expect(normalized.preferences.useGameTabs).toBe(true);
     expect(normalized.preferences.launchMode).toBe("account-manager");
+    expect(normalized.preferences.showGameUsernameInWindowTitle).toBe(true);
     expect(serialized.preferences.useGameTabs).toBe(true);
+    expect(serialized.preferences.showGameUsernameInWindowTitle).toBe(true);
     expect(
       normalized.hotkeys.bindings.find(({ id }) => id === "loadScript")?.value,
     ).toBe("Control+Shift+L");

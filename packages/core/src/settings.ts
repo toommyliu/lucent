@@ -135,8 +135,9 @@ export const ThemeProfilePatchSchema = Schema.Struct({
 
 export const PreferencesPatchSchema = Schema.Struct({
   checkForUpdates: Schema.optionalKey(Schema.Boolean),
-  useGameTabs: Schema.optionalKey(Schema.Boolean),
   launchMode: Schema.optionalKey(AppLaunchModeSchema),
+  showGameUsernameInWindowTitle: Schema.optionalKey(Schema.Boolean),
+  useGameTabs: Schema.optionalKey(Schema.Boolean),
 });
 
 export const AppearancePatchSchema = Schema.Struct({
@@ -155,8 +156,9 @@ export type ThemeTokenName = (typeof THEME_TOKEN_NAMES)[number];
 export type ThemeTokenValues = Record<ThemeTokenName, ThemeRgb>;
 export interface PreferencesPatch {
   readonly checkForUpdates?: boolean;
-  readonly useGameTabs?: boolean;
   readonly launchMode?: AppLaunchMode;
+  readonly showGameUsernameInWindowTitle?: boolean;
+  readonly useGameTabs?: boolean;
 }
 export interface ThemeProfilePatch {
   readonly monoFont?: string;
@@ -186,8 +188,9 @@ export interface AppSettings {
   readonly version: AppSettingsVersion;
   readonly preferences: {
     readonly checkForUpdates: boolean;
-    readonly useGameTabs: boolean;
     readonly launchMode: AppLaunchMode;
+    readonly showGameUsernameInWindowTitle: boolean;
+    readonly useGameTabs: boolean;
   };
   readonly appearance: {
     readonly themeMode: ThemeMode;
@@ -202,8 +205,9 @@ export const AppSettingsSchema = Schema.Struct({
   version: Schema.Literal(APP_SETTINGS_VERSION),
   preferences: Schema.Struct({
     checkForUpdates: Schema.Boolean,
-    useGameTabs: Schema.Boolean,
     launchMode: AppLaunchModeSchema,
+    showGameUsernameInWindowTitle: Schema.Boolean,
+    useGameTabs: Schema.Boolean,
   }),
   appearance: Schema.Struct({
     themeMode: ThemeModeSchema,
@@ -303,8 +307,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   version: APP_SETTINGS_VERSION,
   preferences: {
     checkForUpdates: false,
-    useGameTabs: false,
     launchMode: "game",
+    showGameUsernameInWindowTitle: false,
+    useGameTabs: false,
   },
   appearance: {
     themeMode: "dark",
@@ -475,15 +480,20 @@ export const normalizeAppSettings = (value: unknown): AppSettings => {
         preferences["checkForUpdates"],
         DEFAULT_APP_SETTINGS.preferences.checkForUpdates,
       ),
-      useGameTabs: decodeOrElse(
-        decodeBoolean,
-        preferences["useGameTabs"],
-        DEFAULT_APP_SETTINGS.preferences.useGameTabs,
-      ),
       launchMode: decodeOrElse(
         decodeAppLaunchMode,
         preferences["launchMode"],
         DEFAULT_APP_SETTINGS.preferences.launchMode,
+      ),
+      showGameUsernameInWindowTitle: decodeOrElse(
+        decodeBoolean,
+        preferences["showGameUsernameInWindowTitle"],
+        DEFAULT_APP_SETTINGS.preferences.showGameUsernameInWindowTitle,
+      ),
+      useGameTabs: decodeOrElse(
+        decodeBoolean,
+        preferences["useGameTabs"],
+        DEFAULT_APP_SETTINGS.preferences.useGameTabs,
       ),
     },
     appearance: {

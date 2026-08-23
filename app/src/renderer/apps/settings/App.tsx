@@ -784,6 +784,23 @@ function GeneralSettings(props: {
           </TooltipIconButton>
         }
       />
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Show username in game window titles"
+            checked={props.settings.preferences.showGameUsernameInWindowTitle}
+            onChange={(event) =>
+              props.onPreferencesPatch({
+                showGameUsernameInWindowTitle: event.currentTarget.checked,
+              })
+            }
+            size="lg"
+          />
+        }
+        class="settings-row--switch"
+        description="Add the logged-in username to each game window's title. With tabs, the title follows the selected tab."
+        title="Show username in game window titles"
+      />
     </SettingsSection>
   );
 }

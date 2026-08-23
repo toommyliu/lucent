@@ -51,6 +51,7 @@ export interface ElectronWindowHandle {
   readonly removeBrowserView: (browserView: BrowserView) => void;
   readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
+  readonly setTitle: (title: string) => void;
   readonly setTopBrowserView: (browserView: BrowserView) => void;
   readonly show: () => void;
 }

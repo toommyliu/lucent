@@ -38,6 +38,7 @@ export interface DesktopGameViewRecord {
   generation: number;
   readonly hostWindow: ElectronWindowHandle;
   readonly kind: "game";
+  loggedInUsername?: string;
   readonly ownerId?: DesktopWindowInstanceId;
   publishedPresentation?: GameViewPresentation;
   readonly rendererId: number;
@@ -76,6 +77,7 @@ interface DesktopGameHostsOptions {
     readonly hostRendererId: number;
     readonly id: DesktopWindowInstanceId;
   }) => void;
+  readonly onStateChanged: (host: DesktopGameHostRecord) => void;
   readonly platform: NodeJS.Platform;
 }
 
@@ -405,6 +407,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       );
     }
     publishPresentations(host);
+    options.onStateChanged(host);
   };
 
   const refresh = (host: DesktopGameHostRecord): void => {
