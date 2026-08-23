@@ -1,0 +1,122 @@
+---
+title: Loop taunting
+description: Keep a boss taunted by alternating Scroll of Enrage casts.
+---
+
+`api.army.loopTaunt()` runs a taunt rotation alongside the rest of your army
+script. Give it the target, the players taking turns, and a strategy for when to
+cast. Each assigned player needs Scroll of Enrage equipped.
+
+## Loop on Focus
+
+The `focus` strategy casts when the target has no Focus. You will usually start
+the loop before `api.army.killForItem()` or `api.army.killForTempItem()`, then
+stop it when the farm is done:
+
+{/* prettier-ignore */}
+```js
+const taunt = yield* api.army.loopTaunt([
+  {
+    assignments: [
+      {
+        target: "Boss Name",
+        players: [1, 2],
+        strategy: { type: "focus" },
+      },
+    ],
+  },
+]);
+
+yield* api.army.killForItem("Boss Name", "Item Name", 1);
+yield* taunt.stop();
+```
+
+The loop starts once every army account reaches `loopTaunt()`. Player 1 goes
+first, then player 2, and the loop repeats during `killForItem()`. If one of
+them is dead or the scroll is still cooling down, Lucent tries the other player.
+The loop also stops when the script ends or the map changes.
+
+## Taunt on a message
+
+Some bosses tell you when to taunt with a message, shown as yellow text in the
+upper part of the screen. Use a recognizable part of it:
+
+```js
+strategy: {
+  type: "message",
+  message: "prepares a heavy attack",
+}
+```
+
+Lucent taunts each time a matching message appears.
+
+## Cover more than one target
+
+The outer array is ordered by priority. Assignments inside one group run at the
+same time:
+
+```js
+const plan = [
+  {
+    assignments: [
+      {
+        target: "Left Boss",
+        players: [1, 2],
+        strategy: { type: "focus" },
+      },
+      {
+        target: "Right Boss",
+        players: [3, 4],
+        strategy: { type: "focus" },
+      },
+    ],
+  },
+  {
+    assignments: [
+      {
+        target: "Final Boss",
+        players: [1, 2, 3, 4],
+        strategy: { type: "focus" },
+      },
+    ],
+  },
+];
+```
+
+Pass this as `yield* api.army.loopTaunt(plan)`.
+
+The plan runs in this order:
+
+1. Left Boss and Right Boss can be taunted at the same time. Players 1 and 2
+   handle Left Boss, while players 3 and 4 handle Right Boss.
+2. After both are dead, all four players move to Final Boss.
+3. If Left Boss or Right Boss respawns, Lucent pauses the Final Boss taunt
+   rotation and returns to the first group. The respawned boss starts again with
+   its first assigned player.
+
+A player can appear in only one assignment within the same group, and each
+assignment must point to a different monster. Every target must also exist in
+the current map when the loop starts, even if its group is not active yet.
+
+## Skip a turn
+
+`skipWhen` runs on the account Lucent picked for the current taunt. Returning
+`true` passes the turn to the next assigned player:
+
+```js
+skipWhen: ({ self }) => self.player.hpPercent < 40,
+```
+
+Here, the account skips its turn when it has less than 40% HP.
+
+Keep `skipWhen` quick. Lucent gives it at most one second. If every assigned
+player skips, Lucent waits one second and tries the rotation again.
+
+## Notes
+
+- Loop taunting is best effort. Accounts can fall out of sync or be unable to
+  cast, so Lucent cannot guarantee every taunt.
+- See the [`api.army.loopTaunt()` reference][loop-taunt] for the full plan and
+  callback types.
+
+[loop-taunt]: /reference/scripting/api/army/#member-api-army-looptaunt
