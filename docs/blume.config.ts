@@ -136,6 +136,10 @@ export default defineConfig({
               items: [
                 "/guides/scripting/script-format",
                 "/guides/scripting/script-inputs",
+                {
+                  items: ["/guides/scripting/armying/army"],
+                  label: "Armying",
+                },
                 "/guides/scripting/enhancements",
                 "/guides/scripting/editor-setup",
               ],
