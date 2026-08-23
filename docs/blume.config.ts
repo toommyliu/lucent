@@ -137,7 +137,10 @@ export default defineConfig({
                 "/guides/scripting/script-format",
                 "/guides/scripting/script-inputs",
                 {
-                  items: ["/guides/scripting/armying/army"],
+                  items: [
+                    "/guides/scripting/armying/army",
+                    "/guides/scripting/armying/loop-taunt",
+                  ],
                   label: "Armying",
                 },
                 "/guides/scripting/enhancements",
