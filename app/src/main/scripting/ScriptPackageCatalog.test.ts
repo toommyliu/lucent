@@ -76,9 +76,9 @@ describe("discoverScriptCatalog", () => {
     ).toBe(true);
   });
 
-  it("uses a package directory's complete relative path as its exact name", async () => {
+  it("reads a package name independently from its folder", async () => {
     const workspace = await makeWorkspace();
-    const packageRoot = join(workspace.packagesDir, "@a", "b", "c", "d");
+    const packageRoot = join(workspace.packagesDir, "daily-package");
     await Promise.all([
       write(
         join(packageRoot, "package.json"),
@@ -115,20 +115,16 @@ describe("discoverScriptCatalog", () => {
       path: "scripts/farm.js",
     });
     expect(discovery.packages.get("@a/b/c/d")?.files).toHaveLength(4);
+    expect(discovery.packages.get("@a/b/c/d")?.directory).toBe("daily-package");
   });
 
-  it("stops at the first package candidate and keeps invalid candidates diagnostic-only", async () => {
+  it("does not discover packages below a direct child folder", async () => {
     const workspace = await makeWorkspace();
-    const invalidRoot = join(workspace.packagesDir, "namespace", "invalid");
-    const nestedRoot = join(invalidRoot, "nested");
+    const containerRoot = join(workspace.packagesDir, "namespace");
+    const nestedRoot = join(containerRoot, "nested");
     await Promise.all([
-      write(join(invalidRoot, "package.json"), '{"name":"wrong-directory"}'),
-      write(join(invalidRoot, "scripts", "hidden.js"), ""),
-      write(
-        join(nestedRoot, "package.json"),
-        '{"name":"namespace/invalid/nested"}',
-      ),
-      write(join(nestedRoot, "scripts", "also-hidden.js"), ""),
+      write(join(nestedRoot, "package.json"), '{"name":"namespace/nested"}'),
+      write(join(nestedRoot, "scripts", "hidden.js"), ""),
     ]);
 
     const discovery = await discoverScriptCatalog({
@@ -140,11 +136,40 @@ describe("discoverScriptCatalog", () => {
     expect(discovery.catalog.packages).toHaveLength(1);
     expect(discovery.catalog.packages[0]).toMatchObject({
       status: "invalid",
-      name: "wrong-directory",
-      path: invalidRoot,
+      path: containerRoot,
     });
     expect(discovery.catalog.scripts).toEqual([]);
     expect(discovery.packages.size).toBe(0);
+  });
+
+  it("rejects duplicate package names", async () => {
+    const workspace = await makeWorkspace();
+    await Promise.all([
+      write(
+        join(workspace.packagesDir, "first-folder", "package.json"),
+        '{"name":"shared-name"}',
+      ),
+      write(
+        join(workspace.packagesDir, "second-folder", "package.json"),
+        '{"name":"shared-name"}',
+      ),
+    ]);
+
+    const discovery = await discoverScriptCatalog({
+      currentVersion: "1.2.3",
+      packagesDir: workspace.packagesDir,
+      scriptsDir: workspace.scriptsDir,
+    });
+
+    expect(discovery.catalog.packages).toHaveLength(2);
+    expect(
+      discovery.catalog.packages.every(
+        (entry) =>
+          entry.status === "invalid" &&
+          entry.diagnostic.includes("More than one package folder"),
+      ),
+    ).toBe(true);
+    expect(discovery.packages.has("shared-name")).toBe(false);
   });
 
   it("blocks incompatible packages but treats malformed ranges as warnings", async () => {
@@ -290,15 +315,16 @@ describe("discoverScriptCatalog", () => {
 
   it("derives verified and modified integrity from the app-owned baseline", async () => {
     const workspace = await makeWorkspace();
-    const packageRoot = join(workspace.packagesDir, "tools");
+    const packageRoot = join(workspace.packagesDir, "tools-folder");
     await Promise.all([
-      write(join(packageRoot, "package.json"), '{"name":"tools"}'),
+      write(join(packageRoot, "package.json"), '{"name":"@author/tools"}'),
       write(join(packageRoot, "index.js"), "exports.value = 1"),
     ]);
     const managed: ManagedScriptPackage = {
+      directory: "tools-folder",
       files: await hashDirectory(packageRoot),
       installedAt: new Date(0).toISOString(),
-      name: "tools",
+      name: "@author/tools",
       source: {
         kind: "repository",
         repositoryUrl: "https://github.com/example/tools",
@@ -326,6 +352,39 @@ describe("discoverScriptCatalog", () => {
     expect(modified.catalog.packages[0]).toMatchObject({
       integrity: "modified",
     });
+  });
+
+  it("rejects a managed folder that declares a different package name", async () => {
+    const workspace = await makeWorkspace();
+    const packageRoot = join(workspace.packagesDir, "tracked-folder");
+    await write(join(packageRoot, "package.json"), '{"name":"other-name"}');
+    const managed: ManagedScriptPackage = {
+      directory: "tracked-folder",
+      files: await hashDirectory(packageRoot),
+      installedAt: new Date(0).toISOString(),
+      name: "expected-name",
+      source: {
+        kind: "repository",
+        repositoryUrl: "https://github.com/example/package",
+        resolvedCommit: "abc123",
+      },
+    };
+
+    const discovery = await discoverScriptCatalog({
+      currentVersion: "1.2.3",
+      managedPackages: [managed],
+      packagesDir: workspace.packagesDir,
+      scriptsDir: workspace.scriptsDir,
+    });
+
+    expect(discovery.catalog.packages[0]).toMatchObject({
+      status: "invalid",
+      name: "other-name",
+      diagnostic: expect.stringContaining(
+        'installed package name is "expected-name"',
+      ),
+    });
+    expect(discovery.packages.size).toBe(0);
   });
 });
 
@@ -417,10 +476,11 @@ describe("ScriptPackageCatalog", () => {
             ]),
           );
           const inspected = yield* Effect.promise(() =>
-            inspectScriptPackageDirectory(sourceRoot, "tools"),
+            inspectScriptPackageDirectory(sourceRoot),
           );
           yield* Effect.promise(() => fs.rename(sourceRoot, rootPath));
           const managed: ManagedScriptPackage = {
+            directory: "tools",
             files: yield* Effect.promise(() => hashDirectory(rootPath)),
             installedAt: new Date(0).toISOString(),
             name: "tools",

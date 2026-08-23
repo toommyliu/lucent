@@ -11,10 +11,12 @@ import { list as listTar, extract as extractTar } from "tar";
 
 import type {
   ScriptCatalogOverview,
+  ScriptPackageDirectory,
   ScriptPackageMutationResult,
   ScriptPackageRevision,
 } from "@lucent/core/scriptPackages";
 import {
+  ScriptPackageDirectorySchema,
   ScriptPackageNameSchema,
   ScriptPackageRepositorySubdirectorySchema,
 } from "@lucent/core/scriptPackages";
@@ -29,11 +31,7 @@ import {
   readScriptPackageManifest,
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
-import {
-  hashDirectory,
-  isMissingFileError,
-  isPathInside,
-} from "./ScriptPackageFileSystem";
+import { hashDirectory, isMissingFileError } from "./ScriptPackageFileSystem";
 import {
   ScriptPackageState,
   type ManagedScriptPackage,
@@ -43,6 +41,10 @@ import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 const ARCHIVE_MAX_ENTRIES = 10_000;
 const ARCHIVE_MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
 const ARCHIVE_MAX_PATH_BYTES = 1024;
+const PACKAGE_DIRECTORY_SLUG_MAX_BYTES = 120;
+const decodePackageDirectory = Schema.decodeUnknownSync(
+  ScriptPackageDirectorySchema,
+);
 const decodePackageName = Schema.decodeUnknownSync(ScriptPackageNameSchema);
 const decodeRepositorySubdirectory = Schema.decodeUnknownSync(
   ScriptPackageRepositorySubdirectorySchema,
@@ -143,6 +145,7 @@ const recordRemoteResolution = (
   managed: ManagedScriptPackage,
   resolution: ResolvedPackageRevision,
 ): ManagedScriptPackage => ({
+  directory: managed.directory,
   files: managed.files,
   installedAt: managed.installedAt,
   name: managed.name,
@@ -352,39 +355,71 @@ const pathExists = async (path: string): Promise<boolean> => {
   }
 };
 
-const removeEmptyParents = async (
-  path: string,
-  stopAt: string,
-): Promise<void> => {
-  let current = dirname(path);
-  while (current !== stopAt && isPathInside(stopAt, current)) {
-    try {
-      await fs.rmdir(current);
-    } catch {
-      return;
-    }
-    current = dirname(current);
+const truncateUtf8 = (value: string, maxBytes: number): string => {
+  let result = "";
+  for (const character of value) {
+    if (Buffer.byteLength(result + character, "utf8") > maxBytes) break;
+    result += character;
+  }
+  return result;
+};
+
+/** Returns the readable starting folder name used for a new installation. */
+export const scriptPackageDirectorySlug = (
+  name: string,
+): ScriptPackageDirectory => {
+  const decodedName = decodePackageName(name);
+  const base = decodedName
+    .normalize("NFKC")
+    .replace(/^@/u, "")
+    .replace(/[^\p{Letter}\p{Number}._-]+/gu, "-")
+    .replace(/-+/gu, "-")
+    .replace(/^[._-]+|[._-]+$/gu, "")
+    .toLocaleLowerCase("en-US")
+    .normalize("NFC");
+  const truncated = truncateUtf8(
+    base === "" ? "package" : base,
+    PACKAGE_DIRECTORY_SLUG_MAX_BYTES,
+  ).replace(/[._-]+$/u, "");
+  const candidate = truncated === "" ? "package" : truncated;
+  try {
+    return decodePackageDirectory(candidate);
+  } catch {
+    return decodePackageDirectory(`package-${candidate}`);
   }
 };
 
-const packagePath = (packagesDir: string, name: string): string => {
-  const decodedName = decodePackageName(name);
-  const path = resolve(packagesDir, ...decodedName.split("/"));
-  if (!isPathInside(packagesDir, path)) {
-    throw new Error("Package path escapes the package directory.");
+const packageDirectoryPath = (
+  packagesDir: string,
+  directory: string,
+): string => {
+  const decodedDirectory = decodePackageDirectory(directory);
+  const root = resolve(packagesDir);
+  const path = resolve(root, decodedDirectory);
+  if (dirname(path) !== root) {
+    throw new Error("Package folder escapes the package directory.");
   }
   return path;
 };
 
-const conflictsWithOtherPackage = (
-  destination: string,
-  packagePaths: readonly string[],
-): string | undefined =>
-  packagePaths.find(
-    (path) =>
-      path !== destination &&
-      (isPathInside(path, destination) || isPathInside(destination, path)),
-  );
+const allocatePackageDirectory = async (
+  packagesDir: string,
+  packageName: string,
+  reservedDirectories: ReadonlySet<string>,
+): Promise<ScriptPackageDirectory> => {
+  const slug = scriptPackageDirectorySlug(packageName);
+  for (let index = 1; index <= 10_000; index += 1) {
+    const directory =
+      index === 1 ? slug : decodePackageDirectory(`${slug}-${index}`);
+    if (
+      !reservedDirectories.has(directory) &&
+      !(await pathExists(packageDirectoryPath(packagesDir, directory)))
+    ) {
+      return directory;
+    }
+  }
+  throw new Error("Could not find an unused package folder name.");
+};
 
 export const layer = Layer.effect(
   ScriptPackageManager,
@@ -596,7 +631,7 @@ export const layer = Layer.effect(
     const installInternal = Effect.fn("ScriptPackageManager.installInternal")(
       function* (
         input: Parameters<ScriptPackageManagerShape["install"]>[0],
-        expectedPackageName?: string,
+        expectedPackage?: ManagedScriptPackage,
         knownSource?: ResolvedInstallSource,
       ) {
         const repository = yield* Effect.try({
@@ -754,7 +789,7 @@ export const layer = Layer.effect(
                   ),
               });
               const inspected = yield* Effect.tryPromise({
-                try: () => inspectScriptPackageDirectory(staging, packageName),
+                try: () => inspectScriptPackageDirectory(staging),
                 catch: (cause) =>
                   managerError(
                     "validate",
@@ -765,16 +800,15 @@ export const layer = Layer.effect(
                   ),
               });
               if (
-                expectedPackageName !== undefined &&
-                packageName !== expectedPackageName
+                expectedPackage !== undefined &&
+                packageName !== expectedPackage.name
               ) {
                 return yield* managerError(
                   "update",
-                  `The update declares package ${JSON.stringify(packageName)} instead of ${JSON.stringify(expectedPackageName)}.`,
+                  `The update declares package ${JSON.stringify(packageName)} instead of ${JSON.stringify(expectedPackage.name)}.`,
                 );
               }
 
-              const destination = packagePath(packagesDir, packageName);
               const discovery = yield* catalog.getDiscovery.pipe(
                 Effect.mapError((cause) =>
                   managerError(
@@ -784,17 +818,52 @@ export const layer = Layer.effect(
                   ),
                 ),
               );
-              const candidatePaths = discovery.catalog.packages.map(
-                (entry) => entry.path,
+              const matchingPackages = discovery.catalog.packages.filter(
+                (entry) => entry.name === packageName,
               );
-              const conflict = conflictsWithOtherPackage(
-                destination,
-                candidatePaths,
-              );
-              if (conflict !== undefined) {
+              if (matchingPackages.length > 1) {
                 return yield* managerError(
                   "validate",
-                  `Package ${packageName} conflicts with the package boundary at ${conflict}.`,
+                  `More than one package folder declares the name ${JSON.stringify(packageName)}.`,
+                );
+              }
+              const matchingPackage = matchingPackages[0];
+              const savedPackage =
+                expectedPackage ?? (yield* state.get(packageName));
+              const reservedDirectories = new Set(
+                (yield* state.getAll).map((entry) => entry.directory),
+              );
+              const directory = yield* Effect.tryPromise({
+                try: async () => {
+                  if (savedPackage !== undefined) {
+                    return savedPackage.directory;
+                  }
+                  if (matchingPackage !== undefined) {
+                    return decodePackageDirectory(
+                      basename(matchingPackage.path),
+                    );
+                  }
+                  return allocatePackageDirectory(
+                    packagesDir,
+                    packageName,
+                    reservedDirectories,
+                  );
+                },
+                catch: (cause) =>
+                  managerError(
+                    "validate",
+                    "Failed to choose a package folder.",
+                    cause,
+                  ),
+              });
+              const destination = packageDirectoryPath(packagesDir, directory);
+              if (
+                matchingPackage !== undefined &&
+                resolve(matchingPackage.path) !== resolve(destination)
+              ) {
+                return yield* managerError(
+                  "validate",
+                  `Package ${JSON.stringify(packageName)} is not in its saved folder.`,
                 );
               }
               const destinationExists = yield* Effect.tryPromise({
@@ -806,6 +875,16 @@ export const layer = Layer.effect(
                     cause,
                   ),
               });
+              if (
+                destinationExists &&
+                savedPackage === undefined &&
+                matchingPackage === undefined
+              ) {
+                return yield* managerError(
+                  "validate",
+                  `Package folder ${JSON.stringify(directory)} is already in use.`,
+                );
+              }
               if (destinationExists && input.replaceExisting !== true) {
                 return {
                   status: "confirmation-required",
@@ -824,6 +903,7 @@ export const layer = Layer.effect(
                   ),
               });
               const managed: ManagedScriptPackage = {
+                directory,
                 files,
                 installedAt: new Date().toISOString(),
                 name: packageName,
@@ -928,6 +1008,16 @@ export const layer = Layer.effect(
               "This package is unmanaged and has no GitHub source to update.",
             );
           }
+          const savedRoot = packageDirectoryPath(
+            packagesDir,
+            managed.directory,
+          );
+          if (resolve(summary.path) !== resolve(savedRoot)) {
+            return yield* managerError(
+              "update",
+              `Package ${JSON.stringify(input.packageName)} is not in its saved folder.`,
+            );
+          }
 
           const resolution = yield* resolveManagedInstallSource(managed).pipe(
             Effect.mapError((cause) =>
@@ -986,7 +1076,7 @@ export const layer = Layer.effect(
                 ? {}
                 : { subdirectory: managed.source.subdirectory }),
             },
-            input.packageName,
+            managed,
             resolution,
           );
         }),
@@ -1025,7 +1115,25 @@ export const layer = Layer.effect(
             } satisfies ScriptPackageMutationResult;
           }
 
-          const root = packagePath(packagesDir, input.packageName);
+          const managed = yield* state.get(input.packageName);
+          const directory = yield* Effect.try({
+            try: () =>
+              managed?.directory ??
+              decodePackageDirectory(basename(summary.path)),
+            catch: (cause) =>
+              managerError(
+                "remove",
+                "The package folder name is not safe.",
+                cause,
+              ),
+          });
+          const root = packageDirectoryPath(packagesDir, directory);
+          if (resolve(summary.path) !== resolve(root)) {
+            return yield* managerError(
+              "remove",
+              `Package ${JSON.stringify(input.packageName)} is not in its saved folder.`,
+            );
+          }
           const temporaryRoot = yield* Effect.tryPromise({
             try: () =>
               fs.mkdtemp(join(env.workspaceDir, ".lucent-package-remove-")),
@@ -1063,10 +1171,7 @@ export const layer = Layer.effect(
             ),
           );
           yield* Effect.tryPromise({
-            try: async () => {
-              await fs.rmdir(temporaryRoot, { recursive: true });
-              await removeEmptyParents(root, packagesDir);
-            },
+            try: () => fs.rmdir(temporaryRoot, { recursive: true }),
             catch: (cause) =>
               managerError("remove", "Failed to clean removal staging.", cause),
           }).pipe(Effect.catch(() => Effect.void));

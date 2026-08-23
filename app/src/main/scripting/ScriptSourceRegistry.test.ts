@@ -178,8 +178,8 @@ describe("script source dependency discovery", () => {
   it.effect("resolves self imports and declared package dependencies", () =>
     Effect.gen(function* () {
       const workspace = yield* Effect.promise(makeWorkspace);
-      const firstRoot = join(workspace.packagesDir, "@lucent", "first");
-      const secondRoot = join(workspace.packagesDir, "@lucent", "second");
+      const firstRoot = join(workspace.packagesDir, "lucent-first");
+      const secondRoot = join(workspace.packagesDir, "lucent-second");
       yield* Effect.promise(() =>
         Promise.all([
           write(

@@ -9,9 +9,13 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import {
+  ScriptPackageDirectorySchema,
+  ScriptPackageNameSchema,
   ScriptPackageRevisionSchema,
   ScriptPackageSourceSchema,
   ScriptPackageUpdateStateSchema,
+  type ScriptPackageDirectory,
+  type ScriptPackageName,
   type ScriptPackageRevision,
   type ScriptPackageSource,
   type ScriptPackageUpdateState,
@@ -22,7 +26,8 @@ import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
 const FileHashesSchema = Schema.Record(Schema.String, Schema.String);
 
 const ManagedScriptPackageSchema = Schema.Struct({
-  name: Schema.String,
+  name: ScriptPackageNameSchema,
+  directory: ScriptPackageDirectorySchema,
   installedAt: Schema.String,
   files: FileHashesSchema,
   source: ScriptPackageSourceSchema,
@@ -41,7 +46,8 @@ const decodeStateFile = Schema.decodeUnknownOption(
 );
 
 export interface ManagedScriptPackage {
-  readonly name: string;
+  readonly name: ScriptPackageName;
+  readonly directory: ScriptPackageDirectory;
   readonly installedAt: string;
   readonly files: Readonly<Record<string, string>>;
   readonly source: ScriptPackageSource;
@@ -99,16 +105,34 @@ const cloneRecord = (value: ManagedScriptPackage): ManagedScriptPackage => ({
   ...(value.update === undefined ? {} : { update: { ...value.update } }),
 });
 
+const invalidState = (message: string): ScriptPackageLoadState => ({
+  status: "failed",
+  error: new ScriptPackageStateError({
+    operation: "load",
+    cause: new Error(message),
+  }),
+});
+
+const hasDuplicateMappings = (
+  packages: Iterable<ManagedScriptPackage>,
+): boolean => {
+  const names = new Set<string>();
+  const directories = new Set<string>();
+  for (const entry of packages) {
+    if (names.has(entry.name) || directories.has(entry.directory)) return true;
+    names.add(entry.name);
+    directories.add(entry.directory);
+  }
+  return false;
+};
+
 const stateFromUnknown = (value: unknown): ScriptPackageLoadState => {
   const decoded = decodeStateFile(value);
   if (Option.isNone(decoded)) {
-    return {
-      status: "failed",
-      error: new ScriptPackageStateError({
-        operation: "load",
-        cause: new Error("Script package state has an invalid format."),
-      }),
-    };
+    return invalidState("Script package state has an invalid format.");
+  }
+  if (hasDuplicateMappings(decoded.value.packages)) {
+    return invalidState("Script package state contains duplicate mappings.");
   }
 
   return {
@@ -172,6 +196,12 @@ export const layer = Layer.effect(
           const loaded = yield* Ref.get(stateRef);
           if (loaded.status === "failed") return yield* loaded.error;
           const next = update(loaded.packages);
+          if (hasDuplicateMappings(next.values())) {
+            return yield* new ScriptPackageStateError({
+              operation: "save",
+              cause: new Error("Script package folders must be unique."),
+            });
+          }
           yield* persist(next);
           yield* Ref.set(stateRef, { status: "loaded", packages: next });
         }),

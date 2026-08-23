@@ -69,13 +69,25 @@ export const ScriptPackageNameSchema = Schema.String.check(
       !isReservedScriptPackageName(name) &&
       safePortableSegments(name),
     {
-      expected:
-        "a safe, case-sensitive, non-reserved path below the Lucent package directory",
+      expected: "a safe, case-sensitive, non-reserved package name",
     },
   ),
 );
 
 export type ScriptPackageName = typeof ScriptPackageNameSchema.Type;
+
+export const ScriptPackageDirectorySchema = Schema.String.check(
+  Schema.makeFilter(
+    (value) =>
+      value.trim() === value &&
+      value.normalize("NFC") === value &&
+      !value.includes("/") &&
+      safePortableSegments(value),
+    { expected: "a portable single folder name" },
+  ),
+);
+
+export type ScriptPackageDirectory = typeof ScriptPackageDirectorySchema.Type;
 
 export const ScriptRelativePathSchema = Schema.String.check(
   Schema.makeFilter(safePortableSegments, {
