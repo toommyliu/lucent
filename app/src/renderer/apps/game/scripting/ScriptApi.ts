@@ -619,7 +619,6 @@ export interface ScriptPlayerApi {
     /** @defaultValue false */
     full?: boolean,
   ) => Effect.Effect<void>;
-  readonly useBoost: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly walkTo: (
     position: Position,
     options?: WalkToOptions,

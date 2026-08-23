@@ -124,18 +124,6 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function useBoost(itemId:int):Boolean {
-      var item:Object = Inventory.getItem({itemId: itemId});
-      if (!item) {
-        return false;
-      }
-
-      var game:Object = Main.Game;
-      game.world.sendUseItemRequest(item);
-      return true;
-    }
-
-    [BridgeExport]
     public static function hasActiveBoost(boostType:String):Boolean {
       if (!boostType)
         return false;

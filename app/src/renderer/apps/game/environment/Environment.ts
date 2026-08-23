@@ -720,7 +720,7 @@ const makeEnvironment = Effect.gen(function* () {
       api.player.hasActiveBoost,
     );
     if (item !== null) {
-      yield* api.player.useBoost(item.name);
+      yield* api.inventory.use(item.name);
     }
   });
 
