@@ -135,6 +135,7 @@ export default defineConfig({
             {
               items: [
                 "/guides/scripting/script-format",
+                "/guides/scripting/script-inputs",
                 "/guides/scripting/enhancements",
                 "/guides/scripting/editor-setup",
               ],
