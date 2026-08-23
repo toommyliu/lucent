@@ -1,0 +1,50 @@
+---
+title: Combat profiles
+description: Use the same combat behavior in Auto Attack, Follower, and scripts.
+---
+
+Combat profiles are reusable combat setups. Auto Attack, Follower, and scripting
+APIs all use the same format.
+
+## Create a profile
+
+Open **Windows > Combat Profiles**. Add skills in the order you want them used,
+then add conditions or priorities where needed. Save the profile.
+
+Auto Attack and Follower both use this saved profile library. Select a profile
+from the Auto Attack menu or under **Combat** in Follower.
+
+## Use it in a script
+
+Open the profile's **Details** and select **Copy snippet**. Paste the copied
+`profile` property into a kill call:
+
+{/* prettier-ignore */}
+```js
+yield* api.combat.kill("Training Golem", {
+  profile: {
+    steps: [
+      { skill: 1 },
+      { skill: 2 },
+      { skill: 3 },
+      { skill: 4 },
+    ],
+  },
+});
+```
+
+Pass the same profile to [`api.combat.kill()`][kill] or any other API that
+accepts [`CombatKillOptions`][kill-options].
+
+When `profile` is set, Lucent ignores `skillSet` and `skillDelay`.
+
+## Notes
+
+- Auto Attack and Follower load their profile when they start. If you edit a
+  profile while either feature is running, stop and start the feature to apply
+  the changes.
+- See [`CombatProfileDefinition`][profile-definition] for every available field.
+
+[kill]: /reference/scripting/api/combat/#member-api-combat-kill
+[kill-options]: /reference/scripting/types/combat-kill-options/
+[profile-definition]: /reference/scripting/types/combat-profile-definition/

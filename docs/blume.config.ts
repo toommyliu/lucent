@@ -132,6 +132,7 @@ export default defineConfig({
         {
           items: [
             "/guides/app",
+            "/guides/combat-profiles",
             {
               items: [
                 "/guides/scripting/script-format",
