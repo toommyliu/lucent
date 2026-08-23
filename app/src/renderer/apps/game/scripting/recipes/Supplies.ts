@@ -214,7 +214,9 @@ export const ensureScrollOfEnrage = Effect.fn(
         SCROLL_OF_ENRAGE_QUEST_ID,
       );
       const turnIns = Math.min(neededTurnIns, maximumTurnIns);
-      if (!(yield* deps.quests.complete(SCROLL_OF_ENRAGE_QUEST_ID, turnIns))) {
+      if (
+        !(yield* deps.quests.complete(SCROLL_OF_ENRAGE_QUEST_ID, { turnIns }))
+      ) {
         return false;
       }
       const expected = Math.min(

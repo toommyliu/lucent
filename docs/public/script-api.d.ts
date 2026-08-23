@@ -503,12 +503,7 @@ interface ScriptQuestsApi {
   /** @param silent Whether to load the quests without opening their UI. */
     acceptBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
     canComplete(questId: number): Effect<boolean, never>;
-  /**
-  * @param requestedTurnIns Number of turn-ins.
-  * @param itemId Reward item ID. -1 does not select a specific reward.
-  * @param special Whether to use special completion handling.
-  */
-    complete(questId: number, /** @defaultValue maximum currently possible */ requestedTurnIns?: number, /** @defaultValue -1 */ itemId?: number, /** @defaultValue false */ special?: boolean): Effect<boolean, never>;
+    complete(questId: number, options?: CompleteQuestOptions): Effect<boolean, never>;
     get(questId: number): Effect<LiveQuest | null, never>;
     getAccepted(): Effect<LiveQuest[], never>;
     getAll(): Effect<LiveQuest[], never>;
@@ -679,6 +674,12 @@ interface CombatKillOptions {
    * @defaultValue [1, 2, 3, 4]
    */
   readonly skillSet?: readonly Skill[];
+}
+interface CompleteQuestOptions {
+  /** Number of turn-ins to complete. Must be finite. Omit to use the maximum currently possible. */
+  readonly turnIns?: number;
+  /** Preferred reward item. Omit when no specific reward is requested. */
+  readonly rewardItemId?: number;
 }
 interface ConnectOutcome {
   readonly message: string;
