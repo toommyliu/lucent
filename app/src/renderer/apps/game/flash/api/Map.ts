@@ -8,6 +8,13 @@ import type { Wait } from "./Wait";
 
 const Strings = Schema.Array(Schema.String);
 
+export interface CellPositionOptions {
+  /** Destination cell. */
+  readonly cell?: string;
+  /** Destination pad. */
+  readonly pad?: string;
+}
+
 export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
   const isLoaded = () =>
     bridge
@@ -73,9 +80,9 @@ export const makeMap = (bridge: BridgeService, store: Store, wait: Wait) => {
   const reload = () =>
     bridge.invoke("world.reload", undefined, Schema.Void).pipe(Effect.asVoid);
 
-  const setSpawnPoint = (cell?: string, pad?: string) =>
+  const setSpawnPoint = (options?: CellPositionOptions) =>
     bridge
-      .invoke("world.setSpawnPoint", [cell, pad], Schema.Void)
+      .invoke("world.setSpawnPoint", [options?.cell, options?.pad], Schema.Void)
       .pipe(Effect.asVoid);
 
   return {

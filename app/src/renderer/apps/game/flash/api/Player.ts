@@ -14,7 +14,7 @@ import { parseMapTarget } from "../domain/MapTarget";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
 import type { Inventory } from "./Inventory";
-import type { Map } from "./Map";
+import type { CellPositionOptions, Map } from "./Map";
 import type { Wait } from "./Wait";
 
 const FactionPayload = Schema.Struct({
@@ -391,8 +391,9 @@ export const makePlayer = (
     return settledAtRequestedLocation;
   });
 
-  const joinMap = (target: string, cell?: string, pad?: string) =>
+  const joinMap = (target: string, options?: CellPositionOptions) =>
     Effect.gen(function* () {
+      const { cell, pad } = options ?? {};
       const destination = yield* parseMapTarget(target);
       if (destination.map === "") return false;
       const targetCell = cell ?? (pad === undefined ? undefined : "Enter");
