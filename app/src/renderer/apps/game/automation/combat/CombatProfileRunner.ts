@@ -46,7 +46,7 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
               message: event.message,
               ...(event.monsterMapId === undefined
                 ? {}
-                : { monMapId: event.monsterMapId }),
+                : { monsterMapId: event.monsterMapId }),
               source: event.source,
             }),
           ),

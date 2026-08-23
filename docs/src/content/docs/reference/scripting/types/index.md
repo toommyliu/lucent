@@ -89,7 +89,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/live-shop/"><code>LiveShop</code></a> | class |  |
 | <a href="/reference/scripting/types/monster-data/"><code>MonsterData</code></a> | interface |  |
 | <a href="/reference/scripting/types/monster-drop/"><code>MonsterDrop</code></a> | interface | An item and its acquisition metadata from AQW's monster-drop response. |
-| <a href="/reference/scripting/types/monster-query/"><code>MonsterQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/monster-query/"><code>MonsterQuery</code></a> | type alias | Selects a monster by name, map ID, or selector object.<br><br>String map IDs require `id` followed by `.`, `:`, `-`, or `'`:<br>`id.123`, `id:123`, `id-123`, or `id'123`. |
 | <a href="/reference/scripting/types/monster-selector/"><code>MonsterSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/monster-selector-by-map-id/"><code>MonsterSelectorByMapId</code></a> | interface |  |
 | <a href="/reference/scripting/types/monster-selector-by-name/"><code>MonsterSelectorByName</code></a> | interface |  |

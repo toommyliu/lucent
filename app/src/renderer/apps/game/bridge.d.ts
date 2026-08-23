@@ -211,10 +211,10 @@ declare global {
       "world.isActionAvailable": (gameAction: string) => boolean;
       "world.isCellReady": (cell: string, pad?: string) => boolean;
       "world.isLoaded": () => boolean;
-      "world.isMonsterAvailable": (monMapId: number) => boolean;
+      "world.isMonsterAvailable": (monsterMapId: number) => boolean;
       "world.loadSwf": (swf: string) => void;
       "world.reload": () => void;
-      "world.requestMonsterDrops": (monMapId: number) => boolean;
+      "world.requestMonsterDrops": (monsterMapId: number) => boolean;
       "world.setSpawnPoint": (cell?: string, pad?: string) => void;
     };
     onConnection?: (status: string) => void;

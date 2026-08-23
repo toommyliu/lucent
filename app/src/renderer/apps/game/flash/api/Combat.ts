@@ -471,7 +471,7 @@ export const makeCombat = (
                 message: event.message,
                 ...(event.monsterMapId === undefined
                   ? {}
-                  : { monMapId: event.monsterMapId }),
+                  : { monsterMapId: event.monsterMapId }),
                 source: event.source,
               }),
             ),
