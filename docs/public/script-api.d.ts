@@ -101,14 +101,6 @@ interface Scope {
   readonly [key: string]: unknown;
 }
 
-interface Stream<
-  Value = unknown,
-  Error = never,
-  Requirements = never,
-> {
-  readonly [key: string]: unknown;
-}
-
 interface ScriptExecutionError extends Error {
   readonly _tag: "ScriptExecutionError";
 }
@@ -226,7 +218,6 @@ interface ScriptRuntimeApi {
 }
 interface ScriptAutoReloginApi {
     onState(listener: (state: AutoReloginState) => void): Effect<() => void, never>;
-    readonly changes: Stream<AutoReloginState, never, never>;
     disable(): Effect<AutoReloginState, never>;
     enable(): Effect<AutoReloginState, never>;
     getDelay(): Effect<number, never>;
@@ -240,7 +231,6 @@ interface ScriptAutoReloginApi {
 }
 interface ScriptAutoZoneApi {
     onState(listener: (state: AutoZoneState) => void): Effect<() => void, never>;
-    readonly changes: Stream<AutoZoneState, never, never>;
     getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
     getState(): Effect<AutoZoneState, never>;
     isEnabled(): Effect<boolean, never>;
@@ -383,7 +373,6 @@ interface ScriptEnvironmentApi {
 interface ScriptEventsApi {
     readonly on: ScriptEventsOn;
     readonly once: ScriptWaitForEvent;
-    stream<const S extends EventSelector | undefined = EventSelector | undefined>(selector?: S): Stream<ScriptEventForSelector<S>, never, never>;
 }
 interface ScriptEventsOn {
     <const T extends ScriptEventType>(query: ScriptEventSelectorForType<T>, handler: (event: ScriptEventForType<T>) => ScriptCallbackResult): Effect<() => void, never>;
@@ -456,7 +445,6 @@ interface ScriptPacketApi {
     sendClient(packet: string, /** @defaultValue "str" */ type?: ScriptClientPacketSendType): Effect<boolean, never>;
   /** @param type The server packet encoding. */
     sendServer(packet: string, /** @defaultValue "String" */ type?: 'String' | 'Json'): Effect<boolean, never>;
-    stream<const S extends PacketSelector | undefined = PacketSelector | undefined>(selector?: S): Stream<PacketForSelector<S>, never, never>;
 }
 interface ScriptPacketOn {
     <const D extends PacketDirection>(query: PacketSelector & { readonly direction: D; }, handler: (packet: PacketForDirection<D>) => ScriptCallbackResult): Effect<() => void, never>;
@@ -942,12 +930,6 @@ type PacketForDirection<D extends PacketDirection> = Extract<
   FlashPacket,
   { readonly direction: D }
 >;
-type PacketForSelector<S extends PacketSelector | undefined> =
-  S extends {
-    readonly direction: infer Direction extends PacketDirection;
-  }
-    ? PacketForDirection<Direction>
-    : FlashPacket;
 interface PacketSelector {
   readonly command?: string;
   readonly direction?: PacketDirection;
@@ -976,12 +958,6 @@ interface ScriptEquipEnhancementSelector {
   readonly special?: string;
 }
 type ScriptEvent = RuntimeEvent | ProtocolEvent | ProjectionEvent;
-type ScriptEventForSelector<S extends EventSelector | undefined> =
-  S extends {
-    readonly type: infer T extends ScriptEventType;
-  }
-    ? ScriptEventForType<T>
-    : ScriptEvent;
 type ScriptEventForType<T extends ScriptEventType> = Extract<
   ScriptEvent,
   { readonly type: T }
