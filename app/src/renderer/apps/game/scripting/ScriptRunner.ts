@@ -23,6 +23,7 @@ import { ArmyApi } from "../army/Army";
 import { Automation } from "../automation/Automation";
 import { Environment } from "../environment/Environment";
 import { Api } from "../flash/api/Api";
+import { ProjectionReadiness } from "../flash/api/ProjectionReadiness";
 import { Bridge } from "../flash/bridge/Bridge";
 import type { Event as FlashEvent } from "../flash/contract/Event";
 import type { ScriptMain, ScriptRuntimeOptions } from "./ScriptApi";
@@ -441,6 +442,7 @@ export const layer = Layer.effect(
     const scope = yield* Effect.scope;
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
     const api = yield* Api;
+    const projectionReadiness = yield* ProjectionReadiness;
     const army = yield* ArmyApi;
     const automation = yield* Automation;
     const environment = yield* Environment;
@@ -449,17 +451,7 @@ export const layer = Layer.effect(
       window.desktop,
       "game",
     );
-    const {
-      auth,
-      combat,
-      events,
-      house,
-      map,
-      packet,
-      player,
-      projectionReadiness,
-      wait,
-    } = api;
+    const { auth, combat, events, house, map, packet, player, wait } = api;
     const { autoRelogin, autoZone } = automation;
     const scriptStartReadiness = makeScriptStartReadiness({
       auth,

@@ -19,14 +19,17 @@ import { makeMonsters } from "./Monsters";
 import { makePacket } from "./Packet";
 import { makePlayer } from "./Player";
 import { makePlayers } from "./Players";
-import { makeProjectionReadiness } from "./ProjectionReadiness";
+import {
+  makeProjectionReadiness,
+  ProjectionReadiness,
+} from "./ProjectionReadiness";
 import { makeQuests } from "./Quests";
 import { makeSettings } from "./Settings";
 import { makeShops } from "./Shops";
 import { makeTempInventory } from "./TempInventory";
 import { makeWaitApi } from "./Wait";
 
-export const makeApi = Effect.gen(function* () {
+const makeApiServices = Effect.gen(function* () {
   const bridge = yield* Bridge;
   const gateway = yield* Gateway;
   const store = yield* makeStore;
@@ -83,31 +86,43 @@ export const makeApi = Effect.gen(function* () {
   yield* gateway.start(pipeline.packet, pipeline.runtime);
 
   return {
-    auth,
-    bank,
-    combat,
-    drops,
-    events,
-    house,
-    inventory,
-    map,
-    monsters,
-    packet,
-    player,
-    players,
+    api: {
+      auth,
+      bank,
+      combat,
+      drops,
+      events,
+      house,
+      inventory,
+      map,
+      monsters,
+      packet,
+      player,
+      players,
+      quests,
+      settings,
+      shops,
+      tempInventory,
+      wait,
+    },
     projectionReadiness,
-    quests,
-    settings,
-    shops,
-    tempInventory,
-    wait,
   };
 });
 
-export type ApiService = Effect.Success<typeof makeApi>;
+export type ApiService = Effect.Success<typeof makeApiServices>["api"];
+
+export const makeApi = makeApiServices.pipe(Effect.map(({ api }) => api));
 
 export class Api extends Context.Service<Api, ApiService>()(
   "lucent/renderer/flash/Api",
 ) {}
 
-export const layer = Layer.effect(Api, makeApi);
+export const layer = Layer.effectContext(
+  makeApiServices.pipe(
+    Effect.map(({ api, projectionReadiness }) =>
+      Context.make(Api, api).pipe(
+        Context.add(ProjectionReadiness, projectionReadiness),
+      ),
+    ),
+  ),
+);
