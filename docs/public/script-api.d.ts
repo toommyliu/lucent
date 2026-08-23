@@ -217,7 +217,6 @@ interface ScriptRuntimeApi {
     stop(/** @defaultValue "Script stopped." */ reason?: string): Effect<never, ScriptStopSignal>;
 }
 interface ScriptAutoReloginApi {
-    onState(listener: (state: AutoReloginState) => void): Effect<() => void, never>;
     disable(): Effect<AutoReloginState, never>;
     enable(): Effect<AutoReloginState, never>;
     getDelay(): Effect<number, never>;
@@ -230,7 +229,6 @@ interface ScriptAutoReloginApi {
     setServer(server: string): Effect<AutoReloginState, never>;
 }
 interface ScriptAutoZoneApi {
-    onState(listener: (state: AutoZoneState) => void): Effect<() => void, never>;
     getMap(): Effect<AutoZoneSupportedMap | undefined, never>;
     getState(): Effect<AutoZoneState, never>;
     isEnabled(): Effect<boolean, never>;
