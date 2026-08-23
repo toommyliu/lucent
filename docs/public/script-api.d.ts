@@ -419,7 +419,9 @@ interface ScriptMapApi {
 interface ScriptMonstersApi {
     get(query: MonsterQuery): Effect<LiveMonster | null, never>;
     getAll(): Effect<LiveMonster[], never>;
+  /** Gets monsters in the current cell that are alive and can be targeted for combat. Hidden monsters are included. */
     getAvailable(): Effect<LiveMonster[], never>;
+  /** Checks whether a monster in the current cell is alive and can be targeted for combat. Hidden monsters count as available. */
     isAvailable(query: MonsterQuery): Effect<boolean, never>;
 }
 interface ScriptOptionsApi {

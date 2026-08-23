@@ -18,4 +18,4 @@ type ScriptRenderingMode =
   | "minimal"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L688" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:688" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:688" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:688</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L690" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:690" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:690" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:690</code></a></p>
