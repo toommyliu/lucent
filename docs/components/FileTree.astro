@@ -7,6 +7,63 @@ interface Props {
 }
 
 const { files, label = "Folder layout", root } = Astro.props;
+
+interface FileTreeNode {
+  children: FileTreeNode[];
+  isFolder: boolean;
+  name: string;
+}
+
+interface FileTreeRow {
+  isFolder: boolean;
+  name: string;
+  prefix: string;
+}
+
+const buildTree = (paths: readonly string[]): FileTreeNode[] => {
+  const tree: FileTreeNode[] = [];
+
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    let siblings = tree;
+
+    for (const [index, name] of segments.entries()) {
+      const isFolder = index < segments.length - 1 || path.endsWith("/");
+      let node = siblings.find((candidate) => candidate.name === name);
+
+      if (!node) {
+        node = { children: [], isFolder, name };
+        siblings.push(node);
+      } else if (isFolder) {
+        node.isFolder = true;
+      }
+
+      siblings = node.children;
+    }
+  }
+
+  return tree;
+};
+
+const flattenTree = (
+  nodes: readonly FileTreeNode[],
+  ancestorHasNext: readonly boolean[] = []
+): FileTreeRow[] =>
+  nodes.flatMap((node, index) => {
+    const hasNext = index < nodes.length - 1;
+    const ancestors = ancestorHasNext
+      .map((ancestorHasSibling) => (ancestorHasSibling ? "│  " : "   "))
+      .join("");
+    const row = {
+      isFolder: node.isFolder,
+      name: node.name,
+      prefix: `${ancestors}${hasNext ? "├─" : "└─"}`,
+    };
+
+    return [row, ...flattenTree(node.children, [...ancestorHasNext, hasNext])];
+  });
+
+const rows = flattenTree(buildTree(files));
 ---
 
 <figure
@@ -19,14 +76,20 @@ const { files, label = "Folder layout", root } = Astro.props;
   </figcaption>
   <div class="bg-muted/40 px-4 py-3 font-mono text-sm leading-7">
     <div class="font-medium text-foreground">{root}/</div>
-    <ul class="m-0 list-none p-0 text-muted-foreground" role="list">
+    <ul class="m-0! list-none p-0 text-muted-foreground" role="list">
       {
-        files.map((file, index) => (
-          <li class="m-0 flex items-center gap-2 p-0">
-            <span aria-hidden="true" class="select-none text-border">
-              {index === files.length - 1 ? "└─" : "├─"}
+        rows.map((row) => (
+          <li class="m-0! flex items-center gap-2 p-0">
+            <span
+              aria-hidden="true"
+              class="shrink-0 select-none whitespace-pre text-border"
+            >
+              {row.prefix}
             </span>
-            <span class="text-foreground">{file}</span>
+            <span class="text-foreground">
+              {row.name}
+              {row.isFolder ? "/" : ""}
+            </span>
           </li>
         ))
       }
