@@ -485,8 +485,6 @@ export const makePlayer = (
       }
     });
 
-  const useBoost = (selector: ItemQuery) => inventory.use(selector);
-
   const walkTo = (position: Position, options?: WalkToOptions) =>
     Effect.gen(function* () {
       if (!(yield* isAlive())) return false;
@@ -537,7 +535,6 @@ export const makePlayer = (
     jumpToCell,
     outfits,
     rest,
-    useBoost,
     walkTo,
   };
 };

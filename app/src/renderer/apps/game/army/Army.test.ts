@@ -92,7 +92,6 @@ const makeApi = (overrides: Record<string, unknown> = {}): ApiService =>
     },
     player: {
       joinMap: () => Effect.succeed(true),
-      useBoost: () => Effect.succeed(true),
     },
     players: {
       getAll: () => Effect.succeed([{ username: "Alice" }]),

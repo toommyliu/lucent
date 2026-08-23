@@ -130,7 +130,6 @@ declare global {
       "player.joinMap": (map: string, cell?: string, pad?: string) => void;
       "player.jump": (cell: string, pad?: string) => void;
       "player.rest": () => void;
-      "player.useBoost": (itemId: number) => boolean;
       "player.walkTo": (x: number, y: number, walkSpeed?: number) => boolean;
       "quests.abandon": (questId: number) => void;
       "quests.accept": (questId: number, silent?: boolean) => boolean;

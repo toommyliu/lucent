@@ -478,7 +478,6 @@ interface ScriptPlayerApi {
     readonly outfits: ScriptPlayerOutfitsApi;
   /** @param full Whether to perform a full rest. */
     rest(/** @defaultValue false */ full?: boolean): Effect<void, never>;
-    useBoost(query: ItemQuery): Effect<boolean, never>;
     walkTo(position: Position, options?: WalkToOptions): Effect<boolean, never>;
 }
 interface ScriptPlayerFactionsApi {

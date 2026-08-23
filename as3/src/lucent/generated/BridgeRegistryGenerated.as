@@ -110,7 +110,6 @@ package lucent.generated
       external.externalize("player.joinMap", Player.joinMap);
       external.externalize("player.jump", Player.jump);
       external.externalize("player.rest", Player.rest);
-      external.externalize("player.useBoost", Player.useBoost);
       external.externalize("player.walkTo", Player.walkTo);
       external.externalize("quests.abandon", Quests.abandon);
       external.externalize("quests.accept", Quests.accept);
