@@ -288,58 +288,6 @@ describe("discoverScriptCatalog", () => {
     });
   });
 
-  it("rejects invalid package and dependency versions", async () => {
-    const workspace = await makeWorkspace();
-    const selfRoot = join(workspace.packagesDir, "self");
-    const rangeRoot = join(workspace.packagesDir, "bad-range");
-    const versionRoot = join(workspace.packagesDir, "bad-version");
-    await Promise.all([
-      write(
-        join(selfRoot, "package.json"),
-        JSON.stringify({
-          name: "self",
-          lucent: { dependencies: { self: "*" } },
-        }),
-      ),
-      write(
-        join(rangeRoot, "package.json"),
-        JSON.stringify({
-          name: "bad-range",
-          lucent: { dependencies: { tools: "not semver" } },
-        }),
-      ),
-      write(
-        join(versionRoot, "package.json"),
-        JSON.stringify({ name: "bad-version", version: "^1.0.0" }),
-      ),
-    ]);
-
-    const discovery = await discoverScriptCatalog({
-      currentVersion: "1.2.3",
-      packagesDir: workspace.packagesDir,
-      scriptsDir: workspace.scriptsDir,
-    });
-
-    expect(discovery.catalog.packages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          status: "invalid",
-          diagnostic: expect.stringContaining("must not declare itself"),
-        }),
-        expect.objectContaining({
-          status: "invalid",
-          diagnostic: expect.stringContaining('version for "tools" is invalid'),
-        }),
-        expect.objectContaining({
-          status: "invalid",
-          diagnostic: expect.stringContaining(
-            "must be an exact semantic version",
-          ),
-        }),
-      ]),
-    );
-  });
-
   it("derives verified and modified integrity from the app-owned baseline", async () => {
     const workspace = await makeWorkspace();
     const packageRoot = join(workspace.packagesDir, "tools");

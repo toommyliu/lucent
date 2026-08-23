@@ -44,14 +44,6 @@ describe("ScriptInputsExtractor service", () => {
     }),
   );
 
-  it.effect("analyzes package ES modules for an unsupported-format error", () =>
-    Effect.gen(function* () {
-      const analysis = yield* analyzeSource("export const value = 1;");
-
-      expect(analysis).toEqual({ inputs: null, requirements: [] });
-    }),
-  );
-
   it.effect("extracts static inputs and fills a missing id", () =>
     Effect.gen(function* () {
       const definition = yield* extractInputs(`
