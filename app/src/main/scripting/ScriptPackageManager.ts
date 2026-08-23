@@ -12,8 +12,12 @@ import { list as listTar, extract as extractTar } from "tar";
 import type {
   ScriptCatalogOverview,
   ScriptPackageMutationResult,
+  ScriptPackageRevision,
 } from "@lucent/core/scriptPackages";
-import { ScriptPackageNameSchema } from "@lucent/core/scriptPackages";
+import {
+  ScriptPackageNameSchema,
+  ScriptPackageRepositorySubdirectorySchema,
+} from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import {
   GitHubScriptPackageClient,
@@ -40,6 +44,9 @@ const ARCHIVE_MAX_ENTRIES = 10_000;
 const ARCHIVE_MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
 const ARCHIVE_MAX_PATH_BYTES = 1024;
 const decodePackageName = Schema.decodeUnknownSync(ScriptPackageNameSchema);
+const decodeRepositorySubdirectory = Schema.decodeUnknownSync(
+  ScriptPackageRepositorySubdirectorySchema,
+);
 
 const packageManagerOperationSchema = Schema.Literals([
   "check-update",
@@ -85,6 +92,7 @@ export interface ScriptPackageManagerShape {
     readonly ref?: string;
     readonly replaceExisting?: boolean;
     readonly repositoryUrl: string;
+    readonly subdirectory?: string;
   }) => Effect.Effect<ScriptPackageMutationResult, ScriptPackageManagerError>;
   readonly remove: (input: {
     readonly confirmModified?: boolean;
@@ -105,29 +113,48 @@ interface ArchiveInventory {
   readonly root: string;
 }
 
-interface ResolvedPackageCommit {
+interface ArchiveValidationOptions {
+  readonly subdirectory?: string;
+}
+
+interface ResolvedPackageRevision {
   readonly checkedAt: string;
-  readonly commit: string;
+  readonly revision: ScriptPackageRevision;
   readonly etag?: string;
 }
 
+interface ResolvedInstallSource extends ResolvedPackageRevision {
+  readonly commit: string;
+}
+
+const installedRevision = (
+  managed: ManagedScriptPackage,
+): ScriptPackageRevision =>
+  managed.source.kind === "repository"
+    ? { kind: "commit", sha: managed.source.resolvedCommit }
+    : { kind: "tree", sha: managed.source.resolvedTree };
+
+const revisionsMatch = (
+  left: ScriptPackageRevision,
+  right: ScriptPackageRevision,
+): boolean => left.kind === right.kind && left.sha === right.sha;
+
 const recordRemoteResolution = (
   managed: ManagedScriptPackage,
-  resolution: ResolvedPackageCommit,
+  resolution: ResolvedPackageRevision,
 ): ManagedScriptPackage => ({
   files: managed.files,
   installedAt: managed.installedAt,
   name: managed.name,
-  remoteCommit: resolution.commit,
+  remoteRevision: resolution.revision,
   source: managed.source,
-  update:
-    resolution.commit === managed.source.resolvedCommit
-      ? { status: "current", checkedAt: resolution.checkedAt }
-      : {
-          status: "available",
-          checkedAt: resolution.checkedAt,
-          commit: resolution.commit,
-        },
+  update: revisionsMatch(resolution.revision, installedRevision(managed))
+    ? { status: "current", checkedAt: resolution.checkedAt }
+    : {
+        status: "available",
+        checkedAt: resolution.checkedAt,
+        revision: resolution.revision,
+      },
   ...(resolution.etag === undefined ? {} : { etag: resolution.etag }),
 });
 
@@ -175,14 +202,23 @@ const archivePath = (rawPath: string): readonly string[] => {
 
 export const validateScriptPackageArchive = async (
   path: string,
-  platform: NodeJS.Platform = process.platform,
+  options: ArchiveValidationOptions = {},
 ): Promise<ArchiveInventory> => {
+  const caseInsensitivePaths =
+    process.platform === "darwin" || process.platform === "win32";
+  const subdirectory =
+    options.subdirectory === undefined
+      ? undefined
+      : decodeRepositorySubdirectory(options.subdirectory);
+  const subdirectoryPrefix =
+    subdirectory === undefined ? undefined : `${subdirectory}/`;
   const exactPaths = new Set<string>();
   const normalizedPaths = new Set<string>();
   const platformPaths = new Set<string>();
   let entryCount = 0;
   let extractedBytes = 0;
   let root: string | undefined;
+  let selectedDirectoryFound = subdirectory === undefined;
   let validationError: Error | undefined;
 
   await listTar({
@@ -211,11 +247,23 @@ export const validateScriptPackageArchive = async (
         if (relativeParts.length === 0) return;
 
         const relativePath = relativeParts.join("/");
+        if (relativePath === subdirectory) {
+          if (entry.type !== "Directory") {
+            throw new Error(
+              `Selected package path ${JSON.stringify(subdirectory)} is not a directory.`,
+            );
+          }
+          selectedDirectoryFound = true;
+        } else if (
+          subdirectoryPrefix !== undefined &&
+          relativePath.startsWith(subdirectoryPrefix)
+        ) {
+          selectedDirectoryFound = true;
+        }
         const normalizedPath = relativePath.normalize("NFC");
-        const platformPath =
-          platform === "darwin" || platform === "win32"
-            ? normalizedPath.toLocaleLowerCase("en-US")
-            : normalizedPath;
+        const platformPath = caseInsensitivePaths
+          ? normalizedPath.toLocaleLowerCase("en-US")
+          : normalizedPath;
         if (
           exactPaths.has(relativePath) ||
           normalizedPaths.has(normalizedPath) ||
@@ -257,23 +305,39 @@ export const validateScriptPackageArchive = async (
   });
   if (validationError !== undefined) throw validationError;
   if (root === undefined) throw new Error("Archive is empty.");
+  if (!selectedDirectoryFound) {
+    throw new Error(
+      `Archive does not contain package directory ${JSON.stringify(subdirectory)}.`,
+    );
+  }
   return { root };
 };
 
 export const extractScriptPackageArchive = async (
   archivePath: string,
   targetPath: string,
+  subdirectory?: string,
 ): Promise<void> => {
-  await validateScriptPackageArchive(archivePath);
+  const inventory = await validateScriptPackageArchive(
+    archivePath,
+    subdirectory === undefined ? {} : { subdirectory },
+  );
   await fs.mkdir(targetPath, { recursive: true });
+  const selectedPrefix =
+    subdirectory === undefined
+      ? undefined
+      : `${inventory.root}/${subdirectory}/`;
   await extractTar({
     cwd: targetPath,
     file: archivePath,
+    ...(selectedPrefix === undefined
+      ? {}
+      : { filter: (path) => path.startsWith(selectedPrefix) }),
     noMtime: true,
     preserveOwner: false,
     preservePaths: false,
     strict: true,
-    strip: 1,
+    strip: subdirectory === undefined ? 1 : subdirectory.split("/").length + 1,
     unlink: true,
   });
 };
@@ -335,9 +399,28 @@ export const layer = Layer.effect(
     const mapCatalogError = (cause: unknown) =>
       managerError("validate", "Failed to update the script catalog.", cause);
 
-    const resolveManagedCommit = Effect.fn(
-      "ScriptPackageManager.resolveManagedCommit",
+    const resolveManagedRevision = Effect.fn(
+      "ScriptPackageManager.resolveManagedRevision",
     )(function* (managed: ManagedScriptPackage) {
+      if (managed.source.kind === "directory") {
+        const result = yield* client.resolveDirectory({
+          repositoryUrl: managed.source.repositoryUrl,
+          subdirectory: managed.source.subdirectory,
+          ...(managed.source.credentialId === undefined
+            ? {}
+            : { credentialId: managed.source.credentialId }),
+          ...(managed.source.requestedRef === undefined
+            ? {}
+            : { ref: managed.source.requestedRef }),
+        });
+        return {
+          checkedAt: new Date().toISOString(),
+          revision: { kind: "tree", sha: result.tree },
+        } satisfies ResolvedPackageRevision;
+      }
+
+      const etag =
+        managed.remoteRevision?.kind === "commit" ? managed.etag : undefined;
       const result = yield* client.resolveCommit({
         repositoryUrl: managed.source.repositoryUrl,
         ...(managed.source.credentialId === undefined
@@ -346,19 +429,17 @@ export const layer = Layer.effect(
         ...(managed.source.requestedRef === undefined
           ? {}
           : { ref: managed.source.requestedRef }),
-        ...(managed.etag === undefined || managed.remoteCommit === undefined
-          ? {}
-          : { etag: managed.etag }),
+        ...(etag === undefined ? {} : { etag }),
       });
       const checkedAt = new Date().toISOString();
       if (result.status === "modified") {
         return {
           checkedAt,
-          commit: result.commit,
+          revision: { kind: "commit", sha: result.commit },
           ...(result.etag === undefined ? {} : { etag: result.etag }),
-        } satisfies ResolvedPackageCommit;
+        } satisfies ResolvedPackageRevision;
       }
-      if (managed.remoteCommit === undefined) {
+      if (managed.remoteRevision?.kind !== "commit") {
         return yield* new GitHubScriptPackageClientError({
           kind: "unexpected-response",
           detail: "GitHub returned an incomplete update response. Try again.",
@@ -366,11 +447,58 @@ export const layer = Layer.effect(
       }
       return {
         checkedAt,
-        commit: managed.remoteCommit,
+        revision: managed.remoteRevision,
         ...(result.etag === undefined && managed.etag === undefined
           ? {}
           : { etag: result.etag ?? managed.etag }),
-      } satisfies ResolvedPackageCommit;
+      } satisfies ResolvedPackageRevision;
+    });
+
+    const resolveManagedInstallSource = Effect.fn(
+      "ScriptPackageManager.resolveManagedInstallSource",
+    )(function* (managed: ManagedScriptPackage) {
+      if (managed.source.kind === "repository") {
+        const resolution = yield* resolveManagedRevision(managed);
+        if (resolution.revision.kind !== "commit") {
+          return yield* new GitHubScriptPackageClientError({
+            kind: "unexpected-response",
+            detail: "GitHub returned an incomplete package revision.",
+          });
+        }
+        return {
+          ...resolution,
+          commit: resolution.revision.sha,
+        } satisfies ResolvedInstallSource;
+      }
+
+      const commit = yield* client.resolveCommit({
+        repositoryUrl: managed.source.repositoryUrl,
+        ...(managed.source.credentialId === undefined
+          ? {}
+          : { credentialId: managed.source.credentialId }),
+        ...(managed.source.requestedRef === undefined
+          ? {}
+          : { ref: managed.source.requestedRef }),
+      });
+      if (commit.status !== "modified") {
+        return yield* new GitHubScriptPackageClientError({
+          kind: "unexpected-response",
+          detail: "GitHub couldn't resolve the selected Git ref to a commit.",
+        });
+      }
+      const directory = yield* client.resolveDirectory({
+        repositoryUrl: managed.source.repositoryUrl,
+        ref: commit.commit,
+        subdirectory: managed.source.subdirectory,
+        ...(managed.source.credentialId === undefined
+          ? {}
+          : { credentialId: managed.source.credentialId }),
+      });
+      return {
+        checkedAt: new Date().toISOString(),
+        commit: commit.commit,
+        revision: { kind: "tree", sha: directory.tree },
+      } satisfies ResolvedInstallSource;
     });
 
     const replacePackage = Effect.fn("ScriptPackageManager.replacePackage")(
@@ -469,7 +597,7 @@ export const layer = Layer.effect(
       function* (
         input: Parameters<ScriptPackageManagerShape["install"]>[0],
         expectedPackageName?: string,
-        knownCommit?: ResolvedPackageCommit,
+        knownSource?: ResolvedInstallSource,
       ) {
         const repository = yield* Effect.try({
           try: () => normalizeGitHubRepositoryUrl(input.repositoryUrl),
@@ -480,35 +608,80 @@ export const layer = Layer.effect(
               cause,
             ),
         });
-        const commitResult =
-          knownCommit ??
-          (yield* client
-            .resolveCommit({
-              repositoryUrl: repository.url,
-              ...(input.credentialId === undefined
-                ? {}
-                : { credentialId: input.credentialId }),
-              ...(input.ref === undefined ? {} : { ref: input.ref }),
-            })
-            .pipe(
-              Effect.mapError((cause) =>
-                managerError("install", cause.message, cause),
-              ),
-              Effect.flatMap((result) =>
-                result.status === "modified"
-                  ? Effect.succeed({
-                      checkedAt: new Date().toISOString(),
-                      commit: result.commit,
-                      ...(result.etag === undefined
-                        ? {}
-                        : { etag: result.etag }),
-                    } satisfies ResolvedPackageCommit)
-                  : managerError(
-                      "install",
-                      "GitHub couldn't resolve the selected Git ref to a commit.",
-                    ),
-              ),
-            ));
+        const subdirectory =
+          input.subdirectory === undefined
+            ? undefined
+            : yield* Effect.try({
+                try: () => decodeRepositorySubdirectory(input.subdirectory),
+                catch: (cause) =>
+                  managerError(
+                    "install",
+                    "Enter a valid repository-relative package directory.",
+                    cause,
+                  ),
+              });
+        const resolvedSource: ResolvedInstallSource =
+          knownSource ??
+          (yield* Effect.gen(function* () {
+            const commit = yield* client
+              .resolveCommit({
+                repositoryUrl: repository.url,
+                ...(input.credentialId === undefined
+                  ? {}
+                  : { credentialId: input.credentialId }),
+                ...(input.ref === undefined ? {} : { ref: input.ref }),
+              })
+              .pipe(
+                Effect.mapError((cause) =>
+                  managerError("install", cause.message, cause),
+                ),
+              );
+            if (commit.status !== "modified") {
+              return yield* managerError(
+                "install",
+                "GitHub couldn't resolve the selected Git ref to a commit.",
+              );
+            }
+            const checkedAt = new Date().toISOString();
+            if (subdirectory === undefined) {
+              return {
+                checkedAt,
+                commit: commit.commit,
+                revision: { kind: "commit", sha: commit.commit },
+                ...(commit.etag === undefined ? {} : { etag: commit.etag }),
+              } satisfies ResolvedInstallSource;
+            }
+            const directory = yield* client
+              .resolveDirectory({
+                repositoryUrl: repository.url,
+                ref: commit.commit,
+                subdirectory,
+                ...(input.credentialId === undefined
+                  ? {}
+                  : { credentialId: input.credentialId }),
+              })
+              .pipe(
+                Effect.mapError((cause) =>
+                  managerError("install", cause.message, cause),
+                ),
+              );
+            return {
+              checkedAt,
+              commit: commit.commit,
+              revision: { kind: "tree", sha: directory.tree },
+            } satisfies ResolvedInstallSource;
+          }));
+        if (
+          (subdirectory === undefined &&
+            resolvedSource.revision.kind !== "commit") ||
+          (subdirectory !== undefined &&
+            resolvedSource.revision.kind !== "tree")
+        ) {
+          return yield* managerError(
+            "install",
+            "GitHub returned an incomplete package revision.",
+          );
+        }
 
         yield* Effect.tryPromise({
           try: () => fs.mkdir(packagesDir, { recursive: true }),
@@ -535,7 +708,7 @@ export const layer = Layer.effect(
               yield* client
                 .downloadArchive({
                   repositoryUrl: repository.url,
-                  ref: commitResult.commit,
+                  ref: resolvedSource.commit,
                   targetPath: archive,
                   ...(input.credentialId === undefined
                     ? {}
@@ -547,11 +720,14 @@ export const layer = Layer.effect(
                   ),
                 );
               yield* Effect.tryPromise({
-                try: () => extractScriptPackageArchive(archive, staging),
+                try: () =>
+                  extractScriptPackageArchive(archive, staging, subdirectory),
                 catch: (cause) =>
                   managerError(
                     "extract",
-                    "The GitHub archive is not a safe script package.",
+                    subdirectory === undefined
+                      ? "The GitHub archive is not a safe script package."
+                      : "The selected package directory could not be safely extracted.",
                     cause,
                   ),
               });
@@ -562,7 +738,9 @@ export const layer = Layer.effect(
                 catch: (cause) =>
                   managerError(
                     "validate",
-                    "The repository root does not contain a valid package.json.",
+                    subdirectory === undefined
+                      ? "The repository root does not contain a valid package.json."
+                      : "The selected package directory does not contain a valid package.json.",
                     cause,
                   ),
               });
@@ -580,7 +758,9 @@ export const layer = Layer.effect(
                 catch: (cause) =>
                   managerError(
                     "validate",
-                    "The repository root is not a valid script package.",
+                    subdirectory === undefined
+                      ? "The repository root is not a valid script package."
+                      : "The selected package directory is not a valid script package.",
                     cause,
                   ),
               });
@@ -647,24 +827,40 @@ export const layer = Layer.effect(
                 files,
                 installedAt: new Date().toISOString(),
                 name: packageName,
-                remoteCommit: commitResult.commit,
-                source: {
-                  repositoryUrl: repository.url,
-                  resolvedCommit: commitResult.commit,
-                  ...(input.credentialId === undefined
-                    ? {}
-                    : { credentialId: input.credentialId }),
-                  ...(input.ref?.trim()
-                    ? { requestedRef: input.ref.trim() }
-                    : {}),
-                },
+                remoteRevision: resolvedSource.revision,
+                source:
+                  subdirectory === undefined
+                    ? {
+                        kind: "repository",
+                        repositoryUrl: repository.url,
+                        resolvedCommit: resolvedSource.commit,
+                        ...(input.credentialId === undefined
+                          ? {}
+                          : { credentialId: input.credentialId }),
+                        ...(input.ref?.trim()
+                          ? { requestedRef: input.ref.trim() }
+                          : {}),
+                      }
+                    : {
+                        kind: "directory",
+                        repositoryUrl: repository.url,
+                        resolvedCommit: resolvedSource.commit,
+                        resolvedTree: resolvedSource.revision.sha,
+                        subdirectory,
+                        ...(input.credentialId === undefined
+                          ? {}
+                          : { credentialId: input.credentialId }),
+                        ...(input.ref?.trim()
+                          ? { requestedRef: input.ref.trim() }
+                          : {}),
+                      },
                 update: {
                   status: "current",
-                  checkedAt: commitResult.checkedAt,
+                  checkedAt: resolvedSource.checkedAt,
                 },
-                ...(commitResult.etag === undefined
+                ...(resolvedSource.etag === undefined
                   ? {}
-                  : { etag: commitResult.etag }),
+                  : { etag: resolvedSource.etag }),
               };
               yield* replacePackage(
                 staging,
@@ -733,7 +929,7 @@ export const layer = Layer.effect(
             );
           }
 
-          const resolution = yield* resolveManagedCommit(managed).pipe(
+          const resolution = yield* resolveManagedInstallSource(managed).pipe(
             Effect.mapError((cause) =>
               managerError("update", cause.message, cause),
             ),
@@ -765,7 +961,7 @@ export const layer = Layer.effect(
           }
           if (
             summary.integrity === "verified" &&
-            resolution.commit === managed.source.resolvedCommit
+            revisionsMatch(resolution.revision, installedRevision(managed))
           ) {
             const nextCatalog = yield* catalog
               .updateManagedPackage(observed)
@@ -786,6 +982,9 @@ export const layer = Layer.effect(
               ...(managed.source.requestedRef === undefined
                 ? {}
                 : { ref: managed.source.requestedRef }),
+              ...(managed.source.kind === "repository"
+                ? {}
+                : { subdirectory: managed.source.subdirectory }),
             },
             input.packageName,
             resolution,
@@ -891,7 +1090,7 @@ export const layer = Layer.effect(
             "This package is unmanaged and has no GitHub source to check.",
           );
         }
-        const result = yield* resolveManagedCommit(managed).pipe(
+        const result = yield* resolveManagedRevision(managed).pipe(
           Effect.match({
             onFailure: (error) => ({ status: "failed", error }) as const,
             onSuccess: (value) => ({ status: "succeeded", value }) as const,

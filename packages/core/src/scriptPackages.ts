@@ -23,6 +23,20 @@ const safePortableSegments = (value: string): boolean =>
         !windowsReservedPathSegment.test(segment),
     );
 
+export const isScriptPackageRepositorySubdirectory = (value: string): boolean =>
+  value.trim() === value &&
+  value.normalize("NFC") === value &&
+  safePortableSegments(value);
+
+export const ScriptPackageRepositorySubdirectorySchema = Schema.String.check(
+  Schema.makeFilter(isScriptPackageRepositorySubdirectory, {
+    expected: "a portable repository-relative path using forward slashes",
+  }),
+);
+
+export type ScriptPackageRepositorySubdirectory =
+  typeof ScriptPackageRepositorySubdirectorySchema.Type;
+
 export const SCRIPT_BUILTIN_MODULE_SPECIFIERS = [
   "effect",
   "lucent/api",
@@ -200,14 +214,34 @@ export const ScriptPackageIntegritySchema = Schema.Literals([
 
 export type ScriptPackageIntegrity = typeof ScriptPackageIntegritySchema.Type;
 
-export const ScriptPackageSourceSchema = Schema.Struct({
+const ScriptPackageRepositorySourceFields = {
   repositoryUrl: Schema.String,
   requestedRef: Schema.optionalKey(Schema.String),
   resolvedCommit: Schema.String,
   credentialId: Schema.optionalKey(Schema.String),
-});
+} as const;
+
+export const ScriptPackageSourceSchema = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("repository"),
+    ...ScriptPackageRepositorySourceFields,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("directory"),
+    ...ScriptPackageRepositorySourceFields,
+    resolvedTree: Schema.String,
+    subdirectory: ScriptPackageRepositorySubdirectorySchema,
+  }),
+]);
 
 export type ScriptPackageSource = typeof ScriptPackageSourceSchema.Type;
+
+export const ScriptPackageRevisionSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("commit"), sha: Schema.String }),
+  Schema.Struct({ kind: Schema.Literal("tree"), sha: Schema.String }),
+]);
+
+export type ScriptPackageRevision = typeof ScriptPackageRevisionSchema.Type;
 
 export const ScriptPackageUpdateStateSchema = Schema.Union([
   Schema.Struct({ status: Schema.Literal("unchecked") }),
@@ -218,7 +252,7 @@ export const ScriptPackageUpdateStateSchema = Schema.Union([
   Schema.Struct({
     status: Schema.Literal("available"),
     checkedAt: Schema.String,
-    commit: Schema.String,
+    revision: ScriptPackageRevisionSchema,
   }),
   Schema.Struct({
     status: Schema.Literal("unknown"),
@@ -374,6 +408,7 @@ export const ScriptPackageInstallRequestSchema = Schema.Struct({
   ref: Schema.optionalKey(Schema.String),
   replaceExisting: Schema.optionalKey(Schema.Boolean),
   repositoryUrl: ScriptPackageNonEmptyStringSchema,
+  subdirectory: Schema.optionalKey(ScriptPackageRepositorySubdirectorySchema),
 });
 
 export type ScriptPackageInstallRequest =

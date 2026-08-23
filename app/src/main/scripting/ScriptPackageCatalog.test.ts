@@ -300,6 +300,7 @@ describe("discoverScriptCatalog", () => {
       installedAt: new Date(0).toISOString(),
       name: "tools",
       source: {
+        kind: "repository",
         repositoryUrl: "https://github.com/example/tools",
         resolvedCommit: "abc123",
       },
@@ -424,6 +425,7 @@ describe("ScriptPackageCatalog", () => {
             installedAt: new Date(0).toISOString(),
             name: "tools",
             source: {
+              kind: "repository",
               repositoryUrl: "https://github.com/example/tools",
               resolvedCommit: "abc123",
             },

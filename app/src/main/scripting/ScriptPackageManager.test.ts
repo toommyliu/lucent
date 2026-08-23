@@ -36,7 +36,10 @@ import {
 const directories: string[] = [];
 const INSTALLED_COMMIT = "1".repeat(40);
 const REMOTE_COMMIT = "2".repeat(40);
+const INSTALLED_TREE = "3".repeat(40);
+const REMOTE_TREE = "4".repeat(40);
 const PACKAGE_NAME = "example";
+const PACKAGE_SUBDIRECTORY = "packages/example";
 
 const makeDirectory = async (): Promise<string> => {
   const path = await fs.mkdtemp(join(tmpdir(), "lucent-package-archive-"));
@@ -51,6 +54,7 @@ const write = async (path: string, source: string): Promise<void> => {
 
 const makeManagerHarness = (options: {
   readonly archivePath?: string;
+  readonly directoryTree?: string;
   readonly integrity?: ScriptPackageIntegrity;
   readonly managed: ManagedScriptPackage;
   readonly resolution: GitHubCommitResolution;
@@ -60,6 +64,9 @@ const makeManagerHarness = (options: {
   let downloadCount = 0;
   const requests: Parameters<
     GitHubScriptPackageClientShape["resolveCommit"]
+  >[0][] = [];
+  const directoryRequests: Parameters<
+    GitHubScriptPackageClientShape["resolveDirectory"]
   >[0][] = [];
 
   const currentCatalog = (): ScriptCatalog => ({
@@ -128,6 +135,11 @@ const makeManagerHarness = (options: {
         requests.push(input);
         return options.resolution;
       }),
+    resolveDirectory: (input) =>
+      Effect.sync(() => {
+        directoryRequests.push(input);
+        return { tree: options.directoryTree ?? REMOTE_TREE };
+      }),
   });
   const state = ScriptPackageState.of({
     get: (name) =>
@@ -159,6 +171,7 @@ const makeManagerHarness = (options: {
 
   return {
     downloadCount: () => downloadCount,
+    directoryRequests,
     layer,
     managed: () => managed,
     requests,
@@ -196,6 +209,78 @@ describe("script package archives", () => {
     ).resolves.toContain('"tools"');
   });
 
+  it("extracts only the selected package directory", async () => {
+    const root = await makeDirectory();
+    const sourceRoot = join(root, "source");
+    const repository = join(sourceRoot, "repository-commit");
+    await Promise.all([
+      write(join(repository, "README.md"), "repository"),
+      write(
+        join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
+        JSON.stringify({ name: PACKAGE_NAME }),
+      ),
+      write(
+        join(repository, PACKAGE_SUBDIRECTORY, "index.js"),
+        "module.exports = 'selected';",
+      ),
+      write(join(repository, "packages", "other", "private.txt"), "other"),
+    ]);
+    const archive = join(root, "package.tgz");
+    await createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
+      "repository-commit",
+    ]);
+
+    await expect(
+      validateScriptPackageArchive(archive, {
+        subdirectory: PACKAGE_SUBDIRECTORY,
+      }),
+    ).resolves.toEqual({ root: "repository-commit" });
+    const extracted = join(root, "extracted");
+    await extractScriptPackageArchive(archive, extracted, PACKAGE_SUBDIRECTORY);
+
+    await expect(
+      fs.readFile(join(extracted, "index.js"), "utf8"),
+    ).resolves.toBe("module.exports = 'selected';");
+    await expect(fs.access(join(extracted, "README.md"))).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
+    await expect(fs.access(join(extracted, "other"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(
+      validateScriptPackageArchive(archive, {
+        subdirectory: "packages/missing",
+      }),
+    ).rejects.toThrow('package directory "packages/missing"');
+  });
+
+  it("rejects unsafe entries outside the selected package directory", async () => {
+    const root = await makeDirectory();
+    const sourceRoot = join(root, "source");
+    const repository = join(sourceRoot, "repository-commit");
+    await write(
+      join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
+      JSON.stringify({ name: PACKAGE_NAME }),
+    );
+    await write(join(repository, "packages", "other", "target.txt"), "other");
+    await fs.symlink(
+      "target.txt",
+      join(repository, "packages", "other", "linked.txt"),
+    );
+    const archive = join(root, "package.tgz");
+    await createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
+      "repository-commit",
+    ]);
+
+    await expect(
+      extractScriptPackageArchive(
+        archive,
+        join(root, "extracted"),
+        PACKAGE_SUBDIRECTORY,
+      ),
+    ).rejects.toThrow("unsupported type SymbolicLink");
+  });
+
   it("rejects symbolic links before extraction", async () => {
     const root = await makeDirectory();
     const sourceRoot = join(root, "source");
@@ -225,6 +310,7 @@ describe("script package updates", () => {
             installedAt: "2026-07-27T00:00:00.000Z",
             name: PACKAGE_NAME,
             source: {
+              kind: "repository",
               repositoryUrl: "https://github.com/example/package",
               resolvedCommit: INSTALLED_COMMIT,
             },
@@ -246,7 +332,7 @@ describe("script package updates", () => {
         expect(harness.requests[0]?.etag).toBeUndefined();
         expect(harness.managed()).toMatchObject({
           etag: "current-etag",
-          remoteCommit: INSTALLED_COMMIT,
+          remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
           update: { status: "current" },
         });
       }),
@@ -292,8 +378,9 @@ describe("script package updates", () => {
             files: {},
             installedAt: "2026-07-27T00:00:00.000Z",
             name: PACKAGE_NAME,
-            remoteCommit: INSTALLED_COMMIT,
+            remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
             source: {
+              kind: "repository",
               repositoryUrl: "https://github.com/example/package",
               resolvedCommit: INSTALLED_COMMIT,
             },
@@ -340,15 +427,16 @@ describe("script package updates", () => {
           files: {},
           installedAt: "2026-07-27T00:00:00.000Z",
           name: PACKAGE_NAME,
-          remoteCommit: REMOTE_COMMIT,
+          remoteRevision: { kind: "commit", sha: REMOTE_COMMIT },
           source: {
+            kind: "repository",
             repositoryUrl: "https://github.com/example/package",
             resolvedCommit: INSTALLED_COMMIT,
           },
           update: {
             status: "available",
             checkedAt: "2026-08-01T00:00:00.000Z",
-            commit: REMOTE_COMMIT,
+            revision: { kind: "commit", sha: REMOTE_COMMIT },
           },
         },
         resolution: { status: "not-modified" },
@@ -362,12 +450,163 @@ describe("script package updates", () => {
       expect(harness.requests[0]?.etag).toBe("remote-etag");
       expect(harness.managed()).toMatchObject({
         etag: "remote-etag",
-        remoteCommit: REMOTE_COMMIT,
-        update: { status: "available", commit: REMOTE_COMMIT },
+        remoteRevision: { kind: "commit", sha: REMOTE_COMMIT },
+        update: {
+          status: "available",
+          revision: { kind: "commit", sha: REMOTE_COMMIT },
+        },
       });
       expect(catalog.packages[0]).toMatchObject({
-        update: { status: "available", commit: REMOTE_COMMIT },
+        update: {
+          status: "available",
+          revision: { kind: "commit", sha: REMOTE_COMMIT },
+        },
       });
+    }),
+  );
+
+  it.effect(
+    "checks a package directory by tree without resolving a commit",
+    () =>
+      Effect.gen(function* () {
+        const harness = makeManagerHarness({
+          directoryTree: REMOTE_TREE,
+          managed: {
+            files: {},
+            installedAt: "2026-08-01T00:00:00.000Z",
+            name: PACKAGE_NAME,
+            source: {
+              kind: "directory",
+              repositoryUrl: "https://github.com/example/monorepo",
+              requestedRef: "main",
+              resolvedCommit: INSTALLED_COMMIT,
+              resolvedTree: INSTALLED_TREE,
+              subdirectory: PACKAGE_SUBDIRECTORY,
+            },
+          },
+          resolution: { status: "modified", commit: REMOTE_COMMIT },
+        });
+        const manager = yield* ScriptPackageManager.pipe(
+          Effect.provide(harness.layer),
+        );
+
+        const catalog = yield* manager.checkUpdate({
+          packageName: PACKAGE_NAME,
+        });
+
+        expect(harness.requests).toHaveLength(0);
+        expect(harness.directoryRequests).toEqual([
+          expect.objectContaining({
+            ref: "main",
+            subdirectory: PACKAGE_SUBDIRECTORY,
+          }),
+        ]);
+        expect(harness.managed()).toMatchObject({
+          remoteRevision: { kind: "tree", sha: REMOTE_TREE },
+          update: {
+            status: "available",
+            revision: { kind: "tree", sha: REMOTE_TREE },
+          },
+        });
+        expect(catalog.packages[0]).toMatchObject({
+          update: {
+            status: "available",
+            revision: { kind: "tree", sha: REMOTE_TREE },
+          },
+        });
+      }),
+  );
+
+  it.effect("updates from the selected package directory", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(makeDirectory);
+      const workspaceDir = join(root, "workspace");
+      const sourceRoot = join(root, "source");
+      const repository = join(sourceRoot, "repository-commit");
+      const destination = join(workspaceDir, "packages", PACKAGE_NAME);
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
+            JSON.stringify({ name: PACKAGE_NAME }),
+          ),
+          write(
+            join(repository, PACKAGE_SUBDIRECTORY, "index.js"),
+            "module.exports = 'updated';",
+          ),
+          write(join(repository, "README.md"), "not installed"),
+          write(
+            join(destination, "package.json"),
+            JSON.stringify({ name: PACKAGE_NAME }),
+          ),
+          write(join(destination, "index.js"), "module.exports = 'old';"),
+        ]),
+      );
+      const archivePath = join(root, "package.tgz");
+      yield* Effect.promise(() =>
+        createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, [
+          "repository-commit",
+        ]),
+      );
+      const harness = makeManagerHarness({
+        archivePath,
+        directoryTree: REMOTE_TREE,
+        managed: {
+          files: {},
+          installedAt: "2026-08-01T00:00:00.000Z",
+          name: PACKAGE_NAME,
+          source: {
+            kind: "directory",
+            repositoryUrl: "https://github.com/example/monorepo",
+            requestedRef: "main",
+            resolvedCommit: INSTALLED_COMMIT,
+            resolvedTree: INSTALLED_TREE,
+            subdirectory: PACKAGE_SUBDIRECTORY,
+          },
+        },
+        resolution: { status: "modified", commit: REMOTE_COMMIT },
+        workspaceDir,
+      });
+      const manager = yield* ScriptPackageManager.pipe(
+        Effect.provide(harness.layer),
+      );
+
+      const result = yield* manager.update({ packageName: PACKAGE_NAME });
+
+      expect(result.status).toBe("completed");
+      expect(harness.downloadCount()).toBe(1);
+      expect(harness.requests).toEqual([
+        expect.objectContaining({ ref: "main" }),
+      ]);
+      expect(harness.directoryRequests).toEqual([
+        expect.objectContaining({
+          ref: REMOTE_COMMIT,
+          subdirectory: PACKAGE_SUBDIRECTORY,
+        }),
+      ]);
+      expect(harness.managed()).toMatchObject({
+        remoteRevision: { kind: "tree", sha: REMOTE_TREE },
+        source: {
+          kind: "directory",
+          resolvedCommit: REMOTE_COMMIT,
+          resolvedTree: REMOTE_TREE,
+          subdirectory: PACKAGE_SUBDIRECTORY,
+        },
+        update: { status: "current" },
+      });
+      expect(
+        yield* Effect.promise(() =>
+          fs.readFile(join(destination, "index.js"), "utf8"),
+        ),
+      ).toBe("module.exports = 'updated';");
+      expect(
+        yield* Effect.promise(() =>
+          fs.access(join(destination, "README.md")).then(
+            () => false,
+            () => true,
+          ),
+        ),
+      ).toBe(true);
     }),
   );
 });

@@ -60,16 +60,17 @@ import {
 } from "solid-js";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
-import type {
-  GitHubCredentialSummary,
-  ScriptCatalogEntry,
-  ScriptCatalogOverview,
-  ScriptPackageInstallRequest,
-  ScriptPackageDependencyIssue,
-  ScriptPackageMutationResult,
-  ScriptPackageSummary,
-  ScriptReference,
-  ValidScriptPackage,
+import {
+  isScriptPackageRepositorySubdirectory,
+  type GitHubCredentialSummary,
+  type ScriptCatalogEntry,
+  type ScriptCatalogOverview,
+  type ScriptPackageInstallRequest,
+  type ScriptPackageDependencyIssue,
+  type ScriptPackageMutationResult,
+  type ScriptPackageSummary,
+  type ScriptReference,
+  type ValidScriptPackage,
 } from "@lucent/core/scriptPackages";
 import type { DesktopScriptingBridge } from "../../../shared/desktopBridge";
 import type {
@@ -662,7 +663,10 @@ const packageDisplayStatus = (
   switch (entry.update.status) {
     case "available":
       return {
-        description: `The package's Git ref points to a newer commit (${entry.update.commit.slice(0, 7)}).`,
+        description:
+          entry.update.revision.kind === "commit"
+            ? `The package's Git ref points to a newer commit (${entry.update.revision.sha.slice(0, 7)}).`
+            : `The package directory has changed (${entry.update.revision.sha.slice(0, 7)}).`,
         icon: "download",
         label: "Update available",
         listLabel: "Update available",
@@ -671,7 +675,9 @@ const packageDisplayStatus = (
     case "current":
       return {
         description:
-          "This package is compatible and unchanged. Its Git ref still points to the installed commit.",
+          entry.source.kind === "repository"
+            ? "This package is compatible and unchanged. Its Git ref still points to the installed commit."
+            : "This package is compatible and unchanged. Its package directory matches the installed tree.",
         icon: "check",
         label: "Up to date",
         listLabel: "Up to date",
@@ -853,6 +859,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     );
   let confirmationCancelButton: HTMLButtonElement | null = null;
   const [repositoryUrl, setRepositoryUrl] = createSignal("");
+  const [packageDirectory, setPackageDirectory] = createSignal("");
+  const [packageDirectoryInvalid, setPackageDirectoryInvalid] =
+    createSignal(false);
   const [repositoryRef, setRepositoryRef] = createSignal("");
   const [credentialId, setCredentialId] = createSignal("");
   const [credentialEditorOpen, setCredentialEditorOpen] = createSignal(false);
@@ -861,7 +870,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const [credentialToken, setCredentialToken] = createSignal("");
   const [credentialTokenVisible, setCredentialTokenVisible] =
     createSignal(false);
-  const [copiedCommitPath, setCopiedCommitPath] = createSignal<string>();
+  const [copiedRevisionPath, setCopiedRevisionPath] = createSignal<string>();
   const [rateLimitNow, setRateLimitNow] = createSignal(Date.now());
   let catalogRequestId = 0;
   let scriptQueryRequestId = 0;
@@ -869,7 +878,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   let scriptPageGeneration = 0;
   const scriptPageRequests = new Set<string>();
   let searchTimer: number | undefined;
-  let copiedCommitTimer: number | undefined;
+  let copiedRevisionTimer: number | undefined;
+  let packageDirectoryInput: HTMLInputElement | undefined;
   let scriptViewportResizeObserver: ResizeObserver | undefined;
   const scrollPositions: Record<ScrollableScriptsDialogTab, number> = {
     packages: 0,
@@ -1296,22 +1306,22 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setRetryableError(errorMessage(cause, fallback));
   };
 
-  const copyCommit = async (
+  const copyRevision = async (
     packagePath: string,
-    commit: string,
+    revision: string,
   ): Promise<void> => {
     try {
-      await props.onCopyText(commit);
-      if (copiedCommitTimer !== undefined) {
-        window.clearTimeout(copiedCommitTimer);
+      await props.onCopyText(revision);
+      if (copiedRevisionTimer !== undefined) {
+        window.clearTimeout(copiedRevisionTimer);
       }
-      setCopiedCommitPath(packagePath);
-      copiedCommitTimer = window.setTimeout(() => {
-        setCopiedCommitPath(undefined);
-        copiedCommitTimer = undefined;
+      setCopiedRevisionPath(packagePath);
+      copiedRevisionTimer = window.setTimeout(() => {
+        setCopiedRevisionPath(undefined);
+        copiedRevisionTimer = undefined;
       }, 900);
     } catch (cause) {
-      setOperationError("Failed to copy the commit hash.", cause);
+      setOperationError("Failed to copy the revision hash.", cause);
     }
   };
 
@@ -1492,8 +1502,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (searchTimer !== undefined) {
       window.clearTimeout(searchTimer);
     }
-    if (copiedCommitTimer !== undefined) {
-      window.clearTimeout(copiedCommitTimer);
+    if (copiedRevisionTimer !== undefined) {
+      window.clearTimeout(copiedRevisionTimer);
     }
   });
 
@@ -1633,6 +1643,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     applyMutation(result);
     if (result.status !== "completed" && result.status !== "unchanged") return;
     setRepositoryUrl("");
+    setPackageDirectory("");
+    setPackageDirectoryInvalid(false);
     setRepositoryRef("");
     setInstallOptionsOpen(false);
     setPackageManagementView("installed");
@@ -1676,10 +1688,22 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       setError("Enter a valid GitHub.com repository URL.");
       return;
     }
+    const subdirectory = packageDirectory().trim();
+    if (
+      subdirectory !== "" &&
+      !isScriptPackageRepositorySubdirectory(subdirectory)
+    ) {
+      setPackageDirectoryInvalid(true);
+      setInstallOptionsOpen(true);
+      setError("");
+      window.requestAnimationFrame(() => packageDirectoryInput?.focus());
+      return;
+    }
     const request: ScriptPackageInstallRequest = {
       repositoryUrl: input.repository.url,
       ...(repositoryRef().trim() === "" ? {} : { ref: repositoryRef().trim() }),
       ...(credentialId() === "" ? {} : { credentialId: credentialId() }),
+      ...(subdirectory === "" ? {} : { subdirectory }),
     };
     askForConfirmation({
       confirmLabel: "Install package",
@@ -3001,6 +3025,42 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                         id="script-package-install-options"
                       >
                         <Field
+                          class="game-scripts-dialog__install-directory"
+                          contentClass="game-scripts-dialog__install-directory-field"
+                          error={packageDirectoryInvalid()}
+                          for="script-package-directory"
+                          label="Package directory"
+                          optional
+                        >
+                          <Input
+                            ref={(element) => {
+                              packageDirectoryInput = element;
+                            }}
+                            aria-describedby="script-package-directory-feedback"
+                            fullWidth
+                            id="script-package-directory"
+                            invalid={packageDirectoryInvalid()}
+                            placeholder="script-packages/package-name"
+                            value={packageDirectory()}
+                            onInput={(event) => {
+                              setPackageDirectory(event.currentTarget.value);
+                              setPackageDirectoryInvalid(false);
+                              setError("");
+                            }}
+                          />
+                          <div
+                            class="game-scripts-dialog__install-field-feedback"
+                            data-invalid={
+                              packageDirectoryInvalid() ? "" : undefined
+                            }
+                            id="script-package-directory-feedback"
+                          >
+                            {packageDirectoryInvalid()
+                              ? "Use a repository-relative path with forward slashes and no . or .. segments."
+                              : "Leave blank when package.json is at the repository root."}
+                          </div>
+                        </Field>
+                        <Field
                           class="game-scripts-dialog__install-ref"
                           for="script-package-ref"
                           label="Git ref"
@@ -3278,89 +3338,121 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                   </div>
                                 }
                               >
-                                {(source) => (
-                                  <div class="game-scripts-dialog__package-detail-row">
-                                    <dt>Source</dt>
-                                    <dd class="game-scripts-dialog__package-source">
-                                      <span class="game-scripts-dialog__package-source-identity">
-                                        <span class="game-scripts-dialog__package-source-reference">
-                                          <Button
-                                            aria-label={`Open ${valid.name} repository`}
-                                            class="game-scripts-dialog__package-source-repository"
-                                            onClick={() =>
-                                              void openRepository(valid)
-                                            }
-                                            size="xs"
-                                            title={source.repositoryUrl}
-                                            variant="link"
-                                          >
-                                            <span class="game-scripts-dialog__package-source-repository-label">
-                                              {source.repositoryUrl
-                                                .replace(
-                                                  /^https:\/\/github\.com\//,
-                                                  "",
-                                                )
-                                                .replace(/\/$/, "")}
-                                            </span>
-                                            <Show
-                                              when={source.requestedRef}
-                                              keyed
-                                            >
-                                              {(requestedRef) => (
-                                                <span class="game-scripts-dialog__package-source-ref">
-                                                  ({requestedRef})
+                                {(source) => {
+                                  const revisionLabel =
+                                    source.kind === "repository"
+                                      ? "Commit"
+                                      : "Tree";
+                                  const revision =
+                                    source.kind === "repository"
+                                      ? source.resolvedCommit
+                                      : source.resolvedTree;
+                                  return (
+                                    <>
+                                      <div class="game-scripts-dialog__package-detail-row">
+                                        <dt>Source</dt>
+                                        <dd class="game-scripts-dialog__package-source">
+                                          <span class="game-scripts-dialog__package-source-identity">
+                                            <span class="game-scripts-dialog__package-source-reference">
+                                              <Button
+                                                aria-label={`Open ${valid.name} repository`}
+                                                class="game-scripts-dialog__package-source-repository"
+                                                onClick={() =>
+                                                  void openRepository(valid)
+                                                }
+                                                size="xs"
+                                                title={source.repositoryUrl}
+                                                variant="link"
+                                              >
+                                                <span class="game-scripts-dialog__package-source-repository-label">
+                                                  {source.repositoryUrl
+                                                    .replace(
+                                                      /^https:\/\/github\.com\//,
+                                                      "",
+                                                    )
+                                                    .replace(/\/$/, "")}
                                                 </span>
-                                              )}
-                                            </Show>
-                                            <Icon
-                                              aria-hidden="true"
-                                              class="game-scripts-dialog__package-source-open-icon"
-                                              icon="arrow_up_right"
-                                              size="xs"
-                                            />
-                                          </Button>
-                                        </span>
-                                        <span class="game-scripts-dialog__package-source-commit">
-                                          <span class="game-scripts-dialog__package-source-commit-label">
-                                            Commit
+                                                <Show
+                                                  when={source.requestedRef}
+                                                  keyed
+                                                >
+                                                  {(requestedRef) => (
+                                                    <span class="game-scripts-dialog__package-source-ref">
+                                                      ({requestedRef})
+                                                    </span>
+                                                  )}
+                                                </Show>
+                                                <Icon
+                                                  aria-hidden="true"
+                                                  class="game-scripts-dialog__package-source-open-icon"
+                                                  icon="arrow_up_right"
+                                                  size="xs"
+                                                />
+                                              </Button>
+                                            </span>
+                                            <span class="game-scripts-dialog__package-source-revision">
+                                              <span class="game-scripts-dialog__package-source-revision-label">
+                                                {revisionLabel}
+                                              </span>
+                                              <code
+                                                class="game-scripts-dialog__package-detail-mono"
+                                                title={revision}
+                                              >
+                                                {revision.slice(0, 7)}
+                                              </code>
+                                              <TooltipIconButton
+                                                aria-label={`Copy ${revisionLabel.toLowerCase()} ${revision}`}
+                                                class="game-scripts-dialog__package-source-copy"
+                                                onClick={() =>
+                                                  void copyRevision(
+                                                    valid.path,
+                                                    revision,
+                                                  )
+                                                }
+                                                size="icon-xs"
+                                                tooltip={
+                                                  copiedRevisionPath() ===
+                                                  valid.path
+                                                    ? "Copied"
+                                                    : `Copy ${revisionLabel.toLowerCase()}`
+                                                }
+                                              >
+                                                <Icon
+                                                  icon={
+                                                    copiedRevisionPath() ===
+                                                    valid.path
+                                                      ? "check"
+                                                      : "copy"
+                                                  }
+                                                  size="xs"
+                                                />
+                                              </TooltipIconButton>
+                                            </span>
                                           </span>
-                                          <code
-                                            class="game-scripts-dialog__package-detail-mono"
-                                            title={source.resolvedCommit}
-                                          >
-                                            {source.resolvedCommit.slice(0, 7)}
-                                          </code>
-                                          <TooltipIconButton
-                                            aria-label={`Copy commit ${source.resolvedCommit}`}
-                                            class="game-scripts-dialog__package-source-copy"
-                                            onClick={() =>
-                                              void copyCommit(
-                                                valid.path,
-                                                source.resolvedCommit,
-                                              )
-                                            }
-                                            size="icon-xs"
-                                            tooltip={
-                                              copiedCommitPath() === valid.path
-                                                ? "Copied"
-                                                : "Copy commit"
-                                            }
-                                          >
-                                            <Icon
-                                              icon={
-                                                copiedCommitPath() ===
-                                                valid.path
-                                                  ? "check"
-                                                  : "copy"
-                                              }
-                                              size="xs"
-                                            />
-                                          </TooltipIconButton>
-                                        </span>
-                                      </span>
-                                    </dd>
-                                  </div>
-                                )}
+                                        </dd>
+                                      </div>
+                                      <Show
+                                        when={
+                                          source.kind === "directory"
+                                            ? source.subdirectory
+                                            : undefined
+                                        }
+                                        keyed
+                                      >
+                                        {(subdirectory) => (
+                                          <div class="game-scripts-dialog__package-detail-row">
+                                            <dt>Package directory</dt>
+                                            <dd>
+                                              <code class="game-scripts-dialog__package-detail-mono">
+                                                {subdirectory}
+                                              </code>
+                                            </dd>
+                                          </div>
+                                        )}
+                                      </Show>
+                                    </>
+                                  );
+                                }}
                               </Show>
                               <Show when={checkSummary().timestamp} keyed>
                                 {(timestamp) => (
