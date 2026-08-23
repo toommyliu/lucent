@@ -147,7 +147,10 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
           );
   }
 
-  /** Replaces the server-provided drop collection without replacing the monster. */
+  /**
+   * Replaces the server-provided drop collection without replacing the monster.
+   * @internal
+   */
   replaceDrops(drops: readonly MonsterDrop[]): void {
     this.#drops.clear();
     for (const drop of drops) {
