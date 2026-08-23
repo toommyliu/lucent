@@ -25,6 +25,7 @@ import {
 import {
   extractScriptPackageArchive,
   layer as scriptPackageManagerLayer,
+  scriptPackageDirectorySlug,
   ScriptPackageManager,
   validateScriptPackageArchive,
 } from "./ScriptPackageManager";
@@ -56,7 +57,7 @@ const makeManagerHarness = (options: {
   readonly archivePath?: string;
   readonly directoryTree?: string;
   readonly integrity?: ScriptPackageIntegrity;
-  readonly managed: ManagedScriptPackage;
+  readonly managed?: ManagedScriptPackage;
   readonly resolution: GitHubCommitResolution;
   readonly workspaceDir?: string;
 }) => {
@@ -70,26 +71,29 @@ const makeManagerHarness = (options: {
   >[0][] = [];
 
   const currentCatalog = (): ScriptCatalog => ({
-    packages: [
-      {
-        status: "valid",
-        compatibility: {
-          status: "compatible",
-          currentVersion: "1.0.0",
-          requiredVersion: "*",
-        },
-        dependencyStatus: { status: "ready" },
-        integrity: options.integrity ?? "verified",
-        name: PACKAGE_NAME,
-        path: join(
-          options.workspaceDir ?? "/tmp/lucent",
-          "packages",
-          PACKAGE_NAME,
-        ),
-        source: managed.source,
-        update: managed.update ?? { status: "unchecked" },
-      },
-    ],
+    packages:
+      managed === undefined
+        ? []
+        : [
+            {
+              status: "valid",
+              compatibility: {
+                status: "compatible",
+                currentVersion: "1.0.0",
+                requiredVersion: "*",
+              },
+              dependencyStatus: { status: "ready" },
+              integrity: options.integrity ?? "verified",
+              name: managed.name,
+              path: join(
+                options.workspaceDir ?? "/tmp/lucent",
+                "packages",
+                managed.directory,
+              ),
+              source: managed.source,
+              update: managed.update ?? { status: "unchecked" },
+            },
+          ],
     revision: "test-catalog",
     scripts: [],
   });
@@ -143,8 +147,8 @@ const makeManagerHarness = (options: {
   });
   const state = ScriptPackageState.of({
     get: (name) =>
-      Effect.sync(() => (name === managed.name ? managed : undefined)),
-    getAll: Effect.sync(() => [managed]),
+      Effect.sync(() => (name === managed?.name ? managed : undefined)),
+    getAll: Effect.sync(() => (managed === undefined ? [] : [managed])),
     remove: () => Effect.void,
     save: (value) =>
       Effect.sync(() => {
@@ -298,6 +302,136 @@ describe("script package archives", () => {
   });
 });
 
+describe("script package folders", () => {
+  it("makes a readable folder slug from the complete package name", () => {
+    expect(scriptPackageDirectorySlug("tools")).toBe("tools");
+    expect(scriptPackageDirectorySlug("@author/daily tools")).toBe(
+      "author-daily-tools",
+    );
+    expect(scriptPackageDirectorySlug("team/shared/tools")).toBe(
+      "team-shared-tools",
+    );
+    expect(scriptPackageDirectorySlug("@con")).toBe("package-con");
+  });
+
+  it.effect("stores the available folder chosen during installation", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(makeDirectory);
+      const workspaceDir = join(root, "workspace");
+      const sourceRoot = join(root, "source");
+      const source = join(sourceRoot, "repository-commit");
+      const packageName = "@author/daily-tools";
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(source, "package.json"),
+            JSON.stringify({ name: packageName }),
+          ),
+          write(join(source, "index.js"), "module.exports = 'installed';"),
+          write(
+            join(workspaceDir, "packages", "author-daily-tools", "keep.txt"),
+            "existing folder",
+          ),
+        ]),
+      );
+      const archivePath = join(root, "package.tgz");
+      yield* Effect.promise(() =>
+        createTar({ cwd: sourceRoot, file: archivePath, gzip: true }, [
+          "repository-commit",
+        ]),
+      );
+      const harness = makeManagerHarness({
+        archivePath,
+        managed: {
+          directory: "author-daily-tools-2",
+          files: {},
+          installedAt: "2026-08-01T00:00:00.000Z",
+          name: "other-package",
+          source: {
+            kind: "repository",
+            repositoryUrl: "https://github.com/example/other-package",
+            resolvedCommit: INSTALLED_COMMIT,
+          },
+        },
+        resolution: {
+          status: "modified",
+          commit: REMOTE_COMMIT,
+        },
+        workspaceDir,
+      });
+      const manager = yield* ScriptPackageManager.pipe(
+        Effect.provide(harness.layer),
+      );
+
+      const result = yield* manager.install({
+        repositoryUrl: "https://github.com/example/daily-tools",
+      });
+
+      expect(result).toMatchObject({ status: "completed", packageName });
+      expect(harness.managed()).toMatchObject({
+        directory: "author-daily-tools-3",
+        name: packageName,
+      });
+      expect(
+        yield* Effect.promise(() =>
+          fs.readFile(
+            join(workspaceDir, "packages", "author-daily-tools-3", "index.js"),
+            "utf8",
+          ),
+        ),
+      ).toBe("module.exports = 'installed';");
+    }),
+  );
+
+  it.effect("removes a package from its saved folder", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(makeDirectory);
+      const workspaceDir = join(root, "workspace");
+      const directory = "custom-example-folder";
+      const packageRoot = join(workspaceDir, "packages", directory);
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(packageRoot, "package.json"),
+            JSON.stringify({ name: PACKAGE_NAME }),
+          ),
+          write(join(packageRoot, "index.js"), "module.exports = true;"),
+        ]),
+      );
+      const harness = makeManagerHarness({
+        managed: {
+          directory,
+          files: {},
+          installedAt: "2026-08-01T00:00:00.000Z",
+          name: PACKAGE_NAME,
+          source: {
+            kind: "repository",
+            repositoryUrl: "https://github.com/example/package",
+            resolvedCommit: INSTALLED_COMMIT,
+          },
+        },
+        resolution: { status: "modified", commit: REMOTE_COMMIT },
+        workspaceDir,
+      });
+      const manager = yield* ScriptPackageManager.pipe(
+        Effect.provide(harness.layer),
+      );
+
+      const result = yield* manager.remove({ packageName: PACKAGE_NAME });
+
+      expect(result.status).toBe("completed");
+      expect(
+        yield* Effect.promise(() =>
+          fs.access(packageRoot).then(
+            () => false,
+            () => true,
+          ),
+        ),
+      ).toBe(true);
+    }),
+  );
+});
+
 describe("script package updates", () => {
   it.effect(
     "does not download when the remote commit is already installed",
@@ -305,6 +439,7 @@ describe("script package updates", () => {
       Effect.gen(function* () {
         const harness = makeManagerHarness({
           managed: {
+            directory: PACKAGE_NAME,
             etag: "stale-etag-without-a-commit",
             files: {},
             installedAt: "2026-07-27T00:00:00.000Z",
@@ -346,7 +481,8 @@ describe("script package updates", () => {
         const workspaceDir = join(root, "workspace");
         const sourceRoot = join(root, "source");
         const source = join(sourceRoot, "repository-commit");
-        const destination = join(workspaceDir, "packages", PACKAGE_NAME);
+        const directory = "custom-example-folder";
+        const destination = join(workspaceDir, "packages", directory);
         yield* Effect.promise(() =>
           Promise.all([
             write(
@@ -374,6 +510,7 @@ describe("script package updates", () => {
           archivePath,
           integrity: "modified",
           managed: {
+            directory,
             etag: "current-etag",
             files: {},
             installedAt: "2026-07-27T00:00:00.000Z",
@@ -423,6 +560,7 @@ describe("script package updates", () => {
     Effect.gen(function* () {
       const harness = makeManagerHarness({
         managed: {
+          directory: PACKAGE_NAME,
           etag: "remote-etag",
           files: {},
           installedAt: "2026-07-27T00:00:00.000Z",
@@ -472,6 +610,7 @@ describe("script package updates", () => {
         const harness = makeManagerHarness({
           directoryTree: REMOTE_TREE,
           managed: {
+            directory: PACKAGE_NAME,
             files: {},
             installedAt: "2026-08-01T00:00:00.000Z",
             name: PACKAGE_NAME,
@@ -552,6 +691,7 @@ describe("script package updates", () => {
         archivePath,
         directoryTree: REMOTE_TREE,
         managed: {
+          directory: PACKAGE_NAME,
           files: {},
           installedAt: "2026-08-01T00:00:00.000Z",
           name: PACKAGE_NAME,

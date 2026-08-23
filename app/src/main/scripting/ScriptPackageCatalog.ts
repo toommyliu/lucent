@@ -20,10 +20,12 @@ import type {
   ScriptPackageCompatibility,
   ScriptPackageDependencyIssue,
   ScriptPackageDependencyStatus,
+  ScriptPackageDirectory,
   ScriptPackageSummary,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
 import {
+  ScriptPackageDirectorySchema,
   ScriptPackageNameSchema,
   ScriptRelativePathSchema,
 } from "@lucent/core/scriptPackages";
@@ -71,6 +73,9 @@ const ScriptPackageManifestJsonSchema = Schema.Struct({
 const decodeManifestJson = Schema.decodeUnknownSync(
   ScriptPackageManifestJsonSchema,
 );
+const decodePackageDirectory = Schema.decodeUnknownSync(
+  ScriptPackageDirectorySchema,
+);
 const decodePackageName = Schema.decodeUnknownSync(ScriptPackageNameSchema);
 const decodeRelativePath = Schema.decodeUnknownSync(ScriptRelativePathSchema);
 
@@ -105,6 +110,7 @@ export interface ScriptPackageManifest {
 export interface DiscoveredScriptPackage {
   readonly compatibility: ScriptPackageCompatibility;
   readonly dependencyStatus: ScriptPackageDependencyStatus;
+  readonly directory: ScriptPackageDirectory;
   readonly files: readonly string[];
   readonly mainPath: string | null;
   readonly manifest: ScriptPackageManifest;
@@ -248,12 +254,7 @@ export const readScriptPackageManifest = async (
   };
 };
 
-const assertPackageName = (name: string, expectedName: string): void => {
-  if (name !== expectedName) {
-    throw new Error(
-      `The package name (${JSON.stringify(name)}) must match its folder name (${JSON.stringify(expectedName)}).`,
-    );
-  }
+const assertPackageName = (name: string): void => {
   try {
     decodePackageName(name);
   } catch {
@@ -386,12 +387,11 @@ const resolveMainPath = async (
 /** Validates one package boundary and returns its loadable JavaScript inventory. */
 export const inspectScriptPackageDirectory = async (
   rootPath: string,
-  expectedName: string,
 ): Promise<InspectedScriptPackageDirectory> => {
   const manifest = await readScriptPackageManifest(
     join(rootPath, "package.json"),
   );
-  assertPackageName(manifest.name, expectedName);
+  assertPackageName(manifest.name);
   const [mainPath, inventory] = await Promise.all([
     resolveMainPath(rootPath, manifest.main),
     listRegularFilePaths(rootPath, { maxFiles: SCRIPT_PACKAGE_MAX_FILES }),
@@ -653,6 +653,30 @@ export interface DiscoverScriptCatalogOptions {
   readonly scriptsDir: string;
 }
 
+type ValidPackageSummary = Extract<
+  ScriptPackageSummary,
+  { readonly status: "valid" }
+>;
+
+type InvalidPackageSummary = Extract<
+  ScriptPackageSummary,
+  { readonly status: "invalid" }
+>;
+
+type ScannedPackage =
+  | {
+      readonly status: "valid";
+      readonly name: string;
+      readonly packageEntry: DiscoveredScriptPackage;
+      readonly scripts: readonly ScriptCatalogEntry[];
+      readonly summary: ValidPackageSummary;
+    }
+  | {
+      readonly status: "invalid";
+      readonly summary: InvalidPackageSummary;
+      readonly validatedName?: string;
+    };
+
 export const discoverScriptCatalog = async (
   options: DiscoverScriptCatalogOptions,
 ): Promise<DiscoveredScriptCatalog> => {
@@ -660,7 +684,7 @@ export const discoverScriptCatalog = async (
   const packages: ScriptPackageSummary[] = [];
   const packageIndex = new Map<string, DiscoveredScriptPackage>();
   const managedPackages = new Map(
-    (options.managedPackages ?? []).map((entry) => [entry.name, entry]),
+    (options.managedPackages ?? []).map((entry) => [entry.directory, entry]),
   );
 
   const looseFiles = await listRegularFilePaths(options.scriptsDir);
@@ -678,136 +702,158 @@ export const discoverScriptCatalog = async (
     });
   }
 
-  const visitPackages = async (directory: string): Promise<void> => {
-    let entries: Dirent[];
+  let packageDirectories: Dirent[];
+  try {
+    packageDirectories = await fs.readdir(options.packagesDir, {
+      encoding: "utf8",
+      withFileTypes: true,
+    });
+  } catch (cause) {
+    if (!isMissingFileError(cause)) throw cause;
+    packageDirectories = [];
+  }
+  packageDirectories.sort((left, right) =>
+    naturalCompare(left.name, right.name),
+  );
+
+  const scannedPackages: ScannedPackage[] = [];
+  for (const entry of packageDirectories) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    const directory = join(options.packagesDir, entry.name);
+    let parsedName: string | undefined;
+    let validatedName: string | undefined;
     try {
-      entries = await fs.readdir(directory, {
-        encoding: "utf8",
-        withFileTypes: true,
-      });
-    } catch (cause) {
-      if (isMissingFileError(cause)) return;
-      throw cause;
-    }
-    entries.sort((left, right) => naturalCompare(left.name, right.name));
+      const directoryName = decodePackageDirectory(entry.name);
+      parsedName = (
+        await readScriptPackageManifest(join(directory, "package.json"))
+      ).name;
+      validatedName = decodePackageName(parsedName);
+      const inspected = await inspectScriptPackageDirectory(directory);
+      const { mainPath, manifest } = inspected;
+      const managed = managedPackages.get(directoryName);
+      if (managed !== undefined && managed.name !== manifest.name) {
+        throw new Error(
+          `The installed package name is ${JSON.stringify(managed.name)}, but package.json declares ${JSON.stringify(manifest.name)}.`,
+        );
+      }
 
-    const manifestEntry = entries.find(
-      (entry) => entry.name === "package.json",
-    );
-    if (manifestEntry !== undefined) {
-      const relativeName = portablePath(
-        relative(options.packagesDir, directory),
+      const packageRealPath = await fs.realpath(directory);
+      const packagesRealPath = await fs.realpath(options.packagesDir);
+      if (!isPathInside(packagesRealPath, packageRealPath)) {
+        throw new Error("The package points outside Lucent's packages folder.");
+      }
+      const compatibility = compatibilityFor(
+        options.currentVersion,
+        manifest.lucentVersion,
       );
-      let parsedName: string | undefined;
-      try {
-        parsedName = (
-          await readScriptPackageManifest(join(directory, "package.json"))
-        ).name;
-        const inspected = await inspectScriptPackageDirectory(
-          directory,
-          relativeName,
+      const integrity = await integrityFor(directory, managed);
+      const warning =
+        compatibility.status === "unknown"
+          ? compatibility.warning
+          : mainPath === null
+            ? `The package's main file was not found: ${manifest.main}.`
+            : undefined;
+      const summary: ValidPackageSummary = {
+        status: "valid",
+        compatibility,
+        dependencyStatus: { status: "ready" },
+        ...(manifest.description === undefined
+          ? {}
+          : { description: manifest.description }),
+        integrity,
+        name: manifest.name,
+        path: directory,
+        ...(managed === undefined ? {} : { source: managed.source }),
+        update: managed?.update ?? { status: "unchecked" },
+        ...(manifest.version === undefined
+          ? {}
+          : { version: manifest.version }),
+        ...(warning === undefined ? {} : { warning }),
+      };
+      const packageEntry: DiscoveredScriptPackage = {
+        compatibility,
+        dependencyStatus: { status: "ready" },
+        directory: directoryName,
+        files: inspected.files,
+        mainPath,
+        manifest,
+        modules: packageModuleIndex(directory, inspected.files),
+        name: manifest.name,
+        rootPath: directory,
+      };
+      const packageScripts: ScriptCatalogEntry[] = [];
+      const scriptRoot = join(directory, "scripts");
+      for (const absolutePath of inspected.files) {
+        if (!isPathInside(scriptRoot, absolutePath)) continue;
+        const packageScriptPath = portablePath(
+          relative(directory, absolutePath),
         );
-        const { mainPath, manifest } = inspected;
-
-        const packageRealPath = await fs.realpath(directory);
-        const packagesRealPath = await fs.realpath(options.packagesDir);
-        if (!isPathInside(packagesRealPath, packageRealPath)) {
-          throw new Error(
-            "The package points outside Lucent's packages folder.",
-          );
-        }
-        if (
-          [...packageIndex.values()].some(
-            (entry) => resolve(entry.rootPath) === resolve(directory),
-          )
-        ) {
-          throw new Error(
-            "This package points to a folder already used by another package.",
-          );
-        }
-        const compatibility = compatibilityFor(
-          options.currentVersion,
-          manifest.lucentVersion,
-        );
-        const managed = managedPackages.get(manifest.name);
-        const integrity = await integrityFor(directory, managed);
-        const warning =
-          compatibility.status === "unknown"
-            ? compatibility.warning
-            : mainPath === null
-              ? `The package's main file was not found: ${manifest.main}.`
-              : undefined;
-
-        packages.push({
-          status: "valid",
-          compatibility,
-          dependencyStatus: { status: "ready" },
-          ...(manifest.description === undefined
-            ? {}
-            : { description: manifest.description }),
-          integrity,
-          name: manifest.name,
-          path: directory,
-          ...(managed === undefined ? {} : { source: managed.source }),
-          update: managed?.update ?? { status: "unchecked" },
-          ...(manifest.version === undefined
-            ? {}
-            : { version: manifest.version }),
-          ...(warning === undefined ? {} : { warning }),
-        });
-        packageIndex.set(manifest.name, {
-          compatibility,
-          dependencyStatus: { status: "ready" },
-          files: inspected.files,
-          mainPath,
-          manifest,
-          modules: packageModuleIndex(directory, inspected.files),
-          name: manifest.name,
-          rootPath: directory,
-        });
-
-        const scriptRoot = join(directory, "scripts");
-        for (const absolutePath of inspected.files) {
-          if (!isPathInside(scriptRoot, absolutePath)) continue;
-          const packageScriptPath = portablePath(
-            relative(directory, absolutePath),
-          );
-          if (packageScriptPath === "scripts") continue;
-          const relativePath = portablePath(relative(scriptRoot, absolutePath));
-          const reference: ScriptReference = {
+        if (packageScriptPath === "scripts") continue;
+        const relativePath = portablePath(relative(scriptRoot, absolutePath));
+        packageScripts.push({
+          name: basename(relativePath),
+          packageName: manifest.name,
+          path: absolutePath,
+          reference: {
             kind: "package",
             packageName: manifest.name,
             path: packageScriptPath,
-          };
-          scripts.push({
-            name: basename(relativePath),
-            packageName: manifest.name,
-            path: absolutePath,
-            reference,
-            relativePath,
-          });
-        }
-      } catch (cause) {
-        packages.push({
-          status: "invalid",
-          diagnostic:
-            cause instanceof Error && cause.message !== ""
-              ? cause.message
-              : "This folder isn't a valid package.",
-          ...(parsedName === undefined ? {} : { name: parsedName }),
-          path: directory,
+          },
+          relativePath,
         });
       }
-      return;
+      scannedPackages.push({
+        status: "valid",
+        name: manifest.name,
+        packageEntry,
+        scripts: packageScripts,
+        summary,
+      });
+    } catch (cause) {
+      scannedPackages.push({
+        status: "invalid",
+        summary: {
+          status: "invalid",
+          diagnostic:
+            parsedName === undefined && isMissingFileError(cause)
+              ? "This folder does not contain a package.json."
+              : cause instanceof Error && cause.message !== ""
+                ? cause.message
+                : "This folder isn't a valid package.",
+          ...(parsedName === undefined ? {} : { name: parsedName }),
+          path: directory,
+        },
+        ...(validatedName === undefined ? {} : { validatedName }),
+      });
     }
+  }
 
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
-      await visitPackages(join(directory, entry.name));
+  const packageNameCounts = new Map<string, number>();
+  for (const scanned of scannedPackages) {
+    const name =
+      scanned.status === "valid" ? scanned.name : scanned.validatedName;
+    if (name !== undefined) {
+      packageNameCounts.set(name, (packageNameCounts.get(name) ?? 0) + 1);
     }
-  };
-
-  await visitPackages(options.packagesDir);
+  }
+  for (const scanned of scannedPackages) {
+    const name =
+      scanned.status === "valid" ? scanned.name : scanned.validatedName;
+    if (name !== undefined && (packageNameCounts.get(name) ?? 0) > 1) {
+      packages.push({
+        status: "invalid",
+        diagnostic: `More than one package folder declares the name ${JSON.stringify(name)}.`,
+        name,
+        path: scanned.summary.path,
+      });
+      continue;
+    }
+    packages.push(scanned.summary);
+    if (scanned.status === "valid") {
+      packageIndex.set(scanned.name, scanned.packageEntry);
+      scripts.push(...scanned.scripts);
+    }
+  }
 
   return makeDiscoveredScriptCatalog(packages, scripts, packageIndex);
 };
@@ -853,6 +899,7 @@ const replaceDiscoveredPackage = (
   const packageEntry: DiscoveredScriptPackage = {
     compatibility,
     dependencyStatus: { status: "ready" },
+    directory: managed.directory,
     files,
     mainPath,
     manifest: inspected.manifest,

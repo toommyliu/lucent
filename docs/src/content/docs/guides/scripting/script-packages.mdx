@@ -5,8 +5,8 @@ description: Bundle scripts and shared code, then install them from GitHub.
 
 import FileTree from "../../../../../components/FileTree.astro";
 
-A script package is a folder with a `package.json`. It can hold several runnable
-scripts, some shared code, or both.
+A script package is a folder directly inside `Documents/Lucent/packages` with a
+`package.json`. It can hold several runnable scripts, some shared code, or both.
 
 A standalone `.js` file in `Documents/Lucent/scripts` is called a loose script.
 Script packages look like npm packages, but do not use npm.
@@ -51,10 +51,12 @@ it, Lucent cannot check compatibility.
 - `description`, `version`, and `lucent` are optional.
 - `main` defaults to `index.js`.
 
-For a package you keep locally, its path below `Documents/Lucent/packages` must
-match its name. The example above belongs at
-`Documents/Lucent/packages/@your-name/farming-tools`. Lucent makes this folder
-for you when it installs a package from GitHub.
+The folder name and package name are separate. The example above can live at
+`Documents/Lucent/packages/farming-tools`, while scripts still import it as
+`@your-name/farming-tools`. Each package must have a unique `name`.
+
+Lucent picks an unused folder name when it installs a package from GitHub and
+remembers that folder for updates and removal.
 
 ## Share code
 
