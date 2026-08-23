@@ -3,40 +3,68 @@ title: Using Lucent
 description: Find your way around Lucent's windows and tools.
 ---
 
-Lucent is organized around game windows and a few focused tools. Use **File >
-New Game Window** to open another client, or **File > Open Account Manager** to
-launch several accounts together.
+Most of Lucent lives in what we call a **game window**. Open one from **File >
+New Game Window**, or launch saved accounts through the **Account Manager**.
+
+::::note[New: game tabs]
+Turn on **Use game tabs** in **Settings** to control up to seven AQW clients in
+one window. Use **Group controls** to send actions to any set of tabs at once.
+::::
 
 ## Game window
 
-The game window places Lucent's controls above the AQW client:
+The game window puts Lucent's controls above AQW.
 
 - **Windows** opens the [companion tools](#companion-tools) connected to this
   client.
-- **Scripts** manages and runs your scripts & packages.
-- **Options** contains client controls.
-- The remaining controls handle automation (Auto Zone, Auto Relogin, Auto Attack), travel controls, and the bank shortcut.
+- **Scripts** manages and runs scripts and packages.
+- **Options** contains client settings.
+- The other buttons cover Auto Zone, Auto Relogin, Auto Attack, travel, and the
+  bank.
 
-Most controls become available after the player is logged in and ready.
+Most controls become available once your character is logged in and ready.
+
+### Game tabs and group controls
+
+Group actions target every tab by default. Command-click a tab on macOS, or
+Control-click it on Windows and Linux, to add or remove it from the group.
+
+### How settings are shared
+
+Each account in Lucent's **Account Manager** keeps its own AQW settings. Clients
+opened outside the Account Manager share one set. When two clients would use the
+same settings at once, Lucent gives the second one a temporary copy. Changes to
+that copy aren't saved. Tabs and separate windows work the same way.
+
+::::tip[Why Lucent separates clients]
+Without this, several game clients can bottleneck a single Flash process. Lucent
+gives each client its own process, though this uses more memory and can't be
+turned off. To use less CPU, Lucent also lowers the frame rate of clients that
+aren't selected or whose window isn't focused. It respects any lower frame rate
+you set and restores your setting when you return to the client.
+::::
 
 ### Companion tools
 
 Companion tools open from **Windows** in the game window. Most belong to the
 client that opened them; Combat Profiles is shared across the app.
 
-- [**Combat Profiles**](/guides/combat-profiles) defines shared combat behavior
-  for Auto Attack, Follower, and scripts.
-- **Environment** manages the drops, quests, and boosts Lucent should orchestrate through.
-- **Follower** follows another player and acts as their combat assistant.
+- [**Combat Profiles**](/guides/combat-profiles) defines combat behavior for
+  scripts, Auto Attack, and Follower.
+- **Environment** manages drops, quests, and boosts.
+- **Follower** follows another player and helps them in combat.
 - **Loader/Grabber** loads game content or grabs useful game data.
 - **Packets** captures, inspects, and sends game packets.
 
 ## Account Manager
 
-The Account Manager stores accounts and launches them into separate game
-windows.
+Add your accounts, give them labels, and save common selections as groups. In
+**Launch**, choose the accounts, login server, and optional script, then launch
+them together.
+
+**Sessions** lists every open client with its login status and current script.
 
 ## Settings
 
-Open **Settings** from the application menu to choose the startup window,
-configure updates behavior and hotkeys, or customize the app's visuals.
+Open **Settings** from the application menu to change app behavior, hotkeys, or
+appearance.
