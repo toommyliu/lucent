@@ -71,6 +71,7 @@ const makeManagerHarness = (options: {
           currentVersion: "1.0.0",
           requiredVersion: "*",
         },
+        dependencyStatus: { status: "ready" },
         integrity: options.integrity ?? "verified",
         name: PACKAGE_NAME,
         path: join(

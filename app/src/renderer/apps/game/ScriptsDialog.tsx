@@ -65,6 +65,7 @@ import type {
   ScriptCatalogEntry,
   ScriptCatalogOverview,
   ScriptPackageInstallRequest,
+  ScriptPackageDependencyIssue,
   ScriptPackageMutationResult,
   ScriptPackageSummary,
   ScriptReference,
@@ -389,6 +390,46 @@ const packageCompatibilityDetail = (entry: ValidScriptPackage): string => {
   }
 };
 
+const packageDependencyIssueDetail = (
+  issue: ScriptPackageDependencyIssue,
+): string => {
+  switch (issue.reason) {
+    case "missing":
+      return `${issue.packageName} is missing. Install it to use this package.`;
+    case "version-mismatch": {
+      const exact = /^(\d+)\.(\d+)\.(\d+)$/.exec(issue.requiredVersion);
+      if (exact !== null) {
+        return `${issue.packageName} version ${issue.requiredVersion} is required. Version ${issue.installedVersion} is installed.`;
+      }
+      const caret = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(issue.requiredVersion);
+      if (caret !== null) {
+        const major = Number(caret[1]);
+        const minor = Number(caret[2]);
+        const patch = Number(caret[3]);
+        const series =
+          major > 0
+            ? `${major}.x`
+            : minor > 0
+              ? `0.${minor}.x`
+              : `0.0.${patch}`;
+        return major === 0 && minor === 0
+          ? `${issue.packageName} version ${series} is required. Version ${issue.installedVersion} is installed.`
+          : `${issue.packageName} needs a compatible version. Install version ${major}.${minor}.${patch} or newer in the ${series} series.`;
+      }
+      return `${issue.packageName} version ${issue.installedVersion} isn't compatible. Update or replace it to use this package.`;
+    }
+    case "version-unavailable":
+      return `Lucent can't check ${issue.packageName}'s version. Install a versioned release to use this package.`;
+    case "unavailable":
+      return `${issue.packageName} can't be used. Fix that package first.`;
+  }
+};
+
+const packageDependencyDetail = (entry: ValidScriptPackage): string =>
+  entry.dependencyStatus.status === "ready"
+    ? ""
+    : entry.dependencyStatus.issues.map(packageDependencyIssueDetail).join(" ");
+
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
   numeric: "always",
 });
@@ -554,6 +595,16 @@ const packageDisplayStatus = (
     };
   }
 
+  if (entry.dependencyStatus.status === "blocked") {
+    return {
+      description: packageDependencyDetail(entry),
+      icon: "triangle_alert",
+      label: "Dependencies unavailable",
+      listLabel: "Needs attention",
+      tone: "error",
+    };
+  }
+
   if (entry.integrity === "modified") {
     return {
       description: packageIntegrityDetail(entry, entry.integrity),
@@ -674,9 +725,16 @@ const packageNoticeDescription = (
 ): string => {
   const details = [displayStatus.description];
 
-  // The badge shows the most urgent status, but the notice should retain every
-  // compatibility or integrity problem that needs the user's attention.
+  // The badge shows the most urgent status, but the notice retains every
+  // problem the user needs to address.
   if (entry.compatibility.status === "incompatible") {
+    if (entry.dependencyStatus.status === "blocked") {
+      details.push(packageDependencyDetail(entry));
+    }
+    if (entry.integrity !== "verified") {
+      details.push(packageIntegrityDetail(entry, entry.integrity));
+    }
+  } else if (entry.dependencyStatus.status === "blocked") {
     if (entry.integrity !== "verified") {
       details.push(packageIntegrityDetail(entry, entry.integrity));
     }
@@ -692,6 +750,7 @@ const packageNoticeDescription = (
 
 const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
   entry.compatibility.status === "incompatible" ||
+  entry.dependencyStatus.status === "blocked" ||
   entry.integrity === "modified" ||
   entry.integrity === "unmanaged" ||
   entry.compatibility.status === "unknown" ||

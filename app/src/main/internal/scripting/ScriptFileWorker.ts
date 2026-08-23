@@ -8,13 +8,13 @@ import { parentPort } from "worker_threads";
 
 import * as Effect from "effect/Effect";
 
-import type {
-  ScriptFileResolution,
-  ScriptInputsDefinition,
-} from "@lucent/core/scriptInputs";
-import { extractScriptInputs } from "./ScriptInputsExtractor";
+import {
+  analyzeScriptSource,
+  type ScriptSourceAnalysis,
+} from "./ScriptInputsExtractor";
 import {
   SCRIPT_FILE_MAX_BYTES,
+  type ScriptFileAnalysisResolution,
   type ScriptFileWorkerRequest,
   type ScriptFileWorkerResponse,
 } from "./ScriptFileWorkerProtocol";
@@ -22,7 +22,7 @@ import {
 const extractionCacheLimit = 64;
 const extractionCacheMaxBytes = 32 * 1024 * 1024;
 interface ExtractionCacheEntry {
-  readonly inputs: ScriptInputsDefinition | null;
+  readonly analysis: ScriptSourceAnalysis;
   readonly weight: number;
 }
 const extractionCache = new Map<string, ExtractionCacheEntry>();
@@ -48,7 +48,7 @@ const errorDetailsText = (error: unknown): string | undefined =>
     ? error.stack
     : undefined;
 
-const failed = (path: string, error: unknown): ScriptFileResolution => {
+const failed = (path: string, error: unknown): ScriptFileAnalysisResolution => {
   const detailsText = errorDetailsText(error);
   return {
     status: "failed",
@@ -93,7 +93,10 @@ const readBoundedFile = async (path: string): Promise<Buffer> => {
 
 const readStableFile = async (
   path: string,
-): Promise<Buffer | { readonly missing: true }> => {
+): Promise<
+  | { readonly contents: Buffer; readonly fingerprint: string }
+  | { readonly missing: true }
+> => {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let before: Awaited<ReturnType<typeof fs.stat>>;
     try {
@@ -115,28 +118,34 @@ const readStableFile = async (
       throw error;
     }
 
-    if (fingerprint(before) === fingerprint(after)) return contents;
+    const afterFingerprint = fingerprint(after);
+    if (fingerprint(before) === afterFingerprint) {
+      return { contents, fingerprint: afterFingerprint };
+    }
   }
 
   throw new Error(`Script file changed while it was being read: ${path}.`);
 };
 
-const cachedInputs = async (
+const analyzeSource = (source: string, path: string) =>
+  Effect.runPromise(analyzeScriptSource(source, path));
+
+const cachedAnalysis = async (
   source: string,
   path: string,
   revision: string,
-): Promise<ScriptInputsDefinition | null> => {
+) => {
   const key = `${revision}:${path}`;
   const cached = extractionCache.get(key);
   if (cached !== undefined) {
     extractionCache.delete(key);
     extractionCache.set(key, cached);
-    return cached.inputs;
+    return cached.analysis;
   }
 
-  const inputs = await Effect.runPromise(extractScriptInputs(source, path));
+  const analysis = await analyzeSource(source, path);
   const entry: ExtractionCacheEntry = {
-    inputs,
+    analysis,
     weight: Buffer.byteLength(source, "utf8"),
   };
   extractionCache.set(key, entry);
@@ -151,27 +160,32 @@ const cachedInputs = async (
     extractionCache.delete(oldestKey);
     extractionCacheBytes -= oldest?.weight ?? 0;
   }
-  return inputs;
+  return analysis;
 };
 
 export const processScriptFile = async (
   path: string,
-): Promise<ScriptFileResolution> => {
+): Promise<ScriptFileAnalysisResolution> => {
   try {
-    const contents = await readStableFile(path);
-    if ("missing" in contents) return { status: "missing", path };
+    const stable = await readStableFile(path);
+    if ("missing" in stable) return { status: "missing", path };
 
+    const { contents } = stable;
     const source = contents.toString("utf8");
     const revision = createHash("sha256").update(contents).digest("hex");
-    const inputs = await cachedInputs(source, path, revision);
+    const analysis = await cachedAnalysis(source, path, revision);
     return {
       status: "found",
-      file: {
-        inputs,
-        name: basename(path),
-        path,
-        revision,
-        source,
+      analysis: {
+        file: {
+          inputs: analysis.inputs,
+          name: basename(path),
+          path,
+          revision,
+          source,
+        },
+        fingerprint: stable.fingerprint,
+        requirements: analysis.requirements,
       },
     };
   } catch (error) {

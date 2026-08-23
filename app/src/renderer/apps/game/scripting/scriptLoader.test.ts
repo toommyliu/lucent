@@ -48,11 +48,13 @@ describe("scriptLoader", () => {
     source: string,
     options: {
       readonly format?: ScriptModuleSource["format"];
+      readonly imports?: ScriptModuleSource["imports"];
       readonly packageName?: string;
     } = {},
   ): ScriptModuleSource => ({
     format: options.format ?? "commonjs",
     id,
+    imports: options.imports ?? {},
     localPath: `/workspace/${path}`,
     path,
     ...(options.packageName === undefined
@@ -154,6 +156,12 @@ describe("scriptLoader", () => {
               return [helper.value, tools.value];
             };
           `,
+          {
+            imports: {
+              "./lib/helper": { kind: "module", moduleId: "helper" },
+              "@a/b/c/d": { kind: "module", moduleId: "tools" },
+            },
+          },
         ),
         module("helper", "lib/helper.js", 'exports.value = "relative";'),
         module("tools", "index.cjs", 'exports.value = "package";', {
@@ -189,6 +197,12 @@ describe("scriptLoader", () => {
             return [a.fromB, a.loads, a === again];
           };
         `,
+        {
+          imports: {
+            "./a": { kind: "module", moduleId: "a" },
+            "./a.js": { kind: "module", moduleId: "a" },
+          },
+        },
       ),
       module(
         "a",
@@ -198,6 +212,7 @@ describe("scriptLoader", () => {
           const b = require("./b");
           exports.fromB = b.value;
         `,
+        { imports: { "./b": { kind: "module", moduleId: "b" } } },
       ),
       module(
         "b",
@@ -206,6 +221,7 @@ describe("scriptLoader", () => {
           const a = require("./a");
           exports.value = a.loads === 1 ? "cycle" : "broken";
         `,
+        { imports: { "./a": { kind: "module", moduleId: "a" } } },
       ),
     ]);
 
@@ -237,6 +253,7 @@ describe("scriptLoader", () => {
           "entry",
           "entry.js",
           'require("tools"); module.exports = function* run() {};',
+          { imports: { tools: { kind: "module", moduleId: "tools" } } },
         ),
         module("tools", "index.js", "export const value = 1;", {
           format: "unsupported-esm",
@@ -266,7 +283,12 @@ describe("scriptLoader", () => {
         "entry",
         "scripts/farm.js",
         'require("../lib/quests"); module.exports = function* run() {};',
-        { packageName: "tools" },
+        {
+          imports: {
+            "../lib/quests": { kind: "module", moduleId: "quests" },
+          },
+          packageName: "tools",
+        },
       ),
       module("quests", "lib/quests.js", 'require("./quest-data");', {
         packageName: "tools",

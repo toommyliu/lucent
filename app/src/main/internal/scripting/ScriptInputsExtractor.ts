@@ -41,6 +41,10 @@ export class ScriptInputsExtractorError extends Schema.TaggedErrorClass<ScriptIn
 }
 
 export interface ScriptInputsExtractorShape {
+  readonly analyze: (
+    source: string,
+    fallbackId: string,
+  ) => Effect.Effect<ScriptSourceAnalysis, ScriptInputsExtractorError>;
   readonly extract: (
     source: string,
     fallbackId: string,
@@ -51,6 +55,11 @@ export class ScriptInputsExtractor extends Context.Service<
   ScriptInputsExtractor,
   ScriptInputsExtractorShape
 >()("lucent/internal/scripting/ScriptInputsExtractor") {}
+
+export interface ScriptSourceAnalysis {
+  readonly inputs: ScriptInputsDefinition | null;
+  readonly requirements: readonly string[];
+}
 
 const isNode = (value: unknown): value is AstNode => hasAstNodeShape(value);
 
@@ -194,6 +203,44 @@ const findInputsExpression = (program: AstNode): Option.Option<AstNode> => {
   return Option.none();
 };
 
+/** Finds direct require calls with one string-literal argument. */
+const findLiteralRequirements = (program: AstNode): readonly string[] => {
+  const requirements = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!isNode(value)) return;
+
+    if (value.type === "CallExpression") {
+      const callee = value["callee"];
+      const argumentsValue = value["arguments"];
+      if (
+        isNode(callee) &&
+        callee.type === "Identifier" &&
+        callee["name"] === "require" &&
+        Array.isArray(argumentsValue) &&
+        argumentsValue.length === 1
+      ) {
+        const argument = argumentsValue[0];
+        if (
+          isNode(argument) &&
+          argument.type === "Literal" &&
+          typeof argument["value"] === "string"
+        ) {
+          requirements.add(argument["value"]);
+        }
+      }
+    }
+
+    for (const child of Object.values(value)) visit(child);
+  };
+
+  visit(program);
+  return [...requirements];
+};
+
 const normalizeInputDefinitionValue = (
   value: unknown,
   fallbackId: string,
@@ -222,11 +269,24 @@ const parseSource = (
   source: string,
 ): Effect.Effect<AstNode, ScriptInputsExtractorError> =>
   Effect.try({
-    try: () =>
-      acorn.parse(source, {
+    try: () => {
+      const options = {
+        allowHashBang: true,
+        allowReturnOutsideFunction: true,
         ecmaVersion: "latest",
-        sourceType: "script",
-      }) as unknown as AstNode,
+      } as const;
+      try {
+        return acorn.parse(source, {
+          ...options,
+          sourceType: "script",
+        }) as unknown as AstNode;
+      } catch {
+        return acorn.parse(source, {
+          ...options,
+          sourceType: "module",
+        }) as unknown as AstNode;
+      }
+    },
     catch: (cause) =>
       new ScriptInputsExtractorError({
         operation: "parse",
@@ -235,15 +295,16 @@ const parseSource = (
       }),
   });
 
-export const extractScriptInputs: ScriptInputsExtractorShape["extract"] = (
+export const analyzeScriptSource: ScriptInputsExtractorShape["analyze"] = (
   source,
   fallbackId,
 ) =>
   Effect.gen(function* () {
     const program = yield* parseSource(source);
+    const requirements = findLiteralRequirements(program);
     const expression = findInputsExpression(program);
     if (Option.isNone(expression)) {
-      return null;
+      return { inputs: null, requirements };
     }
 
     const value = yield* Effect.try({
@@ -257,12 +318,22 @@ export const extractScriptInputs: ScriptInputsExtractorShape["extract"] = (
             ),
     });
 
-    return yield* normalizeDefinition(value, fallbackId);
+    const inputs = yield* normalizeDefinition(value, fallbackId);
+    return { inputs, requirements };
   });
+
+export const extractScriptInputs: ScriptInputsExtractorShape["extract"] = (
+  source,
+  fallbackId,
+) =>
+  analyzeScriptSource(source, fallbackId).pipe(
+    Effect.map((analysis) => analysis.inputs),
+  );
 
 export const layer = Layer.succeed(
   ScriptInputsExtractor,
   ScriptInputsExtractor.of({
+    analyze: analyzeScriptSource,
     extract: extractScriptInputs,
   }),
 );

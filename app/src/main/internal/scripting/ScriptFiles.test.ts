@@ -6,10 +6,12 @@ import type { Worker } from "worker_threads";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ScriptFileResolution } from "@lucent/core/scriptInputs";
 import { makeScriptFileResolver, ScriptFileWorkerClient } from "./ScriptFiles";
 import { processScriptFile } from "./ScriptFileWorker";
-import { SCRIPT_FILE_MAX_BYTES } from "./ScriptFileWorkerProtocol";
+import {
+  SCRIPT_FILE_MAX_BYTES,
+  type ScriptFileAnalysisResolution,
+} from "./ScriptFileWorkerProtocol";
 
 const tempDirectories = new Set<string>();
 
@@ -49,6 +51,7 @@ describe("script file processing", () => {
     const directory = await makeTempDirectory();
     const path = join(directory, "farm.js");
     const firstSource = [
+      'const helper = require("./helper");',
       "module.exports = function* run() { return 1; };",
       "module.exports.inputs = { fields: [] };",
     ].join("\n");
@@ -66,10 +69,13 @@ describe("script file processing", () => {
     expect(first.status).toBe("found");
     expect(second.status).toBe("found");
     if (first.status === "found" && second.status === "found") {
-      expect(first.file.source).toBe(firstSource);
-      expect(second.file.source).toBe(secondSource);
-      expect(second.file.revision).not.toBe(first.file.revision);
-      expect(second.file.inputs).toEqual({ id: path, fields: [] });
+      expect(first.analysis.file.source).toBe(firstSource);
+      expect(second.analysis.file.source).toBe(secondSource);
+      expect(second.analysis.file.revision).not.toBe(
+        first.analysis.file.revision,
+      );
+      expect(second.analysis.file.inputs).toEqual({ id: path, fields: [] });
+      expect(second.analysis.requirements).toEqual(["./helper"]);
     }
   });
 
@@ -153,17 +159,23 @@ describe("ScriptFiles service", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const processFile = async (path: string): Promise<ScriptFileResolution> => {
+    const processFile = async (
+      path: string,
+    ): Promise<ScriptFileAnalysisResolution> => {
       calls += 1;
       await gate;
       return {
         status: "found",
-        file: {
-          inputs: null,
-          name: "farm.js",
-          path,
-          revision: "abc123",
-          source: "module.exports = function* run() {};",
+        analysis: {
+          file: {
+            inputs: null,
+            name: "farm.js",
+            path,
+            revision: "abc123",
+            source: "module.exports = function* run() {};",
+          },
+          fingerprint: "fingerprint",
+          requirements: [],
         },
       };
     };
@@ -182,7 +194,7 @@ describe("ScriptFiles service", () => {
     expect(firstResolution).toEqual(secondResolution);
     expect(firstResolution).toMatchObject({
       status: "found",
-      file: { path: resolvePath("scripts/farm.js") },
+      analysis: { file: { path: resolvePath("scripts/farm.js") } },
     });
   });
 });

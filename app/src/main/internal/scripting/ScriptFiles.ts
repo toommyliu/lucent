@@ -15,6 +15,8 @@ import {
   SCRIPT_FILE_WORKER_HEAP_MB,
   SCRIPT_FILE_WORKER_QUEUE_LIMIT,
   SCRIPT_FILE_WORKER_TIMEOUT_MS,
+  type ScriptFileAnalysis,
+  type ScriptFileAnalysisResolution,
   type ScriptFileWorkerRequest,
   type ScriptFileWorkerResponse,
 } from "./ScriptFileWorkerProtocol";
@@ -33,6 +35,9 @@ export class ScriptFilesError extends Schema.TaggedErrorClass<ScriptFilesError>(
 }
 
 export interface ScriptFilesShape {
+  readonly analyze: (
+    path: string,
+  ) => Effect.Effect<ScriptFileAnalysis, ScriptFilesError>;
   readonly read: (path: string) => Effect.Effect<ScriptFile, ScriptFilesError>;
   readonly resolve: (path: string) => Effect.Effect<ScriptFileResolution>;
 }
@@ -46,7 +51,7 @@ interface QueuedRequest {
   readonly id: number;
   readonly path: string;
   readonly reject: (error: Error) => void;
-  readonly resolve: (resolution: ScriptFileResolution) => void;
+  readonly resolve: (resolution: ScriptFileAnalysisResolution) => void;
 }
 
 export class ScriptFileWorkerClient {
@@ -69,7 +74,7 @@ export class ScriptFileWorkerClient {
     this.#workerFactory = workerFactory;
   }
 
-  resolve(path: string): Promise<ScriptFileResolution> {
+  resolve(path: string): Promise<ScriptFileAnalysisResolution> {
     if (this.#closed) {
       return Promise.reject(new Error("Script file worker is closed."));
     }
@@ -188,7 +193,7 @@ export class ScriptFileWorkerClient {
 const failureResolution = (
   path: string,
   error: unknown,
-): ScriptFileResolution => {
+): ScriptFileAnalysisResolution => {
   const normalized = error instanceof Error ? error : new Error(String(error));
   return {
     status: "failed",
@@ -201,19 +206,26 @@ const failureResolution = (
 };
 
 export const makeScriptFiles = (
-  processFile: (path: string) => Promise<ScriptFileResolution>,
+  processFile: (path: string) => Promise<ScriptFileAnalysisResolution>,
 ): ScriptFilesShape => {
   const resolveFile = makeScriptFileResolver(processFile);
 
   const resolve: ScriptFilesShape["resolve"] = (path) =>
-    Effect.promise(() => resolveFile(path));
+    Effect.promise(() => resolveFile(path)).pipe(
+      Effect.map(
+        (resolution): ScriptFileResolution =>
+          resolution.status === "found"
+            ? { status: "found", file: resolution.analysis.file }
+            : resolution,
+      ),
+    );
 
-  const read: ScriptFilesShape["read"] = (path) =>
-    resolve(path).pipe(
+  const analyze: ScriptFilesShape["analyze"] = (path) =>
+    Effect.promise(() => resolveFile(path)).pipe(
       Effect.flatMap((resolution) => {
         switch (resolution.status) {
           case "found":
-            return Effect.succeed(resolution.file);
+            return Effect.succeed(resolution.analysis);
           case "missing":
             return Effect.fail(
               new ScriptFilesError({
@@ -235,13 +247,16 @@ export const makeScriptFiles = (
       }),
     );
 
-  return ScriptFiles.of({ read, resolve });
+  const read: ScriptFilesShape["read"] = (path) =>
+    analyze(path).pipe(Effect.map((analysis) => analysis.file));
+
+  return ScriptFiles.of({ analyze, read, resolve });
 };
 
 export const makeScriptFileResolver = (
-  processFile: (path: string) => Promise<ScriptFileResolution>,
-): ((path: string) => Promise<ScriptFileResolution>) => {
-  const inFlight = new Map<string, Promise<ScriptFileResolution>>();
+  processFile: (path: string) => Promise<ScriptFileAnalysisResolution>,
+): ((path: string) => Promise<ScriptFileAnalysisResolution>) => {
+  const inFlight = new Map<string, Promise<ScriptFileAnalysisResolution>>();
 
   return (path) => {
     const normalizedPath = resolvePath(path);

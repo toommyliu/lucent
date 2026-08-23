@@ -104,9 +104,23 @@ export const ScriptPackageCompatibilitySchema = Schema.Union([
 export type ScriptPackageCompatibility =
   typeof ScriptPackageCompatibilitySchema.Type;
 
+export const ScriptModuleImportSchema = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("builtin"),
+    specifier: Schema.Literals(SCRIPT_BUILTIN_MODULE_SPECIFIERS),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("module"),
+    moduleId: Schema.String,
+  }),
+]);
+
+export type ScriptModuleImport = typeof ScriptModuleImportSchema.Type;
+
 export const ScriptModuleSourceSchema = Schema.Struct({
   id: Schema.String,
   format: Schema.Literals(["commonjs", "unsupported-esm"]),
+  imports: Schema.Record(Schema.String, ScriptModuleImportSchema),
   localPath: Schema.String,
   path: Schema.String,
   packageName: Schema.optionalKey(Schema.String),
@@ -221,9 +235,48 @@ export const ScriptPackageUpdateStateSchema = Schema.Union([
 export type ScriptPackageUpdateState =
   typeof ScriptPackageUpdateStateSchema.Type;
 
+export const ScriptPackageDependencyIssueSchema = Schema.Union([
+  Schema.Struct({
+    reason: Schema.Literal("missing"),
+    packageName: Schema.String,
+    requiredVersion: Schema.String,
+  }),
+  Schema.Struct({
+    reason: Schema.Literal("version-mismatch"),
+    installedVersion: Schema.String,
+    packageName: Schema.String,
+    requiredVersion: Schema.String,
+  }),
+  Schema.Struct({
+    reason: Schema.Literal("version-unavailable"),
+    packageName: Schema.String,
+    requiredVersion: Schema.String,
+  }),
+  Schema.Struct({
+    reason: Schema.Literal("unavailable"),
+    packageName: Schema.String,
+    requiredVersion: Schema.String,
+  }),
+]);
+
+export type ScriptPackageDependencyIssue =
+  typeof ScriptPackageDependencyIssueSchema.Type;
+
+export const ScriptPackageDependencyStatusSchema = Schema.Union([
+  Schema.Struct({ status: Schema.Literal("ready") }),
+  Schema.Struct({
+    status: Schema.Literal("blocked"),
+    issues: Schema.Array(ScriptPackageDependencyIssueSchema),
+  }),
+]);
+
+export type ScriptPackageDependencyStatus =
+  typeof ScriptPackageDependencyStatusSchema.Type;
+
 export const ValidScriptPackageSchema = Schema.Struct({
   status: Schema.Literal("valid"),
   compatibility: ScriptPackageCompatibilitySchema,
+  dependencyStatus: ScriptPackageDependencyStatusSchema,
   description: Schema.optionalKey(Schema.String),
   integrity: ScriptPackageIntegritySchema,
   name: Schema.String,
