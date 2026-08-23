@@ -435,10 +435,10 @@ interface ScriptOptionsApi {
 interface ScriptPacketApi {
     readonly on: ScriptPacketOn;
     readonly once: ScriptWaitForPacket;
-  /** @param type The client packet encoding. */
-    sendClient(packet: string, /** @defaultValue "str" */ type?: ScriptClientPacketSendType): Effect<boolean, never>;
-  /** @param type The server packet encoding. */
-    sendServer(packet: string, /** @defaultValue "String" */ type?: 'String' | 'Json'): Effect<boolean, never>;
+  /** @param encoding The client packet encoding. */
+    sendClient(packet: string, /** @defaultValue "string" */ encoding?: ClientPacketEncoding): Effect<boolean, never>;
+  /** @param encoding The server packet encoding. */
+    sendServer(packet: string, /** @defaultValue "string" */ encoding?: ServerPacketEncoding): Effect<boolean, never>;
 }
 interface ScriptPacketOn {
     <const D extends PacketDirection>(query: PacketSelector & { readonly direction: D; }, handler: (packet: PacketForDirection<D>) => ScriptCallbackResult): Effect<() => void, never>;
@@ -661,6 +661,7 @@ interface CellPositionOptions {
   /** Destination pad. */
   readonly pad?: string;
 }
+type ClientPacketEncoding = "string" | "json" | "xml";
 interface CombatKillOptions {
   readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfileDefinition;
@@ -942,7 +943,6 @@ type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-privat
 type ScriptCallbackResult<A = unknown> =
   | Effect<A, unknown>
   | ScriptGenerator<A>;
-type ScriptClientPacketSendType = "str" | "json" | "xml";
 type ScriptCombatTarget =
   | ScriptCombatMonsterTarget
   | ScriptCombatPlayerTarget;
@@ -994,6 +994,7 @@ interface ScriptShopQuantityOptions {
    */
   readonly quantity?: number;
 }
+type ServerPacketEncoding = "string" | "json";
 type ShopItemQuery = ShopItemSelector | number | string;
 interface SkillUseOptions {
   /**
