@@ -5,12 +5,7 @@ import type {
   ScriptExecutionSnapshot,
   ScriptModuleSource,
 } from "@lucent/core/scriptPackages";
-import {
-  isScriptBuiltinModuleSpecifier,
-  isRelativeScriptModuleSpecifier,
-  resolveRelativeScriptModulePath,
-  scriptModulePathCandidates,
-} from "@lucent/core/scriptPackages";
+import { isScriptBuiltinModuleSpecifier } from "@lucent/core/scriptPackages";
 import type { ScriptMain } from "./ScriptApi";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 
@@ -88,9 +83,6 @@ const moduleSourceUrl = (module: ScriptModuleSource): string => {
   return `lucent-script://${identity}?v=${encodeURIComponent(module.revision)}`;
 };
 
-const coordinateKey = (packageName: string | undefined, path: string): string =>
-  `${packageName ?? ""}\0${path}`;
-
 interface ImportStep {
   readonly importer: ScriptModuleSource;
   readonly specifier: string;
@@ -126,6 +118,7 @@ const syntheticSnapshot = (input: {
       {
         format: "commonjs",
         id: "entry",
+        imports: {},
         localPath: path,
         path,
         revision,
@@ -149,34 +142,7 @@ const evaluateSnapshot = (
   const modulesById = new Map(
     snapshot.modules.map((module) => [module.id, module]),
   );
-  const modulesByCoordinate = new Map(
-    snapshot.modules.map((module) => [
-      coordinateKey(module.packageName, module.path),
-      module,
-    ]),
-  );
-  const packages = new Map(
-    snapshot.packages.map((entry) => [entry.name, entry]),
-  );
   const cache = new Map<string, CommonJsModule>();
-
-  const resolveRelative = (
-    importer: ScriptModuleSource,
-    specifier: string,
-  ): ScriptModuleSource | undefined => {
-    const normalized = resolveRelativeScriptModulePath(
-      importer.path,
-      specifier,
-    );
-    if (normalized === null) return undefined;
-    for (const candidate of scriptModulePathCandidates(normalized)) {
-      const resolved = modulesByCoordinate.get(
-        coordinateKey(importer.packageName, candidate),
-      );
-      if (resolved !== undefined) return resolved;
-    }
-    return undefined;
-  };
 
   const loadModule = (
     module: ScriptModuleSource,
@@ -204,23 +170,14 @@ const evaluateSnapshot = (
         return modules[specifier];
       }
 
-      let resolved: ScriptModuleSource | undefined;
-      if (isRelativeScriptModuleSpecifier(specifier)) {
-        resolved = resolveRelative(module, specifier);
-      } else {
-        const importedPackage = packages.get(specifier);
-        if (importedPackage?.compatibility.status === "incompatible") {
-          throw new ScriptLoadError({
-            detail: `${importedPackage.name} requires Lucent ${importedPackage.compatibility.requiredVersion}; this app is ${importedPackage.compatibility.currentVersion}.`,
-            modulePath: module.localPath,
-          });
-        }
-        resolved =
-          importedPackage?.mainModuleId === null ||
-          importedPackage?.mainModuleId === undefined
-            ? undefined
-            : modulesById.get(importedPackage.mainModuleId);
+      const imported = module.imports[specifier];
+      if (imported?.kind === "builtin") {
+        return modules[imported.specifier];
       }
+      const resolved =
+        imported?.kind === "module"
+          ? modulesById.get(imported.moduleId)
+          : undefined;
 
       if (resolved === undefined) {
         throw missingImportError(steps, module, specifier);

@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
-import { satisfies, validRange } from "semver";
+import { satisfies, valid, validRange } from "semver";
 
 import type {
   ScriptCatalog,
@@ -18,6 +18,8 @@ import type {
   ScriptCatalogPage,
   ScriptCatalogPageRequest,
   ScriptPackageCompatibility,
+  ScriptPackageDependencyIssue,
+  ScriptPackageDependencyStatus,
   ScriptPackageSummary,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
@@ -55,6 +57,9 @@ const ScriptPackageManifestJsonSchema = Schema.Struct({
   description: Schema.optionalKey(Schema.String),
   lucent: Schema.optionalKey(
     Schema.Struct({
+      dependencies: Schema.optionalKey(
+        Schema.Record(Schema.String, Schema.String),
+      ),
       version: Schema.optionalKey(Schema.String),
     }),
   ),
@@ -88,6 +93,7 @@ const parseManifestJson = (
 };
 
 export interface ScriptPackageManifest {
+  readonly dependencies: Readonly<Record<string, string>>;
   readonly description?: string;
   readonly lucentVersion?: string;
   readonly main: string;
@@ -98,6 +104,7 @@ export interface ScriptPackageManifest {
 
 export interface DiscoveredScriptPackage {
   readonly compatibility: ScriptPackageCompatibility;
+  readonly dependencyStatus: ScriptPackageDependencyStatus;
   readonly files: readonly string[];
   readonly mainPath: string | null;
   readonly manifest: ScriptPackageManifest;
@@ -197,14 +204,47 @@ export const readScriptPackageManifest = async (
   const lucentVersion = optionalString(record.lucent?.version);
   const description = optionalString(record.description);
   const type = optionalString(record.type);
-  const version = optionalString(record.version);
+  const declaredVersion = optionalString(record.version);
+  const version =
+    declaredVersion === undefined ? undefined : valid(declaredVersion);
+  if (declaredVersion !== undefined && version === null) {
+    throw new Error("The package version must be an exact semantic version.");
+  }
+  const dependencies: Record<string, string> = Object.create(null) as Record<
+    string,
+    string
+  >;
+  for (const [dependencyName, rawRange] of Object.entries(
+    record.lucent?.dependencies ?? {},
+  )) {
+    try {
+      decodePackageName(dependencyName);
+    } catch {
+      throw new Error(
+        `The Lucent dependency name (${JSON.stringify(dependencyName)}) is invalid.`,
+      );
+    }
+    if (dependencyName === record.name) {
+      throw new Error(
+        "A package must not declare itself as a Lucent dependency.",
+      );
+    }
+    const dependencyRange = optionalString(rawRange);
+    if (dependencyRange === undefined || validRange(dependencyRange) === null) {
+      throw new Error(
+        `The Lucent dependency version for ${JSON.stringify(dependencyName)} is invalid.`,
+      );
+    }
+    dependencies[dependencyName] = dependencyRange;
+  }
   return {
+    dependencies,
     name: record.name,
     main: optionalString(record.main) ?? "index.js",
     ...(description === undefined ? {} : { description }),
     ...(lucentVersion === undefined ? {} : { lucentVersion }),
     ...(type === undefined ? {} : { type }),
-    ...(version === undefined ? {} : { version }),
+    ...(version === undefined || version === null ? {} : { version }),
   };
 };
 
@@ -447,12 +487,128 @@ const catalogRevision = (
     }),
   );
 
+const dependencyStatusesFor = (
+  packageIndex: ReadonlyMap<string, DiscoveredScriptPackage>,
+): ReadonlyMap<string, ScriptPackageDependencyStatus> => {
+  const issuesByPackage = new Map<string, ScriptPackageDependencyIssue[]>();
+  const resolvedDependencies = new Map<
+    string,
+    readonly (readonly [packageName: string, requiredVersion: string])[]
+  >();
+
+  for (const packageEntry of packageIndex.values()) {
+    const issues: ScriptPackageDependencyIssue[] = [];
+    const dependencies: (readonly [string, string])[] = [];
+    for (const [packageName, requiredVersion] of Object.entries(
+      packageEntry.manifest.dependencies,
+    ).toSorted(([left], [right]) => naturalCompare(left, right))) {
+      const dependency = packageIndex.get(packageName);
+      if (dependency === undefined) {
+        issues.push({ reason: "missing", packageName, requiredVersion });
+        continue;
+      }
+
+      const installedVersion =
+        dependency.manifest.version === undefined
+          ? null
+          : valid(dependency.manifest.version);
+      if (installedVersion === null) {
+        issues.push({
+          reason: "version-unavailable",
+          packageName,
+          requiredVersion,
+        });
+        continue;
+      }
+      if (!satisfies(installedVersion, requiredVersion)) {
+        issues.push({
+          reason: "version-mismatch",
+          installedVersion,
+          packageName,
+          requiredVersion,
+        });
+        continue;
+      }
+      if (
+        dependency.compatibility.status === "incompatible" ||
+        dependency.mainPath === null
+      ) {
+        issues.push({ reason: "unavailable", packageName, requiredVersion });
+        continue;
+      }
+
+      dependencies.push([packageName, requiredVersion]);
+    }
+    issuesByPackage.set(packageEntry.name, issues);
+    resolvedDependencies.set(packageEntry.name, dependencies);
+  }
+
+  // Propagate failures until stable. A dependency cycle stays ready unless one
+  // of its members has a concrete failure outside the cycle.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const packageEntry of packageIndex.values()) {
+      const issues = issuesByPackage.get(packageEntry.name);
+      if (issues === undefined || issues.length > 0) continue;
+      const unavailable = (resolvedDependencies.get(packageEntry.name) ?? [])
+        .filter(
+          ([packageName]) =>
+            (issuesByPackage.get(packageName)?.length ?? 0) > 0,
+        )
+        .map(
+          ([packageName, requiredVersion]): ScriptPackageDependencyIssue => ({
+            reason: "unavailable",
+            packageName,
+            requiredVersion,
+          }),
+        );
+      if (unavailable.length === 0) continue;
+      issues.push(...unavailable);
+      changed = true;
+    }
+  }
+
+  return new Map(
+    [...packageIndex.keys()].map((name) => {
+      const issues = issuesByPackage.get(name) ?? [];
+      return [
+        name,
+        issues.length === 0
+          ? { status: "ready" }
+          : { status: "blocked", issues },
+      ] as const;
+    }),
+  );
+};
+
 const makeDiscoveredScriptCatalog = (
   packages: readonly ScriptPackageSummary[],
   scripts: readonly ScriptCatalogEntry[],
   packageIndex: ReadonlyMap<string, DiscoveredScriptPackage>,
 ): DiscoveredScriptCatalog => {
-  const sortedPackages = packages.toSorted(comparePackages);
+  const dependencyStatuses = dependencyStatusesFor(packageIndex);
+  const resolvedPackages = packages.map(
+    (entry): ScriptPackageSummary =>
+      entry.status === "valid"
+        ? {
+            ...entry,
+            dependencyStatus:
+              dependencyStatuses.get(entry.name) ?? entry.dependencyStatus,
+          }
+        : entry,
+  );
+  const resolvedPackageIndex = new Map(
+    [...packageIndex].map(([name, entry]) => [
+      name,
+      {
+        ...entry,
+        dependencyStatus:
+          dependencyStatuses.get(name) ?? entry.dependencyStatus,
+      },
+    ]),
+  );
+  const sortedPackages = resolvedPackages.toSorted(comparePackages);
   const sortedScripts = scripts.toSorted(compareScripts);
   const pathIndex = new Map<string, ScriptReference>();
   const scriptIndex = new Map<string, ScriptCatalogEntry>();
@@ -466,7 +622,7 @@ const makeDiscoveredScriptCatalog = (
       revision: catalogRevision(sortedPackages, sortedScripts),
       scripts: sortedScripts,
     },
-    packages: packageIndex,
+    packages: resolvedPackageIndex,
     paths: pathIndex,
     scripts: scriptIndex,
   };
@@ -585,6 +741,7 @@ export const discoverScriptCatalog = async (
         packages.push({
           status: "valid",
           compatibility,
+          dependencyStatus: { status: "ready" },
           ...(manifest.description === undefined
             ? {}
             : { description: manifest.description }),
@@ -600,6 +757,7 @@ export const discoverScriptCatalog = async (
         });
         packageIndex.set(manifest.name, {
           compatibility,
+          dependencyStatus: { status: "ready" },
           files: inspected.files,
           mainPath,
           manifest,
@@ -678,6 +836,7 @@ const replaceDiscoveredPackage = (
   const summary: ScriptPackageSummary = {
     status: "valid",
     compatibility,
+    dependencyStatus: { status: "ready" },
     ...(inspected.manifest.description === undefined
       ? {}
       : { description: inspected.manifest.description }),
@@ -693,6 +852,7 @@ const replaceDiscoveredPackage = (
   };
   const packageEntry: DiscoveredScriptPackage = {
     compatibility,
+    dependencyStatus: { status: "ready" },
     files,
     mainPath,
     manifest: inspected.manifest,

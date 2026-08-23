@@ -13,6 +13,12 @@ const extractInputs = (source: string, fallbackId = "fallback-script-id") =>
     return yield* extractor.extract(source, fallbackId);
   }).pipe(Effect.provide(scriptInputsExtractorLayer));
 
+const analyzeSource = (source: string) =>
+  Effect.gen(function* () {
+    const extractor = yield* ScriptInputsExtractor;
+    return yield* extractor.analyze(source, "fallback-script-id");
+  }).pipe(Effect.provide(scriptInputsExtractorLayer));
+
 const extractInputsResult = (source: string) =>
   extractInputs(source).pipe(
     Effect.match({
@@ -22,6 +28,22 @@ const extractInputsResult = (source: string) =>
   );
 
 describe("ScriptInputsExtractor service", () => {
+  it.effect("finds only direct string-literal require calls", () =>
+    Effect.gen(function* () {
+      const analysis = yield* analyzeSource(`
+        require("./direct");
+        require("./direct");
+        const path = "./computed";
+        require(path);
+        const load = require;
+        load("./aliased");
+        require(\`./template\`);
+      `);
+
+      expect(analysis.requirements).toEqual(["./direct"]);
+    }),
+  );
+
   it.effect("extracts static inputs and fills a missing id", () =>
     Effect.gen(function* () {
       const definition = yield* extractInputs(`

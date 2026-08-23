@@ -1,6 +1,5 @@
 import { extname, relative, resolve } from "path";
 
-import { parse } from "acorn";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -13,6 +12,7 @@ import type {
 import type {
   ScriptExecutionPackage,
   ScriptExecutionSnapshot,
+  ScriptModuleImport,
   ScriptModuleSource,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
@@ -23,17 +23,15 @@ import {
   scriptModulePathCandidates,
 } from "@lucent/core/scriptPackages";
 import { ScriptFiles } from "../internal/scripting/ScriptFiles";
+import type { ScriptFileAnalysis } from "../internal/scripting/ScriptFileWorkerProtocol";
 import {
   type DiscoveredScriptCatalog,
   type DiscoveredScriptPackage,
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import {
-  isMissingFileError,
   portablePath,
-  readStableFileWithFingerprint,
   regularFileFingerprint,
-  SCRIPT_MODULE_MAX_BYTES,
   SCRIPT_SNAPSHOT_MAX_BYTES,
   sha256Revision,
 } from "./ScriptPackageFileSystem";
@@ -91,11 +89,6 @@ interface LoadedSource {
 
 type CachedSource = LoadedSource;
 
-interface ExecutionClosure {
-  readonly modules: readonly ScriptModuleSource[];
-  readonly packages: readonly ScriptExecutionPackage[];
-}
-
 const looseModuleId = (path: string): string => `loose:${path}`;
 const packageModuleId = (packageName: string, path: string): string =>
   `package:${packageName}:${path}`;
@@ -108,59 +101,6 @@ const moduleFormat = (
   extname(path).toLowerCase() === ".js"
     ? "unsupported-esm"
     : "commonjs";
-
-const recordValue = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-
-/** Finds only direct require calls with one string-literal argument. */
-export const discoverLiteralScriptRequirements = (
-  source: string,
-): readonly string[] => {
-  let root: unknown;
-  try {
-    root = parse(source, {
-      allowHashBang: true,
-      allowReturnOutsideFunction: true,
-      ecmaVersion: "latest",
-      sourceType: "script",
-    });
-  } catch {
-    return [];
-  }
-
-  const requirements = new Set<string>();
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item);
-      return;
-    }
-    const node = recordValue(value);
-    if (node === undefined) return;
-    if (node["type"] === "CallExpression") {
-      const callee = recordValue(node["callee"]);
-      const argumentsValue = node["arguments"];
-      if (
-        callee?.["type"] === "Identifier" &&
-        callee["name"] === "require" &&
-        Array.isArray(argumentsValue) &&
-        argumentsValue.length === 1
-      ) {
-        const argument = recordValue(argumentsValue[0]);
-        if (
-          argument?.["type"] === "Literal" &&
-          typeof argument["value"] === "string"
-        ) {
-          requirements.add(argument["value"]);
-        }
-      }
-    }
-    for (const child of Object.values(node)) visit(child);
-  };
-  visit(root);
-  return [...requirements];
-};
 
 const looseTarget = (
   discovery: DiscoveredScriptCatalog,
@@ -262,6 +202,22 @@ const failedResolution = (
   };
 };
 
+const moduleFromAnalysis = (
+  target: ModuleTarget,
+  analysis: ScriptFileAnalysis,
+): ScriptModuleSource => ({
+  format: target.format,
+  id: target.id,
+  imports: {},
+  localPath: target.absolutePath,
+  path: target.path,
+  ...(target.packageName === undefined
+    ? {}
+    : { packageName: target.packageName }),
+  revision: analysis.file.revision,
+  source: analysis.file.source,
+});
+
 export const layer = Layer.effect(
   ScriptSourceRegistry,
   Effect.gen(function* () {
@@ -270,10 +226,18 @@ export const layer = Layer.effect(
     const sourceCache = new Map<string, CachedSource>();
     let sourceCacheBytes = 0;
 
-    const readModule = async (target: ModuleTarget): Promise<LoadedSource> => {
-      const currentFingerprint = await regularFileFingerprint(
-        target.absolutePath,
-      );
+    const readModule = Effect.fn("ScriptSourceRegistry.readModule")(function* (
+      target: ModuleTarget,
+    ) {
+      const currentFingerprint = yield* Effect.tryPromise({
+        try: () => regularFileFingerprint(target.absolutePath),
+        catch: (cause) =>
+          new ScriptSourceRegistryError({
+            detail: errorMessage(cause, "Failed to inspect script source."),
+            path: target.absolutePath,
+            cause,
+          }),
+      });
       const cached = sourceCache.get(target.absolutePath);
       if (
         cached?.fingerprint === currentFingerprint &&
@@ -285,30 +249,21 @@ export const layer = Layer.effect(
         return cached;
       }
 
-      const stable = await readStableFileWithFingerprint(
-        target.absolutePath,
-        SCRIPT_MODULE_MAX_BYTES,
+      const analysis = yield* scriptFiles.analyze(target.absolutePath).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ScriptSourceRegistryError({
+              detail: cause.message,
+              path: target.absolutePath,
+              cause,
+            }),
+        ),
       );
-      const { contents } = stable;
-      const module: ScriptModuleSource = {
-        format: target.format,
-        id: target.id,
-        localPath: target.absolutePath,
-        path: target.path,
-        ...(target.packageName === undefined
-          ? {}
-          : { packageName: target.packageName }),
-        revision: sha256Revision(contents),
-        source: contents.toString("utf8"),
-      };
       const next: CachedSource = {
-        bytes: contents.byteLength,
-        fingerprint: stable.fingerprint,
-        module,
-        requirements:
-          target.format === "commonjs"
-            ? discoverLiteralScriptRequirements(module.source)
-            : [],
+        bytes: Buffer.byteLength(analysis.file.source, "utf8"),
+        fingerprint: analysis.fingerprint,
+        module: moduleFromAnalysis(target, analysis),
+        requirements: target.format === "commonjs" ? analysis.requirements : [],
       };
       if (cached !== undefined) sourceCacheBytes -= cached.bytes;
       sourceCache.delete(target.absolutePath);
@@ -325,14 +280,26 @@ export const layer = Layer.effect(
         sourceCacheBytes -= oldest?.bytes ?? 0;
       }
       return next;
-    };
+    });
+
+    const importError = (
+      importer: ModuleTarget,
+      specifier: string,
+      detail: string,
+    ): ScriptSourceRegistryError =>
+      new ScriptSourceRegistryError({
+        detail: `${importer.packageName ?? importer.path} can't import ${JSON.stringify(specifier)}. ${detail}`,
+        path: importer.absolutePath,
+      });
 
     /** Reads only modules reachable through Lucent's literal CommonJS contract. */
-    const collectExecutionClosure = async (
+    const collectExecutionClosure = Effect.fn(
+      "ScriptSourceRegistry.collectExecutionClosure",
+    )(function* (
       discovery: DiscoveredScriptCatalog,
       selectedTarget: ModuleTarget,
-      selectedFile: ScriptFile,
-    ): Promise<ExecutionClosure | null> => {
+      selectedAnalysis: ScriptFileAnalysis,
+    ) {
       const modules = new Map<string, ScriptModuleSource>();
       const packages = new Map<string, ScriptExecutionPackage>();
       const fingerprints = new Map<string, string>();
@@ -348,80 +315,129 @@ export const layer = Layer.effect(
 
       while (queue.length > 0) {
         const batch = queue.splice(0, SOURCE_READ_CONCURRENCY);
-        const loadedBatch = await Promise.all(
-          batch.map(async (target) => {
-            if (target.id === selectedTarget.id) {
-              const module: ScriptModuleSource = {
-                format: target.format,
-                id: target.id,
-                localPath: target.absolutePath,
-                path: target.path,
-                ...(target.packageName === undefined
-                  ? {}
-                  : { packageName: target.packageName }),
-                revision: selectedFile.revision,
-                source: selectedFile.source,
-              };
-              return {
-                target,
-                loaded: {
-                  bytes: Buffer.byteLength(selectedFile.source, "utf8"),
-                  fingerprint: "",
-                  module,
-                  requirements:
-                    target.format === "commonjs"
-                      ? discoverLiteralScriptRequirements(selectedFile.source)
-                      : [],
-                } satisfies LoadedSource,
-              };
-            }
-            try {
-              return { target, loaded: await readModule(target) };
-            } catch (cause) {
-              if (isMissingFileError(cause)) return { target, loaded: null };
-              throw cause;
-            }
-          }),
+        const loadedBatch = yield* Effect.all(
+          batch.map((target) =>
+            target.id === selectedTarget.id
+              ? Effect.succeed({
+                  target,
+                  loaded: {
+                    bytes: Buffer.byteLength(
+                      selectedAnalysis.file.source,
+                      "utf8",
+                    ),
+                    fingerprint: selectedAnalysis.fingerprint,
+                    module: moduleFromAnalysis(target, selectedAnalysis),
+                    requirements:
+                      target.format === "commonjs"
+                        ? selectedAnalysis.requirements
+                        : [],
+                  } satisfies LoadedSource,
+                })
+              : readModule(target).pipe(
+                  Effect.map((loaded) => ({ target, loaded })),
+                ),
+          ),
+          { concurrency: SOURCE_READ_CONCURRENCY },
         );
 
         for (const { loaded, target } of loadedBatch) {
-          if (loaded === null) continue;
-          modules.set(target.id, loaded.module);
           if (target.id !== selectedTarget.id) {
             fingerprints.set(target.absolutePath, loaded.fingerprint);
           }
           totalBytes += loaded.bytes;
           if (totalBytes > SCRIPT_SNAPSHOT_MAX_BYTES) {
-            throw new Error(
-              `Script sources exceed the ${SCRIPT_SNAPSHOT_MAX_BYTES} byte execution limit.`,
-            );
+            return yield* new ScriptSourceRegistryError({
+              detail: `Script sources exceed the ${SCRIPT_SNAPSHOT_MAX_BYTES} byte execution limit.`,
+              path: selectedTarget.absolutePath,
+            });
           }
 
+          const imports: Record<string, ScriptModuleImport> = Object.create(
+            null,
+          ) as Record<string, ScriptModuleImport>;
           for (const specifier of loaded.requirements) {
-            if (isScriptBuiltinModuleSpecifier(specifier)) continue;
+            if (isScriptBuiltinModuleSpecifier(specifier)) {
+              imports[specifier] = { kind: "builtin", specifier };
+              continue;
+            }
             if (isRelativeScriptModuleSpecifier(specifier)) {
-              schedule(resolveRelativeTarget(discovery, target, specifier));
+              const resolved = resolveRelativeTarget(
+                discovery,
+                target,
+                specifier,
+              );
+              if (resolved === undefined) {
+                return yield* importError(
+                  target,
+                  specifier,
+                  "The relative module was not found.",
+                );
+              }
+              imports[specifier] = { kind: "module", moduleId: resolved.id };
+              schedule(resolved);
               continue;
             }
 
-            const packageEntry = discovery.packages.get(specifier);
-            if (packageEntry === undefined) continue;
-            packages.set(packageEntry.name, packageSnapshot(packageEntry));
             if (
-              packageEntry.compatibility.status === "incompatible" ||
-              packageEntry.mainPath === null
+              target.packageName !== undefined &&
+              specifier !== target.packageName &&
+              discovery.packages.get(target.packageName)?.manifest.dependencies[
+                specifier
+              ] === undefined
             ) {
-              continue;
+              return yield* importError(
+                target,
+                specifier,
+                `${target.packageName} must list it in lucent.dependencies.`,
+              );
             }
-            schedule(
-              packageTarget(
-                packageEntry,
-                portablePath(
-                  relative(packageEntry.rootPath, packageEntry.mainPath),
-                ),
+            const packageEntry = discovery.packages.get(specifier);
+            if (packageEntry === undefined) {
+              return yield* importError(
+                target,
+                specifier,
+                "The package is not installed.",
+              );
+            }
+            packages.set(packageEntry.name, packageSnapshot(packageEntry));
+            if (packageEntry.compatibility.status === "incompatible") {
+              return yield* importError(
+                target,
+                specifier,
+                "The package is not compatible with this version of Lucent.",
+              );
+            }
+            if (packageEntry.dependencyStatus.status === "blocked") {
+              return yield* importError(
+                target,
+                specifier,
+                "One or more of the package's dependencies are unavailable.",
+              );
+            }
+            if (packageEntry.mainPath === null) {
+              return yield* importError(
+                target,
+                specifier,
+                "The package's main file was not found.",
+              );
+            }
+            const resolved = packageTarget(
+              packageEntry,
+              portablePath(
+                relative(packageEntry.rootPath, packageEntry.mainPath),
               ),
             );
+            if (resolved === undefined) {
+              return yield* importError(
+                target,
+                specifier,
+                "The package's main file is no longer available.",
+              );
+            }
+            imports[specifier] = { kind: "module", moduleId: resolved.id };
+            schedule(resolved);
           }
+          modules.set(target.id, { ...loaded.module, imports });
         }
       }
 
@@ -435,15 +451,23 @@ export const layer = Layer.effect(
           index,
           index + SOURCE_READ_CONCURRENCY,
         );
-        let current: readonly string[];
-        try {
-          current = await Promise.all(
-            batch.map(([path]) => regularFileFingerprint(path)),
-          );
-        } catch (cause) {
-          if (isMissingFileError(cause)) return null;
-          throw cause;
-        }
+        const current = yield* Effect.all(
+          batch.map(([path]) =>
+            Effect.tryPromise({
+              try: () => regularFileFingerprint(path),
+              catch: (cause) =>
+                new ScriptSourceRegistryError({
+                  detail: errorMessage(
+                    cause,
+                    "Failed to verify script source.",
+                  ),
+                  path,
+                  cause,
+                }),
+            }),
+          ),
+          { concurrency: SOURCE_READ_CONCURRENCY },
+        );
         if (
           current.some(
             (fingerprint, batchIndex) => fingerprint !== batch[batchIndex]?.[1],
@@ -461,7 +485,7 @@ export const layer = Layer.effect(
           left.name.localeCompare(right.name),
         ),
       };
-    };
+    });
 
     const readReference = Effect.fn("ScriptSourceRegistry.readReference")(
       function* (reference: ScriptReference) {
@@ -494,10 +518,16 @@ export const layer = Layer.effect(
                 path: entry.path,
               });
             }
+            if (owner?.dependencyStatus.status === "blocked") {
+              return yield* new ScriptSourceRegistryError({
+                detail: `${owner.name} can't run because one or more required packages are unavailable.`,
+                path: entry.path,
+              });
+            }
           }
           const target = entryTarget(discovery, reference);
           if (target === undefined) continue;
-          const parsedEntry = yield* scriptFiles.read(entry.path).pipe(
+          const parsedEntry = yield* scriptFiles.analyze(entry.path).pipe(
             Effect.mapError(
               (cause) =>
                 new ScriptSourceRegistryError({
@@ -507,20 +537,13 @@ export const layer = Layer.effect(
                 }),
             ),
           );
-          const closure = yield* Effect.tryPromise({
-            try: () => collectExecutionClosure(discovery, target, parsedEntry),
-            catch: (cause) =>
-              new ScriptSourceRegistryError({
-                detail: errorMessage(
-                  cause,
-                  "Failed to read reachable script sources.",
-                ),
-                path: entry.path,
-                cause,
-              }),
-          });
+          const closure = yield* collectExecutionClosure(
+            discovery,
+            target,
+            parsedEntry,
+          );
           if (closure === null) continue;
-          const verifiedEntry = yield* scriptFiles.read(entry.path).pipe(
+          const verifiedEntry = yield* scriptFiles.analyze(entry.path).pipe(
             Effect.mapError(
               (cause) =>
                 new ScriptSourceRegistryError({
@@ -530,13 +553,19 @@ export const layer = Layer.effect(
                 }),
             ),
           );
-          if (verifiedEntry.revision !== parsedEntry.revision) continue;
+          if (
+            verifiedEntry.file.revision !== parsedEntry.file.revision ||
+            verifiedEntry.fingerprint !== parsedEntry.fingerprint
+          ) {
+            continue;
+          }
 
           const snapshotRevision = sha256Revision(
             JSON.stringify({
               entryId: target.id,
-              modules: closure.modules.map(({ id, revision }) => ({
+              modules: closure.modules.map(({ id, imports, revision }) => ({
                 id,
+                imports,
                 revision,
               })),
               packages: closure.packages,
@@ -549,7 +578,7 @@ export const layer = Layer.effect(
             revision: snapshotRevision,
           };
           return {
-            ...verifiedEntry,
+            ...verifiedEntry.file,
             name: entry.name,
             path: entry.path,
             reference,

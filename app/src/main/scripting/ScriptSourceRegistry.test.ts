@@ -17,7 +17,6 @@ import {
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import {
-  discoverLiteralScriptRequirements,
   layer as scriptSourceRegistryLayer,
   ScriptSourceRegistry,
 } from "./ScriptSourceRegistry";
@@ -97,21 +96,6 @@ afterEach(async () => {
 });
 
 describe("script source dependency discovery", () => {
-  it("finds only direct string-literal require calls", () => {
-    expect(
-      discoverLiteralScriptRequirements(`
-        require("./direct");
-        require("./direct");
-        const path = "./computed";
-        require(path);
-        const load = require;
-        load("./aliased");
-        require(\`./template\`);
-      `),
-    ).toEqual(["./direct"]);
-    expect(discoverLiteralScriptRequirements("function (")).toEqual([]);
-  });
-
   it.effect(
     "collects relative, package, and cyclic reachable modules only",
     () =>
@@ -191,7 +175,128 @@ describe("script source dependency discovery", () => {
       }),
   );
 
-  it.effect("keeps missing, malformed, and computed dependencies lazy", () =>
+  it.effect("resolves self imports and declared package dependencies", () =>
+    Effect.gen(function* () {
+      const workspace = yield* Effect.promise(makeWorkspace);
+      const firstRoot = join(workspace.packagesDir, "@lucent", "first");
+      const secondRoot = join(workspace.packagesDir, "@lucent", "second");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(firstRoot, "package.json"),
+            JSON.stringify({
+              name: "@lucent/first",
+              version: "1.0.0",
+              lucent: {
+                dependencies: { "@lucent/second": "^2.0.0" },
+              },
+            }),
+          ),
+          write(join(firstRoot, "index.js"), 'exports.first = "first";'),
+          write(
+            join(firstRoot, "scripts", "run.js"),
+            `
+              const first = require("@lucent/first");
+              const second = require("@lucent/second");
+              module.exports = function* run() {
+                return [first.first, second.second];
+              };
+            `,
+          ),
+          write(
+            join(secondRoot, "package.json"),
+            JSON.stringify({ name: "@lucent/second", version: "2.1.0" }),
+          ),
+          write(join(secondRoot, "index.js"), 'exports.second = "second";'),
+        ]),
+      );
+      const discovery = yield* Effect.promise(() =>
+        discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }),
+      );
+      const registry = yield* ScriptSourceRegistry.pipe(
+        Effect.provide(makeLayer(discovery)),
+      );
+
+      const file = yield* registry.readReference({
+        kind: "package",
+        packageName: "@lucent/first",
+        path: "scripts/run.js",
+      });
+
+      expect(file.snapshot?.modules.map((module) => module.id)).toEqual([
+        "package:@lucent/first:index.js",
+        "package:@lucent/first:scripts/run.js",
+        "package:@lucent/second:index.js",
+      ]);
+      expect(
+        file.snapshot?.modules.find(
+          (module) => module.id === "package:@lucent/first:scripts/run.js",
+        )?.imports,
+      ).toEqual({
+        "@lucent/first": {
+          kind: "module",
+          moduleId: "package:@lucent/first:index.js",
+        },
+        "@lucent/second": {
+          kind: "module",
+          moduleId: "package:@lucent/second:index.js",
+        },
+      });
+    }),
+  );
+
+  it.effect("rejects undeclared package imports before execution", () =>
+    Effect.gen(function* () {
+      const workspace = yield* Effect.promise(makeWorkspace);
+      const firstRoot = join(workspace.packagesDir, "first");
+      const secondRoot = join(workspace.packagesDir, "second");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(firstRoot, "package.json"),
+            JSON.stringify({ name: "first", version: "1.0.0" }),
+          ),
+          write(join(firstRoot, "index.js"), "exports.value = true;"),
+          write(
+            join(firstRoot, "scripts", "run.js"),
+            'require("second"); module.exports = function* run() {};',
+          ),
+          write(
+            join(secondRoot, "package.json"),
+            JSON.stringify({ name: "second", version: "1.0.0" }),
+          ),
+          write(join(secondRoot, "index.js"), "exports.value = true;"),
+        ]),
+      );
+      const discovery = yield* Effect.promise(() =>
+        discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }),
+      );
+      const registry = yield* ScriptSourceRegistry.pipe(
+        Effect.provide(makeLayer(discovery)),
+      );
+
+      const error = yield* registry
+        .readReference({
+          kind: "package",
+          packageName: "first",
+          path: "scripts/run.js",
+        })
+        .pipe(Effect.flip);
+
+      expect(error.message).toContain("lucent.dependencies");
+      expect(error.message).toContain("second");
+    }),
+  );
+
+  it.effect("keeps computed dependencies outside the prepared snapshot", () =>
     Effect.gen(function* () {
       const workspace = yield* Effect.promise(makeWorkspace);
       yield* Effect.promise(() =>
@@ -199,16 +304,10 @@ describe("script source dependency discovery", () => {
           write(
             join(workspace.scriptsDir, "entry.js"),
             `
-              if (false) require("./missing");
-              if (false) require("./malformed");
               const computed = "./computed";
               if (false) require(computed);
               module.exports = function* run() {};
             `,
-          ),
-          write(
-            join(workspace.scriptsDir, "malformed.js"),
-            "module.exports = function( {",
           ),
           write(
             join(workspace.scriptsDir, "computed.js"),
@@ -234,8 +333,36 @@ describe("script source dependency discovery", () => {
 
       expect(file.snapshot?.modules.map((module) => module.id)).toEqual([
         "loose:entry.js",
-        "loose:malformed.js",
       ]);
+    }),
+  );
+
+  it.effect("rejects unresolved literal imports before execution", () =>
+    Effect.gen(function* () {
+      const workspace = yield* Effect.promise(makeWorkspace);
+      yield* Effect.promise(() =>
+        write(
+          join(workspace.scriptsDir, "entry.js"),
+          'if (false) require("./missing"); module.exports = function* run() {};',
+        ),
+      );
+      const discovery = yield* Effect.promise(() =>
+        discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }),
+      );
+      const registry = yield* ScriptSourceRegistry.pipe(
+        Effect.provide(makeLayer(discovery)),
+      );
+
+      const error = yield* registry
+        .readReference({ kind: "loose", path: "entry.js" })
+        .pipe(Effect.flip);
+
+      expect(error.message).toContain("relative module was not found");
+      expect(error.message).toContain("./missing");
     }),
   );
 });

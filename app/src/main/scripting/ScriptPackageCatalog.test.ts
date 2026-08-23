@@ -181,6 +181,113 @@ describe("discoverScriptCatalog", () => {
     });
   });
 
+  it("accepts semver dependency ranges and keeps compatible cycles ready", async () => {
+    const workspace = await makeWorkspace();
+    const firstRoot = join(workspace.packagesDir, "first");
+    const secondRoot = join(workspace.packagesDir, "second");
+    await Promise.all([
+      write(
+        join(firstRoot, "package.json"),
+        JSON.stringify({
+          name: "first",
+          version: "1.0.0",
+          lucent: { dependencies: { second: "^2.0.0" } },
+        }),
+      ),
+      write(join(firstRoot, "index.js"), "exports.first = true;"),
+      write(
+        join(secondRoot, "package.json"),
+        JSON.stringify({
+          name: "second",
+          version: "2.3.0",
+          lucent: { dependencies: { first: "*" } },
+        }),
+      ),
+      write(join(secondRoot, "index.js"), "exports.second = true;"),
+    ]);
+
+    const discovery = await discoverScriptCatalog({
+      currentVersion: "1.2.3",
+      packagesDir: workspace.packagesDir,
+      scriptsDir: workspace.scriptsDir,
+    });
+
+    expect(discovery.packages.get("first")?.dependencyStatus).toEqual({
+      status: "ready",
+    });
+    expect(discovery.packages.get("second")?.dependencyStatus).toEqual({
+      status: "ready",
+    });
+  });
+
+  it("blocks missing, mismatched, unversioned, and transitive dependencies", async () => {
+    const workspace = await makeWorkspace();
+    const manifests = [
+      {
+        name: "missing-consumer",
+        version: "1.0.0",
+        lucent: { dependencies: { absent: "1.0.0" } },
+      },
+      {
+        name: "mismatch-consumer",
+        version: "1.0.0",
+        lucent: { dependencies: { versioned: "^2.0.0" } },
+      },
+      {
+        name: "unversioned-consumer",
+        version: "1.0.0",
+        lucent: { dependencies: { unversioned: "*" } },
+      },
+      {
+        name: "transitive-consumer",
+        version: "1.0.0",
+        lucent: { dependencies: { "missing-consumer": "1.0.0" } },
+      },
+      { name: "versioned", version: "1.5.0" },
+      { name: "unversioned" },
+    ] as const;
+    await Promise.all(
+      manifests.flatMap((manifest) => {
+        const root = join(workspace.packagesDir, manifest.name);
+        return [
+          write(join(root, "package.json"), JSON.stringify(manifest)),
+          write(join(root, "index.js"), "exports.value = true;"),
+        ];
+      }),
+    );
+
+    const discovery = await discoverScriptCatalog({
+      currentVersion: "1.2.3",
+      packagesDir: workspace.packagesDir,
+      scriptsDir: workspace.scriptsDir,
+    });
+
+    expect(
+      discovery.packages.get("missing-consumer")?.dependencyStatus,
+    ).toMatchObject({
+      status: "blocked",
+      issues: [{ reason: "missing", packageName: "absent" }],
+    });
+    expect(
+      discovery.packages.get("mismatch-consumer")?.dependencyStatus,
+    ).toMatchObject({
+      status: "blocked",
+      issues: [{ reason: "version-mismatch", installedVersion: "1.5.0" }],
+    });
+    expect(
+      discovery.packages.get("unversioned-consumer")?.dependencyStatus,
+    ).toMatchObject({
+      status: "blocked",
+      issues: [{ reason: "version-unavailable" }],
+    });
+    expect(
+      discovery.packages.get("transitive-consumer")?.dependencyStatus,
+    ).toMatchObject({
+      status: "blocked",
+      issues: [{ reason: "unavailable", packageName: "missing-consumer" }],
+    });
+  });
+
   it("derives verified and modified integrity from the app-owned baseline", async () => {
     const workspace = await makeWorkspace();
     const packageRoot = join(workspace.packagesDir, "tools");
