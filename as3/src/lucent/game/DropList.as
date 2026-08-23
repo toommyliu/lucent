@@ -73,7 +73,7 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function acceptDrop(itemId:int):Boolean {
+    public static function accept(itemId:int):Boolean {
       var game:Object = Main.Game;
       if (isUsingCustomDrops() && !isCustomDropsUiOpen())
         toggleUi();
@@ -96,7 +96,7 @@ package lucent.game {
     }
 
     [BridgeExport]
-    public static function rejectDrop(itemId:int):Boolean {
+    public static function reject(itemId:int):Boolean {
       if (isUsingCustomDrops()) {
         var entry:* = getCustomDropEntry(itemId);
         if (!entry && !isCustomDropsUiOpen()) {
