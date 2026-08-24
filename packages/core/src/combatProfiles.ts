@@ -6,14 +6,12 @@ import { boundedInt, TrimmedNonEmptyString } from "./baseSchemas";
 export const COMBAT_PROFILE_LIBRARY_VERSION = 1 as const;
 
 export const DEFAULT_COMBAT_PROFILE_ID = "generic-base";
-export const DEFAULT_COMBAT_PROFILE_ROLE = "Base";
 export const DEFAULT_COMBAT_PROFILE_DELAY_MS = 150;
 
 const MAX_DELAY_MS = 60_000;
 const MAX_WAIT_MS = 60_000;
 const MAX_ID_LENGTH = 80;
 const MAX_LABEL_LENGTH = 80;
-const MAX_ROLE_LENGTH = 40;
 const MAX_CLASS_NAME_LENGTH = 80;
 const MAX_CONSUMABLE_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
@@ -91,7 +89,6 @@ export const CombatProfileSchema = Schema.Struct({
   label: TrimmedNonEmptyString,
   className: Schema.optionalKey(TrimmedNonEmptyString),
   consumable: Schema.optionalKey(TrimmedNonEmptyString),
-  role: TrimmedNonEmptyString,
   delayMs: boundedInt(0, MAX_DELAY_MS),
   cooldownMode: CombatProfileCooldownModeSchema,
   resetSkillIndexOnTargetDeath: Schema.optionalKey(Schema.Boolean),
@@ -247,7 +244,6 @@ const ensureUniqueIds = <T extends { readonly id: string }>(
 const genericProfile = (): CombatProfile => ({
   id: DEFAULT_COMBAT_PROFILE_ID,
   label: "Generic",
-  role: DEFAULT_COMBAT_PROFILE_ROLE,
   delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
   cooldownMode: "use-if-ready",
   steps: [1, 2, 3, 4].map((skill) => ({
@@ -397,9 +393,6 @@ const normalizeProfile = (
     label,
     ...(className === undefined ? {} : { className }),
     ...(consumable === undefined ? {} : { consumable }),
-    role:
-      trimString(record["role"], MAX_ROLE_LENGTH) ??
-      DEFAULT_COMBAT_PROFILE_ROLE,
     delayMs: clampInt(
       record["delayMs"],
       DEFAULT_COMBAT_PROFILE_DELAY_MS,

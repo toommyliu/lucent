@@ -16,7 +16,6 @@ const profile: CombatProfile = {
   delayMs: 120,
   id: "runner-test",
   label: "Runner test",
-  role: "Base",
   steps: [
     { conditions: [], skill: 1 },
     { conditions: [], skill: 2 },

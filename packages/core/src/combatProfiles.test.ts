@@ -18,7 +18,6 @@ import {
 const genericProfile = {
   id: DEFAULT_COMBAT_PROFILE_ID,
   label: "Generic",
-  role: "Base",
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [1, 2, 3, 4].map((skill) => ({
@@ -36,7 +35,6 @@ const canonicalLibrary = {
       label: "Farm Rotation",
       className: "ArchPaladin",
       consumable: "Potent Honor Potion",
-      role: "Farm",
       delayMs: 150,
       cooldownMode: "use-if-ready",
       steps: [
@@ -193,7 +191,6 @@ describe("combatProfiles", () => {
     expect(normalizeCombatProfile(definition)).toEqual({
       id: DEFAULT_COMBAT_PROFILE_ID,
       label: "Profile",
-      role: "Base",
       delayMs: 150,
       cooldownMode: "use-if-ready",
       steps: [

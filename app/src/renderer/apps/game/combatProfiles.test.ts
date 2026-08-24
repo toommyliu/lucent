@@ -22,7 +22,6 @@ import {
 const profile: CombatProfile = {
   id: "test-profile",
   label: "Test",
-  role: "Base",
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [
