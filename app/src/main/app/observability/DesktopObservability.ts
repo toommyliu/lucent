@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 
-import { DesktopEnvironment } from "./DesktopEnvironment";
+import { DesktopEnvironment } from "../DesktopEnvironment";
 import {
   appendDesktopLogRecord,
   desktopLogErrorDetails,
@@ -55,7 +55,7 @@ export interface DesktopObservabilityShape {
 export class DesktopObservability extends Context.Service<
   DesktopObservability,
   DesktopObservabilityShape
->()("lucent/desktop/app/DesktopObservability") {}
+>()("lucent/desktop/app/observability/DesktopObservability") {}
 
 const makeDesktopObservability = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;

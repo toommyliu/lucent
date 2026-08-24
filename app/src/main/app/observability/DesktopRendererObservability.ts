@@ -8,7 +8,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
-import { DiagnosticsIpc } from "../../shared/ipc";
+import { DiagnosticsIpc } from "../../../shared/ipc";
 import { DesktopObservability } from "./DesktopObservability";
 
 const decodeRendererRecord = Option.liftThrowable(

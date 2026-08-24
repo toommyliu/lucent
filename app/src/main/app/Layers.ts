@@ -4,12 +4,12 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
-import * as DesktopChromiumPerformanceRecording from "./DesktopChromiumPerformanceRecording";
-import * as DesktopEffectTracing from "./DesktopEffectTracing";
 import * as DesktopLifecycle from "./DesktopLifecycle";
-import * as DesktopObservability from "./DesktopObservability";
-import * as DesktopPerformanceTrace from "./DesktopPerformanceTrace";
-import * as GameConsoleObservability from "./GameConsoleObservability";
+import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChromiumPerformanceRecording";
+import * as DesktopEffectTracing from "./observability/DesktopEffectTracing";
+import * as DesktopObservability from "./observability/DesktopObservability";
+import * as DesktopObservabilityServer from "./observability/DesktopObservabilityServer";
+import * as DesktopPerformanceTrace from "./observability/DesktopPerformanceTrace";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
@@ -278,7 +278,7 @@ export const makeDesktopLayer = (
     ),
   );
 
-  const gameConsoleObservabilityLayer = GameConsoleObservability.layer.pipe(
+  const observabilityServerLayer = DesktopObservabilityServer.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(accountsLayer, observabilityLayer, windowsLayer),
     ),
@@ -326,7 +326,7 @@ export const makeDesktopLayer = (
     accountSettingsRepositoryLayer,
     combatProfilesLayer,
     chromiumPerformanceRecordingLayer,
-    gameConsoleObservabilityLayer,
+    observabilityServerLayer,
     gameEnvironmentsLayer,
     gameFollowersLayer,
     gameLoaderGrabbersLayer,

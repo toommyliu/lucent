@@ -116,7 +116,7 @@ export interface DesktopLogWriter {
   readonly write: (record: unknown) => void;
 }
 
-/** Queues raw records so serialization and disk I/O stay off instrumented paths. */
+/** Queues observability records so serialization and disk I/O stay off instrumented paths. */
 export const makeBufferedDesktopLogWriter = (
   logsDir: string,
   logFilePath: string,
