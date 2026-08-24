@@ -69,7 +69,6 @@ export interface TopNavCombatProfile {
   readonly className?: string;
   readonly id: string;
   readonly label: string;
-  readonly role: string;
 }
 
 export interface TopNavToggleOptionItem {
@@ -532,13 +531,8 @@ const commitMenuInputOnEnter =
 const combatProfileClassName = (profile: TopNavCombatProfile): string =>
   profile.className?.trim() || "";
 
-const combatProfileRole = (profile: TopNavCombatProfile): string =>
-  profile.role.trim();
-
 const combatProfileTooltip = (profile: TopNavCombatProfile): string =>
-  `${profile.label} - ${combatProfileRole(profile)} role - ${
-    combatProfileClassName(profile) || "Any class"
-  }`;
+  `${profile.label} - ${combatProfileClassName(profile) || "Any class"}`;
 
 type TopNavMenuTriggerProps = Omit<ButtonProps, "as" | "size" | "type"> & {
   readonly expanded?: boolean;
@@ -1275,14 +1269,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
     return props.autoReloginLastError();
   };
 
-  const selectedAutoAttackProfile = (): TopNavCombatProfile | undefined =>
-    props
-      .combatProfiles()
-      .find((profile) => profile.id === props.selectedAutoAttackProfileId());
-
-  const autoAttackProfileRole = (): string =>
-    selectedAutoAttackProfile()?.role.trim() ?? "";
-
   const autoAttackIssue = (): string =>
     props.autoAttackLastError() || props.autoAttackWarning();
 
@@ -1308,8 +1294,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
           : `Auto Attack enabled: ${profileLabel}`;
     }
 
-    const role = autoAttackProfileRole();
-    return role === "" ? label : `${label}; role: ${role}`;
+    return label;
   };
 
   const autoAttackTriggerText = (): string =>
@@ -1932,11 +1917,6 @@ export function TopNav(props: TopNavProps): JSX.Element {
               <span class="game-topnav__combat-label">
                 {autoAttackTriggerText()}
               </span>
-              <Show when={autoAttackProfileRole()}>
-                {(role) => (
-                  <span class="game-topnav__trigger-detail">{role()}</span>
-                )}
-              </Show>
               <Icon
                 icon="chevron_down"
                 aria-hidden="true"
@@ -2042,14 +2022,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                       title={combatProfileTooltip(profile)}
                       value={profile.id}
                     >
-                      <span class="game-menu__item-label game-menu__profile-heading">
-                        <span class="game-menu__profile-label">
-                          {profile.label}
-                        </span>
-                        <span class="game-menu__profile-role">
-                          {combatProfileRole(profile)}
-                        </span>
-                      </span>
+                      <span class="game-menu__item-label">{profile.label}</span>
                       <span class="game-menu__item-value game-menu__profile-class">
                         {combatProfileClassName(profile) || "Any"}
                       </span>

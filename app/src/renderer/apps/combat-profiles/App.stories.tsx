@@ -25,7 +25,6 @@ const library: CombatProfileLibrary = {
         },
       ],
       resetSkillIndexOnTargetDeath: true,
-      role: "DPS",
       steps: [
         {
           conditions: [
@@ -131,7 +130,6 @@ export const EmptyRotation: Story = {
             id: "empty",
             label: "Empty profile",
             messageTriggers: [],
-            role: "Custom",
             steps: [],
           },
         ],

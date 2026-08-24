@@ -16,7 +16,6 @@ const storageKey = "lucent.combatProfiles.selectedProfileId";
 const combatProfile = (id: string): CombatProfile => ({
   id,
   label: id,
-  role: "Solo",
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [],

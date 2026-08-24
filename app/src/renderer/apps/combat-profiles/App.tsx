@@ -51,7 +51,6 @@ import {
   DEFAULT_COMBAT_PROFILE_ID,
   DEFAULT_COMBAT_PROFILE_DELAY_MS,
   DEFAULT_COMBAT_PROFILE_LIBRARY,
-  DEFAULT_COMBAT_PROFILE_ROLE,
   duplicateCombatProfile,
   type CombatProfile,
   type CombatProfileMessageTrigger,
@@ -319,7 +318,6 @@ export function CombatProfilesView(
   const [label, setLabel] = createSignal("Generic");
   const [className, setClassName] = createSignal("");
   const [consumable, setConsumable] = createSignal("");
-  const [role, setRole] = createSignal(DEFAULT_COMBAT_PROFILE_ROLE);
   const [delayMs, setDelayMs] = createSignal(
     String(DEFAULT_COMBAT_PROFILE_DELAY_MS),
   );
@@ -387,7 +385,6 @@ export function CombatProfilesView(
     setLabel(profile.label);
     setClassName(profile.className ?? "");
     setConsumable(profile.consumable ?? "");
-    setRole(profile.role);
     setDelayMs(String(profile.delayMs));
     setCooldownMode(profile.cooldownMode);
     setResetSkillIndexOnTargetDeath(
@@ -489,7 +486,6 @@ export function CombatProfilesView(
     const profileWithoutClassName = {
       id: profile.id,
       label: profile.label,
-      role: profile.role,
       delayMs: profile.delayMs,
       cooldownMode: selectedCooldownMode,
       ...(resetSkillIndexOnTargetDeath()
@@ -510,7 +506,6 @@ export function CombatProfilesView(
       label: label().trim() || profile.label,
       ...(trimmedClassName === "" ? {} : { className: trimmedClassName }),
       ...(trimmedConsumable === "" ? {} : { consumable: trimmedConsumable }),
-      role: role().trim() || DEFAULT_COMBAT_PROFILE_ROLE,
       delayMs: Number.isFinite(parsedDelay)
         ? Math.max(0, parsedDelay)
         : profile.delayMs,
@@ -568,7 +563,6 @@ export function CombatProfilesView(
     const profile: CombatProfile = {
       id,
       label: baseLabel,
-      role: DEFAULT_COMBAT_PROFILE_ROLE,
       delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
       cooldownMode: "use-if-ready",
       steps: [1, 2, 3, 4].map((skill) => ({
@@ -981,7 +975,7 @@ export function CombatProfilesView(
                   <Label>
                     <span>Class name</span>
                     <Input
-                      placeholder="Any class"
+                      placeholder="Any"
                       value={className()}
                       onInput={(event) =>
                         setClassName(event.currentTarget.value)
@@ -999,13 +993,6 @@ export function CombatProfilesView(
                       onInput={(event) =>
                         setConsumable(event.currentTarget.value)
                       }
-                    />
-                  </Label>
-                  <Label>
-                    <span>Role</span>
-                    <Input
-                      value={role()}
-                      onInput={(event) => setRole(event.currentTarget.value)}
                     />
                   </Label>
                   <Label>

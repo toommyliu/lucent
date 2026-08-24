@@ -21,7 +21,6 @@ const library: CombatProfileLibrary = {
       delayMs: 180,
       id: "support",
       label: "Party Support",
-      role: "Support",
       steps: [
         { conditions: [], skill: 2 },
         { conditions: [], skill: 3 },

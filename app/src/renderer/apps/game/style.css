@@ -333,12 +333,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   white-space: nowrap;
 }
 
-.game-topnav__combat-trigger .game-topnav__trigger-detail {
-  max-width: 5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .game-topnav__trigger-detail {
   display: inline-block;
   flex: 0 0 auto;
@@ -890,31 +884,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-menu__profile-list {
   display: grid;
-}
-
-.game-menu__profile-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
-  min-width: 0;
-}
-
-.game-menu__profile-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.game-menu__profile-role {
-  flex: 0 0 auto;
-  max-width: 4.5rem;
-  overflow: hidden;
-  color: var(--color-muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .game-menu__profile-item[data-state="checked"] .game-menu__item-value {

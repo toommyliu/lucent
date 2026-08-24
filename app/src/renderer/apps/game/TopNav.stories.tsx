@@ -36,18 +36,16 @@ interface TopNavFixture {
 }
 
 const profiles: readonly TopNavCombatProfile[] = [
-  { id: "generic", label: "Generic", role: "Base" },
+  { id: "generic", label: "Generic" },
   {
     className: "Lord of Order",
     id: "support",
     label: "Party Support",
-    role: "Support",
   },
   {
     className: "Dragon of Time",
     id: "dot-solo",
     label: "Dragon of Time Solo",
-    role: "DPS",
   },
 ];
 

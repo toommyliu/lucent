@@ -67,7 +67,6 @@ const testProfile: CombatProfile = {
   id: "archpaladin-farm",
   label: "Farm Rotation",
   className: "ArchPaladin",
-  role: "Farm",
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [{ skill: 1, conditions: [], priority: true }],
@@ -105,7 +104,6 @@ describe("CombatProfiles", () => {
                 {
                   id: "broken-profile",
                   label: "Broken",
-                  role: "",
                   delayMs: -1,
                   cooldownMode: "invalid",
                   steps: [{ skill: "bad" }],
@@ -138,7 +136,6 @@ describe("CombatProfiles", () => {
       expect(loaded.profiles[1]).toMatchObject({
         id: "broken-profile",
         label: "Broken",
-        role: "Base",
         delayMs: 0,
         cooldownMode: "use-if-ready",
         messageTriggers: [
