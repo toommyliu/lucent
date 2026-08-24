@@ -136,6 +136,9 @@ const makeUpdatesHarness = (options: {
       info: () => Effect.void,
       installProcessHooks: Effect.void,
       logFilePath: join(env.appDataDir, "logs", "lucent.log"),
+      record: () => Effect.void,
+      recordUnsafe: () => undefined,
+      subscribe: () => () => undefined,
       warn: () => Effect.void,
     });
     const app = ElectronApp.of({

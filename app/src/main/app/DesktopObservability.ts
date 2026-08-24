@@ -1,4 +1,3 @@
-import { promises as fs } from "fs";
 import type { EventEmitter } from "events";
 import { join } from "path";
 import * as Context from "effect/Context";
@@ -7,8 +6,20 @@ import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 
 import { DesktopEnvironment } from "./DesktopEnvironment";
+import {
+  appendDesktopLogRecord,
+  desktopLogErrorDetails,
+  makeBufferedDesktopLogWriter,
+} from "./DesktopLogWriter";
 
 export type ObservabilityLevel = "debug" | "error" | "info" | "warn";
+
+export interface DesktopDiagnosticRecord {
+  readonly component: string;
+  readonly event: string;
+  readonly data?: unknown;
+  readonly cause?: unknown;
+}
 
 export interface DesktopObservabilityShape {
   readonly debug: (
@@ -29,6 +40,11 @@ export interface DesktopObservabilityShape {
   ) => Effect.Effect<void>;
   readonly installProcessHooks: Effect.Effect<void, never, Scope.Scope>;
   readonly logFilePath: string;
+  readonly record: (record: DesktopDiagnosticRecord) => Effect.Effect<void>;
+  readonly recordUnsafe: (record: DesktopDiagnosticRecord) => void;
+  readonly subscribe: (
+    listener: (record: DesktopDiagnosticRecord) => void,
+  ) => () => void;
   readonly warn: (
     component: string,
     message: string,
@@ -41,36 +57,17 @@ export class DesktopObservability extends Context.Service<
   DesktopObservabilityShape
 >()("lucent/desktop/app/DesktopObservability") {}
 
-const errorDetails = (cause: unknown): unknown => {
-  if (cause instanceof Error) {
-    return {
-      name: cause.name,
-      message: cause.message,
-      stack: cause.stack,
-    };
-  }
-
-  return cause;
-};
-
-const serialize = (record: unknown): Effect.Effect<string> =>
-  Effect.sync(() => {
-    try {
-      return `${JSON.stringify(record)}\n`;
-    } catch {
-      return `${JSON.stringify({
-        at: new Date().toISOString(),
-        level: "error",
-        component: "observability",
-        message: "Failed to serialize log record",
-      })}\n`;
-    }
-  });
-
 const makeDesktopObservability = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
   const logsDir = join(env.appDataDir, "logs");
   const logFilePath = join(logsDir, "lucent.log");
+  const bufferedWriter =
+    env.debug === true
+      ? makeBufferedDesktopLogWriter(logsDir, logFilePath)
+      : undefined;
+  const diagnosticListeners = new Set<
+    (record: DesktopDiagnosticRecord) => void
+  >();
 
   const writeRecord = (
     level: ObservabilityLevel,
@@ -78,26 +75,28 @@ const makeDesktopObservability = Effect.gen(function* () {
     message: string,
     data?: unknown,
     cause?: unknown,
-  ) =>
-    serialize({
+    event?: string,
+  ) => {
+    const record = {
       at: new Date().toISOString(),
       level,
       component,
       message,
+      ...(event === undefined ? {} : { event }),
       ...(data === undefined ? {} : { data }),
-      ...(cause === undefined ? {} : { error: errorDetails(cause) }),
-    }).pipe(
-      Effect.flatMap((source) =>
-        Effect.tryPromise({
-          try: async () => {
-            await fs.mkdir(logsDir, { recursive: true });
-            await fs.appendFile(logFilePath, source, "utf8");
-          },
-          catch: () => undefined,
-        }),
-      ),
-      Effect.catch(() => Effect.void),
-    );
+      ...(cause === undefined ? {} : { error: desktopLogErrorDetails(cause) }),
+    };
+    if (bufferedWriter !== undefined) {
+      return Effect.sync(() => bufferedWriter.write(record));
+    }
+
+    return Effect.tryPromise({
+      try: async () => {
+        await appendDesktopLogRecord(logsDir, logFilePath, record);
+      },
+      catch: () => undefined,
+    }).pipe(Effect.catch(() => Effect.void));
+  };
 
   const info: DesktopObservabilityShape["info"] = (component, message, data) =>
     writeRecord("info", component, message, data);
@@ -117,6 +116,40 @@ const makeDesktopObservability = Effect.gen(function* () {
     cause,
     data,
   ) => writeRecord("error", component, message, data, cause);
+
+  const recordUnsafe: DesktopObservabilityShape["recordUnsafe"] =
+    bufferedWriter === undefined
+      ? () => undefined
+      : (diagnostic) => {
+          bufferedWriter.write({
+            at: new Date().toISOString(),
+            level: "debug",
+            component: diagnostic.component,
+            message: diagnostic.event,
+            event: diagnostic.event,
+            ...(diagnostic.data === undefined ? {} : { data: diagnostic.data }),
+            ...(diagnostic.cause === undefined
+              ? {}
+              : { error: desktopLogErrorDetails(diagnostic.cause) }),
+          });
+          for (const listener of diagnosticListeners) {
+            try {
+              listener(diagnostic);
+            } catch {}
+          }
+        };
+
+  const subscribe: DesktopObservabilityShape["subscribe"] = (listener) => {
+    diagnosticListeners.add(listener);
+    return () => {
+      diagnosticListeners.delete(listener);
+    };
+  };
+
+  const record: DesktopObservabilityShape["record"] =
+    bufferedWriter === undefined
+      ? () => Effect.void
+      : (diagnostic) => Effect.sync(() => recordUnsafe(diagnostic));
 
   const installProcessHooks = Effect.gen(function* () {
     const context = yield* Effect.context<never>();
@@ -150,12 +183,47 @@ const makeDesktopObservability = Effect.gen(function* () {
     );
   });
 
+  if (bufferedWriter !== undefined) {
+    bufferedWriter.write({
+      at: new Date().toISOString(),
+      level: "debug",
+      component: "startup",
+      message: "Diagnostic recording started",
+      event: "recording.started",
+      data: {
+        architecture: process.arch,
+        pid: process.pid,
+        platform: env.platform,
+        runtimeVersions: {
+          chrome: process.versions.chrome ?? "unknown",
+          electron: process.versions.electron ?? "unknown",
+          node: process.versions.node,
+        },
+      },
+    });
+    yield* Effect.addFinalizer(() =>
+      Effect.promise(() =>
+        bufferedWriter.close({
+          at: new Date().toISOString(),
+          level: "debug",
+          component: "startup",
+          message: "Diagnostic recording stopped",
+          event: "recording.stopped",
+          data: { pid: process.pid },
+        }),
+      ),
+    );
+  }
+
   return DesktopObservability.of({
     debug,
     error,
     info,
     installProcessHooks,
     logFilePath,
+    record,
+    recordUnsafe,
+    subscribe,
     warn,
   });
 });

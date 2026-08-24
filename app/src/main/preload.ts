@@ -41,6 +41,7 @@ import {
   AccountsIpc,
   ArmyIpc,
   CombatProfilesIpc,
+  DiagnosticsIpc,
   EnvironmentIpc,
   FollowerIpc,
   GameRendererIpc,
@@ -52,8 +53,15 @@ import {
   GameConsoleIpc,
   LoaderGrabberIpc,
   PacketsIpc,
+  type RendererDiagnosticError,
+  type RendererDiagnosticPayload,
 } from "../shared/ipc";
-import { createInvoke, createSubscribe } from "./preloadIpcClient";
+import {
+  createInvoke,
+  createObservedInvoke,
+  createSubscribe,
+  type IpcInvokeObservation,
+} from "./preloadIpcClient";
 
 const applyBootstrapAppearance = (): void => {
   try {
@@ -96,9 +104,104 @@ const platform: AppPlatform =
       ? "windows"
       : "linux";
 
-const invoke = createInvoke((channel, payload) =>
-  ipcRenderer.invoke(channel, payload),
-);
+const diagnosticError = (cause: unknown): RendererDiagnosticError => {
+  if (cause instanceof Error) {
+    return {
+      message: cause.message,
+      name: cause.name,
+      ...(cause.stack === undefined ? {} : { stack: cause.stack }),
+    };
+  }
+
+  let message: string;
+  try {
+    message = typeof cause === "string" ? cause : String(cause);
+  } catch {
+    message = "[Unprintable error]";
+  }
+  return { message, name: "Error" };
+};
+
+const sendRendererDiagnostic = (payload: RendererDiagnosticPayload): void => {
+  try {
+    ipcRenderer.send(DiagnosticsIpc.rendererRecord.channel, payload);
+  } catch {}
+};
+
+const invokeTransport = (channel: string, payload: unknown) =>
+  ipcRenderer.invoke(channel, payload);
+
+const reportInvoke = (observation: IpcInvokeObservation): void => {
+  const {
+    cause,
+    channel,
+    durationMs,
+    endTimeUnixNano,
+    name,
+    outcome,
+    stage,
+    startTimeUnixNano,
+    trace,
+  } = observation;
+  const error = cause === undefined ? undefined : diagnosticError(cause);
+  sendRendererDiagnostic({
+    type: "trace.span",
+    span: {
+      attributes: {
+        "ipc.channel": channel,
+        "ipc.name": name,
+        "ipc.outcome": outcome,
+        ...(stage === undefined ? {} : { "ipc.failure_stage": stage }),
+        "renderer.view": bridgeView,
+      },
+      durationMs,
+      endTimeUnixNano,
+      events: [],
+      exit:
+        error === undefined
+          ? { _tag: "Success" }
+          : {
+              _tag: "Failure",
+              cause: error.stack ?? `${error.name}: ${error.message}`,
+            },
+      kind: "client",
+      links: [],
+      name: `ipc.roundtrip ${name}`,
+      sampled: trace.sampled,
+      source: "renderer",
+      spanId: trace.spanId,
+      startTimeUnixNano,
+      traceId: trace.traceId,
+    },
+    view: bridgeView,
+  });
+};
+
+const invoke = debug
+  ? createObservedInvoke(invokeTransport, reportInvoke)
+  : createInvoke(invokeTransport);
+
+if (debug) {
+  window.addEventListener("error", (event) => {
+    sendRendererDiagnostic({
+      type: "renderer.error",
+      ...(event.colno === 0 ? {} : { columnNumber: event.colno }),
+      error: diagnosticError(event.error ?? event.message),
+      ...(event.lineno === 0 ? {} : { lineNumber: event.lineno }),
+      observedAt: new Date().toISOString(),
+      ...(event.filename === "" ? {} : { source: event.filename }),
+      view: bridgeView,
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    sendRendererDiagnostic({
+      type: "renderer.unhandled-rejection",
+      error: diagnosticError(event.reason),
+      observedAt: new Date().toISOString(),
+      view: bridgeView,
+    });
+  });
+}
 const eventWrappers = new WeakMap<
   (rawPayload: unknown) => void,
   (event: IpcRendererEvent, rawPayload: unknown) => void
