@@ -255,6 +255,29 @@ const notifyBuild = (label, options = {}) => {
 const rendererStaticFilePaths = () =>
   rendererViews.map((view) => `${view.sourceDir}/style.css`);
 
+const copyDirectory = (source, target) => {
+  if (!existsSync(source)) {
+    throw new Error(
+      `Missing ${source}; build the observability viewer before compiling Lucent`,
+    );
+  }
+
+  mkdirSync(target, { recursive: true });
+  for (const entry of readdirSync(source)) {
+    const sourcePath = join(source, entry);
+    const targetPath = join(target, entry);
+    if (lstatSync(sourcePath).isDirectory()) {
+      copyDirectory(sourcePath, targetPath);
+    } else {
+      copyFileSync(sourcePath, targetPath);
+    }
+  }
+};
+
+const copyObservabilityViewer = () => {
+  copyDirectory(join("..", "observability", "dist"), "dist/observability");
+};
+
 const fileChanged = (current, previous) =>
   current.mtimeMs !== previous.mtimeMs ||
   current.ctimeMs !== previous.ctimeMs ||
@@ -317,6 +340,9 @@ const buildOnce = async () => {
     build(preloadOptions),
   ]);
   copyRendererFiles();
+  if (isProduction) {
+    copyObservabilityViewer();
+  }
 };
 
 const notifyPlugin = (name, label, initialBuildKey) => ({
