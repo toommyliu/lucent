@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import {
+  DESKTOP_TRACE_MAX_SPANS,
   mergeTraceSpans,
   sortTraceSpans,
   traceKey,
@@ -70,15 +71,19 @@ export function useTraces(): TraceViewerData {
       }
 
       setSnapshot((current) => {
-        const spans =
-          current.recordingStartedAt === payload.recordingStartedAt
-            ? mergeTraceSpans(payload.spans, current.spans)
-            : sortTraceSpans(payload.spans);
+        const sameRecording =
+          current.recordingStartedAt === payload.recordingStartedAt;
+        const spans = sameRecording
+          ? mergeTraceSpans(payload.spans, current.spans)
+          : sortTraceSpans(payload.spans);
 
         return {
           recordingStartedAt: payload.recordingStartedAt,
           spans,
-          truncated: payload.truncated,
+          truncated:
+            payload.truncated ||
+            payload.spans.length > DESKTOP_TRACE_MAX_SPANS ||
+            (sameRecording && current.truncated),
         };
       });
     } catch (cause) {
@@ -93,11 +98,18 @@ export function useTraces(): TraceViewerData {
   }, []);
 
   React.useEffect(() => {
-    const controller = new AbortController();
-    let events: EventSource | null = null;
     let flushTimer: number | null = null;
-    let startTimer: number | null = null;
+    let pendingTruncated = false;
     const pending = new Map<string, DesktopTraceSpan>();
+
+    const clearPending = () => {
+      pending.clear();
+      pendingTruncated = false;
+      if (flushTimer !== null) {
+        window.clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+    };
 
     const flush = () => {
       flushTimer = null;
@@ -105,53 +117,76 @@ export function useTraces(): TraceViewerData {
         return;
       }
       const batch = [...pending.values()];
+      const batchTruncated = pendingTruncated;
       pending.clear();
-      setSnapshot((current) => ({
-        ...current,
-        spans: mergeTraceSpans(current.spans, batch),
-      }));
+      pendingTruncated = false;
+      setSnapshot((current) => {
+        const spans = mergeTraceSpans(current.spans, batch);
+        return {
+          ...current,
+          spans,
+          truncated:
+            current.truncated ||
+            batchTruncated ||
+            current.spans.length + batch.length > DESKTOP_TRACE_MAX_SPANS,
+        };
+      });
     };
 
-    const connect = () => {
-      if (controller.signal.aborted) {
+    const events = new EventSource("/trace-events");
+    events.addEventListener("snapshot", (event) => {
+      if (!(event instanceof MessageEvent)) {
         return;
       }
-
-      events = new EventSource("/trace-events");
-      events.addEventListener("span", (event) => {
-        if (!(event instanceof MessageEvent)) {
-          return;
+      try {
+        const payload = JSON.parse(event.data) as DesktopTraceResponse;
+        latestRequest.current += 1;
+        clearPending();
+        const spans = sortTraceSpans(payload.spans);
+        setSnapshot({
+          recordingStartedAt: payload.recordingStartedAt,
+          spans,
+          truncated:
+            payload.truncated || payload.spans.length > DESKTOP_TRACE_MAX_SPANS,
+        });
+        setError(null);
+        setLoading(false);
+      } catch {
+        setError("The live trace snapshot was invalid. Refresh to try again.");
+        setLoading(false);
+      }
+    });
+    events.addEventListener("span", (event) => {
+      if (!(event instanceof MessageEvent)) {
+        return;
+      }
+      try {
+        const span = JSON.parse(event.data) as DesktopTraceSpan;
+        const key = traceKey(span);
+        if (!pending.has(key) && pending.size >= DESKTOP_TRACE_MAX_SPANS) {
+          const oldestKey = pending.keys().next().value;
+          if (oldestKey !== undefined) {
+            pending.delete(oldestKey);
+            pendingTruncated = true;
+          }
         }
-        try {
-          const span = JSON.parse(event.data) as DesktopTraceSpan;
-          pending.set(traceKey(span), span);
-          flushTimer ??= window.setTimeout(flush, 50);
-        } catch {
-          // Ignore an isolated malformed event and keep the reconnecting stream alive.
-        }
-      });
-      events.addEventListener("open", () => setLiveStatus("Live"));
-      events.addEventListener("error", () =>
-        setLiveStatus("Live stream reconnecting"),
-      );
-    };
-
-    startTimer = window.setTimeout(() => {
-      startTimer = null;
-      void loadHistory(controller.signal).finally(connect);
-    }, 0);
+        pending.set(key, span);
+        flushTimer ??= window.setTimeout(flush, 50);
+      } catch {
+        // Ignore an isolated malformed event and keep the reconnecting stream alive.
+      }
+    });
+    events.addEventListener("open", () => setLiveStatus("Live"));
+    events.addEventListener("error", () =>
+      setLiveStatus("Live stream reconnecting"),
+    );
 
     return () => {
-      controller.abort();
-      events?.close();
-      if (startTimer !== null) {
-        window.clearTimeout(startTimer);
-      }
-      if (flushTimer !== null) {
-        window.clearTimeout(flushTimer);
-      }
+      latestRequest.current += 1;
+      events.close();
+      clearPending();
     };
-  }, [loadHistory]);
+  }, []);
 
   const refresh = React.useCallback(() => loadHistory(), [loadHistory]);
 

@@ -78,7 +78,7 @@ function TraceDashboard() {
     statusParts.push(`${filteredSpans.length} matches`);
   }
   if (traces.truncated) {
-    statusParts.push("log window is truncated");
+    statusParts.push("trace window is truncated");
   }
   if (traces.error !== null) {
     statusParts.push("history refresh failed");
@@ -86,7 +86,7 @@ function TraceDashboard() {
 
   const emptyState = traces.loading
     ? {
-        description: "Reading completed spans from the current Lucent log.",
+        description: "Connecting to Lucent’s live trace stream.",
         title: "Loading traces",
       }
     : traces.error !== null && traces.spans.length === 0

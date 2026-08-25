@@ -1,8 +1,10 @@
-import type {
-  DesktopTraceResponse,
-  DesktopTraceSpan,
+import {
+  DESKTOP_TRACE_MAX_SPANS,
+  type DesktopTraceResponse,
+  type DesktopTraceSpan,
 } from "../../app/src/shared/ipc/diagnostics";
 
+export { DESKTOP_TRACE_MAX_SPANS };
 export type { DesktopTraceResponse, DesktopTraceSpan };
 
 export type OutcomeFilter = "all" | DesktopTraceSpan["exit"]["_tag"];
@@ -43,21 +45,77 @@ export function compareTraceStarts(
   return leftStart < rightStart ? -1 : leftStart > rightStart ? 1 : 0;
 }
 
+/** Merges a live batch without re-sorting an already ordered trace window. */
 export function mergeTraceSpans(
   current: readonly DesktopTraceSpan[],
   incoming: readonly DesktopTraceSpan[],
 ): readonly DesktopTraceSpan[] {
-  const byKey = new Map(current.map((span) => [traceKey(span), span]));
-  for (const span of incoming) {
-    byKey.set(traceKey(span), span);
+  if (incoming.length === 0) {
+    return sortTraceSpans(current);
   }
-  return [...byKey.values()].toSorted(compareTraceStarts);
+
+  const incomingByKey = new Map<string, DesktopTraceSpan>();
+  for (const span of incoming) {
+    incomingByKey.set(traceKey(span), span);
+  }
+
+  const retainedCurrent: DesktopTraceSpan[] = [];
+  let currentIsSorted = true;
+  for (const span of current) {
+    if (incomingByKey.has(traceKey(span))) {
+      continue;
+    }
+    const previous = retainedCurrent.at(-1);
+    if (previous !== undefined && compareTraceStarts(previous, span) > 0) {
+      currentIsSorted = false;
+    }
+    retainedCurrent.push(span);
+  }
+
+  const sortedCurrent = currentIsSorted
+    ? retainedCurrent
+    : retainedCurrent.toSorted(compareTraceStarts);
+  const sortedIncoming = [...incomingByKey.values()].toSorted(
+    compareTraceStarts,
+  );
+  const merged: DesktopTraceSpan[] = [];
+  let currentIndex = 0;
+  let incomingIndex = 0;
+
+  while (
+    currentIndex < sortedCurrent.length &&
+    incomingIndex < sortedIncoming.length
+  ) {
+    if (
+      compareTraceStarts(
+        sortedCurrent[currentIndex],
+        sortedIncoming[incomingIndex],
+      ) <= 0
+    ) {
+      merged.push(sortedCurrent[currentIndex]);
+      currentIndex += 1;
+    } else {
+      merged.push(sortedIncoming[incomingIndex]);
+      incomingIndex += 1;
+    }
+  }
+
+  merged.push(
+    ...sortedCurrent.slice(currentIndex),
+    ...sortedIncoming.slice(incomingIndex),
+  );
+  return merged.length > DESKTOP_TRACE_MAX_SPANS
+    ? merged.slice(-DESKTOP_TRACE_MAX_SPANS)
+    : merged;
 }
 
 export function sortTraceSpans(
   spans: readonly DesktopTraceSpan[],
 ): readonly DesktopTraceSpan[] {
-  return spans.toSorted(compareTraceStarts);
+  const sorted = spans.toSorted(compareTraceStarts);
+  return sorted.length > DESKTOP_TRACE_MAX_SPANS
+    ? sorted.slice(-DESKTOP_TRACE_MAX_SPANS)
+    : sorted;
 }
 
 export function formatDuration(durationMs: number): string {
