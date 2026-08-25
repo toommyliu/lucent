@@ -3,14 +3,21 @@ import { join } from "path";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
+import {
+  DesktopTraceSpanSchema,
+  type DesktopTraceResponse,
+  type DesktopTraceSpan,
+} from "../../../shared/ipc";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import {
   appendDesktopLogRecord,
   desktopLogErrorDetails,
   makeBufferedDesktopLogWriter,
 } from "./DesktopLogWriter";
+import { makeDesktopTraceBuffer } from "./DesktopTraceBuffer";
 
 export type ObservabilityLevel = "debug" | "error" | "info" | "warn";
 
@@ -42,9 +49,10 @@ export interface DesktopObservabilityShape {
   readonly logFilePath: string;
   readonly record: (record: DesktopDiagnosticRecord) => Effect.Effect<void>;
   readonly recordUnsafe: (record: DesktopDiagnosticRecord) => void;
-  readonly subscribe: (
-    listener: (record: DesktopDiagnosticRecord) => void,
+  readonly subscribeTrace: (
+    listener: (span: DesktopTraceSpan) => void,
   ) => () => void;
+  readonly traceSnapshot: () => DesktopTraceResponse;
   readonly warn: (
     component: string,
     message: string,
@@ -65,9 +73,11 @@ const makeDesktopObservability = Effect.gen(function* () {
     env.debug === true
       ? makeBufferedDesktopLogWriter(logsDir, logFilePath)
       : undefined;
-  const diagnosticListeners = new Set<
-    (record: DesktopDiagnosticRecord) => void
-  >();
+  const recordingStartedAt =
+    bufferedWriter === undefined ? null : new Date().toISOString();
+  const traceBuffer = makeDesktopTraceBuffer(recordingStartedAt);
+  const traceListeners = new Set<(span: DesktopTraceSpan) => void>();
+  const isDesktopTraceSpan = Schema.is(DesktopTraceSpanSchema);
 
   const writeRecord = (
     level: ObservabilityLevel,
@@ -132,17 +142,26 @@ const makeDesktopObservability = Effect.gen(function* () {
               ? {}
               : { error: desktopLogErrorDetails(diagnostic.cause) }),
           });
-          for (const listener of diagnosticListeners) {
-            try {
-              listener(diagnostic);
-            } catch {}
+          if (
+            diagnostic.component === "trace" &&
+            diagnostic.event === "span.completed" &&
+            isDesktopTraceSpan(diagnostic.data)
+          ) {
+            traceBuffer.append(diagnostic.data);
+            for (const listener of traceListeners) {
+              try {
+                listener(diagnostic.data);
+              } catch {}
+            }
           }
         };
 
-  const subscribe: DesktopObservabilityShape["subscribe"] = (listener) => {
-    diagnosticListeners.add(listener);
+  const subscribeTrace: DesktopObservabilityShape["subscribeTrace"] = (
+    listener,
+  ) => {
+    traceListeners.add(listener);
     return () => {
-      diagnosticListeners.delete(listener);
+      traceListeners.delete(listener);
     };
   };
 
@@ -183,9 +202,9 @@ const makeDesktopObservability = Effect.gen(function* () {
     );
   });
 
-  if (bufferedWriter !== undefined) {
+  if (bufferedWriter !== undefined && recordingStartedAt !== null) {
     bufferedWriter.write({
-      at: new Date().toISOString(),
+      at: recordingStartedAt,
       level: "debug",
       component: "startup",
       message: "Diagnostic recording started",
@@ -223,7 +242,8 @@ const makeDesktopObservability = Effect.gen(function* () {
     logFilePath,
     record,
     recordUnsafe,
-    subscribe,
+    subscribeTrace,
+    traceSnapshot: traceBuffer.snapshot,
     warn,
   });
 });

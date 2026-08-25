@@ -77,6 +77,8 @@ export const DesktopTraceSpanSchema = Schema.Struct({
 
 export type DesktopTraceSpan = typeof DesktopTraceSpanSchema.Type;
 
+export const DESKTOP_TRACE_MAX_SPANS = 20_000;
+
 export interface DesktopTraceResponse {
   readonly recordingStartedAt: string | null;
   readonly spans: readonly DesktopTraceSpan[];

@@ -20,7 +20,6 @@ import { GameConsoleIpc } from "../../../shared/ipc";
 import { Accounts } from "../../internal/accounts/Accounts";
 import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopObservability } from "./DesktopObservability";
-import { isDesktopTraceSpan, loadLatestDesktopTraces } from "./DesktopTraceLog";
 import {
   type GameConsoleMessageQuery,
   type GameConsoleStore,
@@ -80,9 +79,9 @@ export class DesktopObservabilityServerStartError extends Schema.TaggedErrorClas
 
 interface DesktopObservabilityHttpHandlerOptions {
   readonly assetRoot: string;
-  readonly consoleClients: Set<ServerResponse>;
-  readonly logFilePath: string;
-  readonly traceClients: Set<ServerResponse>;
+  readonly consoleClients: Set<SseClient>;
+  readonly traceClients: Set<SseClient>;
+  readonly traceSnapshot: DesktopObservability["Service"]["traceSnapshot"];
 }
 
 const decodeRendererMessagePayload = Option.liftThrowable(
@@ -228,43 +227,105 @@ const serveObservabilityAsset = (
     });
 };
 
+interface SseSnapshot {
+  readonly event: string;
+  readonly read: () => unknown;
+}
+
+interface SseClient {
+  readonly close: () => void;
+  readonly publish: (event: string, data: unknown) => void;
+}
+
+const ssePayload = (event: string, data: unknown): string =>
+  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
 const openSse = (
   request: IncomingMessage,
   response: ServerResponse,
-  clients: Set<ServerResponse>,
+  clients: Set<SseClient>,
+  snapshot?: SseSnapshot,
 ): void => {
   response.statusCode = 200;
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("Connection", "keep-alive");
   response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.write(": connected\n\n");
-  clients.add(response);
-  request.once("close", () => {
-    clients.delete(response);
-  });
+  let blocked = false;
+  let closed = false;
+  let needsSnapshot = false;
+
+  const remove = (): void => {
+    clients.delete(client);
+    response.removeListener("drain", handleDrain);
+  };
+  const fail = (): void => {
+    if (closed) return;
+    closed = true;
+    remove();
+    response.destroy();
+  };
+  const write = (payload: string): void => {
+    try {
+      blocked = !response.write(payload);
+    } catch {
+      fail();
+    }
+  };
+  const publish = (event: string, data: unknown): void => {
+    if (closed) return;
+    if (blocked) {
+      if (snapshot === undefined) {
+        fail();
+      } else {
+        needsSnapshot = true;
+      }
+      return;
+    }
+    try {
+      write(ssePayload(event, data));
+    } catch {
+      fail();
+    }
+  };
+  const refreshSnapshot = (): void => {
+    if (snapshot === undefined || closed) return;
+    needsSnapshot = false;
+    publish(snapshot.event, snapshot.read());
+  };
+  function handleDrain(): void {
+    blocked = false;
+    if (needsSnapshot) refreshSnapshot();
+  }
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    remove();
+    response.end();
+  };
+  const client: SseClient = { close, publish };
+
+  clients.add(client);
+  response.on("drain", handleDrain);
+  request.once("close", close);
+  write(": connected\n\n");
+  refreshSnapshot();
 };
 
 const publishSseEvent = (
-  clients: Set<ServerResponse>,
+  clients: Set<SseClient>,
   event: string,
   data: unknown,
 ): void => {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const client of clients) {
-    try {
-      client.write(payload);
-    } catch {
-      clients.delete(client);
-    }
+    client.publish(event, data);
   }
 };
 
-const closeSseClients = (clients: Set<ServerResponse>): void => {
+const closeSseClients = (clients: Set<SseClient>): void => {
   for (const client of clients) {
-    client.end();
+    client.close();
   }
-  clients.clear();
 };
 
 /**
@@ -276,7 +337,7 @@ const closeSseClients = (clients: Set<ServerResponse>): void => {
  *   `limit`, `windowId`, `generation`, `username`, and `q`.
  * - `/api/messages.ndjson` returns the same rows as newline-delimited JSON.
  * - `/api/state` returns the game-console buffer and window state.
- * - `/api/traces` reads completed app-wide spans from the rotating desktop log.
+ * - `/api/traces` returns the bounded in-memory completed-span snapshot.
  * - `/events` streams game-console and window-state events with SSE.
  * - `/trace-events` streams newly completed app-wide spans with SSE.
  * - `/health` returns the server and game-console buffer status.
@@ -315,26 +376,16 @@ export const createDesktopObservabilityHttpHandler =
         writeJson(response, store.state());
         return;
       case "/api/traces":
-        void loadLatestDesktopTraces(options.logFilePath)
-          .then((traces) => writeJson(response, traces))
-          .catch((cause: unknown) =>
-            writeJson(
-              response,
-              {
-                error:
-                  cause instanceof Error
-                    ? cause.message
-                    : "Failed to read traces",
-              },
-              500,
-            ),
-          );
+        writeJson(response, options.traceSnapshot());
         return;
       case "/events":
         openSse(request, response, options.consoleClients);
         return;
       case "/trace-events":
-        openSse(request, response, options.traceClients);
+        openSse(request, response, options.traceClients, {
+          event: "snapshot",
+          read: options.traceSnapshot,
+        });
         return;
       case "/health": {
         const state = store.state();
@@ -400,8 +451,8 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
     "DesktopObservabilityServer.install",
   )(function* (options) {
     const store = makeGameConsoleStore();
-    const consoleClients = new Set<ServerResponse>();
-    const traceClients = new Set<ServerResponse>();
+    const consoleClients = new Set<SseClient>();
+    const traceClients = new Set<SseClient>();
     const publishConsole = (event: string, data: unknown): void => {
       publishSseEvent(consoleClients, event, data);
     };
@@ -509,21 +560,15 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
       ipcMain.on(GameConsoleIpc.rendererMessage.channel, handleRendererMessage);
     });
 
-    const unsubscribeTraces = observability.subscribe((record) => {
-      if (
-        record.component === "trace" &&
-        record.event === "span.completed" &&
-        isDesktopTraceSpan(record.data)
-      ) {
-        publishSseEvent(traceClients, "span", record.data);
-      }
+    const unsubscribeTraces = observability.subscribeTrace((span) => {
+      publishSseEvent(traceClients, "span", span);
     });
     const server = createServer(
       createDesktopObservabilityHttpHandler(store, {
         assetRoot: DEFAULT_OBSERVABILITY_ASSET_ROOT,
         consoleClients,
-        logFilePath: observability.logFilePath,
         traceClients,
+        traceSnapshot: observability.traceSnapshot,
       }),
     );
     let cleanedUp = false;

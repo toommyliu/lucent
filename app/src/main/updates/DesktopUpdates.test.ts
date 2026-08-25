@@ -138,7 +138,12 @@ const makeUpdatesHarness = (options: {
       logFilePath: join(env.appDataDir, "logs", "lucent.log"),
       record: () => Effect.void,
       recordUnsafe: () => undefined,
-      subscribe: () => () => undefined,
+      subscribeTrace: () => () => undefined,
+      traceSnapshot: () => ({
+        recordingStartedAt: null,
+        spans: [],
+        truncated: false,
+      }),
       warn: () => Effect.void,
     });
     const app = ElectronApp.of({
