@@ -346,20 +346,13 @@ describe("Projection", () => {
     }),
   );
 
-  it.effect("projects class-point gains and absolute class updates", () =>
+  it.effect("projects class-point gains", () =>
     Effect.gen(function* () {
       const store = yield* makeStore;
       const pipeline = makePipeline(store, {
         publishEvent: () => Effect.void,
       });
 
-      yield* store.auth.setCredentials("Hero", "");
-      yield* pipeline.packet(
-        extension("initUserData", {
-          data: { strUsername: "Hero" },
-          uid: 10,
-        }),
-      );
       yield* pipeline.packet(
         extension("loadInventoryBig", {
           items: [
@@ -370,14 +363,6 @@ describe("Projection", () => {
               iQty: 99_400,
               sES: "ar",
               sName: "Barber",
-              sType: "Class",
-            },
-            {
-              CharItemID: 102,
-              ItemID: 2,
-              iQty: 3_600,
-              sES: "ar",
-              sName: "Mage",
               sType: "Class",
             },
           ],
@@ -410,30 +395,6 @@ describe("Projection", () => {
       );
       expect((yield* store.items.get("inventory", "Barber"))?.quantity).toBe(
         99_400,
-      );
-
-      yield* pipeline.packet(
-        extension("updateClass", {
-          cmd: "updateClass",
-          iCP: 10_000,
-          sClassName: "Mage",
-          uid: 11,
-        }),
-      );
-      expect((yield* store.items.get("inventory", "Mage"))?.quantity).toBe(
-        3_600,
-      );
-
-      yield* pipeline.packet(
-        extension("updateClass", {
-          cmd: "updateClass",
-          iCP: 10_000,
-          sClassName: "Mage",
-          uid: 10,
-        }),
-      );
-      expect((yield* store.items.get("inventory", "Mage"))?.quantity).toBe(
-        10_000,
       );
     }),
   );

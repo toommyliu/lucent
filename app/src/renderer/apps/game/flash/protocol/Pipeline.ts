@@ -101,7 +101,6 @@ const extensionWorldCommands = new Set([
   "event",
   "respawnMon",
   "addGoldExp",
-  "updateClass",
   "mtcid",
 ]);
 

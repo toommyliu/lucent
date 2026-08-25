@@ -51,11 +51,6 @@ const GoldExperience = Schema.Struct({
   typ: Schema.String,
 });
 const ClassPointGain = Schema.Struct({ iCP: WireInt });
-const ClassUpdate = Schema.Struct({
-  iCP: WireInt,
-  sClassName: Schema.String,
-  uid: PositiveWireInt,
-});
 const NullablePlayerData = Schema.NullOr(UnknownRecord);
 const decodeMoveArea = Schema.decodeUnknownOption(MoveArea);
 const decodeRecord = Schema.decodeUnknownOption(UnknownRecord);
@@ -68,7 +63,6 @@ const decodeInitUser = Schema.decodeUnknownOption(InitUser);
 const decodePlayerBaselines = Schema.decodeUnknownOption(PlayerBaselines);
 const decodeGoldExperience = Schema.decodeUnknownOption(GoldExperience);
 const decodeClassPointGain = Schema.decodeUnknownOption(ClassPointGain);
-const decodeClassUpdate = Schema.decodeUnknownOption(ClassUpdate);
 const decodeInt = Schema.decodeUnknownOption(WireInt);
 const decodePositiveInt = Schema.decodeUnknownOption(PositiveWireInt);
 const decodeString = Schema.decodeUnknownOption(Schema.String);
@@ -819,26 +813,6 @@ export const projectExtensionWorld = (
         return result?.becameDead
           ? [{ type: "monster-death", monsterMapId: decoded.value.id }]
           : [];
-      }
-      case "updateClass": {
-        const decoded = decodeClassUpdate(packet.data);
-        if (Option.isNone(decoded)) {
-          yield* diagnose(
-            "world:updateClass",
-            new Error("Malformed class update"),
-            [packet.data],
-          );
-          return [];
-        }
-
-        const selfEntityId = yield* store.world.getSelfEntityId;
-        if (selfEntityId !== decoded.value.uid) return [];
-
-        const classItem = (yield* store.items.getAll("inventory")).find(
-          (item) => item.classItem && item.matches(decoded.value.sClassName),
-        );
-        classItem?.update({ quantity: Math.max(0, decoded.value.iCP) });
-        return [];
       }
       default:
         return [];
