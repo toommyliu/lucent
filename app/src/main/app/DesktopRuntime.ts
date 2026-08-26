@@ -9,6 +9,7 @@ import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import { DesktopObservability } from "./DesktopObservability";
+import { installDesktopRendererObservability } from "./DesktopRendererObservability";
 import {
   DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
   GameConsoleObservability,
@@ -77,6 +78,9 @@ export const makeDesktopRuntime = (
       const windows = yield* DesktopWindows;
 
       yield* observability.installProcessHooks;
+      if (env.debug === true) {
+        yield* installDesktopRendererObservability;
+      }
       yield* lifecycle.register;
       yield* observability.info("startup", "Lucent desktop runtime starting", {
         appDataDir: env.appDataDir,

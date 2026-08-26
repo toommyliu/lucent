@@ -20,6 +20,10 @@ import { Accounts } from "../internal/accounts/Accounts";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { INITIAL_WINDOW_GENERATION } from "../window/WindowGeneration";
 import { DesktopObservability } from "./DesktopObservability";
+import {
+  makeDesktopTraceViewer,
+  type DesktopTraceViewerHandler,
+} from "./DesktopTraceViewer";
 
 /**
  * Game window console observability.
@@ -141,6 +145,7 @@ interface GameConsoleStoreOptions {
 
 interface GameConsoleHttpHandlerOptions {
   readonly addSseClient?: (response: ServerResponse) => () => void;
+  readonly handleTraceRequest?: DesktopTraceViewerHandler;
 }
 
 const decodeRendererMessagePayload = Option.liftThrowable(
@@ -562,6 +567,27 @@ const dashboardHtml = `<!doctype html>
       .status {
         color: var(--muted);
         font-size: 11px;
+        margin-left: auto;
+      }
+      header nav {
+        display: flex;
+        gap: 3px;
+      }
+      header a {
+        border-radius: 2px;
+        color: var(--muted);
+        font-size: 11px;
+        padding: 2px 6px;
+        text-decoration: none;
+      }
+      header a:hover,
+      header a[aria-current="page"] {
+        background: var(--control);
+        color: var(--text);
+      }
+      :focus-visible {
+        outline: 2px solid #8ab4f8;
+        outline-offset: 2px;
       }
       main {
         flex: 1;
@@ -697,6 +723,10 @@ const dashboardHtml = `<!doctype html>
   </head>
   <body>
     <header>
+      <nav aria-label="Observability views">
+        <a href="/" aria-current="page">Console</a>
+        <a href="/traces">Traces</a>
+      </nav>
       <div class="status" id="status">Connecting...</div>
     </header>
     <section class="toolbar">
@@ -1133,6 +1163,9 @@ const dashboardHtml = `<!doctype html>
  * - `/api/messages.ndjson` returns the same filtered rows as newline-delimited
  *   JSON for agents and shell tools.
  * - `/api/state` returns buffer stats and active/closed game-window state.
+ * - `/traces` renders the trace waterfall and `/api/traces` reads its spans
+ *   from the existing rotating log on demand. `/trace-events` streams new
+ *   spans while a viewer is connected.
  * - `/events` streams new messages and window/session updates with SSE.
  * - `/health` returns a small health/status payload.
  */
@@ -1148,6 +1181,9 @@ export const createGameConsoleHttpHandler =
     }
 
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (options.handleTraceRequest?.(request, response, url) === true) {
+      return;
+    }
     switch (url.pathname) {
       case "/":
         writeResponse(response, 200, "text/html; charset=utf-8", dashboardHtml);
@@ -1281,13 +1317,27 @@ const makeGameConsoleObservability = Effect.gen(function* () {
           windows.getRendererKind(rendererId).pipe(
             Effect.flatMap((kind) =>
               kind === "game"
-                ? Effect.sync(() => {
-                    const row = store.appendMessage({
-                      gameWindowId: rendererId,
-                      message: payload.message,
-                    });
-                    publish("message", row);
-                  })
+                ? observability
+                    .record({
+                      component: "renderer",
+                      event: "console",
+                      data: {
+                        message: payload.message,
+                        rendererId,
+                        view: kind,
+                      },
+                    })
+                    .pipe(
+                      Effect.flatMap(() =>
+                        Effect.sync(() => {
+                          const row = store.appendMessage({
+                            gameWindowId: rendererId,
+                            message: payload.message,
+                          });
+                          publish("message", row);
+                        }),
+                      ),
+                    )
                 : Effect.void,
             ),
             Effect.catch(() => Effect.void),
@@ -1350,6 +1400,12 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         );
       });
 
+      const traceViewer = makeDesktopTraceViewer(observability.logFilePath);
+      const unsubscribeTraces = observability.subscribe((record) => {
+        if (record.component === "trace" && record.event === "span.completed") {
+          traceViewer.publish(record.data);
+        }
+      });
       const server = createServer(
         createGameConsoleHttpHandler(store, {
           addSseClient: (response) => {
@@ -1358,6 +1414,7 @@ const makeGameConsoleObservability = Effect.gen(function* () {
               sseClients.delete(response);
             };
           },
+          handleTraceRequest: traceViewer.handle,
         }),
       );
       let cleanedUp = false;
@@ -1375,6 +1432,8 @@ const makeGameConsoleObservability = Effect.gen(function* () {
         unsubscribeClosed();
         unsubscribeCreated();
         unsubscribeReloaded();
+        unsubscribeTraces();
+        traceViewer.close();
         for (const client of sseClients) {
           client.end();
         }
