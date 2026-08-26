@@ -30,6 +30,7 @@ import {
   updateInlineSearchQuery,
   type VirtualListApi,
   type VirtualListItem,
+  useVirtualListItemPosition,
 } from "./VirtualList";
 
 export interface SelectOption extends CollectionItem {
@@ -39,7 +40,6 @@ export interface SelectOption extends CollectionItem {
 }
 
 interface SelectContextValue {
-  readonly items: Accessor<readonly SelectOption[]>;
   readonly registerItem: (item: SelectOption) => void;
   readonly setItemsOverride: (
     items: readonly SelectOption[] | undefined,
@@ -100,7 +100,6 @@ export function Select(props: SelectProps): JSX.Element {
     }),
   );
   const context: SelectContextValue = {
-    items,
     registerItem(item) {
       setRegisteredItems((items) => {
         const next = items.filter(
@@ -120,6 +119,14 @@ export function Select(props: SelectProps): JSX.Element {
       );
     },
   };
+  const handleScrollToIndex: SelectScrollToIndexHandler = (details) => {
+    const handler = scrollToIndex();
+    if (handler !== undefined) {
+      handler(details);
+      return;
+    }
+    local.scrollToIndexFn?.(details);
+  };
   const { positioned, positioning } = createPositioningReady(() => ({
     ...defaultSelectPositioning,
     ...local.positioning,
@@ -134,14 +141,11 @@ export function Select(props: SelectProps): JSX.Element {
           collection={collection()}
           data-slot="select"
           positioning={positioning()}
-          scrollToIndexFn={(details) => {
-            const handler = scrollToIndex();
-            if (handler !== undefined) {
-              handler(details);
-              return;
-            }
-            local.scrollToIndexFn?.(details);
-          }}
+          scrollToIndexFn={
+            scrollToIndex() === undefined && local.scrollToIndexFn === undefined
+              ? undefined
+              : handleScrollToIndex
+          }
         >
           {local.children}
         </SelectPrimitive.Root>
@@ -266,16 +270,27 @@ function SelectContentFrame(props: {
     getPositionerStyle(positioned(), dialogFloatingZIndex);
   createEffect(() => {
     const element = contentElement();
-    if (element === undefined) return;
+    const onKeyDownCapture = props.onKeyDownCapture;
+    const view = element?.ownerDocument.defaultView;
+    if (
+      element === undefined ||
+      onKeyDownCapture === undefined ||
+      view === undefined ||
+      view === null
+    ) {
+      return;
+    }
 
-    // The focused content owns Ark's typeahead. Capture printable keys first
-    // when this frame hosts a filtered virtual list.
+    // Ark listens for Escape on document capture and handles listbox keys on
+    // the content. Window capture lets the virtual list run before both.
     const handleKeyDown = (event: KeyboardEvent): void => {
-      props.onKeyDownCapture?.(event);
+      const target = event.target;
+      if (!(target instanceof view.Node) || !element.contains(target)) return;
+      onKeyDownCapture(event);
     };
-    element.addEventListener("keydown", handleKeyDown, { capture: true });
+    view.addEventListener("keydown", handleKeyDown, { capture: true });
     onCleanup(() =>
-      element.removeEventListener("keydown", handleKeyDown, { capture: true }),
+      view.removeEventListener("keydown", handleKeyDown, { capture: true }),
     );
   });
   const content = () => (
@@ -342,6 +357,7 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
   let listElement: HTMLDivElement | undefined;
   let searchInputElement: HTMLInputElement | undefined;
   let virtualList: VirtualListApi | undefined;
+  let searchOriginValue: string | null = null;
   const filteredItems = createMemo(() =>
     local.searchable === true
       ? filterVirtualListItems(local.items, query())
@@ -353,27 +369,49 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
     if (index >= 0) virtualList?.scrollToIndex(index);
   };
   const setSearchQuery = (nextQuery: string): void => {
+    const currentValue = select().highlightedValue ?? select().value[0] ?? null;
+    if (query() === "" && nextQuery !== "") {
+      searchOriginValue = currentValue;
+    }
+
     setQuery(nextQuery);
     virtualList?.scrollToStart();
-    if (nextQuery === "") {
-      queueMicrotask(() => {
-        listElement
-          ?.closest<HTMLElement>('[data-slot="select-content"]')
-          ?.focus({ preventScroll: true });
-      });
+    if (nextQuery !== "") {
+      const firstItem = filterVirtualListItems(local.items, nextQuery).find(
+        (item) => item.disabled !== true,
+      );
+      if (firstItem === undefined) {
+        select().clearHighlightValue();
+      } else {
+        select().setHighlightValue(firstItem.value);
+      }
+      return;
     }
+
+    const restoredValue = currentValue ?? searchOriginValue;
+    searchOriginValue = null;
+    queueMicrotask(() => {
+      if (restoredValue !== null) {
+        select().setHighlightValue(restoredValue);
+      }
+      listElement
+        ?.closest<HTMLElement>('[data-slot="select-content"]')
+        ?.focus({ preventScroll: true });
+      scrollToValue(restoredValue);
+    });
   };
 
   createComputed(() => {
     if (!select().open && query() !== "") {
       setQuery("");
+      searchOriginValue = null;
     }
   });
   createEffect(() => {
     context.setItemsOverride(filteredItems());
   });
   context.setScrollToIndex((details) => {
-    virtualList?.scrollToIndex(details.index);
+    if (details.index >= 0) virtualList?.scrollToIndex(details.index);
   });
   onCleanup(() => {
     context.setItemsOverride(undefined);
@@ -391,14 +429,7 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
         return;
       }
 
-      const highlightedValue = select().highlightedValue ?? select().value[0];
-      setQuery("");
-      queueMicrotask(() => {
-        listElement
-          ?.closest<HTMLElement>('[data-slot="select-content"]')
-          ?.focus({ preventScroll: true });
-        scrollToValue(highlightedValue);
-      });
+      setSearchQuery("");
       return;
     }
 
@@ -488,6 +519,8 @@ export interface SelectItemProps extends Omit<
 
 export function SelectItem(props: SelectItemProps): JSX.Element {
   const [local, rest] = splitProps(props, [
+    "aria-posinset",
+    "aria-setsize",
     "children",
     "class",
     "disabled",
@@ -496,6 +529,7 @@ export function SelectItem(props: SelectItemProps): JSX.Element {
     "value",
   ]);
   const context = useContext(SelectItemsContext);
+  const virtualPosition = useVirtualListItemPosition();
   const childLabel = (): string | undefined => {
     const child = local.children;
     if (typeof child === "string" || typeof child === "number") {
@@ -530,6 +564,11 @@ export function SelectItem(props: SelectItemProps): JSX.Element {
   return (
     <SelectPrimitive.Item
       {...rest}
+      aria-posinset={
+        local["aria-posinset"] ??
+        (virtualPosition === undefined ? undefined : virtualPosition.index + 1)
+      }
+      aria-setsize={local["aria-setsize"] ?? virtualPosition?.setSize()}
       class={cn("select__item", local.class)}
       data-slot="select-item"
       item={item()}

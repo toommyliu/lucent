@@ -25,22 +25,78 @@ import {
   updateInlineSearchQuery,
   type VirtualListApi,
   type VirtualListItem,
+  useVirtualListItemPosition,
 } from "./VirtualList";
 
 export type MenuProps = Parameters<typeof MenuPrimitive.Root>[0];
 
 const MenuPositionedContext = createContext<Accessor<boolean>>();
 
+interface MenuVirtualGroupRegistration {
+  readonly getElement: () => HTMLElement | undefined;
+  readonly handleKeyDown: (event: KeyboardEvent) => void;
+  readonly isHighlighted: () => boolean;
+  readonly isSearchActive: () => boolean;
+  readonly ownsEventTarget: (target: EventTarget | null) => boolean;
+}
+
 interface MenuVirtualContextValue {
-  readonly keyDownHandler: Accessor<
-    ((event: KeyboardEvent) => void) | undefined
-  >;
-  readonly setKeyDownHandler: (
-    handler: ((event: KeyboardEvent) => void) | undefined,
-  ) => void;
+  readonly dispatchKeyDown: (event: KeyboardEvent) => void;
+  readonly registerGroup: (
+    registration: MenuVirtualGroupRegistration,
+  ) => VoidFunction;
 }
 
 const MenuVirtualContext = createContext<MenuVirtualContextValue>();
+
+function orderVirtualMenuGroups(
+  registrations: ReadonlySet<MenuVirtualGroupRegistration>,
+): MenuVirtualGroupRegistration[] {
+  return [...registrations]
+    .filter((registration) => registration.getElement() !== undefined)
+    .toSorted((left, right) => {
+      const leftElement = left.getElement();
+      const rightElement = right.getElement();
+      if (leftElement === undefined || rightElement === undefined) return 0;
+
+      const node = leftElement.ownerDocument.defaultView?.Node;
+      if (
+        node === undefined ||
+        leftElement.ownerDocument !== rightElement.ownerDocument
+      ) {
+        return 0;
+      }
+
+      const position = leftElement.compareDocumentPosition(rightElement);
+      if ((position & node.DOCUMENT_POSITION_FOLLOWING) !== 0) return -1;
+      if ((position & node.DOCUMENT_POSITION_PRECEDING) !== 0) return 1;
+      return 0;
+    });
+}
+
+function dispatchVirtualMenuKeyDown(
+  registrations: ReadonlySet<MenuVirtualGroupRegistration>,
+  event: KeyboardEvent,
+): void {
+  const groups = orderVirtualMenuGroups(registrations);
+  const targetGroup = groups.find((group) =>
+    group.ownsEventTarget(event.target),
+  );
+  if (targetGroup !== undefined) {
+    targetGroup.handleKeyDown(event);
+    return;
+  }
+
+  const searchGroup = groups.find((group) => group.isSearchActive());
+  const group =
+    searchGroup ??
+    (event.key === "Home"
+      ? groups[0]
+      : event.key === "End"
+        ? groups.at(-1)
+        : groups.find((candidate) => candidate.isHighlighted()));
+  group?.handleKeyDown(event);
+}
 
 function useMenuPositioned(): Accessor<boolean> {
   const positioned = useContext(MenuPositionedContext);
@@ -56,14 +112,14 @@ export function Menu(props: MenuProps): JSX.Element {
     "onEscapeKeyDown",
     "positioning",
   ]);
-  const [keyDownHandler, setStoredKeyDownHandler] = createSignal<
-    ((event: KeyboardEvent) => void) | undefined
-  >();
+  const virtualGroups = new Set<MenuVirtualGroupRegistration>();
   const virtualContext: MenuVirtualContextValue = {
-    keyDownHandler,
-    setKeyDownHandler(handler) {
-      // Solid treats a bare function passed to a setter as an updater.
-      setStoredKeyDownHandler(() => handler);
+    dispatchKeyDown(event) {
+      dispatchVirtualMenuKeyDown(virtualGroups, event);
+    },
+    registerGroup(registration) {
+      virtualGroups.add(registration);
+      return () => virtualGroups.delete(registration);
     },
   };
   const { positioned, positioning } = createPositioningReady(
@@ -71,7 +127,7 @@ export function Menu(props: MenuProps): JSX.Element {
   );
   const handleEscapeKeyDown = (event: KeyboardEvent): void => {
     local.onEscapeKeyDown?.(event);
-    if (!event.defaultPrevented) keyDownHandler()?.(event);
+    if (!event.defaultPrevented) virtualContext.dispatchKeyDown(event);
   };
 
   return (
@@ -132,7 +188,7 @@ export function MenuContent(props: MenuContentProps): JSX.Element {
     // Ark keeps focus on the content, so virtual navigation must run before
     // its DOM-based handler sees only the currently mounted rows.
     const handleKeyDown = (event: KeyboardEvent): void => {
-      virtualContext?.keyDownHandler()?.(event);
+      if (!event.defaultPrevented) virtualContext?.dispatchKeyDown(event);
     };
     element.addEventListener("keydown", handleKeyDown, { capture: true });
     onCleanup(() =>
@@ -308,6 +364,33 @@ function lastEnabledIndex<T extends VirtualListItem>(
   return items.findLastIndex((item) => item.disabled !== true);
 }
 
+function typeaheadMatchIndex<T extends VirtualListItem>(
+  items: readonly T[],
+  currentValue: string | null,
+  query: string,
+): number {
+  const currentIndex = items.findIndex((item) => item.value === currentValue);
+  const startIndex = Math.max(currentIndex, 0);
+  const normalizedQuery = query.toLocaleLowerCase();
+
+  for (let offset = 0; offset < items.length; offset += 1) {
+    const index = (startIndex + offset) % items.length;
+    const item = items[index];
+    if (
+      item === undefined ||
+      item.disabled === true ||
+      (query.length === 1 && index === currentIndex)
+    ) {
+      continue;
+    }
+    if (item.label.trim().toLocaleLowerCase().startsWith(normalizedQuery)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 export function MenuRadioGroup(props: MenuRadioGroupProps): JSX.Element {
   return (
     <MenuPrimitive.RadioItemGroup data-slot="menu-radio-group" {...props} />
@@ -338,6 +421,8 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
   let alignedScrollFrame: number | undefined;
   let groupElement: HTMLDivElement | undefined;
   let searchInputElement: HTMLInputElement | undefined;
+  let typeaheadQuery = "";
+  let typeaheadResetTimer: ReturnType<typeof setTimeout> | undefined;
   let virtualList: VirtualListApi | undefined;
   const filteredItems = createMemo(() =>
     local.searchable === true
@@ -386,7 +471,17 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
       '[role^="menuitem"][data-value]:not([data-disabled])',
     );
     const value = firstItem?.dataset["value"];
-    if (value !== undefined) menu().setHighlightedValue(value);
+    if (
+      firstItem != null &&
+      value !== undefined &&
+      (groupElement === undefined || !groupElement.contains(firstItem))
+    ) {
+      menu().setHighlightedValue(value);
+      return;
+    }
+
+    const index = firstEnabledIndex(filteredItems());
+    if (index >= 0) highlightItem(index);
   };
   const getEnabledMenuItemOutsideGroup = (
     position: "before" | "after",
@@ -448,6 +543,36 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
       });
     }
   };
+  const handleTypeahead = (event: KeyboardEvent): boolean => {
+    if (
+      event.key.length !== 1 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      (event.key === " " && typeaheadQuery === "")
+    ) {
+      return false;
+    }
+
+    const search = `${typeaheadQuery}${event.key}`;
+    const isRepeated =
+      search.length > 1 &&
+      Array.from(search).every((character) => character === search[0]);
+    const query = isRepeated ? search.slice(0, 1) : search;
+    typeaheadQuery = search;
+    if (typeaheadResetTimer !== undefined) {
+      clearTimeout(typeaheadResetTimer);
+    }
+    typeaheadResetTimer = setTimeout(() => {
+      typeaheadQuery = "";
+      typeaheadResetTimer = undefined;
+    }, 350);
+
+    const currentValue = menu().highlightedValue ?? lastHighlightedValue;
+    const index = typeaheadMatchIndex(filteredItems(), currentValue, query);
+    if (index >= 0) highlightItem(index);
+    return true;
+  };
   const handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const handled = moveHighlight(event.key === "ArrowDown" ? 1 : -1);
@@ -486,7 +611,13 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
       return;
     }
 
-    if (local.searchable !== true) return;
+    if (local.searchable !== true) {
+      if (!handleTypeahead(event)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -519,7 +650,30 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
     }
   };
 
-  context.setKeyDownHandler(handleKeyDown);
+  const unregisterGroup = context.registerGroup({
+    getElement: () => groupElement,
+    handleKeyDown,
+    isHighlighted: () => {
+      const highlightedValue = menu().highlightedValue ?? lastHighlightedValue;
+      return (
+        highlightedValue !== null &&
+        local.items.some((item) => item.value === highlightedValue)
+      );
+    },
+    isSearchActive: () => query() !== "",
+    ownsEventTarget: (target) => {
+      if (target === searchInputElement) return true;
+
+      const group = groupElement;
+      const node = group?.ownerDocument.defaultView?.Node;
+      return (
+        group !== undefined &&
+        node !== undefined &&
+        target instanceof node &&
+        group.contains(target)
+      );
+    },
+  });
   let wasOpen = false;
   createComputed(() => {
     const highlightedValue = menu().highlightedValue;
@@ -540,12 +694,20 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
     }
     if (!open) {
       lastHighlightedValue = null;
+      typeaheadQuery = "";
+      if (typeaheadResetTimer !== undefined) {
+        clearTimeout(typeaheadResetTimer);
+        typeaheadResetTimer = undefined;
+      }
       if (query() !== "") setQuery("");
     }
     wasOpen = open;
   });
   onCleanup(() => {
-    context.setKeyDownHandler(undefined);
+    unregisterGroup();
+    if (typeaheadResetTimer !== undefined) {
+      clearTimeout(typeaheadResetTimer);
+    }
     if (alignedScrollFrame !== undefined) {
       groupElement?.ownerDocument.defaultView?.cancelAnimationFrame(
         alignedScrollFrame,
@@ -611,10 +773,21 @@ export interface MenuRadioItemProps extends Omit<
 }
 
 export function MenuRadioItem(props: MenuRadioItemProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["children", "class"]);
+  const [local, rest] = splitProps(props, [
+    "aria-posinset",
+    "aria-setsize",
+    "children",
+    "class",
+  ]);
+  const virtualPosition = useVirtualListItemPosition();
   return (
     <MenuPrimitive.RadioItem
       {...rest}
+      aria-posinset={
+        local["aria-posinset"] ??
+        (virtualPosition === undefined ? undefined : virtualPosition.index + 1)
+      }
+      aria-setsize={local["aria-setsize"] ?? virtualPosition?.setSize()}
       class={cn("menu__item", "menu__option-item", local.class)}
       data-slot="menu-radio-item"
     >

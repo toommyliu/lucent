@@ -1,5 +1,13 @@
 import { createVirtualizer, type Virtualizer } from "@tanstack/solid-virtual";
-import { For, createMemo, type JSX } from "solid-js";
+import {
+  For,
+  Show,
+  createContext,
+  createMemo,
+  type Accessor,
+  type JSX,
+  useContext,
+} from "solid-js";
 import { Input } from "./Input";
 
 export interface VirtualListItem {
@@ -28,6 +36,19 @@ export interface VirtualListSearchInputProps {
   readonly onInput: JSX.EventHandler<HTMLInputElement, InputEvent>;
   readonly ref?: (element: HTMLInputElement) => void;
   readonly value: string;
+}
+
+interface VirtualListItemPosition {
+  readonly index: number;
+  readonly setSize: Accessor<number>;
+}
+
+const VirtualListItemPositionContext = createContext<VirtualListItemPosition>();
+
+export function useVirtualListItemPosition():
+  | VirtualListItemPosition
+  | undefined {
+  return useContext(VirtualListItemPositionContext);
 }
 
 const DEFAULT_VIRTUAL_ITEM_SIZE = 28;
@@ -197,9 +218,20 @@ export function VirtualList<T extends VirtualListItem>(
       <For each={virtualItems()}>
         {(virtualItem) => {
           const item = () => props.items[virtualItem.index];
-          return item() === undefined
-            ? null
-            : props.children(item()!, virtualItem.index);
+          return (
+            <Show when={item()} keyed>
+              {(currentItem) => (
+                <VirtualListItemPositionContext.Provider
+                  value={{
+                    index: virtualItem.index,
+                    setSize: () => props.items.length,
+                  }}
+                >
+                  {props.children(currentItem, virtualItem.index)}
+                </VirtualListItemPositionContext.Provider>
+              )}
+            </Show>
+          );
         }}
       </For>
       <div
