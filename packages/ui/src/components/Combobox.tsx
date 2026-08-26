@@ -150,6 +150,9 @@ export interface ComboboxInputProps extends Omit<
   readonly children?: JSX.Element;
   readonly class?: string;
   readonly clearProps?: ComboboxClearProps;
+  readonly renderLeadingContent?: (context: {
+    readonly clearValue: (value?: string) => void;
+  }) => JSX.Element;
   readonly showClear?: boolean;
   readonly showTrigger?: boolean;
   readonly size?: "sm" | "default" | "lg";
@@ -161,6 +164,7 @@ export function ComboboxInput(props: ComboboxInputProps): JSX.Element {
     "children",
     "class",
     "clearProps",
+    "renderLeadingContent",
     "showClear",
     "showTrigger",
     "size",
@@ -179,25 +183,32 @@ export function ComboboxInput(props: ComboboxInputProps): JSX.Element {
             class={cn("combobox__control", `combobox__control--${size()}`)}
             data-slot="combobox-control"
           >
-            <ComboboxPrimitive.Input
-              {...rest}
-              class={cn("combobox__input", local.class)}
-              data-slot="combobox-input"
-            />
-            {local.children}
-            {showClear() && (
-              <ComboboxClear class="combobox__clear" {...local.clearProps}>
-                <Icon icon="x" />
-              </ComboboxClear>
-            )}
-            {local.showTrigger !== false && (
-              <ComboboxTrigger
-                class="combobox__trigger"
-                {...local.triggerProps}
-              >
-                <Icon icon="chevrons_up_down" />
-              </ComboboxTrigger>
-            )}
+            <div class="combobox__control-content">
+              {local.renderLeadingContent?.({
+                clearValue: context().clearValue,
+              })}
+              <ComboboxPrimitive.Input
+                {...rest}
+                class={cn("combobox__input", local.class)}
+                data-slot="combobox-input"
+              />
+              {local.children}
+            </div>
+            <div class="combobox__actions">
+              {showClear() && (
+                <ComboboxClear class="combobox__clear" {...local.clearProps}>
+                  <Icon icon="x" />
+                </ComboboxClear>
+              )}
+              {local.showTrigger !== false && (
+                <ComboboxTrigger
+                  class="combobox__trigger"
+                  {...local.triggerProps}
+                >
+                  <Icon icon="chevrons_up_down" />
+                </ComboboxTrigger>
+              )}
+            </div>
           </ComboboxPrimitive.Control>
         );
       }}

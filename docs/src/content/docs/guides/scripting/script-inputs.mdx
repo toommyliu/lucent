@@ -42,6 +42,13 @@ module.exports.inputs = {
       label: "Use a boost",
       default: false,
     },
+    {
+      key: "rewards",
+      type: "multi-select",
+      label: "Rewards",
+      options: ["Weapon", "Armor", "Pet"],
+      default: ["Weapon", "Armor"],
+    },
   ],
 };
 ```
@@ -50,16 +57,19 @@ Make sure to use a unique `id`, Lucent uses it to remember values between runs.
 
 ## Input types
 
-Lucent supports four field types:
+Lucent supports five field types:
 
 - `string`
 - `number`
 - `boolean`
 - `select`
+- `multi-select`
 
 Each field needs a `type`, a unique `key`, and a `label`. Pass the key to
 [`script.inputs.get()`][inputs-get]. Lucent shows the label and optional
-`description` in the input form. Select fields also need an `options` array.
+`description` in the input form. Select and multi-select fields also need an
+`options` array. A multi-select value is an array of the selected option
+strings.
 
 Set `required: true` to prevent the script from starting without a value. Use
 `default` to fill in an initial value.

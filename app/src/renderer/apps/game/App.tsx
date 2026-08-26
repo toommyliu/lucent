@@ -77,7 +77,6 @@ import {
   validateScriptInputValues,
   type ScriptFileReference,
   type ScriptInputField,
-  type ScriptInputValue,
   type ScriptInputValues,
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
@@ -143,8 +142,15 @@ import {
 import {
   ScriptInputsErrorAlert,
   type ScriptInputsDialogError,
-  type ScriptInputsDialogErrorField,
 } from "./ScriptInputsErrorAlert";
+import {
+  scriptInputDraftFromValues,
+  scriptInputFieldLabel,
+  scriptInputValuesFromDraft,
+  scriptSelectFieldOptions,
+  type ScriptInputDraftValue,
+  type ScriptInputDraftValues,
+} from "./scriptInputForm";
 import {
   TopNav,
   type GameTopNavMenu,
@@ -553,9 +559,6 @@ type ScriptInputsDialogMode =
   | "queue-edit"
   | "queue-preflight"
   | "required";
-type ScriptInputDraftValue = boolean | string;
-type ScriptInputDraftValues = Readonly<Record<string, ScriptInputDraftValue>>;
-
 interface PendingQueueInputDialog {
   readonly abort: () => void;
   readonly reopenScriptsDialog: boolean;
@@ -566,112 +569,6 @@ interface PendingQueueReplacementConfirmation {
   readonly abort: () => void;
   readonly resolve: (confirmed: boolean) => void;
 }
-
-const fieldLabel = (field: ScriptInputField): string =>
-  field.label || field.key;
-
-const scriptInputFieldError = (
-  field: ScriptInputField,
-  message: string,
-): ScriptInputsDialogErrorField => ({
-  key: field.key,
-  label: fieldLabel(field),
-  message,
-});
-
-const scriptInputFieldByKey = (
-  definition: ScriptInputsDefinition,
-  key: string,
-): ScriptInputField | undefined =>
-  definition.fields.find((field) => field.key === key);
-
-const scriptInputDraftFromValues = (
-  definition: ScriptInputsDefinition,
-  values: ScriptInputValues,
-): ScriptInputDraftValues => {
-  const normalized = normalizeScriptInputValues(definition, values);
-  const draft: Record<string, ScriptInputDraftValue> = {};
-
-  for (const field of definition.fields) {
-    const value = normalized[field.key];
-    draft[field.key] =
-      field.type === "boolean" ? value === true : String(value ?? "");
-  }
-
-  return draft;
-};
-
-const scriptInputValuesFromDraft = (
-  definition: ScriptInputsDefinition,
-  draft: ScriptInputDraftValues,
-):
-  | { readonly ok: true; readonly values: ScriptInputValues }
-  | { readonly error: ScriptInputsDialogError; readonly ok: false } => {
-  const values: Record<string, ScriptInputValue> = {};
-  const invalidFields: ScriptInputsDialogErrorField[] = [];
-
-  for (const field of definition.fields) {
-    const draftValue = draft[field.key];
-    if (field.type === "boolean") {
-      values[field.key] = draftValue === true;
-      continue;
-    }
-
-    const text = typeof draftValue === "string" ? draftValue.trim() : "";
-    if (text === "") {
-      continue;
-    }
-
-    if (field.type === "number") {
-      const value = Number(text);
-      if (!Number.isFinite(value)) {
-        invalidFields.push(scriptInputFieldError(field, "must be a number"));
-        continue;
-      }
-      values[field.key] = value;
-      continue;
-    }
-
-    if (field.type === "select" && !field.options.includes(text)) {
-      invalidFields.push(
-        scriptInputFieldError(field, "must match a declared option"),
-      );
-      continue;
-    }
-
-    values[field.key] = text;
-  }
-
-  const validation = validateScriptInputValues(definition, values);
-  const invalidKeys = new Set(invalidFields.map((field) => field.key));
-  const missingFields =
-    validation.status === "missing-required"
-      ? validation.fieldKeys
-          .filter((key) => !invalidKeys.has(key))
-          .map((key) => scriptInputFieldByKey(definition, key))
-          .filter((field): field is ScriptInputField => field !== undefined)
-          .map((field) => scriptInputFieldError(field, ""))
-      : [];
-  const fields = [...invalidFields, ...missingFields];
-
-  if (fields.length > 0) {
-    const message =
-      invalidFields.length > 0 && missingFields.length > 0
-        ? "Please correct the invalid script inputs."
-        : invalidFields.length > 0
-          ? "Some script inputs are invalid."
-          : "Please fill in all required script inputs.";
-    return {
-      error: { fields, message },
-      ok: false,
-    };
-  }
-
-  return { ok: true, values: validation.values };
-};
-
-const selectFieldOptions = (field: ScriptInputField): readonly string[] =>
-  field.type === "select" ? field.options : [];
 
 const clampPanelFrame = (frame: DebugPanelFrame): DebugPanelFrame => {
   const maxWidth = Math.max(
@@ -4102,9 +3999,39 @@ export function App(props: {
   });
 
   const renderScriptInputField = (field: ScriptInputField): JSX.Element => {
+    const [optionQuery, setOptionQuery] = createSignal("");
     const value = () => scriptInputDraftValues()[field.key];
-    const label = () => fieldLabel(field);
+    const label = () => scriptInputFieldLabel(field);
     const hasError = () => scriptInputFieldHasError(field.key);
+    const selectedValues = (): readonly string[] => {
+      const draftValue = value();
+      return field.type === "multi-select" && Array.isArray(draftValue)
+        ? draftValue
+        : [];
+    };
+    const visibleOptions = (): readonly string[] => {
+      const query = optionQuery().trim().toLocaleLowerCase();
+      if (query.length === 0) {
+        return scriptSelectFieldOptions(field);
+      }
+
+      return scriptSelectFieldOptions(field).filter((option) =>
+        option.toLocaleLowerCase().includes(query),
+      );
+    };
+    const visibleOptionItems = () =>
+      visibleOptions().map((option) => ({ label: option, value: option }));
+    const descriptionId = `script-input-description-${encodeURIComponent(field.key)}`;
+    const errorId = `script-input-error-${encodeURIComponent(field.key)}`;
+    const describedBy = () =>
+      [
+        field.description === undefined ? undefined : descriptionId,
+        scriptInputFieldErrorMessage(field.key) === undefined
+          ? undefined
+          : errorId,
+      ]
+        .filter((id): id is string => id !== undefined)
+        .join(" ") || undefined;
 
     if (field.type === "boolean") {
       return (
@@ -4115,6 +4042,7 @@ export function App(props: {
           ref={(element) => setScriptInputFieldRef(field.key, element)}
         >
           <Checkbox
+            aria-describedby={describedBy()}
             aria-label={label()}
             checked={value() === true}
             disabled={scriptInputDialogSaving()}
@@ -4147,14 +4075,20 @@ export function App(props: {
           </Checkbox>
           <Show when={field.description}>
             {(description) => (
-              <span class="game-script-inputs-dialog__description">
+              <span
+                class="game-script-inputs-dialog__description"
+                id={descriptionId}
+              >
                 {description()}
               </span>
             )}
           </Show>
           <Show when={scriptInputFieldErrorMessage(field.key)}>
             {(message) => (
-              <span class="game-script-inputs-dialog__field-error-msg">
+              <span
+                class="game-script-inputs-dialog__field-error-msg"
+                id={errorId}
+              >
                 {message()}
               </span>
             )}
@@ -4192,66 +4126,159 @@ export function App(props: {
         </Label>
         <Show when={field.description}>
           {(description) => (
-            <span class="game-script-inputs-dialog__description">
+            <span
+              class="game-script-inputs-dialog__description"
+              id={descriptionId}
+            >
               {description()}
             </span>
           )}
         </Show>
         <Show
-          when={field.type === "select"}
+          when={field.type === "multi-select"}
           fallback={
-            <Input
-              aria-label={label()}
-              disabled={scriptInputDialogSaving()}
-              fullWidth
-              invalid={hasError()}
-              inputMode={field.type === "number" ? "decimal" : undefined}
-              ref={(element) => setScriptInputEditorRef(field.key, element)}
-              type={field.type === "number" ? "number" : "text"}
-              value={String(value() ?? "")}
-              onInput={(event) =>
-                updateScriptInputDraft(field.key, event.currentTarget.value)
+            <Show
+              when={field.type === "select"}
+              fallback={
+                <Input
+                  aria-describedby={describedBy()}
+                  aria-label={label()}
+                  disabled={scriptInputDialogSaving()}
+                  fullWidth
+                  invalid={hasError()}
+                  inputMode={field.type === "number" ? "decimal" : undefined}
+                  ref={(element) => setScriptInputEditorRef(field.key, element)}
+                  type={field.type === "number" ? "number" : "text"}
+                  value={String(value() ?? "")}
+                  onInput={(event) =>
+                    updateScriptInputDraft(field.key, event.currentTarget.value)
+                  }
+                />
               }
-            />
+            >
+              <Combobox
+                class={
+                  hasError()
+                    ? "game-script-inputs-dialog__combobox--invalid"
+                    : undefined
+                }
+                disabled={scriptInputDialogSaving()}
+                inputBehavior="autohighlight"
+                items={visibleOptionItems()}
+                openOnClick
+                value={value() ? [String(value())] : []}
+                onInputValueChange={(details) =>
+                  setOptionQuery(
+                    details.reason === "input-change" ? details.inputValue : "",
+                  )
+                }
+                onValueChange={(details) =>
+                  updateScriptInputDraft(field.key, details.value[0] ?? "")
+                }
+              >
+                <ComboboxInput
+                  aria-describedby={describedBy()}
+                  aria-label={label()}
+                  aria-invalid={hasError() ? "true" : undefined}
+                  aria-required={field.required === true ? "true" : undefined}
+                  clearProps={{ "aria-label": `Clear ${label()}` }}
+                  disabled={scriptInputDialogSaving()}
+                  placeholder={field.required === true ? "Select a value" : ""}
+                  ref={(element) => setScriptInputEditorRef(field.key, element)}
+                  showClear={field.required !== true}
+                />
+                <ComboboxContent>
+                  <ComboboxEmpty>No matching options</ComboboxEmpty>
+                  <ComboboxList>
+                    <For each={visibleOptions()}>
+                      {(option) => (
+                        <ComboboxItem value={option}>{option}</ComboboxItem>
+                      )}
+                    </For>
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </Show>
           }
         >
-          <Combobox
-            class={
-              hasError()
-                ? "game-script-inputs-dialog__combobox--invalid"
-                : undefined
-            }
-            disabled={scriptInputDialogSaving()}
-            inputBehavior="autohighlight"
-            openOnClick
-            value={value() ? [String(value())] : []}
-            onValueChange={(details) =>
-              updateScriptInputDraft(field.key, details.value[0] ?? "")
-            }
-          >
-            <ComboboxInput
-              aria-label={label()}
-              aria-invalid={hasError() ? "true" : undefined}
+          <div class="game-script-inputs-dialog__multi-select">
+            <Combobox
+              class={
+                hasError()
+                  ? "game-script-inputs-dialog__combobox--invalid"
+                  : undefined
+              }
+              closeOnSelect={false}
               disabled={scriptInputDialogSaving()}
-              placeholder={field.required === true ? "Select a value" : ""}
-              ref={(element) => setScriptInputEditorRef(field.key, element)}
-              showClear={field.required !== true}
-            />
-            <ComboboxContent>
-              <ComboboxEmpty>No matching options</ComboboxEmpty>
-              <ComboboxList>
-                <For each={selectFieldOptions(field)}>
-                  {(option) => (
-                    <ComboboxItem value={option}>{option}</ComboboxItem>
-                  )}
-                </For>
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
+              inputBehavior="autohighlight"
+              items={visibleOptionItems()}
+              multiple
+              openOnClick
+              value={[...selectedValues()]}
+              onInputValueChange={(details) =>
+                setOptionQuery(
+                  details.reason === "input-change" ? details.inputValue : "",
+                )
+              }
+              onValueChange={(details) =>
+                updateScriptInputDraft(field.key, details.value)
+              }
+            >
+              <ComboboxInput
+                aria-describedby={describedBy()}
+                aria-label={label()}
+                aria-invalid={hasError() ? "true" : undefined}
+                aria-required={field.required === true ? "true" : undefined}
+                clearProps={{ "aria-label": `Clear ${label()}` }}
+                disabled={scriptInputDialogSaving()}
+                placeholder="Search options..."
+                ref={(element) => setScriptInputEditorRef(field.key, element)}
+                renderLeadingContent={({ clearValue }) => (
+                  <For each={selectedValues()}>
+                    {(option) => (
+                      <span class="game-script-inputs-dialog__multi-select-value">
+                        <span class="game-script-inputs-dialog__multi-select-value-label">
+                          {option}
+                        </span>
+                        <button
+                          aria-label={`Remove ${option} from ${label()}`}
+                          class="game-script-inputs-dialog__multi-select-remove"
+                          disabled={scriptInputDialogSaving()}
+                          type="button"
+                          onClick={() => {
+                            clearValue(option);
+                            scriptInputEditorRefs.get(field.key)?.focus();
+                          }}
+                        >
+                          <span class="game-script-inputs-dialog__multi-select-remove-content">
+                            <Icon aria-hidden="true" icon="x" />
+                          </span>
+                        </button>
+                      </span>
+                    )}
+                  </For>
+                )}
+                showClear={selectedValues().length > 0}
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>No matching options</ComboboxEmpty>
+                <ComboboxList>
+                  <For each={visibleOptions()}>
+                    {(option) => (
+                      <ComboboxItem value={option}>{option}</ComboboxItem>
+                    )}
+                  </For>
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </div>
         </Show>
         <Show when={scriptInputFieldErrorMessage(field.key)}>
           {(message) => (
-            <span class="game-script-inputs-dialog__field-error-msg">
+            <span
+              class="game-script-inputs-dialog__field-error-msg"
+              id={errorId}
+            >
               {message()}
             </span>
           )}

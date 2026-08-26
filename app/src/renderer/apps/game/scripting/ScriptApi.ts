@@ -93,7 +93,7 @@ export type ScriptEffect<A = unknown, E = unknown> = Effect.Effect<A, E>;
 
 export type { ScriptCallbackResult, ScriptGenerator };
 
-export type ScriptInputType = "string" | "number" | "boolean" | "select";
+export type { ScriptInputType } from "@lucent/core/scriptInputs";
 
 export type { ScriptInputsDefinition, ScriptInputValue, ScriptInputValues };
 export type { RoomPolicy };

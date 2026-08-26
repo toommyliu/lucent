@@ -5,7 +5,10 @@ import {
   DEFAULT_ACCOUNT_SETTINGS,
   RoomPolicySchema,
 } from "@lucent/core/accountSettings";
-import type { ScriptInputValues } from "@lucent/core/scriptInputs";
+import type {
+  ScriptInputValue,
+  ScriptInputValues,
+} from "@lucent/core/scriptInputs";
 import type {
   RoomPolicy,
   ScriptRuntimeApi,
@@ -39,6 +42,19 @@ export const snapshotScriptRuntimeOptions = (
   roomPolicy: snapshotRoomPolicy(options.roomPolicy),
   safeStartStop: options.safeStartStop,
 });
+
+const snapshotScriptInputValue = (value: ScriptInputValue): ScriptInputValue =>
+  Array.isArray(value) ? [...value] : value;
+
+const snapshotScriptInputValues = (
+  values: ScriptInputValues,
+): ScriptInputValues => {
+  const snapshot: Record<string, ScriptInputValue> = {};
+  for (const [key, value] of Object.entries(values)) {
+    snapshot[key] = snapshotScriptInputValue(value);
+  }
+  return snapshot;
+};
 
 export type ScriptRuntimeOptionsUpdate = (
   options: ScriptRuntimeOptions,
@@ -79,7 +95,7 @@ export const runScriptExitActions = Effect.fn(
 export const makeScriptRuntimeApi = (
   options: ScriptRuntimeApiOptions,
 ): ScriptRuntimeApi => {
-  const inputValues = { ...options.inputValues };
+  const inputValues = snapshotScriptInputValues(options.inputValues);
   const script: ScriptRuntimeApi = {
     beep: (times = 1) =>
       Number.isFinite(times)
@@ -91,8 +107,13 @@ export const makeScriptRuntimeApi = (
           ),
     exit: (exitOptions) => Effect.fail(makeScriptExitSignal(exitOptions)),
     inputs: {
-      get: (key: string) => Effect.succeed(inputValues[key]),
-      getAll: () => Effect.succeed({ ...inputValues }),
+      get: (key: string) => {
+        const value = inputValues[key];
+        return Effect.succeed(
+          value === undefined ? undefined : snapshotScriptInputValue(value),
+        );
+      },
+      getAll: () => Effect.succeed(snapshotScriptInputValues(inputValues)),
     },
     log: (message) => Effect.sync(() => options.log(message)),
     options: {

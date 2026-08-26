@@ -115,8 +115,17 @@ interface ScriptStopSignal extends Error {
 
 type Skill = number | string;
 
-type LucentScriptInputValue = string | number | boolean;
-type LucentScriptInputType = "string" | "number" | "boolean" | "select";
+type LucentScriptInputValue =
+  | string
+  | number
+  | boolean
+  | readonly string[];
+type LucentScriptInputType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "select"
+  | "multi-select";
 
 interface LucentScriptInputFieldBase<
   Type extends LucentScriptInputType,
@@ -145,11 +154,17 @@ interface LucentScriptSelectInputField
   readonly options: readonly string[];
 }
 
+interface LucentScriptMultiSelectInputField
+  extends LucentScriptInputFieldBase<"multi-select", readonly string[]> {
+  readonly options: readonly string[];
+}
+
 type LucentScriptInputField =
   | LucentScriptStringInputField
   | LucentScriptNumberInputField
   | LucentScriptBooleanInputField
-  | LucentScriptSelectInputField;
+  | LucentScriptSelectInputField
+  | LucentScriptMultiSelectInputField;
 
 interface LucentScriptInputsDefinition {
   /** Stable id used to persist values for this script. */
