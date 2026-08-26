@@ -92,7 +92,10 @@ body::-webkit-scrollbar-corner,
 
 /* Button */
 
-:root[data-use-cursor-pointers="true"] a[href],
+a[href] {
+  cursor: var(--cursor-interactive);
+}
+
 :root[data-use-cursor-pointers="true"] button:not(:disabled),
 :root[data-use-cursor-pointers="true"] select:not(:disabled),
 :root[data-use-cursor-pointers="true"] summary,
