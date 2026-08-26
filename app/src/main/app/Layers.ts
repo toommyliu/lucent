@@ -1,11 +1,15 @@
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
-import * as DesktopChromiumPerformanceRecording from "./DesktopChromiumPerformanceRecording";
 import * as DesktopLifecycle from "./DesktopLifecycle";
-import * as DesktopObservability from "./DesktopObservability";
-import * as DesktopPerformanceTrace from "./DesktopPerformanceTrace";
-import * as GameConsoleObservability from "./GameConsoleObservability";
+import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChromiumPerformanceRecording";
+import * as DesktopEffectTracing from "./observability/DesktopEffectTracing";
+import * as DesktopObservability from "./observability/DesktopObservability";
+import * as DesktopObservabilityServer from "./observability/DesktopObservabilityServer";
+import * as DesktopPerformanceTrace from "./observability/DesktopPerformanceTrace";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
@@ -52,6 +56,49 @@ export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
 ) => {
   const environmentLayer = DesktopEnvironment.layer(envConfig);
+  const observabilityLayer = DesktopObservability.layer.pipe(
+    Layer.provideMerge(environmentLayer),
+  );
+  const effectLoggerLayer =
+    envConfig.debug === true
+      ? Logger.layer(
+          [
+            DesktopObservability.DesktopObservability.pipe(
+              Effect.map((observability) =>
+                Logger.make<unknown, void>((options) => {
+                  if (options.fiber.currentSpan !== undefined) {
+                    return;
+                  }
+                  observability.recordUnsafe({
+                    ...(options.cause.reasons.length === 0
+                      ? {}
+                      : { cause: Cause.pretty(options.cause) }),
+                    component: "effect",
+                    event: "log",
+                    data: {
+                      fiberId: options.fiber.id,
+                      level: options.logLevel,
+                      message: options.message,
+                    },
+                  });
+                }),
+              ),
+            ),
+          ],
+          { mergeWithExisting: true },
+        ).pipe(Layer.provide(observabilityLayer))
+      : Layer.empty;
+  const effectTracingLayer =
+    envConfig.debug === true
+      ? DesktopEffectTracing.layer.pipe(Layer.provide(observabilityLayer))
+      : Layer.empty;
+  const desktopIpcLayer =
+    envConfig.debug === true
+      ? Layer.succeed(
+          DesktopIpc.DesktopIpc,
+          DesktopIpc.makeElectronDesktopIpc(true),
+        )
+      : DesktopIpc.layer;
   const electronChromiumPerformanceLayer = ElectronChromiumPerformance.layer;
   const electronSessionLayer = ElectronSession.layer.pipe(
     Layer.provideMerge(environmentLayer),
@@ -62,16 +109,12 @@ export const makeDesktopLayer = (
     electronChromiumPerformanceLayer,
     ElectronDialog.layer,
     ElectronGameView.layer,
-    DesktopIpc.layer,
+    desktopIpcLayer,
     electronSessionLayer,
     ElectronShell.layer,
     ElectronTheme.layer,
     ElectronWindow.layer,
     FlashTrust.layer,
-  );
-
-  const observabilityLayer = DesktopObservability.layer.pipe(
-    Layer.provideMerge(environmentLayer),
   );
 
   const settingsLayer = DesktopSettings.layer.pipe(
@@ -201,16 +244,16 @@ export const makeDesktopLayer = (
     );
 
   const gameEnvironmentsLayer = GameEnvironments.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
   );
   const gameFollowersLayer = GameFollowers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
   );
   const gameLoaderGrabbersLayer = GameLoaderGrabbers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
   );
   const gamePacketsLayer = GamePackets.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(DesktopIpc.layer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
   );
   const accountRepositoryLayer = AccountRepository.layer.pipe(
     Layer.provideMerge(environmentLayer),
@@ -235,7 +278,7 @@ export const makeDesktopLayer = (
     ),
   );
 
-  const gameConsoleObservabilityLayer = GameConsoleObservability.layer.pipe(
+  const observabilityServerLayer = DesktopObservabilityServer.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(accountsLayer, observabilityLayer, windowsLayer),
     ),
@@ -276,12 +319,14 @@ export const makeDesktopLayer = (
     armyLayer,
     ipcSendersLayer,
     electronLayer,
+    effectLoggerLayer,
+    effectTracingLayer,
     environmentLayer,
     accountsLayer,
     accountSettingsRepositoryLayer,
     combatProfilesLayer,
     chromiumPerformanceRecordingLayer,
-    gameConsoleObservabilityLayer,
+    observabilityServerLayer,
     gameEnvironmentsLayer,
     gameFollowersLayer,
     gameLoaderGrabbersLayer,

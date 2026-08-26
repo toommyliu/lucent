@@ -23,7 +23,10 @@ import {
   type IpcInvokePayload,
   type IpcInvokeResult,
 } from "../../shared/ipc";
-import { createDesktopIpcInvokeHandler } from "./DesktopIpcInvoke";
+import {
+  createDesktopIpcInvokeHandler,
+  createObservedDesktopIpcInvokeHandler,
+} from "./DesktopIpcInvoke";
 import {
   type DesktopIpcSender,
   type DesktopIpcSenderKinds,
@@ -176,8 +179,9 @@ export const makeDesktopIpc = (
   main: DesktopIpcMain,
   windows: DesktopIpcWindows = BrowserWindow,
   contents: DesktopIpcWebContentsCatalog = webContents,
+  tracingEnabled = false,
 ): DesktopIpc["Service"] => {
-  const sendEvent = <Descriptor extends IpcEventDescriptor<unknown>>(
+  const sendEventUnobserved = <Descriptor extends IpcEventDescriptor<unknown>>(
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
     targets: () => Iterable<DesktopIpcWebContents | undefined>,
@@ -188,6 +192,48 @@ export const makeDesktopIpc = (
         Effect.sync(() => sendEncoded(targets(), descriptor.channel, encoded)),
       ),
     );
+
+  const sendEventObserved = <Descriptor extends IpcEventDescriptor<unknown>>(
+    descriptor: Descriptor,
+    payload: IpcEventPayload<Descriptor>,
+    targets: () => Iterable<DesktopIpcWebContents | undefined>,
+  ): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const encoded = yield* descriptor.encodePayloadEffect(payload).pipe(
+        Effect.orDie,
+        Effect.withSpan(`ipc.event.encode ${descriptor.name}`, undefined, {
+          captureStackTrace: false,
+        }),
+      );
+      const resolvedTargets = [...targets()];
+      const recipientCount = resolvedTargets.filter(
+        (target) => target !== undefined && !target.isDestroyed(),
+      ).length;
+      yield* Effect.sync(() =>
+        sendEncoded(resolvedTargets, descriptor.channel, encoded),
+      ).pipe(
+        Effect.withSpan(`ipc.event.send ${descriptor.name}`, undefined, {
+          captureStackTrace: false,
+        }),
+      );
+      yield* Effect.annotateCurrentSpan("ipc.recipient_count", recipientCount);
+    }).pipe(
+      Effect.withSpan(
+        `ipc.event ${descriptor.name}`,
+        {
+          attributes: {
+            "ipc.channel": descriptor.channel,
+            "ipc.name": descriptor.name,
+            "ipc.payload": payload,
+          },
+          kind: "producer",
+        },
+        { captureStackTrace: false },
+      ),
+    );
+
+  const sendEvent =
+    tracingEnabled === true ? sendEventObserved : sendEventUnobserved;
 
   const allWebContents = function* (): Generator<DesktopIpcWebContents> {
     for (const window of windows.getAllWindows()) {
@@ -227,23 +273,39 @@ export const makeDesktopIpc = (
       const runPromise = Effect.runPromiseWith(context);
       const { descriptor } = method;
 
+      const observedHandler =
+        tracingEnabled === false
+          ? undefined
+          : createObservedDesktopIpcInvokeHandler(
+              descriptor,
+              (payload, event: IpcMainInvokeEvent) =>
+                senders
+                  .require(event, method.allowedSenders)
+                  .pipe(
+                    Effect.flatMap((sender) => method.invoke(payload, sender)),
+                  ),
+              runPromise,
+              (event: IpcMainInvokeEvent) => event.sender.id,
+            );
+
       yield* Effect.acquireRelease(
         Effect.try({
           try: () =>
             main.handle(
               descriptor.channel,
-              createDesktopIpcInvokeHandler(
-                descriptor,
-                (payload, event) =>
-                  senders
-                    .require(event, method.allowedSenders)
-                    .pipe(
-                      Effect.flatMap((sender) =>
-                        method.invoke(payload, sender),
+              observedHandler ??
+                createDesktopIpcInvokeHandler(
+                  descriptor,
+                  (payload, event) =>
+                    senders
+                      .require(event, method.allowedSenders)
+                      .pipe(
+                        Effect.flatMap((sender) =>
+                          method.invoke(payload, sender),
+                        ),
                       ),
-                    ),
-                runPromise,
-              ),
+                  runPromise,
+                ),
             ),
           catch: (cause) =>
             new DesktopIpcRegistrationError({
@@ -270,7 +332,12 @@ export const makeDesktopIpc = (
   });
 };
 
-export const layer = Layer.succeed(DesktopIpc, makeDesktopIpc(ipcMain));
+export const makeElectronDesktopIpc = (
+  tracingEnabled = false,
+): DesktopIpc["Service"] =>
+  makeDesktopIpc(ipcMain, BrowserWindow, webContents, tracingEnabled);
+
+export const layer = Layer.succeed(DesktopIpc, makeElectronDesktopIpc());
 
 export const ALL_DESKTOP_RENDERER_KINDS = [
   "account-manager",

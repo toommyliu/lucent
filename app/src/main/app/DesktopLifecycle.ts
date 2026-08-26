@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 
-import { DesktopObservability } from "./DesktopObservability";
+import { DesktopObservability } from "./observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 
 const SIGNAL_FORCE_EXIT_AFTER_MS = 1_500;

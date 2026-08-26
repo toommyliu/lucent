@@ -4,7 +4,7 @@ import { webContents } from "electron";
 
 import * as Effect from "effect/Effect";
 
-import { DesktopObservability } from "./DesktopObservability";
+import { DesktopObservability } from "./observability/DesktopObservability";
 import { reloadUsableRendererContents } from "./DesktopDevRendererReloadContents";
 
 const RELOAD_WATCH_INTERVAL_MS = 100;

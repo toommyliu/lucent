@@ -9,7 +9,7 @@ export const CHROMIUM_RESOURCE_SAMPLE_INTERVAL_MS = 1_000;
 export const CHROMIUM_RENDERER_HEAP_SAMPLE_INTERVAL_MS = 5_000;
 export const CHROMIUM_RENDERER_HEAP_SAMPLE_TIMEOUT_MS = 4_000;
 
-/** Categories used by the standard, long-running Chromium recording preset. */
+/** Trace categories used by the standard, long-running Chromium recording preset. */
 export const CHROMIUM_PERFORMANCE_TRACE_CATEGORIES = [
   "blink.console",
   "blink.user_timing",

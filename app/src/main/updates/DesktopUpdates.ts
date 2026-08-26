@@ -15,7 +15,7 @@ import {
 } from "../../shared/updates";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { DesktopObservability } from "../app/DesktopObservability";
+import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import {

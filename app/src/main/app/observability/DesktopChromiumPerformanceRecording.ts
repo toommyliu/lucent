@@ -9,14 +9,14 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
-import { ElectronApp } from "../electron/ElectronApp";
+import { ElectronApp } from "../../electron/ElectronApp";
 import {
   ElectronChromiumPerformance,
   type ElectronChromiumRendererTarget,
   type ElectronMainHeapUsage,
-} from "../electron/ElectronChromiumPerformance";
-import { DesktopWindows } from "../window/DesktopWindows";
-import type { DesktopWindowKind } from "../window/DesktopWindowCatalog";
+} from "../../electron/ElectronChromiumPerformance";
+import { DesktopWindows } from "../../window/DesktopWindows";
+import type { DesktopWindowKind } from "../../window/DesktopWindowCatalog";
 import {
   CHROMIUM_PERFORMANCE_RECORDING_SCHEMA_VERSION,
   CHROMIUM_PERFORMANCE_TRACE_CATEGORIES,
@@ -33,8 +33,8 @@ import {
   chromiumTraceSegmentFileName,
   type ChromiumTraceRotationReason,
 } from "./ChromiumPerformanceRecordingModel";
-import { DesktopEnvironment } from "./DesktopEnvironment";
-import { makeListenerRegistry } from "./ListenerRegistry";
+import { DesktopEnvironment } from "../DesktopEnvironment";
+import { makeListenerRegistry } from "../ListenerRegistry";
 import { DesktopObservability } from "./DesktopObservability";
 import {
   normalizePerformanceTraceMetric,
@@ -149,7 +149,7 @@ export interface DesktopChromiumPerformanceRecordingShape {
 export class DesktopChromiumPerformanceRecording extends Context.Service<
   DesktopChromiumPerformanceRecording,
   DesktopChromiumPerformanceRecordingShape
->()("lucent/desktop/app/DesktopChromiumPerformanceRecording") {}
+>()("lucent/desktop/app/observability/DesktopChromiumPerformanceRecording") {}
 
 interface ChromiumPerformanceMetadata {
   readonly appVersion: string;

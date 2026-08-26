@@ -8,9 +8,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-import { ElectronApp } from "../electron/ElectronApp";
-import { DesktopEnvironment } from "./DesktopEnvironment";
-import { makeListenerRegistry } from "./ListenerRegistry";
+import { ElectronApp } from "../../electron/ElectronApp";
+import { DesktopEnvironment } from "../DesktopEnvironment";
+import { makeListenerRegistry } from "../ListenerRegistry";
 import { DesktopObservability } from "./DesktopObservability";
 
 export const PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS = 1_000;
@@ -163,7 +163,7 @@ export interface DesktopPerformanceTraceShape {
 export class DesktopPerformanceTrace extends Context.Service<
   DesktopPerformanceTrace,
   DesktopPerformanceTraceShape
->()("lucent/desktop/app/DesktopPerformanceTrace") {}
+>()("lucent/desktop/app/observability/DesktopPerformanceTrace") {}
 
 interface AggregateResourceSample {
   readonly cpuPercent: number;
