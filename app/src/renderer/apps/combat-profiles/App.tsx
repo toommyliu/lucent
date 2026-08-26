@@ -25,6 +25,7 @@ import {
   EmptyHeader,
   EmptyTitle,
   Input,
+  IconButton,
   Label,
   Select,
   SelectContent,
@@ -181,6 +182,26 @@ const clampRuleValue = (value: string): number => {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
 
+const appendClassName = (
+  classNames: readonly string[],
+  value: string,
+): readonly string[] => {
+  const className = value.trim();
+  if (
+    className === "" ||
+    classNames.some(
+      (candidate) =>
+        candidate.localeCompare(className, undefined, {
+          sensitivity: "accent",
+        }) === 0,
+    )
+  ) {
+    return classNames;
+  }
+
+  return [...classNames, className];
+};
+
 const conditionLabel = (condition: CombatProfileCondition): string => {
   switch (condition.type) {
     case "self-hp":
@@ -316,7 +337,8 @@ export function CombatProfilesView(
       DEFAULT_COMBAT_PROFILE_ID,
   );
   const [label, setLabel] = createSignal("Generic");
-  const [className, setClassName] = createSignal("");
+  const [classNames, setClassNames] = createSignal<readonly string[]>([]);
+  const [classNameDraft, setClassNameDraft] = createSignal("");
   const [consumable, setConsumable] = createSignal("");
   const [delayMs, setDelayMs] = createSignal(
     String(DEFAULT_COMBAT_PROFILE_DELAY_MS),
@@ -335,6 +357,7 @@ export function CombatProfilesView(
   const [profileCopied, setProfileCopied] = createSignal(false);
   const [error, setError] = createSignal(props.fixture.error ?? "");
   let nameInput: HTMLInputElement | undefined;
+  let classNameInput: HTMLInputElement | undefined;
   let hydratedProfileId = "";
   let profileCopiedTimer: number | undefined;
 
@@ -383,7 +406,8 @@ export function CombatProfilesView(
   const hydrateProfileDraft = (profile: CombatProfile): void => {
     hydratedProfileId = profile.id;
     setLabel(profile.label);
-    setClassName(profile.className ?? "");
+    setClassNames(profile.classNames ?? []);
+    setClassNameDraft("");
     setConsumable(profile.consumable ?? "");
     setDelayMs(String(profile.delayMs));
     setCooldownMode(profile.cooldownMode);
@@ -473,6 +497,24 @@ export function CombatProfilesView(
     }
   };
 
+  const addClassName = (): void => {
+    const draft = classNameDraft().trim();
+    if (draft === "") {
+      return;
+    }
+
+    setClassNames((current) => appendClassName(current, draft));
+    setClassNameDraft("");
+    classNameInput?.focus();
+  };
+
+  const removeClassName = (classNameIndex: number): void => {
+    setClassNames((current) =>
+      current.filter((_, index) => index !== classNameIndex),
+    );
+    window.requestAnimationFrame(() => classNameInput?.focus());
+  };
+
   const buildSelectedProfileDraft = (): CombatProfile | null => {
     const profile = selectedProfile();
     if (!profile) {
@@ -480,10 +522,10 @@ export function CombatProfilesView(
     }
 
     const parsedDelay = Number.parseInt(delayMs(), 10);
-    const trimmedClassName = className().trim();
+    const selectedClassNames = appendClassName(classNames(), classNameDraft());
     const trimmedConsumable = consumable().trim();
     const selectedCooldownMode = cooldownMode();
-    const profileWithoutClassName = {
+    const profileWithoutClassNames = {
       id: profile.id,
       label: profile.label,
       delayMs: profile.delayMs,
@@ -502,9 +544,11 @@ export function CombatProfilesView(
       messageTriggers: draftMessageTriggers(),
     } satisfies CombatProfile;
     return {
-      ...profileWithoutClassName,
+      ...profileWithoutClassNames,
       label: label().trim() || profile.label,
-      ...(trimmedClassName === "" ? {} : { className: trimmedClassName }),
+      ...(selectedClassNames.length === 0
+        ? {}
+        : { classNames: selectedClassNames }),
       ...(trimmedConsumable === "" ? {} : { consumable: trimmedConsumable }),
       delayMs: Number.isFinite(parsedDelay)
         ? Math.max(0, parsedDelay)
@@ -973,16 +1017,6 @@ export function CombatProfilesView(
                     />
                   </Label>
                   <Label>
-                    <span>Class name</span>
-                    <Input
-                      placeholder="Any"
-                      value={className()}
-                      onInput={(event) =>
-                        setClassName(event.currentTarget.value)
-                      }
-                    />
-                  </Label>
-                  <Label>
                     <CombatProfilesLabelHelp
                       label="Skill 5 item"
                       tooltip="Equips this inventory item before combat. The first running profile controls preflight equipment."
@@ -995,6 +1029,82 @@ export function CombatProfilesView(
                       }
                     />
                   </Label>
+                  <div class="combat-profiles-classes-field">
+                    <Label for="combat-profile-class-name">Classes</Label>
+                    <div
+                      class="combat-profiles-classes-control"
+                      onMouseDown={(event) => {
+                        if (
+                          event.target instanceof Element &&
+                          event.target.closest("button, input")
+                        ) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        classNameInput?.focus();
+                      }}
+                    >
+                      <Index each={classNames()}>
+                        {(className, classNameIndex) => (
+                          <span class="combat-profiles-class">
+                            <span class="combat-profiles-class-label">
+                              {className()}
+                            </span>
+                            <IconButton
+                              aria-label={`Remove ${className()}`}
+                              class="combat-profiles-class-remove"
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => removeClassName(classNameIndex)}
+                            >
+                              <Icon icon="x" class="button__icon" />
+                            </IconButton>
+                          </span>
+                        )}
+                      </Index>
+                      <Input
+                        ref={(element) => {
+                          classNameInput = element;
+                        }}
+                        id="combat-profile-class-name"
+                        aria-describedby="combat-profile-classes-help"
+                        class="combat-profiles-class-input"
+                        autocomplete="off"
+                        name="combat-profile-class-name"
+                        placeholder="Add class…"
+                        unstyled
+                        value={classNameDraft()}
+                        onInput={(event) =>
+                          setClassNameDraft(event.currentTarget.value)
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addClassName();
+                            return;
+                          }
+
+                          if (
+                            event.key === "Backspace" &&
+                            classNameDraft() === ""
+                          ) {
+                            setClassNames((current) => current.slice(0, -1));
+                          }
+                        }}
+                      />
+                      <span
+                        aria-hidden="true"
+                        class="combat-profiles-classes-focus-ring"
+                      />
+                    </div>
+                    <p
+                      id="combat-profile-classes-help"
+                      class="combat-profiles-field-help"
+                    >
+                      Leave empty for any class.
+                    </p>
+                  </div>
                   <Label>
                     <span>Delay (ms)</span>
                     <Input

@@ -87,7 +87,7 @@ export type CombatProfileMessageTrigger =
 export const CombatProfileSchema = Schema.Struct({
   id: TrimmedNonEmptyString,
   label: TrimmedNonEmptyString,
-  className: Schema.optionalKey(TrimmedNonEmptyString),
+  classNames: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
   consumable: Schema.optionalKey(TrimmedNonEmptyString),
   delayMs: boundedInt(0, MAX_DELAY_MS),
   cooldownMode: CombatProfileCooldownModeSchema,
@@ -371,7 +371,9 @@ const normalizeProfile = (
   }
 
   const label = trimString(record["label"], MAX_LABEL_LENGTH) ?? "Profile";
-  const className = trimString(record["className"], MAX_CLASS_NAME_LENGTH);
+  const classNames = normalizeArray(record["classNames"], (className) =>
+    trimString(className, MAX_CLASS_NAME_LENGTH),
+  );
   const consumable = trimString(
     record["consumable"],
     MAX_CONSUMABLE_NAME_LENGTH,
@@ -391,7 +393,7 @@ const normalizeProfile = (
   return {
     id,
     label,
-    ...(className === undefined ? {} : { className }),
+    ...(classNames.length === 0 ? {} : { classNames }),
     ...(consumable === undefined ? {} : { consumable }),
     delayMs: clampInt(
       record["delayMs"],

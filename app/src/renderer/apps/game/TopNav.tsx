@@ -66,7 +66,7 @@ export type WindowId =
   | "combat-profiles";
 
 export interface TopNavCombatProfile {
-  readonly className?: string;
+  readonly classNames?: readonly string[];
   readonly id: string;
   readonly label: string;
 }
@@ -528,11 +528,25 @@ const commitMenuInputOnEnter =
     commit();
   };
 
-const combatProfileClassName = (profile: TopNavCombatProfile): string =>
-  profile.className?.trim() || "";
+const combatProfileClassNames = (
+  profile: TopNavCombatProfile,
+): readonly string[] => profile.classNames ?? [];
 
-const combatProfileTooltip = (profile: TopNavCombatProfile): string =>
-  `${profile.label} - ${combatProfileClassName(profile) || "Any class"}`;
+const combatProfileClassSummary = (profile: TopNavCombatProfile): string => {
+  const classNames = combatProfileClassNames(profile);
+  if (classNames.length === 0) {
+    return "Any";
+  }
+
+  return classNames.length === 1
+    ? classNames[0]!
+    : `${classNames.length} classes`;
+};
+
+const combatProfileTooltip = (profile: TopNavCombatProfile): string => {
+  const classNames = combatProfileClassNames(profile);
+  return `${profile.label} - ${classNames.length === 0 ? "Any class" : classNames.join(", ")}`;
+};
 
 type TopNavMenuTriggerProps = Omit<ButtonProps, "as" | "size" | "type"> & {
   readonly expanded?: boolean;
@@ -2024,7 +2038,7 @@ export function TopNav(props: TopNavProps): JSX.Element {
                     >
                       <span class="game-menu__item-label">{profile.label}</span>
                       <span class="game-menu__item-value game-menu__profile-class">
-                        {combatProfileClassName(profile) || "Any"}
+                        {combatProfileClassSummary(profile)}
                       </span>
                     </MenuRadioItem>
                   )}

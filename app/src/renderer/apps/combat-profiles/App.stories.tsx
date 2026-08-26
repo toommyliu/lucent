@@ -11,7 +11,7 @@ const library: CombatProfileLibrary = {
   profiles: [
     ...DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
     {
-      className: "Dragon of Time",
+      classNames: ["Dragon of Time"],
       cooldownMode: "wait-for-cooldown",
       delayMs: 125,
       id: "dot-solo",

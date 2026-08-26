@@ -446,9 +446,34 @@
 }
 
 .environment-chip .environment-remove-button.button {
+  background: transparent;
   border-radius: 9999px;
-  height: calc(var(--control-height-md) - 0.5rem);
-  width: calc(var(--control-height-md) - 0.5rem);
+  height: var(--control-height-sm);
+  width: var(--control-height-sm);
+}
+
+.environment-chip .environment-remove-button.button .button__content {
+  align-items: center;
+  border-radius: inherit;
+  display: inline-flex;
+  height: 1.25rem;
+  justify-content: center;
+  transition: background-color var(--duration-fast) ease;
+  width: 1.25rem;
+}
+
+.environment-chip .environment-remove-button.button .button__icon {
+  margin: 0;
+}
+
+.environment-chip .environment-remove-button.button:focus-visible {
+  box-shadow: none;
+}
+
+.environment-chip
+  .environment-remove-button.button:focus-visible
+  .button__content {
+  box-shadow: 0 0 0 2px rgba(var(--ring), 0.64);
 }
 
 .environment-chip .environment-beep-button.button {
@@ -467,9 +492,15 @@
   color: rgb(var(--primary));
 }
 
-.environment-remove-button:hover {
-  background: rgb(var(--destructive) / 0.1);
-  color: rgb(var(--destructive));
+@media (hover: hover) {
+  .environment-remove-button.button:hover {
+    background: transparent;
+    color: rgb(var(--destructive));
+  }
+
+  .environment-remove-button.button:hover .button__content {
+    background: rgba(var(--destructive), 0.1);
+  }
 }
 
 @media (max-width: 1060px) {
