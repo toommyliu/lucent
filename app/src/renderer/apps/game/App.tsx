@@ -554,14 +554,24 @@ const scriptStatusLabel = (
 };
 
 type ScriptInputsDialogMode =
+  | "account-required"
   | "manual"
   | "queue-add"
   | "queue-edit"
   | "queue-preflight"
   | "required";
+
+const isRequiredScriptInputsDialog = (mode: ScriptInputsDialogMode): boolean =>
+  mode === "account-required" || mode === "required";
+
 interface PendingQueueInputDialog {
   readonly abort: () => void;
   readonly reopenScriptsDialog: boolean;
+  readonly resolve: (values: ScriptInputValues | null) => void;
+}
+
+interface PendingAccountInputDialog {
+  readonly abort: () => void;
   readonly resolve: (values: ScriptInputValues | null) => void;
 }
 
@@ -1226,6 +1236,7 @@ export function App(props: {
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
   const scriptInputEditorRefs = new Map<string, HTMLElement>();
   let scriptQueue: ScriptQueue;
+  let pendingAccountInputDialog: PendingAccountInputDialog | null = null;
   let pendingQueueInputDialog: PendingQueueInputDialog | null = null;
   let pendingQueueReplacementConfirmation: PendingQueueReplacementConfirmation | null =
     null;
@@ -2593,6 +2604,41 @@ export function App(props: {
     setOpenMenu(null);
   };
 
+  const settleAccountInputDialog = (values: ScriptInputValues | null): void => {
+    const pending = pendingAccountInputDialog;
+    if (pending === null) return;
+    pendingAccountInputDialog = null;
+    pending.abort();
+    resetScriptInputDialogRefs();
+    setScriptInputDialogOpen(false);
+    setScriptInputDialogError(null);
+    setScriptInputDialogDefinition(null);
+    pending.resolve(values);
+  };
+
+  const requestAccountInputs = (
+    definition: ScriptInputsDefinition,
+    values: ScriptInputValues,
+    scriptName: string,
+    signal: AbortSignal,
+  ): Promise<ScriptInputValues | null> => {
+    if (signal.aborted) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const onAbort = () => settleAccountInputDialog(null);
+      signal.addEventListener("abort", onAbort, { once: true });
+      pendingAccountInputDialog = {
+        abort: () => signal.removeEventListener("abort", onAbort),
+        resolve,
+      };
+      openScriptInputsDialog(
+        "account-required",
+        definition,
+        values,
+        scriptName,
+      );
+    });
+  };
+
   const settleQueueInputDialog = (values: ScriptInputValues | null): void => {
     const pending = pendingQueueInputDialog;
     if (pending === null) return;
@@ -2680,6 +2726,22 @@ export function App(props: {
     if (scriptInputDialogMode().startsWith("queue-")) {
       settleQueueInputDialog(null);
       return;
+    }
+
+    if (scriptInputDialogMode() === "account-required") {
+      settleAccountInputDialog(null);
+      return;
+    }
+
+    if (scriptInputDialogMode() === "required") {
+      const file = loadedScript();
+      if (file !== null) {
+        accountSessionTracker.setScript({
+          message: "Script inputs canceled",
+          name: file.name,
+          state: "stopped",
+        });
+      }
     }
 
     resetScriptInputDialogRefs();
@@ -2833,6 +2895,11 @@ export function App(props: {
           stage: "required-inputs",
         });
       }
+      accountSessionTracker.setScript({
+        message: "Waiting for script inputs",
+        name: prepared.file.name,
+        state: "starting",
+      });
       openScriptInputsDialog(
         "required",
         prepared.file.inputs,
@@ -3053,18 +3120,56 @@ export function App(props: {
       setScriptInputDialogError(null);
 
       let inputValues: ScriptInputValues = {};
-      if (file.inputs !== null) {
-        const refreshed = await refreshScriptInputValues(file.inputs);
+      const inputDefinition = file.inputs;
+      if (inputDefinition !== null) {
+        const refreshed = await refreshScriptInputValues(inputDefinition);
         if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
         requireLaunchIdentity();
-        const validation = validateScriptInputValues(file.inputs, refreshed);
-        if (validation.status === "missing-required") {
-          throw new Error("Script inputs required");
-        }
-        inputValues = await saveScriptInputValues(
-          file.inputs,
-          validation.values,
+        const storedInputs = validateScriptInputValues(
+          inputDefinition,
+          refreshed,
         );
+        if (storedInputs.status === "missing-required") {
+          setScriptInputValues(storedInputs.values);
+          accountSessionTracker.setLaunchScript(launchAttempt, {
+            message: "Waiting for script inputs",
+            name: scriptName,
+            state: "starting",
+          });
+          const enteredInputs = await requestAccountInputs(
+            inputDefinition,
+            storedInputs.values,
+            scriptName,
+            controller.signal,
+          );
+          if (
+            controller.signal.aborted ||
+            !accountSessionTracker.isCurrentLaunch(launchAttempt)
+          ) {
+            return;
+          }
+          requireLaunchIdentity();
+          if (enteredInputs === null) {
+            accountSessionTracker.setLaunchScript(launchAttempt, {
+              message: "Script inputs canceled",
+              name: scriptName,
+              state: "stopped",
+            });
+            return;
+          }
+
+          const validatedInputs = validateScriptInputValues(
+            inputDefinition,
+            enteredInputs,
+          );
+          if (validatedInputs.status === "missing-required") {
+            throw new Error("Required script inputs are still missing.");
+          }
+          inputValues = validatedInputs.values;
+        } else {
+          inputValues = storedInputs.values;
+        }
+        inputValues = await saveScriptInputValues(inputDefinition, inputValues);
         if (!accountSessionTracker.isCurrentLaunch(launchAttempt)) return;
         requireLaunchIdentity();
       }
@@ -3341,6 +3446,13 @@ export function App(props: {
       return;
     }
 
+    if (scriptInputDialogMode() === "account-required") {
+      setScriptInputDialogSaving(true);
+      settleAccountInputDialog(result.values);
+      setScriptInputDialogSaving(false);
+      return;
+    }
+
     const file = loadedScript();
     if (file === null) {
       setScriptInputDialogOpen(false);
@@ -3352,6 +3464,11 @@ export function App(props: {
     const shouldStart = scriptInputDialogMode() === "required";
     if (shouldStart) {
       setScriptBusy(true);
+      accountSessionTracker.setScript({
+        message: "Starting script",
+        name: file.name,
+        state: "starting",
+      });
     }
 
     try {
@@ -3381,6 +3498,11 @@ export function App(props: {
         const file = loadedScript();
         if (file !== null) {
           showFatalScriptError(file.name, error, file.path);
+          accountSessionTracker.setScript({
+            message: formatEvalError(error),
+            name: file.name,
+            state: "failed",
+          });
         }
       }
       setScriptInputDialogError({
@@ -4349,7 +4471,7 @@ export function App(props: {
         >
           <DialogHeader>
             <DialogTitle>
-              {scriptInputDialogMode() === "required"
+              {isRequiredScriptInputsDialog(scriptInputDialogMode())
                 ? "Script inputs required"
                 : scriptInputDialogMode() === "queue-edit"
                   ? "Queue script inputs"
@@ -4392,7 +4514,7 @@ export function App(props: {
               type="button"
               onClick={() => void persistScriptInputs()}
             >
-              {scriptInputDialogMode() === "required"
+              {isRequiredScriptInputsDialog(scriptInputDialogMode())
                 ? "Save and Start"
                 : scriptInputDialogMode() === "queue-add"
                   ? "Add to queue"
