@@ -221,6 +221,7 @@ export {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
+  VirtualizedMenuRadioGroup,
   type MenuCheckboxItemProps,
   type MenuContentProps,
   type MenuGroupProps,
@@ -235,6 +236,7 @@ export {
   type MenuSubProps,
   type MenuSubTriggerProps,
   type MenuTriggerProps,
+  type VirtualizedMenuRadioGroupProps,
 } from "./components/Menu";
 export { Portal, type PortalProps } from "./components/Portal";
 export { PillButton, type PillButtonProps } from "./components/PillButton";
@@ -250,6 +252,7 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  VirtualizedSelectContent,
   type SelectButtonProps,
   type SelectContentProps,
   type SelectGroupLabelProps,
@@ -261,6 +264,7 @@ export {
   type SelectSeparatorProps,
   type SelectTriggerProps,
   type SelectValueProps,
+  type VirtualizedSelectContentProps,
 } from "./components/Select";
 export {
   Slider,

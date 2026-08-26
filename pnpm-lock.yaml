@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@tanstack/solid-virtual': 3.13.24
   effect: 4.0.0-beta.83
   '@effect/platform': 4.0.0-beta.83
   '@effect/platform-node': 4.0.0-beta.83
@@ -326,6 +327,9 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.36.2
         version: 5.36.2(solid-js@1.9.12)
+      '@tanstack/solid-virtual':
+        specifier: 3.13.24
+        version: 3.13.24(solid-js@1.9.12)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

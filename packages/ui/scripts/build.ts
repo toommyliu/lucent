@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     external: [
       "@ark-ui/solid",
       "@ark-ui/solid/*",
+      "@tanstack/solid-virtual",
       "clsx",
       "solid-js",
       "solid-js/web",
