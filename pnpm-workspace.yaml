@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - app
   - docs
+  - observability
 
 onlyBuiltDependencies:
   - electron # https://github.com/electron/electron/issues/44008
@@ -17,7 +18,10 @@ allowBuilds:
   electron-winstaller: false
   esbuild: true
   msgpackr-extract: false
+  msw: false
   sharp: true
+
+minimumReleaseAge: 0
 
 minimumReleaseAgeExclude:
   - "@effect/tsgo"
