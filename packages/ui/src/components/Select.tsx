@@ -3,9 +3,11 @@ import {
   createListCollection,
   Select as SelectPrimitive,
   type CollectionItem,
+  useSelectContext,
 } from "@ark-ui/solid/select";
 import {
   Show,
+  createComputed,
   createContext,
   createEffect,
   createMemo,
@@ -20,6 +22,16 @@ import { Portal } from "solid-js/web";
 import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 import { createPositioningReady, getPositionerStyle } from "./Positioning";
+import { VisuallyHidden } from "./VisuallyHidden";
+import {
+  VirtualList,
+  VirtualListSearchInput,
+  filterVirtualListItems,
+  updateInlineSearchQuery,
+  type VirtualListApi,
+  type VirtualListItem,
+  useVirtualListItemPosition,
+} from "./VirtualList";
 
 export interface SelectOption extends CollectionItem {
   readonly disabled?: boolean;
@@ -29,6 +41,12 @@ export interface SelectOption extends CollectionItem {
 
 interface SelectContextValue {
   readonly registerItem: (item: SelectOption) => void;
+  readonly setItemsOverride: (
+    items: readonly SelectOption[] | undefined,
+  ) => void;
+  readonly setScrollToIndex: (
+    handler: SelectScrollToIndexHandler | undefined,
+  ) => void;
   readonly unregisterItem: (value: string) => void;
 }
 
@@ -50,6 +68,8 @@ export interface SelectProps extends Omit<
   readonly items?: ReadonlyArray<SelectOption>;
 }
 
+type SelectScrollToIndexHandler = NonNullable<SelectProps["scrollToIndexFn"]>;
+
 const defaultSelectPositioning: NonNullable<SelectProps["positioning"]> = {
   fitViewport: true,
   placement: "bottom-start",
@@ -62,13 +82,21 @@ export function Select(props: SelectProps): JSX.Element {
     "class",
     "items",
     "positioning",
+    "scrollToIndexFn",
   ]);
   const [registeredItems, setRegisteredItems] = createSignal<SelectOption[]>([
     ...(local.items ?? []),
   ]);
+  const [itemsOverride, setItemsOverride] = createSignal<
+    readonly SelectOption[] | undefined
+  >();
+  const [scrollToIndex, setStoredScrollToIndex] = createSignal<
+    SelectScrollToIndexHandler | undefined
+  >();
+  const items = () => local.items ?? registeredItems();
   const collection = createMemo(() =>
     createListCollection<SelectOption>({
-      items: local.items ?? registeredItems(),
+      items: itemsOverride() ?? items(),
     }),
   );
   const context: SelectContextValue = {
@@ -80,11 +108,24 @@ export function Select(props: SelectProps): JSX.Element {
         return [...next, item];
       });
     },
+    setItemsOverride,
+    setScrollToIndex(handler) {
+      // Solid treats a bare function passed to a setter as an updater.
+      setStoredScrollToIndex(() => handler);
+    },
     unregisterItem(value) {
       setRegisteredItems((items) =>
         items.filter((candidate) => candidate.value !== value),
       );
     },
+  };
+  const handleScrollToIndex: SelectScrollToIndexHandler = (details) => {
+    const handler = scrollToIndex();
+    if (handler !== undefined) {
+      handler(details);
+      return;
+    }
+    local.scrollToIndexFn?.(details);
   };
   const { positioned, positioning } = createPositioningReady(() => ({
     ...defaultSelectPositioning,
@@ -100,6 +141,11 @@ export function Select(props: SelectProps): JSX.Element {
           collection={collection()}
           data-slot="select"
           positioning={positioning()}
+          scrollToIndexFn={
+            scrollToIndex() === undefined && local.scrollToIndexFn === undefined
+              ? undefined
+              : handleScrollToIndex
+          }
         >
           {local.children}
         </SelectPrimitive.Root>
@@ -196,14 +242,57 @@ export interface SelectContentProps extends Omit<
   readonly portalMount?: Node | undefined;
 }
 
-export function SelectContent(props: SelectContentProps): JSX.Element {
-  const [local, rest] = splitProps(props, ["children", "class", "portalMount"]);
+export interface VirtualizedSelectContentProps<
+  T extends VirtualListItem = SelectOption,
+> extends Omit<SelectContentProps, "children"> {
+  readonly children: (item: T, index: number) => JSX.Element;
+  readonly emptyText?: string;
+  readonly itemSize?: number;
+  readonly items: readonly T[];
+  readonly overscan?: number;
+  readonly searchable?: boolean;
+}
+
+function SelectContentFrame(props: {
+  readonly children: JSX.Element;
+  readonly class?: string | undefined;
+  readonly contentProps: Omit<SelectContentProps, "children" | "class">;
+  readonly onKeyDownCapture?: ((event: KeyboardEvent) => void) | undefined;
+  readonly portalMount?: Node | undefined;
+}): JSX.Element {
+  const [contentLocal, contentRest] = splitProps(props.contentProps, ["ref"]);
   const dialogPortalMount = useDialogPortalMount();
   const dialogFloatingZIndex = useDialogFloatingZIndex();
-  const portalMount = () => local.portalMount ?? dialogPortalMount();
+  const portalMount = () => props.portalMount ?? dialogPortalMount();
   const positioned = useSelectPositioned();
+  const [contentElement, setContentElement] = createSignal<HTMLDivElement>();
   const positionerStyle = () =>
     getPositionerStyle(positioned(), dialogFloatingZIndex);
+  createEffect(() => {
+    const element = contentElement();
+    const onKeyDownCapture = props.onKeyDownCapture;
+    const view = element?.ownerDocument.defaultView;
+    if (
+      element === undefined ||
+      onKeyDownCapture === undefined ||
+      view === undefined ||
+      view === null
+    ) {
+      return;
+    }
+
+    // Ark listens for Escape on document capture and handles listbox keys on
+    // the content. Window capture lets the virtual list run before both.
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target;
+      if (!(target instanceof view.Node) || !element.contains(target)) return;
+      onKeyDownCapture(event);
+    };
+    view.addEventListener("keydown", handleKeyDown, { capture: true });
+    onCleanup(() =>
+      view.removeEventListener("keydown", handleKeyDown, { capture: true }),
+    );
+  });
   const content = () => (
     <SelectPrimitive.Positioner
       class="select__positioner"
@@ -211,13 +300,15 @@ export function SelectContent(props: SelectContentProps): JSX.Element {
       style={positionerStyle()}
     >
       <SelectPrimitive.Content
-        {...rest}
-        class={cn("select__content", local.class)}
+        {...contentRest}
+        class={cn("select__content", props.class)}
         data-slot="select-content"
+        ref={(element) => {
+          if (typeof contentLocal.ref === "function") contentLocal.ref(element);
+          setContentElement(element);
+        }}
       >
-        <SelectPrimitive.List class="select__list" data-slot="select-list">
-          {local.children}
-        </SelectPrimitive.List>
+        {props.children}
       </SelectPrimitive.Content>
     </SelectPrimitive.Positioner>
   );
@@ -226,6 +317,192 @@ export function SelectContent(props: SelectContentProps): JSX.Element {
     <Show when={portalMount()} keyed fallback={<Portal>{content()}</Portal>}>
       {(mount) => <Portal mount={mount}>{content()}</Portal>}
     </Show>
+  );
+}
+
+export function SelectContent(props: SelectContentProps): JSX.Element {
+  const [local, rest] = splitProps(props, ["children", "class", "portalMount"]);
+  return (
+    <SelectContentFrame
+      class={local.class}
+      contentProps={rest}
+      portalMount={local.portalMount}
+    >
+      <SelectPrimitive.List class="select__list" data-slot="select-list">
+        {local.children}
+      </SelectPrimitive.List>
+    </SelectContentFrame>
+  );
+}
+
+export function VirtualizedSelectContent<T extends VirtualListItem>(
+  props: VirtualizedSelectContentProps<T>,
+): JSX.Element {
+  const [local, rest] = splitProps(props, [
+    "children",
+    "class",
+    "emptyText",
+    "itemSize",
+    "items",
+    "overscan",
+    "portalMount",
+    "searchable",
+  ]);
+  const context = useContext(SelectItemsContext);
+  if (context === undefined) {
+    throw new Error("VirtualizedSelectContent must be rendered within Select");
+  }
+  const select = useSelectContext();
+  const [query, setQuery] = createSignal("");
+  let listElement: HTMLDivElement | undefined;
+  let searchInputElement: HTMLInputElement | undefined;
+  let virtualList: VirtualListApi | undefined;
+  let searchOriginValue: string | null = null;
+  const filteredItems = createMemo(() =>
+    local.searchable === true
+      ? filterVirtualListItems(local.items, query())
+      : local.items,
+  );
+  const scrollToValue = (value: string | undefined | null): void => {
+    if (value == null) return;
+    const index = local.items.findIndex((item) => item.value === value);
+    if (index >= 0) virtualList?.scrollToIndex(index);
+  };
+  const setSearchQuery = (nextQuery: string): void => {
+    const currentValue = select().highlightedValue ?? select().value[0] ?? null;
+    if (query() === "" && nextQuery !== "") {
+      searchOriginValue = currentValue;
+    }
+
+    setQuery(nextQuery);
+    virtualList?.scrollToStart();
+    if (nextQuery !== "") {
+      const firstItem = filterVirtualListItems(local.items, nextQuery).find(
+        (item) => item.disabled !== true,
+      );
+      if (firstItem === undefined) {
+        select().clearHighlightValue();
+      } else {
+        select().setHighlightValue(firstItem.value);
+      }
+      return;
+    }
+
+    const restoredValue = currentValue ?? searchOriginValue;
+    searchOriginValue = null;
+    queueMicrotask(() => {
+      if (restoredValue !== null) {
+        select().setHighlightValue(restoredValue);
+      }
+      listElement
+        ?.closest<HTMLElement>('[data-slot="select-content"]')
+        ?.focus({ preventScroll: true });
+      scrollToValue(restoredValue);
+    });
+  };
+
+  createComputed(() => {
+    if (!select().open && query() !== "") {
+      setQuery("");
+      searchOriginValue = null;
+    }
+  });
+  createEffect(() => {
+    context.setItemsOverride(filteredItems());
+  });
+  context.setScrollToIndex((details) => {
+    if (details.index >= 0) virtualList?.scrollToIndex(details.index);
+  });
+  onCleanup(() => {
+    context.setItemsOverride(undefined);
+    context.setScrollToIndex(undefined);
+  });
+
+  const handleKeyDown = (event: KeyboardEvent): void => {
+    if (local.searchable !== true) return;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (query() === "") {
+        select().setOpen(false);
+        return;
+      }
+
+      setSearchQuery("");
+      return;
+    }
+
+    if (event.target === searchInputElement) return;
+
+    const nextQuery = updateInlineSearchQuery(query(), event);
+    if (nextQuery === undefined) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    setSearchQuery(nextQuery);
+    if (nextQuery !== "") {
+      queueMicrotask(() => searchInputElement?.focus({ preventScroll: true }));
+    }
+  };
+
+  return (
+    <SelectContentFrame
+      class={cn("select__content--virtualized", local.class)}
+      contentProps={rest}
+      onKeyDownCapture={handleKeyDown}
+      portalMount={local.portalMount}
+    >
+      <Show when={local.searchable === true && query() !== ""}>
+        <VirtualListSearchInput
+          ref={(element) => {
+            searchInputElement = element;
+          }}
+          onInput={(event) => setSearchQuery(event.currentTarget.value)}
+          value={query()}
+        />
+      </Show>
+      <VisuallyHidden role="status" aria-live="polite">
+        {query() === ""
+          ? ""
+          : `${filteredItems().length} ${filteredItems().length === 1 ? "result" : "results"}`}
+      </VisuallyHidden>
+      <SelectPrimitive.List
+        class="select__list select__list--virtualized"
+        data-slot="select-list"
+        ref={(element) => {
+          listElement = element;
+        }}
+      >
+        <Show
+          when={filteredItems().length > 0}
+          fallback={
+            <div class="select__empty">
+              {local.emptyText ?? "No matching options"}
+            </div>
+          }
+        >
+          <VirtualList
+            class="virtual-list__items"
+            getScrollElement={() => listElement}
+            itemSize={local.itemSize}
+            items={filteredItems()}
+            overscan={local.overscan}
+            ref={(api) => {
+              virtualList = api;
+              const highlightedValue =
+                select().highlightedValue ?? select().value[0];
+              const highlightedIndex = filteredItems().findIndex(
+                (item) => item.value === highlightedValue,
+              );
+              if (highlightedIndex >= 0) api.scrollToIndex(highlightedIndex);
+            }}
+          >
+            {local.children}
+          </VirtualList>
+        </Show>
+      </SelectPrimitive.List>
+    </SelectContentFrame>
   );
 }
 
@@ -242,6 +519,8 @@ export interface SelectItemProps extends Omit<
 
 export function SelectItem(props: SelectItemProps): JSX.Element {
   const [local, rest] = splitProps(props, [
+    "aria-posinset",
+    "aria-setsize",
     "children",
     "class",
     "disabled",
@@ -250,6 +529,7 @@ export function SelectItem(props: SelectItemProps): JSX.Element {
     "value",
   ]);
   const context = useContext(SelectItemsContext);
+  const virtualPosition = useVirtualListItemPosition();
   const childLabel = (): string | undefined => {
     const child = local.children;
     if (typeof child === "string" || typeof child === "number") {
@@ -284,6 +564,11 @@ export function SelectItem(props: SelectItemProps): JSX.Element {
   return (
     <SelectPrimitive.Item
       {...rest}
+      aria-posinset={
+        local["aria-posinset"] ??
+        (virtualPosition === undefined ? undefined : virtualPosition.index + 1)
+      }
+      aria-setsize={local["aria-setsize"] ?? virtualPosition?.setSize()}
       class={cn("select__item", local.class)}
       data-slot="select-item"
       item={item()}
