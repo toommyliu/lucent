@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Tracer from "effect/Tracer";
 
-import type { DesktopTraceSpan } from "../../shared/ipc";
+import type { DesktopTraceSpan } from "../../../shared/ipc";
 import { DesktopObservability } from "./DesktopObservability";
 
 type TraceEvent = readonly [

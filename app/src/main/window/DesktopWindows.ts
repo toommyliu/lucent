@@ -38,7 +38,7 @@ import {
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopObservability } from "../app/DesktopObservability";
+import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronGameView } from "../electron/ElectronGameView";
 import { ElectronSession } from "../electron/ElectronSession";

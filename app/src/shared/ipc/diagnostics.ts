@@ -77,6 +77,48 @@ export const DesktopTraceSpanSchema = Schema.Struct({
 
 export type DesktopTraceSpan = typeof DesktopTraceSpanSchema.Type;
 
+export const DESKTOP_TRACE_MAX_SPANS = 20_000;
+
+export interface DesktopTraceResponse {
+  readonly recordingStartedAt: string | null;
+  readonly spans: readonly DesktopTraceSpan[];
+  readonly truncated: boolean;
+}
+
+export interface GameConsoleMessage {
+  readonly at: string;
+  readonly gameWindowId: number;
+  readonly generation: number;
+  readonly id: number;
+  readonly message: string;
+  readonly username: string | null;
+}
+
+export interface GameConsoleWindowState {
+  readonly closedAt: string | null;
+  readonly gameWindowId: number;
+  readonly generation: number;
+  readonly lastMessageAt: string | null;
+  readonly lastMessageId: number | null;
+  readonly messageCount: number;
+  readonly openedAt: string;
+  readonly state: "active" | "closed";
+  readonly username: string | null;
+}
+
+export interface GameConsoleState {
+  readonly activeGameWindowCount: number;
+  readonly buffer: {
+    readonly bytes: number;
+    readonly dropped: number;
+    readonly maxBytes: number;
+    readonly maxMessageBytes: number;
+    readonly maxRows: number;
+    readonly size: number;
+  };
+  readonly windows: readonly GameConsoleWindowState[];
+}
+
 export const RendererDiagnosticPayloadSchema = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("trace.span"),

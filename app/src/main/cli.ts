@@ -85,7 +85,7 @@ export const parseCliOptions = (
     }
 
     if (arg === "--trace-projections") {
-      // Projection traces are inspected through debug console observability.
+      // Projection traces are inspected through desktop observability.
       output.debug = true;
       output.traceProjections = true;
       continue;

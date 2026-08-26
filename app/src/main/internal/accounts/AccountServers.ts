@@ -13,7 +13,7 @@ import type {
   AccountGameServersResult,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopObservability } from "../../app/DesktopObservability";
+import { DesktopObservability } from "../../app/observability/DesktopObservability";
 import {
   ACCOUNT_SERVER_PING_CACHE_TTL_MS,
   AccountServerDataSchema,

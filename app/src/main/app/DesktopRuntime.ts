@@ -8,12 +8,12 @@ import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
-import { DesktopObservability } from "./DesktopObservability";
-import { installDesktopRendererObservability } from "./DesktopRendererObservability";
 import {
-  DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
-  GameConsoleObservability,
-} from "./GameConsoleObservability";
+  DEFAULT_DESKTOP_OBSERVABILITY_PORT,
+  DesktopObservabilityServer,
+} from "./observability/DesktopObservabilityServer";
+import { DesktopObservability } from "./observability/DesktopObservability";
+import { installDesktopRendererObservability } from "./observability/DesktopRendererObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronTheme } from "../electron/ElectronTheme";
@@ -69,7 +69,7 @@ export const makeDesktopRuntime = (
       const applicationMenu = yield* DesktopApplicationMenu;
       const dialog = yield* ElectronDialog;
       const env = yield* DesktopEnvironment;
-      const gameConsoleObservability = yield* GameConsoleObservability;
+      const observabilityServer = yield* DesktopObservabilityServer;
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
       const settingsService = yield* DesktopSettings;
@@ -96,18 +96,18 @@ export const makeDesktopRuntime = (
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
       if (env.debug === true) {
-        yield* gameConsoleObservability
+        yield* observabilityServer
           .install({
-            port: DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
+            port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
           })
           .pipe(
             Effect.catch((cause) =>
               observability.error(
-                "game-console",
-                "Failed to start game console observability",
+                "observability-server",
+                "Failed to start the desktop observability server",
                 cause,
                 {
-                  port: DEFAULT_GAME_CONSOLE_OBSERVABILITY_PORT,
+                  port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
                 },
               ),
             ),

@@ -19,13 +19,13 @@ import type { ThemeMode } from "@lucent/core/settings";
 import {
   DesktopChromiumPerformanceRecording,
   type DesktopChromiumPerformanceRecordingState,
-} from "../app/DesktopChromiumPerformanceRecording";
+} from "../app/observability/DesktopChromiumPerformanceRecording";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopObservability } from "../app/DesktopObservability";
+import { DesktopObservability } from "../app/observability/DesktopObservability";
 import {
   DesktopPerformanceTrace,
   type DesktopPerformanceTraceState,
-} from "../app/DesktopPerformanceTrace";
+} from "../app/observability/DesktopPerformanceTrace";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronShell } from "../electron/ElectronShell";

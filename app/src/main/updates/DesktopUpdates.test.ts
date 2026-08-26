@@ -9,7 +9,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopObservability } from "../app/DesktopObservability";
+import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import {
@@ -138,7 +138,12 @@ const makeUpdatesHarness = (options: {
       logFilePath: join(env.appDataDir, "logs", "lucent.log"),
       record: () => Effect.void,
       recordUnsafe: () => undefined,
-      subscribe: () => () => undefined,
+      subscribeTrace: () => () => undefined,
+      traceSnapshot: () => ({
+        recordingStartedAt: null,
+        spans: [],
+        truncated: false,
+      }),
       warn: () => Effect.void,
     });
     const app = ElectronApp.of({
