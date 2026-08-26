@@ -66,7 +66,7 @@ const makeHarness = () =>
 const testProfile: CombatProfile = {
   id: "archpaladin-farm",
   label: "Farm Rotation",
-  className: "ArchPaladin",
+  classNames: ["ArchPaladin"],
   delayMs: 150,
   cooldownMode: "use-if-ready",
   steps: [{ skill: 1, conditions: [], priority: true }],

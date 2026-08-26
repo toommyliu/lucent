@@ -38,14 +38,14 @@ interface TopNavFixture {
 const profiles: readonly TopNavCombatProfile[] = [
   { id: "generic", label: "Generic" },
   {
-    className: "Lord of Order",
+    classNames: ["Lord of Order"],
     id: "support",
     label: "Party Support",
   },
   {
-    className: "Dragon of Time",
+    classNames: ["Void Highlord", "Void Highlord (IoDA)", "Debris Highlord"],
     id: "dot-solo",
-    label: "Dragon of Time Solo",
+    label: "Void Highlord Solo",
   },
 ];
 

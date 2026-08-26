@@ -30,7 +30,7 @@ type CombatProfile = {
         readonly cooldownMode?: "use-if-ready" | "wait-for-cooldown";
         readonly waitMs?: number;
     }[];
-    readonly className?: string;
+    readonly classNames?: readonly string[];
     readonly consumable?: string;
     readonly resetSkillIndexOnTargetDeath?: boolean;
     readonly messageTriggers?: readonly {

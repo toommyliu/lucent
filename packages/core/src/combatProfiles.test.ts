@@ -33,7 +33,7 @@ const canonicalLibrary = {
     {
       id: "archpaladin-farm",
       label: "Farm Rotation",
-      className: "ArchPaladin",
+      classNames: ["ArchPaladin"],
       consumable: "Potent Honor Potion",
       delayMs: 150,
       cooldownMode: "use-if-ready",
@@ -228,7 +228,7 @@ describe("combatProfiles", () => {
     expect(duplicate).toMatchObject({
       id: "copy-profile-1",
       label: "Farm Rotation Copy 3",
-      className: "ArchPaladin",
+      classNames: ["ArchPaladin"],
       consumable: "Potent Honor Potion",
       steps: [{ skill: 1, priority: true }],
       messageTriggers: [{ messageIncludes: "enrage" }],

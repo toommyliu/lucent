@@ -16,7 +16,7 @@ const library: CombatProfileLibrary = {
   profiles: [
     ...DEFAULT_COMBAT_PROFILE_LIBRARY.profiles,
     {
-      className: "Lord of Order",
+      classNames: ["Lord of Order"],
       cooldownMode: "use-if-ready",
       delayMs: 180,
       id: "support",
