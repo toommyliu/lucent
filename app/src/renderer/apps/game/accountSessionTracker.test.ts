@@ -197,6 +197,23 @@ describe("account session tracker", () => {
     });
   });
 
+  it("publishes manual script preparation before the runner starts", async () => {
+    const { reports, tracker } = makeHarness();
+
+    tracker.setScript({
+      message: "Waiting for script inputs",
+      name: "manual.js",
+      state: "starting",
+    });
+    await tracker.flush();
+
+    expect(reports.at(-1)?.runtime.script).toEqual({
+      message: "Waiting for script inputs",
+      name: "manual.js",
+      state: "starting",
+    });
+  });
+
   it("ignores status from a superseded launch", () => {
     const { tracker } = makeHarness();
     const firstAttempt = tracker.beginLaunch("Alice");
