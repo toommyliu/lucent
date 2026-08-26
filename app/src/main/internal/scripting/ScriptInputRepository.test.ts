@@ -60,6 +60,13 @@ const definition: ScriptInputsDefinition = {
       options: ["Artix", "Yorumi"],
       default: "Artix",
     },
+    {
+      key: "rewards",
+      type: "multi-select",
+      label: "Rewards",
+      options: ["Weapon", "Armor", "Pet"],
+      default: ["Armor"],
+    },
   ],
 };
 
@@ -98,6 +105,7 @@ describe("ScriptInputRepository service", () => {
       expect(values).toEqual({
         count: 3,
         enabled: false,
+        rewards: ["Armor"],
         server: "Artix",
       });
       expect(findMissingRequiredScriptInputs(definition, values)).toEqual([
@@ -113,6 +121,7 @@ describe("ScriptInputRepository service", () => {
       const values = yield* repository.saveValues(definition, {
         count: Number.NaN,
         enabled: true,
+        rewards: ["Pet", "Weapon", "Removed"],
         server: "Missing",
         target: "chaos",
       });
@@ -125,6 +134,7 @@ describe("ScriptInputRepository service", () => {
       expect(values).toEqual({
         count: 3,
         enabled: true,
+        rewards: ["Weapon", "Pet"],
         server: "Artix",
         target: "chaos",
       });
@@ -189,6 +199,7 @@ describe("ScriptInputRepository service", () => {
           "repository-test": {
             count: 3,
             enabled: false,
+            rewards: ["Armor"],
             server: "Artix",
             target: "new",
           },

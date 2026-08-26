@@ -18,9 +18,10 @@ describe("ScriptRuntime", () => {
         roomPolicy: { kind: "random-private" },
         safeStartStop: true,
       };
+      const rewards = ["Weapon"];
       const script = makeScriptRuntimeApi({
         getOptions: () => Effect.succeed(snapshotScriptRuntimeOptions(options)),
-        inputValues: { item: "Weapon" },
+        inputValues: { item: "Weapon", rewards },
         log: () => undefined,
         scope,
         setOptions: (update) =>
@@ -31,6 +32,18 @@ describe("ScriptRuntime", () => {
       });
 
       expect(yield* script.inputs.get("item")).toBe("Weapon");
+      rewards.push("Armor");
+      const selectedRewards = yield* script.inputs.get("rewards");
+      expect(selectedRewards).toEqual(["Weapon"]);
+      if (Array.isArray(selectedRewards)) selectedRewards.push("Pet");
+      expect(yield* script.inputs.get("rewards")).toEqual(["Weapon"]);
+
+      const allInputs = yield* script.inputs.getAll();
+      if (Array.isArray(allInputs["rewards"])) {
+        allInputs["rewards"].push("Armor");
+      }
+      expect(yield* script.inputs.get("rewards")).toEqual(["Weapon"]);
+
       yield* script.options.setRestartAfterReconnect(true);
       yield* script.options.setRoomPolicy({
         kind: "specific",

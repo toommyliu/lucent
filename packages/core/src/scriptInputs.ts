@@ -9,6 +9,7 @@ export const ScriptInputValueSchema = Schema.Union([
   Schema.String,
   Schema.Number,
   Schema.Boolean,
+  Schema.Array(Schema.String),
 ]);
 
 export type ScriptInputValue = typeof ScriptInputValueSchema.Type;
@@ -18,6 +19,7 @@ export const ScriptInputTypeSchema = Schema.Literals([
   "number",
   "boolean",
   "select",
+  "multi-select",
 ]);
 
 export type ScriptInputType = typeof ScriptInputTypeSchema.Type;
@@ -64,11 +66,36 @@ export const ScriptSelectInputFieldSchema = Schema.Struct({
   ),
 );
 
+export const ScriptMultiSelectInputFieldSchema = Schema.Struct({
+  ...ScriptInputFieldBaseSchema,
+  type: Schema.Literal("multi-select"),
+  options: Schema.Array(Schema.String),
+  default: Schema.optionalKey(Schema.Array(Schema.String)),
+}).check(
+  Schema.makeFilter(
+    ({ default: defaultValue, options }) => {
+      const optionSet = new Set(options);
+      return (
+        options.length > 0 &&
+        optionSet.size === options.length &&
+        (defaultValue === undefined ||
+          (new Set(defaultValue).size === defaultValue.length &&
+            defaultValue.every((value) => optionSet.has(value))))
+      );
+    },
+    {
+      expected:
+        "multi-select input options to be non-empty and unique, and contain every unique default value",
+    },
+  ),
+);
+
 export const ScriptInputFieldSchema = Schema.Union([
   ScriptStringInputFieldSchema,
   ScriptNumberInputFieldSchema,
   ScriptBooleanInputFieldSchema,
   ScriptSelectInputFieldSchema,
+  ScriptMultiSelectInputFieldSchema,
 ]);
 
 export type ScriptInputField = typeof ScriptInputFieldSchema.Type;
@@ -182,6 +209,17 @@ const normalizeValue = (
       return typeof value === "number" && Number.isFinite(value)
         ? value
         : undefined;
+    case "multi-select": {
+      if (
+        !Array.isArray(value) ||
+        !value.every((item) => typeof item === "string")
+      ) {
+        return undefined;
+      }
+
+      const selected = new Set(value);
+      return field.options.filter((option) => selected.has(option));
+    }
     case "select":
       return typeof value === "string" && field.options.includes(value)
         ? value
@@ -206,7 +244,10 @@ export const normalizeScriptInputValues = (
 
     const fallback = defaultScriptInputValue(field);
     if (fallback !== undefined) {
-      values[field.key] = fallback;
+      const normalizedFallback = normalizeValue(field, fallback);
+      if (normalizedFallback !== undefined) {
+        values[field.key] = normalizedFallback;
+      }
     }
   }
 
@@ -217,11 +258,17 @@ export const findMissingRequiredScriptInputs = (
   definition: ScriptInputsDefinition,
   values: ScriptInputValues,
 ): readonly string[] =>
-  definition.fields.flatMap((field) =>
-    field.required === true && !Object.hasOwn(values, field.key)
+  definition.fields.flatMap((field) => {
+    if (field.required !== true || !Object.hasOwn(values, field.key)) {
+      return field.required === true ? [field.key] : [];
+    }
+
+    const value = values[field.key];
+    return field.type === "multi-select" &&
+      (!Array.isArray(value) || value.length === 0)
       ? [field.key]
-      : [],
-  );
+      : [];
+  });
 
 export const validateScriptInputValues = (
   definition: ScriptInputsDefinition,

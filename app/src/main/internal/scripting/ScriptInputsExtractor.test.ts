@@ -74,6 +74,38 @@ describe("ScriptInputsExtractor service", () => {
     }),
   );
 
+  it.effect("extracts multi-select inputs", () =>
+    Effect.gen(function* () {
+      const definition = yield* extractInputs(`
+        module.exports.inputs = {
+          id: "multi-select",
+          fields: [
+            {
+              key: "rewards",
+              type: "multi-select",
+              label: "Rewards",
+              options: ["Weapon", "Armor", "Pet"],
+              default: ["Weapon", "Armor"],
+            },
+          ],
+        };
+      `);
+
+      expect(definition).toEqual({
+        id: "multi-select",
+        fields: [
+          {
+            key: "rewards",
+            type: "multi-select",
+            label: "Rewards",
+            options: ["Weapon", "Armor", "Pet"],
+            default: ["Weapon", "Armor"],
+          },
+        ],
+      });
+    }),
+  );
+
   it.effect("rejects duplicate field keys", () =>
     Effect.gen(function* () {
       const result = yield* extractInputsResult(`

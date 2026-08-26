@@ -76,6 +76,37 @@ describe("scriptInputs", () => {
     ]);
   });
 
+  it("normalizes multi-select values in declared option order", () => {
+    const multiSelectDefinition = {
+      id: "multi-select",
+      fields: [
+        {
+          key: "rewards",
+          label: "Rewards",
+          type: "multi-select",
+          options: ["Weapon", "Armor", "Pet"],
+          default: ["Pet", "Armor"],
+          required: true,
+        },
+      ],
+    } satisfies ScriptInputsDefinition;
+
+    expect(
+      normalizeScriptInputValues(multiSelectDefinition, {
+        rewards: ["Pet", "Weapon", "Pet", "Removed"],
+      }),
+    ).toEqual({ rewards: ["Weapon", "Pet"] });
+    expect(normalizeScriptInputValues(multiSelectDefinition, {})).toEqual({
+      rewards: ["Armor", "Pet"],
+    });
+    expect(
+      normalizeScriptInputValues(multiSelectDefinition, { rewards: [] }),
+    ).toEqual({ rewards: [] });
+    expect(
+      findMissingRequiredScriptInputs(multiSelectDefinition, { rewards: [] }),
+    ).toEqual(["rewards"]);
+  });
+
   it("returns discriminated validation results", () => {
     expect([
       validateScriptInputValues(definition, { name: "Hero" }),
@@ -130,6 +161,33 @@ describe("scriptInputs", () => {
             type: "select",
             options: ["Artix"],
             default: "Yorumi",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isScriptInputsDefinition({
+        id: "duplicate-multi-select-options",
+        fields: [
+          {
+            key: "rewards",
+            label: "Rewards",
+            type: "multi-select",
+            options: ["Weapon", "Weapon"],
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isScriptInputsDefinition({
+        id: "invalid-multi-select-default",
+        fields: [
+          {
+            key: "rewards",
+            label: "Rewards",
+            type: "multi-select",
+            options: ["Weapon"],
+            default: ["Armor"],
           },
         ],
       }),
