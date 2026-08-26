@@ -586,6 +586,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   width: min(16rem, calc(100vw - 0.5rem)) !important;
 }
 
+.game-menu--combat .menu__viewport {
+  max-height: min(var(--available-height, 22rem), 22rem);
+}
+
 .game-menu--combat-priority {
   width: min(15rem, calc(100vw - 0.5rem)) !important;
 }
@@ -959,7 +963,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-menu--options .menu__viewport {
-  max-height: var(--available-height, 32rem);
+  max-height: min(var(--available-height, 32rem), 32rem);
 }
 
 .game-menu__options-content {

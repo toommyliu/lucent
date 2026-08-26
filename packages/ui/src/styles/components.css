@@ -2923,8 +2923,9 @@ a.badge--destructive:hover {
 
 .menu__viewport,
 .context-menu__viewport {
-  max-height: var(--available-height, 18rem);
+  max-height: min(var(--available-height, 18rem), 18rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.25rem;
 }
 
