@@ -17,6 +17,7 @@ import {
   MenuSubContent,
   MenuSubTrigger,
   MenuTrigger,
+  VirtualizedMenuRadioGroup,
   cn,
   type ButtonProps,
   type MenuContentProps,
@@ -1320,6 +1321,17 @@ export function TopNav(props: TopNavProps): JSX.Element {
   const autoAttackSelectionValue = (): string =>
     props.selectedAutoAttackProfileId();
 
+  const combatProfileMenuItems = createMemo(() =>
+    props.combatProfiles().map((profile) => ({
+      classNames: profile.classNames ?? [],
+      disabled: props.autoAttackEnabled(),
+      id: profile.id,
+      label: profile.label,
+      searchText: profile.classNames?.join(" "),
+      value: profile.id,
+    })),
+  );
+
   const autoAttackPrioritySummary = (): string => {
     const targetCount = props
       .autoAttackTargetPriority()
@@ -2021,29 +2033,29 @@ export function TopNav(props: TopNavProps): JSX.Element {
                   <Icon icon="arrow_up_right" aria-hidden="true" />
                 </MenuItem>
               </MenuGroup>
-              <MenuRadioGroup
+              <VirtualizedMenuRadioGroup
                 class="game-menu__profile-list"
+                items={combatProfileMenuItems()}
+                searchable
                 value={autoAttackSelectionValue()}
                 onValueChange={handleAutoAttackSelectionChange}
               >
-                <For each={props.combatProfiles()}>
-                  {(profile) => (
-                    <MenuRadioItem
-                      aria-label={combatProfileTooltip(profile)}
-                      class="game-menu__item game-menu__profile-item"
-                      closeOnSelect={false}
-                      disabled={props.autoAttackEnabled()}
-                      title={combatProfileTooltip(profile)}
-                      value={profile.id}
-                    >
-                      <span class="game-menu__item-label">{profile.label}</span>
-                      <span class="game-menu__item-value game-menu__profile-class">
-                        {combatProfileClassSummary(profile)}
-                      </span>
-                    </MenuRadioItem>
-                  )}
-                </For>
-              </MenuRadioGroup>
+                {(profile) => (
+                  <MenuRadioItem
+                    aria-label={combatProfileTooltip(profile)}
+                    class="game-menu__item game-menu__profile-item"
+                    closeOnSelect={false}
+                    disabled={props.autoAttackEnabled()}
+                    title={combatProfileTooltip(profile)}
+                    value={profile.value}
+                  >
+                    <span class="game-menu__item-label">{profile.label}</span>
+                    <span class="game-menu__item-value game-menu__profile-class">
+                      {combatProfileClassSummary(profile)}
+                    </span>
+                  </MenuRadioItem>
+                )}
+              </VirtualizedMenuRadioGroup>
             </GameMenuContent>
           </Menu>
 

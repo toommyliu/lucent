@@ -32,6 +32,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  VirtualizedSelectContent,
   TooltipButton,
   TooltipButtonContent,
   TooltipButtonTrigger,
@@ -379,6 +380,13 @@ export function CombatProfilesView(
     );
     return generic ? [generic, ...rest] : rest;
   });
+  const profileSelectItems = createMemo(() =>
+    profileOptions().map((profile) => ({
+      label: profile.label,
+      searchText: profile.classNames?.join(" "),
+      value: profile.id,
+    })),
+  );
   const selectProfile = (profileId: string): void => {
     setSelectedId(profileId);
     writeStoredCombatProfileId(profileId);
@@ -846,6 +854,7 @@ export function CombatProfilesView(
           <span>Profile</span>
           <Select
             class="combat-profiles-profile-dropdown__select"
+            items={profileSelectItems()}
             value={[selectedId()]}
             onValueChange={(details) => {
               const id = details.value[0];
@@ -854,7 +863,7 @@ export function CombatProfilesView(
               }
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger title={selectedProfileLabel() || "Profile"}>
               <span
                 class="select__value"
                 data-placeholder={
@@ -864,13 +873,17 @@ export function CombatProfilesView(
                 {selectedProfileLabel() || "Profile"}
               </span>
             </SelectTrigger>
-            <SelectContent>
-              <For each={profileOptions()}>
-                {(profile) => (
-                  <SelectItem value={profile.id}>{profile.label}</SelectItem>
-                )}
-              </For>
-            </SelectContent>
+            <VirtualizedSelectContent items={profileSelectItems()} searchable>
+              {(profile) => (
+                <SelectItem
+                  item={profile}
+                  title={profile.label}
+                  value={profile.value}
+                >
+                  {profile.label}
+                </SelectItem>
+              )}
+            </VirtualizedSelectContent>
           </Select>
           <Button
             aria-label="Duplicate selected profile"

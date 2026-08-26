@@ -15,9 +15,9 @@ import {
   Input,
   Label,
   Select,
-  SelectContent,
   SelectItem,
   SelectTrigger,
+  VirtualizedSelectContent,
   Switch as ToggleSwitch,
   TooltipIconButton,
 } from "@lucent/ui";
@@ -178,6 +178,7 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
   const profileSelectItems = createMemo(() =>
     profileOptions().map((profile) => ({
       label: profile.label,
+      searchText: profile.classNames?.join(" "),
       value: profile.id,
     })),
   );
@@ -499,13 +500,13 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
               {selectedProfileLabel() || "Combat profile"}
             </span>
           </SelectTrigger>
-          <SelectContent>
-            <For each={profileOptions()}>
-              {(profile) => (
-                <SelectItem value={profile.id}>{profile.label}</SelectItem>
-              )}
-            </For>
-          </SelectContent>
+          <VirtualizedSelectContent items={profileSelectItems()} searchable>
+            {(profile) => (
+              <SelectItem item={profile} value={profile.value}>
+                {profile.label}
+              </SelectItem>
+            )}
+          </VirtualizedSelectContent>
         </Select>
       </div>
       <Field
