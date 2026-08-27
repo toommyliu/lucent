@@ -46,6 +46,8 @@ const commandLaneName = (
     case "start-scripts":
     case "stop-scripts":
       return "scripts";
+    case "run-option-hotkey":
+      return "settings";
     case "login":
     case "logout":
       return "account";

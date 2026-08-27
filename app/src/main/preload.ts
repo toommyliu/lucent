@@ -353,6 +353,8 @@ const gameViewBridge: DesktopGameViewBridge = {
       console.error("Failed to close the current game client.", cause);
     });
   },
+  dispatchGroupOptionHotkey: (commandId) =>
+    invoke(GameViewsIpc.dispatchGroupOptionHotkey, { commandId }),
   getPresentation: () => invoke(GameViewsIpc.getPresentation, undefined),
   initialLayout: initialGameViewLayout,
   onGroupCommand: (listener) => subscribe(GameViewsIpc.groupCommand, listener),

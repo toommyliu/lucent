@@ -4,6 +4,7 @@ import {
   GameViewGroupCommandDispatchResultSchema,
   GameViewGroupCommandDispatchRequestSchema,
   GameViewGroupCommandEnvelopeSchema,
+  GameViewGroupOptionHotkeyCommandIdSchema,
   GameViewHostStateSchema,
   GameViewLayoutSchema,
   GameViewPresentationSchema,
@@ -88,6 +89,14 @@ export const GameViewsIpc = {
     channel: `${namespace}:dispatch-group-command`,
     name: "gameViews.dispatchGroupCommand",
     payload: GameViewGroupCommandDispatchRequestSchema,
+    result: GameViewGroupCommandDispatchResultSchema,
+  }),
+  dispatchGroupOptionHotkey: defineInvoke({
+    channel: `${namespace}:dispatch-group-option-hotkey`,
+    name: "gameViews.dispatchGroupOptionHotkey",
+    payload: Schema.Struct({
+      commandId: GameViewGroupOptionHotkeyCommandIdSchema,
+    }),
     result: GameViewGroupCommandDispatchResultSchema,
   }),
   getPresentation: defineInvoke({
