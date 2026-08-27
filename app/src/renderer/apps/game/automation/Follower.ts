@@ -978,6 +978,16 @@ export const makeFollower = Effect.fnUntraced(function* (
         return yield* stop();
       }
       if (current.config === undefined || current.config.targetName === "") {
+        const self = yield* getSelf().pipe(
+          Effect.catchCause(() => Effect.succeed(null)),
+        );
+        if (self !== null && self.username.trim() !== "") {
+          const config = normalizeFollowerConfig({
+            ...current.config,
+            targetName: self.username,
+          });
+          return yield* start({ config, library });
+        }
         yield* SubscriptionRef.set(state, {
           ...current,
           enabled: false,
