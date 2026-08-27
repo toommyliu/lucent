@@ -14,13 +14,9 @@ Do not implement material changes outside the requested scope without approval.
 
 ## Validation
 
-After code changes, run:
+Run the smallest checks that prove the change works, including relevant focused tests.
 
-- `pnpm format`
-- `pnpm lint`
-- `pnpm typecheck`
-
-Run relevant tests when available. Report any command that cannot pass because of an unrelated existing failure.
+Do not run repository-wide formatting, lint, typecheck, or test commands unless requested. CI owns the full suite.
 
 ## Package Roles
 
