@@ -251,6 +251,8 @@ function PackageUpdateCheckButton(
   );
 }
 
+export type ScriptOptionsSaveStatus = "failed" | "idle" | "saving";
+
 export interface ScriptsDialogProps {
   readonly bridge?: DesktopScriptingBridge;
   readonly fixture?: ScriptsDialogFixture;
@@ -277,11 +279,13 @@ export interface ScriptsDialogProps {
   readonly onQueueRunNext: () => void;
   readonly onQueueStart: () => Promise<boolean>;
   readonly onQueueStop: () => Promise<void>;
+  readonly onRetryOptionsSave: () => void;
   readonly onToggleRestartAfterReconnect: () => void;
   readonly onToggleSafeStartStop: () => void;
   readonly onToggleScript: () => void | Promise<void>;
   readonly open: boolean;
   readonly optionsReady: boolean;
+  readonly optionsSaveStatus: ScriptOptionsSaveStatus;
   readonly queueState: ScriptQueueState;
   readonly restartAfterReconnect: boolean;
   readonly roomNumberDraft: string;
@@ -2620,13 +2624,55 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 class="game-scripts-dialog__options"
               >
                 <div class="game-scripts-dialog__options-heading">
+                  <div class="game-scripts-dialog__options-heading-copy">
+                    <span
+                      class="game-scripts-dialog__section-title"
+                      id="game-scripts-dialog-options-title"
+                    >
+                      Script behavior
+                    </span>
+                    <p>Set per-account script preferences.</p>
+                  </div>
                   <span
-                    class="game-scripts-dialog__section-title"
-                    id="game-scripts-dialog-options-title"
+                    aria-atomic="true"
+                    class="visually-hidden"
+                    role="status"
                   >
-                    Script behavior
+                    {props.optionsSaveStatus === "saving"
+                      ? "Saving script preferences."
+                      : props.optionsSaveStatus === "failed"
+                        ? "Couldn't save script preferences. Changes last only for this session."
+                        : ""}
                   </span>
-                  <p>Set per-account script preferences.</p>
+                  <Show when={props.optionsSaveStatus !== "idle"}>
+                    <div class="game-scripts-dialog__options-save-feedback">
+                      <div class="game-scripts-dialog__options-save-summary">
+                        <span
+                          class="game-scripts-dialog__options-save-status"
+                          data-state={props.optionsSaveStatus}
+                        >
+                          {props.optionsSaveStatus === "saving"
+                            ? "Saving…"
+                            : "Couldn't save"}
+                        </span>
+                        <Show when={props.optionsSaveStatus === "failed"}>
+                          <Button
+                            class="game-scripts-dialog__options-save-retry"
+                            onClick={props.onRetryOptionsSave}
+                            size="sm"
+                            variant="link"
+                          >
+                            Retry
+                          </Button>
+                        </Show>
+                      </div>
+                      <Show when={props.optionsSaveStatus === "failed"}>
+                        <span class="game-scripts-dialog__options-save-note">
+                          Changes last only for this session.
+                        </span>
+                      </Show>
+                    </div>
+                  </Show>
                 </div>
                 <div class="game-scripts-dialog__options-list">
                   <div class="game-scripts-dialog__option-row">
