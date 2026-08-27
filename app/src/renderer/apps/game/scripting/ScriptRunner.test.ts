@@ -3,11 +3,47 @@ import * as Cause from "effect/Cause";
 
 import {
   classifyScriptTermination,
+  planScriptOptionsUpdate,
   statusFromStartingCancellation,
 } from "./ScriptRunner";
 import { makeScriptExitSignal, ScriptStopSignal } from "./ScriptRunnerErrors";
 
 describe("ScriptRunner", () => {
+  it("includes an earlier unsaved option in the next persistence patch", () => {
+    const persisted = {
+      restartAfterReconnect: false,
+      roomPolicy: { kind: "public" as const },
+      safeStartStop: true,
+    };
+    const current = { ...persisted, safeStartStop: false };
+
+    expect(
+      planScriptOptionsUpdate(persisted, current, (options) => ({
+        ...options,
+        restartAfterReconnect: true,
+      })).patch,
+    ).toEqual({
+      restartAfterReconnect: true,
+      safeStartStop: false,
+    });
+  });
+
+  it("plans a session reversal without a disk write after a failed save", () => {
+    const persisted = {
+      restartAfterReconnect: false,
+      roomPolicy: { kind: "public" as const },
+      safeStartStop: true,
+    };
+    const current = { ...persisted, safeStartStop: false };
+
+    expect(
+      planScriptOptionsUpdate(persisted, current, (options) => ({
+        ...options,
+        safeStartStop: true,
+      })),
+    ).toEqual({ next: persisted, patch: {} });
+  });
+
   it("returns a disconnected restart attempt to waiting after cancellation", () => {
     const status = statusFromStartingCancellation(
       {

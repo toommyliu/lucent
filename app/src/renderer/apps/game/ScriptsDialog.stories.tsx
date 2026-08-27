@@ -18,6 +18,7 @@ import {
   type PackageManagementView,
   type ScriptsDialogFixture,
   type ScriptsDialogTab,
+  type ScriptOptionsSaveStatus,
 } from "./ScriptsDialog";
 
 const scripts: readonly ScriptCatalogEntry[] = [
@@ -366,6 +367,7 @@ interface ScriptsDialogStoryFixture {
   readonly inputsAvailable?: boolean;
   readonly loadedReference?: ScriptReference;
   readonly optionsReady?: boolean;
+  readonly optionsSaveStatus?: ScriptOptionsSaveStatus;
   readonly packageManagementView?: PackageManagementView;
   readonly queueState?: ScriptQueueState;
   readonly roomNumberDraft?: string;
@@ -451,6 +453,7 @@ function ScriptsDialogStory(props: {
         onQueueRunNext={() => undefined}
         onQueueStart={() => Promise.resolve(true)}
         onQueueStop={() => Promise.resolve()}
+        onRetryOptionsSave={() => undefined}
         onSelectRoomPolicy={setRoomPolicy}
         onSelectScript={(reference, start) => {
           setLoadedReference(reference);
@@ -468,6 +471,7 @@ function ScriptsDialogStory(props: {
         }}
         open={open()}
         optionsReady={fixture.optionsReady ?? true}
+        optionsSaveStatus={fixture.optionsSaveStatus ?? "idle"}
         queueState={queueState()}
         restartAfterReconnect={restartAfterReconnect()}
         roomNumberDraft={roomNumberDraft()}
@@ -576,6 +580,24 @@ export const OptionsUnavailable: Story = {
       roomNumberDraft: "100000",
       roomNumberError: "Enter a room number from 1 to 99,999.",
       scriptBusy: true,
+    },
+  },
+};
+
+export const OptionsSaving: Story = {
+  args: {
+    fixture: {
+      activeTab: "options",
+      optionsSaveStatus: "saving",
+    },
+  },
+};
+
+export const OptionsSaveFailed: Story = {
+  args: {
+    fixture: {
+      activeTab: "options",
+      optionsSaveStatus: "failed",
     },
   },
 };

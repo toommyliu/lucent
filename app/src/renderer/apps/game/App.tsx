@@ -111,6 +111,7 @@ import {
 } from "./automation/AutoZone";
 import {
   ScriptRunner,
+  type ScriptOptionsUpdateResult,
   type ScriptRunHandle,
   type ScriptRunnerStatus,
 } from "./scripting/ScriptRunner";
@@ -133,7 +134,7 @@ import {
   accountSessionScriptState,
 } from "./scripting/accountScriptStatus";
 import { makeAccountSessionTracker } from "./accountSessionTracker";
-import { ScriptsDialog } from "./ScriptsDialog";
+import { ScriptsDialog, type ScriptOptionsSaveStatus } from "./ScriptsDialog";
 import {
   makeScriptQueue,
   type ScriptQueue,
@@ -208,6 +209,7 @@ const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
 const ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS = 30_000;
 const INACTIVE_FOCUSED_LAYOUT_FRAME_RATE_LIMIT = 2;
 const INACTIVE_GRID_VIEW_FRAME_RATE_LIMIT = 8;
+const SCRIPT_OPTIONS_SAVING_DELAY_MS = 500;
 
 const gameViewFrameRateLimit = (
   presentation: GameViewPresentation,
@@ -1224,6 +1226,10 @@ export function App(props: {
     createSignal(false);
   const [scriptRoomNumberDraft, setScriptRoomNumberDraft] = createSignal("");
   const [scriptRoomNumberError, setScriptRoomNumberError] = createSignal("");
+  const [scriptOptionsSaveStatus, setScriptOptionsSaveStatus] =
+    createSignal<ScriptOptionsSaveStatus>("idle");
+  let scriptOptionsSaveSequence = 0;
+  let scriptOptionsSavingTimer: number | undefined;
   const [boundScriptSettingsUsername, setBoundScriptSettingsUsername] =
     createSignal<string | null>(null);
   const scriptSettingsReady = createMemo(
@@ -1243,6 +1249,12 @@ export function App(props: {
     createSignal<ScriptInputDraftValues>({});
   const [scriptInputDialogError, setScriptInputDialogError] =
     createSignal<ScriptInputsDialogError | null>(null);
+
+  onCleanup(() => {
+    if (scriptOptionsSavingTimer !== undefined) {
+      window.clearTimeout(scriptOptionsSavingTimer);
+    }
+  });
   const [scriptInputDialogSaving, setScriptInputDialogSaving] =
     createSignal(false);
   const [scriptsDialogOpen, setScriptsDialogOpen] = createSignal(false);
@@ -2994,9 +3006,19 @@ export function App(props: {
     setScriptRoomNumberError("");
   };
 
+  const clearScriptOptionsSaveFeedback = (): void => {
+    scriptOptionsSaveSequence += 1;
+    if (scriptOptionsSavingTimer !== undefined) {
+      window.clearTimeout(scriptOptionsSavingTimer);
+      scriptOptionsSavingTimer = undefined;
+    }
+    setScriptOptionsSaveStatus("idle");
+  };
+
   const clearScriptSettingsBinding = (): void => {
     scriptSettingsBindToken += 1;
     setBoundScriptSettingsUsername(null);
+    clearScriptOptionsSaveFeedback();
   };
 
   const bindScriptSettingsForAccount = async (
@@ -3009,6 +3031,7 @@ export function App(props: {
 
     const token = ++scriptSettingsBindToken;
     setBoundScriptSettingsUsername(null);
+    clearScriptOptionsSaveFeedback();
     try {
       const options = await runtime.runPromise(
         Effect.gen(function* () {
@@ -3664,62 +3687,98 @@ export function App(props: {
       });
   };
 
+  const beginScriptOptionsSave = (): number => {
+    const sequence = ++scriptOptionsSaveSequence;
+    if (scriptOptionsSavingTimer !== undefined) {
+      window.clearTimeout(scriptOptionsSavingTimer);
+    }
+    setScriptOptionsSaveStatus("idle");
+    scriptOptionsSavingTimer = window.setTimeout(() => {
+      scriptOptionsSavingTimer = undefined;
+      if (sequence === scriptOptionsSaveSequence) {
+        setScriptOptionsSaveStatus("saving");
+      }
+    }, SCRIPT_OPTIONS_SAVING_DELAY_MS);
+    return sequence;
+  };
+
+  const finishScriptOptionsSave = (
+    sequence: number,
+    persisted: boolean,
+  ): void => {
+    if (sequence !== scriptOptionsSaveSequence) return;
+    if (scriptOptionsSavingTimer !== undefined) {
+      window.clearTimeout(scriptOptionsSavingTimer);
+      scriptOptionsSavingTimer = undefined;
+    }
+    setScriptOptionsSaveStatus(persisted ? "idle" : "failed");
+  };
+
+  const runScriptOptionsSave = (
+    operation: () => Promise<ScriptOptionsUpdateResult>,
+    failureMessage: string,
+  ): void => {
+    const sequence = beginScriptOptionsSave();
+    void operation()
+      .then((result) => {
+        if (sequence !== scriptOptionsSaveSequence) return;
+        applyScriptOptions(result.options);
+        finishScriptOptionsSave(sequence, result.persisted);
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script]", failureMessage, error);
+        if (sequence !== scriptOptionsSaveSequence) return;
+        finishScriptOptionsSave(sequence, false);
+        syncScriptOptions();
+      });
+  };
+
   const handleSelectScriptRoomPolicy = (
     policy: Exclude<RoomPolicy, { readonly kind: "specific" }>,
   ) => {
     setScriptRoomPolicy(policy);
     setScriptRoomNumberDraft("");
     setScriptRoomNumberError("");
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.setRoomPolicy(policy);
-        }),
-      )
-      .then(applyScriptOptions)
-      .catch((error: unknown) => {
-        console.error("[game:script]", "room mode update failed", error);
-        syncScriptOptions();
-      });
+    runScriptOptionsSave(
+      () =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.setRoomPolicy(policy);
+          }),
+        ),
+      "room mode update failed",
+    );
   };
 
   const handleToggleScriptSafeStartStop = () => {
     const enabled = !scriptSafeStartStop();
     setScriptSafeStartStop(enabled);
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.setSafeStartStop(enabled);
-        }),
-      )
-      .then(applyScriptOptions)
-      .catch((error: unknown) => {
-        console.error("[game:script]", "safe-start-stop toggle failed", error);
-        syncScriptOptions();
-      });
+    runScriptOptionsSave(
+      () =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.setSafeStartStop(enabled);
+          }),
+        ),
+      "safe-start-stop toggle failed",
+    );
   };
 
   const handleToggleScriptRestartAfterReconnect = () => {
     const enabled = !scriptRestartAfterReconnect();
     setScriptRestartAfterReconnect(enabled);
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.setRestartAfterReconnect(enabled);
-        }),
-      )
-      .then(applyScriptOptions)
-      .catch((error: unknown) => {
-        console.error(
-          "[game:script]",
-          "restart-after-reconnect toggle failed",
-          error,
-        );
-        syncScriptOptions();
-      });
+    runScriptOptionsSave(
+      () =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.setRestartAfterReconnect(enabled);
+          }),
+        ),
+      "restart-after-reconnect toggle failed",
+    );
   };
 
   const handleCommitScriptRoomNumber = () => {
@@ -3735,22 +3794,29 @@ export function App(props: {
       roomNumber: parsed.value,
     };
     setScriptRoomPolicy(policy);
-    void runtime
-      .runPromise(
-        Effect.gen(function* () {
-          const runner = yield* ScriptRunner;
-          return yield* runner.setRoomPolicy(policy);
-        }),
-      )
-      .then(applyScriptOptions)
-      .catch((error: unknown) => {
-        console.error(
-          "[game:script]",
-          "specific-room number update failed",
-          error,
-        );
-        syncScriptOptions();
-      });
+    runScriptOptionsSave(
+      () =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.setRoomPolicy(policy);
+          }),
+        ),
+      "specific-room number update failed",
+    );
+  };
+
+  const handleRetryScriptOptionsSave = (): void => {
+    runScriptOptionsSave(
+      () =>
+        runtime.runPromise(
+          Effect.gen(function* () {
+            const runner = yield* ScriptRunner;
+            return yield* runner.persistOptions();
+          }),
+        ),
+      "option save retry failed",
+    );
   };
 
   const handleToggleFollower = async (): Promise<boolean | undefined> => {
@@ -4547,6 +4613,7 @@ export function App(props: {
         onQueueRunNext={() => scriptQueue.runNext()}
         onQueueStart={() => scriptQueue.start()}
         onQueueStop={() => scriptQueue.cancel("User stopped the queue")}
+        onRetryOptionsSave={handleRetryScriptOptionsSave}
         onSelectRoomPolicy={handleSelectScriptRoomPolicy}
         onSelectScript={selectCatalogScript}
         onSetRoomNumberDraft={(value) => {
@@ -4558,6 +4625,7 @@ export function App(props: {
         onToggleScript={toggleScript}
         open={scriptsDialogOpen()}
         optionsReady={scriptReady()}
+        optionsSaveStatus={scriptOptionsSaveStatus()}
         queueState={scriptQueueState()}
         restartAfterReconnect={scriptRestartAfterReconnect()}
         roomNumberDraft={scriptRoomNumberDraft()}
