@@ -298,6 +298,9 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
 
   const applyFollowerState = (nextState: FollowerState): void => {
     setState(nextState);
+    if (targetName().trim() === "" && nextState.targetName.trim() !== "") {
+      setTargetName(nextState.targetName);
+    }
     if (
       nextState.enabled ||
       nextState.running ||
@@ -316,7 +319,7 @@ export function FollowerView(props: FollowerViewProps): JSX.Element {
     }
 
     batch(() => {
-      setTargetName(config.targetName);
+      setTargetName(config.targetName || state().targetName);
       setCombatEnabled(config.combatEnabled);
       setCopyWalk(config.copyWalk);
       setRetryEnabled(config.retryEnabled);
