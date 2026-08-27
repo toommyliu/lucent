@@ -1551,40 +1551,34 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-scripts-dialog__alert.alert {
-  align-items: center;
-  flex: 0 0 auto;
   margin: 0.5rem var(--game-scripts-dialog-body-padding-inline) 0;
 }
 
-.game-scripts-dialog__alert.alert,
-.game-scripts-dialog__confirmation-alert.alert {
+.game-scripts-dialog__error-alert.alert {
   border-radius: var(--radius-lg);
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr);
   padding: 0.5rem 0.625rem;
 }
 
-.game-scripts-dialog__alert .alert__description,
-.game-scripts-dialog__confirmation-alert .alert__description {
-  font-size: var(--text-sm);
-  line-height: 1.35;
-}
-
-.game-scripts-dialog__alert .alert__description {
-  align-items: center;
+.game-scripts-dialog__error-alert .alert__description {
+  align-items: flex-start;
   display: flex;
-  min-height: var(--control-height-sm);
+  font-size: var(--text-sm);
+  gap: 0.375rem;
+  line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.game-scripts-dialog__error-alert .alert__description > span {
   min-width: 0;
 }
 
-.game-scripts-dialog__alert .alert__description > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.game-scripts-dialog__alert .alert__action {
-  align-self: center;
-  grid-row: 1;
+.game-scripts-dialog__error-icon {
+  color: rgb(var(--destructive));
+  flex: 0 0 auto;
+  margin-top: 0.0625rem;
 }
 
 .game-scripts-dialog__tabs.tabs {
@@ -1997,26 +1991,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 .game-scripts-dialog__queue-row-actions {
   flex: 0 0 auto;
   gap: 0.25rem;
-}
-
-.game-scripts-dialog__queue-error.alert {
-  border-radius: var(--radius-md);
-  flex: 0 0 auto;
-  padding: 0.5rem 0.625rem;
-}
-
-.game-scripts-dialog__queue-error .alert__description {
-  align-items: flex-start;
-  display: flex;
-  font-size: var(--text-sm);
-  gap: 0.375rem;
-  overflow-wrap: anywhere;
-}
-
-.game-scripts-dialog__queue-error-icon {
-  color: rgb(var(--destructive));
-  flex: 0 0 auto;
-  margin-top: 0.0625rem;
 }
 
 .game-scripts-dialog__queue-viewport {
