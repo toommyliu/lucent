@@ -77,6 +77,7 @@ import type {
   ScriptQueueRunItem,
   ScriptQueueState,
 } from "./scripting/ScriptQueue";
+import { ScriptQueueList, type ScriptQueueListApi } from "./ScriptQueueList";
 import { parseGitHubRepositoryInput } from "../../../shared/githubRepositoryUrl";
 import {
   parseRoomNumberInput,
@@ -273,6 +274,7 @@ export interface ScriptsDialogProps {
     replaceRunning: boolean,
   ) => Promise<void>;
   readonly onSetRoomNumberDraft: (value: string) => void;
+  readonly onQueueClear: () => void;
   readonly onQueueEditInputs: (entryId: string) => Promise<boolean>;
   readonly onQueueMove: (entryId: string, offset: -1 | 1) => void;
   readonly onQueueRemove: (entryId: string) => void;
@@ -370,6 +372,18 @@ const queueItemDuration = (item: ScriptQueueRunItem): string | undefined => {
   if (item.durationMs === undefined) return undefined;
   if (item.durationMs < 1_000) return `${Math.round(item.durationMs)} ms`;
   return `${(item.durationMs / 1_000).toFixed(1)} s`;
+};
+
+const queueItemFinishedAt = (item: ScriptQueueRunItem): string | undefined => {
+  const status = item.result?.status;
+  if (status === undefined) return undefined;
+  const timestamp =
+    status.state === "completed"
+      ? status.completedAt
+      : status.state === "failed"
+        ? status.failedAt
+        : status.stoppedAt;
+  return `Finished at ${new Date(timestamp).toLocaleString()}`;
 };
 
 const scriptContext = (entry: ScriptCatalogEntry): string | undefined => {
@@ -771,7 +785,13 @@ const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
 
 export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const fixtureMode = props.fixture !== undefined;
-  const queueEntryRefs = new Map<string, HTMLElement>();
+  let queueList: ScriptQueueListApi | undefined;
+  const queueRunItems = createMemo(
+    () =>
+      new Map(
+        props.queueState.latestRun?.items.map((item) => [item.entryId, item]),
+      ),
+  );
   const [scriptViewport, setScriptViewport] = createSignal<HTMLDivElement>();
   const [scriptViewportWidth, setScriptViewportWidth] = createSignal(0);
   const scriptContextLimit = createMemo(() =>
@@ -1494,12 +1514,14 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   createEffect(() => {
     const entryId = props.queueState.attentionEntryId;
     if (!props.open || entryId === undefined) return;
-    changeActiveTab("queue");
-    requestAnimationFrame(() => {
-      const row = queueEntryRefs.get(entryId);
-      row?.scrollIntoView({ block: "center", inline: "nearest" });
-      row?.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
+    untrack(() => changeActiveTab("queue"));
+    const frame = requestAnimationFrame(() => {
+      const index = props.queueState.entries.findIndex(
+        (entry) => entry.id === entryId,
+      );
+      if (index !== -1) queueList?.focusIndex(index);
     });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
 
   onCleanup(() => {
@@ -1581,9 +1603,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setBusy(true);
     setError("");
     try {
-      if (await props.onEnqueueScript(entry.reference)) {
-        changeActiveTab("queue");
-      }
+      await props.onEnqueueScript(entry.reference);
     } catch (cause) {
       setOperationError(`Failed to add ${entry.name} to the queue.`, cause);
     } finally {
@@ -2157,7 +2177,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
             onValueChange={(details) => changeActiveTab(details.value)}
           >
             <TabsList variant="underline">
-              <TabsTrigger value="scripts">Scripts</TabsTrigger>
+              <TabsTrigger value="scripts">Library</TabsTrigger>
               <TabsTrigger value="queue">Queue</TabsTrigger>
               <TabsTrigger value="packages">Packages</TabsTrigger>
               <TabsTrigger value="options">Options</TabsTrigger>
@@ -2176,7 +2196,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       updateScriptSearch(event.currentTarget.value)
                     }
                   />
-                  <InputGroupAddon align="inline-end" aria-live="polite">
+                  <InputGroupAddon align="inline-start" aria-live="polite">
                     <Show
                       when={scriptQueryIndicatorVisible()}
                       fallback={<Icon aria-hidden="true" icon="search" />}
@@ -2416,6 +2436,19 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               class="game-scripts-dialog__tab-content game-scripts-dialog__queue"
               value="queue"
             >
+              <Show when={props.queueState.error !== undefined}>
+                <Alert class="game-scripts-dialog__queue-error" variant="error">
+                  <AlertDescription>
+                    <Icon
+                      aria-hidden="true"
+                      class="game-scripts-dialog__queue-error-icon"
+                      icon="circle_alert"
+                      size="sm"
+                    />
+                    <span>{props.queueState.error}</span>
+                  </AlertDescription>
+                </Alert>
+              </Show>
               <div class="game-scripts-dialog__queue-toolbar">
                 <div
                   aria-live="polite"
@@ -2426,17 +2459,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       ? "1 script"
                       : `${props.queueState.entries.length} scripts`}
                   </span>
-                  <Show when={props.queueState.phase !== "idle"}>
-                    <span class="game-scripts-dialog__queue-phase">
-                      {props.queueState.phase === "paused"
-                        ? "Paused after failure"
-                        : props.queueState.phase === "preparing"
-                          ? "Preparing"
-                          : props.queueState.phase === "stopping"
-                            ? "Stopping"
-                            : "Running"}
-                    </span>
-                  </Show>
                 </div>
                 <div class="game-scripts-dialog__queue-actions">
                   <Show
@@ -2463,25 +2485,31 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       </>
                     }
                   >
-                    <Button
-                      disabled={
-                        props.queueState.entries.length === 0 ||
-                        !props.optionsReady
-                      }
-                      onClick={() => void props.onQueueStart()}
-                      size="sm"
-                    >
-                      Start queue
-                    </Button>
+                    <>
+                      <Button
+                        disabled={
+                          busy() || props.queueState.entries.length === 0
+                        }
+                        onClick={props.onQueueClear}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Clear queue
+                      </Button>
+                      <Button
+                        disabled={
+                          props.queueState.entries.length === 0 ||
+                          !props.optionsReady
+                        }
+                        onClick={() => void props.onQueueStart()}
+                        size="sm"
+                      >
+                        Start queue
+                      </Button>
+                    </>
                   </Show>
                 </div>
               </div>
-
-              <Show when={props.queueState.error !== undefined}>
-                <Alert class="game-scripts-dialog__queue-error" variant="error">
-                  <AlertDescription>{props.queueState.error}</AlertDescription>
-                </Alert>
-              </Show>
 
               <Show
                 when={props.queueState.entries.length > 0}
@@ -2503,115 +2531,116 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   </div>
                 }
               >
-                <ol class="game-scripts-dialog__queue-list">
-                  <For each={props.queueState.entries}>
-                    {(entry, index) => (
-                      <li
-                        ref={(element) => queueEntryRefs.set(entry.id, element)}
-                        class="game-scripts-dialog__queue-row"
-                        data-attention={
-                          props.queueState.attentionEntryId === entry.id
-                            ? ""
-                            : undefined
-                        }
-                      >
-                        <span class="game-scripts-dialog__queue-position">
-                          {index() + 1}
-                        </span>
+                <ScriptQueueList
+                  ref={(api) => {
+                    queueList = api;
+                  }}
+                  active={props.open && activeTab() === "queue"}
+                  isAttentionItem={(entry) =>
+                    props.queueState.attentionEntryId === entry.id
+                  }
+                  itemKey={(entry) => entry.id}
+                  items={props.queueState.entries}
+                  label="Queue"
+                >
+                  {(entry, index) => {
+                    const runItem = () => queueRunItems().get(entry.id);
+                    const detail = () => {
+                      const item = runItem();
+                      return item !== undefined &&
+                        (item.state !== "pending" ||
+                          props.queueState.phase !== "idle")
+                        ? queueItemStatus(item)
+                        : entry.file.path;
+                    };
+                    return (
+                      <>
                         <span class="game-scripts-dialog__queue-copy">
-                          <span class="game-scripts-dialog__queue-name">
+                          <span
+                            class="game-scripts-dialog__queue-name"
+                            title={entry.file.path}
+                          >
                             {entry.file.name}
                           </span>
                           <span
                             class="game-scripts-dialog__queue-path"
-                            title={entry.file.path}
+                            title={detail()}
                           >
-                            {entry.file.path}
+                            {detail()}
                           </span>
                         </span>
-                        <span class="game-scripts-dialog__queue-row-actions">
-                          <Button
-                            aria-label={`Edit inputs for ${entry.file.name}`}
-                            disabled={props.queueState.phase !== "idle"}
-                            onClick={() =>
-                              void props.onQueueEditInputs(entry.id)
-                            }
-                            size="xs"
-                            variant="ghost"
-                          >
-                            Edit
-                          </Button>
-                          <IconButton
-                            aria-label={`Move ${entry.file.name} up`}
-                            disabled={
-                              props.queueState.phase !== "idle" || index() === 0
-                            }
-                            onClick={() => props.onQueueMove(entry.id, -1)}
-                            size="icon-xs"
-                            variant="ghost"
-                          >
-                            <Icon icon="arrow_up" size="xs" />
-                          </IconButton>
-                          <IconButton
-                            aria-label={`Move ${entry.file.name} down`}
-                            disabled={
-                              props.queueState.phase !== "idle" ||
-                              index() === props.queueState.entries.length - 1
-                            }
-                            onClick={() => props.onQueueMove(entry.id, 1)}
-                            size="icon-xs"
-                            variant="ghost"
-                          >
-                            <Icon icon="arrow_down" size="xs" />
-                          </IconButton>
-                          <IconButton
-                            aria-label={`Remove ${entry.file.name}`}
-                            disabled={props.queueState.phase !== "idle"}
-                            onClick={() => props.onQueueRemove(entry.id)}
-                            size="icon-xs"
-                            variant="ghost"
-                          >
-                            <Icon icon="trash_2" size="xs" />
-                          </IconButton>
-                        </span>
-                      </li>
-                    )}
-                  </For>
-                </ol>
-              </Show>
-
-              <Show when={props.queueState.latestRun} keyed>
-                {(run) => (
-                  <section
-                    aria-labelledby="game-scripts-dialog-latest-queue-run"
-                    class="game-scripts-dialog__queue-results"
-                  >
-                    <div class="game-scripts-dialog__queue-results-heading">
-                      <span id="game-scripts-dialog-latest-queue-run">
-                        Latest run
-                      </span>
-                      <span>{run.status}</span>
-                    </div>
-                    <ol class="game-scripts-dialog__queue-result-list">
-                      <For each={run.items}>
-                        {(item, index) => (
-                          <li class="game-scripts-dialog__queue-result-row">
-                            <span>{index() + 1}</span>
-                            <span class="game-scripts-dialog__queue-result-copy">
-                              <span>{item.file.name}</span>
-                              <span title={queueItemStatus(item)}>
-                                {queueItemStatus(item)}
-                              </span>
+                        <span class="game-scripts-dialog__queue-row-trailing">
+                          <Show when={runItem()}>
+                            {(item) => (
+                              <Show when={queueItemDuration(item())}>
+                                {(duration) => (
+                                  <span
+                                    class="game-scripts-dialog__queue-duration"
+                                    title={queueItemFinishedAt(item())}
+                                  >
+                                    {duration()}
+                                  </span>
+                                )}
+                              </Show>
+                            )}
+                          </Show>
+                          <Show when={props.queueState.phase === "idle"}>
+                            <span class="game-scripts-dialog__queue-row-actions">
+                              <Button
+                                aria-label={`Edit inputs for ${entry.file.name}`}
+                                disabled={!entry.inputsAvailable}
+                                onClick={() =>
+                                  void props.onQueueEditInputs(entry.id)
+                                }
+                                size="xs"
+                                variant="ghost"
+                              >
+                                Edit
+                              </Button>
+                              <IconButton
+                                aria-label={`Move ${entry.file.name} up`}
+                                disabled={index() === 0}
+                                onClick={(event) => {
+                                  const button = event.currentTarget;
+                                  props.onQueueMove(entry.id, -1);
+                                  queueMicrotask(() => button.focus());
+                                }}
+                                size="icon-xs"
+                                variant="ghost"
+                              >
+                                <Icon icon="arrow_up" size="xs" />
+                              </IconButton>
+                              <IconButton
+                                aria-label={`Move ${entry.file.name} down`}
+                                disabled={
+                                  index() ===
+                                  props.queueState.entries.length - 1
+                                }
+                                onClick={(event) => {
+                                  const button = event.currentTarget;
+                                  props.onQueueMove(entry.id, 1);
+                                  queueMicrotask(() => button.focus());
+                                }}
+                                size="icon-xs"
+                                variant="ghost"
+                              >
+                                <Icon icon="arrow_down" size="xs" />
+                              </IconButton>
+                              <IconButton
+                                aria-label={`Remove ${entry.file.name}`}
+                                onClick={() => props.onQueueRemove(entry.id)}
+                                size="icon-xs"
+                                variant="ghost"
+                              >
+                                <Icon icon="trash_2" size="xs" />
+                              </IconButton>
                             </span>
-                            <Show when={queueItemDuration(item)}>
-                              {(duration) => <span>{duration()}</span>}
-                            </Show>
-                          </li>
-                        )}
-                      </For>
-                    </ol>
-                  </section>
-                )}
+                          </Show>
+                        </span>
+                      </>
+                    );
+                  }}
+                </ScriptQueueList>
               </Show>
             </TabsContent>
 

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { createSignal, type JSX } from "solid-js";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
@@ -308,6 +309,7 @@ const queueEntries: readonly ScriptQueueEntry[] = scripts
       reference: script.reference,
     },
     id: `queue-entry-${index + 1}`,
+    inputsAvailable: index < 2,
     inputValues: {},
   }));
 
@@ -322,6 +324,7 @@ const pausedQueueItem = (
   entry: ScriptQueueEntry,
   index: number,
 ): ScriptQueueRunItem => ({
+  entryId: entry.id,
   file: {
     ...entry.file,
     inputs: null,
@@ -355,6 +358,29 @@ const pausedQueueState: ScriptQueueState = {
     status: "paused",
   },
   phase: "paused",
+};
+
+const largeQueueEntries: readonly ScriptQueueEntry[] = Array.from(
+  { length: 1_000 },
+  (_, index) => ({
+    file: {
+      name: `Queued script ${index + 1}`,
+      path: `/scripts/queue/script-${index + 1}.js`,
+    },
+    id: `large-queue-entry-${index + 1}`,
+    inputsAvailable: index % 3 !== 0,
+    inputValues: {},
+  }),
+);
+
+const largeQueueState: ScriptQueueState = {
+  currentIndex: null,
+  entries: largeQueueEntries,
+  latestRun: {
+    items: largeQueueEntries.map(pausedQueueItem),
+    status: "stopped",
+  },
+  phase: "idle",
 };
 
 interface ScriptsDialogStoryFixture {
@@ -403,7 +429,7 @@ function ScriptsDialogStory(props: {
   const [scriptRunning, setScriptRunning] = createSignal(
     fixture.scriptRunning ?? false,
   );
-  const [queueState] = createSignal<ScriptQueueState>({
+  const [queueState, setQueueState] = createSignal<ScriptQueueState>({
     ...(fixture.queueState ?? {
       currentIndex: null,
       entries: [],
@@ -447,12 +473,86 @@ function ScriptsDialogStory(props: {
         onEditInputs={() => undefined}
         onEnqueueScript={() => Promise.resolve(true)}
         onOpenChange={setOpen}
+        onQueueClear={() => {
+          setQueueState({
+            currentIndex: null,
+            entries: [],
+            latestRun: null,
+            phase: "idle",
+          });
+        }}
         onQueueEditInputs={() => Promise.resolve(true)}
-        onQueueMove={() => undefined}
-        onQueueRemove={() => undefined}
+        onQueueMove={(entryId, offset) => {
+          setQueueState((current) => {
+            const entries = [...current.entries];
+            const index = entries.findIndex((entry) => entry.id === entryId);
+            const entry = entries[index];
+            const neighbor = entries[index + offset];
+            if (entry === undefined || neighbor === undefined) return current;
+            entries[index] = neighbor;
+            entries[index + offset] = entry;
+            return { ...current, entries };
+          });
+        }}
+        onQueueRemove={(entryId) => {
+          setQueueState((current) => ({
+            ...current,
+            entries: current.entries.filter((entry) => entry.id !== entryId),
+          }));
+        }}
         onQueueRunNext={() => undefined}
-        onQueueStart={() => Promise.resolve(true)}
-        onQueueStop={() => Promise.resolve()}
+        onQueueStart={() => {
+          setQueueState((current) => ({
+            ...current,
+            currentIndex: 0,
+            latestRun: {
+              items: current.entries.map((entry, index) => ({
+                entryId: entry.id,
+                file: {
+                  ...entry.file,
+                  inputs: null,
+                  revision: entry.id,
+                  source: "",
+                },
+                inputValues: entry.inputValues,
+                state: index === 0 ? "active" : "pending",
+              })),
+              status: "running",
+            },
+            phase: "running",
+          }));
+          return Promise.resolve(true);
+        }}
+        onQueueStop={() => {
+          setQueueState((current) => ({
+            ...current,
+            currentIndex: null,
+            latestRun:
+              current.latestRun === null
+                ? null
+                : {
+                    items: current.latestRun.items.map((item) =>
+                      item.state === "active"
+                        ? {
+                            ...item,
+                            durationMs: 250,
+                            result: {
+                              kind: "externally-stopped",
+                              status: {
+                                state: "stopped",
+                                stoppedAt: "2026-08-27T20:30:00.000Z",
+                              },
+                            },
+                            state: "finished",
+                          }
+                        : item,
+                    ),
+                    status: "stopped",
+                  },
+            phase: "idle",
+          }));
+          return Promise.resolve();
+        }}
         onRetryOptionsSave={() => undefined}
         onSelectRoomPolicy={setRoomPolicy}
         onSelectScript={(reference, start) => {
@@ -522,6 +622,14 @@ export const QueueReady: Story = {
   },
 };
 
+export const QueueEmpty: Story = {
+  args: {
+    fixture: {
+      activeTab: "queue",
+    },
+  },
+};
+
 export const QueuePausedAfterFailure: Story = {
   args: {
     fixture: {
@@ -529,6 +637,144 @@ export const QueuePausedAfterFailure: Story = {
       queueState: pausedQueueState,
       scriptRunning: true,
     },
+  },
+};
+
+export const QueueLarge: Story = {
+  args: {
+    fixture: {
+      activeTab: "queue",
+      queueState: largeQueueState,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const queue = await page.findByRole("list", { name: "Queue" });
+    const moveDown = await within(queue).findByRole("button", {
+      name: "Move Queued script 2 down",
+    });
+    const row = moveDown.closest("li");
+    moveDown.focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(row).toHaveAttribute("data-index", "2"));
+    await expect(moveDown).toBeInTheDocument();
+    await expect(moveDown).toHaveFocus();
+    await userEvent.click(
+      page.getByRole("button", {
+        name: "Move Queued script 2 up",
+      }),
+    );
+
+    const viewport = page.getByRole("group", { name: "Queue" });
+    await userEvent.click(viewport);
+    viewport.scrollTop = viewport.scrollHeight;
+    await waitFor(() => {
+      const last = queue.querySelector('li[data-index="999"]');
+      expect(last).not.toBeNull();
+      expect(last?.getBoundingClientRect().top).toBeLessThan(
+        viewport.getBoundingClientRect().bottom,
+      );
+    });
+    await waitFor(() => {
+      const rows = [...queue.querySelectorAll("li")];
+      for (let index = 1; index < rows.length; index += 1) {
+        const previous = rows[index - 1];
+        const current = rows[index];
+        if (previous === undefined || current === undefined) continue;
+        expect(
+          Math.abs(
+            current.getBoundingClientRect().top -
+              previous.getBoundingClientRect().bottom,
+          ),
+        ).toBeLessThan(1);
+      }
+    });
+    await userEvent.click(page.getByRole("tab", { name: "Library" }));
+    await userEvent.click(page.getByRole("tab", { name: "Queue" }));
+    await waitFor(() =>
+      expect(queue.querySelector('li[data-index="999"]')).not.toBeNull(),
+    );
+    viewport.scrollTop = 0;
+  },
+};
+
+export const QueueOffscreenInputError: Story = {
+  args: {
+    fixture: {
+      activeTab: "scripts",
+      queueState: {
+        ...largeQueueState,
+        attentionEntryId: "large-queue-entry-900",
+        error: "Check the inputs for queued script 900.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const edit = await page.findByRole(
+      "button",
+      { name: "Edit inputs for Queued script 900" },
+      { timeout: 5_000 },
+    );
+    await waitFor(() => expect(edit).toHaveFocus());
+    const viewport = page.getByRole("group", { name: "Queue" });
+    const row = edit.closest("li");
+    await expect(row?.getBoundingClientRect().top).toBeGreaterThan(
+      viewport.getBoundingClientRect().top,
+    );
+    await expect(row?.getBoundingClientRect().bottom).toBeLessThan(
+      viewport.getBoundingClientRect().bottom,
+    );
+  },
+};
+
+export const QueueLiveRun: Story = {
+  args: {
+    fixture: {
+      activeTab: "queue",
+      queueState: {
+        ...readyQueueState,
+        entries: largeQueueEntries.slice(0, 14),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      await page.findByRole("button", { name: "Start queue" }),
+    );
+    const queue = await page.findByRole("list", { name: "Queue" });
+    await within(queue).findByText("Running");
+    await expect(
+      queue.querySelector("li")?.getBoundingClientRect().height,
+    ).toBeGreaterThan(0);
+    await expect(within(queue).queryAllByRole("button")).toHaveLength(0);
+    await userEvent.click(page.getByRole("button", { name: "Stop queue" }));
+    const duration = await within(queue).findByText("250 ms");
+    await expect(duration).toHaveAttribute(
+      "title",
+      `Finished at ${new Date("2026-08-27T20:30:00.000Z").toLocaleString()}`,
+    );
+    await expect(
+      within(queue).getByRole("button", {
+        name: "Edit inputs for Queued script 1",
+      }),
+    ).toBeDisabled();
+    await expect(
+      within(queue).getByRole("button", {
+        name: "Edit inputs for Queued script 2",
+      }),
+    ).toBeEnabled();
+    await userEvent.click(
+      within(queue).getByRole("button", { name: "Move Queued script 1 down" }),
+    );
+    await expect(duration.closest("li")).toHaveAttribute("data-index", "1");
+    await userEvent.click(page.getByRole("button", { name: "Start queue" }));
+    await within(queue).findByText("Running");
+    await expect(within(queue).queryByText("250 ms")).not.toBeInTheDocument();
+    await expect(
+      queue.querySelector("li")?.getBoundingClientRect().height,
+    ).toBeGreaterThan(0);
   },
 };
 

@@ -4607,6 +4607,7 @@ export function App(props: {
         onEditInputs={openScriptInputs}
         onEnqueueScript={enqueueCatalogScript}
         onOpenChange={setScriptsDialogOpen}
+        onQueueClear={() => scriptQueue.clear()}
         onQueueEditInputs={(entryId) => scriptQueue.editInputs(entryId)}
         onQueueMove={(entryId, offset) => scriptQueue.move(entryId, offset)}
         onQueueRemove={(entryId) => scriptQueue.remove(entryId)}
