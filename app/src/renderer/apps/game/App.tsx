@@ -154,12 +154,14 @@ import {
 import {
   TopNav,
   type GameTopNavMenu,
-  type TopNavOptionItem,
+  type TopNavRenderingModeOptionItem,
+  type TopNavToggleOptionItem,
   type WindowId,
   topNavOptionCommandIds,
   windowCommandIds,
 } from "./TopNav";
 import { createRandomId } from "../../../shared/randomId";
+import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
 
 const desktop = selectDesktopBridge(window.desktop, "game");
 
@@ -391,6 +393,30 @@ interface TravelOptions {
 }
 
 type GameHotkeyHandler = () => void | Promise<void>;
+
+type ConfirmedToggleOptionItem = Omit<
+  TopNavToggleOptionItem,
+  "onCheckedChange"
+> & {
+  readonly hotkeyStatusLabel: string;
+  readonly onCheckedChange: (checked: boolean) => Promise<boolean | undefined>;
+};
+
+type GameTopNavOptionItem =
+  | ConfirmedToggleOptionItem
+  | TopNavRenderingModeOptionItem;
+
+const formatHotkeyToggleStatus = (label: string, checked: boolean): string =>
+  `${label}: ${checked ? "On" : "Off"}`;
+
+const renderingModeStatusLabels: Record<RenderingMode, string> = {
+  full: "Full",
+  "interface-only": "Interface only",
+  minimal: "Minimal",
+};
+
+const formatHotkeyRenderingModeStatus = (mode: RenderingMode): string =>
+  `Rendering mode: ${renderingModeStatusLabels[mode]}`;
 
 const windowIdsByCommandId = new Map<SettingsCommandId, WindowId>(
   Object.entries(windowCommandIds).flatMap(([id, commandId]) =>
@@ -1171,6 +1197,7 @@ export function App(props: {
   const effectiveTopNavVisible = createMemo(
     () => topNavVisible() && gameViewPresentation().layout === "focused",
   );
+  const hotkeyStatus = createHotkeyStatus();
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
     DEFAULT_FLASH_SETTINGS,
   );
@@ -1481,19 +1508,26 @@ export function App(props: {
       settings: ApiService["settings"],
       enabled: boolean,
     ) => Effect.Effect<void>,
-  ): void => {
-    void executeFlashSetting(key, enabled, update).catch((error: unknown) => {
-      console.error("[game:settings]", `${label} failed`, error);
-    });
-  };
+  ): Promise<boolean | undefined> =>
+    executeFlashSetting(key, enabled, update)
+      .then((state) => state[key])
+      .catch((error: unknown) => {
+        console.error("[game:settings]", `${label} failed`, error);
+        return undefined;
+      });
 
-  const handleHidePlayersCheckedChange = (hidden: boolean) => {
+  const handleHidePlayersCheckedChange = (
+    hidden: boolean,
+  ): Promise<boolean | undefined> => {
     const visible = !hidden;
-    runSettingsUpdate(
-      "hide players",
-      { otherPlayersVisible: visible },
-      (settings) => settings.setOtherPlayersVisible(visible),
-    );
+    return executeSettingsUpdate({ otherPlayersVisible: visible }, (settings) =>
+      settings.setOtherPlayersVisible(visible),
+    )
+      .then((state) => !state.otherPlayersVisible)
+      .catch((error: unknown) => {
+        console.error("[game:settings]", "hide players failed", error);
+        return undefined;
+      });
   };
 
   const handleSetWalkSpeed = (speed: number) => {
@@ -1537,89 +1571,93 @@ export function App(props: {
     runMapAction("set spawnpoint", (map) => map.setSpawnPoint());
   };
 
-  const runRenderingModeUpdate = (
+  const runRenderingModeUpdate = async (
     label: string,
     optimisticMode: RenderingMode,
     update: (settings: ApiService["settings"]) => Effect.Effect<void>,
-  ) => {
+  ): Promise<RenderingMode | undefined> => {
     if (
       renderingModePending() ||
       flashSettings().renderingMode === optimisticMode ||
       optionsDisabled()
     ) {
-      return;
+      return undefined;
     }
 
     patchFlashSettingsState({ renderingMode: optimisticMode });
     setRenderingModePending(true);
 
-    void runtime
-      .runPromise(
+    try {
+      const state = await runtime.runPromise(
         Effect.gen(function* () {
           const { settings } = yield* Api;
           yield* update(settings);
           return yield* settings.get();
         }),
-      )
-      .then(applyFlashSettingsState)
-      .catch((error: unknown) => {
-        console.error("[game:settings]", `${label} failed`, error);
-        refreshFlashSettings();
-      })
-      .finally(() => {
-        setRenderingModePending(false);
-      });
+      );
+      applyFlashSettingsState(state);
+      return state.renderingMode;
+    } catch (error) {
+      console.error("[game:settings]", `${label} failed`, error);
+      refreshFlashSettings();
+      return undefined;
+    } finally {
+      setRenderingModePending(false);
+    }
   };
 
-  const handleSetRenderingMode = (mode: RenderingMode) => {
+  const handleSetRenderingMode = (
+    mode: RenderingMode,
+  ): Promise<RenderingMode | undefined> =>
     runRenderingModeUpdate("set rendering mode", mode, (settings) =>
       settings.setRenderingMode(mode),
     );
-  };
 
-  const handleRestoreRenderingMode = () => {
+  const handleRestoreRenderingMode = async (): Promise<
+    RenderingMode | undefined
+  > => {
     if (renderingModePending() || flashSettings().renderingMode !== "minimal") {
-      return;
+      return undefined;
     }
 
     setRenderingModePending(true);
-    void runtime
-      .runPromise(
+    try {
+      const state = await runtime.runPromise(
         Effect.gen(function* () {
           const { settings } = yield* Api;
           yield* settings.restoreRenderingMode();
           return yield* settings.get();
         }),
-      )
-      .then(applyFlashSettingsState)
-      .catch((error: unknown) => {
-        console.error(
-          "[game:settings]",
-          "restore rendering mode failed",
-          error,
-        );
-        refreshFlashSettings();
-      })
-      .finally(() => {
-        setRenderingModePending(false);
-      });
+      );
+      applyFlashSettingsState(state);
+      return state.renderingMode;
+    } catch (error) {
+      console.error("[game:settings]", "restore rendering mode failed", error);
+      refreshFlashSettings();
+      return undefined;
+    } finally {
+      setRenderingModePending(false);
+    }
   };
 
-  const handleToggleInterfaceOnlyRendering = () => {
-    handleSetRenderingMode(
+  const toggleInterfaceOnlyRenderingFromHotkey = async (): Promise<void> => {
+    const mode = await handleSetRenderingMode(
       flashSettings().renderingMode === "interface-only"
         ? "full"
         : "interface-only",
     );
+    if (mode !== undefined) {
+      hotkeyStatus.show(formatHotkeyRenderingModeStatus(mode));
+    }
   };
 
-  const handleToggleMinimalRendering = () => {
-    if (flashSettings().renderingMode === "minimal") {
-      handleRestoreRenderingMode();
-      return;
+  const toggleMinimalRenderingFromHotkey = async (): Promise<void> => {
+    const mode = await (flashSettings().renderingMode === "minimal"
+      ? handleRestoreRenderingMode()
+      : handleSetRenderingMode("minimal"));
+    if (mode !== undefined) {
+      hotkeyStatus.show(formatHotkeyRenderingModeStatus(mode));
     }
-
-    handleSetRenderingMode("minimal");
   };
 
   const handleSetCustomName = () => {
@@ -1652,9 +1690,10 @@ export function App(props: {
     );
   };
 
-  const optionItems = createMemo<readonly TopNavOptionItem[]>(() => [
+  const optionItems = createMemo<readonly GameTopNavOptionItem[]>(() => [
     {
       id: "infinite-range",
+      hotkeyStatusLabel: "Infinite range",
       label: "Infinite Range",
       type: "toggle",
       checked: flashSettings().infiniteRangeEnabled,
@@ -1669,6 +1708,7 @@ export function App(props: {
     },
     {
       id: "provoke-cell",
+      hotkeyStatusLabel: "Provoke cell",
       label: "Provoke Cell",
       type: "toggle",
       checked: flashSettings().provokeCellEnabled,
@@ -1683,6 +1723,7 @@ export function App(props: {
     },
     {
       id: "enemy-magnet",
+      hotkeyStatusLabel: "Enemy magnet",
       label: "Enemy Magnet",
       type: "toggle",
       checked: flashSettings().enemyMagnetEnabled,
@@ -1706,6 +1747,7 @@ export function App(props: {
     },
     {
       id: "hide-players",
+      hotkeyStatusLabel: "Hide players",
       label: "Hide Players",
       type: "toggle",
       checked: !flashSettings().otherPlayersVisible,
@@ -1714,6 +1756,7 @@ export function App(props: {
     },
     {
       id: "skip-cutscenes",
+      hotkeyStatusLabel: "Skip cutscenes",
       label: "Skip Cutscenes",
       type: "toggle",
       checked: flashSettings().skipCutscenesEnabled,
@@ -1728,6 +1771,7 @@ export function App(props: {
     },
     {
       id: "anti-counter",
+      hotkeyStatusLabel: "Anti-counter",
       label: "Anti-Counter",
       type: "toggle",
       checked: flashSettings().antiCounterEnabled,
@@ -1742,6 +1786,7 @@ export function App(props: {
     },
     {
       id: "animations",
+      hotkeyStatusLabel: "Animations",
       label: "Animations",
       type: "toggle",
       checked: flashSettings().animationsEnabled,
@@ -1756,6 +1801,7 @@ export function App(props: {
     },
     {
       id: "collisions",
+      hotkeyStatusLabel: "Collisions",
       label: "Collisions",
       type: "toggle",
       checked: flashSettings().collisionsEnabled,
@@ -1770,6 +1816,7 @@ export function App(props: {
     },
     {
       id: "death-ads",
+      hotkeyStatusLabel: "Death ads",
       label: "Death Ads",
       type: "toggle",
       checked: flashSettings().deathAdsVisible,
@@ -2240,17 +2287,17 @@ export function App(props: {
     }
   };
 
-  const handleToggleAutoAttack = (): void => {
+  const handleToggleAutoAttack = async (): Promise<boolean | undefined> => {
     if (autoAttackToggleInFlight || (!autoAttackEnabled() && !playerReady())) {
-      return;
+      return undefined;
     }
 
     autoAttackToggleInFlight = true;
     const nextEnabled = !autoAttackEnabled();
     setAutoAttackEnabled(nextEnabled);
 
-    void runtime
-      .runPromise(
+    try {
+      const state = await runtime.runPromise(
         Effect.gen(function* () {
           const { autoAttack } = yield* Automation;
           const library = combatProfileLibrary();
@@ -2271,15 +2318,16 @@ export function App(props: {
               })
             : yield* autoAttack.disable();
         }),
-      )
-      .then(applyAutoAttackState)
-      .catch((error: unknown) => {
-        console.error("[game:autoattack]", "toggle failed", error);
-        refreshAutoAttackState();
-      })
-      .finally(() => {
-        autoAttackToggleInFlight = false;
-      });
+      );
+      applyAutoAttackState(state);
+      return state.enabled;
+    } catch (error) {
+      console.error("[game:autoattack]", "toggle failed", error);
+      refreshAutoAttackState();
+      return undefined;
+    } finally {
+      autoAttackToggleInFlight = false;
+    }
   };
 
   const handleOpenBank = () => {
@@ -3694,21 +3742,59 @@ export function App(props: {
       });
   };
 
-  const handleToggleFollower = () => {
+  const handleToggleFollower = async (): Promise<boolean | undefined> => {
     setOpenMenu(null);
-    void runtime
-      .runPromise(
+    try {
+      const change = await runtime.runPromise(
         Effect.gen(function* () {
           const { follower } = yield* Automation;
-          return yield* follower.toggle(combatProfileLibrary());
+          const previous = yield* follower.getState();
+          const current = yield* follower.toggle(combatProfileLibrary());
+          return {
+            current: current.enabled || current.running,
+            previous: previous.enabled || previous.running,
+          };
         }),
-      )
-      .catch((error: unknown) => {
-        console.error("[game:follower]", "toggle failed", error);
-      });
+      );
+      return change.current === change.previous ? undefined : change.current;
+    } catch (error) {
+      console.error("[game:follower]", "toggle failed", error);
+      return undefined;
+    }
   };
 
-  const selectOptionCommand = (commandId: SettingsCommandId) => {
+  const toggleScriptFromHotkey = async (): Promise<void> => {
+    const wasRunning = scriptControlActive();
+    await toggleScript();
+    const running = scriptControlActive();
+    if (running === wasRunning) return;
+
+    hotkeyStatus.show(
+      `Script: ${running ? "Running" : "Stopped"}`,
+      !effectiveTopNavVisible(),
+    );
+  };
+
+  const toggleAutoAttackFromHotkey = async (): Promise<void> => {
+    const wasEnabled = autoAttackEnabled();
+    const enabled = await handleToggleAutoAttack();
+    if (enabled === undefined || enabled === wasEnabled) return;
+
+    hotkeyStatus.show(
+      `Auto attack: ${enabled ? "On" : "Off"}`,
+      !effectiveTopNavVisible(),
+    );
+  };
+
+  const toggleFollowerFromHotkey = async (): Promise<void> => {
+    const enabled = await handleToggleFollower();
+    if (enabled === undefined) return;
+    hotkeyStatus.show(`Follower: ${enabled ? "On" : "Off"}`);
+  };
+
+  const selectOptionCommand = async (
+    commandId: SettingsCommandId,
+  ): Promise<void> => {
     const optionId = topNavOptionCommandIds[commandId];
     if (optionId === undefined) {
       return;
@@ -3723,8 +3809,13 @@ export function App(props: {
       return;
     }
 
-    option.onCheckedChange(!option.checked);
+    const checkedPromise = option.onCheckedChange(!option.checked);
     setOpenMenu(null);
+    const checked = await checkedPromise;
+    if (checked === undefined) return;
+    hotkeyStatus.show(
+      formatHotkeyToggleStatus(option.hotkeyStatusLabel, checked),
+    );
   };
 
   const commandHandlers = createMemo<
@@ -3733,14 +3824,14 @@ export function App(props: {
     const handlers = new Map<SettingsCommandId, GameHotkeyHandler>([
       ["toggleTopBar", toggleTopNav],
       ["loadScript", loadScript],
-      ["toggleScript", toggleScript],
+      ["toggleScript", toggleScriptFromHotkey],
       ["toggleScriptsDialog", toggleScriptsDialog],
       ["toggleOptionsMenu", toggleOptionsMenu],
-      ["toggleAutoattack", handleToggleAutoAttack],
-      ["toggleFollower", handleToggleFollower],
+      ["toggleAutoattack", toggleAutoAttackFromHotkey],
+      ["toggleFollower", toggleFollowerFromHotkey],
       ["toggleBank", handleOpenBank],
-      ["toggleInterfaceOnlyRendering", handleToggleInterfaceOnlyRendering],
-      ["toggleMinimalRendering", handleToggleMinimalRendering],
+      ["toggleInterfaceOnlyRendering", toggleInterfaceOnlyRenderingFromHotkey],
+      ["toggleMinimalRendering", toggleMinimalRenderingFromHotkey],
     ]);
 
     for (const commandId of Object.keys(
@@ -4415,6 +4506,7 @@ export function App(props: {
       classList={{ "game-app--topnav-hidden": !effectiveTopNavVisible() }}
       data-platform={platformLabel()}
     >
+      <HotkeyStatus announcement={hotkeyStatus.announcement()} />
       <ScriptsDialog
         bridge={desktop.scripting}
         inputsAvailable={scriptInputsAvailable()}

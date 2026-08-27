@@ -140,6 +140,54 @@ html[data-rendering-minimal] #swf {
   pointer-events: none;
 }
 
+.toaster.game-hotkey-toaster {
+  top: calc(var(--game-content-top) + 0.75rem);
+  z-index: 9999;
+}
+
+.game-hotkey-toaster .toaster__stack {
+  height: auto !important;
+  transition: none;
+}
+
+.game-hotkey-toaster .toaster__item {
+  display: flex;
+  height: auto !important;
+  justify-content: center;
+  transition: none;
+}
+
+.game-hotkey-toaster .toast.game-hotkey-status {
+  border-radius: var(--radius-xl);
+  height: auto;
+  max-width: 100%;
+  pointer-events: none;
+  width: max-content;
+}
+
+.game-hotkey-toaster .toast.game-hotkey-status::before {
+  border-radius: calc(var(--radius-xl) - 1px);
+}
+
+.dark .game-hotkey-toaster .toast.game-hotkey-status::before,
+[data-theme="dark"] .game-hotkey-toaster .toast.game-hotkey-status::before {
+  box-shadow: inset 0 1px 0 rgba(var(--white), 0.08);
+}
+
+.game-hotkey-toaster .toast.game-hotkey-status::after {
+  border-radius: calc(var(--radius-xl) - 1px);
+}
+
+.game-hotkey-toaster .game-hotkey-status .toast__content {
+  padding-block: 0.5rem;
+}
+
+.game-hotkey-toaster .game-hotkey-status .toast__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .game-app--topnav-hidden .game-topnav-container {
   display: none;
 }

@@ -15,6 +15,7 @@ import { Spinner } from "./Spinner";
 
 const DEFAULT_DURATION = 5000;
 const DEFAULT_TOAST_HEIGHT = 64;
+const EXIT_CLEANUP_DELAY = 170;
 const MAX_TOASTS = 4;
 const TOAST_GAP = 12;
 
@@ -81,6 +82,7 @@ interface ProgrammaticToast {
   readonly closable: boolean;
   readonly description: JSX.Element;
   readonly duration: number | null;
+  readonly exiting: boolean;
   readonly icon: JSX.Element | null | undefined;
   readonly id: string;
   readonly title: JSX.Element;
@@ -143,6 +145,7 @@ function createToast(options: ToastOptions): string {
       closable: options.closable ?? existing?.closable ?? duration === null,
       description: options.description ?? existing?.description,
       duration,
+      exiting: false,
       icon: options.icon === undefined ? existing?.icon : options.icon,
       id,
       title: options.title ?? existing?.title,
@@ -160,8 +163,14 @@ function createToast(options: ToastOptions): string {
 
 function dismissToast(id?: string): void {
   setProgrammaticToasts((current) =>
-    id === undefined ? [] : current.filter((item) => item.id !== id),
+    current.map((item) =>
+      id === undefined || item.id === id ? { ...item, exiting: true } : item,
+    ),
   );
+}
+
+function removeToast(id: string): void {
+  setProgrammaticToasts((current) => current.filter((item) => item.id !== id));
 }
 
 function createVariantToast(
@@ -205,6 +214,7 @@ function settlePromiseToast(
           ? options.description
           : item.description,
         duration,
+        exiting: false,
         icon: Object.hasOwn(options, "icon") ? options.icon : item.icon,
         id,
         title: Object.hasOwn(options, "title") ? options.title : item.title,
@@ -374,6 +384,7 @@ interface ProgrammaticToastItemProps {
 function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
   let itemElement: HTMLDivElement | undefined;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+  let exitTimer: ReturnType<typeof setTimeout> | undefined;
   let resizeObserver: ResizeObserver | undefined;
   const item = createMemo(() =>
     programmaticToasts().find((candidate) => candidate.id === props.id),
@@ -385,6 +396,15 @@ function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
     if (dismissTimer !== undefined) {
       clearTimeout(dismissTimer);
       dismissTimer = undefined;
+    }
+    if (exitTimer !== undefined) {
+      clearTimeout(exitTimer);
+      exitTimer = undefined;
+    }
+
+    if (currentItem?.exiting === true) {
+      exitTimer = setTimeout(() => removeToast(props.id), EXIT_CLEANUP_DELAY);
+      return;
     }
 
     if (currentItem?.duration === undefined || currentItem.duration === null) {
@@ -423,6 +443,7 @@ function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
 
   onCleanup(() => {
     if (dismissTimer !== undefined) clearTimeout(dismissTimer);
+    if (exitTimer !== undefined) clearTimeout(exitTimer);
     resizeObserver?.disconnect();
     props.onHeightChange(props.id);
   });
@@ -431,6 +452,7 @@ function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
     <div
       class="toaster__item"
       data-behind={props.index > 0 ? "" : undefined}
+      data-exiting={item()?.exiting === true ? "" : undefined}
       ref={(element) => {
         itemElement = element;
       }}
@@ -452,6 +474,11 @@ function ProgrammaticToastItem(props: ProgrammaticToastItemProps): JSX.Element {
             description={currentItem().description}
             icon={currentItem().icon}
             onOpenChange={() => dismissToast(props.id)}
+            onTransitionEnd={(event) => {
+              if (event.propertyName === "opacity" && currentItem().exiting) {
+                removeToast(props.id);
+              }
+            }}
             title={currentItem().title}
             variant={currentItem().variant}
           />
