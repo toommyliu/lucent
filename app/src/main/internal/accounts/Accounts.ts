@@ -79,6 +79,10 @@ export interface AccountsShape {
     AccountGameServersResult,
     AccountsError
   >;
+  readonly suppressGameWindowLaunchScript: (
+    gameWindowId: number,
+    message: string,
+  ) => Effect.Effect<void, AccountsError>;
   readonly updateAccount: (
     username: string,
     patch: ManagedAccountPatch,
@@ -619,6 +623,26 @@ export const makeAccounts = Effect.gen(function* () {
 
   const refreshServers: AccountsShape["refreshServers"] = servers.refresh;
 
+  // Renderer recovery reloads the same game client. Remove only its launch
+  // script so account login can resume without immediately running the loop
+  // that made the renderer unresponsive.
+  const suppressGameWindowLaunchScript: AccountsShape["suppressGameWindowLaunchScript"] =
+    (gameWindowId, message) =>
+      Effect.sync(() =>
+        sessions.suppressLaunchScript(gameWindowId, message),
+      ).pipe(
+        Effect.flatMap((changed) =>
+          changed ? publishCurrentState : Effect.void,
+        ),
+        Effect.mapError((cause) =>
+          accountError(
+            "recover-game-window",
+            `Failed to suppress the launch script for game window: ${gameWindowId}`,
+            cause,
+          ),
+        ),
+      );
+
   const updateAccount: AccountsShape["updateAccount"] = (username, patch) =>
     Effect.gen(function* () {
       const currentUsername = yield* normalizeRequiredString(
@@ -746,6 +770,7 @@ export const makeAccounts = Effect.gen(function* () {
     onChanged,
     refreshServers,
     reportSession,
+    suppressGameWindowLaunchScript,
     updateAccount,
     updateGroup,
   });

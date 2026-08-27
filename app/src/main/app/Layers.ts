@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
+import * as DesktopGameRendererRecovery from "./DesktopGameRendererRecovery";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChromiumPerformanceRecording";
 import * as DesktopEffectTracing from "./observability/DesktopEffectTracing";
@@ -284,6 +285,17 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const gameRendererRecoveryLayer = DesktopGameRendererRecovery.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        accountsLayer,
+        ElectronDialog.layer,
+        observabilityLayer,
+        windowsLayer,
+      ),
+    ),
+  );
+
   const applicationMenuLayer = DesktopApplicationMenu.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -331,6 +343,7 @@ export const makeDesktopLayer = (
     gameFollowersLayer,
     gameLoaderGrabbersLayer,
     gamePacketsLayer,
+    gameRendererRecoveryLayer,
     httpClientLayer,
     observabilityLayer,
     settingsLayer,

@@ -80,6 +80,10 @@ export interface AccountSessionsShape {
   ) => boolean;
   readonly remove: (gameWindowId: number) => boolean;
   readonly snapshot: () => readonly AccountGameSession[];
+  readonly suppressLaunchScript: (
+    gameWindowId: number,
+    message: string,
+  ) => boolean;
   readonly trackLaunch: (
     gameWindowId: number,
     gameWindowGroupId: number | undefined,
@@ -112,6 +116,56 @@ export const layer = Layer.effect(
             right.updatedAt - left.updatedAt ||
             right.gameWindowId - left.gameWindowId,
         );
+
+    const suppressLaunchScript: AccountSessionsShape["suppressLaunchScript"] = (
+      gameWindowId,
+      message,
+    ) => {
+      const previous = sessions.get(gameWindowId);
+      if (previous === undefined) return false;
+
+      const launchPayload = previous.launchPayload;
+      const nextLaunchPayload =
+        launchPayload === undefined
+          ? undefined
+          : {
+              account: launchPayload.account,
+              gameWindowId: launchPayload.gameWindowId,
+              requestedAt: launchPayload.requestedAt,
+              ...(launchPayload.server === undefined
+                ? {}
+                : { server: launchPayload.server }),
+            };
+      const launch = previous.snapshot.launch;
+      const nextLaunch =
+        launch === undefined
+          ? undefined
+          : {
+              requestedAt: launch.requestedAt,
+              ...(launch.server === undefined ? {} : { server: launch.server }),
+              username: launch.username,
+            };
+      const name = previous.snapshot.script.name ?? launch?.scriptName;
+
+      sessions.set(gameWindowId, {
+        ...(nextLaunchPayload === undefined
+          ? {}
+          : { launchPayload: nextLaunchPayload }),
+        rendererRevision: previous.rendererRevision,
+        snapshot: {
+          ...previous.snapshot,
+          ...(nextLaunch === undefined ? {} : { launch: nextLaunch }),
+          revision: previous.snapshot.revision + 1,
+          script: {
+            ...(name === undefined ? {} : { name }),
+            message,
+            state: "failed",
+          },
+          updatedAt: Date.now(),
+        },
+      });
+      return true;
+    };
 
     const reloadWindow: AccountSessionsShape["reloadWindow"] = (
       gameWindowId,
@@ -283,6 +337,7 @@ export const layer = Layer.effect(
       reloadWindow,
       remove,
       snapshot,
+      suppressLaunchScript,
       trackLaunch,
     });
   }),

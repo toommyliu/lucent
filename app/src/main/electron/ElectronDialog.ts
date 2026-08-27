@@ -38,6 +38,7 @@ export class ElectronDialogOpenDialogError extends Schema.TaggedErrorClass<Elect
 export interface ElectronDialogShape {
   readonly showMessageBox: (
     options: MessageBoxOptions,
+    parentWindowId?: number,
   ) => Effect.Effect<MessageBoxReturnValue, ElectronDialogMessageBoxError>;
   readonly showOpenDialog: (
     options: OpenDialogOptions,
@@ -59,9 +60,22 @@ export class ElectronDialog extends Context.Service<
   ElectronDialogShape
 >()("lucent/desktop/electron/ElectronDialog") {}
 
-const showMessageBox: ElectronDialogShape["showMessageBox"] = (options) =>
+const showMessageBox: ElectronDialogShape["showMessageBox"] = (
+  options,
+  parentWindowId,
+) =>
   Effect.tryPromise({
-    try: () => dialog.showMessageBox(options),
+    try: () => {
+      if (parentWindowId === undefined) {
+        return dialog.showMessageBox(options);
+      }
+
+      const browserWindow = BrowserWindow.fromId(parentWindowId);
+      if (browserWindow === null) {
+        throw new Error(`Browser window is not open: ${parentWindowId}`);
+      }
+      return dialog.showMessageBox(browserWindow, options);
+    },
     catch: (cause) => new ElectronDialogMessageBoxError({ cause }),
   });
 

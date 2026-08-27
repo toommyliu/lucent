@@ -558,6 +558,10 @@ const bridges = {
     gameAccounts: gameAccountsBridge,
     gameFollower: gameFollowerBridge,
     gameRenderer: {
+      beginScriptExecution: () =>
+        invoke(GameRendererIpc.beginScriptExecution, undefined),
+      finishScriptExecution: (token) =>
+        invoke(GameRendererIpc.finishScriptExecution, { token }),
       getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
       ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
     },
