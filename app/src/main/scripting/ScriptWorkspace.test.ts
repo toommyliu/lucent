@@ -44,10 +44,11 @@ const makeFixture = async () => {
   const testLayer = layer.pipe(
     Layer.provide(Layer.succeed(DesktopEnvironment, environment)),
   );
-  const initialize = Effect.gen(function* () {
-    const workspace = yield* ScriptWorkspace;
-    yield* workspace.initialize;
-  }).pipe(Effect.provide(testLayer), Effect.runPromise);
+  const initialize = () =>
+    Effect.gen(function* () {
+      const workspace = yield* ScriptWorkspace;
+      yield* workspace.initialize;
+    }).pipe(Effect.provide(testLayer), Effect.runPromise);
   return {
     initialize,
     paths: resolveScriptWorkspacePaths(workspaceDir),
@@ -66,7 +67,7 @@ afterEach(async () => {
 describe("ScriptWorkspace", () => {
   it("creates the package workspace, editor config, and API types", async () => {
     const fixture = await makeFixture();
-    await fixture.initialize;
+    await fixture.initialize();
 
     await expect(fs.stat(fixture.paths.scriptsDir)).resolves.toMatchObject({});
     await expect(fs.stat(fixture.paths.packagesDir)).resolves.toMatchObject({});
@@ -87,7 +88,7 @@ describe("ScriptWorkspace", () => {
       write(typesPath, "user types\n"),
     ]);
 
-    await fixture.initialize;
+    await fixture.initialize();
 
     await expect(fs.readFile(configPath, "utf8")).resolves.toBe(
       "user config\n",
