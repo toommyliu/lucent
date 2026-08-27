@@ -2487,7 +2487,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                   >
                     <>
                       <Button
-                        disabled={props.queueState.entries.length === 0}
+                        disabled={
+                          busy() || props.queueState.entries.length === 0
+                        }
                         onClick={props.onQueueClear}
                         size="sm"
                         variant="ghost"
