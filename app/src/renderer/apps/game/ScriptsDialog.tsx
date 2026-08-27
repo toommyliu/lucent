@@ -2177,7 +2177,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
             onValueChange={(details) => changeActiveTab(details.value)}
           >
             <TabsList variant="underline">
-              <TabsTrigger value="scripts">Scripts</TabsTrigger>
+              <TabsTrigger value="scripts">Library</TabsTrigger>
               <TabsTrigger value="queue">Queue</TabsTrigger>
               <TabsTrigger value="packages">Packages</TabsTrigger>
               <TabsTrigger value="options">Options</TabsTrigger>
@@ -2196,7 +2196,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       updateScriptSearch(event.currentTarget.value)
                     }
                   />
-                  <InputGroupAddon align="inline-end" aria-live="polite">
+                  <InputGroupAddon align="inline-start" aria-live="polite">
                     <Show
                       when={scriptQueryIndicatorVisible()}
                       fallback={<Icon aria-hidden="true" icon="search" />}

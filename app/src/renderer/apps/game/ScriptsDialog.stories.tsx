@@ -689,7 +689,7 @@ export const QueueLarge: Story = {
         ).toBeLessThan(1);
       }
     });
-    await userEvent.click(page.getByRole("tab", { name: "Scripts" }));
+    await userEvent.click(page.getByRole("tab", { name: "Library" }));
     await userEvent.click(page.getByRole("tab", { name: "Queue" }));
     await waitFor(() =>
       expect(queue.querySelector('li[data-index="999"]')).not.toBeNull(),
