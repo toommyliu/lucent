@@ -104,6 +104,31 @@ const queuedPair = async () => {
 };
 
 describe("ScriptQueue", () => {
+  it("refreshes input availability when a queued script is resolved again", async () => {
+    const script: ScriptFile = {
+      ...file("configurable"),
+      inputs: {
+        id: "configurable",
+        fields: [{ key: "target", label: "Target", type: "string" }],
+      },
+    };
+    const resolve = vi
+      .fn<ScriptQueueDependencies["resolve"]>()
+      .mockResolvedValueOnce({ ...script, inputs: null })
+      .mockResolvedValueOnce(script);
+    const queue = makeScriptQueue(dependencies({ resolve }));
+    const entryId = await queue.add(script, {});
+    if (entryId === null) throw new Error("Script was not added");
+    expect(queue.getState().entries[0]?.inputsAvailable).toBe(true);
+
+    await queue.editInputs(entryId);
+    expect(queue.getState().entries[0]?.inputsAvailable).toBe(false);
+
+    await queue.start();
+    const finished = await waitForPhase(queue, "idle");
+    expect(finished.entries[0]?.inputsAvailable).toBe(true);
+  });
+
   it("runs entries in order and records their terminal outcomes", async () => {
     const { first, firstTerminal, queue, second, secondTerminal, startScript } =
       await queuedPair();

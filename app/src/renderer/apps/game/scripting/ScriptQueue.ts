@@ -11,6 +11,7 @@ import { validateScriptInputValues } from "@lucent/core/scriptInputs";
 export interface ScriptQueueEntry {
   readonly file: ScriptFileReference;
   readonly id: string;
+  readonly inputsAvailable: boolean;
   readonly inputValues: ScriptInputValues;
 }
 
@@ -32,6 +33,7 @@ export type ScriptQueueRunStatus =
 
 export interface ScriptQueueRunItem {
   readonly durationMs?: number;
+  readonly entryId: string;
   readonly file: ScriptFile;
   readonly inputValues: ScriptInputValues;
   readonly result?: ScriptRunTerminalOutcome;
@@ -92,6 +94,7 @@ export interface ScriptQueue {
     inputValues: ScriptInputValues,
   ) => Promise<string | null>;
   readonly cancel: (reason?: string) => Promise<void>;
+  readonly clear: () => void;
   readonly dispose: () => void;
   readonly editInputs: (entryId: string) => Promise<boolean>;
   readonly getState: () => ScriptQueueState;
@@ -130,6 +133,7 @@ const queueEntryFor = (
 ): ScriptQueueEntry => ({
   file: fileReference(file),
   id,
+  inputsAvailable: (file.inputs?.fields.length ?? 0) > 0,
   inputValues: { ...inputValues },
 });
 
@@ -482,6 +486,7 @@ export const makeScriptQueue = (
         const configuredEntry = queueEntryFor(entry.id, file, values);
         replaceEntry(configuredEntry);
         items.push({
+          entryId: entry.id,
           file,
           inputValues: { ...values },
           state: "pending",
@@ -588,6 +593,19 @@ export const makeScriptQueue = (
   return {
     add,
     cancel,
+    clear: () => {
+      if (state.phase !== "idle") return;
+      // A pending input prompt must not refill the queue after it is cleared.
+      draftController?.abort();
+      draftController = null;
+      patchState({
+        attentionEntryId: undefined,
+        currentIndex: null,
+        entries: [],
+        error: undefined,
+        latestRun: null,
+      });
+    },
     dispose: () => {
       if (disposed) return;
       draftController?.abort();
