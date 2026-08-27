@@ -150,7 +150,7 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
   {
     id: "openFollower",
     category: "Windows",
-    label: "Open Follower Window",
+    label: "Open Follower",
     defaultHotkey: "Alt+F",
   },
   {
@@ -168,7 +168,7 @@ export const SETTINGS_COMMANDS: readonly SettingsCommandDefinition[] = [
   {
     id: "toggleFollower",
     category: "General",
-    label: "Toggle Follower Feature",
+    label: "Toggle Follower",
     defaultHotkey: "Alt+Shift+F",
   },
   {
