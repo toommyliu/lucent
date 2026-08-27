@@ -52,9 +52,10 @@ import {
   selectDesktopBridge,
   type AppPlatform,
 } from "../../../shared/desktopBridge";
-import type {
-  GameViewGroupCommand,
-  GameViewPresentation,
+import {
+  shouldDispatchGameViewGroupOptionHotkey,
+  type GameViewGroupCommand,
+  type GameViewPresentation,
 } from "../../../shared/gameViews";
 import type {
   AccountGameLaunchPayload,
@@ -393,6 +394,11 @@ interface TravelOptions {
 }
 
 type GameHotkeyHandler = () => void | Promise<void>;
+
+interface GameHotkeyCommand {
+  readonly commandId: SettingsCommandId;
+  readonly handler: GameHotkeyHandler;
+}
 
 type ConfirmedToggleOptionItem = Omit<
   TopNavToggleOptionItem,
@@ -3453,6 +3459,11 @@ export function App(props: {
       case "go-to-player":
         await runGroupGoToPlayer(command.player);
         return;
+      case "run-option-hotkey": {
+        const handler = commandHandlers().get(command.commandId);
+        if (handler !== undefined) await handler();
+        return;
+      }
       case "set-rendering-mode":
         await runGroupRenderingMode(command.mode);
         return;
@@ -3852,9 +3863,9 @@ export function App(props: {
     return handlers;
   });
 
-  const hotkeyHandlersByMatchKey = createMemo(() => {
+  const hotkeyCommandsByMatchKey = createMemo(() => {
     const handlers = commandHandlers();
-    const byMatchKey = new Map<string, GameHotkeyHandler>();
+    const byMatchKey = new Map<string, GameHotkeyCommand>();
 
     for (const command of SETTINGS_COMMANDS) {
       const handler = handlers.get(command.id);
@@ -3867,7 +3878,7 @@ export function App(props: {
         props.platform,
       );
       if (matchKey !== null && !byMatchKey.has(matchKey)) {
-        byMatchKey.set(matchKey, handler);
+        byMatchKey.set(matchKey, { commandId: command.id, handler });
       }
     }
 
@@ -3977,14 +3988,27 @@ export function App(props: {
         return;
       }
 
-      const handler = hotkeyHandlersByMatchKey().get(matchKey);
-      if (handler === undefined) {
+      const command = hotkeyCommandsByMatchKey().get(matchKey);
+      if (command === undefined) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      void handler();
+      if (
+        shouldDispatchGameViewGroupOptionHotkey(
+          gameViewPresentation().layout,
+          command.commandId,
+        )
+      ) {
+        void desktop.gameView
+          .dispatchGroupOptionHotkey(command.commandId)
+          .catch((cause: unknown) => {
+            console.error("[game:group] hotkey dispatch failed", cause);
+          });
+        return;
+      }
+      void command.handler();
     };
 
     window.addEventListener("keydown", handleKeyDown, { capture: true });
@@ -4852,9 +4876,6 @@ export function App(props: {
           class="game-minimal-rendering"
         >
           <div class="game-minimal-rendering__content">
-            <span aria-hidden="true" class="game-minimal-rendering__icon">
-              <Icon icon="eye_off" size="lg" />
-            </span>
             <h1
               class="game-minimal-rendering__title"
               id="minimal-rendering-title"

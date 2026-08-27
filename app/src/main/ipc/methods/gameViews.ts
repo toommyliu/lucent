@@ -252,6 +252,53 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
   ),
 });
 
+export const dispatchGroupOptionHotkey = makeDesktopIpcMethod({
+  descriptor: GameViewsIpc.dispatchGroupOptionHotkey,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.gameViews.dispatchGroupOptionHotkey")(
+    function* ({ commandId }, sender) {
+      const ipc = yield* DesktopIpc;
+      const windows = yield* DesktopWindows;
+      const hostRendererId = yield* windows.getGameViewHostRendererId(
+        sender.rendererId,
+      );
+      const state = yield* windows.getGameViewHostState(hostRendererId);
+      if (state.layout !== "grid") {
+        return {
+          recipientCount: 0,
+          skippedCount: 0,
+          status: "sent" as const,
+        };
+      }
+
+      const { readySessions, skippedCount } = resolveGameViewGroupTargets(
+        state,
+        state.groupTargetIds,
+      );
+      const rendererIds = yield* Effect.forEach(readySessions, (session) =>
+        windows.getRendererId(session.id),
+      );
+      if (rendererIds.length > 0) {
+        const envelope: GameViewGroupCommandEnvelope = {
+          command: { commandId, kind: "run-option-hotkey" },
+          delayMs: 0,
+        };
+        yield* ipc.sendToRendererIds(
+          rendererIds,
+          GameViewsIpc.groupCommand,
+          envelope,
+        );
+      }
+
+      return {
+        recipientCount: rendererIds.length,
+        skippedCount,
+        status: "sent" as const,
+      };
+    },
+  ),
+});
+
 export const getPresentation = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.getPresentation,
   allowedSenders: gameSenders,
@@ -297,6 +344,7 @@ export const methods = [
   setTabMenuOpen,
   syncTabBarLayout,
   dispatchGroupCommand,
+  dispatchGroupOptionHotkey,
   getPresentation,
   closeCurrent,
   activate,

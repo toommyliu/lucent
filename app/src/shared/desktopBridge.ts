@@ -106,6 +106,7 @@ import type {
   GameViewGroupCommandDispatchResult,
   GameViewGroupCommandDispatchRequest,
   GameViewGroupCommandEnvelope,
+  GameViewGroupOptionHotkeyCommandId,
   GameViewHostState,
   GameViewLayout,
   GameViewPresentation,
@@ -314,6 +315,9 @@ export interface DesktopGameViewHostBridge {
 export interface DesktopGameViewBridge {
   readonly activate: () => Promise<GameViewPresentation>;
   readonly close: () => void;
+  readonly dispatchGroupOptionHotkey: (
+    commandId: GameViewGroupOptionHotkeyCommandId,
+  ) => Promise<GameViewGroupCommandDispatchResult>;
   readonly getPresentation: () => Promise<GameViewPresentation>;
   /** Layout known by the main process before the game document loads. */
   readonly initialLayout: GameViewLayout | null;

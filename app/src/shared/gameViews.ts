@@ -1,5 +1,6 @@
 import * as Schema from "effect/Schema";
 
+import type { SettingsCommandId } from "@lucent/core/hotkeys";
 import { ScriptFileSchema } from "@lucent/core/scriptInputs";
 
 export const MAX_GAME_VIEWS_PER_WINDOW = 7;
@@ -59,6 +60,43 @@ export const GameViewPresentationSchema = Schema.Struct({
 
 export type GameViewPresentation = typeof GameViewPresentationSchema.Type;
 
+const GAME_VIEW_GROUP_OPTION_HOTKEY_COMMAND_IDS = [
+  "toggleInfiniteRange",
+  "toggleProvokeCell",
+  "toggleEnemyMagnet",
+  "toggleInterfaceOnlyRendering",
+  "toggleMinimalRendering",
+  "toggleHidePlayers",
+  "toggleSkipCutscenes",
+  "toggleAntiCounter",
+  "toggleAnimations",
+  "toggleCollisions",
+  "toggleDeathAds",
+] as const satisfies readonly SettingsCommandId[];
+
+export const GameViewGroupOptionHotkeyCommandIdSchema = Schema.Literals(
+  GAME_VIEW_GROUP_OPTION_HOTKEY_COMMAND_IDS,
+);
+
+export type GameViewGroupOptionHotkeyCommandId =
+  typeof GameViewGroupOptionHotkeyCommandIdSchema.Type;
+
+const gameViewGroupOptionHotkeyCommandIds = new Set<SettingsCommandId>(
+  GAME_VIEW_GROUP_OPTION_HOTKEY_COMMAND_IDS,
+);
+
+const isGameViewGroupOptionHotkeyCommandId = (
+  commandId: SettingsCommandId,
+): commandId is GameViewGroupOptionHotkeyCommandId =>
+  gameViewGroupOptionHotkeyCommandIds.has(commandId);
+
+/** Returns whether an option hotkey should fan out to selected grid tabs. */
+export const shouldDispatchGameViewGroupOptionHotkey = (
+  layout: GameViewLayout,
+  commandId: SettingsCommandId,
+): commandId is GameViewGroupOptionHotkeyCommandId =>
+  layout === "grid" && isGameViewGroupOptionHotkeyCommandId(commandId);
+
 export const GameViewGroupOptionSchema = Schema.Literals([
   "animations",
   "anti-counter",
@@ -109,6 +147,10 @@ const SetRenderingModeCommandSchema = Schema.Struct({
   kind: Schema.Literal("set-rendering-mode"),
   mode: GameViewGroupRenderingModeSchema,
 });
+const RunOptionHotkeyCommandSchema = Schema.Struct({
+  kind: Schema.Literal("run-option-hotkey"),
+  commandId: GameViewGroupOptionHotkeyCommandIdSchema,
+});
 const LoginCommandEnvelopeSchema = Schema.Struct({
   command: LoginCommandSchema,
   delayMs: Schema.Number,
@@ -123,6 +165,7 @@ const ImmediateCommandSchema = Schema.Union([
   LogoutCommandSchema,
   JoinLocationCommandSchema,
   GoToPlayerCommandSchema,
+  RunOptionHotkeyCommandSchema,
   SetRenderingModeCommandSchema,
   SetOptionCommandSchema,
 ]);

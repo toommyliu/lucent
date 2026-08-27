@@ -131,6 +131,9 @@ export interface DesktopWindowsShape {
   readonly getGameViewHostState: (
     hostRendererId: number,
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
+  readonly getGameViewHostRendererId: (
+    gameRendererId: number,
+  ) => Effect.Effect<number, DesktopWindowError>;
   readonly getGameViewPresentation: (
     gameRendererId: number,
   ) => Effect.Effect<GameViewPresentation, DesktopWindowError>;
@@ -1915,6 +1918,28 @@ const makeDesktopWindows = Effect.gen(function* () {
     hostRendererId,
   ) => requireGameHost(hostRendererId).pipe(Effect.map(gameHosts.state));
 
+  const getGameViewHostRendererId: DesktopWindowsShape["getGameViewHostRendererId"] =
+    Effect.fn("DesktopWindows.getGameViewHostRendererId")(
+      function* (gameRendererId) {
+        const host = yield* Effect.try({
+          try: () => {
+            const host = findGameHostForView(gameRendererId);
+            if (host === null) {
+              throw new Error(`Game view host is not open: ${gameRendererId}`);
+            }
+            return host;
+          },
+          catch: (cause) =>
+            new DesktopWindowError({
+              cause,
+              detail: `Failed to resolve game view host: ${gameRendererId}`,
+              id: String(gameRendererId),
+            }),
+        });
+        return host.rendererId;
+      },
+    );
+
   const setGameViewTabMenuOpen: DesktopWindowsShape["setGameViewTabMenuOpen"] =
     (hostRendererId, open) =>
       Effect.gen(function* () {
@@ -2618,6 +2643,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     getRendererId,
     getNativeWindowId,
     getRendererKind,
+    getGameViewHostRendererId,
     getGameViewHostState,
     getGameViewPresentation,
     getOwnedRendererIds,
