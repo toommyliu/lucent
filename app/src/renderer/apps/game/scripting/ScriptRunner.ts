@@ -57,6 +57,7 @@ import {
   type ScriptExitRequest,
 } from "./ScriptRunnerErrors";
 import { makeScriptStartReadiness } from "./ScriptStartReadiness";
+import { protectScriptExecutionUntil } from "./ScriptExecutionProtection";
 
 export type ScriptRunnerStatus =
   | { readonly state: "idle" }
@@ -1464,6 +1465,7 @@ export const layer = Layer.effect(
           id: yield* Ref.updateAndGet(nextIdRef, (value) => value + 1),
           terminal: yield* Deferred.make<ScriptRunTerminalOutcome>(),
         };
+        yield* protectScriptExecutionUntil(Deferred.await(identity.terminal));
         while (true) {
           const result = yield* lifecycleGate.withPermit(
             Effect.gen(function* () {

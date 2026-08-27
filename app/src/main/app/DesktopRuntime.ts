@@ -5,6 +5,7 @@ import { createAppearanceSnapshot } from "@lucent/core/appearance";
 import type { AppSettings } from "@lucent/core/settings";
 import type { CliOptions } from "../cli";
 import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
+import { DesktopGameRendererRecovery } from "./DesktopGameRendererRecovery";
 import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
@@ -69,6 +70,7 @@ export const makeDesktopRuntime = (
       const applicationMenu = yield* DesktopApplicationMenu;
       const dialog = yield* ElectronDialog;
       const env = yield* DesktopEnvironment;
+      const gameRendererRecovery = yield* DesktopGameRendererRecovery;
       const observabilityServer = yield* DesktopObservabilityServer;
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
@@ -91,6 +93,7 @@ export const makeDesktopRuntime = (
       const settings = yield* settingsService.load;
 
       yield* app.whenReady;
+      yield* gameRendererRecovery.install;
       yield* scriptWorkspace.initialize;
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();

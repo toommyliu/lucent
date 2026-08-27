@@ -28,6 +28,7 @@ import {
 } from "./ScriptRunnerErrors";
 import { makeScriptStartReadiness } from "./ScriptStartReadiness";
 import { makeScriptRuntimeServices } from "./api/Services";
+import { protectScriptExecution } from "./ScriptExecutionProtection";
 
 const ScriptEvalFunction = Function as unknown as new (
   ...args: string[]
@@ -150,7 +151,9 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
       });
 
       return yield* Effect.raceFirst(
-        compileScriptEval(source, modules, debugConsole),
+        protectScriptExecution(
+          compileScriptEval(source, modules, debugConsole),
+        ),
         Deferred.await(callbackFailure),
       ).pipe(
         Effect.catch((error) =>

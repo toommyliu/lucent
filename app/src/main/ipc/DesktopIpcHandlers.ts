@@ -49,9 +49,10 @@ export const installDesktopIpcHandlers = Effect.fn(
   for (const method of FollowerIpcMethods.methods) {
     yield* ipc.handle(method);
   }
-  for (const method of GameRendererIpcMethods.methods) {
-    yield* ipc.handle(method);
-  }
+  yield* ipc.handle(GameRendererIpcMethods.beginScriptExecution);
+  yield* ipc.handle(GameRendererIpcMethods.finishScriptExecution);
+  yield* ipc.handle(GameRendererIpcMethods.getGeneration);
+  yield* ipc.handle(GameRendererIpcMethods.ready);
   for (const method of GameViewsIpcMethods.methods) {
     yield* ipc.handle(method);
   }

@@ -276,6 +276,10 @@ export interface DesktopGameConsoleObservabilityBridge {
 }
 
 export interface DesktopGameRendererBridge {
+  /** Arms main-process recovery while script-authored JavaScript can run. */
+  readonly beginScriptExecution: () => Promise<number>;
+  /** Disarms a completed script execution without affecting concurrent runs. */
+  readonly finishScriptExecution: (token: number) => Promise<void>;
   /** Reads the generation assigned to this game document. */
   readonly getGeneration: () => Promise<number>;
   /** Marks the current game renderer generation ready to receive commands. */
