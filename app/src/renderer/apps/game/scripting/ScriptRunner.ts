@@ -52,6 +52,7 @@ import {
 } from "./safeStartStop";
 import {
   getScriptExitRequest,
+  type ScriptExecutionError,
   ScriptNotReadyError,
   ScriptStopSignal,
   type ScriptExitRequest,
@@ -211,7 +212,7 @@ export interface ScriptRunnerShape {
   readonly start: (
     file: ScriptFile,
     inputs: ScriptInputValues,
-  ) => Effect.Effect<ScriptRunHandle>;
+  ) => Effect.Effect<ScriptRunHandle, ScriptExecutionError>;
   readonly stop: (reason?: string) => Effect.Effect<ScriptRunnerStatus>;
 }
 
