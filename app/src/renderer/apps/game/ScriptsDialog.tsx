@@ -150,46 +150,23 @@ interface ConfirmationState {
 interface ErrorAlertProps {
   readonly class?: string;
   readonly message: string;
-  readonly onDismiss?: () => void;
-  readonly onRetry?: () => void;
-  readonly retryDisabled: boolean;
-  readonly retrying: boolean;
 }
 
 function ErrorAlert(props: ErrorAlertProps): JSX.Element {
   return (
     <Alert
+      class={`game-scripts-dialog__error-alert ${props.class ?? ""}`}
       variant="error"
-      {...(props.class === undefined ? {} : { class: props.class })}
     >
       <AlertDescription title={props.message}>
+        <Icon
+          aria-hidden="true"
+          class="game-scripts-dialog__error-icon"
+          icon="circle_alert"
+          size="sm"
+        />
         <span>{props.message}</span>
       </AlertDescription>
-      <AlertAction>
-        <Show when={props.onRetry !== undefined}>
-          <Button
-            disabled={props.retryDisabled}
-            loading={props.retrying}
-            onClick={() => {
-              props.onRetry?.();
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            Retry
-          </Button>
-        </Show>
-        <Show when={props.onDismiss !== undefined}>
-          <IconButton
-            aria-label="Dismiss error"
-            onClick={() => props.onDismiss?.()}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <Icon icon="x" size="sm" />
-          </IconButton>
-        </Show>
-      </AlertAction>
     </Alert>
   );
 }
@@ -1376,15 +1353,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const refreshCatalog = (): Promise<void> => loadCatalog(true);
 
-  const retryCatalog = (): void => {
-    const nextQuery = search().trim();
-    if (nextQuery !== catalogQuery()) {
-      void requestScriptQuery(nextQuery);
-      return;
-    }
-    void refreshCatalog();
-  };
-
   const refreshCredentials = async (): Promise<void> => {
     const bridge = props.bridge;
     if (bridge === undefined || fixtureMode) return;
@@ -2161,12 +2129,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               <ErrorAlert
                 class="game-scripts-dialog__alert"
                 message={error()}
-                {...(errorRetryable() ? {} : { onDismiss: () => setError("") })}
-                {...(errorRetryable() ? { onRetry: retryCatalog } : {})}
-                retryDisabled={
-                  busy() || catalogLoading() || scriptQueryLoading()
-                }
-                retrying={catalogLoading() || scriptQueryLoading()}
               />
             </Show>
           </div>
@@ -2436,18 +2398,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               class="game-scripts-dialog__tab-content game-scripts-dialog__queue"
               value="queue"
             >
-              <Show when={props.queueState.error !== undefined}>
-                <Alert class="game-scripts-dialog__queue-error" variant="error">
-                  <AlertDescription>
-                    <Icon
-                      aria-hidden="true"
-                      class="game-scripts-dialog__queue-error-icon"
-                      icon="circle_alert"
-                      size="sm"
-                    />
-                    <span>{props.queueState.error}</span>
-                  </AlertDescription>
-                </Alert>
+              <Show when={props.queueState.error} keyed>
+                {(message) => <ErrorAlert message={message} />}
               </Show>
               <div class="game-scripts-dialog__queue-toolbar">
                 <div
@@ -4042,12 +3994,10 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <Show when={error() !== ""}>
-                    <Alert
+                    <ErrorAlert
                       class="game-scripts-dialog__confirmation-alert"
-                      variant="error"
-                    >
-                      <AlertDescription>{error()}</AlertDescription>
-                    </Alert>
+                      message={error()}
+                    />
                   </Show>
                   <AlertDialogFooter
                     class="game-scripts-dialog__confirmation-actions"
