@@ -2738,8 +2738,8 @@ a.badge--destructive:hover {
   line-height: 1;
 }
 
-.virtual-list__header
-  .virtual-list__group-toggle:is([aria-pressed="true"], [data-state="checked"]) {
+.virtual-list__header .virtual-list__group-toggle[aria-pressed="true"],
+.virtual-list__header .virtual-list__group-toggle[data-state="checked"] {
   color: rgb(var(--foreground));
   background: rgb(var(--accent));
 }
