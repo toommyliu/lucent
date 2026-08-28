@@ -14,16 +14,18 @@ import {
   type GitHubRepository as ParsedGitHubRepository,
 } from "../../shared/githubRepositoryUrl";
 import { GitHubCredentials } from "./GitHubCredentials";
+import {
+  SCRIPT_PACKAGE_ARCHIVE_MAX_BYTES,
+  SCRIPT_PACKAGE_METADATA_MAX_BYTES,
+} from "./ScriptLimits";
 
 const API_ORIGIN = "https://api.github.com";
-const ARCHIVE_MAX_BYTES = 64 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_REDIRECTS = 5;
 const MAX_METADATA_ATTEMPTS = 3;
 const MAX_ARCHIVE_ATTEMPTS = 2;
 const QUEUE_LIMIT = 32;
 const CONTENTS_DIRECTORY_LIMIT = 1_000;
-const METADATA_MAX_BYTES = 16 * 1024 * 1024;
 
 const GitHubCommitPayloadSchema = Schema.Struct({
   sha: Schema.String.check(Schema.isNonEmpty()),
@@ -326,7 +328,7 @@ export const layer = Layer.effect(
                   ...(input.credentialId === undefined
                     ? {}
                     : { credentialId: input.credentialId }),
-                  maxBytes: METADATA_MAX_BYTES,
+                  maxBytes: SCRIPT_PACKAGE_METADATA_MAX_BYTES,
                   timeoutMs: REQUEST_TIMEOUT_MS,
                   ...(token === undefined ? {} : { token }),
                   url: contentsUrl,
@@ -371,7 +373,7 @@ export const layer = Layer.effect(
                       ...(input.credentialId === undefined
                         ? {}
                         : { credentialId: input.credentialId }),
-                      maxBytes: METADATA_MAX_BYTES,
+                      maxBytes: SCRIPT_PACKAGE_METADATA_MAX_BYTES,
                       timeoutMs: REQUEST_TIMEOUT_MS,
                       ...(token === undefined ? {} : { token }),
                       url: new URL(
@@ -451,7 +453,7 @@ export const layer = Layer.effect(
                     ...(input.credentialId === undefined
                       ? {}
                       : { credentialId: input.credentialId }),
-                    maxBytes: ARCHIVE_MAX_BYTES,
+                    maxBytes: SCRIPT_PACKAGE_ARCHIVE_MAX_BYTES,
                     maxRedirects: MAX_REDIRECTS,
                     targetPath: input.targetPath,
                     timeoutMs: REQUEST_TIMEOUT_MS,

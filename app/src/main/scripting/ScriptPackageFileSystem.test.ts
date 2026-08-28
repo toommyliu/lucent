@@ -4,10 +4,7 @@ import { join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  listRegularFilePaths,
-  listRegularFiles,
-} from "./ScriptPackageFileSystem";
+import { listRegularFilePaths } from "./ScriptPackageFileSystem";
 
 const directories: string[] = [];
 
@@ -19,7 +16,7 @@ afterEach(async () => {
   );
 });
 
-describe("listRegularFiles", () => {
+describe("listRegularFilePaths", () => {
   it("applies file limits only when the caller requests one", async () => {
     const root = await fs.mkdtemp(join(tmpdir(), "lucent-file-inventory-"));
     directories.push(root);
@@ -28,11 +25,6 @@ describe("listRegularFiles", () => {
         fs.writeFile(join(root, name), "", "utf8"),
       ),
     );
-
-    await expect(listRegularFiles(root, { maxFiles: 2 })).rejects.toThrow(
-      "Directory contains more than 2 files",
-    );
-    await expect(listRegularFiles(root)).resolves.toHaveLength(3);
 
     const paths = await listRegularFilePaths(root);
     expect(paths).toHaveLength(3);

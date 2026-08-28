@@ -22,6 +22,7 @@ import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { ScriptWorkspace } from "../scripting/ScriptWorkspace";
+import { initializeBundledScriptPackages } from "../scripting/BundledScriptPackages";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopApplicationMenu } from "../window/DesktopApplicationMenu";
 import { DesktopWindows } from "../window/DesktopWindows";
@@ -95,6 +96,7 @@ export const makeDesktopRuntime = (
       yield* app.whenReady;
       yield* gameRendererRecovery.install;
       yield* scriptWorkspace.initialize;
+      yield* initializeBundledScriptPackages;
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
