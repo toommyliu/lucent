@@ -1,11 +1,13 @@
 import { Icon } from "./Icon";
 import { Menu as MenuPrimitive, useMenuContext } from "@ark-ui/solid/menu";
 import {
+  children,
   createComputed,
   createContext,
   createEffect,
   createMemo,
   createSignal,
+  createUniqueId,
   onCleanup,
   Show,
   splitProps,
@@ -18,13 +20,14 @@ import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 import { createPositioningReady, getPositionerStyle } from "./Positioning";
 import { VisuallyHidden } from "./VisuallyHidden";
+import { GroupedVirtualList } from "./GroupedVirtualList";
 import {
-  VirtualList,
   VirtualListSearchInput,
   filterVirtualListItems,
   updateInlineSearchQuery,
   type VirtualListApi,
   type VirtualListItem,
+  type VirtualListScrollDirection,
   useVirtualListItemPosition,
 } from "./VirtualList";
 
@@ -346,10 +349,15 @@ export interface VirtualizedMenuRadioGroupProps<
 > extends Omit<MenuRadioGroupProps, "children"> {
   readonly children: (item: T, index: number) => JSX.Element;
   readonly emptyText?: string;
+  /** Items with the same group must be contiguous. Headings are not selectable. */
+  readonly groupBy?: ((item: T) => string) | undefined;
+  /** Fixed menu controls beside the active group label. */
+  readonly header?: JSX.Element;
   readonly itemSize?: number;
   readonly items: readonly T[];
   readonly overscan?: number;
   readonly searchable?: boolean;
+  readonly scrollToSelected?: boolean;
 }
 
 function firstEnabledIndex<T extends VirtualListItem>(
@@ -404,17 +412,25 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
     "children",
     "class",
     "emptyText",
+    "groupBy",
+    "header",
     "itemSize",
     "items",
     "overscan",
     "searchable",
+    "scrollToSelected",
   ]);
   const context = useContext(MenuVirtualContext);
   if (context === undefined) {
     throw new Error("VirtualizedMenuRadioGroup must be rendered within Menu");
   }
   const menu = useMenuContext();
+  const header = children(() => local.header);
+  const [activeGroup, setActiveGroup] = createSignal<string>();
   const [query, setQuery] = createSignal("");
+  const [scrollDirection, setScrollDirection] =
+    createSignal<VirtualListScrollDirection>();
+  const scrollButtonValue = `${createUniqueId()}-scroll-to-selected`;
   // Zag clears its highlight on pointer leave; keyboard navigation should
   // continue from that row instead of restarting at the beginning.
   let lastHighlightedValue: string | null = null;
@@ -429,9 +445,14 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
       ? filterVirtualListItems(local.items, query())
       : local.items,
   );
+  const scrollTargetIndex = createMemo(() =>
+    local.scrollToSelected
+      ? filteredItems().findIndex((item) => item.value === props.value)
+      : undefined,
+  );
   const scrollToValue = (value: string | null): void => {
     if (value === null) return;
-    const index = local.items.findIndex((item) => item.value === value);
+    const index = filteredItems().findIndex((item) => item.value === value);
     if (index >= 0) virtualList?.scrollToIndex(index);
   };
   const scheduleAlignedScroll = (index: number, value: string): void => {
@@ -574,6 +595,8 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
     return true;
   };
   const handleKeyDown = (event: KeyboardEvent): void => {
+    if (menu().highlightedValue === scrollButtonValue && event.key !== "Escape")
+      return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const handled = moveHighlight(event.key === "ArrowDown" ? 1 : -1);
       if (!handled) return;
@@ -717,6 +740,18 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
 
   return (
     <>
+      <Show when={header() !== undefined}>
+        <div class="virtual-list__header" data-slot="menu-virtual-header">
+          <Show when={activeGroup()}>
+            {(group) => (
+              <span class="virtual-list__active-group" title={group()}>
+                {group()}
+              </span>
+            )}
+          </Show>
+          {header()}
+        </div>
+      </Show>
       <Show when={local.searchable === true && query() !== ""}>
         <VirtualListSearchInput
           ref={(element) => {
@@ -731,36 +766,80 @@ export function VirtualizedMenuRadioGroup<T extends VirtualListItem>(
           ? ""
           : `${filteredItems().length} ${filteredItems().length === 1 ? "result" : "results"}`}
       </VisuallyHidden>
-      <MenuPrimitive.RadioItemGroup
-        {...rest}
-        class={cn("menu__virtual-group", local.class)}
-        data-slot="menu-radio-group"
-        ref={(element) => {
-          groupElement = element;
+      <div
+        class="virtual-list__viewport"
+        style={{
+          "--virtual-list-scroll-top":
+            header() !== undefined || local.groupBy === undefined
+              ? undefined
+              : local.itemSize === undefined
+                ? "2rem"
+                : `${local.itemSize + 4}px`,
         }}
       >
-        <Show
-          when={filteredItems().length > 0}
-          fallback={
-            <div class="menu__empty">
-              {local.emptyText ?? "No matching options"}
-            </div>
-          }
-        >
-          <VirtualList
-            class="virtual-list__items"
-            getScrollElement={() => groupElement}
-            itemSize={local.itemSize}
-            items={filteredItems()}
-            overscan={local.overscan}
-            ref={(api) => {
-              virtualList = api;
-            }}
-          >
-            {local.children}
-          </VirtualList>
+        <Show when={scrollDirection()}>
+          {(direction) => (
+            <MenuItem
+              aria-label="Scroll to selected"
+              class="virtual-list__scroll-button"
+              closeOnSelect={false}
+              data-direction={direction()}
+              title="Scroll to selected"
+              value={scrollButtonValue}
+              onSelect={() => {
+                const index = scrollTargetIndex();
+                if (index === undefined || index < 0) return;
+                virtualList?.scrollToIndex(index);
+                const item = filteredItems()[index];
+                if (item === undefined || item.disabled)
+                  menu().setHighlightedValue("");
+                else menu().setHighlightedValue(item.value);
+              }}
+            >
+              <Icon
+                icon={direction() === "up" ? "arrow_up" : "arrow_down"}
+                size="sm"
+              />
+            </MenuItem>
+          )}
         </Show>
-      </MenuPrimitive.RadioItemGroup>
+        <MenuPrimitive.RadioItemGroup
+          {...rest}
+          class={cn("menu__virtual-group", local.class)}
+          data-slot="menu-radio-group"
+          ref={(element) => {
+            groupElement = element;
+          }}
+        >
+          <Show
+            when={filteredItems().length > 0}
+            fallback={
+              <div class="menu__empty">
+                {local.emptyText ?? "No matching options"}
+              </div>
+            }
+          >
+            <GroupedVirtualList
+              class="virtual-list__items"
+              getScrollElement={() => groupElement}
+              itemSize={local.itemSize}
+              items={filteredItems()}
+              groupBy={local.groupBy}
+              scrollTargetIndex={scrollTargetIndex()}
+              onScrollTargetDirectionChange={setScrollDirection}
+              onActiveGroupChange={
+                header() === undefined ? undefined : setActiveGroup
+              }
+              overscan={local.overscan}
+              ref={(api) => {
+                virtualList = api;
+              }}
+            >
+              {local.children}
+            </GroupedVirtualList>
+          </Show>
+        </MenuPrimitive.RadioItemGroup>
+      </div>
     </>
   );
 }

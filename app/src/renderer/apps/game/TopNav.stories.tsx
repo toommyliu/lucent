@@ -23,6 +23,7 @@ interface TopNavFixture {
   readonly autoReloginWaitingDelay?: boolean;
   readonly autoZoneEnabled?: boolean;
   readonly autoZoneMap?: AutoZoneSupportedMap;
+  readonly combatProfiles?: readonly TopNavCombatProfile[];
   readonly gameLoaded?: boolean;
   readonly openMenu?: GameTopNavMenu | null;
   readonly playerReady?: boolean;
@@ -41,6 +42,11 @@ const profiles: readonly TopNavCombatProfile[] = [
     classNames: ["Lord of Order"],
     id: "support",
     label: "Party Support",
+  },
+  {
+    classNames: ["Lord of Order"],
+    id: "support-safe",
+    label: "Defensive Support",
   },
   {
     classNames: ["Void Highlord", "Void Highlord (IoDA)", "Debris Highlord"],
@@ -63,6 +69,7 @@ const optionFixtures = [
 
 function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
   const fixture = props.fixture;
+  const combatProfiles = fixture.combatProfiles ?? profiles;
   const [openMenu, setOpenMenu] = createSignal<GameTopNavMenu | null>(
     fixture.openMenu ?? null,
   );
@@ -124,8 +131,8 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
     ];
   });
   const selectedProfile = () =>
-    profiles.find((profile) => profile.id === selectedProfileId()) ??
-    profiles[0];
+    combatProfiles.find((profile) => profile.id === selectedProfileId()) ??
+    combatProfiles[0];
 
   return (
     <div class="game-app">
@@ -153,7 +160,7 @@ function TopNavStory(props: { readonly fixture: TopNavFixture }): JSX.Element {
         autoZoneEnabled={autoZoneEnabled}
         autoZoneMap={autoZoneMap}
         cells={() => ["Enter", "Boss", "Rewards"]}
-        combatProfiles={() => profiles}
+        combatProfiles={() => combatProfiles}
         customGuild={customGuild}
         customGuildConfigured={() => true}
         customName={customName}
@@ -260,6 +267,29 @@ export const AutoAttackFailure: Story = {
       autoAttackEnabled: false,
       autoAttackLastError: "Combat profile failed while resolving target 17.",
       openMenu: "combat",
+    },
+  },
+};
+
+export const AutoAttackProfiles: Story = {
+  args: {
+    fixture: { autoAttackEnabled: false, openMenu: "combat" },
+  },
+};
+
+export const AutoAttackManyProfiles: Story = {
+  args: {
+    fixture: {
+      autoAttackEnabled: false,
+      openMenu: "combat",
+      combatProfiles: [
+        ...profiles,
+        ...Array.from({ length: 1000 }, (_, index) => ({
+          id: `profile-${index}`,
+          label: `Profile ${index}`,
+          classNames: [`Class ${index % 100}`, `Alias ${index % 100}`],
+        })),
+      ],
     },
   },
 };

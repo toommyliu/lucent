@@ -50,6 +50,10 @@ import {
   type AutoZoneSupportedMap,
 } from "./automation/AutoZone";
 import type { RenderingMode } from "./flash/contract/Settings";
+import {
+  buildCombatProfileOptions,
+  resolveCombatProfileOptionValue,
+} from "../../combatProfileOptions";
 
 export type GameTopNavMenu =
   | "windows"
@@ -544,7 +548,11 @@ const combatProfileClassSummary = (profile: TopNavCombatProfile): string => {
     : `${classNames.length} classes`;
 };
 
-const combatProfileTooltip = (profile: TopNavCombatProfile): string => {
+const combatProfileTooltip = (
+  profile: TopNavCombatProfile,
+  group?: string,
+): string => {
+  if (group !== undefined) return `${profile.label} - ${group}`;
   const classNames = combatProfileClassNames(profile);
   return `${profile.label} - ${classNames.length === 0 ? "Any class" : classNames.join(", ")}`;
 };
@@ -1025,6 +1033,9 @@ export function TopNav(props: TopNavProps): JSX.Element {
   let optionsMenuMeasurementFrame: number | undefined;
   let travelMenuContent: HTMLDivElement | undefined;
   const [menuPortalMount, setMenuPortalMount] = createSignal<HTMLDivElement>();
+  const [groupCombatProfiles, setGroupCombatProfiles] = createSignal(false);
+  const [selectedCombatProfileMenuValue, setSelectedCombatProfileMenuValue] =
+    createSignal("");
   const [autoReloginServerMenuOpen, setAutoReloginServerMenuOpen] =
     createSignal(false);
   const [optionsMenuPage, setOptionsMenuPage] =
@@ -1318,18 +1329,19 @@ export function TopNav(props: TopNavProps): JSX.Element {
         props.autoAttackConfiguredProfileLabel()
       : props.autoAttackConfiguredProfileLabel();
 
-  const autoAttackSelectionValue = (): string =>
-    props.selectedAutoAttackProfileId();
-
   const combatProfileMenuItems = createMemo(() =>
-    props.combatProfiles().map((profile) => ({
-      classNames: profile.classNames ?? [],
-      disabled: props.autoAttackEnabled(),
-      id: profile.id,
-      label: profile.label,
-      searchText: profile.classNames?.join(" "),
-      value: profile.id,
-    })),
+    buildCombatProfileOptions(
+      props.combatProfiles(),
+      groupCombatProfiles(),
+      props.autoAttackEnabled(),
+    ),
+  );
+  const autoAttackSelectionValue = createMemo(() =>
+    resolveCombatProfileOptionValue(
+      combatProfileMenuItems(),
+      props.selectedAutoAttackProfileId(),
+      selectedCombatProfileMenuValue(),
+    ),
   );
 
   const autoAttackPrioritySummary = (): string => {
@@ -1350,8 +1362,12 @@ export function TopNav(props: TopNavProps): JSX.Element {
       return;
     }
 
-    if (details.value !== "") {
-      props.handleSelectAutoAttackProfile(details.value);
+    const item = combatProfileMenuItems().find(
+      (item) => item.value === details.value,
+    );
+    if (item !== undefined) {
+      setSelectedCombatProfileMenuValue(item.value);
+      props.handleSelectAutoAttackProfile(item.id);
     }
   };
 
@@ -2022,40 +2038,69 @@ export function TopNav(props: TopNavProps): JSX.Element {
                 </GameMenuSubContent>
               </MenuSub>
               <MenuSeparator />
-              <MenuGroup>
-                <MenuItem
-                  class="game-menu__section-trigger"
-                  title="Open Combat Profiles"
-                  value="open-combat-profiles"
-                  onSelect={() => props.handleOpenWindow("combat-profiles")}
-                >
-                  <span>Combat Profile</span>
-                  <Icon icon="arrow_up_right" aria-hidden="true" />
-                </MenuItem>
-              </MenuGroup>
               <VirtualizedMenuRadioGroup
                 class="game-menu__profile-list"
+                groupBy={
+                  groupCombatProfiles()
+                    ? (profile) => profile.group ?? "Any class"
+                    : undefined
+                }
+                header={
+                  <MenuCheckboxItem
+                    aria-label="Group by class"
+                    checked={groupCombatProfiles()}
+                    class="virtual-list__group-toggle"
+                    closeOnSelect={false}
+                    onCheckedChange={setGroupCombatProfiles}
+                    title={
+                      groupCombatProfiles()
+                        ? "Show flat list"
+                        : "Show grouped list"
+                    }
+                    value="group-combat-profiles"
+                  >
+                    <Icon icon="list_tree" aria-hidden="true" size="sm" />
+                    <span>Group</span>
+                  </MenuCheckboxItem>
+                }
                 items={combatProfileMenuItems()}
                 searchable
+                scrollToSelected
                 value={autoAttackSelectionValue()}
                 onValueChange={handleAutoAttackSelectionChange}
               >
                 {(profile) => (
                   <MenuRadioItem
-                    aria-label={combatProfileTooltip(profile)}
-                    class="game-menu__item game-menu__profile-item"
+                    aria-label={combatProfileTooltip(profile, profile.group)}
+                    class={cn(
+                      "game-menu__item game-menu__profile-item",
+                      groupCombatProfiles() &&
+                        "game-menu__profile-item--grouped",
+                    )}
                     closeOnSelect={false}
                     disabled={props.autoAttackEnabled()}
-                    title={combatProfileTooltip(profile)}
+                    title={combatProfileTooltip(profile, profile.group)}
                     value={profile.value}
                   >
                     <span class="game-menu__item-label">{profile.label}</span>
-                    <span class="game-menu__item-value game-menu__profile-class">
-                      {combatProfileClassSummary(profile)}
-                    </span>
+                    <Show when={!groupCombatProfiles()}>
+                      <span class="game-menu__item-value game-menu__profile-class">
+                        {combatProfileClassSummary(profile)}
+                      </span>
+                    </Show>
                   </MenuRadioItem>
                 )}
               </VirtualizedMenuRadioGroup>
+              <MenuSeparator />
+              <MenuItem
+                class="game-menu__item"
+                title="Open Combat Profiles"
+                value="open-combat-profiles"
+                onSelect={() => props.handleOpenWindow("combat-profiles")}
+              >
+                <span class="game-menu__item-label">Combat Profiles</span>
+                <Icon icon="arrow_up_right" aria-hidden="true" size="sm" />
+              </MenuItem>
             </GameMenuContent>
           </Menu>
 

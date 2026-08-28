@@ -1,4 +1,5 @@
 import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
 import {
   createListCollection,
   Select as SelectPrimitive,
@@ -7,11 +8,13 @@ import {
 } from "@ark-ui/solid/select";
 import {
   Show,
+  children,
   createComputed,
   createContext,
   createEffect,
   createMemo,
   createSignal,
+  on,
   onCleanup,
   splitProps,
   useContext,
@@ -23,13 +26,14 @@ import { cn } from "../lib/cn";
 import { useDialogFloatingZIndex, useDialogPortalMount } from "./DialogLayer";
 import { createPositioningReady, getPositionerStyle } from "./Positioning";
 import { VisuallyHidden } from "./VisuallyHidden";
+import { GroupedVirtualList } from "./GroupedVirtualList";
 import {
-  VirtualList,
   VirtualListSearchInput,
   filterVirtualListItems,
   updateInlineSearchQuery,
   type VirtualListApi,
   type VirtualListItem,
+  type VirtualListScrollDirection,
   useVirtualListItemPosition,
 } from "./VirtualList";
 
@@ -247,10 +251,16 @@ export interface VirtualizedSelectContentProps<
 > extends Omit<SelectContentProps, "children"> {
   readonly children: (item: T, index: number) => JSX.Element;
   readonly emptyText?: string;
+  /** Items with the same group must be contiguous. Headings are not selectable. */
+  readonly groupBy?: ((item: T) => string) | undefined;
+  /** Fixed content beside the active group. Set Select's composite={false} for controls. */
+  readonly header?: JSX.Element;
   readonly itemSize?: number;
   readonly items: readonly T[];
   readonly overscan?: number;
   readonly searchable?: boolean;
+  /** Adds a floating jump control. Set Select's composite={false} for controls. */
+  readonly scrollToSelected?: boolean;
 }
 
 function SelectContentFrame(props: {
@@ -342,19 +352,27 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
     "children",
     "class",
     "emptyText",
+    "groupBy",
+    "header",
     "itemSize",
     "items",
     "overscan",
     "portalMount",
     "searchable",
+    "scrollToSelected",
   ]);
   const context = useContext(SelectItemsContext);
   if (context === undefined) {
     throw new Error("VirtualizedSelectContent must be rendered within Select");
   }
   const select = useSelectContext();
+  const header = children(() => local.header);
   const [query, setQuery] = createSignal("");
+  const [activeGroup, setActiveGroup] = createSignal<string>();
+  const [scrollDirection, setScrollDirection] =
+    createSignal<VirtualListScrollDirection>();
   let listElement: HTMLDivElement | undefined;
+  let headerElement: HTMLDivElement | undefined;
   let searchInputElement: HTMLInputElement | undefined;
   let virtualList: VirtualListApi | undefined;
   let searchOriginValue: string | null = null;
@@ -363,9 +381,15 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
       ? filterVirtualListItems(local.items, query())
       : local.items,
   );
+  const selectedValue = createMemo(() => select().value[0]);
+  const scrollTargetIndex = createMemo(() =>
+    local.scrollToSelected
+      ? filteredItems().findIndex((item) => item.value === selectedValue())
+      : undefined,
+  );
   const scrollToValue = (value: string | undefined | null): void => {
     if (value == null) return;
-    const index = local.items.findIndex((item) => item.value === value);
+    const index = filteredItems().findIndex((item) => item.value === value);
     if (index >= 0) virtualList?.scrollToIndex(index);
   };
   const setSearchQuery = (nextQuery: string): void => {
@@ -394,9 +418,11 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
       if (restoredValue !== null) {
         select().setHighlightValue(restoredValue);
       }
-      listElement
-        ?.closest<HTMLElement>('[data-slot="select-content"]')
-        ?.focus({ preventScroll: true });
+      const focusTarget =
+        header() === undefined
+          ? listElement?.closest<HTMLElement>('[data-slot="select-content"]')
+          : listElement;
+      focusTarget?.focus({ preventScroll: true });
       scrollToValue(restoredValue);
     });
   };
@@ -407,9 +433,27 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
       searchOriginValue = null;
     }
   });
-  createEffect(() => {
-    context.setItemsOverride(filteredItems());
-  });
+  createEffect(
+    on(filteredItems, (items) => {
+      context.setItemsOverride(items);
+      const current = select();
+      if (
+        !current.open ||
+        current.highlightedValue === null ||
+        items.some((item) => item.value === current.highlightedValue)
+      ) {
+        return;
+      }
+
+      // Grouping can replace option values while the popup stays open.
+      const next =
+        items.find(
+          (item) => item.value === current.value[0] && !item.disabled,
+        ) ?? items.find((item) => !item.disabled);
+      if (next === undefined) current.clearHighlightValue();
+      else current.setHighlightValue(next.value);
+    }),
+  );
   context.setScrollToIndex((details) => {
     if (details.index >= 0) virtualList?.scrollToIndex(details.index);
   });
@@ -434,6 +478,14 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
     }
 
     if (event.target === searchInputElement) return;
+    if (event.target instanceof Node && headerElement?.contains(event.target)) {
+      return;
+    }
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-scroll-to-selected]")
+    )
+      return;
 
     const nextQuery = updateInlineSearchQuery(query(), event);
     if (nextQuery === undefined) return;
@@ -453,6 +505,28 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
       onKeyDownCapture={handleKeyDown}
       portalMount={local.portalMount}
     >
+      <Show when={header() !== undefined}>
+        <div
+          class="virtual-list__header select__header"
+          data-slot="select-header"
+          ref={(element) => {
+            headerElement = element;
+          }}
+          onKeyDown={(event) => {
+            // Let controls handle their own keys before Ark's list navigation.
+            if (event.key !== "Escape") event.stopPropagation();
+          }}
+        >
+          <Show when={activeGroup()}>
+            {(group) => (
+              <span class="virtual-list__active-group" title={group()}>
+                {group()}
+              </span>
+            )}
+          </Show>
+          {header()}
+        </div>
+      </Show>
       <Show when={local.searchable === true && query() !== ""}>
         <VirtualListSearchInput
           ref={(element) => {
@@ -467,41 +541,89 @@ export function VirtualizedSelectContent<T extends VirtualListItem>(
           ? ""
           : `${filteredItems().length} ${filteredItems().length === 1 ? "result" : "results"}`}
       </VisuallyHidden>
-      <SelectPrimitive.List
-        class="select__list select__list--virtualized"
-        data-slot="select-list"
-        ref={(element) => {
-          listElement = element;
+      <div
+        class="virtual-list__viewport"
+        style={{
+          "--virtual-list-scroll-top":
+            header() !== undefined || local.groupBy === undefined
+              ? undefined
+              : local.itemSize === undefined
+                ? "2rem"
+                : `${local.itemSize + 4}px`,
         }}
       >
-        <Show
-          when={filteredItems().length > 0}
-          fallback={
-            <div class="select__empty">
-              {local.emptyText ?? "No matching options"}
-            </div>
-          }
-        >
-          <VirtualList
-            class="virtual-list__items"
-            getScrollElement={() => listElement}
-            itemSize={local.itemSize}
-            items={filteredItems()}
-            overscan={local.overscan}
-            ref={(api) => {
-              virtualList = api;
-              const highlightedValue =
-                select().highlightedValue ?? select().value[0];
-              const highlightedIndex = filteredItems().findIndex(
-                (item) => item.value === highlightedValue,
-              );
-              if (highlightedIndex >= 0) api.scrollToIndex(highlightedIndex);
-            }}
-          >
-            {local.children}
-          </VirtualList>
+        <Show when={scrollDirection()}>
+          {(direction) => (
+            <IconButton
+              aria-label="Scroll to selected"
+              class="virtual-list__scroll-button"
+              data-direction={direction()}
+              data-scroll-to-selected
+              size="icon-sm"
+              title="Scroll to selected"
+              variant="outline"
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") event.stopPropagation();
+              }}
+              onClick={() => {
+                const index = scrollTargetIndex();
+                if (index === undefined || index < 0) return;
+                listElement?.focus({ preventScroll: true });
+                virtualList?.scrollToIndex(index);
+                const item = filteredItems()[index];
+                if (item !== undefined) select().setHighlightValue(item.value);
+              }}
+            >
+              <Icon
+                icon={direction() === "up" ? "arrow_up" : "arrow_down"}
+                size="sm"
+              />
+            </IconButton>
+          )}
         </Show>
-      </SelectPrimitive.List>
+        <SelectPrimitive.List
+          class="select__list select__list--virtualized"
+          data-autofocus={header() === undefined ? undefined : ""}
+          data-slot="select-list"
+          ref={(element) => {
+            listElement = element;
+          }}
+        >
+          <Show
+            when={filteredItems().length > 0}
+            fallback={
+              <div class="select__empty">
+                {local.emptyText ?? "No matching options"}
+              </div>
+            }
+          >
+            <GroupedVirtualList
+              class="virtual-list__items"
+              getScrollElement={() => listElement}
+              itemSize={local.itemSize}
+              items={filteredItems()}
+              groupBy={local.groupBy}
+              scrollTargetIndex={scrollTargetIndex()}
+              onScrollTargetDirectionChange={setScrollDirection}
+              onActiveGroupChange={
+                header() === undefined ? undefined : setActiveGroup
+              }
+              overscan={local.overscan}
+              ref={(api) => {
+                virtualList = api;
+                const highlightedValue =
+                  select().highlightedValue ?? select().value[0];
+                const highlightedIndex = filteredItems().findIndex(
+                  (item) => item.value === highlightedValue,
+                );
+                if (highlightedIndex >= 0) api.scrollToIndex(highlightedIndex);
+              }}
+            >
+              {local.children}
+            </GroupedVirtualList>
+          </Show>
+        </SelectPrimitive.List>
+      </div>
     </SelectContentFrame>
   );
 }

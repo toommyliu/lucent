@@ -236,6 +236,13 @@ const icons = {
   // Local spinner arc: 270deg from 12 o'clock to 9 o'clock, so reduced-motion
   // states read as intentional loading instead of a frozen animation frame.
   loader_circle: [["path", { d: "M12 3a9 9 0 1 1-9 9", key: "13zald" }]],
+  list_tree: [
+    ["path", { d: "M8 5h13" }],
+    ["path", { d: "M13 12h8" }],
+    ["path", { d: "M13 19h8" }],
+    ["path", { d: "M3 10a2 2 0 0 0 2 2h3" }],
+    ["path", { d: "M3 5v12a2 2 0 0 0 2 2h3" }],
+  ],
   maximize_2: [
     ["path", { d: "M15 3h6v6" }],
     ["path", { d: "m21 3-7 7" }],
