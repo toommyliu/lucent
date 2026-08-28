@@ -229,7 +229,6 @@ export type ScriptPackageIntegrity = typeof ScriptPackageIntegritySchema.Type;
 const ScriptPackageRepositorySourceFields = {
   repositoryUrl: Schema.String,
   requestedRef: Schema.optionalKey(Schema.String),
-  resolvedCommit: Schema.String,
   credentialId: Schema.optionalKey(Schema.String),
 } as const;
 
@@ -237,10 +236,13 @@ export const ScriptPackageSourceSchema = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("repository"),
     ...ScriptPackageRepositorySourceFields,
+    resolvedCommit: Schema.String,
   }),
   Schema.Struct({
     kind: Schema.Literal("directory"),
     ...ScriptPackageRepositorySourceFields,
+    // Local bundled copies have an exact tree without a resolved remote commit.
+    resolvedCommit: Schema.optionalKey(Schema.String),
     resolvedTree: Schema.String,
     subdirectory: ScriptPackageRepositorySubdirectorySchema,
   }),

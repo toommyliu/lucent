@@ -8,10 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { makeScriptFileResolver, ScriptFileWorkerClient } from "./ScriptFiles";
 import { processScriptFile } from "./ScriptFileWorker";
-import {
-  SCRIPT_FILE_MAX_BYTES,
-  type ScriptFileAnalysisResolution,
-} from "./ScriptFileWorkerProtocol";
+import type { ScriptFileAnalysisResolution } from "./ScriptFileWorkerProtocol";
+import { SCRIPT_FILE_MAX_BYTES } from "../../scripting/ScriptLimits";
 
 const tempDirectories = new Set<string>();
 

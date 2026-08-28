@@ -9,16 +9,22 @@
   },
   "afterPack": "scripts/after-pack-linux-sandbox.cjs",
   "files": ["dist/**/*", "package.json", "!node_modules/**/*"],
+  "extraResources": [
+    {
+      "from": "../docs/public/script-api.d.ts",
+      "to": "script-api.d.ts"
+    },
+    {
+      "from": "../script-packages",
+      "to": "script-packages"
+    }
+  ],
   "mac": {
     "extraResources": [
       {
         "from": "../assets",
         "to": "assets",
         "filter": ["**/*", "!icons{,/**/*}", "!pepflashplayer.dll", "!icon.png", "!icon-dev.png", "!icon.ico"]
-      },
-      {
-        "from": "../docs/public/script-api.d.ts",
-        "to": "script-api.d.ts"
       }
     ],
     "asar": false,
@@ -35,10 +41,6 @@
         "from": "../assets",
         "to": "assets",
         "filter": ["**/*", "!icons{,/**/*}", "!PepperFlashPlayer.plugin", "!icon.png", "!icon-dev.png", "!icon.ico"]
-      },
-      {
-        "from": "../docs/public/script-api.d.ts",
-        "to": "script-api.d.ts"
       }
     ],
     "icon": "../assets/icon.ico",
@@ -62,10 +64,6 @@
           "!icon-dev.png",
           "!icon.ico"
         ]
-      },
-      {
-        "from": "../docs/public/script-api.d.ts",
-        "to": "script-api.d.ts"
       }
     ],
     "asar": false,

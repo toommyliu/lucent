@@ -32,13 +32,16 @@ import {
 import {
   portablePath,
   regularFileFingerprint,
-  SCRIPT_SNAPSHOT_MAX_BYTES,
   sha256Revision,
 } from "./ScriptPackageFileSystem";
+import {
+  formatScriptByteLimit,
+  SCRIPT_SNAPSHOT_MAX_BYTES,
+  SCRIPT_SOURCE_CACHE_MAX_BYTES,
+  SCRIPT_SOURCE_CACHE_MAX_ENTRIES,
+} from "./ScriptLimits";
 
 const SNAPSHOT_MAX_ATTEMPTS = 3;
-const SOURCE_CACHE_MAX_BYTES = 128 * 1024 * 1024;
-const SOURCE_CACHE_MAX_ENTRIES = 1024;
 const SOURCE_READ_CONCURRENCY = 8;
 
 export class ScriptSourceRegistryError extends Schema.TaggedErrorClass<ScriptSourceRegistryError>()(
@@ -270,8 +273,8 @@ export const layer = Layer.effect(
       sourceCache.set(target.absolutePath, next);
       sourceCacheBytes += next.bytes;
       while (
-        sourceCacheBytes > SOURCE_CACHE_MAX_BYTES ||
-        sourceCache.size > SOURCE_CACHE_MAX_ENTRIES
+        sourceCacheBytes > SCRIPT_SOURCE_CACHE_MAX_BYTES ||
+        sourceCache.size > SCRIPT_SOURCE_CACHE_MAX_ENTRIES
       ) {
         const oldestPath = sourceCache.keys().next().value;
         if (oldestPath === undefined) break;
@@ -347,7 +350,7 @@ export const layer = Layer.effect(
           totalBytes += loaded.bytes;
           if (totalBytes > SCRIPT_SNAPSHOT_MAX_BYTES) {
             return yield* new ScriptSourceRegistryError({
-              detail: `Script sources exceed the ${SCRIPT_SNAPSHOT_MAX_BYTES} byte execution limit.`,
+              detail: `Script sources exceed the ${formatScriptByteLimit(SCRIPT_SNAPSHOT_MAX_BYTES)} execution limit.`,
               path: selectedTarget.absolutePath,
             });
           }

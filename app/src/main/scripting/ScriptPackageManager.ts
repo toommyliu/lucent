@@ -11,7 +11,6 @@ import { list as listTar, extract as extractTar } from "tar";
 
 import type {
   ScriptCatalogOverview,
-  ScriptPackageDirectory,
   ScriptPackageMutationResult,
   ScriptPackageRevision,
 } from "@lucent/core/scriptPackages";
@@ -21,6 +20,7 @@ import {
   ScriptPackageRepositorySubdirectorySchema,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { invariant } from "../../shared/invariant";
 import {
   GitHubScriptPackageClient,
   GitHubScriptPackageClientError,
@@ -31,17 +31,25 @@ import {
   readScriptPackageManifest,
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
-import { hashDirectory, isMissingFileError } from "./ScriptPackageFileSystem";
+import { hashDirectory } from "./ScriptPackageFileSystem";
+import {
+  allocatePackageDirectory,
+  packageDirectoryPath,
+  pathExists,
+} from "./ScriptPackageDirectories";
 import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
+import {
+  formatScriptByteLimit,
+  SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES,
+  SCRIPT_PACKAGE_ARCHIVE_PATH_MAX_BYTES,
+  SCRIPT_PACKAGE_MAX_BYTES,
+  SCRIPT_PACKAGE_PATH_COMPONENT_MAX_BYTES,
+} from "./ScriptLimits";
 
-const ARCHIVE_MAX_ENTRIES = 10_000;
-const ARCHIVE_MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
-const ARCHIVE_MAX_PATH_BYTES = 1024;
-const PACKAGE_DIRECTORY_SLUG_MAX_BYTES = 120;
 const decodePackageDirectory = Schema.decodeUnknownSync(
   ScriptPackageDirectorySchema,
 );
@@ -178,7 +186,7 @@ const archivePath = (rawPath: string): readonly string[] => {
     rawPath.startsWith("/") ||
     rawPath.includes("\\") ||
     rawPath.includes("\0") ||
-    Buffer.byteLength(rawPath, "utf8") > ARCHIVE_MAX_PATH_BYTES
+    Buffer.byteLength(rawPath, "utf8") > SCRIPT_PACKAGE_ARCHIVE_PATH_MAX_BYTES
   ) {
     throw new Error(
       `Archive contains an unsafe path: ${JSON.stringify(rawPath)}.`,
@@ -193,7 +201,8 @@ const archivePath = (rawPath: string): readonly string[] => {
         part === "" ||
         part === "." ||
         part === ".." ||
-        Buffer.byteLength(part, "utf8") > 255,
+        Buffer.byteLength(part, "utf8") >
+          SCRIPT_PACKAGE_PATH_COMPONENT_MAX_BYTES,
     )
   ) {
     throw new Error(
@@ -282,22 +291,19 @@ export const validateScriptPackageArchive = async (
 
         entryCount += 1;
         const size = entry.type === "Directory" ? 0 : entry.size;
-        if (size === undefined || !Number.isSafeInteger(size) || size < 0) {
-          throw new Error(
-            `Archive entry ${JSON.stringify(entry.path)} has an invalid size.`,
-          );
-        }
+        invariant(
+          size !== undefined && Number.isSafeInteger(size) && size >= 0,
+          `Archive entry ${JSON.stringify(entry.path)} has an invalid size.`,
+        );
         extractedBytes += size;
-        if (entryCount > ARCHIVE_MAX_ENTRIES) {
-          throw new Error(
-            `Archive contains more than ${ARCHIVE_MAX_ENTRIES} entries.`,
-          );
-        }
-        if (extractedBytes > ARCHIVE_MAX_EXTRACTED_BYTES) {
-          throw new Error(
-            `Archive expands beyond ${ARCHIVE_MAX_EXTRACTED_BYTES} bytes.`,
-          );
-        }
+        invariant(
+          entryCount <= SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES,
+          `Archive contains more than ${SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES} entries.`,
+        );
+        invariant(
+          extractedBytes <= SCRIPT_PACKAGE_MAX_BYTES,
+          `Archive expands beyond ${formatScriptByteLimit(SCRIPT_PACKAGE_MAX_BYTES)}.`,
+        );
       } catch (cause) {
         validationError =
           cause instanceof Error
@@ -343,82 +349,6 @@ export const extractScriptPackageArchive = async (
     strip: subdirectory === undefined ? 1 : subdirectory.split("/").length + 1,
     unlink: true,
   });
-};
-
-const pathExists = async (path: string): Promise<boolean> => {
-  try {
-    await fs.lstat(path);
-    return true;
-  } catch (cause) {
-    if (isMissingFileError(cause)) return false;
-    throw cause;
-  }
-};
-
-const truncateUtf8 = (value: string, maxBytes: number): string => {
-  let result = "";
-  for (const character of value) {
-    if (Buffer.byteLength(result + character, "utf8") > maxBytes) break;
-    result += character;
-  }
-  return result;
-};
-
-/** Returns the readable starting folder name used for a new installation. */
-export const scriptPackageDirectorySlug = (
-  name: string,
-): ScriptPackageDirectory => {
-  const decodedName = decodePackageName(name);
-  const base = decodedName
-    .normalize("NFKC")
-    .replace(/^@/u, "")
-    .replace(/[^\p{Letter}\p{Number}._-]+/gu, "-")
-    .replace(/-+/gu, "-")
-    .replace(/^[._-]+|[._-]+$/gu, "")
-    .toLocaleLowerCase("en-US")
-    .normalize("NFC");
-  const truncated = truncateUtf8(
-    base === "" ? "package" : base,
-    PACKAGE_DIRECTORY_SLUG_MAX_BYTES,
-  ).replace(/[._-]+$/u, "");
-  const candidate = truncated === "" ? "package" : truncated;
-  try {
-    return decodePackageDirectory(candidate);
-  } catch {
-    return decodePackageDirectory(`package-${candidate}`);
-  }
-};
-
-const packageDirectoryPath = (
-  packagesDir: string,
-  directory: string,
-): string => {
-  const decodedDirectory = decodePackageDirectory(directory);
-  const root = resolve(packagesDir);
-  const path = resolve(root, decodedDirectory);
-  if (dirname(path) !== root) {
-    throw new Error("Package folder escapes the package directory.");
-  }
-  return path;
-};
-
-const allocatePackageDirectory = async (
-  packagesDir: string,
-  packageName: string,
-  reservedDirectories: ReadonlySet<string>,
-): Promise<ScriptPackageDirectory> => {
-  const slug = scriptPackageDirectorySlug(packageName);
-  for (let index = 1; index <= 10_000; index += 1) {
-    const directory =
-      index === 1 ? slug : decodePackageDirectory(`${slug}-${index}`);
-    if (
-      !reservedDirectories.has(directory) &&
-      !(await pathExists(packageDirectoryPath(packagesDir, directory)))
-    ) {
-      return directory;
-    }
-  }
-  throw new Error("Could not find an unused package folder name.");
 };
 
 export const layer = Layer.effect(

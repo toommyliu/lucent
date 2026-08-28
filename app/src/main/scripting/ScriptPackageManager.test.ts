@@ -22,10 +22,10 @@ import {
   ScriptPackageCatalog,
   type DiscoveredScriptCatalog,
 } from "./ScriptPackageCatalog";
+import { scriptPackageDirectorySlug } from "./ScriptPackageDirectories";
 import {
   extractScriptPackageArchive,
   layer as scriptPackageManagerLayer,
-  scriptPackageDirectorySlug,
   ScriptPackageManager,
   validateScriptPackageArchive,
 } from "./ScriptPackageManager";
@@ -604,7 +604,7 @@ describe("script package updates", () => {
   );
 
   it.effect(
-    "checks a package directory by tree without resolving a commit",
+    "checks a bundled package directory without a previously resolved commit",
     () =>
       Effect.gen(function* () {
         const harness = makeManagerHarness({
@@ -618,7 +618,6 @@ describe("script package updates", () => {
               kind: "directory",
               repositoryUrl: "https://github.com/example/monorepo",
               requestedRef: "main",
-              resolvedCommit: INSTALLED_COMMIT,
               resolvedTree: INSTALLED_TREE,
               subdirectory: PACKAGE_SUBDIRECTORY,
             },
@@ -699,7 +698,6 @@ describe("script package updates", () => {
             kind: "directory",
             repositoryUrl: "https://github.com/example/monorepo",
             requestedRef: "main",
-            resolvedCommit: INSTALLED_COMMIT,
             resolvedTree: INSTALLED_TREE,
             subdirectory: PACKAGE_SUBDIRECTORY,
           },

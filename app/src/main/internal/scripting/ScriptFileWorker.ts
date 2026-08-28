@@ -8,19 +8,23 @@ import { parentPort } from "worker_threads";
 
 import * as Effect from "effect/Effect";
 
+import { invariant } from "../../../shared/invariant";
+import {
+  formatScriptByteLimit,
+  SCRIPT_ANALYSIS_CACHE_MAX_BYTES,
+  SCRIPT_ANALYSIS_CACHE_MAX_ENTRIES,
+  SCRIPT_FILE_MAX_BYTES,
+} from "../../scripting/ScriptLimits";
 import {
   analyzeScriptSource,
   type ScriptSourceAnalysis,
 } from "./ScriptInputsExtractor";
-import {
-  SCRIPT_FILE_MAX_BYTES,
-  type ScriptFileAnalysisResolution,
-  type ScriptFileWorkerRequest,
-  type ScriptFileWorkerResponse,
+import type {
+  ScriptFileAnalysisResolution,
+  ScriptFileWorkerRequest,
+  ScriptFileWorkerResponse,
 } from "./ScriptFileWorkerProtocol";
 
-const extractionCacheLimit = 64;
-const extractionCacheMaxBytes = 32 * 1024 * 1024;
 interface ExtractionCacheEntry {
   readonly analysis: ScriptSourceAnalysis;
   readonly weight: number;
@@ -67,9 +71,10 @@ const fingerprint = (stat: Awaited<ReturnType<typeof fs.stat>>): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
 
 const assertFileSize = (path: string, size: number): void => {
-  if (size > SCRIPT_FILE_MAX_BYTES) {
-    throw new Error(`Script file exceeds the 16 MiB limit: ${path}.`);
-  }
+  invariant(
+    size <= SCRIPT_FILE_MAX_BYTES,
+    `Script file exceeds the ${formatScriptByteLimit(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
+  );
 };
 
 const readBoundedFile = async (path: string): Promise<Buffer> => {
@@ -151,8 +156,8 @@ const cachedAnalysis = async (
   extractionCache.set(key, entry);
   extractionCacheBytes += entry.weight;
   while (
-    extractionCache.size > extractionCacheLimit ||
-    extractionCacheBytes > extractionCacheMaxBytes
+    extractionCache.size > SCRIPT_ANALYSIS_CACHE_MAX_ENTRIES ||
+    extractionCacheBytes > SCRIPT_ANALYSIS_CACHE_MAX_BYTES
   ) {
     const oldestKey = extractionCache.keys().next().value;
     if (oldestKey === undefined) break;

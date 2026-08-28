@@ -2,16 +2,13 @@ import { createHash } from "crypto";
 import { createReadStream, promises as fs } from "fs";
 import { relative, resolve, sep } from "path";
 
-export const SCRIPT_MODULE_MAX_BYTES = 16 * 1024 * 1024;
-export const SCRIPT_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024;
-export const SCRIPT_PACKAGE_MAX_FILES = 10_000;
-
-export interface FileInventoryEntry {
-  readonly absolutePath: string;
-  readonly fingerprint: string;
-  readonly relativePath: string;
-  readonly size: number;
-}
+import { invariant } from "../../shared/invariant";
+import {
+  formatScriptByteLimit,
+  SCRIPT_FILE_MAX_BYTES,
+  SCRIPT_PACKAGE_FILE_MAX_BYTES,
+  SCRIPT_PACKAGE_MAX_FILES,
+} from "./ScriptLimits";
 
 export interface RegularFilePath {
   readonly absolutePath: string;
@@ -60,14 +57,15 @@ const fingerprint = (stat: Awaited<ReturnType<typeof fs.stat>>): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
 
 const assertSize = (path: string, size: number, maxBytes: number): void => {
-  if (size > maxBytes) {
-    throw new Error(`File exceeds the ${maxBytes} byte limit: ${path}.`);
-  }
+  invariant(
+    size <= maxBytes,
+    `File exceeds the ${formatScriptByteLimit(maxBytes)} limit: ${path}.`,
+  );
 };
 
 export const readStableFileWithFingerprint = async (
   path: string,
-  maxBytes = SCRIPT_MODULE_MAX_BYTES,
+  maxBytes = SCRIPT_FILE_MAX_BYTES,
 ): Promise<StableFileContents> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const before = await fs.stat(path);
@@ -102,7 +100,7 @@ export const readStableFileWithFingerprint = async (
 
 export const readStableFile = async (
   path: string,
-  maxBytes = SCRIPT_MODULE_MAX_BYTES,
+  maxBytes = SCRIPT_FILE_MAX_BYTES,
 ): Promise<Buffer> =>
   (await readStableFileWithFingerprint(path, maxBytes)).contents;
 
@@ -115,22 +113,11 @@ export const regularFileFingerprint = async (path: string): Promise<string> => {
 export const sha256Revision = (contents: Buffer | string): string =>
   createHash("sha256").update(contents).digest("hex");
 
-async function collectRegularFiles(
+export const listRegularFilePaths = async (
   root: string,
-  options: ListRegularFilesOptions,
-  includeMetadata: true,
-): Promise<readonly FileInventoryEntry[]>;
-async function collectRegularFiles(
-  root: string,
-  options: ListRegularFilesOptions,
-  includeMetadata: false,
-): Promise<readonly RegularFilePath[]>;
-async function collectRegularFiles(
-  root: string,
-  options: ListRegularFilesOptions,
-  includeMetadata: boolean,
-): Promise<readonly (FileInventoryEntry | RegularFilePath)[]> {
-  const files: (FileInventoryEntry | RegularFilePath)[] = [];
+  options: ListRegularFilesOptions = {},
+): Promise<readonly RegularFilePath[]> => {
+  const files: RegularFilePath[] = [];
 
   const visit = async (directory: string): Promise<void> => {
     const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -157,17 +144,7 @@ async function collectRegularFiles(
       if (isSystemMetadataFile(entry.name)) continue;
 
       const relativePath = portablePath(relative(root, path));
-      if (includeMetadata) {
-        const stat = await fs.stat(path);
-        files.push({
-          absolutePath: path,
-          fingerprint: fingerprint(stat),
-          relativePath,
-          size: stat.size,
-        });
-      } else {
-        files.push({ absolutePath: path, relativePath });
-      }
+      files.push({ absolutePath: path, relativePath });
       if (options.maxFiles !== undefined && files.length > options.maxFiles) {
         throw new Error(
           `Directory contains more than ${options.maxFiles} files: ${root}.`,
@@ -183,34 +160,22 @@ async function collectRegularFiles(
     throw cause;
   }
   return files;
-}
-
-export const listRegularFilePaths = (
-  root: string,
-  options: ListRegularFilesOptions = {},
-): Promise<readonly RegularFilePath[]> =>
-  collectRegularFiles(root, options, false);
-
-export const listRegularFiles = (
-  root: string,
-  options: ListRegularFilesOptions = {},
-): Promise<readonly FileInventoryEntry[]> =>
-  collectRegularFiles(root, options, true);
+};
 
 export const hashDirectory = async (
   root: string,
 ): Promise<Readonly<Record<string, string>>> => {
-  const inventory = await listRegularFiles(root, {
+  const inventory = await listRegularFilePaths(root, {
     maxFiles: SCRIPT_PACKAGE_MAX_FILES,
     rejectSymlinks: true,
   });
-  const hashes: Record<string, string> = {};
+  const hashes = new Map<string, string>();
   for (const file of inventory) {
     const contents = await readStableFile(
       file.absolutePath,
-      SCRIPT_SNAPSHOT_MAX_BYTES,
+      SCRIPT_PACKAGE_FILE_MAX_BYTES,
     );
-    hashes[file.relativePath] = `sha256-${sha256Revision(contents)}`;
+    hashes.set(file.relativePath, `sha256-${sha256Revision(contents)}`);
   }
-  return hashes;
+  return Object.fromEntries(hashes);
 };

@@ -25,7 +25,7 @@ import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
 
 const FileHashesSchema = Schema.Record(Schema.String, Schema.String);
 
-const ManagedScriptPackageSchema = Schema.Struct({
+export const ManagedScriptPackageSchema = Schema.Struct({
   name: ScriptPackageNameSchema,
   directory: ScriptPackageDirectorySchema,
   installedAt: Schema.String,

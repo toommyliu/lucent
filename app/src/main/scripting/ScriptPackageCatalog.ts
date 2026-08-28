@@ -30,6 +30,7 @@ import {
   ScriptRelativePathSchema,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { invariant } from "../../shared/invariant";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { ElectronApp } from "../electron/ElectronApp";
 import {
@@ -38,16 +39,19 @@ import {
   isPathInside,
   listRegularFilePaths,
   portablePath,
-  SCRIPT_PACKAGE_MAX_FILES,
   sha256Revision,
 } from "./ScriptPackageFileSystem";
+import {
+  formatScriptByteLimit,
+  SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
+  SCRIPT_PACKAGE_MAX_FILES,
+} from "./ScriptLimits";
 import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
-const MANIFEST_MAX_BYTES = 1024 * 1024;
 const NonEmptyManifestStringSchema = Schema.String.check(
   Schema.makeFilter((value) => value.trim() !== "", {
     expected: "a non-empty string",
@@ -199,12 +203,14 @@ export const readScriptPackageManifest = async (
   path: string,
 ): Promise<ScriptPackageManifest> => {
   const stat = await fs.lstat(path);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error("package.json must be a file.");
-  }
-  if (stat.size > MANIFEST_MAX_BYTES) {
-    throw new Error("package.json exceeds the 1 MiB limit.");
-  }
+  invariant(
+    stat.isFile() && !stat.isSymbolicLink(),
+    "package.json must be a file.",
+  );
+  invariant(
+    stat.size <= SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
+    `package.json exceeds the ${formatScriptByteLimit(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
+  );
 
   const record = parseManifestJson(await fs.readFile(path, "utf8"));
   const lucentVersion = optionalString(record.lucent?.version);
