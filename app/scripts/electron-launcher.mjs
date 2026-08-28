@@ -28,7 +28,7 @@ const repoRoot = resolve(appDir, "..");
 const runtimeDir = join(appDir, ".electron-runtime");
 const devIconComposerPath = join(
   repoRoot,
-  "branding",
+  "assets",
   "icons",
   "lucent-dev.icon",
 );

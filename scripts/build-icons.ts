@@ -17,13 +17,13 @@ const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const ASSETS_DIR = join(REPO_ROOT, "assets");
 const PRODUCTION_ICON_SOURCE = join(
   REPO_ROOT,
-  "branding",
+  "assets",
   "icons",
   "lucent.icon",
 );
 const DEV_ICON_SOURCE = join(
   REPO_ROOT,
-  "branding",
+  "assets",
   "icons",
   "lucent-dev.icon",
 );
@@ -158,6 +158,10 @@ const makeSingleImageIco = (png: Buffer): Buffer => {
 };
 
 const buildIcons = async (): Promise<void> => {
+  if (process.platform !== "darwin") {
+    throw new BuildIconsError("Icon generation requires macOS.");
+  }
+
   const ictool = await resolveIctool();
   const tempDir = await mkdtemp(join(tmpdir(), "lucent-icons-"));
 

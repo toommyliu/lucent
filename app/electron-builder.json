@@ -14,7 +14,7 @@
       {
         "from": "../assets",
         "to": "assets",
-        "filter": ["**/*", "!pepflashplayer.dll", "!icon.png", "!icon-dev.png", "!icon.ico"]
+        "filter": ["**/*", "!icons{,/**/*}", "!pepflashplayer.dll", "!icon.png", "!icon-dev.png", "!icon.ico"]
       },
       {
         "from": "../docs/public/script-api.d.ts",
@@ -26,7 +26,7 @@
       "target": "dmg",
       "arch": ["x64"]
     },
-    "icon": "../branding/icons/lucent.icon",
+    "icon": "../assets/icons/lucent.icon",
     "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
   },
   "win": {
@@ -34,7 +34,7 @@
       {
         "from": "../assets",
         "to": "assets",
-        "filter": ["**/*", "!PepperFlashPlayer.plugin", "!icon.png", "!icon-dev.png", "!icon.ico"]
+        "filter": ["**/*", "!icons{,/**/*}", "!PepperFlashPlayer.plugin", "!icon.png", "!icon-dev.png", "!icon.ico"]
       },
       {
         "from": "../docs/public/script-api.d.ts",
@@ -56,6 +56,7 @@
         "to": "assets",
         "filter": [
           "**/*",
+          "!icons{,/**/*}",
           "!PepperFlashPlayer.plugin",
           "!pepflashplayer.dll",
           "!icon-dev.png",
