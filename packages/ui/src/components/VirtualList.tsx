@@ -3,7 +3,10 @@ import {
   For,
   Show,
   createContext,
+  createEffect,
   createMemo,
+  createSignal,
+  onCleanup,
   type Accessor,
   type JSX,
   useContext,
@@ -22,14 +25,27 @@ export interface VirtualListApi {
   readonly scrollToStart: () => void;
 }
 
+export type VirtualListScrollDirection = "up" | "down" | undefined;
+
 export interface VirtualListProps<T extends VirtualListItem> {
   readonly children: (item: T, index: number) => JSX.Element;
   readonly class?: string;
   readonly getScrollElement: () => HTMLElement | undefined;
   readonly itemSize?: number | undefined;
   readonly items: readonly T[];
+  /** Reports the first visible row without counting overscan. */
+  readonly onFirstVisibleIndexChange?: ((index: number) => void) | undefined;
+  /** Reports a direction only when the target row is outside the visible viewport. */
+  readonly onScrollTargetDirectionChange?:
+    | ((direction: VirtualListScrollDirection) => void)
+    | undefined;
   readonly overscan?: number | undefined;
   readonly ref?: (api: VirtualListApi) => void;
+  readonly scrollTargetIndex?: number | undefined;
+  /** A one-row overlay that stays visible as its source row leaves the virtual range. */
+  readonly stickyHeader?:
+    | ((firstVisibleIndex: number) => JSX.Element)
+    | undefined;
 }
 
 export interface VirtualListSearchInputProps {
@@ -43,7 +59,8 @@ interface VirtualListItemPosition {
   readonly setSize: Accessor<number>;
 }
 
-const VirtualListItemPositionContext = createContext<VirtualListItemPosition>();
+export const VirtualListItemPositionContext =
+  createContext<VirtualListItemPosition>();
 
 export function useVirtualListItemPosition():
   | VirtualListItemPosition
@@ -148,7 +165,10 @@ function makeVirtualListApi<TScrollElement extends HTMLElement>(
   return {
     scrollToIndex(index) {
       const viewportSize = virtualizer.scrollRect?.height ?? 0;
-      const visibleItemCount = Math.floor(viewportSize / getItemSize());
+      const visibleItemCount = Math.floor(
+        (viewportSize - (virtualizer.options.scrollPaddingStart ?? 0)) /
+          getItemSize(),
+      );
       const offsetInfo = virtualizer.getOffsetForIndex(index, "auto");
       if (offsetInfo === undefined || offsetInfo[1] === "auto") return;
 
@@ -185,8 +205,31 @@ function makeVirtualListApi<TScrollElement extends HTMLElement>(
 export function VirtualList<T extends VirtualListItem>(
   props: VirtualListProps<T>,
 ): JSX.Element {
+  const [firstVisibleIndex, setFirstVisibleIndex] = createSignal(0);
+  const [scrollDirection, setScrollDirection] =
+    createSignal<VirtualListScrollDirection>();
   const getItemSize = (): number =>
     props.itemSize ?? getDefaultVirtualItemSize(props.getScrollElement());
+  const updateScrollDirection = (
+    instance: Virtualizer<HTMLElement, Element>,
+  ): void => {
+    const index = props.scrollTargetIndex;
+    const item =
+      index === undefined ? undefined : instance.measurementsCache[index];
+    const height = instance.scrollRect?.height ?? 0;
+    const offset = instance.scrollOffset ?? 0;
+    const top = offset + (instance.options.scrollPaddingStart ?? 0);
+    const bottom = offset + height;
+    setScrollDirection(
+      item === undefined || height <= 0
+        ? undefined
+        : item.end <= top
+          ? "up"
+          : item.start >= bottom
+            ? "down"
+            : undefined,
+    );
+  };
   const virtualizer = createVirtualizer<HTMLElement, Element>({
     estimateSize: getItemSize,
     get count() {
@@ -194,10 +237,27 @@ export function VirtualList<T extends VirtualListItem>(
     },
     getItemKey: (index) => props.items[index]?.value ?? index,
     getScrollElement: () => props.getScrollElement() ?? null,
+    get scrollPaddingStart() {
+      return props.stickyHeader === undefined ? 0 : getItemSize();
+    },
+    onChange: (instance) => {
+      if (props.scrollTargetIndex !== undefined)
+        updateScrollDirection(instance);
+      if (
+        props.stickyHeader !== undefined ||
+        props.onFirstVisibleIndexChange !== undefined
+      ) {
+        setFirstVisibleIndex(instance.range?.startIndex ?? 0);
+      }
+    },
     overscan: props.overscan ?? 6,
   });
   const api = makeVirtualListApi(virtualizer, getItemSize);
   props.ref?.(api);
+  createEffect(() => props.onFirstVisibleIndexChange?.(firstVisibleIndex()));
+  createEffect(() => updateScrollDirection(virtualizer));
+  createEffect(() => props.onScrollTargetDirectionChange?.(scrollDirection()));
+  onCleanup(() => props.onScrollTargetDirectionChange?.(undefined));
 
   const virtualItems = createMemo(() => virtualizer.getVirtualItems());
   const paddingBefore = createMemo(
@@ -210,6 +270,13 @@ export function VirtualList<T extends VirtualListItem>(
 
   return (
     <div class={props.class} data-slot="virtual-list">
+      <Show when={props.stickyHeader}>
+        {(renderHeader) => (
+          <div aria-hidden="true" class="virtual-list__sticky-header">
+            {renderHeader()(firstVisibleIndex())}
+          </div>
+        )}
+      </Show>
       <div
         aria-hidden="true"
         data-slot="virtual-list-spacer"
