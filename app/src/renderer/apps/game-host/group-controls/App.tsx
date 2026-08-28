@@ -559,7 +559,7 @@ export function App(): JSX.Element {
                   />
                 </Label>
                 <Button
-                  disabled={!ready()}
+                  disabled={!ready() || player().trim() === ""}
                   pending={pending("go-to-player")}
                   size="sm"
                   type="submit"
