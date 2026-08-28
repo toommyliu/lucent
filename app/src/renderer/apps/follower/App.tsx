@@ -3,6 +3,7 @@ import {
   AlertAction,
   AlertDescription,
   Icon,
+  HelpTooltip,
   Button,
   Combobox,
   ComboboxContent,
@@ -103,14 +104,7 @@ function LabelHelp(props: {
   return (
     <span class="follower-label-help">
       <span>{props.label}</span>
-      <TooltipIconButton
-        aria-label={`${props.label} help`}
-        class="follower-help-button"
-        size="icon-xs"
-        tooltip={props.tooltip}
-      >
-        <Icon icon="help_circle" class="button__icon" />
-      </TooltipIconButton>
+      <HelpTooltip aria-label={`${props.label} help`} tooltip={props.tooltip} />
     </span>
   );
 }

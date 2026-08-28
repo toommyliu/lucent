@@ -1,5 +1,6 @@
 import {
   Icon,
+  HelpTooltip,
   Alert,
   AlertDescription,
   AlertDialog,
@@ -36,7 +37,6 @@ import {
   TooltipButton,
   TooltipButtonContent,
   TooltipButtonTrigger,
-  TooltipIconButton,
 } from "@lucent/ui";
 import {
   For,
@@ -313,14 +313,7 @@ function CombatProfilesLabelHelp(props: {
   return (
     <span class="combat-profiles-label-help">
       <span>{props.label}</span>
-      <TooltipIconButton
-        aria-label={`${props.label} help`}
-        class="combat-profiles-help-button"
-        size="icon-sm"
-        tooltip={props.tooltip}
-      >
-        <Icon icon="help_circle" class="button__icon" />
-      </TooltipIconButton>
+      <HelpTooltip aria-label={`${props.label} help`} tooltip={props.tooltip} />
     </span>
   );
 }
@@ -1165,14 +1158,10 @@ export function CombatProfilesView(
                     >
                       Reset rotation on target death
                     </Checkbox>
-                    <TooltipIconButton
+                    <HelpTooltip
                       aria-label="Reset rotation on target death help"
-                      class="combat-profiles-help-button"
-                      size="icon-sm"
                       tooltip="Restart at the first matching skill when the active target dies."
-                    >
-                      <Icon icon="help_circle" class="button__icon" />
-                    </TooltipIconButton>
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -1453,14 +1442,10 @@ export function CombatProfilesView(
                             >
                               Priority
                             </Checkbox>
-                            <TooltipIconButton
+                            <HelpTooltip
                               aria-label={`Priority skill ${step().skill} help`}
-                              class="combat-profiles-help-button"
-                              size="icon-sm"
                               tooltip="This skill can interrupt the normal rotation. On the next normal cast, the rotation resumes where it left off."
-                            >
-                              <Icon icon="help_circle" class="button__icon" />
-                            </TooltipIconButton>
+                            />
                           </div>
                           <div class="combat-profiles-step__actions">
                             <Button

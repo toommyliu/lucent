@@ -349,19 +349,6 @@
   min-width: 0;
 }
 
-.combat-profiles-help-button.button {
-  color: var(--color-muted-foreground);
-  height: 1.125rem;
-  min-height: 1.125rem;
-  min-width: 1.125rem;
-  width: 1.125rem;
-}
-
-.combat-profiles-help-button .button__icon {
-  height: 0.75rem;
-  width: 0.75rem;
-}
-
 .combat-profiles-trigger .input {
   min-width: 0;
 }

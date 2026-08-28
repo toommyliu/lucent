@@ -326,6 +326,7 @@ export {
   TooltipIconButton,
   type TooltipIconButtonProps,
 } from "./components/TooltipIconButton";
+export { HelpTooltip, type HelpTooltipProps } from "./components/HelpTooltip";
 export {
   toast,
   Toast,

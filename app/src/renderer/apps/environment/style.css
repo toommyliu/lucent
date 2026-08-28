@@ -154,19 +154,6 @@
   line-height: 1.35;
 }
 
-.environment-rule-help.button {
-  color: rgb(var(--muted-foreground));
-  height: 1.125rem;
-  min-height: 1.125rem;
-  min-width: 1.125rem;
-  width: 1.125rem;
-}
-
-.environment-rule-help .button__icon {
-  height: 0.75rem;
-  width: 0.75rem;
-}
-
 .environment-rule-checkbox.checkbox {
   min-height: 1.625rem;
   min-width: 0;

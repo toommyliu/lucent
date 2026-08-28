@@ -1,5 +1,6 @@
 import {
   Icon,
+  HelpTooltip,
   Alert,
   AlertDialog,
   AlertDialogAction,
@@ -775,13 +776,11 @@ function GeneralSettings(props: {
         description={`Open up to ${MAX_GAME_VIEWS_PER_WINDOW} tabs in one window. Existing windows are unchanged.`}
         title="Use game tabs"
         titleAction={
-          <TooltipIconButton
+          <HelpTooltip
             aria-label="About game tabs memory use"
             positioning={{ placement: "top-start" }}
             tooltip="Each additional tab starts another Flash process and increases memory use."
-          >
-            <Icon icon="info" class="button__icon" />
-          </TooltipIconButton>
+          />
         }
       />
       <SettingsRow
