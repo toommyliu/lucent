@@ -17,13 +17,13 @@ const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const ASSETS_DIR = join(REPO_ROOT, "assets");
 const PRODUCTION_ICON_SOURCE = join(
   REPO_ROOT,
-  "branding",
+  "assets",
   "icons",
   "lucent.icon",
 );
 const DEV_ICON_SOURCE = join(
   REPO_ROOT,
-  "branding",
+  "assets",
   "icons",
   "lucent-dev.icon",
 );
