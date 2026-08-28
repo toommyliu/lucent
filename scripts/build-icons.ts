@@ -158,6 +158,10 @@ const makeSingleImageIco = (png: Buffer): Buffer => {
 };
 
 const buildIcons = async (): Promise<void> => {
+  if (process.platform !== "darwin") {
+    throw new BuildIconsError("Icon generation requires macOS.");
+  }
+
   const ictool = await resolveIctool();
   const tempDir = await mkdtemp(join(tmpdir(), "lucent-icons-"));
 
