@@ -726,19 +726,6 @@
   min-width: 0;
 }
 
-.packets-placeholder-help-button.button {
-  color: var(--color-muted-foreground);
-  height: 1.125rem;
-  min-height: 1.125rem;
-  min-width: 1.125rem;
-  width: 1.125rem;
-}
-
-.packets-placeholder-help-button .button__icon {
-  height: 0.75rem;
-  width: 0.75rem;
-}
-
 .packets-sender__textarea-wrapper {
   box-sizing: border-box;
   display: flex;

@@ -2,6 +2,7 @@ import { createHotkey } from "@tanstack/solid-hotkeys";
 import { createVirtualizer, type VirtualItem } from "@tanstack/solid-virtual";
 import {
   Icon,
+  HelpTooltip,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -11,7 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  type ButtonProps,
   Checkbox,
   ContextMenu,
   ContextMenuContent,
@@ -34,9 +34,6 @@ import {
   TabsList,
   TabsTrigger,
   Textarea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   TooltipIconButton,
 } from "@lucent/ui";
 import {
@@ -206,27 +203,10 @@ function PacketSenderLabelHelp(): JSX.Element {
   return (
     <span class="packets-sender__label-help">
       <Label for="packet-input">Packet</Label>
-      <Tooltip
-        closeDelay={0}
-        openDelay={200}
-        positioning={{ placement: "top" }}
-      >
-        <TooltipTrigger
-          asChild={(triggerProps) => (
-            <Button
-              {...(triggerProps({
-                "aria-label": "Packet placeholders",
-                children: <Icon icon="help_circle" class="button__icon" />,
-                class: "packets-placeholder-help-button",
-                size: "icon-sm",
-                type: "button",
-                variant: "ghost",
-              } as ButtonProps) as ButtonProps)}
-            />
-          )}
-        />
-        <TooltipContent>{packetPlaceholderHelp}</TooltipContent>
-      </Tooltip>
+      <HelpTooltip
+        aria-label="Packet placeholders"
+        tooltip={packetPlaceholderHelp}
+      />
     </span>
   );
 }

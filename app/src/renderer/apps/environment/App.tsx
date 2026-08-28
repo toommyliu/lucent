@@ -13,6 +13,7 @@ import {
   Checkbox,
   Empty,
   Icon,
+  HelpTooltip,
   IconButton,
   Input,
   PillButton,
@@ -580,14 +581,10 @@ export function EnvironmentView(props: EnvironmentViewProps): JSX.Element {
                     <span id="environment-bucket-label">
                       Unlisted drop policy
                     </span>
-                    <TooltipIconButton
+                    <HelpTooltip
                       aria-label="About the unlisted drop policy"
-                      class="environment-rule-help"
-                      size="icon-sm"
-                      tooltip="Listed items are always accepted. Unlisted items matching a checked category are accepted; the rest are ignored unless “Reject all other drops” is enabled."
-                    >
-                      <Icon icon="help_circle" class="button__icon" />
-                    </TooltipIconButton>
+                      tooltip='Listed drops and drops in checked categories are accepted. Others are ignored unless "Reject all other drops" is enabled.'
+                    />
                   </div>
                   <div
                     class="environment-bucket-grid"
