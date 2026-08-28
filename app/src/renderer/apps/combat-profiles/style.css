@@ -21,7 +21,7 @@
   align-items: center;
   display: inline-grid;
   gap: 0.375rem;
-  grid-template-columns: auto clamp(12rem, 24vw, 16rem) auto;
+  grid-template-columns: auto 16rem auto;
   justify-self: start;
   min-width: 0;
   width: max-content;
@@ -574,7 +574,7 @@
 
   .combat-profiles-profile-dropdown {
     flex: 1 1 22rem;
-    grid-template-columns: auto minmax(7rem, 1fr) auto;
+    grid-template-columns: auto minmax(7rem, 16rem) auto;
     width: auto;
   }
 
@@ -586,7 +586,7 @@
 
 @media (max-width: 480px) {
   .combat-profiles-profile-dropdown {
-    grid-template-columns: auto minmax(5rem, 1fr) auto;
+    grid-template-columns: auto minmax(5rem, 16rem) auto;
   }
 
   .combat-profiles-toolbar-action__label {

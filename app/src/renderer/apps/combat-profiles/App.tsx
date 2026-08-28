@@ -72,6 +72,10 @@ import {
   writeStoredCombatProfileId,
 } from "./profileSelection";
 import { createRandomId } from "../../../shared/randomId";
+import {
+  buildCombatProfileOptions,
+  resolveCombatProfileOptionValue,
+} from "../../combatProfileOptions";
 
 export interface CombatProfilesViewFixture {
   readonly error?: string;
@@ -348,6 +352,8 @@ export function CombatProfilesView(
     readonly CombatProfileMessageTrigger[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.messageTriggers ?? []);
   const [saving, setSaving] = createSignal(false);
+  const [groupProfiles, setGroupProfiles] = createSignal(false);
+  const [selectedOptionValue, setSelectedOptionValue] = createSignal("");
   const [profileCopied, setProfileCopied] = createSignal(false);
   const [error, setError] = createSignal(props.fixture.error ?? "");
   let nameInput: HTMLInputElement | undefined;
@@ -374,11 +380,14 @@ export function CombatProfilesView(
     return generic ? [generic, ...rest] : rest;
   });
   const profileSelectItems = createMemo(() =>
-    profileOptions().map((profile) => ({
-      label: profile.label,
-      searchText: profile.classNames?.join(" "),
-      value: profile.id,
-    })),
+    buildCombatProfileOptions(profileOptions(), groupProfiles()),
+  );
+  const profileSelectValue = createMemo(() =>
+    resolveCombatProfileOptionValue(
+      profileSelectItems(),
+      selectedId() ?? "",
+      selectedOptionValue(),
+    ),
   );
   const selectProfile = (profileId: string): void => {
     setSelectedId(profileId);
@@ -847,16 +856,23 @@ export function CombatProfilesView(
           <span>Profile</span>
           <Select
             class="combat-profiles-profile-dropdown__select"
+            composite={false}
             items={profileSelectItems()}
-            value={[selectedId()]}
+            value={profileSelectValue() === "" ? [] : [profileSelectValue()]}
             onValueChange={(details) => {
-              const id = details.value[0];
-              if (id) {
-                selectProfile(id);
+              const option = profileSelectItems().find(
+                (item) => item.value === details.value[0],
+              );
+              if (option !== undefined) {
+                setSelectedOptionValue(option.value);
+                selectProfile(option.id);
               }
             }}
           >
-            <SelectTrigger title={selectedProfileLabel() || "Profile"}>
+            <SelectTrigger
+              aria-haspopup="dialog"
+              title={selectedProfileLabel() || "Profile"}
+            >
               <span
                 class="select__value"
                 data-placeholder={
@@ -866,11 +882,46 @@ export function CombatProfilesView(
                 {selectedProfileLabel() || "Profile"}
               </span>
             </SelectTrigger>
-            <VirtualizedSelectContent items={profileSelectItems()} searchable>
+            <VirtualizedSelectContent
+              aria-label="Combat profiles"
+              items={profileSelectItems()}
+              groupBy={
+                groupProfiles()
+                  ? (profile) => profile.group ?? "Any class"
+                  : undefined
+              }
+              header={
+                <Button
+                  aria-label="Group by class"
+                  aria-pressed={groupProfiles()}
+                  class="virtual-list__group-toggle"
+                  size="xs"
+                  title={
+                    groupProfiles() ? "Show flat list" : "Show grouped list"
+                  }
+                  variant="ghost"
+                  onClick={() => setGroupProfiles((grouped) => !grouped)}
+                >
+                  <Icon icon="list_tree" class="button__icon" />
+                  <span>Group</span>
+                </Button>
+              }
+              searchable
+              scrollToSelected
+            >
               {(profile) => (
                 <SelectItem
                   item={profile}
-                  title={profile.label}
+                  aria-label={
+                    profile.group === undefined
+                      ? profile.label
+                      : `${profile.label} - ${profile.group}`
+                  }
+                  title={
+                    profile.group === undefined
+                      ? profile.label
+                      : `${profile.label} - ${profile.group}`
+                  }
                   value={profile.value}
                 >
                   {profile.label}
