@@ -131,6 +131,7 @@ export default defineConfig({
       items: [
         {
           items: [
+            "/guides/installation",
             "/guides/app",
             "/guides/combat-profiles",
             {
