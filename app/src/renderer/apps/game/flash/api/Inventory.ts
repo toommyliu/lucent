@@ -238,7 +238,7 @@ export const makeInventory = (
   });
 
   const equipByEnhancementEffect = Effect.fn("Inventory.equipByEnhancement")(
-    function* (selector: EquipEnhancementSelector) {
+    function* (selector: EquipEnhancementSelector, options?: EquipOptions) {
       const decoded = decodeEquipEnhancementSelector(selector);
       if (Option.isNone(decoded)) return false;
       const normalized = decoded.value;
@@ -275,11 +275,14 @@ export const makeInventory = (
           target = item;
         }
       }
-      return target === undefined ? false : yield* equip(target.itemId);
+      if (target === undefined) return false;
+      return yield* equip(target.itemId, options);
     },
   );
-  const equipByEnhancement = (selector: EquipEnhancementSelector) =>
-    equipByEnhancementEffect(selector);
+  const equipByEnhancement = (
+    selector: EquipEnhancementSelector,
+    options?: EquipOptions,
+  ) => equipByEnhancementEffect(selector, options);
 
   const getAvailableSlots = () =>
     Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>

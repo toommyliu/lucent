@@ -477,6 +477,7 @@ export interface ScriptInventoryApi {
   ) => Effect.Effect<boolean>;
   readonly equipByEnhancement: (
     query: ScriptEquipEnhancementSelector,
+    options?: EquipOptions,
   ) => Effect.Effect<boolean>;
   readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
