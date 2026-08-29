@@ -16,6 +16,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_ACCOUNT_SETTINGS } from "@lucent/core/accountSettings";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
 import {
   AccountSettingsRepository,
   layer as accountSettingsRepositoryLayer,
@@ -54,7 +55,12 @@ const makeRepository = () =>
     const repository = yield* AccountSettingsRepository.pipe(
       Effect.provide(
         accountSettingsRepositoryLayer.pipe(
-          Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(DesktopEnvironment, env),
+              desktopFileSystemLayer,
+            ),
+          ),
         ),
       ),
     );

@@ -52,6 +52,7 @@ import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
 import * as ElectronWindow from "../electron/ElectronWindow";
 import * as FlashTrust from "../flash/FlashTrust";
+import * as DesktopFileSystemNode from "../filesystem/DesktopFileSystemNode";
 
 export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
@@ -351,5 +352,5 @@ export const makeDesktopLayer = (
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,
-  );
+  ).pipe(Layer.provideMerge(DesktopFileSystemNode.layer));
 };

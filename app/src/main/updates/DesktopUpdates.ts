@@ -23,8 +23,9 @@ import {
   type GitHubApiClientShape,
 } from "../github/GitHubApiClient";
 import { firstHttpHeader } from "../http/DesktopHttpClient";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { makeJsonFile } from "../filesystem/JsonFile";
 import { DesktopSettings } from "../settings/DesktopSettings";
-import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
 import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
 
 const RELEASE_URL =
@@ -397,6 +398,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const app = yield* ElectronApp;
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const observability = yield* DesktopObservability;
     const shell = yield* ElectronShell;
     const settings = yield* DesktopSettings;
@@ -413,23 +415,23 @@ export const layer = Layer.effect(
       ),
     );
 
-    const loadCache: DesktopUpdatesOptions["loadCache"] = readJsonFile(
-      releaseCachePath,
-    ).pipe(
-      Effect.map((result) =>
-        result.status === "ok"
-          ? normalizeUpdateReleaseCache(result.value)
-          : null,
-      ),
-      Effect.catch((cause) =>
-        observability
-          .warn("updates", "Failed to load release cache", { cause })
-          .pipe(Effect.as(null)),
-      ),
-    );
+    const loadCache: DesktopUpdatesOptions["loadCache"] = jsonFile
+      .read(releaseCachePath)
+      .pipe(
+        Effect.map((result) =>
+          result.status === "ok"
+            ? normalizeUpdateReleaseCache(result.value)
+            : null,
+        ),
+        Effect.catch((cause) =>
+          observability
+            .warn("updates", "Failed to load release cache", { cause })
+            .pipe(Effect.as(null)),
+        ),
+      );
 
     const saveCache: DesktopUpdatesOptions["saveCache"] = (cache) =>
-      writeJsonFile(releaseCachePath, serializeUpdateReleaseCache(cache)).pipe(
+      jsonFile.write(releaseCachePath, serializeUpdateReleaseCache(cache)).pipe(
         Effect.catch((cause) =>
           observability.warn("updates", "Failed to save release cache", {
             cause,

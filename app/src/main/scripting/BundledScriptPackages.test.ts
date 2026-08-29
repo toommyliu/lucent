@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronApp } from "../electron/ElectronApp";
+import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
 import { acquireBundledScriptPackageLock } from "./BundledScriptPackageLock";
 import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
 import {
@@ -92,7 +93,9 @@ const makeFixture = async () => {
   );
 
   const makeLayer = (failSaves = false) => {
-    const stored = stateLayer.pipe(Layer.provide(environment));
+    const stored = stateLayer.pipe(
+      Layer.provide(Layer.mergeAll(environment, desktopFileSystemLayer)),
+    );
     const state = failSaves
       ? Layer.effect(
           ScriptPackageState,
@@ -113,6 +116,7 @@ const makeFixture = async () => {
       : stored;
     return Layer.mergeAll(
       environment,
+      desktopFileSystemLayer,
       state,
       catalogLayer.pipe(Layer.provide(Layer.mergeAll(environment, state, app))),
     );

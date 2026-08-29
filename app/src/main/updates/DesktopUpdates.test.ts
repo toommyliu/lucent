@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
 import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
@@ -166,6 +167,7 @@ const makeUpdatesHarness = (options: {
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(DesktopEnvironment, env),
+          desktopFileSystemLayer,
           Layer.succeed(DesktopObservability, observability),
           Layer.succeed(ElectronApp, app),
           Layer.succeed(ElectronShell, shell),

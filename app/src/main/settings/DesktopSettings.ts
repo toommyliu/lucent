@@ -32,7 +32,8 @@ import {
 } from "@lucent/core/hotkeys";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { type JsonFileError, readJsonFile, writeJsonFile } from "./JsonFile";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { type JsonFileError, makeJsonFile } from "../filesystem/JsonFile";
 
 const settingsOperationSchema = Schema.Literals([
   "mkdir",
@@ -238,26 +239,26 @@ const applyHotkeysPatch = (
 
 const makeDesktopSettings = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
+  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
   const settingsPath = join(env.appDataDir, "settings.json");
   const settingsRef = yield* SynchronizedRef.make<AppSettings | null>(null);
   const settingsChanges = makeListenerRegistry<AppSettings>();
 
   const readSettingsFromFile = Effect.gen(function* () {
-    const result = yield* readJsonFile(settingsPath).pipe(
-      Effect.mapError(wrapDataError),
-    );
+    const result = yield* jsonFile
+      .read(settingsPath)
+      .pipe(Effect.mapError(wrapDataError));
     if (result.status === "missing") {
-      yield* writeJsonFile(
-        settingsPath,
-        serializeAppSettings(DEFAULT_APP_SETTINGS),
-      ).pipe(Effect.mapError(wrapDataError));
+      yield* jsonFile
+        .write(settingsPath, serializeAppSettings(DEFAULT_APP_SETTINGS))
+        .pipe(Effect.mapError(wrapDataError));
       return DEFAULT_APP_SETTINGS;
     }
 
     const settings = normalizeAppSettings(result.value);
-    yield* writeJsonFile(settingsPath, serializeAppSettings(settings)).pipe(
-      Effect.mapError(wrapDataError),
-    );
+    yield* jsonFile
+      .write(settingsPath, serializeAppSettings(settings))
+      .pipe(Effect.mapError(wrapDataError));
     return settings;
   });
 
@@ -281,10 +282,9 @@ const makeDesktopSettings = Effect.gen(function* () {
     settings: AppSettings,
   ): Effect.Effect<AppSettings, DesktopSettingsError> => {
     const normalized = normalizeAppSettings(settings);
-    return writeJsonFile(settingsPath, serializeAppSettings(normalized)).pipe(
-      Effect.mapError(wrapDataError),
-      Effect.as(normalized),
-    );
+    return jsonFile
+      .write(settingsPath, serializeAppSettings(normalized))
+      .pipe(Effect.mapError(wrapDataError), Effect.as(normalized));
   };
 
   const update = (

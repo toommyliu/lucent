@@ -19,11 +19,8 @@ import {
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../../app/ListenerRegistry";
-import {
-  type JsonFileError,
-  readJsonFile,
-  writeJsonFile,
-} from "../../settings/JsonFile";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const combatProfilesOperationSchema = Schema.Literals([
   "delete-profile",
@@ -138,20 +135,21 @@ const deleteProfileFromLibrary = (
 
 const makeCombatProfiles = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
+  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
   const path = join(env.appDataDir, "combat-profiles.json");
   const libraryRef = yield* Ref.make<CombatProfileLibrary | null>(null);
   const mutationLock = yield* Semaphore.make(1);
   const libraryChanges = makeListenerRegistry<CombatProfileLibrary>();
 
   const readLibraryFromFile = Effect.gen(function* () {
-    const result = yield* readJsonFile(path).pipe(
-      Effect.mapError(wrapDataError),
-    );
+    const result = yield* jsonFile
+      .read(path)
+      .pipe(Effect.mapError(wrapDataError));
     if (result.status === "missing") {
       const defaults = defaultLibrary();
-      yield* writeJsonFile(path, serializeCombatProfileLibrary(defaults)).pipe(
-        Effect.mapError(wrapDataError),
-      );
+      yield* jsonFile
+        .write(path, serializeCombatProfileLibrary(defaults))
+        .pipe(Effect.mapError(wrapDataError));
       return defaults;
     }
 
@@ -167,9 +165,9 @@ const makeCombatProfiles = Effect.gen(function* () {
           cause,
         }),
     });
-    yield* writeJsonFile(path, serializeCombatProfileLibrary(library)).pipe(
-      Effect.mapError(wrapDataError),
-    );
+    yield* jsonFile
+      .write(path, serializeCombatProfileLibrary(library))
+      .pipe(Effect.mapError(wrapDataError));
     return library;
   });
 
@@ -195,10 +193,9 @@ const makeCombatProfiles = Effect.gen(function* () {
     library: CombatProfileLibrary,
   ): Effect.Effect<CombatProfileLibrary, CombatProfilesError> => {
     const normalized = normalizeCombatProfileLibrary(library);
-    return writeJsonFile(path, serializeCombatProfileLibrary(normalized)).pipe(
-      Effect.mapError(wrapDataError),
-      Effect.as(normalized),
-    );
+    return jsonFile
+      .write(path, serializeCombatProfileLibrary(normalized))
+      .pipe(Effect.mapError(wrapDataError), Effect.as(normalized));
   };
 
   const update = (

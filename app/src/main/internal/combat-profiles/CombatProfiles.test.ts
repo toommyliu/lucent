@@ -15,6 +15,7 @@ import {
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
 import {
   CombatProfiles,
   layer as desktopCombatProfilesLayer,
@@ -51,7 +52,12 @@ const makeHarness = () =>
       workspaceDir,
     });
     const combatProfilesLayer = desktopCombatProfilesLayer.pipe(
-      Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(DesktopEnvironment, env),
+          desktopFileSystemLayer,
+        ),
+      ),
     );
     const combatProfiles = yield* CombatProfiles.pipe(
       Effect.provide(combatProfilesLayer),
