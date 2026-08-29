@@ -64,7 +64,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/environment-drop-policy/"><code>EnvironmentDropPolicy</code></a> | type alias | Handling options for drops that are not registered by name. |
 | <a href="/reference/scripting/types/environment-state/"><code>EnvironmentState</code></a> | type alias |  |
 | <a href="/reference/scripting/types/equip-options/"><code>EquipOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/event-selector/"><code>EventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
 | <a href="/reference/scripting/types/extension-packet/"><code>ExtensionPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/faction-data/"><code>FactionData</code></a> | interface |  |
 | <a href="/reference/scripting/types/faction-snapshot/"><code>FactionSnapshot</code></a> | type alias |  |
@@ -112,6 +111,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/player-snapshot/"><code>PlayerSnapshot</code></a> | type alias |  |
 | <a href="/reference/scripting/types/position/"><code>Position</code></a> | interface |  |
 | <a href="/reference/scripting/types/projection-event/"><code>ProjectionEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/projection-event-selector/"><code>ProjectionEventSelector</code></a> | type alias | An event-shaped partial selector. `type` chooses the event variant, and every<br>other field is an exact-match constraint on a scalar field of that variant.<br><br>Omitting a field leaves it unconstrained. With exact optional property types,<br>explicitly passing `undefined` is invalid; untyped callers that do so safely<br>fail to match instead of selecting events where the field happens to be<br>absent. |
 | <a href="/reference/scripting/types/quest-cadence/"><code>QuestCadence</code></a> | type alias |  |
 | <a href="/reference/scripting/types/quest-data/"><code>QuestData</code></a> | interface |  |
 | <a href="/reference/scripting/types/quest-item/"><code>QuestItem</code></a> | interface |  |
@@ -119,16 +119,15 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/quest-snapshot/"><code>QuestSnapshot</code></a> | type alias |  |
 | <a href="/reference/scripting/types/rest-options/"><code>RestOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/room-policy/"><code>RoomPolicy</code></a> | type alias |  |
-| <a href="/reference/scripting/types/runtime-event/"><code>RuntimeEvent</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-callback-result/"><code>ScriptCallbackResult</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-combat-monster-target/"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-combat-player-target/"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-combat-target/"><code>ScriptCombatTarget</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-enhance-item-options/"><code>ScriptEnhanceItemOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-equip-enhancement-selector/"><code>ScriptEquipEnhancementSelector</code></a> | interface |  |
-| <a href="/reference/scripting/types/script-event/"><code>ScriptEvent</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-event/"><code>ScriptEvent</code></a> | type alias | Alias of ProjectionEvent. |
 | <a href="/reference/scripting/types/script-event-for-type/"><code>ScriptEventForType</code></a> | type alias |  |
-| <a href="/reference/scripting/types/script-event-selector/"><code>ScriptEventSelector</code></a> | type alias | Alias of EventSelector. |
+| <a href="/reference/scripting/types/script-event-selector/"><code>ScriptEventSelector</code></a> | type alias | Alias of ProjectionEventSelector. |
 | <a href="/reference/scripting/types/script-event-selector-for-type/"><code>ScriptEventSelectorForType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-event-type/"><code>ScriptEventType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-execution-error/"><code>ScriptExecutionError</code></a> | class |  |
