@@ -59,6 +59,11 @@ declare module "lucent/autozone" {
   export = autoZone;
 }
 
+declare module "lucent/filesystem" {
+  const filesystem: ScriptFileSystemApi;
+  export = filesystem;
+}
+
 declare module "lucent/script" {
   const script: ScriptRuntimeApi;
   namespace script {
@@ -245,6 +250,26 @@ interface ScriptAutoZoneApi {
     isEnabled(): Effect<boolean, never>;
     setEnabled(enabled: boolean): Effect<AutoZoneState, never>;
     setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
+}
+interface ScriptFileSystemApi {
+    readonly FileSystemError: FileSystemErrorConstructor;
+  /** Checks whether a path exists. */
+    exists(path: string): Effect<boolean, FileSystemError>;
+  /** Lists a folder's contents. */
+    list(path?: string): Effect<readonly FileSystemEntry[], FileSystemError>;
+  /** Reads a JSON file. */
+    readJson(path: string): Effect<unknown | undefined, FileSystemError>;
+  /** Reads a text file. */
+    readText(path: string): Effect<string | undefined, FileSystemError>;
+  /** Removes a file or empty folder. */
+    remove(path: string): Effect<void, FileSystemError>;
+  /** Saves a value as JSON. */
+    writeJson(path: string, value: unknown): Effect<void, FileSystemError>;
+  /** Saves text to a file. */
+    writeText(path: string, contents: string): Effect<void, FileSystemError>;
+}
+interface FileSystemErrorConstructor {
+    new (fields: { readonly operation: FileSystemOperation; readonly path?: string; readonly reason: FileSystemErrorReason; }): FileSystemError;
 }
 interface ScriptArmyApi {
     equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, ArmyError>;
@@ -715,6 +740,40 @@ interface EquipOptions {
    */
   readonly wear?: boolean;
 }
+interface FileSystemEntry {
+  readonly kind: "file" | "directory" | "symbolic-link" | "other";
+  readonly name: string;
+}
+interface FileSystemError extends Error {
+  readonly _tag: "FileSystemError";
+  readonly operation: FileSystemOperation;
+  readonly path?: string;
+  readonly reason: FileSystemErrorReason;
+}
+/** Why a filesystem action failed. */
+type FileSystemErrorReason =
+  | "invalid-path"
+  | "not-found"
+  | "not-file"
+  | "not-directory"
+  | "directory-not-empty"
+  | "too-large"
+  | "too-many-entries"
+  | "invalid-utf8"
+  | "invalid-json"
+  | "not-json-serializable"
+  | "permission-denied"
+  | "busy"
+  | "session-closed"
+  | "unavailable";
+type FileSystemOperation =
+  | "exists"
+  | "list"
+  | "read-json"
+  | "read-text"
+  | "remove"
+  | "write-json"
+  | "write-text";
 type GameAction = 'acceptQuest' | 'buyItem' | 'equipItem' | 'equipLoadout' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearItem' | 'wearLoadout';
 interface HuntOptions {
   /**

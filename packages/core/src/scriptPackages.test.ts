@@ -18,6 +18,7 @@ describe("scriptPackages", () => {
       "lucent/api",
       "lucent/autorelogin",
       "lucent/autozone",
+      "lucent/filesystem",
       "lucent/script",
     ]);
 

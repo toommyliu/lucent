@@ -45,6 +45,7 @@ import {
   type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
+import { makeScriptFileSystemApi } from "./ScriptFileSystem";
 import { makeScriptRuntimeServices } from "./api/Services";
 import {
   makeMoveToSafeDestination,
@@ -464,10 +465,11 @@ export const layer = Layer.effect(
     const automation = yield* Automation;
     const environment = yield* Environment;
     const bridge = yield* Bridge;
-    const { accountSettings, gameView } = selectDesktopBridge(
-      window.desktop,
-      "game",
-    );
+    const {
+      accountSettings,
+      fileSystem: fileSystemBridge,
+      gameView,
+    } = selectDesktopBridge(window.desktop, "game");
     const { auth, combat, events, house, map, packet, player, wait } = api;
     const { autoRelogin, autoZone } = automation;
     const scriptStartReadiness = makeScriptStartReadiness({
@@ -1058,11 +1060,16 @@ export const layer = Layer.effect(
           setOptions: (update) =>
             setOptions(update).pipe(Effect.map((result) => result.options)),
         });
+        const fileSystem = yield* makeScriptFileSystemApi(
+          fileSystemBridge,
+          scriptScope,
+        );
         const modules = makeScriptBuiltinModules({
           autoRelogin,
           autoZone,
           bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
+          fileSystem,
           roomPolicy: SubscriptionRef.get(optionsRef).pipe(
             Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
           ),

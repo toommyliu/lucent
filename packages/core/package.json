@@ -92,6 +92,16 @@
         "default": "./dist/follower.cjs"
       }
     },
+    "./filesystem": {
+      "import": {
+        "types": "./dist/filesystem.d.mts",
+        "default": "./dist/filesystem.mjs"
+      },
+      "require": {
+        "types": "./dist/filesystem.d.cts",
+        "default": "./dist/filesystem.cjs"
+      }
+    },
     "./hotkeys": {
       "import": {
         "types": "./dist/hotkeys.d.mts",
@@ -122,6 +132,16 @@
         "default": "./dist/scriptPackages.cjs"
       }
     },
+    "./scriptPath": {
+      "import": {
+        "types": "./dist/scriptPath.d.mts",
+        "default": "./dist/scriptPath.mjs"
+      },
+      "require": {
+        "types": "./dist/scriptPath.d.cts",
+        "default": "./dist/scriptPath.cjs"
+      }
+    },
     "./settings": {
       "import": {
         "types": "./dist/settings.d.mts",
@@ -135,7 +155,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown --format esm,cjs --dts --outDir dist src/index.ts src/accounts.ts src/accountSettings.ts src/appearance.ts src/army.ts src/baseSchemas.ts src/combatProfiles.ts src/environment.ts src/follower.ts src/hotkeys.ts src/scriptInputs.ts src/scriptPackages.ts src/settings.ts",
+    "build": "tsdown",
     "postinstall": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

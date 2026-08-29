@@ -808,6 +808,91 @@ export interface ScriptAutoZoneApi {
   ) => Effect.Effect<AutoZoneState>;
 }
 
+export type FileSystemOperation =
+  | "exists"
+  | "list"
+  | "read-json"
+  | "read-text"
+  | "remove"
+  | "write-json"
+  | "write-text";
+
+/** Why a filesystem action failed. */
+export type FileSystemErrorReason =
+  | "invalid-path"
+  | "not-found"
+  | "not-file"
+  | "not-directory"
+  | "directory-not-empty"
+  | "too-large"
+  | "too-many-entries"
+  | "invalid-utf8"
+  | "invalid-json"
+  | "not-json-serializable"
+  | "permission-denied"
+  | "busy"
+  | "session-closed"
+  | "unavailable";
+
+/** Describes a failed filesystem action. */
+export interface FileSystemError extends Error {
+  readonly _tag: "FileSystemError";
+  readonly operation: FileSystemOperation;
+  readonly path?: string;
+  readonly reason: FileSystemErrorReason;
+}
+
+export interface FileSystemErrorConstructor {
+  new (fields: {
+    readonly operation: FileSystemOperation;
+    readonly path?: string;
+    readonly reason: FileSystemErrorReason;
+  }): FileSystemError;
+}
+
+export interface FileSystemEntry {
+  readonly kind: "file" | "directory" | "symbolic-link" | "other";
+  readonly name: string;
+}
+
+/**
+ * Reads and writes files in the shared `Documents/Lucent/data` folder.
+ *
+ * All scripts use this folder. Paths are relative to it, such as
+ * `my-script/settings.json`. Files can be up to 8 MiB, and a folder listing
+ * can contain up to 1,000 entries.
+ */
+export interface ScriptFileSystemApi {
+  /** Use with `instanceof` to identify filesystem errors. */
+  readonly FileSystemError: FileSystemErrorConstructor;
+  /** Checks whether a path exists. */
+  readonly exists: (path: string) => Effect.Effect<boolean, FileSystemError>;
+  /** Lists a folder's contents. */
+  readonly list: (
+    path?: string,
+  ) => Effect.Effect<readonly FileSystemEntry[], FileSystemError>;
+  /** Reads a JSON file. */
+  readonly readJson: (
+    path: string,
+  ) => Effect.Effect<unknown | undefined, FileSystemError>;
+  /** Reads a text file. */
+  readonly readText: (
+    path: string,
+  ) => Effect.Effect<string | undefined, FileSystemError>;
+  /** Removes a file or empty folder. */
+  readonly remove: (path: string) => Effect.Effect<void, FileSystemError>;
+  /** Saves a value as JSON. */
+  readonly writeJson: (
+    path: string,
+    value: unknown,
+  ) => Effect.Effect<void, FileSystemError>;
+  /** Saves text to a file. */
+  readonly writeText: (
+    path: string,
+    contents: string,
+  ) => Effect.Effect<void, FileSystemError>;
+}
+
 export interface ScriptApi {
   readonly army: ScriptArmyApi;
   readonly auth: ScriptAuthApi;

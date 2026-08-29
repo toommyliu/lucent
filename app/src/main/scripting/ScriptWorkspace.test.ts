@@ -71,12 +71,21 @@ describe("ScriptWorkspace", () => {
 
     await expect(fs.stat(fixture.paths.scriptsDir)).resolves.toMatchObject({});
     await expect(fs.stat(fixture.paths.packagesDir)).resolves.toMatchObject({});
+    const dataInfo = await fs.stat(fixture.paths.dataDir);
+    expect(dataInfo.isDirectory()).toBe(true);
     await expect(
       fs.readFile(join(fixture.workspaceDir, "jsconfig.json"), "utf8"),
     ).resolves.toBe(SCRIPT_WORKSPACE_CONFIG);
     await expect(
       fs.readFile(join(fixture.workspaceDir, "script-api.d.ts"), "utf8"),
     ).resolves.toBe("declare module 'lucent' {}\n");
+
+    if (process.platform !== "win32") {
+      expect(dataInfo.mode & 0o777).toBe(0o700);
+      await fs.chmod(fixture.paths.dataDir, 0o755);
+      await fixture.initialize();
+      expect((await fs.stat(fixture.paths.dataDir)).mode & 0o777).toBe(0o700);
+    }
   });
 
   it("does not overwrite user-owned workspace files", async () => {

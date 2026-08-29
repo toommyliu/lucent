@@ -19,6 +19,7 @@ const modules = Object.freeze({
   "lucent/api": Object.freeze({ marker: "game-api" }),
   "lucent/autorelogin": Object.freeze({ marker: "auto-relogin" }),
   "lucent/autozone": Object.freeze({ marker: "auto-zone" }),
+  "lucent/filesystem": Object.freeze({ marker: "filesystem" }),
   "lucent/script": Object.freeze({ marker: "script-api" }),
 }) as unknown as ScriptBuiltinModules;
 
@@ -88,6 +89,7 @@ describe("scriptLoader", () => {
       const api = require("lucent/api");
       const autoRelogin = require("lucent/autorelogin");
       const autoZone = require("lucent/autozone");
+      const filesystem = require("lucent/filesystem");
       const script = require("lucent/script");
       const { Effect } = require("effect");
       module.exports = function* run() {
@@ -95,6 +97,7 @@ describe("scriptLoader", () => {
           api.marker,
           autoRelogin.marker,
           autoZone.marker,
+          filesystem.marker,
           script.marker,
           typeof Effect.succeed,
         ];
@@ -109,6 +112,7 @@ describe("scriptLoader", () => {
           "game-api",
           "auto-relogin",
           "auto-zone",
+          "filesystem",
           "script-api",
           "function",
         ],

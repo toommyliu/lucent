@@ -170,6 +170,10 @@ export default defineConfig({
                   root: "/reference/scripting/script",
                 },
                 {
+                  label: "lucent/filesystem",
+                  root: "/reference/scripting/filesystem",
+                },
+                {
                   label: "lucent/autozone",
                   root: "/reference/scripting/autozone",
                 },

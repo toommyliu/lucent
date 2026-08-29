@@ -116,6 +116,10 @@ interface DesktopFileSystemShape {
   ) => Effect.Effect<Uint8Array, DesktopFileSystemError>;
   readonly readDirectory: (
     path: string,
+    options: {
+      readonly filter?: (entry: DesktopDirectoryEntry) => boolean;
+      readonly maxEntries: number;
+    },
   ) => Effect.Effect<readonly DesktopDirectoryEntry[], DesktopFileSystemError>;
   readonly stat: (
     path: string,

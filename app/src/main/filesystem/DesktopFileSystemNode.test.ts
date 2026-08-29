@@ -114,8 +114,10 @@ testLayer(layer)("DesktopFileSystemNode", (it) => {
       const root = yield* Effect.promise(makeFixture);
       const filePath = join(root, "file.txt");
       const directoryPath = join(root, "directory");
+      const ignoredPath = join(root, "ignored.tmp");
       const linkPath = join(root, "link");
       yield* Effect.promise(() => fs.writeFile(filePath, "metadata"));
+      yield* Effect.promise(() => fs.writeFile(ignoredPath, "ignored"));
       yield* Effect.promise(() => fs.mkdir(directoryPath));
       yield* Effect.promise(() => fs.symlink(filePath, linkPath));
       const nativeInfo = yield* Effect.promise(() => fs.stat(filePath));
@@ -127,7 +129,10 @@ testLayer(layer)("DesktopFileSystemNode", (it) => {
         yield* Effect.promise(() => fs.realpath(filePath)),
       );
 
-      const entries = yield* fileSystem.readDirectory(root);
+      const entries = yield* fileSystem.readDirectory(root, {
+        filter: (entry) => entry.name !== "ignored.tmp",
+        maxEntries: 3,
+      });
       expect(
         Object.fromEntries(
           entries.map((entry) => [entry.name, entry.kindHint]),
@@ -148,6 +153,19 @@ testLayer(layer)("DesktopFileSystemNode", (it) => {
         changedTimeMs: nativeInfo.ctimeMs,
         birthTimeMs: nativeInfo.birthtimeMs,
       });
+
+      const tooMany = yield* fileSystem
+        .readDirectory(root, {
+          filter: (entry) => entry.name !== "ignored.tmp",
+          maxEntries: 2,
+        })
+        .pipe(Effect.flip);
+      expect(tooMany.reason).toBe("TooLarge");
+
+      const invalidLimit = yield* fileSystem
+        .readDirectory(root, { maxEntries: -1 })
+        .pipe(Effect.flip);
+      expect(invalidLimit.reason).toBe("InvalidInput");
     }),
   );
 

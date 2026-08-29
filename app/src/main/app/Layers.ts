@@ -39,6 +39,7 @@ import * as ScriptPackageManager from "../scripting/ScriptPackageManager";
 import * as ScriptPackageState from "../scripting/ScriptPackageState";
 import * as ScriptSourceRegistry from "../scripting/ScriptSourceRegistry";
 import * as ScriptWorkspace from "../scripting/ScriptWorkspace";
+import * as ScriptFileSystem from "../scripting/ScriptFileSystem";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
 import * as DesktopAccountGameWindows from "../window/DesktopAccountGameWindows";
@@ -297,6 +298,10 @@ export const makeDesktopLayer = (
     ),
   );
 
+  const scriptFileSystemLayer = ScriptFileSystem.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(environmentLayer, windowsLayer)),
+  );
+
   const applicationMenuLayer = DesktopApplicationMenu.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -349,6 +354,7 @@ export const makeDesktopLayer = (
     observabilityLayer,
     settingsLayer,
     scriptingLayer,
+    scriptFileSystemLayer,
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,

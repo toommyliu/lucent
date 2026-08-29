@@ -112,7 +112,9 @@ export const createObservedDesktopIpcInvokeHandler = <
               captureStackTrace: false,
             }),
           );
-          yield* Effect.annotateCurrentSpan("ipc.result", encoded);
+          if (descriptor.trace === "full") {
+            yield* Effect.annotateCurrentSpan("ipc.result", encoded);
+          }
           return {
             ok: true,
             value: encoded,
@@ -124,8 +126,10 @@ export const createObservedDesktopIpcInvokeHandler = <
               attributes: {
                 "ipc.channel": descriptor.channel,
                 "ipc.name": descriptor.name,
-                "ipc.payload": rawIpcPayload,
                 "renderer.id": rendererId(event),
+                ...(descriptor.trace === "full"
+                  ? { "ipc.payload": rawIpcPayload }
+                  : {}),
               },
               kind: "server",
               parent: Tracer.externalSpan(trace),

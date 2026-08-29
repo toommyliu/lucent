@@ -21,6 +21,7 @@ const SCRIPT_API_ROOT_INTERFACES = [
   "ScriptRuntimeApi",
   "ScriptAutoReloginApi",
   "ScriptAutoZoneApi",
+  "ScriptFileSystemApi",
 ] as const;
 
 const BUILTIN_TYPE_NAMES = new Set([
@@ -154,6 +155,11 @@ declare module "lucent/autorelogin" {
 declare module "lucent/autozone" {
   const autoZone: ScriptAutoZoneApi;
   export = autoZone;
+}
+
+declare module "lucent/filesystem" {
+  const filesystem: ScriptFileSystemApi;
+  export = filesystem;
 }
 
 declare module "lucent/script" {
@@ -818,6 +824,18 @@ const renderCallSignature = (
   return `${typeParameters}(${parameters}): ${returnTypeText(checker, node.type)};`;
 };
 
+const renderConstructSignature = (
+  checker: ts.TypeChecker,
+  node: ts.ConstructSignatureDeclaration,
+): string => {
+  const sourceFile = node.getSourceFile();
+  const typeParameters = typeParameterText(sourceFile, node.typeParameters);
+  const parameters = node.parameters
+    .map((parameter) => parameterText(checker, parameter))
+    .join(", ");
+  return `new ${typeParameters}(${parameters}): ${returnTypeText(checker, node.type)};`;
+};
+
 type RenderState = {
   readonly checker: ts.TypeChecker;
   readonly declarations: ReadonlyMap<string, Declaration>;
@@ -833,6 +851,13 @@ const renderInterfaceFromDeclaration = (
   const lines: string[] = [`interface ${outputName} {`];
 
   for (const member of declaration.members) {
+    if (ts.isConstructSignatureDeclaration(member)) {
+      const signature = renderConstructSignature(state.checker, member);
+      collectTypeNames(signature, state.referencedTypes);
+      lines.push(`${getJsDocComment(member)}    ${signature}`);
+      continue;
+    }
+
     if (ts.isCallSignatureDeclaration(member)) {
       const signature = renderCallSignature(state.checker, member);
       collectTypeNames(signature, state.referencedTypes);
@@ -1211,6 +1236,7 @@ const validateGeneratedTypes = (content: string): void => {
     "lucent/api",
     "lucent/autorelogin",
     "lucent/autozone",
+    "lucent/filesystem",
     "lucent/script",
   ]) {
     if (!content.includes(`declare module "${specifier}"`)) {

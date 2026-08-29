@@ -1,32 +1,15 @@
 import * as Schema from "effect/Schema";
 
 import { NonNegativeInt, boundedInt } from "./baseSchemas";
+import { parseScriptPathSegments } from "./scriptPath";
 
-const windowsReservedPathSegment =
-  /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
-const unsafePortablePathCharacters = /[<>:"\\|?*\u0000-\u001f]/;
-
-const safePortableSegments = (value: string): boolean =>
-  value !== "" &&
-  !value.startsWith("/") &&
-  !value.includes("\\") &&
-  value
-    .split("/")
-    .every(
-      (segment) =>
-        segment !== "" &&
-        segment !== "." &&
-        segment !== ".." &&
-        !segment.endsWith(".") &&
-        !segment.endsWith(" ") &&
-        !unsafePortablePathCharacters.test(segment) &&
-        !windowsReservedPathSegment.test(segment),
-    );
+const hasScriptPathSyntax = (value: string): boolean =>
+  parseScriptPathSegments(value) !== null;
 
 export const isScriptPackageRepositorySubdirectory = (value: string): boolean =>
   value.trim() === value &&
   value.normalize("NFC") === value &&
-  safePortableSegments(value);
+  hasScriptPathSyntax(value);
 
 export const ScriptPackageRepositorySubdirectorySchema = Schema.String.check(
   Schema.makeFilter(isScriptPackageRepositorySubdirectory, {
@@ -42,6 +25,7 @@ export const SCRIPT_BUILTIN_MODULE_SPECIFIERS = [
   "lucent/api",
   "lucent/autorelogin",
   "lucent/autozone",
+  "lucent/filesystem",
   "lucent/script",
 ] as const;
 
@@ -67,7 +51,7 @@ export const ScriptPackageNameSchema = Schema.String.check(
     (name) =>
       name.trim() === name &&
       !isReservedScriptPackageName(name) &&
-      safePortableSegments(name),
+      hasScriptPathSyntax(name),
     {
       expected: "a safe, case-sensitive, non-reserved package name",
     },
@@ -82,7 +66,7 @@ export const ScriptPackageDirectorySchema = Schema.String.check(
       value.trim() === value &&
       value.normalize("NFC") === value &&
       !value.includes("/") &&
-      safePortableSegments(value),
+      hasScriptPathSyntax(value),
     { expected: "a portable single folder name" },
   ),
 );
@@ -90,7 +74,7 @@ export const ScriptPackageDirectorySchema = Schema.String.check(
 export type ScriptPackageDirectory = typeof ScriptPackageDirectorySchema.Type;
 
 export const ScriptRelativePathSchema = Schema.String.check(
-  Schema.makeFilter(safePortableSegments, {
+  Schema.makeFilter(hasScriptPathSyntax, {
     expected: "a safe relative path using forward slashes",
   }),
 );

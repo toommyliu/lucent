@@ -15,6 +15,7 @@ Lucent provides focused CommonJS modules for game actions, script runtime utilit
 | --- | --- |
 | [`lucent/api`](/reference/scripting/api/) | Perform in-game actions and inspect game state. |
 | [`lucent/script`](/reference/scripting/script/) | Work with the current script and its runtime. |
+| [`lucent/filesystem`](/reference/scripting/filesystem/) | Reads and writes files in the shared `Documents/Lucent/data` folder.<br><br>All scripts use this folder. Paths are relative to it, such as<br>`my-script/settings.json`. Files can be up to 8 MiB, and a folder listing<br>can contain up to 1,000 entries. |
 | [`lucent/autozone`](/reference/scripting/autozone/) | Controls automatic movement for supported encounter zones. |
 | [`lucent/autorelogin`](/reference/scripting/autorelogin/) | Controls automatic login recovery. |
 | [`effect`](/reference/scripting/effect/) | Use the Effect utilities available to scripts. |

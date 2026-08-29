@@ -58,6 +58,13 @@ const STANDALONE_SCRIPT_API_MODULES = [
     localName: "autoZone",
     specifier: "lucent/autozone",
   },
+  {
+    id: "filesystem",
+    interfaceName: "ScriptFileSystemApi",
+    label: "Filesystem",
+    localName: "filesystem",
+    specifier: "lucent/filesystem",
+  },
 ] as const;
 const DOCGEN_COMPILER_PATHS: Record<string, string[]> = {
   "@lucent/game": ["packages/game/src/index.ts"],
@@ -3087,6 +3094,7 @@ const renderIndex = (
     "| --- | --- |",
     `| [\`lucent/api\`](${SCRIPTING_REFERENCE_ROUTE}/api/) | ${summaryOr(moduleSummaries.api, "Perform in-game actions and inspect game state.")} |`,
     `| [\`lucent/script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | ${summaryOr(moduleSummaries.script, "Work with the current script and its runtime.")} |`,
+    `| [\`lucent/filesystem\`](${SCRIPTING_REFERENCE_ROUTE}/filesystem/) | ${summaryOr(standaloneSummaries.get("lucent/filesystem"), "Persist shared script data in Lucent's scoped data directory.")} |`,
     `| [\`lucent/autozone\`](${SCRIPTING_REFERENCE_ROUTE}/autozone/) | ${summaryOr(standaloneSummaries.get("lucent/autozone"), "Control automatic movement for supported encounter zones.")} |`,
     `| [\`lucent/autorelogin\`](${SCRIPTING_REFERENCE_ROUTE}/autorelogin/) | ${summaryOr(standaloneSummaries.get("lucent/autorelogin"), "Control automatic login recovery and explicit login attempts.")} |`,
     `| [\`effect\`](${SCRIPTING_REFERENCE_ROUTE}/effect/) | Use the Effect utilities available to scripts. |`,
