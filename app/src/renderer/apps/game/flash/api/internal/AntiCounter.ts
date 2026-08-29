@@ -43,7 +43,7 @@ export const makeAntiCounter = (
     });
 
   const handleStart = Effect.fn("AntiCounter.handleStart")(function* (
-    event: Extract<Event, { readonly type: "anti-counter-start" }>,
+    event: Extract<Event, { readonly type: "counter-attack-start" }>,
   ) {
     const now = yield* Clock.currentTimeMillis;
     const previous = tracked.get(event.monsterMapId);
@@ -79,10 +79,10 @@ export const makeAntiCounter = (
     event: Event,
   ) {
     switch (event.type) {
-      case "anti-counter-start":
+      case "counter-attack-start":
         yield* handleStart(event);
         return;
-      case "anti-counter-end":
+      case "counter-attack-end":
       case "monster-death":
         yield* clear(event.monsterMapId);
         return;
