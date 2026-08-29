@@ -2701,21 +2701,6 @@ const renderPreviewTypeAnchor = (
 const renderPreviewTypeLink = (name: string, link: TypeLink): string =>
   renderPreviewTypeAnchor(name, link, renderHtmlCode(name));
 
-const renderPreviewTypeCode = (
-  type: string,
-  typeLinks: ReadonlyMap<string, TypeLink>,
-): string =>
-  `<code>${renderTypeTokens(
-    type,
-    (token) => {
-      const link = typeLinks.get(token);
-      return link === undefined
-        ? escapeHtml(token)
-        : renderPreviewTypeAnchor(token, link, escapeHtml(token));
-    },
-    (char) => (char === "|" ? "&#124;" : escapeHtml(char)),
-  )}</code>`;
-
 type TypeCodeBlockRenderer = (
   code: string,
   typeLinks: ReadonlyMap<string, TypeLink>,
@@ -3167,9 +3152,22 @@ const renderScriptOverview = (
   return finalizeMarkdown(lines);
 };
 
+type ScriptEventFieldReference = {
+  readonly isReadonly: boolean;
+  readonly name: string;
+  readonly optional: boolean;
+  readonly summary: string;
+  readonly type: string;
+};
+
+type ScriptEventVariantReference = {
+  readonly fields: readonly ScriptEventFieldReference[];
+};
+
 type ScriptEventReference = {
   readonly name: string;
-  readonly payload: string;
+  readonly summary: string;
+  readonly variants: readonly ScriptEventVariantReference[];
 };
 
 const collectScriptEventReferences = (
@@ -3187,7 +3185,13 @@ const collectScriptEventReferences = (
 
   const eventType = checker.getTypeAtLocation(declaration);
   const variants = eventType.isUnion() ? eventType.types : [eventType];
-  const payloadsByName = new Map<string, Set<string>>();
+  const referencesByName = new Map<
+    string,
+    {
+      readonly summary: string;
+      readonly variantsByShape: Map<string, ScriptEventVariantReference>;
+    }
+  >();
   for (const variant of variants) {
     const typeProperty = checker.getPropertyOfType(variant, "type");
     if (typeProperty === undefined) {
@@ -3202,14 +3206,28 @@ const collectScriptEventReferences = (
       continue;
     }
 
-    const fields = checker
-      .getPropertiesOfType(variant)
-      .filter((property) => property.name !== "type")
+    // The discriminator owns the catalogue copy so a new event cannot be
+    // generated without documentation beside its definition.
+    const summary = getSymbolSummary(
+      checker,
+      typeProperty,
+      typeDeclaration,
+    );
+    if (summary === "") {
+      fail(
+        `Script event ${JSON.stringify(discriminator.value)} needs documentation on its type property`,
+      );
+    }
+
+    const fields = [
+      typeProperty,
+      ...checker
+        .getPropertiesOfType(variant)
+        .filter((property) => property.name !== "type"),
+    ]
       .map((property) => {
         const propertyDeclaration =
           getSymbolDeclaration(property) ?? declaration;
-        const optional =
-          (property.flags & ts.SymbolFlags.Optional) === 0 ? "" : "?";
         const propertyType = (
           ts.isPropertySignature(propertyDeclaration) &&
           propertyDeclaration.type !== undefined
@@ -3226,51 +3244,110 @@ const collectScriptEventReferences = (
                 propertyDeclaration,
               )
         ).replace(/\s+/g, " ");
-        return `${property.name}${optional}: ${propertyType}`;
+        return {
+          isReadonly:
+            (ts.getCombinedModifierFlags(propertyDeclaration) &
+              ts.ModifierFlags.Readonly) !==
+            0,
+          name: property.name,
+          optional: (property.flags & ts.SymbolFlags.Optional) !== 0,
+          summary:
+            property.name === "type"
+              ? ""
+              : getSymbolSummary(checker, property, propertyDeclaration),
+          type: propertyType,
+        };
       });
 
-    const payload = fields.length === 0 ? "{}" : `{ ${fields.join("; ")} }`;
-    const payloads = payloadsByName.get(discriminator.value) ?? new Set();
-    payloads.add(payload);
-    payloadsByName.set(discriminator.value, payloads);
+    const shape = fields
+      .map(
+        (field) =>
+          `${field.isReadonly ? "readonly " : ""}${field.name}${field.optional ? "?" : ""}: ${field.type}`,
+      )
+      .join(";");
+    const existing = referencesByName.get(discriminator.value);
+    if (existing !== undefined && existing.summary !== summary) {
+      fail(
+        `Script event ${JSON.stringify(discriminator.value)} has conflicting documentation`,
+      );
+    }
+    const reference = existing ?? {
+      summary,
+      variantsByShape: new Map<string, ScriptEventVariantReference>(),
+    };
+    reference.variantsByShape.set(shape, { fields });
+    referencesByName.set(discriminator.value, reference);
   }
 
-  return Array.from(payloadsByName, ([name, payloads]) => ({
+  return Array.from(referencesByName, ([name, reference]) => ({
     name,
-    payload: Array.from(payloads).join(" | "),
+    summary: reference.summary,
+    variants: Array.from(reference.variantsByShape.values()),
   })).sort((left, right) => left.name.localeCompare(right.name));
 };
 
-const renderEventPayloadReference = (
-  payload: string,
-  typeLinks: ReadonlyMap<string, TypeLink>,
-): string => renderPreviewTypeCode(payload, typeLinks);
+const renderEventShape = (event: ScriptEventReference): string =>
+  event.variants
+    .map((variant) => {
+      const lines = ["{"];
+      for (const field of variant.fields) {
+        if (field.summary !== "") {
+          lines.push(
+            `  /** ${field.summary.replace(/\s+/g, " ").replaceAll("*/", "*\\/")} */`,
+          );
+        }
+        lines.push(
+          `  ${field.isReadonly ? "readonly " : ""}${field.name}${field.optional ? "?" : ""}: ${field.type};`,
+        );
+      }
+      lines.push("}");
+      return lines.join("\n");
+    })
+    .join(" | ");
 
 const renderEventsReference = (
   lines: string[],
   typeLinks: ReadonlyMap<string, TypeLink>,
   events: readonly ScriptEventReference[],
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): void => {
   lines.push(
-    "## Choosing an Event API",
+    "## Events you can listen for",
     "",
-    "Use `on` to run a handler for every matching event, or `once` when the script only needs the next match. Both return Effects that fit normal generator scripts.",
-    "",
-    "## Supported Events",
-    "",
-    "`on` and `once` accept every event below. Payload shapes are generated from the current `ScriptEvent` union.",
-    "",
-    "| Event | Payload |",
+    "| Event | When it happens |",
     "| --- | --- |",
   );
 
   for (const event of events) {
     lines.push(
-      `| ${renderCode(event.name)} | ${renderEventPayloadReference(event.payload, typeLinks)} |`,
+      `| <a href="#event-${escapeHtml(event.name)}">${renderHtmlCode(event.name)}</a> | ${escapeTableCell(event.summary)} |`,
     );
   }
 
-  lines.push("");
+  lines.push(
+    "",
+    "## Event details",
+    "",
+    "Each event includes the information shown below.",
+    "",
+  );
+
+  for (const event of events) {
+    lines.push(
+      `<a id="event-${escapeHtml(event.name)}"></a>`,
+      "",
+      `### ${renderCode(event.name)}`,
+      "",
+      event.summary,
+      "",
+      renderLinkedTypeCodeBlock(
+        renderEventShape(event),
+        typeLinks,
+        renderTypeCodeBlock,
+      ),
+      "",
+    );
+  }
 };
 
 const renderGroup = (
@@ -3279,11 +3356,7 @@ const renderGroup = (
   events: readonly ScriptEventReference[],
   renderTypeCodeBlock: TypeCodeBlockRenderer,
 ): string => {
-  const summary =
-    group.summary ||
-    (group.id === "api/events"
-      ? "Listen for one event or subscribe to repeated events."
-      : "");
+  const summary = group.summary;
   const lines = [
     frontmatter(group.title, {
       description: "",
@@ -3307,7 +3380,7 @@ const renderGroup = (
   }
 
   if (group.id === "api/events") {
-    renderEventsReference(lines, typeLinks, events);
+    renderEventsReference(lines, typeLinks, events, renderTypeCodeBlock);
   }
 
   if (group.members.length > 0) {
