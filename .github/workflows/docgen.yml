@@ -29,6 +29,7 @@ on:
       - 'tsconfig.base.json'
       - 'tsconfig.json'
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     paths:
       - '.github/workflows/docgen.yml'
       - 'app/package.json'
@@ -100,7 +101,19 @@ jobs:
           CAN_AUTO_UPDATE: >-
             ${{ github.event.pull_request.head.repo.full_name == github.repository &&
             github.actor != 'dependabot[bot]' }}
+          SKIP_DOCGEN: ${{ contains(github.event.pull_request.body, '[skip-docgen]') }}
         run: |
+          if [ "$SKIP_DOCGEN" = "true" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Generated scripting docs check skipped"
+              echo
+              echo 'The pull request body contains `[skip-docgen]`. This run did not check or commit generated documentation changes.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           doc_paths=(
             docs/public/script-api.d.ts
             docs/src/content/docs/reference/scripting
@@ -246,12 +259,17 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           AUTO_UPDATED: ${{ steps.pr-docgen-update.outputs.updated }}
+          DOCGEN_SKIPPED: ${{ steps.docgen-drift.outputs.skipped }}
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ steps.pr-docgen-update.outputs.head_sha || github.event.pull_request.head.sha }}
           STALE_DOCS: ${{ steps.docgen-drift.outputs.stale }}
         run: |
           gh_error="${RUNNER_TEMP}/docgen-check-error.log"
-          if [ "$AUTO_UPDATED" = "true" ]; then
+          if [ "$DOCGEN_SKIPPED" = "true" ]; then
+            conclusion="neutral"
+            title="Generated scripting docs check skipped"
+            summary="The pull request body contains \`[skip-docgen]\`."
+          elif [ "$AUTO_UPDATED" = "true" ]; then
             conclusion="success"
             title="Generated scripting docs updated"
             summary="Committed generated docs to the pull request."
