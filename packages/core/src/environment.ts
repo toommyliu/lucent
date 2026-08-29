@@ -128,20 +128,11 @@ const PositiveIntFromNumber = Schema.Number.pipe(
     }),
   ),
 );
-const PositiveIntFromString = TrimmedNonEmptyString.check(
-  Schema.isPattern(/^\d+$/u),
-).pipe(Schema.decodeTo(PositiveInt, SchemaTransformation.numberFromString));
-const EnvironmentQuestIdentifierSchema = Schema.Union([
-  PositiveIntFromNumber,
-  PositiveIntFromString,
-]);
-const decodeQuestIdentifier = Schema.decodeUnknownOption(
-  EnvironmentQuestIdentifierSchema,
-);
+const decodeQuestIdentifier = Schema.decodeUnknownOption(PositiveIntFromNumber);
 const decodeTrimmedName = Schema.decodeUnknownOption(TrimmedNonEmptyString);
 const isEnvironmentItemBucketValue = Schema.is(EnvironmentItemBucketSchema);
 
-const toPositiveInt = (value: number | string): number | undefined =>
+const toPositiveInt = (value: number): number | undefined =>
   Option.getOrUndefined(decodeQuestIdentifier(value));
 
 const normalizeNames = (values: readonly string[]): readonly string[] => {
@@ -160,9 +151,7 @@ const normalizeNames = (values: readonly string[]): readonly string[] => {
   );
 };
 
-const normalizeQuestIds = (
-  values: readonly (number | string)[],
-): readonly number[] =>
+const normalizeQuestIds = (values: readonly number[]): readonly number[] =>
   Array.from(
     new Set(values.flatMap((value) => toPositiveInt(value) ?? [])),
   ).toSorted((left, right) => left - right);
@@ -175,7 +164,7 @@ const normalizeQuestRewards = (
   return Object.fromEntries(
     Object.entries(rewards)
       .flatMap(([questId, rewardItemId]) => {
-        const normalizedQuestId = toPositiveInt(questId);
+        const normalizedQuestId = toPositiveInt(Number(questId));
         const normalizedRewardItemId = toPositiveInt(rewardItemId);
         return normalizedQuestId !== undefined &&
           normalizedRewardItemId !== undefined &&
@@ -335,8 +324,8 @@ const updateEnvironmentState = (
 
 export const addEnvironmentQuest = (
   state: EnvironmentState,
-  questId: number | string,
-  rewardItemId?: number | string,
+  questId: number,
+  rewardItemId?: number,
 ): EnvironmentState => {
   const normalizedQuestId = toPositiveInt(questId);
   if (normalizedQuestId === undefined) {
@@ -358,8 +347,8 @@ export const addEnvironmentQuest = (
 };
 
 export interface EnvironmentQuestRegistration {
-  readonly questId: number | string;
-  readonly rewardItemId?: number | string;
+  readonly questId: number;
+  readonly rewardItemId?: number;
 }
 
 export const addEnvironmentQuests = (
@@ -374,7 +363,7 @@ export const addEnvironmentQuests = (
 
 export const removeEnvironmentQuest = (
   state: EnvironmentState,
-  questId: number | string,
+  questId: number,
 ): EnvironmentState => {
   const normalizedQuestId = toPositiveInt(questId);
   if (normalizedQuestId === undefined) {
@@ -389,8 +378,8 @@ export const removeEnvironmentQuest = (
 
 export const setEnvironmentQuestReward = (
   state: EnvironmentState,
-  questId: number | string,
-  rewardItemId: number | string,
+  questId: number,
+  rewardItemId: number,
 ): EnvironmentState => {
   const normalizedQuestId = toPositiveInt(questId);
   const normalizedRewardItemId = toPositiveInt(rewardItemId);
@@ -401,7 +390,7 @@ export const setEnvironmentQuestReward = (
 
 export const clearEnvironmentQuestReward = (
   state: EnvironmentState,
-  questId: number | string,
+  questId: number,
 ): EnvironmentState => {
   const normalizedQuestId = toPositiveInt(questId);
   if (normalizedQuestId === undefined) {

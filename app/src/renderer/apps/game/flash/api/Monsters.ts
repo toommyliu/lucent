@@ -83,7 +83,7 @@ export const makeMonsters = Effect.fnUntraced(function* (
               decoded.value.MonMapID === request.monsterMapId
             );
           },
-          wireType: "json",
+          encoding: "json",
         },
         {
           timeout: "3 seconds",

@@ -2,13 +2,14 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
 import type { ApiService } from "../../flash/api/Api";
-import type { Event, EventSelector } from "../../flash/contract/Event";
-import type { ScriptEventsApi, ScriptEventsOn } from "../ScriptApi";
+import type {
+  ScriptEventSelector,
+  ScriptEventsApi,
+  ScriptEventsOn,
+  ScriptWaitForEvent,
+} from "../ScriptApi";
 import type { ScriptAsyncScope } from "../scriptAsyncScope";
-import {
-  notifyScriptCallbackFailure,
-  type ScriptCallbackResult,
-} from "./Callbacks";
+import { notifyScriptCallbackFailure } from "./Callbacks";
 
 export const makeScriptEventsApi = (
   events: ApiService["events"],
@@ -16,17 +17,18 @@ export const makeScriptEventsApi = (
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
 ): ScriptEventsApi => {
   const on = ((
-    selector: EventSelector | undefined,
-    handler: (event: Event) => ScriptCallbackResult,
-  ) =>
-    events
+    selector: ScriptEventSelector | undefined,
+    handler: Parameters<ScriptEventsOn>[1],
+  ) => {
+    return events
       .on(selector, notifyScriptCallbackFailure(handler, failCause))
-      .pipe(
-        Effect.tap((dispose) => scope.addCleanup(dispose)),
-      )) as ScriptEventsOn;
+      .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
+  }) as ScriptEventsOn;
 
-  return {
+  const once = events.once as ScriptWaitForEvent;
+
+  return Object.freeze({
     on,
-    once: events.once,
-  };
+    once,
+  });
 };

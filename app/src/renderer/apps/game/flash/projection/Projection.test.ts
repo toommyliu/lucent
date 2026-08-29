@@ -18,7 +18,7 @@ const extension = (command: string, data: unknown): Packet => ({
   data,
   direction: "extension",
   raw: "",
-  wireType: "json",
+  encoding: "json",
 });
 
 const stringExtension = (command: string, data: readonly string[]): Packet => ({
@@ -26,7 +26,7 @@ const stringExtension = (command: string, data: readonly string[]): Packet => ({
   data,
   direction: "extension",
   raw: data.join("%"),
-  wireType: "str",
+  encoding: "string",
 });
 
 const server = (command: string, data: unknown): Packet => ({
@@ -34,7 +34,7 @@ const server = (command: string, data: unknown): Packet => ({
   data,
   direction: "server",
   raw: "",
-  wireType: "json",
+  encoding: "json",
 });
 
 const client = (command: string, params: readonly string[]): Packet => ({
@@ -42,7 +42,7 @@ const client = (command: string, params: readonly string[]): Packet => ({
   direction: "client",
   params,
   raw: params.join("%"),
-  wireType: "str",
+  encoding: "string",
 });
 
 const bridgeTarget = (methods: Record<string, () => unknown>) =>
@@ -608,7 +608,7 @@ describe("Projection", () => {
           data: ["mtcid", "4"],
           direction: "extension",
           raw: "",
-          wireType: "str",
+          encoding: "string",
         });
         expect((yield* store.world.getMe)?.cell).toBe("Battle");
         expect((yield* store.world.getMe)?.pad).toBe("Left");
@@ -620,7 +620,7 @@ describe("Projection", () => {
           data: ["mtcid", "4"],
           direction: "extension",
           raw: "",
-          wireType: "str",
+          encoding: "string",
         });
         expect((yield* store.world.getMe)?.cell).toBe("Boss");
         expect((yield* store.world.getMe)?.pad).toBe("Right");

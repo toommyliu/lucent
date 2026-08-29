@@ -131,7 +131,7 @@ describe("AutoRelogin", () => {
           );
           yield* autoRelogin.setServer("Artix");
 
-          expect(yield* autoRelogin.enable()).toMatchObject({
+          expect(yield* autoRelogin.setEnabled(true)).toMatchObject({
             captured: false,
             enabled: true,
           });
@@ -315,7 +315,7 @@ describe("AutoRelogin", () => {
             }),
           );
           yield* autoRelogin.setServer("Artix");
-          yield* autoRelogin.enable();
+          yield* autoRelogin.setEnabled(true);
 
           yield* Ref.set(ready, false);
           yield* events.emit("OnConnectionLost");
@@ -357,7 +357,7 @@ describe("AutoRelogin", () => {
             }),
           );
           yield* autoRelogin.setDelay(5_000);
-          yield* autoRelogin.enable();
+          yield* autoRelogin.setEnabled(true);
 
           yield* Ref.set(ready, false);
           yield* events.emit("OnConnectionLost");
@@ -451,7 +451,7 @@ describe("AutoRelogin", () => {
         );
         yield* autoRelogin.setDelay(10_000);
         yield* autoRelogin.setServer("Artix");
-        yield* autoRelogin.enable();
+        yield* autoRelogin.setEnabled(true);
 
         yield* Ref.set(ready, false);
         yield* events.emit("OnConnectionLost");

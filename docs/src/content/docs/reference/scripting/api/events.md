@@ -31,7 +31,6 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 | `join-map` | <code>{ map: { readonly id: number; readonly name: string; readonly roomNumber: number; } }</code> |
 | `monster-death` | <code>{ monsterMapId: number }</code> |
 | `monster-respawn` | <code>{ monsterMapId: number }</code> |
-| `packet` | <code>{ packet: <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="flash-packet" data-script-type-name="FlashPacket" href="/reference/scripting/types/flash-packet/" title="Preview FlashPacket">FlashPacket</a> }</code> |
 | `player-afk` | <code>{ afk: boolean; entityId: number; username: string }</code> |
 | `player-death` | <code>{ entityId: number; username: string }</code> |
 | `player-location` | <code>{ cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; destination: { readonly x: number; readonly y: number; }; kind: &quot;walk&quot; } &#124; { cell: string; entityId: number; pad: string; position: { readonly x: number; readonly y: number; }; username: string; kind: &quot;cell&quot; &#124; &quot;position&quot; }</code> |
@@ -44,7 +43,7 @@ Use `on` to run a handler for every matching event, or `once` when the script on
 
 <a id="member-api-events-on"></a>
 
-### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L449" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:449" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L443" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:443" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Runs a handler for every matching event until the script stops or the yielded disposer is called.
 
@@ -65,7 +64,7 @@ Runs a handler for every matching event until the script stops or the yielded di
 
 <a id="member-api-events-once"></a>
 
-### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L450" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:450" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L444" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:444" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Waits for the next matching event.
 

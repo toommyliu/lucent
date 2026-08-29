@@ -1225,9 +1225,10 @@ const applyParticipantState = (
   now: number,
 ): RunMutation => {
   const current = inputRun.participants.get(participantId)!;
-  const cooldownMs = Number.isFinite(report.cooldownMs)
-    ? Math.max(0, report.cooldownMs)
-    : 0;
+  const cooldownMs =
+    report.cooldownMs !== null && Number.isFinite(report.cooldownMs)
+      ? Math.max(0, report.cooldownMs)
+      : 0;
   const updatedParticipant: RunParticipant = {
     ...current,
     readiness: {
@@ -1502,7 +1503,7 @@ const applyCommandResult = (
   const [assignmentId, current] = pendingEntry;
   const participant = inputRun.participants.get(participantId)!;
   let run = inputRun;
-  if (report.cooldownMs !== undefined) {
+  if (report.cooldownMs !== undefined && report.cooldownMs !== null) {
     const cooldownMs = Number.isFinite(report.cooldownMs)
       ? Math.max(0, report.cooldownMs)
       : 0;

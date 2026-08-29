@@ -206,7 +206,7 @@ describe("Api", () => {
           {
             command: "moveToArea",
             direction: "extension",
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "1 second",
@@ -290,7 +290,7 @@ describe("Api", () => {
           {
             command: "loadInventoryBig",
             direction: "extension",
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "1 second",
@@ -434,7 +434,7 @@ describe("Api", () => {
           {
             command: "loadInventoryBig",
             direction: "extension",
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "1 second",
@@ -471,6 +471,8 @@ describe("Api", () => {
           },
         );
         expect(inventoryLoad).not.toBeNull();
+        expect(yield* api.house.contains(60)).toBe(true);
+        expect(yield* api.house.contains(60, 2)).toBe(false);
 
         expect(yield* api.bank.getAvailableSlots()).toBe(0);
         expect(yield* api.bank.deposit(50)).toBe(false);
@@ -496,7 +498,7 @@ describe("Api", () => {
           {
             command: "initUserDatas",
             direction: "extension",
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "1 second",
@@ -515,7 +517,6 @@ describe("Api", () => {
           },
         );
         expect(playerLoad).not.toBeNull();
-
         expect(yield* api.inventory.wear(54)).toBe(true);
         expect(calls.wears).toBe(1);
         const cosmetic = yield* api.inventory.get(54);
@@ -549,7 +550,7 @@ describe("Api", () => {
         expect(yield* api.shops.isOpen(101)).toBe(false);
         expect(yield* api.shops.load(101)).toBe(true);
         expect(calls.shopLoads).toBe(2);
-        yield* api.shops.loadHairShop(202);
+        yield* api.shops.openHairShop(202);
         expect(calls.actions).toContain("loadShop");
         expect(calls.actions).toContain("loadHairShop");
         expect(calls.actions).toContain("wearItem");

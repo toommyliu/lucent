@@ -23,7 +23,7 @@ import {
 } from "./environment";
 
 describe("Environment", () => {
-  it("normalizes quest state and treats invalid identifiers as no-ops", () => {
+  it("normalizes quest state and treats invalid IDs as no-ops", () => {
     const initial = normalizeEnvironmentState({
       ...createEmptyEnvironmentState(),
       questIds: [9, 2, 9, -1],
@@ -32,12 +32,11 @@ describe("Environment", () => {
 
     expect(initial.questIds).toEqual([2, 9]);
     expect(initial.questRewards).toEqual({ 2: 30 });
-    expect(addEnvironmentQuest(initial, "invalid")).toEqual(initial);
-    expect(addEnvironmentQuest(initial, "1.0")).toEqual(initial);
-    expect(addEnvironmentQuest(initial, "1e3")).toEqual(initial);
+    expect(addEnvironmentQuest(initial, Number.NaN)).toEqual(initial);
+    expect(addEnvironmentQuest(initial, -1)).toEqual(initial);
     expect(setEnvironmentQuestReward(initial, 2, 0)).toEqual(initial);
     expect(addEnvironmentQuest(initial, 4.9).questIds).toEqual([2, 4, 9]);
-    expect(addEnvironmentQuest(initial, " 4 ", " 41 ")).toMatchObject({
+    expect(addEnvironmentQuest(initial, 4, 41)).toMatchObject({
       questIds: [2, 4, 9],
       questRewards: { 2: 30, 4: 41 },
     });
@@ -56,9 +55,9 @@ describe("Environment", () => {
 
   it("adds quest registrations atomically", () => {
     const state = addEnvironmentQuests(createEmptyEnvironmentState(), [
-      { questId: "4", rewardItemId: "41" },
+      { questId: 4, rewardItemId: 41 },
       { questId: 2 },
-      { questId: "invalid", rewardItemId: 99 },
+      { questId: -1, rewardItemId: 99 },
     ]);
 
     expect(state.questIds).toEqual([2, 4]);

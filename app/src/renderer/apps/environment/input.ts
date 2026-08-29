@@ -11,14 +11,19 @@ export const parseEnvironmentQuestBulkInput = (
 ): readonly EnvironmentQuestRegistration[] =>
   splitEnvironmentBulkInput(value).flatMap((token) => {
     const [questId, rewardItemId] = token.split(":");
-    if (!questId?.trim()) {
+    const parsedQuestId = Number(questId?.trim());
+    if (!Number.isSafeInteger(parsedQuestId) || parsedQuestId <= 0) {
       return [];
     }
 
+    const parsedRewardItemId = Number(rewardItemId?.trim());
+
     return [
       {
-        questId: questId.trim(),
-        ...(rewardItemId?.trim() ? { rewardItemId: rewardItemId.trim() } : {}),
+        questId: parsedQuestId,
+        ...(Number.isSafeInteger(parsedRewardItemId) && parsedRewardItemId > 0
+          ? { rewardItemId: parsedRewardItemId }
+          : {}),
       },
     ];
   });

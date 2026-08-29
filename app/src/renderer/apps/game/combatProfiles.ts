@@ -285,7 +285,7 @@ const castPreparedCombatProfileStep = Effect.fn(
 ): Effect.fn.Return<boolean> {
   const cast = yield* deps.combat.useSkill(step.skill, {
     ...(castTarget === undefined ? {} : { target: castTarget.monsterMapId }),
-    wait: prepared.waitForCooldown,
+    waitUntilReady: prepared.waitForCooldown,
   });
   if (cast && step.waitMs !== undefined && step.waitMs > 0) {
     yield* Effect.sleep(`${step.waitMs} millis`);
@@ -416,7 +416,7 @@ export const castCombatProfileMessageTrigger = (
         ...(event.monsterMapId === undefined
           ? {}
           : { target: event.monsterMapId }),
-        wait: true,
+        waitUntilReady: true,
       });
       if (!cast) {
         return false;

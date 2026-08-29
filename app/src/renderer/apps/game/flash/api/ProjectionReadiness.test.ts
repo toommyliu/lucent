@@ -14,7 +14,7 @@ const extension = (command: string, data: unknown): Packet => ({
   data,
   direction: "extension",
   raw: "",
-  wireType: "json",
+  encoding: "json",
 });
 
 describe("ProjectionReadiness", () => {

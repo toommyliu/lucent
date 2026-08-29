@@ -17,6 +17,11 @@ const MAX_CONSUMABLE_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
 const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
 
+export type SkillSlot = 0 | 1 | 2 | 3 | 4 | 5;
+export const SkillSlotSchema = Schema.Literals([
+  0, 1, 2, 3, 4, 5,
+]) satisfies Schema.Schema<SkillSlot>;
+
 export const CombatProfileCooldownModeSchema = Schema.Literals([
   "use-if-ready",
   "wait-for-cooldown",
@@ -59,7 +64,7 @@ export const CombatProfileConditionSchema = Schema.Union([
 export type CombatProfileCondition = typeof CombatProfileConditionSchema.Type;
 
 export const CombatProfileStepSchema = Schema.Struct({
-  skill: boundedInt(0, 5),
+  skill: SkillSlotSchema,
   conditions: Schema.Array(CombatProfileConditionSchema),
   priority: Schema.optionalKey(Schema.Boolean),
   cooldownMode: Schema.optionalKey(CombatProfileCooldownModeSchema),
@@ -77,7 +82,7 @@ export type CombatProfileMessageTriggerSource =
 
 export const CombatProfileMessageTriggerSchema = Schema.Struct({
   messageIncludes: TrimmedNonEmptyString,
-  skill: boundedInt(0, 5),
+  skill: SkillSlotSchema,
   source: CombatProfileMessageTriggerSourceSchema,
   cooldownMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
 });
@@ -158,6 +163,7 @@ const decodeCombatProfileThresholdUnit = Schema.decodeUnknownOption(
 const decodeFinite = Schema.decodeUnknownOption(Schema.Finite);
 const decodeRecord = Schema.decodeUnknownOption(UnknownRecordSchema);
 const decodeString = Schema.decodeUnknownOption(Schema.String);
+const decodeSkillSlot = Schema.decodeUnknownOption(SkillSlotSchema);
 
 const fromOption = <A>(
   decode: (value: unknown) => Option.Option<A>,
@@ -246,7 +252,7 @@ const genericProfile = (): CombatProfile => ({
   label: "Generic",
   delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
   cooldownMode: "use-if-ready",
-  steps: [1, 2, 3, 4].map((skill) => ({
+  steps: ([1, 2, 3, 4] as const).map((skill) => ({
     skill,
     conditions: [],
   })),
@@ -299,7 +305,8 @@ const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
   }
 
   const skill = clampInt(record["skill"], Number.NaN, 0, 5);
-  if (!Number.isFinite(skill)) {
+  const skillSlot = fromOption(decodeSkillSlot, skill);
+  if (skillSlot === undefined) {
     return undefined;
   }
 
@@ -314,7 +321,7 @@ const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
   const waitMs = clampInt(record["waitMs"], 0, 0, MAX_WAIT_MS);
 
   return {
-    skill,
+    skill: skillSlot,
     conditions: normalizeArray(record["conditions"], normalizeCondition),
     ...(fromOption(decodeBoolean, record["priority"])
       ? { priority: true }
@@ -341,14 +348,15 @@ const normalizeMessageTrigger = (
     MAX_MESSAGE_TRIGGER_TEXT_LENGTH,
   );
   const skill = clampInt(record["skill"], Number.NaN, 0, 5);
-  if (messageIncludes === undefined || !Number.isFinite(skill)) {
+  const skillSlot = fromOption(decodeSkillSlot, skill);
+  if (messageIncludes === undefined || skillSlot === undefined) {
     return undefined;
   }
 
   const cooldownMs = clampInt(record["cooldownMs"], 0, 0, MAX_WAIT_MS);
   return {
     messageIncludes,
-    skill,
+    skill: skillSlot,
     source:
       fromOption(decodeCombatProfileMessageTriggerSource, record["source"]) ??
       "any",

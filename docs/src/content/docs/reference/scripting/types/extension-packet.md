@@ -13,7 +13,7 @@ type ExtensionPacket = {
     readonly data: unknown;
     readonly direction: "extension";
     readonly raw: string;
-    readonly wireType: "str" | "json";
+    readonly encoding: "string" | "json";
 }
 ```
 

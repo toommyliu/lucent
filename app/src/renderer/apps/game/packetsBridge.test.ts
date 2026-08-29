@@ -23,8 +23,8 @@ describe("packets bridge", () => {
         on: () => Effect.succeed(() => undefined),
       },
       packet: {
-        sendClient: () => Effect.succeed(true),
-        sendServer: (packet: string) =>
+        sendToClient: () => Effect.succeed(true),
+        sendToServer: (packet: string) =>
           Effect.sync(() => {
             sends.push({ at: Date.now(), packet });
             return true;

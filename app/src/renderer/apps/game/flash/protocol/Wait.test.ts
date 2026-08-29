@@ -23,7 +23,7 @@ describe("Wait", () => {
           data: {},
           direction: "extension",
           raw: "",
-          wireType: "json",
+          encoding: "json",
         };
 
         const observed = yield* wait.forPacket(

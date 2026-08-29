@@ -33,6 +33,8 @@ export interface AutoZoneState {
   readonly map: AutoZoneSupportedMap | undefined;
 }
 
+const snapshotState = (state: AutoZoneState): AutoZoneState => ({ ...state });
+
 type Range = readonly [
   readonly [minimum: number, maximum: number],
   readonly [minimum: number, maximum: number],
@@ -241,7 +243,8 @@ export const makeAutoZone = Effect.fnUntraced(function* (
   const getMap = () =>
     SubscriptionRef.get(state).pipe(Effect.map((current) => current.map));
 
-  const getState = () => SubscriptionRef.get(state);
+  const getState = () =>
+    SubscriptionRef.get(state).pipe(Effect.map(snapshotState));
 
   const isEnabled = () =>
     SubscriptionRef.get(state).pipe(Effect.map((current) => current.enabled));
@@ -250,7 +253,7 @@ export const makeAutoZone = Effect.fnUntraced(function* (
     SubscriptionRef.updateAndGet(state, (current) => ({
       ...current,
       enabled,
-    }));
+    })).pipe(Effect.map(snapshotState));
 
   const setMap = (map: AutoZoneSupportedMap | undefined) => {
     return FiberMap.remove(fibers, "auto-zone-transition").pipe(
@@ -258,7 +261,7 @@ export const makeAutoZone = Effect.fnUntraced(function* (
         SubscriptionRef.updateAndGet(state, (current) => ({
           ...current,
           map,
-        })),
+        })).pipe(Effect.map(snapshotState)),
       ),
     );
   };

@@ -11,10 +11,20 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
+import type { ApiService } from "../../flash/api/Api";
 import type { BridgeService } from "../../flash/bridge/Bridge";
 import type { Packet } from "../../flash/contract/Packet";
 import type { ScriptEnhanceItemOptions, ScriptShopsApi } from "../ScriptApi";
-import type { ScriptRuntimeServices } from "./Services";
+
+interface ScriptShopsDependencies {
+  readonly inventory: Pick<ApiService["inventory"], "get">;
+  readonly player: Pick<
+    ApiService["player"],
+    "getLevel" | "isMember" | "joinMap"
+  >;
+  readonly shops: ApiService["shops"];
+  readonly wait: Pick<ApiService["wait"], "forGameAction" | "forPacket">;
+}
 
 const enhancementResponseContains = (packet: Packet, itemId: number) => {
   if (packet.direction === "client" || typeof packet.data !== "object") {
@@ -69,7 +79,7 @@ const decodeScriptEnhanceItemRequest = Schema.decodeUnknownOption(
 );
 
 export const makeScriptShopsApi = (
-  services: ScriptRuntimeServices,
+  services: ScriptShopsDependencies,
   bridge: BridgeService,
 ): ScriptShopsApi => {
   const enhanceItem = Effect.fn("ScriptShops.enhanceItem")(function* (
@@ -149,7 +159,7 @@ export const makeScriptShopsApi = (
         direction: "extension",
         predicate: (packet) =>
           enhancementResponseContains(packet, inventoryItem.itemId),
-        wireType: "json",
+        encoding: "json",
       },
       {
         timeout: "5 seconds",
@@ -172,12 +182,24 @@ export const makeScriptShopsApi = (
   });
 
   const shops: ScriptShopsApi = {
-    ...services.shops,
+    buy: services.shops.buy,
+    canBuy: services.shops.canBuy,
+    close: services.shops.close,
     enhanceItem: (item, options) =>
       Option.match(decodeScriptEnhanceItemRequest({ item, options }), {
         onNone: () => Effect.succeed(false),
         onSome: (request) => enhanceItem(request.item, request.options),
       }),
+    get: services.shops.get,
+    getAll: services.shops.getAll,
+    getCurrent: services.shops.getCurrent,
+    getMaxBuyQuantity: services.shops.getMaxBuyQuantity,
+    isMergeShop: services.shops.isMergeShop,
+    isOpen: services.shops.isOpen,
+    load: services.shops.load,
+    openArmorCustomize: services.shops.openArmorCustomize,
+    openHairShop: services.shops.openHairShop,
+    sell: services.shops.sell,
   };
   return Object.freeze(shops);
 };

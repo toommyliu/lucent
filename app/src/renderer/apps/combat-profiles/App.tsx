@@ -64,6 +64,7 @@ import {
   type CombatProfileLibrary,
   type CombatProfileStep,
   type CombatProfileStepDefinition,
+  type SkillSlot,
 } from "@lucent/core/combatProfiles";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import {
@@ -97,6 +98,13 @@ export interface CombatProfilesViewProps {
     profile: CombatProfile,
   ) => Promise<CombatProfileLibrary>;
 }
+
+const skillSlots: readonly SkillSlot[] = [0, 1, 2, 3, 4, 5];
+
+const parseSkillSlot = (value: string | undefined): SkillSlot | undefined =>
+  value === undefined
+    ? undefined
+    : skillSlots.find((slot) => String(slot) === value);
 
 type ConditionType = CombatProfileCondition["type"];
 
@@ -619,7 +627,7 @@ export function CombatProfilesView(
       label: baseLabel,
       delayMs: DEFAULT_COMBAT_PROFILE_DELAY_MS,
       cooldownMode: "use-if-ready",
-      steps: [1, 2, 3, 4].map((skill) => ({
+      steps: skillSlots.slice(1, 5).map((skill) => ({
         skill,
         conditions: [],
       })),
@@ -744,7 +752,7 @@ export function CombatProfilesView(
     });
   };
 
-  const updateStepSkill = (stepIndex: number, skill: number): void => {
+  const updateStepSkill = (stepIndex: number, skill: SkillSlot): void => {
     updateStep(stepIndex, (step) => ({
       ...step,
       skill,
@@ -1307,18 +1315,20 @@ export function CombatProfilesView(
                               <Select
                                 class="combat-profiles-select combat-profiles-select--skill"
                                 value={[String(trigger().skill)]}
-                                onValueChange={(details) =>
+                                onValueChange={(details) => {
+                                  const skill = parseSkillSlot(
+                                    details.value[0],
+                                  );
+                                  if (skill === undefined) return;
+
                                   updateMessageTrigger(
                                     triggerIndex,
                                     (current) => ({
                                       ...current,
-                                      skill: Number.parseInt(
-                                        details.value[0] ?? "5",
-                                        10,
-                                      ),
+                                      skill,
                                     }),
-                                  )
-                                }
+                                  );
+                                }}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Skill" />
@@ -1431,12 +1441,12 @@ export function CombatProfilesView(
                             <Select
                               class="combat-profiles-select combat-profiles-select--skill"
                               value={[String(step().skill)]}
-                              onValueChange={(details) =>
-                                updateStepSkill(
-                                  stepIndex,
-                                  Number.parseInt(details.value[0] ?? "1", 10),
-                                )
-                              }
+                              onValueChange={(details) => {
+                                const skill = parseSkillSlot(details.value[0]);
+                                if (skill === undefined) return;
+
+                                updateStepSkill(stepIndex, skill);
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Skill" />

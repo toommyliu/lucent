@@ -96,7 +96,6 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptOptionModule",
   "ScriptPipe",
   "Scope",
-  "Skill",
 ]);
 
 const SUPPORT_DECLARATIONS = `
@@ -210,8 +209,6 @@ interface ScriptNotReadyError extends Error {
 interface ScriptStopSignal extends Error {
   readonly _tag: "ScriptStopSignal";
 }
-
-type Skill = number | string;
 
 type LucentScriptInputValue =
   | string

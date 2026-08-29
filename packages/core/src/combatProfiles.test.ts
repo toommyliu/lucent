@@ -20,7 +20,7 @@ const genericProfile = {
   label: "Generic",
   delayMs: 150,
   cooldownMode: "use-if-ready",
-  steps: [1, 2, 3, 4].map((skill) => ({
+  steps: ([1, 2, 3, 4] as const).map((skill) => ({
     skill,
     conditions: [],
   })),

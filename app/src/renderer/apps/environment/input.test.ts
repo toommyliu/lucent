@@ -16,9 +16,9 @@ describe("Environment bulk input", () => {
 
   it("parses quest IDs with optional reward item IDs", () => {
     expect(parseEnvironmentQuestBulkInput("12; 34:56; ; 78:")).toEqual([
-      { questId: "12" },
-      { questId: "34", rewardItemId: "56" },
-      { questId: "78" },
+      { questId: 12 },
+      { questId: 34, rewardItemId: 56 },
+      { questId: 78 },
     ]);
   });
 });

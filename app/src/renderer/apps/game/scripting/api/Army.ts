@@ -48,16 +48,28 @@ export const makeScriptArmyApi = (
   scope: ScriptAsyncScope,
   failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
 ): ScriptArmyApi => {
-  const { loopTaunt, ...publicArmy } = army;
-
-  return {
-    ...publicArmy,
-    loopTaunt: (plan) =>
+  return Object.freeze({
+    equipSet: army.equipSet,
+    getConfigString: army.getConfigString,
+    getConfigValue: army.getConfigValue,
+    getPlayerNumber: army.getPlayerNumber,
+    getSession: army.getSession,
+    isLeader: army.isLeader,
+    isMember: army.isMember,
+    isStarted: army.isStarted,
+    joinMap: army.joinMap,
+    kill: army.kill,
+    killForItem: army.killForItem,
+    killForTempItem: army.killForTempItem,
+    leave: army.leave,
+    loopTaunt: (plan: Parameters<ScriptArmyApi["loopTaunt"]>[0]) =>
       Effect.try({
         try: () =>
           plan.map((priorityGroup): ArmyLoopTauntRuntimePlan[number] => ({
             assignments: priorityGroup.assignments.map(
-              (assignment): ArmyLoopTauntRuntimeAssignment => {
+              (
+                assignment: ArmyLoopTauntAssignment,
+              ): ArmyLoopTauntRuntimeAssignment => {
                 if (assignment.skipWhen === undefined) {
                   return {
                     players: assignment.players,
@@ -85,10 +97,14 @@ export const makeScriptArmyApi = (
                 cause,
               ),
       }).pipe(
-        Effect.flatMap((normalized) => loopTaunt(normalized, failCause)),
+        Effect.flatMap((normalized) => army.loopTaunt(normalized, failCause)),
         // addCleanup runs immediately after cancellation, closing the race
         // between handle acquisition and an already-closed script scope.
         Effect.tap((handle) => scope.addCleanup(handle.stop)),
       ),
-  };
+    runStep: army.runStep,
+    start: army.start,
+    sync: army.sync,
+    waitForAllInMap: army.waitForAllInMap,
+  });
 };

@@ -1,15 +1,8 @@
 import type { ItemSnapshot } from "@lucent/game";
 
-import type { FlashPacket } from "./Packet";
-
 export type RuntimeEvent =
   | { readonly type: "connection"; readonly status: string }
   | { readonly type: "debug"; readonly message: string };
-
-export type ProtocolEvent = {
-  readonly type: "packet";
-  readonly packet: FlashPacket;
-};
 
 export type ProjectionEvent =
   | {
@@ -107,7 +100,7 @@ export type ProjectionEvent =
     }
   | { readonly type: "zone"; readonly map: string; readonly zone: string };
 
-export type Event = RuntimeEvent | ProtocolEvent | ProjectionEvent;
+export type Event = RuntimeEvent | ProjectionEvent;
 export type EventType = Event["type"];
 
 /**
@@ -127,9 +120,6 @@ export type EventSelector =
   | {
       readonly message?: string;
       readonly type: "debug";
-    }
-  | {
-      readonly type: "packet";
     }
   | {
       readonly afk?: boolean;

@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import * as Duration from "effect/Duration";
 import * as Schema from "effect/Schema";
 
 import {
@@ -106,7 +107,7 @@ export const makeScriptRuntimeApi = (
             }),
           ),
     exit: (exitOptions) => Effect.fail(makeScriptExitSignal(exitOptions)),
-    inputs: {
+    inputs: Object.freeze({
       get: (key: string) => {
         const value = inputValues[key];
         return Effect.succeed(
@@ -114,9 +115,9 @@ export const makeScriptRuntimeApi = (
         );
       },
       getAll: () => Effect.succeed(snapshotScriptInputValues(inputValues)),
-    },
+    }),
     log: (message) => Effect.sync(() => options.log(message)),
-    options: {
+    options: Object.freeze({
       getAll: options.getOptions,
       getRestartAfterReconnect: () =>
         options
@@ -166,16 +167,27 @@ export const makeScriptRuntimeApi = (
           ...currentOptions,
           safeStartStop: enabled,
         })),
-    },
+    }),
     signal: options.scope.signal,
-    sleep: (ms) =>
-      Number.isFinite(ms) && ms >= 0
-        ? Effect.sleep(`${Math.trunc(ms)} millis`)
-        : Effect.fail(
-            new ScriptExecutionError({
-              detail: "script.sleep requires a non-negative finite number.",
-            }),
-          ),
+    sleep: (duration) =>
+      Effect.try({
+        try: () => Duration.toMillis(duration),
+        catch: (cause) =>
+          new ScriptExecutionError({
+            cause,
+            detail: "Invalid duration.",
+          }),
+      }).pipe(
+        Effect.flatMap((milliseconds) =>
+          Number.isFinite(milliseconds) && milliseconds >= 0
+            ? Effect.sleep(duration)
+            : Effect.fail(
+                new ScriptExecutionError({
+                  detail: "Duration must be non-negative and finite.",
+                }),
+              ),
+        ),
+      ),
     stop: (reason) =>
       Effect.fail(new ScriptStopSignal(reason === undefined ? {} : { reason })),
   };

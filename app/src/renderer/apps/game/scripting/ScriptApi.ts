@@ -58,19 +58,21 @@ import type { ConnectOutcome } from "../flash/api/Auth";
 import type { BankOpenOptions } from "../flash/api/Bank";
 import type {
   CombatKillOptions,
-  ConsumableCastResult,
   HuntOptions,
-  Skill,
+  SkillSlot,
   SkillUseOptions,
 } from "../flash/api/Combat";
 import type { EquipOptions } from "../flash/api/Inventory";
 import type { CellPositionOptions } from "../flash/api/Map";
-import type { WalkToOptions } from "../flash/api/Player";
+import type {
+  ClientPacketEncoding,
+  ServerPacketEncoding,
+} from "../flash/api/Packet";
+import type { RestOptions, WalkToOptions } from "../flash/api/Player";
 import type { CompleteQuestOptions } from "../flash/api/Quests";
 import type {
   EventSelector,
   ProjectionEvent,
-  ProtocolEvent,
   RuntimeEvent,
 } from "../flash/contract/Event";
 import type { GameAction } from "../flash/contract/GameAction";
@@ -98,8 +100,9 @@ export type { ScriptInputType } from "@lucent/core/scriptInputs";
 export type { ScriptInputsDefinition, ScriptInputValue, ScriptInputValues };
 export type { RoomPolicy };
 
-export type ScriptEvent = RuntimeEvent | ProtocolEvent | ProjectionEvent;
+export type ScriptEvent = RuntimeEvent | ProjectionEvent;
 export type ScriptEventType = ScriptEvent["type"];
+export type ScriptEventSelector = EventSelector;
 
 export type ScriptEventForType<T extends ScriptEventType> = Extract<
   ScriptEvent,
@@ -107,7 +110,7 @@ export type ScriptEventForType<T extends ScriptEventType> = Extract<
 >;
 
 export type ScriptEventSelectorForType<T extends ScriptEventType> =
-  EventSelector & {
+  ScriptEventSelector & {
     readonly type: T;
   };
 
@@ -116,9 +119,6 @@ export interface ScriptArmyApi {
     setName: string,
     options?: ArmyEquipSetOptions,
   ) => Effect.Effect<void, ArmyError>;
-  readonly executeWithArmy: <A, E>(
-    action: Effect.Effect<A, E>,
-  ) => Effect.Effect<A, E | ArmyError>;
   readonly getConfigString: (
     key: string,
     defaultValue?: string,
@@ -127,7 +127,7 @@ export interface ScriptArmyApi {
     key: string,
     defaultValue?: unknown,
   ) => Effect.Effect<unknown>;
-  readonly getPlayerNumber: () => Effect.Effect<number>;
+  readonly getPlayerNumber: () => Effect.Effect<number | null>;
   readonly getSession: () => Effect.Effect<ArmySession | null>;
   readonly isLeader: () => Effect.Effect<boolean>;
   readonly isMember: () => Effect.Effect<boolean>;
@@ -183,7 +183,7 @@ export interface ScriptArmyApi {
 export interface ScriptAuthApi {
   readonly connectTo: (server: string) => Effect.Effect<ConnectOutcome>;
   readonly getPassword: () => Effect.Effect<string>;
-  readonly getServers: () => Effect.Effect<LiveServer[]>;
+  readonly getServers: () => Effect.Effect<readonly LiveServer[]>;
   readonly getUsername: () => Effect.Effect<string>;
   readonly isLoggedIn: () => Effect.Effect<boolean>;
   readonly isServerSelectReady: () => Effect.Effect<boolean>;
@@ -196,11 +196,11 @@ export interface ScriptAuthApi {
 }
 
 export interface ScriptBankApi {
-  /** @param requested The minimum quantity required. */
+  /** @param quantity The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
     /** @defaultValue 1 */
-    requested?: number,
+    quantity?: number,
   ) => Effect.Effect<boolean>;
   readonly deposit: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly depositBatch: (
@@ -236,7 +236,9 @@ export interface ScriptAurasApi {
     name: string,
     options?: AuraQueryOptions,
   ) => Effect.Effect<LiveAura | null>;
-  readonly getAll: (options?: AuraQueryOptions) => Effect.Effect<LiveAura[]>;
+  readonly getAll: (
+    options?: AuraQueryOptions,
+  ) => Effect.Effect<readonly LiveAura[]>;
   readonly has: (
     name: string,
     options?: AuraQueryOptions,
@@ -283,22 +285,15 @@ export interface ScriptCombatTargetApi {
   readonly get: () => Effect.Effect<ScriptCombatTarget | null>;
 }
 
-export interface ScriptConsumableSkillItem {
-  readonly itemId: number;
-}
-
 export interface ScriptCombatApi {
-  readonly attackMonster: (query: MonsterQuery) => Effect.Effect<boolean>;
+  readonly attack: (target: MonsterQuery) => Effect.Effect<boolean>;
   readonly cancelAutoAttack: () => Effect.Effect<void>;
   readonly cancelTarget: () => Effect.Effect<void>;
-  readonly canUseSkill: (skill: Skill) => Effect.Effect<boolean>;
-  readonly castConsumableOnMonster: (
-    query: MonsterQuery,
-    expectedItemId: number,
-  ) => Effect.Effect<ConsumableCastResult | null>;
+  readonly canUseSkill: (skill: SkillSlot) => Effect.Effect<boolean>;
   readonly exit: () => Effect.Effect<boolean>;
-  readonly getConsumableSkillItem: () => Effect.Effect<ScriptConsumableSkillItem | null>;
-  readonly getSkillCooldownRemaining: (index: number) => Effect.Effect<number>;
+  readonly getSkillCooldownRemainingMs: (
+    skill: SkillSlot,
+  ) => Effect.Effect<number | null>;
   readonly hunt: (
     query: MonsterQuery,
     options?: HuntOptions,
@@ -325,7 +320,7 @@ export interface ScriptCombatApi {
   ) => Effect.Effect<boolean>;
   readonly target: ScriptCombatTargetApi;
   readonly useSkill: (
-    skill: Skill,
+    skill: SkillSlot,
     options?: SkillUseOptions,
   ) => Effect.Effect<boolean>;
 }
@@ -333,28 +328,27 @@ export interface ScriptCombatApi {
 export interface ScriptDropsApi {
   readonly accept: (query: ItemQuery) => Effect.Effect<boolean>;
   readonly contains: (query: ItemQuery) => Effect.Effect<boolean>;
+  readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
-  readonly isCustomUiEnabled: () => Effect.Effect<boolean>;
   readonly reject: (query: ItemQuery) => Effect.Effect<boolean>;
-  readonly toggleUi: () => Effect.Effect<void>;
 }
 
 export interface ScriptEnvironmentApi {
   readonly getState: () => Effect.Effect<EnvironmentState, unknown>;
   readonly clear: () => Effect.Effect<EnvironmentState, unknown>;
   readonly addQuest: (
-    questId: number | string,
-    rewardItemId?: number | string,
+    questId: number,
+    rewardItemId?: number,
   ) => Effect.Effect<EnvironmentState, unknown>;
   readonly removeQuest: (
-    questId: number | string,
+    questId: number,
   ) => Effect.Effect<EnvironmentState, unknown>;
   readonly setQuestReward: (
-    questId: number | string,
-    rewardItemId: number | string,
+    questId: number,
+    rewardItemId: number,
   ) => Effect.Effect<EnvironmentState, unknown>;
   readonly clearQuestReward: (
-    questId: number | string,
+    questId: number,
   ) => Effect.Effect<EnvironmentState, unknown>;
   readonly clearQuests: () => Effect.Effect<EnvironmentState, unknown>;
   /** Enable or disable auto-registration of quest requirements in the drop list. */
@@ -429,7 +423,7 @@ export interface ScriptEventsOn {
     handler: (event: ScriptEvent) => ScriptCallbackResult,
   ): Effect.Effect<() => void>;
   (
-    query: EventSelector | undefined,
+    query: ScriptEventSelector | undefined,
     handler: (event: ScriptEvent) => ScriptCallbackResult,
   ): Effect.Effect<() => void>;
 }
@@ -440,7 +434,7 @@ export interface ScriptWaitForEvent {
     options?: TriggeredWaitOptions<E, R>,
   ): Effect.Effect<ScriptEventForType<T> | null, E, Exclude<R, Scope.Scope>>;
   <E = never, R = never>(
-    selector?: EventSelector,
+    selector?: ScriptEventSelector,
     options?: TriggeredWaitOptions<E, R>,
   ): Effect.Effect<ScriptEvent | null, E, Exclude<R, Scope.Scope>>;
 }
@@ -451,6 +445,12 @@ export interface ScriptEventsApi {
 }
 
 export interface ScriptHouseApi {
+  /** @param quantity The minimum quantity required. */
+  readonly contains: (
+    query: ItemQuery,
+    /** @defaultValue 1 */
+    quantity?: number,
+  ) => Effect.Effect<boolean>;
   readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
   readonly getAvailableSlots: () => Effect.Effect<number>;
@@ -465,11 +465,11 @@ export interface ScriptEquipEnhancementSelector {
 }
 
 export interface ScriptInventoryApi {
-  /** @param requested The minimum quantity required. */
+  /** @param quantity The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
     /** @defaultValue 1 */
-    requested?: number,
+    quantity?: number,
   ) => Effect.Effect<boolean>;
   readonly equip: (
     query: ItemQuery,
@@ -507,9 +507,9 @@ export interface ScriptMapApi {
 
 export interface ScriptMonstersApi {
   readonly get: (query: MonsterQuery) => Effect.Effect<LiveMonster | null>;
-  readonly getAll: () => Effect.Effect<LiveMonster[]>;
+  readonly getAll: () => Effect.Effect<readonly LiveMonster[]>;
   /** Gets monsters in the current cell that are alive and can be targeted for combat. Hidden monsters are included. */
-  readonly getAvailable: () => Effect.Effect<LiveMonster[]>;
+  readonly getAvailable: () => Effect.Effect<readonly LiveMonster[]>;
   /** Checks whether a monster in the current cell is alive and can be targeted for combat. Hidden monsters count as available. */
   readonly isAvailable: (query: MonsterQuery) => Effect.Effect<boolean>;
 }
@@ -536,20 +536,17 @@ export interface ScriptWaitForPacket {
   ): Effect.Effect<Packet | null, E, Exclude<R, Scope.Scope>>;
 }
 
-export type ClientPacketEncoding = "string" | "json" | "xml";
-export type ServerPacketEncoding = "string" | "json";
-
 export interface ScriptPacketApi {
   readonly on: ScriptPacketOn;
   readonly once: ScriptWaitForPacket;
   /** @param encoding The client packet encoding. */
-  readonly sendClient: (
+  readonly sendToClient: (
     packet: string,
     /** @defaultValue "string" */
     encoding?: ClientPacketEncoding,
   ) => Effect.Effect<boolean>;
   /** @param encoding The server packet encoding. */
-  readonly sendServer: (
+  readonly sendToServer: (
     packet: string,
     /** @defaultValue "string" */
     encoding?: ServerPacketEncoding,
@@ -558,7 +555,7 @@ export interface ScriptPacketApi {
 
 export interface ScriptPlayerFactionsApi {
   readonly get: (query: string | number) => Effect.Effect<LiveFaction | null>;
-  readonly getAll: () => Effect.Effect<LiveFaction[]>;
+  readonly getAll: () => Effect.Effect<readonly LiveFaction[]>;
 }
 
 export interface ScriptPlayerOutfitsApi {
@@ -569,7 +566,7 @@ export interface ScriptPlayerOutfitsApi {
     keepColors?: boolean,
   ) => Effect.Effect<boolean>;
   readonly get: (name: string) => Effect.Effect<LiveOutfit | null>;
-  readonly getAll: () => Effect.Effect<LiveOutfit[]>;
+  readonly getAll: () => Effect.Effect<readonly LiveOutfit[]>;
   /** @param keepColors Whether to preserve the current colors. */
   readonly wear: (
     name: string,
@@ -614,11 +611,10 @@ export interface ScriptPlayerApi {
   ) => Effect.Effect<boolean>;
   readonly jumpToCell: (cell: string, pad?: string) => Effect.Effect<boolean>;
   readonly outfits: ScriptPlayerOutfitsApi;
-  /** @param full Whether to perform a full rest. */
   readonly rest: (
-    /** @defaultValue false */
-    full?: boolean,
-  ) => Effect.Effect<void>;
+    /** @defaultValue {} */
+    options?: RestOptions,
+  ) => Effect.Effect<boolean>;
   readonly walkTo: (
     position: Position,
     options?: WalkToOptions,
@@ -627,7 +623,7 @@ export interface ScriptPlayerApi {
 
 export interface ScriptPlayersApi {
   readonly get: (query: PlayerQuery) => Effect.Effect<LivePlayer | null>;
-  readonly getAll: () => Effect.Effect<LivePlayer[]>;
+  readonly getAll: () => Effect.Effect<readonly LivePlayer[]>;
   readonly getMe: () => Effect.Effect<LivePlayer | null>;
 }
 
@@ -651,8 +647,8 @@ export interface ScriptQuestsApi {
     options?: CompleteQuestOptions,
   ) => Effect.Effect<boolean>;
   readonly get: (questId: number) => Effect.Effect<LiveQuest | null>;
-  readonly getAccepted: () => Effect.Effect<LiveQuest[]>;
-  readonly getAll: () => Effect.Effect<LiveQuest[]>;
+  readonly getAccepted: () => Effect.Effect<readonly LiveQuest[]>;
+  readonly getAll: () => Effect.Effect<readonly LiveQuest[]>;
   readonly getMaxTurnIns: (questId: number) => Effect.Effect<number>;
   readonly isAvailable: (questId: number) => Effect.Effect<boolean>;
   readonly isInProgress: (questId: number) => Effect.Effect<boolean>;
@@ -736,13 +732,13 @@ export interface ScriptShopsApi {
   ) => Effect.Effect<boolean>;
   readonly get: (query: ShopItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
-  readonly getInfo: () => Effect.Effect<LiveShop | null>;
+  readonly getCurrent: () => Effect.Effect<LiveShop | null>;
   readonly getMaxBuyQuantity: (query: ShopItemQuery) => Effect.Effect<number>;
   readonly isMergeShop: () => Effect.Effect<boolean>;
   readonly isOpen: (shopId?: number) => Effect.Effect<boolean>;
   readonly load: (shopId: number) => Effect.Effect<boolean>;
-  readonly loadArmorCustomize: () => Effect.Effect<void>;
-  readonly loadHairShop: (shopId: number) => Effect.Effect<void>;
+  readonly openArmorCustomize: () => Effect.Effect<void>;
+  readonly openHairShop: (shopId: number) => Effect.Effect<void>;
   readonly sell: (
     query: ItemQuery,
     options?: ScriptShopQuantityOptions,
@@ -750,11 +746,11 @@ export interface ScriptShopsApi {
 }
 
 export interface ScriptTempInventoryApi {
-  /** @param requested The minimum quantity required. */
+  /** @param quantity The minimum quantity required. */
   readonly contains: (
     query: ItemQuery,
     /** @defaultValue 1 */
-    requested?: number,
+    quantity?: number,
   ) => Effect.Effect<boolean>;
   readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
@@ -770,8 +766,6 @@ export interface ScriptWaitApi {
   readonly isGameActionAvailable: (
     action: GameAction,
   ) => Effect.Effect<boolean>;
-  readonly forEvent: ScriptWaitForEvent;
-  readonly forPacket: ScriptWaitForPacket;
   /** @param options Polling options. */
   readonly until: (
     condition: Effect.Effect<boolean>,
@@ -788,18 +782,18 @@ export interface ScriptWaitApi {
 
 /** Controls automatic login recovery. */
 export interface ScriptAutoReloginApi {
-  readonly disable: () => Effect.Effect<AutoReloginState>;
-  readonly enable: () => Effect.Effect<AutoReloginState>;
-  readonly getDelay: () => Effect.Effect<number>;
+  readonly getDelayMs: () => Effect.Effect<number>;
   readonly getServer: () => Effect.Effect<string | undefined>;
   readonly getState: () => Effect.Effect<AutoReloginState>;
   readonly isEnabled: () => Effect.Effect<boolean>;
   readonly runLogin: (
     request: AutoReloginLoginRequest,
   ) => Effect.Effect<AutoReloginLoginResult, AutoReloginLoginError>;
-  readonly setDelay: (delayMs: number) => Effect.Effect<AutoReloginState>;
+  readonly setDelay: (delay: Duration.Input) => Effect.Effect<AutoReloginState>;
   readonly setEnabled: (enabled: boolean) => Effect.Effect<AutoReloginState>;
-  readonly setServer: (server: string) => Effect.Effect<AutoReloginState>;
+  readonly setServer: (
+    server: string | undefined,
+  ) => Effect.Effect<AutoReloginState>;
 }
 
 /** Controls automatic movement for supported encounter zones. */
@@ -891,7 +885,9 @@ export interface ScriptRuntimeApi {
     options?: ScriptExitOptions,
   ) => Effect.Effect<never, ScriptStopSignal>;
   readonly log: (message: unknown) => Effect.Effect<void>;
-  readonly sleep: (ms: number) => Effect.Effect<void, ScriptExecutionError>;
+  readonly sleep: (
+    duration: Duration.Input,
+  ) => Effect.Effect<void, ScriptExecutionError>;
   /**
    * Stops the current script. If it is part of a queue, the next script runs.
    *

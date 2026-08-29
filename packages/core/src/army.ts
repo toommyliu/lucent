@@ -152,7 +152,7 @@ export type ArmyLoopTauntTerminalResult =
 export type ArmyLoopTauntReport =
   | {
       readonly alive: boolean;
-      readonly cooldownMs: number;
+      readonly cooldownMs: number | null;
       readonly reason?: string;
       readonly type: "participant-state";
       readonly usable: boolean;
@@ -182,7 +182,7 @@ export type ArmyLoopTauntReport =
     }
   | {
       readonly commandId: number;
-      readonly cooldownMs?: number;
+      readonly cooldownMs?: number | null;
       readonly outcome:
         | "confirmed"
         | "target-unavailable"
@@ -341,7 +341,7 @@ export const ArmyLoopTauntTerminalResultSchema = Schema.Union([
 export const ArmyLoopTauntReportSchema = Schema.Union([
   Schema.Struct({
     alive: Schema.Boolean,
-    cooldownMs: NonNegativeFiniteNumber,
+    cooldownMs: Schema.NullOr(NonNegativeFiniteNumber),
     reason: Schema.optionalKey(Schema.String),
     type: Schema.Literal("participant-state"),
     usable: Schema.Boolean,
@@ -371,7 +371,7 @@ export const ArmyLoopTauntReportSchema = Schema.Union([
   }),
   Schema.Struct({
     commandId: Schema.Int,
-    cooldownMs: Schema.optionalKey(NonNegativeFiniteNumber),
+    cooldownMs: Schema.optionalKey(Schema.NullOr(NonNegativeFiniteNumber)),
     outcome: Schema.Literals([
       "confirmed",
       "target-unavailable",

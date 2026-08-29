@@ -10,8 +10,6 @@ import * as Schema from "effect/Schema";
 import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:environment";
-const QuestIdentifierSchema = Schema.Union([Schema.Number, Schema.String]);
-
 export const EnvironmentBankBoostSchema = Schema.Struct({
   itemId: PositiveInt,
   name: Schema.String,
@@ -44,8 +42,8 @@ export const EnvironmentIpc = {
     channel: `${namespace}:add-quest`,
     name: "environment.addQuest",
     payload: Schema.Struct({
-      questId: QuestIdentifierSchema,
-      rewardItemId: Schema.optionalKey(QuestIdentifierSchema),
+      questId: PositiveInt,
+      rewardItemId: Schema.optionalKey(PositiveInt),
     }),
     result: EnvironmentStateSchema,
   }),
@@ -55,8 +53,8 @@ export const EnvironmentIpc = {
     payload: Schema.Struct({
       quests: Schema.Array(
         Schema.Struct({
-          questId: QuestIdentifierSchema,
-          rewardItemId: Schema.optionalKey(QuestIdentifierSchema),
+          questId: PositiveInt,
+          rewardItemId: Schema.optionalKey(PositiveInt),
         }),
       ),
     }),
@@ -66,7 +64,7 @@ export const EnvironmentIpc = {
     channel: `${namespace}:remove-quest`,
     name: "environment.removeQuest",
     payload: Schema.Struct({
-      questId: QuestIdentifierSchema,
+      questId: PositiveInt,
     }),
     result: EnvironmentStateSchema,
   }),
@@ -74,8 +72,8 @@ export const EnvironmentIpc = {
     channel: `${namespace}:set-quest-reward`,
     name: "environment.setQuestReward",
     payload: Schema.Struct({
-      questId: QuestIdentifierSchema,
-      rewardItemId: QuestIdentifierSchema,
+      questId: PositiveInt,
+      rewardItemId: PositiveInt,
     }),
     result: EnvironmentStateSchema,
   }),
@@ -83,7 +81,7 @@ export const EnvironmentIpc = {
     channel: `${namespace}:clear-quest-reward`,
     name: "environment.clearQuestReward",
     payload: Schema.Struct({
-      questId: QuestIdentifierSchema,
+      questId: PositiveInt,
     }),
     result: EnvironmentStateSchema,
   }),

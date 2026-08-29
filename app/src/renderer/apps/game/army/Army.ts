@@ -1,6 +1,7 @@
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SynchronizedRef from "effect/SynchronizedRef";
@@ -45,7 +46,7 @@ export class ArmyError extends Error {
 }
 
 export interface ArmyRunStepOptions {
-  readonly timeoutMs?: number;
+  readonly timeout?: Duration.Input;
 }
 
 export interface ArmyEquipSetOptions {
@@ -79,13 +80,15 @@ const joinRosterTimeoutMs = 30_000;
 const joinRosterIntervalMs = 250;
 const consumableSkillIndex = 5;
 
-const cloneSession = (session: ArmySession): ArmySession => ({
-  ...session,
-  items: { ...session.items },
-  players: [...session.players],
-  raw: { ...session.raw },
-  sets: { ...session.sets },
-});
+const cloneSession = (session: ArmySession): ArmySession =>
+  structuredClone(session);
+
+const optionTimeoutMs = (
+  options: ArmyRunStepOptions | undefined,
+): number | undefined =>
+  options?.timeout === undefined
+    ? undefined
+    : Duration.toMillis(options.timeout);
 
 const fromDesktop = <A>(label: string, promise: () => Promise<A>) =>
   Effect.tryPromise({
@@ -285,16 +288,15 @@ const makeArmyApi = (
       label: string,
       options?: ArmyRunStepOptions,
     ) =>
-      fromDesktop("Failed to synchronize army", () =>
-        bridge.sync({
+      fromDesktop("Failed to synchronize army", () => {
+        const timeoutMs = optionTimeoutMs(options);
+        return bridge.sync({
           label,
           sessionId: session.sessionId,
           step,
-          ...(options?.timeoutMs === undefined
-            ? {}
-            : { timeoutMs: options.timeoutMs }),
-        }),
-      ).pipe(
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        });
+      }).pipe(
         Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
       );
 
@@ -305,17 +307,16 @@ const makeArmyApi = (
       complete: boolean,
       options?: ArmyRunStepOptions,
     ): Effect.Effect<ArmyProgressResult, ArmyError> =>
-      fromDesktop("Failed to synchronize army progress", () =>
-        bridge.progress({
+      fromDesktop("Failed to synchronize army progress", () => {
+        const timeoutMs = optionTimeoutMs(options);
+        return bridge.progress({
           complete,
           label,
           sessionId: session.sessionId,
           step,
-          ...(options?.timeoutMs === undefined
-            ? {}
-            : { timeoutMs: options.timeoutMs }),
-        }),
-      ).pipe(
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        });
+      }).pipe(
         Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
       );
 
@@ -399,7 +400,7 @@ const makeArmyApi = (
       getState.pipe(Effect.map((state) => state.session?.role === "member"));
 
     const getPlayerNumber: ScriptArmyApi["getPlayerNumber"] = () =>
-      getState.pipe(Effect.map((state) => state.session?.playerNumber ?? -1));
+      getState.pipe(Effect.map((state) => state.session?.playerNumber ?? null));
 
     const getConfigValue: ScriptArmyApi["getConfigValue"] = (
       key,
@@ -453,7 +454,7 @@ const makeArmyApi = (
             step,
             label,
             missing.length === 0,
-            { timeoutMs: joinRosterTimeoutMs },
+            { timeout: joinRosterTimeoutMs },
           );
           if (lastProgress.complete) {
             return;
@@ -677,7 +678,10 @@ const makeArmyApi = (
       }
 
       const used = yield* combat
-        .useSkill(consumableSkillIndex, { force: true, wait: true })
+        .useSkill(consumableSkillIndex, {
+          force: true,
+          waitUntilReady: true,
+        })
         .pipe(
           Effect.catchCause((cause) =>
             warnEquip(setName, "pots", resolved, cause).pipe(Effect.as(false)),
@@ -738,9 +742,6 @@ const makeArmyApi = (
         }),
       );
 
-    const executeWithArmy: ScriptArmyApi["executeWithArmy"] = (action) =>
-      runStep("execute", action);
-
     const disposeEnded = bridge.onEnded((payload) => {
       runFork(
         Effect.all(
@@ -760,7 +761,6 @@ const makeArmyApi = (
 
     return ArmyApi.of({
       equipSet,
-      executeWithArmy,
       getConfigString,
       getConfigValue,
       getPlayerNumber,

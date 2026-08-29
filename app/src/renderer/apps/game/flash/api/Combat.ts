@@ -7,14 +7,15 @@ import type { ItemQuery, MonsterQuery } from "@lucent/game";
 import {
   normalizeCombatProfile,
   type CombatProfileDefinition,
+  type SkillSlot,
 } from "@lucent/core/combatProfiles";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
-import type * as Duration from "effect/Duration";
 
 import {
   makeCombatProfileSession,
@@ -48,7 +49,7 @@ import type { Settings } from "./Settings";
 import type { TempInventory } from "./TempInventory";
 import type { Wait } from "./Wait";
 
-export type Skill = number;
+export type { SkillSlot } from "@lucent/core/combatProfiles";
 
 export const CONSUMABLE_CAST_CONFIRMATION_TIMEOUT_MS = 5_000;
 export const ConsumableCastDispatchDeadline = Context.Reference<
@@ -62,7 +63,7 @@ export interface HuntOptions {
    * Whether to prefer the cell containing the most matches.
    * @defaultValue false
    */
-  readonly findMost?: boolean;
+  readonly preferMostMatches?: boolean;
 }
 
 export interface SkillUseOptions {
@@ -77,22 +78,22 @@ export interface SkillUseOptions {
    * Whether to wait for the skill to become ready.
    * @defaultValue false
    */
-  readonly wait?: boolean;
+  readonly waitUntilReady?: boolean;
 }
 
 export interface CombatKillOptions {
-  readonly killPriority?: readonly MonsterQuery[];
   readonly profile?: CombatProfileDefinition;
   /**
-   * Delay between skill attempts in milliseconds.
+   * Delay between skill attempts.
    * @defaultValue 150
    */
-  readonly skillDelay?: number;
+  readonly skillInterval?: Duration.Input;
   /**
    * Skills to cycle while fighting.
    * @defaultValue [1, 2, 3, 4]
    */
-  readonly skillSet?: readonly Skill[];
+  readonly skills?: readonly SkillSlot[];
+  readonly targetPriority?: readonly MonsterQuery[];
 }
 
 /** Retains local dispatch identity because rejected acknowledgements omit their target. */
@@ -116,22 +117,30 @@ const ConsumableCastDispatch = Schema.NullOr(
     monsterMapId: PositiveWireInt,
   }),
 );
-const skillIndex = (skill: Skill): number | null => {
+const skillIndex = (skill: SkillSlot): SkillSlot | null => {
   return Number.isInteger(skill) && skill >= 0 && skill <= 5 ? skill : null;
 };
 
-const DEFAULT_SKILL_SET: readonly Skill[] = [1, 2, 3, 4];
-const normalizeSkillSet = (
-  input: CombatKillOptions["skillSet"],
-): readonly Skill[] => {
+const DEFAULT_SKILLS: readonly SkillSlot[] = [1, 2, 3, 4];
+const normalizeSkills = (
+  input: CombatKillOptions["skills"],
+): readonly SkillSlot[] => {
   const skills = (input ?? []).filter((skill) => skillIndex(skill) !== null);
-  return skills.length === 0 ? DEFAULT_SKILL_SET : skills;
+  return skills.length === 0 ? DEFAULT_SKILLS : skills;
 };
 
-const normalizeSkillDelay = (delay: number | undefined): number =>
-  delay === undefined || !Number.isFinite(delay)
-    ? 150
-    : Math.max(0, Math.trunc(delay));
+const normalizeSkillInterval = (
+  interval: Duration.Input | undefined,
+): number => {
+  if (interval === undefined) return 150;
+  return Option.match(Duration.fromInput(interval), {
+    onNone: () => 150,
+    onSome: (duration) => {
+      const milliseconds = Duration.toMillis(duration);
+      return Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 150;
+    },
+  });
+};
 
 export const makeCombat = (
   bridge: BridgeService,
@@ -184,11 +193,11 @@ export const makeCombat = (
     wait,
   }).prepare;
 
-  const getSkillCooldownRemaining = (index: number) =>
-    bridge.invoke("combat.getSkillCooldownRemaining", [index], WireInt).pipe(
+  const getSkillCooldownRemainingMs = (skill: SkillSlot) =>
+    bridge.invoke("combat.getSkillCooldownRemaining", [skill], WireInt).pipe(
       Effect.map(
         Option.match({
-          onNone: () => Number.MAX_SAFE_INTEGER,
+          onNone: () => null,
           onSome: (remaining) => Math.max(0, Math.trunc(remaining)),
         }),
       ),
@@ -241,7 +250,7 @@ export const makeCombat = (
               };
               return true;
             },
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: `${CONSUMABLE_CAST_CONFIRMATION_TIMEOUT_MS} millis`,
@@ -273,25 +282,27 @@ export const makeCombat = (
       }),
     );
 
-  const canUseSkill = (skill: Skill) => {
+  const canUseSkill = (skill: SkillSlot) => {
     const index = skillIndex(skill);
     return index === null
       ? Effect.succeed(false)
-      : getSkillCooldownRemaining(index).pipe(
+      : getSkillCooldownRemainingMs(index).pipe(
           Effect.map((remaining) => remaining === 0),
         );
   };
 
-  const waitForSkillReady = (index: number) =>
+  const waitForSkillReady = (index: SkillSlot) =>
     wait.until(
-      getSkillCooldownRemaining(index).pipe(
+      getSkillCooldownRemainingMs(index).pipe(
         Effect.flatMap((remaining) =>
-          remaining > 0
-            ? Effect.sleep(remaining).pipe(Effect.as(false))
-            : Effect.sleep("150 millis").pipe(
-                Effect.andThen(getSkillCooldownRemaining(index)),
-                Effect.map((confirmed) => confirmed === 0),
-              ),
+          remaining === null
+            ? Effect.succeed(false)
+            : remaining > 0
+              ? Effect.sleep(remaining).pipe(Effect.as(false))
+              : Effect.sleep("150 millis").pipe(
+                  Effect.andThen(getSkillCooldownRemainingMs(index)),
+                  Effect.map((confirmed) => confirmed === 0),
+                ),
         ),
       ),
       { interval: "50 millis", timeout: "5 seconds" },
@@ -333,7 +344,7 @@ export const makeCombat = (
         ),
       );
 
-  const useSkill = (skill: Skill, options?: SkillUseOptions) => {
+  const useSkill = (skill: SkillSlot, options?: SkillUseOptions) => {
     const index = skillIndex(skill);
     if (index === null) return Effect.succeed(false);
     return Effect.gen(function* () {
@@ -358,7 +369,7 @@ export const makeCombat = (
         return false;
       }
       const ready =
-        options?.wait === true
+        options?.waitUntilReady === true
           ? yield* waitForSkillReady(index)
           : yield* canUseSkill(index);
       if (!ready || !(yield* player.isAlive())) return false;
@@ -403,7 +414,7 @@ export const makeCombat = (
     });
   };
 
-  const attackMonster = (selector: MonsterQuery) => {
+  const attack = (selector: MonsterQuery) => {
     return Effect.gen(function* () {
       if (!(yield* player.isAlive())) return false;
       const monster = yield* monsters.get(selector);
@@ -428,7 +439,7 @@ export const makeCombat = (
     return monsters.getAll().pipe(
       Effect.flatMap((all) => {
         const matches = all.filter((monster) => monster.matches(selector));
-        if (options?.findMost !== true || matches.length < 2) {
+        if (options?.preferMostMatches !== true || matches.length < 2) {
           const target = matches[0] ?? null;
           return target === null || target.cell === ""
             ? Effect.succeed(target)
@@ -461,7 +472,7 @@ export const makeCombat = (
     return Effect.gen(function* () {
       const session = yield* makeCombatProfileSession(
         {
-          attackMonster,
+          attack,
           getAvailableMonsters: monsters.getAvailable,
           isAttackBlocked: antiCounterActive,
           isPlayerAlive: player.isAlive,
@@ -519,9 +530,9 @@ export const makeCombat = (
     options: CombatKillOptions | undefined,
     runtime: CombatProfileSession | null,
   ) => {
-    const skills = normalizeSkillSet(options?.skillSet);
-    const skillDelay = normalizeSkillDelay(options?.skillDelay);
-    const attackOrder = [...(options?.killPriority ?? []), selector];
+    const skills = normalizeSkills(options?.skills);
+    const skillInterval = normalizeSkillInterval(options?.skillInterval);
+    const attackOrder = [...(options?.targetPriority ?? []), selector];
 
     const selectTarget = Effect.gen(function* () {
       const available = yield* monsters.getAvailable();
@@ -562,14 +573,14 @@ export const makeCombat = (
           yield* Effect.sleep("100 millis");
           return;
         }
-        if (!(yield* attackMonster(target.monsterMapId))) {
+        if (!(yield* attack(target.monsterMapId))) {
           yield* Effect.sleep("250 millis");
           return;
         }
 
         for (const skill of skills) {
           yield* useSkill(skill);
-          yield* Effect.sleep(skillDelay);
+          yield* Effect.sleep(skillInterval);
         }
       }),
     );
@@ -584,7 +595,7 @@ export const makeCombat = (
       const available = yield* monsters.getAvailable();
       const monster =
         available.find((candidate) => candidate.matches(selector)) ??
-        orderMonstersByPriority(available, options?.killPriority ?? [])[0];
+        orderMonstersByPriority(available, options?.targetPriority ?? [])[0];
       if (monster === undefined) return false;
 
       const death = yield* wait.forEvent(
@@ -750,14 +761,14 @@ export const makeCombat = (
   };
 
   return {
-    attackMonster,
+    attack,
     cancelAutoAttack,
     cancelTarget,
     canUseSkill,
     castConsumableOnMonster,
     exit,
     getConsumableSkillItem,
-    getSkillCooldownRemaining,
+    getSkillCooldownRemainingMs,
     hunt,
     isAttackBlocked: antiCounterActive,
     kill,

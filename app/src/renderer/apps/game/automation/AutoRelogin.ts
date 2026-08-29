@@ -137,11 +137,12 @@ export const normalizeAutoReloginDelay = (delayMs: number): number =>
     : defaultDelay;
 
 const normalizeAutoReloginServer = (
-  server: string,
+  server: string | undefined,
   servers: readonly { readonly name: string }[],
 ): string | undefined => {
+  if (server === undefined) return undefined;
   const requested = server.trim();
-  if (requested === "") return undefined;
+  if (requested === "") return "";
 
   return (
     servers.find(
@@ -837,7 +838,7 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
       return yield* getState();
     });
 
-  const getDelay = () =>
+  const getDelayMs = () =>
     SubscriptionRef.get(state).pipe(Effect.map((current) => current.delayMs));
   const getServer = () =>
     SubscriptionRef.get(state).pipe(Effect.map((current) => current.server));
@@ -857,15 +858,18 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
       return yield* getState();
     });
 
-  const setDelay = (delayMs: number) =>
+  const setDelay = (delay: Duration.Input) =>
     reconfigure((current) => ({
       ...current,
-      delayMs: normalizeAutoReloginDelay(delayMs),
+      delayMs: normalizeAutoReloginDelay(Duration.toMillis(delay)),
     }));
   const setEnabled = (enabled: boolean) => (enabled ? start() : stop());
-  const setServer = (server: string) =>
+  const setServer = (server: string | undefined) =>
     Effect.gen(function* () {
-      const servers = server.trim() === "" ? [] : yield* api.auth.getServers();
+      const servers =
+        server === undefined || server.trim() === ""
+          ? []
+          : yield* api.auth.getServers();
       const nextServer = normalizeAutoReloginServer(server, servers);
       const shouldRetry = yield* SubscriptionRef.modify(state, (current) => {
         const changed = current.server !== nextServer;
@@ -940,9 +944,7 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
 
   return {
     changes,
-    disable: stop,
-    enable: start,
-    getDelay,
+    getDelayMs,
     getServer,
     getState,
     isEnabled,
