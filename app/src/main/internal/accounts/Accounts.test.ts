@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer";
 
 import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
 import {
   AccountGameWindows,
   type AccountGameWindowEvent,
@@ -121,7 +122,12 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
     });
     const dependencies = Layer.mergeAll(
       AccountRepository.layer.pipe(
-        Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.succeed(DesktopEnvironment, env),
+            desktopFileSystemLayer,
+          ),
+        ),
       ),
       AccountSessions.layer,
       Layer.succeed(AccountGameWindows, gameWindows),

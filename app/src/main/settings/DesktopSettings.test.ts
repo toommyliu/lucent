@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
 import {
   DesktopSettings,
   DesktopSettingsError,
@@ -47,7 +48,12 @@ describe("DesktopSettings", () => {
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(
-        Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.succeed(DesktopEnvironment, env),
+            desktopFileSystemLayer,
+          ),
+        ),
       );
       const settings = yield* DesktopSettings.pipe(
         Effect.provide(settingsLayer),
@@ -98,7 +104,12 @@ describe("DesktopSettings", () => {
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(
-        Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.succeed(DesktopEnvironment, env),
+            desktopFileSystemLayer,
+          ),
+        ),
       );
       const settings = yield* DesktopSettings.pipe(
         Effect.provide(settingsLayer),
@@ -145,7 +156,12 @@ describe("DesktopSettings", () => {
         workspaceDir,
       });
       const settingsLayer = desktopSettingsLayer.pipe(
-        Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.succeed(DesktopEnvironment, env),
+            desktopFileSystemLayer,
+          ),
+        ),
       );
       const settings = yield* DesktopSettings.pipe(
         Effect.provide(settingsLayer),

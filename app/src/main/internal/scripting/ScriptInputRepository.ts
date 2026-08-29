@@ -13,11 +13,8 @@ import {
   type ScriptInputValues,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import {
-  type JsonFileError,
-  readJsonFile,
-  writeJsonFile,
-} from "../../settings/JsonFile";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const inputRepositoryOperationSchema = Schema.Literals(["read", "write"]);
 
@@ -80,34 +77,36 @@ const wrapJsonError = (
     cause: error,
   });
 
-const readStore = (
-  path: string,
-): Effect.Effect<Store, ScriptInputRepositoryError> =>
-  readJsonFile(path).pipe(
-    Effect.mapError((error: JsonFileError) => wrapJsonError("read", error)),
-    Effect.map((result) => {
-      if (result.status === "missing") return {};
-      return decodeStore(result.value);
-    }),
-  );
-
-const writeStore = (
-  path: string,
-  store: Store,
-): Effect.Effect<void, ScriptInputRepositoryError> =>
-  writeJsonFile(path, store).pipe(
-    Effect.mapError((error: JsonFileError) => wrapJsonError("write", error)),
-  );
-
 export const layer = Layer.effect(
   ScriptInputRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const path = join(env.appDataDir, "script-inputs.json");
     const writes = yield* Semaphore.make(1);
 
+    const readStore = (): Effect.Effect<Store, ScriptInputRepositoryError> =>
+      jsonFile.read(path).pipe(
+        Effect.mapError((error: JsonFileError) => wrapJsonError("read", error)),
+        Effect.map((result) => {
+          if (result.status === "missing") return {};
+          return decodeStore(result.value);
+        }),
+      );
+
+    const writeStore = (
+      store: Store,
+    ): Effect.Effect<void, ScriptInputRepositoryError> =>
+      jsonFile
+        .write(path, store)
+        .pipe(
+          Effect.mapError((error: JsonFileError) =>
+            wrapJsonError("write", error),
+          ),
+        );
+
     const getValues = (definition: ScriptInputsDefinition) =>
-      readStore(path).pipe(
+      readStore().pipe(
         Effect.map((store) =>
           normalizeScriptInputValues(definition, store[definition.id] ?? {}),
         ),
@@ -120,8 +119,8 @@ export const layer = Layer.effect(
       writes.withPermits(1)(
         Effect.gen(function* () {
           const normalized = normalizeScriptInputValues(definition, values);
-          const store = yield* readStore(path);
-          yield* writeStore(path, {
+          const store = yield* readStore();
+          yield* writeStore({
             ...store,
             [definition.id]: normalized,
           });

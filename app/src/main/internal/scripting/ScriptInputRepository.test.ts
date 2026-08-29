@@ -12,6 +12,7 @@ import {
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
 import {
   ScriptInputRepository,
   layer as scriptInputRepositoryLayer,
@@ -88,7 +89,12 @@ const makeRepository = () =>
     const repository = yield* ScriptInputRepository.pipe(
       Effect.provide(
         scriptInputRepositoryLayer.pipe(
-          Layer.provide(Layer.succeed(DesktopEnvironment, env)),
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(DesktopEnvironment, env),
+              desktopFileSystemLayer,
+            ),
+          ),
         ),
       ),
     );

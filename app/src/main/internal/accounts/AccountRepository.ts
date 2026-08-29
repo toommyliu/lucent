@@ -12,11 +12,8 @@ import {
   type AccountManagerStorage,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import {
-  type JsonFileError,
-  readJsonFile,
-  writeJsonFile,
-} from "../../settings/JsonFile";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 import { AccountsError } from "./AccountsError";
 
 const ACCOUNT_MANAGER_STORAGE_FILE = "accounts.json";
@@ -48,27 +45,27 @@ export const layer = Layer.effect(
   AccountRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const path = join(env.appDataDir, ACCOUNT_MANAGER_STORAGE_FILE);
     const storageRef =
       yield* SynchronizedRef.make<AccountManagerStorage | null>(null);
 
     const readStorageFromFile = Effect.gen(function* () {
-      const result = yield* readJsonFile(path).pipe(
-        Effect.mapError(wrapJsonError),
-      );
+      const result = yield* jsonFile
+        .read(path)
+        .pipe(Effect.mapError(wrapJsonError));
       if (result.status === "missing") {
         const defaults = emptyAccountManagerStorage();
-        yield* writeJsonFile(
-          path,
-          serializeAccountManagerStorage(defaults),
-        ).pipe(Effect.mapError(wrapJsonError));
+        yield* jsonFile
+          .write(path, serializeAccountManagerStorage(defaults))
+          .pipe(Effect.mapError(wrapJsonError));
         return defaults;
       }
 
       const storage = normalizeAccountManagerStorage(result.value);
-      yield* writeJsonFile(path, serializeAccountManagerStorage(storage)).pipe(
-        Effect.mapError(wrapJsonError),
-      );
+      yield* jsonFile
+        .write(path, serializeAccountManagerStorage(storage))
+        .pipe(Effect.mapError(wrapJsonError));
       return storage;
     });
 
@@ -84,10 +81,9 @@ export const layer = Layer.effect(
 
     const write = (storage: AccountManagerStorage) => {
       const normalized = serializeAccountManagerStorage(storage);
-      return writeJsonFile(path, normalized).pipe(
-        Effect.mapError(wrapJsonError),
-        Effect.as(normalized),
-      );
+      return jsonFile
+        .write(path, normalized)
+        .pipe(Effect.mapError(wrapJsonError), Effect.as(normalized));
     };
 
     const update = (

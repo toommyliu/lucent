@@ -21,7 +21,8 @@ import {
   type ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { makeJsonFile } from "../filesystem/JsonFile";
 
 const FileHashesSchema = Schema.Record(Schema.String, Schema.String);
 
@@ -156,8 +157,9 @@ export const layer = Layer.effect(
   ScriptPackageState,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const statePath = join(env.appDataDir, "script-packages.json");
-    const initial = yield* readJsonFile(statePath).pipe(
+    const initial = yield* jsonFile.read(statePath).pipe(
       Effect.match({
         onFailure: (cause): ScriptPackageLoadState => ({
           status: "failed",
@@ -180,11 +182,14 @@ export const layer = Layer.effect(
     const writeGate = yield* Semaphore.make(1);
 
     const persist = (state: ReadonlyMap<string, ManagedScriptPackage>) =>
-      writeJsonFile(statePath, serializeState(state)).pipe(
-        Effect.mapError(
-          (cause) => new ScriptPackageStateError({ operation: "save", cause }),
-        ),
-      );
+      jsonFile
+        .write(statePath, serializeState(state))
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new ScriptPackageStateError({ operation: "save", cause }),
+          ),
+        );
 
     const mutate = (
       update: (

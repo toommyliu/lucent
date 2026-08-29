@@ -11,7 +11,8 @@ import {
 } from "@lucent/core/scriptPackages";
 import appPackage from "../../../package.json";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { makeJsonFile } from "../filesystem/JsonFile";
 import { acquireBundledScriptPackageLock } from "./BundledScriptPackageLock";
 import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
 import {
@@ -77,6 +78,7 @@ class BundledScriptPackageSetupError extends Schema.TaggedErrorClass<BundledScri
 /** Installs bundled copies once, preserving user removals and unfinished setup. */
 export const initializeBundledScriptPackages = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
+  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
   const state = yield* ScriptPackageState;
   const catalog = yield* ScriptPackageCatalog;
   const sourceRoot = join(env.assetsDir, "..", "script-packages");
@@ -93,7 +95,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     (release) =>
       Effect.gen(function* () {
         if (release === undefined) return;
-        const loaded = yield* readJsonFile(historyPath);
+        const loaded = yield* jsonFile.read(historyPath);
         let history: SetupState =
           loaded.status === "missing"
             ? { version: 1, completed: [], pending: [] }
@@ -120,7 +122,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
         const persist = Effect.fn("BundledScriptPackages.persist")(function* (
           next: SetupState,
         ) {
-          yield* writeJsonFile(historyPath, next);
+          yield* jsonFile.write(historyPath, next);
           history = next;
         }, Effect.uninterruptible);
         if (loaded.status === "missing") yield* persist(history);

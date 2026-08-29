@@ -11,7 +11,8 @@ import * as Semaphore from "effect/Semaphore";
 
 import type { GitHubCredentialSummary } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { readJsonFile, writeJsonFile } from "../settings/JsonFile";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { makeJsonFile } from "../filesystem/JsonFile";
 
 const NonEmptyStringSchema = Schema.String.check(
   Schema.makeFilter((value) => value.trim() !== "", {
@@ -119,8 +120,9 @@ export const layer = Layer.effect(
   GitHubCredentials,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const credentialsPath = join(env.appDataDir, "github-credentials.json");
-    const loaded = yield* readJsonFile(credentialsPath).pipe(
+    const loaded = yield* jsonFile.read(credentialsPath).pipe(
       Effect.match({
         onFailure: (cause): CredentialLoadState => ({
           status: "failed",
@@ -148,25 +150,27 @@ export const layer = Layer.effect(
     );
 
     const persist = (credentials: ReadonlyMap<string, GitHubCredential>) =>
-      writeJsonFile(
-        credentialsPath,
-        {
-          version: 1,
-          credentials: [...credentials.values()]
-            .map(cloneCredential)
-            .sort((left, right) => left.label.localeCompare(right.label)),
-        },
-        { mode: 0o600 },
-      ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new GitHubCredentialsError({
-              operation: "save",
-              detail: "Failed to save GitHub credentials.",
-              cause,
-            }),
-        ),
-      );
+      jsonFile
+        .write(
+          credentialsPath,
+          {
+            version: 1,
+            credentials: [...credentials.values()]
+              .map(cloneCredential)
+              .sort((left, right) => left.label.localeCompare(right.label)),
+          },
+          { mode: 0o600 },
+        )
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new GitHubCredentialsError({
+                operation: "save",
+                detail: "Failed to save GitHub credentials.",
+                cause,
+              }),
+          ),
+        );
 
     const mutate = <Value>(
       update: (

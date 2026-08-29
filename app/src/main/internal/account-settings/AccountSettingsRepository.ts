@@ -15,11 +15,8 @@ import {
   type AccountSettingsPatch,
 } from "@lucent/core/accountSettings";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import {
-  type JsonFileError,
-  readJsonFile,
-  writeJsonFile,
-} from "../../settings/JsonFile";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const ACCOUNT_SETTINGS_DIRECTORY = "account-settings";
 
@@ -93,6 +90,7 @@ export const layer = Layer.effect(
   AccountSettingsRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
     const writes = yield* Semaphore.make(1);
 
     const pathFor = Effect.fn("AccountSettingsRepository.pathFor")(function* (
@@ -109,7 +107,7 @@ export const layer = Layer.effect(
     const readPath = Effect.fn("AccountSettingsRepository.readPath")(function* (
       path: string,
     ) {
-      const result = yield* readJsonFile(path).pipe(
+      const result = yield* jsonFile.read(path).pipe(
         Effect.catch((error: JsonFileError) =>
           error.operation === "parse"
             ? Effect.logWarning({
@@ -142,9 +140,9 @@ export const layer = Layer.effect(
           const path = yield* pathFor(username);
           const current = yield* readPath(path);
           const next = applyAccountSettingsPatch(current, patch);
-          yield* writeJsonFile(path, serializeAccountSettings(next)).pipe(
-            Effect.mapError(wrapJsonError),
-          );
+          yield* jsonFile
+            .write(path, serializeAccountSettings(next))
+            .pipe(Effect.mapError(wrapJsonError));
           return next;
         }),
       );
