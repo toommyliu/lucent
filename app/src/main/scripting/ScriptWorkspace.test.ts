@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { layer as filesystemLayer } from "../filesystem/DesktopFileSystemNode";
 import {
   SCRIPT_WORKSPACE_CONFIG,
   ScriptWorkspace,
@@ -43,6 +44,7 @@ const makeFixture = async () => {
   });
   const testLayer = layer.pipe(
     Layer.provide(Layer.succeed(DesktopEnvironment, environment)),
+    Layer.provide(filesystemLayer),
   );
   const initialize = () =>
     Effect.gen(function* () {

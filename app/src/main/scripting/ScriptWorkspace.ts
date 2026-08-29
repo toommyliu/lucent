@@ -1,4 +1,3 @@
-import { constants, promises as fs } from "fs";
 import { join } from "path";
 
 import * as Context from "effect/Context";
@@ -7,6 +6,11 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import {
+  DesktopFileSystem,
+  DesktopFileSystemError,
+  isAlreadyExists,
+} from "../filesystem/DesktopFileSystem";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 const scriptWorkspaceOperationSchema = Schema.Literals([
@@ -62,11 +66,6 @@ export const SCRIPT_WORKSPACE_CONFIG = `${JSON.stringify(
   2,
 )}\n`;
 
-const isAlreadyPresent = (cause: unknown): boolean =>
-  cause instanceof Error &&
-  "code" in cause &&
-  (cause as { readonly code?: unknown }).code === "EEXIST";
-
 const makeError = (
   operation: typeof scriptWorkspaceOperationSchema.Type,
   path: string,
@@ -77,6 +76,7 @@ export const layer = Layer.effect(
   ScriptWorkspace,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const filesystem = yield* DesktopFileSystem;
     const { packagesDir, scriptsDir } = resolveScriptWorkspacePaths(
       env.workspaceDir,
     );
@@ -87,32 +87,39 @@ export const layer = Layer.effect(
       : join(env.assetsDir, "..", "script-api.d.ts");
 
     const createDirectory = (path: string) =>
-      Effect.tryPromise({
-        try: () => fs.mkdir(path, { recursive: true }),
-        catch: (cause) => makeError("create-directory", path, cause),
-      }).pipe(Effect.asVoid);
+      filesystem
+        .makeDirectory(path, { recursive: true })
+        .pipe(
+          Effect.mapError((error) =>
+            makeError("create-directory", path, error),
+          ),
+        );
 
-    const createConfig = Effect.tryPromise({
-      try: () =>
-        fs.writeFile(configPath, SCRIPT_WORKSPACE_CONFIG, {
-          encoding: "utf8",
-          flag: "wx",
-        }),
-      catch: (cause) => makeError("create-config", configPath, cause),
-    }).pipe(
-      Effect.catch((error) =>
-        isAlreadyPresent(error.cause) ? Effect.void : Effect.fail(error),
-      ),
-    );
+    const createConfig = filesystem
+      .writeFile(configPath, SCRIPT_WORKSPACE_CONFIG, { exclusive: true })
+      .pipe(
+        Effect.mapError((error) =>
+          makeError("create-config", configPath, error),
+        ),
+        Effect.catch((error) =>
+          error.cause instanceof DesktopFileSystemError &&
+          isAlreadyExists(error.cause)
+            ? Effect.void
+            : Effect.fail(error),
+        ),
+      );
 
-    const copyTypes = Effect.tryPromise({
-      try: () => fs.copyFile(templatePath, typesPath, constants.COPYFILE_EXCL),
-      catch: (cause) => makeError("copy-types", typesPath, cause),
-    }).pipe(
-      Effect.catch((error) =>
-        isAlreadyPresent(error.cause) ? Effect.void : Effect.fail(error),
-      ),
-    );
+    const copyTypes = filesystem
+      .copyFile(templatePath, typesPath, { exclusive: true })
+      .pipe(
+        Effect.mapError((error) => makeError("copy-types", typesPath, error)),
+        Effect.catch((error) =>
+          error.cause instanceof DesktopFileSystemError &&
+          isAlreadyExists(error.cause)
+            ? Effect.void
+            : Effect.fail(error),
+        ),
+      );
 
     return ScriptWorkspace.of({
       initialize: Effect.gen(function* () {

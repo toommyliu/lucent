@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
+import * as DesktopFileSystemNode from "../filesystem/DesktopFileSystemNode";
 import * as DesktopGameRendererRecovery from "./DesktopGameRendererRecovery";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChromiumPerformanceRecording";
@@ -57,8 +58,9 @@ export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
 ) => {
   const environmentLayer = DesktopEnvironment.layer(envConfig);
+  const filesystemLayer = DesktopFileSystemNode.layer;
   const observabilityLayer = DesktopObservability.layer.pipe(
-    Layer.provideMerge(environmentLayer),
+    Layer.provideMerge(Layer.mergeAll(environmentLayer, filesystemLayer)),
   );
   const effectLoggerLayer =
     envConfig.debug === true
@@ -124,7 +126,12 @@ export const makeDesktopLayer = (
 
   const performanceTraceLayer = DesktopPerformanceTrace.layer.pipe(
     Layer.provideMerge(
-      Layer.mergeAll(ElectronApp.layer, environmentLayer, observabilityLayer),
+      Layer.mergeAll(
+        ElectronApp.layer,
+        environmentLayer,
+        observabilityLayer,
+        filesystemLayer,
+      ),
     ),
   );
 
@@ -179,7 +186,9 @@ export const makeDesktopLayer = (
   );
 
   const scriptingLayer = Layer.mergeAll(
-    ScriptWorkspace.layer.pipe(Layer.provideMerge(environmentLayer)),
+    ScriptWorkspace.layer.pipe(
+      Layer.provideMerge(Layer.mergeAll(environmentLayer, filesystemLayer)),
+    ),
     gitHubCredentialsLayer,
     gitHubScriptPackageClientLayer,
     scriptPackageCatalogLayer,
@@ -197,6 +206,7 @@ export const makeDesktopLayer = (
           scriptFilesLayer,
           scriptPackageCatalogLayer,
           scriptSourceRegistryLayer,
+          filesystemLayer,
         ),
       ),
     ),
@@ -240,6 +250,7 @@ export const makeDesktopLayer = (
           environmentLayer,
           observabilityLayer,
           windowsLayer,
+          filesystemLayer,
         ),
       ),
     );
@@ -307,6 +318,7 @@ export const makeDesktopLayer = (
         chromiumPerformanceRecordingLayer,
         performanceTraceLayer,
         settingsLayer,
+        filesystemLayer,
         updatesLayer,
         windowsLayer,
       ),
@@ -351,5 +363,6 @@ export const makeDesktopLayer = (
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,
+    filesystemLayer,
   );
 };

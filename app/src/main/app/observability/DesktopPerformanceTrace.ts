@@ -1,4 +1,3 @@
-import { promises as fs } from "fs";
 import { cpus, totalmem } from "os";
 import { join } from "path";
 
@@ -10,6 +9,7 @@ import * as Schema from "effect/Schema";
 
 import { ElectronApp } from "../../electron/ElectronApp";
 import { DesktopEnvironment } from "../DesktopEnvironment";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
 import { makeListenerRegistry } from "../ListenerRegistry";
 import { DesktopObservability } from "./DesktopObservability";
 
@@ -437,6 +437,7 @@ const traceFileName = (startedAt: string): string =>
 const makeDesktopPerformanceTrace = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
+  const filesystem = yield* DesktopFileSystem;
   const observability = yield* DesktopObservability;
   const stateChanges = makeListenerRegistry<DesktopPerformanceTraceState>();
   const context = yield* Effect.context<never>();
@@ -551,17 +552,20 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       startedAtMs: current.startedAtMs,
     });
     const filePath = join(tracesDir, traceFileName(current.startedAt));
-    const writeTrace = Effect.tryPromise({
-      try: async () => {
-        await fs.mkdir(tracesDir, { recursive: true });
-        await fs.writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, {
-          encoding: "utf8",
-          flag: "wx",
-        });
-      },
-      catch: (cause) =>
-        new DesktopPerformanceTraceWriteError({ cause, filePath }),
-    });
+    const writeTrace = filesystem
+      .makeDirectory(tracesDir, { recursive: true })
+      .pipe(
+        Effect.flatMap(() =>
+          filesystem.writeFile(
+            filePath,
+            `${JSON.stringify(document, null, 2)}\n`,
+            { exclusive: true },
+          ),
+        ),
+        Effect.mapError(
+          (cause) => new DesktopPerformanceTraceWriteError({ cause, filePath }),
+        ),
+      );
 
     yield* writeTrace.pipe(
       Effect.catch((error) =>

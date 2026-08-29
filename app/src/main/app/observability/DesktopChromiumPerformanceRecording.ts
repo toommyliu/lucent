@@ -1,4 +1,3 @@
-import { promises as fs } from "fs";
 import { cpus, totalmem } from "os";
 import { basename, join } from "path";
 
@@ -34,6 +33,7 @@ import {
   type ChromiumTraceRotationReason,
 } from "./ChromiumPerformanceRecordingModel";
 import { DesktopEnvironment } from "../DesktopEnvironment";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
 import { makeListenerRegistry } from "../ListenerRegistry";
 import { DesktopObservability } from "./DesktopObservability";
 import {
@@ -290,42 +290,44 @@ const errorMessage = (cause: unknown): string =>
     : String(cause);
 
 const writeJsonArtifact = (
+  filesystem: DesktopFileSystem["Service"],
   filePath: string,
   value: unknown,
 ): Effect.Effect<void, ChromiumPerformanceArtifactError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const temporaryPath = `${filePath}.tmp`;
-      await fs.writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
-        encoding: "utf8",
-        flag: "w",
-      });
-      await fs.rename(temporaryPath, filePath);
-    },
-    catch: (cause) => new ChromiumPerformanceArtifactError({ cause, filePath }),
-  });
+  filesystem
+    .writeFile(`${filePath}.tmp`, `${JSON.stringify(value, null, 2)}\n`)
+    .pipe(
+      Effect.flatMap(() => filesystem.rename(`${filePath}.tmp`, filePath)),
+      Effect.mapError(
+        (cause) => new ChromiumPerformanceArtifactError({ cause, filePath }),
+      ),
+    );
 
 const createRecordingDirectory = (
+  filesystem: DesktopFileSystem["Service"],
   rootPath: string,
   sessionPath: string,
 ): Effect.Effect<void, ChromiumPerformanceArtifactError> =>
-  Effect.tryPromise({
-    try: async () => {
-      await fs.mkdir(rootPath, { recursive: true });
-      await fs.mkdir(sessionPath, { recursive: false });
-    },
-    catch: (cause) =>
-      new ChromiumPerformanceArtifactError({ cause, filePath: sessionPath }),
-  });
+  filesystem.makeDirectory(rootPath, { recursive: true }).pipe(
+    Effect.flatMap(() => filesystem.makeDirectory(sessionPath)),
+    Effect.mapError(
+      (cause) =>
+        new ChromiumPerformanceArtifactError({ cause, filePath: sessionPath }),
+    ),
+  );
 
 const createDirectory = (
+  filesystem: DesktopFileSystem["Service"],
   path: string,
 ): Effect.Effect<void, ChromiumPerformanceArtifactError> =>
-  Effect.tryPromise({
-    try: () => fs.mkdir(path, { recursive: true }).then(() => undefined),
-    catch: (cause) =>
-      new ChromiumPerformanceArtifactError({ cause, filePath: path }),
-  });
+  filesystem
+    .makeDirectory(path, { recursive: true })
+    .pipe(
+      Effect.mapError(
+        (cause) =>
+          new ChromiumPerformanceArtifactError({ cause, filePath: path }),
+      ),
+    );
 
 const sessionDirectoryName = (startedAt: string): string =>
   `lucent-chromium-recording-${chromiumRecordingTimestamp(startedAt)}-${process.pid}`;
@@ -350,6 +352,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   const chromium = yield* ElectronChromiumPerformance;
   const electronApp = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
+  const filesystem = yield* DesktopFileSystem;
   const observability = yield* DesktopObservability;
   const windows = yield* DesktopWindows;
   const operationGate = yield* Semaphore.make(1);
@@ -415,6 +418,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     endedAt?: string,
   ) =>
     writeJsonArtifact(
+      filesystem,
       join(current.sessionPath, MANIFEST_FILE_NAME),
       buildManifest(current, status, endedAt),
     );
@@ -719,7 +723,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     const sessionPath = join(recordingsRoot, sessionDirectoryName(startedAt));
-    yield* createRecordingDirectory(recordingsRoot, sessionPath);
+    yield* createRecordingDirectory(filesystem, recordingsRoot, sessionPath);
 
     const cpuList = cpus();
     const traceConfig: TraceConfig = {
@@ -864,7 +868,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       HEAP_SNAPSHOTS_DIRECTORY_NAME,
       directoryName,
     );
-    yield* createDirectory(checkpointPath);
+    yield* createDirectory(filesystem, checkpointPath);
 
     const mainFileName = "main.heapsnapshot";
     const mainSnapshot = yield* snapshotArtifact({
@@ -1001,6 +1005,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       schemaVersion: CHROMIUM_PERFORMANCE_RECORDING_SCHEMA_VERSION,
     };
     yield* writeJsonArtifact(
+      filesystem,
       join(current.sessionPath, RESOURCES_FILE_NAME),
       resources,
     );

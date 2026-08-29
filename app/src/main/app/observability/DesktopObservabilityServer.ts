@@ -1,4 +1,3 @@
-import { promises as fs } from "fs";
 import {
   createServer,
   type IncomingMessage,
@@ -19,6 +18,10 @@ import type { AccountManagerState } from "@lucent/core/accounts";
 import { GameConsoleIpc } from "../../../shared/ipc";
 import { Accounts } from "../../internal/accounts/Accounts";
 import { DesktopWindows } from "../../window/DesktopWindows";
+import {
+  DesktopFileSystem,
+  DesktopFileSystemError,
+} from "../../filesystem/DesktopFileSystem";
 import { DesktopObservability } from "./DesktopObservability";
 import {
   type GameConsoleMessageQuery,
@@ -82,6 +85,9 @@ interface DesktopObservabilityHttpHandlerOptions {
   readonly consoleClients: Set<SseClient>;
   readonly traceClients: Set<SseClient>;
   readonly traceSnapshot: DesktopObservability["Service"]["traceSnapshot"];
+  readonly readAsset?: (
+    path: string,
+  ) => Effect.Effect<Uint8Array, DesktopFileSystemError>;
 }
 
 const decodeRendererMessagePayload = Option.liftThrowable(
@@ -161,10 +167,9 @@ const writeJson = (
   );
 };
 
-const errorCode = (cause: unknown): string | undefined =>
-  cause instanceof Error && "code" in cause
-    ? (cause as NodeJS.ErrnoException).code
-    : undefined;
+const isMissingAsset = (cause: unknown): boolean =>
+  cause instanceof DesktopFileSystemError &&
+  (cause.reason === "NotFound" || cause.reason === "BadResource");
 
 const contentTypeFor = (path: string): string =>
   CONTENT_TYPES[extname(path).toLocaleLowerCase()] ??
@@ -200,6 +205,9 @@ const observabilityAssetPath = (assetRoot: string, url: URL): string | null => {
 const serveObservabilityAsset = (
   response: ServerResponse,
   path: string | null,
+  readAsset?: (
+    path: string,
+  ) => Effect.Effect<Uint8Array, DesktopFileSystemError>,
 ): void => {
   response.setHeader(
     "Content-Security-Policy",
@@ -210,11 +218,19 @@ const serveObservabilityAsset = (
     return;
   }
 
-  void fs
-    .readFile(path)
+  if (readAsset === undefined) {
+    writeResponse(
+      response,
+      500,
+      "text/plain; charset=utf-8",
+      "Failed to read an observability viewer asset",
+    );
+    return;
+  }
+  void Effect.runPromise(readAsset(path))
     .then((body) => writeResponse(response, 200, contentTypeFor(path), body))
     .catch((cause: unknown) => {
-      if (errorCode(cause) === "ENOENT" || errorCode(cause) === "EISDIR") {
+      if (isMissingAsset(cause)) {
         writeResponse(response, 404, "text/plain; charset=utf-8", "Not found");
         return;
       }
@@ -356,7 +372,7 @@ export const createDesktopObservabilityHttpHandler =
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const assetPath = observabilityAssetPath(options.assetRoot, url);
     if (assetPath !== null) {
-      serveObservabilityAsset(response, assetPath);
+      serveObservabilityAsset(response, assetPath, options.readAsset);
       return;
     }
 
@@ -446,6 +462,7 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
   const accounts = yield* Accounts;
   const observability = yield* DesktopObservability;
   const windows = yield* DesktopWindows;
+  const filesystem = yield* DesktopFileSystem;
 
   const install: DesktopObservabilityServerShape["install"] = Effect.fn(
     "DesktopObservabilityServer.install",
@@ -569,6 +586,8 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
         consoleClients,
         traceClients,
         traceSnapshot: observability.traceSnapshot,
+        readAsset: (path) =>
+          filesystem.readFile(path, { maxBytes: 8 * 1024 * 1024 }),
       }),
     );
     let cleanedUp = false;

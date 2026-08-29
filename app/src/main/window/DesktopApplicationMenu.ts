@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-
 import {
   Menu,
   app,
@@ -21,6 +19,7 @@ import {
   type DesktopChromiumPerformanceRecordingState,
 } from "../app/observability/DesktopChromiumPerformanceRecording";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
 import { DesktopObservability } from "../app/observability/DesktopObservability";
 import {
   DesktopPerformanceTrace,
@@ -92,6 +91,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     yield* DesktopChromiumPerformanceRecording;
   const dialog = yield* ElectronDialog;
   const env = yield* DesktopEnvironment;
+  const filesystem = yield* DesktopFileSystem;
   const observability = yield* DesktopObservability;
   const performanceTrace = yield* DesktopPerformanceTrace;
   const settings = yield* DesktopSettings;
@@ -341,16 +341,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const removeDirectory = (
     path: string,
   ): Effect.Effect<void, DesktopFlashDataClearError> =>
-    Effect.tryPromise({
-      try: async () => {
-        await fs.rmdir(path, { recursive: true }).catch((cause: unknown) => {
-          if ((cause as NodeJS.ErrnoException).code !== "ENOENT") {
-            throw cause;
-          }
-        });
-      },
-      catch: (cause) => new DesktopFlashDataClearError({ cause }),
-    });
+    filesystem
+      .removeDirectory(path, { recursive: true, ignoreMissing: true })
+      .pipe(
+        Effect.mapError((cause) => new DesktopFlashDataClearError({ cause })),
+      );
 
   const clearAppData: Effect.Effect<void, DesktopAppDataClearError> =
     Effect.tryPromise({
