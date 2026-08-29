@@ -405,8 +405,8 @@ export interface DesktopEnvironmentBridge {
   readonly addItem: (name: string) => Promise<EnvironmentState>;
   readonly addItems: (names: readonly string[]) => Promise<EnvironmentState>;
   readonly addQuest: (
-    questId: number | string,
-    rewardItemId?: number | string,
+    questId: number,
+    rewardItemId?: number,
   ) => Promise<EnvironmentState>;
   readonly addQuests: (
     quests: readonly EnvironmentQuestRegistration[],
@@ -414,9 +414,7 @@ export interface DesktopEnvironmentBridge {
   readonly clear: () => Promise<EnvironmentState>;
   readonly clearBoosts: () => Promise<EnvironmentState>;
   readonly clearItems: () => Promise<EnvironmentState>;
-  readonly clearQuestReward: (
-    questId: number | string,
-  ) => Promise<EnvironmentState>;
+  readonly clearQuestReward: (questId: number) => Promise<EnvironmentState>;
   readonly clearQuests: () => Promise<EnvironmentState>;
   readonly fetchBoosts: () => Promise<EnvironmentBoostDiscovery>;
   readonly getState: () => Promise<EnvironmentState>;
@@ -435,7 +433,7 @@ export interface DesktopEnvironmentBridge {
   ) => () => void;
   readonly removeBoost: (name: string) => Promise<EnvironmentState>;
   readonly removeItem: (name: string) => Promise<EnvironmentState>;
-  readonly removeQuest: (questId: number | string) => Promise<EnvironmentState>;
+  readonly removeQuest: (questId: number) => Promise<EnvironmentState>;
   readonly setAutomationEnabled: (
     capability: EnvironmentAutomationCapability,
     enabled: boolean,
@@ -451,8 +449,8 @@ export interface DesktopEnvironmentBridge {
     options: EnvironmentQuestAutoRegisterOptions,
   ) => Promise<EnvironmentState>;
   readonly setQuestReward: (
-    questId: number | string,
-    rewardItemId: number | string,
+    questId: number,
+    rewardItemId: number,
   ) => Promise<EnvironmentState>;
   readonly syncToAll: () => Promise<EnvironmentState>;
   readonly withdrawBoosts: (

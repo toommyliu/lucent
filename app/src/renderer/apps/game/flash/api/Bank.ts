@@ -169,11 +169,11 @@ export const makeBank = Effect.fnUntraced(function* (
       openView(options.view ?? "regular", options.force ?? false),
     );
 
-  const contains = (selector: ItemQuery, requested?: number) =>
+  const contains = (selector: ItemQuery, quantity?: number) =>
     get(selector).pipe(
       Effect.map(
         (item) =>
-          item !== null && item.quantity >= normalizeItemQuantity(requested),
+          item !== null && item.quantity >= normalizeItemQuantity(quantity),
       ),
     );
 
@@ -207,7 +207,7 @@ export const makeBank = Effect.fnUntraced(function* (
             response = decoded.value;
             return true;
           },
-          wireType: "json",
+          encoding: "json",
         },
         {
           timeout: "5 seconds",
@@ -254,7 +254,7 @@ export const makeBank = Effect.fnUntraced(function* (
             response = decoded.value;
             return true;
           },
-          wireType: "json",
+          encoding: "json",
         },
         {
           timeout: "5 seconds",
@@ -294,7 +294,7 @@ export const makeBank = Effect.fnUntraced(function* (
               decoded.value.bankItemID === bankItem.itemId
             );
           },
-          wireType: "json",
+          encoding: "json",
         },
         {
           timeout: "5 seconds",

@@ -33,7 +33,7 @@ describe("AutoAttack", () => {
         const fibers = yield* FiberMap.make<string>();
         const api = {
           combat: {
-            attackMonster: () => Effect.succeed(true),
+            attack: () => Effect.succeed(true),
             cancelAutoAttack: () =>
               Ref.update(cancellations, (count) => count + 1),
             cancelTarget: () => Ref.update(cancellations, (count) => count + 1),
@@ -105,7 +105,7 @@ describe("AutoAttack", () => {
         const fibers = yield* FiberMap.make<string>();
         const api = {
           combat: {
-            attackMonster: () =>
+            attack: () =>
               Deferred.succeed(attackStarted, undefined).pipe(
                 Effect.andThen(Effect.die("attack exploded")),
               ),

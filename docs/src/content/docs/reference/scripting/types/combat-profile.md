@@ -14,7 +14,7 @@ type CombatProfile = {
     readonly delayMs: number;
     readonly cooldownMode: "use-if-ready" | "wait-for-cooldown";
     readonly steps: readonly {
-        readonly skill: number;
+        readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
         readonly conditions: readonly ({
             readonly type: "self-hp" | "self-mp" | "ally-hp";
             readonly op: "<=" | ">=";
@@ -35,11 +35,11 @@ type CombatProfile = {
     readonly resetSkillIndexOnTargetDeath?: boolean;
     readonly messageTriggers?: readonly {
         readonly messageIncludes: string;
-        readonly skill: number;
+        readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
         readonly source: "aura" | "animation" | "any";
         readonly cooldownMs?: number;
     }[];
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L100" aria-label="Open source: packages/core/src/combatProfiles.ts:100" title="packages/core/src/combatProfiles.ts:100" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:100</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L105" aria-label="Open source: packages/core/src/combatProfiles.ts:105" title="packages/core/src/combatProfiles.ts:105" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:105</code></a></p>

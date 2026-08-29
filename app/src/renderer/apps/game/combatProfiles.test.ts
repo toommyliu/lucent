@@ -6,6 +6,7 @@ import * as Ref from "effect/Ref";
 
 import type {
   CombatProfile,
+  CombatProfileMessageTrigger,
   CombatProfileStep,
 } from "@lucent/core/combatProfiles";
 import {
@@ -253,7 +254,7 @@ describe("combat profile runtime", () => {
           ),
         ).toBe(false);
         expect(casts).toEqual([1]);
-        expect(castOptions).toEqual([{ target: 7, wait: true }]);
+        expect(castOptions).toEqual([{ target: 7, waitUntilReady: true }]);
 
         hp = 100;
         laterPriorityReady = false;
@@ -439,7 +440,7 @@ describe("combat profile runtime", () => {
             return true;
           }),
       });
-      const trigger = {
+      const trigger: CombatProfileMessageTrigger = {
         cooldownMs: 1_000,
         messageIncludes: "enrage",
         skill: 5,
@@ -494,9 +495,9 @@ describe("combat profile runtime", () => {
 
       expect(skills).toEqual([5, 5, 5]);
       expect(skillOptions).toEqual([
-        { force: true, target: 7, wait: true },
-        { force: true, target: 7, wait: true },
-        { force: true, target: 7, wait: true },
+        { force: true, target: 7, waitUntilReady: true },
+        { force: true, target: 7, waitUntilReady: true },
+        { force: true, target: 7, waitUntilReady: true },
       ]);
     }),
   );
@@ -521,7 +522,7 @@ describe("combat profile runtime", () => {
             return true;
           }),
       });
-      const trigger = {
+      const trigger: CombatProfileMessageTrigger = {
         cooldownMs: 1_000,
         messageIncludes: "enrage",
         skill: 5,

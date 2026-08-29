@@ -5,7 +5,7 @@ export type {
   Combat,
   CombatKillOptions,
   HuntOptions,
-  Skill,
+  SkillSlot,
   SkillUseOptions,
 } from "./api/Combat";
 export type { Drops } from "./api/Drops";

@@ -13,7 +13,7 @@ type ClientPacket = {
     readonly direction: "client";
     readonly params: readonly string[];
     readonly raw: string;
-    readonly wireType: "str" | "json";
+    readonly encoding: "string" | "json";
 }
 ```
 

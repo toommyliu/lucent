@@ -3,6 +3,10 @@ import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
 
 import type { GatewayService } from "../bridge/Gateway";
+import type {
+  ClientPacketEncoding,
+  ServerPacketEncoding,
+} from "../bridge/Gateway";
 import {
   matchesPacket,
   type Packet as PacketContract,
@@ -33,7 +37,7 @@ const placeholders = [
   "PLAYER_NAME",
 ] as const;
 
-export type ClientPacketSendType = "str" | "json" | "xml";
+export type { ClientPacketEncoding, ServerPacketEncoding };
 
 export const makePacket = Effect.fnUntraced(function* (
   gateway: GatewayService,
@@ -90,22 +94,22 @@ export const makePacket = Effect.fnUntraced(function* (
 
   const once = wait.forPacket;
 
-  const sendClient = (packet: string, type?: ClientPacketSendType) =>
+  const sendToClient = (packet: string, encoding?: ClientPacketEncoding) =>
     resolve(packet).pipe(
-      Effect.flatMap((resolved) => gateway.sendClient(resolved, type)),
+      Effect.flatMap((resolved) => gateway.sendToClient(resolved, encoding)),
     );
 
-  const sendServer = (packet: string, type?: "String" | "Json") =>
+  const sendToServer = (packet: string, encoding?: ServerPacketEncoding) =>
     resolve(packet).pipe(
-      Effect.flatMap((resolved) => gateway.sendServer(resolved, type)),
+      Effect.flatMap((resolved) => gateway.sendToServer(resolved, encoding)),
     );
 
   return {
     on,
     onRaw,
     once,
-    sendClient,
-    sendServer,
+    sendToClient,
+    sendToServer,
     stream,
   };
 });

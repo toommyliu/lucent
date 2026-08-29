@@ -9,7 +9,7 @@ sidebar:
 
 ```ts
 type CombatProfileStepDefinition = Partial<{
-    readonly skill: number;
+    readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
     readonly conditions: readonly ({
         readonly type: "self-hp" | "self-mp" | "ally-hp";
         readonly op: "<=" | ">=";
@@ -29,4 +29,4 @@ type CombatProfileStepDefinition = Partial<{
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L108" aria-label="Open source: packages/core/src/combatProfiles.ts:108" title="packages/core/src/combatProfiles.ts:108" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:108</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L113" aria-label="Open source: packages/core/src/combatProfiles.ts:113" title="packages/core/src/combatProfiles.ts:113" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:113</code></a></p>

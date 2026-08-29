@@ -69,9 +69,7 @@ export interface EnvironmentViewCallbacks {
   readonly clear?: () => Promise<EnvironmentState>;
   readonly clearBoosts?: () => Promise<EnvironmentState>;
   readonly clearItems?: () => Promise<EnvironmentState>;
-  readonly clearQuestReward?: (
-    questId: number | string,
-  ) => Promise<EnvironmentState>;
+  readonly clearQuestReward?: (questId: number) => Promise<EnvironmentState>;
   readonly clearQuests?: () => Promise<EnvironmentState>;
   readonly fetchBoosts?: () => Promise<EnvironmentBoostDiscovery>;
   readonly getState?: () => Promise<EnvironmentState>;
@@ -80,9 +78,7 @@ export interface EnvironmentViewCallbacks {
   ) => () => void;
   readonly removeBoost?: (name: string) => Promise<EnvironmentState>;
   readonly removeItem?: (name: string) => Promise<EnvironmentState>;
-  readonly removeQuest?: (
-    questId: number | string,
-  ) => Promise<EnvironmentState>;
+  readonly removeQuest?: (questId: number) => Promise<EnvironmentState>;
   readonly setAutomationEnabled?: (
     capability: EnvironmentAutomationCapability,
     enabled: boolean,
@@ -98,8 +94,8 @@ export interface EnvironmentViewCallbacks {
     options: EnvironmentQuestAutoRegisterOptions,
   ) => Promise<EnvironmentState>;
   readonly setQuestReward?: (
-    questId: number | string,
-    rewardItemId: number | string,
+    questId: number,
+    rewardItemId: number,
   ) => Promise<EnvironmentState>;
   readonly syncToAll?: () => Promise<EnvironmentState>;
   readonly withdrawBoosts?: (
@@ -235,13 +231,24 @@ export function EnvironmentView(props: EnvironmentViewProps): JSX.Element {
     questId: number,
     value: string,
   ): Promise<void> => {
-    const trimmed = value.trim();
+    const input = value.trim();
+    if (input === "") {
+      await runStateUpdate(
+        props.callbacks?.clearQuestReward?.(questId) ??
+          Promise.resolve(state()),
+      );
+      return;
+    }
+
+    const rewardItemId = Number(input);
+    if (!Number.isSafeInteger(rewardItemId) || rewardItemId <= 0) {
+      setError("Reward item ID must be a positive integer.");
+      return;
+    }
+
     await runStateUpdate(
-      trimmed
-        ? (props.callbacks?.setQuestReward?.(questId, trimmed) ??
-            Promise.resolve(state()))
-        : (props.callbacks?.clearQuestReward?.(questId) ??
-            Promise.resolve(state())),
+      props.callbacks?.setQuestReward?.(questId, rewardItemId) ??
+        Promise.resolve(state()),
     );
   };
 

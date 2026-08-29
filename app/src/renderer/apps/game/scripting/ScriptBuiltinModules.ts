@@ -4,10 +4,12 @@ import * as Effect from "effect/Effect";
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { BridgeService } from "../flash/bridge/Bridge";
 import { makeScriptArmyApi } from "./api/Army";
+import { makeScriptCombatApi } from "./api/Combat";
 import { makeScriptEventsApi } from "./api/Events";
 import { makeScriptEnvironmentApi } from "./api/Environment";
 import { makeScriptPacketApi } from "./api/Packet";
 import { makeScriptPlayerApis } from "./api/Player";
+import { makeScriptPublicServices } from "./api/PublicServices";
 import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
@@ -45,9 +47,7 @@ const makeScriptAutoReloginApi = (
   api: ScriptAutoReloginApi,
 ): ScriptAutoReloginApi =>
   Object.freeze({
-    disable: api.disable,
-    enable: api.enable,
-    getDelay: api.getDelay,
+    getDelayMs: api.getDelayMs,
     getServer: api.getServer,
     getState: api.getState,
     isEnabled: api.isEnabled,
@@ -92,21 +92,58 @@ export const makeScriptBuiltinModules = (
     { policy: options.roomPolicy },
   );
   const settings = makeScriptSettingsApi(options.services.settings);
-  const scriptServices = { ...options.services, player };
-  const recipes = makeScriptRecipesApi(scriptServices);
-  const shops = makeScriptShopsApi(scriptServices, options.bridge);
-  const services = { ...scriptServices, army, players, shops };
+  const recipes = makeScriptRecipesApi({
+    bank: options.services.bank,
+    drops: options.services.drops,
+    inventory: options.services.inventory,
+    player: {
+      joinMap: player.joinMap,
+    },
+    quests: options.services.quests,
+    shops: options.services.shops,
+    wait: options.services.wait,
+  });
+  const shops = makeScriptShopsApi(
+    {
+      inventory: options.services.inventory,
+      player: {
+        getLevel: player.getLevel,
+        isMember: player.isMember,
+        joinMap: player.joinMap,
+      },
+      shops: options.services.shops,
+      wait: options.services.wait,
+    },
+    options.bridge,
+  );
+  const combat = makeScriptCombatApi(options.services.combat);
+  const publicServices = makeScriptPublicServices(options.services);
+  const api: ScriptApi = Object.freeze({
+    army,
+    auth: publicServices.auth,
+    bank: publicServices.bank,
+    combat,
+    drops: publicServices.drops,
+    environment,
+    events,
+    house: publicServices.house,
+    inventory: publicServices.inventory,
+    map: publicServices.map,
+    monsters: publicServices.monsters,
+    packet,
+    player,
+    players,
+    quests: publicServices.quests,
+    recipes,
+    settings,
+    shops,
+    tempInventory: publicServices.tempInventory,
+    wait: publicServices.wait,
+  });
 
   return Object.freeze({
     effect: scriptEffectStd,
-    "lucent/api": Object.freeze({
-      ...services,
-      environment,
-      events,
-      packet,
-      recipes,
-      settings,
-    }),
+    "lucent/api": api,
     "lucent/autorelogin": makeScriptAutoReloginApi(options.autoRelogin),
     "lucent/autozone": makeScriptAutoZoneApi(options.autoZone),
     "lucent/script": options.script,

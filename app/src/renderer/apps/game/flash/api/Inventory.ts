@@ -84,11 +84,11 @@ export const makeInventory = (
   const getUsedSlots = () =>
     store.items.getAll("inventory").pipe(Effect.map((items) => items.length));
 
-  const contains = (selector: ItemQuery, requested?: number) =>
+  const contains = (selector: ItemQuery, quantity?: number) =>
     get(selector).pipe(
       Effect.map(
         (item) =>
-          item !== null && item.quantity >= normalizeItemQuantity(requested),
+          item !== null && item.quantity >= normalizeItemQuantity(quantity),
       ),
     );
 
@@ -130,7 +130,7 @@ export const makeInventory = (
           response = decoded.value;
           return true;
         },
-        wireType: "json",
+        encoding: "json",
       },
       {
         timeout: "5 seconds",
@@ -192,7 +192,7 @@ export const makeInventory = (
                 decoded.value.uid === userId.value
               );
             },
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "5 seconds",

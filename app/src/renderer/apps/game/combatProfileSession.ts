@@ -79,7 +79,7 @@ export interface CombatProfileSessionPreparation {
 }
 
 export interface CombatProfileSessionDependencies {
-  readonly attackMonster: (monsterMapId: number) => Effect.Effect<boolean>;
+  readonly attack: (monsterMapId: number) => Effect.Effect<boolean>;
   readonly getAvailableMonsters: () => Effect.Effect<readonly Monster[]>;
   readonly isAttackBlocked: (monsterMapId: number) => Effect.Effect<boolean>;
   readonly isPlayerAlive: () => Effect.Effect<boolean>;
@@ -527,7 +527,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
 
           const attacked = yield* withFailureStage(
             "attack",
-            dependencies.attackMonster(lease.monster.monsterMapId),
+            dependencies.attack(lease.monster.monsterMapId),
           );
           if (!attacked) {
             return {

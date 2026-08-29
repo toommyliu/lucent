@@ -1,3 +1,4 @@
+import { normalizeItemQuantity } from "@lucent/game";
 import type { ItemQuery } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -7,6 +8,11 @@ import { WireInt } from "../contract/Coercion";
 import type { Store } from "../state/Store";
 
 export const makeHouse = (bridge: BridgeService, store: Store) => {
+  const contains = (selector: ItemQuery, quantity?: number) =>
+    store.items
+      .quantity("house", selector)
+      .pipe(Effect.map((owned) => owned >= normalizeItemQuantity(quantity)));
+
   const getAll = () => store.items.getAll("house");
 
   const getSlots = () =>
@@ -25,6 +31,7 @@ export const makeHouse = (bridge: BridgeService, store: Store) => {
     );
 
   return {
+    contains,
     get,
     getAll,
     getAvailableSlots,

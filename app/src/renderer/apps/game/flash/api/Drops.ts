@@ -57,7 +57,7 @@ export const makeDrops = Effect.fnUntraced(function* (
               response = decoded.value;
               return true;
             },
-            wireType: "json",
+            encoding: "json",
           },
           {
             timeout: "10 seconds",
@@ -87,6 +87,8 @@ export const makeDrops = Effect.fnUntraced(function* (
       .get("drop", selector)
       .pipe(Effect.map((drop) => drop !== null));
   };
+
+  const get = (selector: ItemQuery) => store.items.get("drop", selector);
 
   const getAll = () => store.items.getAll("drop");
 
@@ -119,6 +121,7 @@ export const makeDrops = Effect.fnUntraced(function* (
   return {
     accept,
     contains,
+    get,
     getAll,
     isCustomUiEnabled,
     reject,

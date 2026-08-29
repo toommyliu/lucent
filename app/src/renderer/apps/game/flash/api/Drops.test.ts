@@ -54,6 +54,7 @@ describe("Drops", () => {
           const drops = yield* makeDrops(bridge, store, auth, wait);
           yield* store.items.upsert("drop", drop);
 
+          expect((yield* drops.get("Drop"))?.itemId).toBe(drop.itemId);
           expect(yield* drops.reject(drop.itemId)).toBe(false);
           expect(yield* drops.contains(drop.itemId)).toBe(true);
 

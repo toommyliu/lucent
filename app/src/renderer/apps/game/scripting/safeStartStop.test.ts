@@ -82,7 +82,7 @@ describe("safeStartStop", () => {
             }),
         },
         packet: {
-          sendServer: () =>
+          sendToServer: () =>
             Effect.sync(() => {
               packetSendCount += 1;
               return true;
@@ -141,7 +141,7 @@ describe("safeStartStop", () => {
                 Effect.succeed([{ category: "House", equipped: true }]),
             },
             packet: {
-              sendServer: (packet: string) =>
+              sendToServer: (packet: string) =>
                 Effect.sync(() => {
                   sentPackets.push(packet);
                   inOwnHouse = true;
@@ -205,7 +205,7 @@ describe("safeStartStop", () => {
               getRoomNumber: () => Effect.succeed(1),
             },
             packet: {
-              sendServer: (packet: string) =>
+              sendToServer: (packet: string) =>
                 Effect.sync(() => {
                   sentPackets.push(packet);
                   return true;
@@ -269,7 +269,7 @@ describe("safeStartStop", () => {
             getRoomNumber: () => Effect.succeed(1),
           },
           packet: {
-            sendServer: () => Effect.succeed(true),
+            sendToServer: () => Effect.succeed(true),
           },
           player: {
             isAlive: () => Effect.succeed(true),

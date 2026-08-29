@@ -204,7 +204,7 @@ export const makeMoveToSafeDestination = (services: SafeStartStopServices) => {
             ? Effect.gen(function* () {
                 if (!(yield* auth.isLoggedIn())) return "aborted";
                 if (
-                  !(yield* packet.sendServer(`%xt%zm%house%1%${username}%`))
+                  !(yield* packet.sendToServer(`%xt%zm%house%1%${username}%`))
                 ) {
                   return "retry";
                 }

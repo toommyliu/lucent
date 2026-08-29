@@ -556,7 +556,7 @@ export const projectExtensionWorld = (
       }
       case "uotls": {
         const decoded =
-          packet.wireType === "str"
+          packet.encoding === "string"
             ? decodeStringPlayerUpdate(packet)
             : decodePlayerUpdate(packet.data);
         if (Option.isNone(decoded)) {
@@ -582,7 +582,7 @@ export const projectExtensionWorld = (
         let playersChanged = false;
         if (current === null) {
           const baseline =
-            packet.wireType === "json"
+            packet.encoding === "json"
               ? Option.flatMap(decodeRecord(packet.data), (data) =>
                   Option.flatMap(decodeRecord(data["o"]), (player) =>
                     decodePlayer({
@@ -671,7 +671,7 @@ export const projectExtensionWorld = (
       }
       case "mtls": {
         const decoded =
-          packet.wireType === "str"
+          packet.encoding === "string"
             ? decodeStringMonsterUpdate(packet)
             : decodeMonsterUpdate(packet.data);
         if (Option.isNone(decoded)) {

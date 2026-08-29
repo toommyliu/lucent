@@ -162,7 +162,7 @@ export const makeShops = (
                 : decoded.value;
             return identity.ShopID === shopId;
           },
-          wireType: "json",
+          encoding: "json",
         },
         {
           timeout: "5 seconds",
@@ -219,7 +219,7 @@ export const makeShops = (
                 response = decoded.value;
                 return true;
               },
-              wireType: "json",
+              encoding: "json",
             },
             {
               timeout: "5 seconds",
@@ -280,7 +280,7 @@ export const makeShops = (
   };
 
   const getAll = () => store.items.getAll("shop");
-  const getInfo = () => store.shops.get;
+  const getCurrent = () => store.shops.get;
 
   const getMaxBuyQuantity = (selector: ShopItemQuery) =>
     get(selector).pipe(
@@ -304,12 +304,12 @@ export const makeShops = (
       ),
     );
 
-  const loadArmorCustomize = () =>
+  const openArmorCustomize = () =>
     bridge
       .invoke("shops.loadArmorCustomize", undefined, Schema.Void)
       .pipe(Effect.asVoid);
 
-  const loadHairShop = (shopId: number) => {
+  const openHairShop = (shopId: number) => {
     if (!isShopId(shopId)) return Effect.void;
     return wait.forGameAction("loadHairShop", { timeout: "5 seconds" }).pipe(
       Effect.flatMap((ready) =>
@@ -327,13 +327,13 @@ export const makeShops = (
     close,
     get,
     getAll,
-    getInfo,
+    getCurrent,
     getMaxBuyQuantity,
     isMergeShop,
     isOpen,
     load,
-    loadArmorCustomize,
-    loadHairShop,
+    openArmorCustomize,
+    openHairShop,
     sell,
   };
 };

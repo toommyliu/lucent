@@ -19,7 +19,7 @@ const wheelPacket = (includeOptionalReward: boolean): Packet => ({
   },
   direction: "extension",
   raw: "",
-  wireType: "json",
+  encoding: "json",
 });
 
 const makeDependencies = (packet: Packet) => {

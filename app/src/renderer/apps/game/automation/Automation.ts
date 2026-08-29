@@ -55,9 +55,7 @@ export const makeAutomation = Effect.gen(function* () {
   };
 
   const autoReloginApi = {
-    disable: autoRelogin.disable,
-    enable: autoRelogin.enable,
-    getDelay: autoRelogin.getDelay,
+    getDelayMs: autoRelogin.getDelayMs,
     getServer: autoRelogin.getServer,
     getState: autoRelogin.getState,
     isEnabled: autoRelogin.isEnabled,

@@ -51,7 +51,7 @@ type EventHandler = (event: Event) => Effect.Effect<void, unknown>;
 
 const makeHarness = (options?: {
   readonly alive?: boolean;
-  readonly attackMonster?: (monsterMapId: number) => Effect.Effect<boolean>;
+  readonly attack?: (monsterMapId: number) => Effect.Effect<boolean>;
   readonly isAttackBlocked?: (monsterMapId: number) => boolean;
   readonly monsters?: readonly LiveMonster[];
   readonly preflightWarning?: string;
@@ -69,9 +69,9 @@ const makeHarness = (options?: {
 
   const api = {
     combat: {
-      attackMonster: (monsterMapId: number) => {
+      attack: (monsterMapId: number) => {
         attacks.push(monsterMapId);
-        return options?.attackMonster?.(monsterMapId) ?? Effect.succeed(true);
+        return options?.attack?.(monsterMapId) ?? Effect.succeed(true);
       },
       canUseSkill: () => Effect.succeed(true),
       getConsumableSkillItem: () => Effect.succeed(null),
@@ -240,7 +240,7 @@ describe("CombatProfileRunner", () => {
         expect(dead.attacks).toEqual([]);
 
         const rejected = makeHarness({
-          attackMonster: () => Effect.succeed(false),
+          attack: () => Effect.succeed(false),
         });
         const rejectedRunner = yield* makeCombatProfileRunner(rejected.api, {
           profile,
@@ -287,7 +287,7 @@ describe("CombatProfileRunner", () => {
         );
 
         const attackFailure = makeHarness({
-          attackMonster: () => Effect.die("attack failed"),
+          attack: () => Effect.die("attack failed"),
         });
         const attackRunner = yield* makeCombatProfileRunner(attackFailure.api, {
           profile,

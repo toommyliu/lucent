@@ -17,4 +17,4 @@ type RuntimeEvent = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L5" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:5" title="app/src/renderer/apps/game/flash/contract/Event.ts:5" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:5</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L3" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:3" title="app/src/renderer/apps/game/flash/contract/Event.ts:3" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:3</code></a></p>

@@ -10,7 +10,12 @@ import * as Stream from "effect/Stream";
 import { decodeCallback, type Callback } from "../contract/Callback";
 import type { DiagnosticPhase } from "../contract/Diagnostic";
 import type { Event, RuntimeEvent } from "../contract/Event";
-import type { Packet, PacketDirection, RawPacket } from "../contract/Packet";
+import type {
+  Packet,
+  PacketDirection,
+  PacketEncoding,
+  RawPacket,
+} from "../contract/Packet";
 import {
   isUnsupportedPacketEnvelope,
   parsePacket,
@@ -27,6 +32,20 @@ type CallbackKey =
   | "packetFromServer";
 
 type OwnedCallbacks = Required<Pick<Window, CallbackKey>>;
+
+export type ClientPacketEncoding = PacketEncoding | "xml";
+export type ServerPacketEncoding = PacketEncoding;
+
+const clientPacketTypes = {
+  json: "json",
+  string: "str",
+  xml: "xml",
+} as const;
+
+const serverPacketTypes = {
+  json: "Json",
+  string: "String",
+} as const;
 
 const packetInput = (
   callback: Callback,
@@ -185,7 +204,6 @@ export const makeGateway = (target?: Window) =>
 
         yield* project(packet.value);
         yield* PubSub.publish(packets, packet.value);
-        yield* publishEvent({ type: "packet", packet: packet.value });
       });
 
     const start = (
@@ -211,16 +229,26 @@ export const makeGateway = (target?: Window) =>
         return Effect.forkIn(drain, scope).pipe(Effect.asVoid);
       });
 
-    const sendClient = (packet: string, type = "str") =>
+    const sendToClient = (
+      packet: string,
+      encoding: ClientPacketEncoding = "string",
+    ) =>
       bridge
-        .invoke("flash.sendClientPacket", [packet, type], Schema.Void)
+        .invoke(
+          "flash.sendClientPacket",
+          [packet, clientPacketTypes[encoding]],
+          Schema.Void,
+        )
         .pipe(Effect.map(Option.isSome));
 
-    const sendServer = (packet: string, type = "String") =>
+    const sendToServer = (
+      packet: string,
+      encoding: ServerPacketEncoding = "string",
+    ) =>
       bridge
         .invoke(
           "flash.callGameFunction",
-          [`sfc.send${type}`, packet],
+          [`sfc.send${serverPacketTypes[encoding]}`, packet],
           Schema.String,
         )
         .pipe(Effect.map(Option.isSome));
@@ -232,8 +260,8 @@ export const makeGateway = (target?: Window) =>
       publishEvent,
       reportDiagnostic,
       reportProjectionTrace,
-      sendClient,
-      sendServer,
+      sendToClient,
+      sendToServer,
       start,
       subscribeEvents: PubSub.subscribe(events),
       subscribePackets: PubSub.subscribe(packets),

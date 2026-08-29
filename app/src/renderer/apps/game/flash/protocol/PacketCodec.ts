@@ -82,7 +82,7 @@ export const parseClientPacket = (raw: string) => {
         direction: "client",
         params: packet.params,
         raw,
-        wireType: "str",
+        encoding: "string",
       });
 };
 
@@ -95,7 +95,7 @@ export const parseServerPacket = (raw: string) => {
       data: packet.params,
       direction: "server",
       raw,
-      wireType: "str",
+      encoding: "string",
     });
   }
 
@@ -113,7 +113,7 @@ export const parseServerPacket = (raw: string) => {
             data,
             direction: "server",
             raw,
-            wireType: "json",
+            encoding: "json",
           });
     }
 
@@ -125,7 +125,7 @@ export const parseServerPacket = (raw: string) => {
             data,
             direction: "server",
             raw,
-            wireType: "json",
+            encoding: "json",
           })
         : Option.none();
     });
@@ -145,7 +145,7 @@ export const parseExtensionPacket = (raw: string) => {
               data: envelope.dataObj,
               direction: "extension",
               raw,
-              wireType: "str",
+              encoding: "string",
             })
           : Option.none();
       }
@@ -159,7 +159,7 @@ export const parseExtensionPacket = (raw: string) => {
               data: data.value,
               direction: "extension",
               raw,
-              wireType: "json",
+              encoding: "json",
             })
           : Option.none();
       }

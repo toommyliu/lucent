@@ -13,7 +13,7 @@ type ServerPacket = {
     readonly data: unknown;
     readonly direction: "server";
     readonly raw: string;
-    readonly wireType: "str" | "json";
+    readonly encoding: "string" | "json";
 }
 ```
 

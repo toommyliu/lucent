@@ -46,7 +46,7 @@ export const doWheelOfDoom = Effect.fn("ScriptRecipes.doWheelOfDoom")(
     if (!toBank) return yield* deps.quests.complete(WHEEL_OF_DOOM_QUEST_ID);
 
     const response = yield* deps.wait.forPacket(
-      { command: "Wheel", direction: "extension", wireType: "json" },
+      { command: "Wheel", direction: "extension", encoding: "json" },
       {
         timeout: "5 seconds",
         trigger: deps.quests.complete(WHEEL_OF_DOOM_QUEST_ID),

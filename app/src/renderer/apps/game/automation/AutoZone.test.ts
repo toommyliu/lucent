@@ -39,8 +39,11 @@ describe("AutoZone", () => {
         } as unknown as ApiService;
         const autoZone = yield* makeAutoZone(api, fibers);
 
-        yield* autoZone.setMap("queeniona");
-        yield* autoZone.setEnabled(true);
+        const mapState = yield* autoZone.setMap("queeniona");
+        const enabledState = yield* autoZone.setEnabled(true);
+        const readState = yield* autoZone.getState();
+        expect(mapState).not.toBe(enabledState);
+        expect(enabledState).not.toBe(readState);
         yield* handleEvent!({ type: "zone", map: "queeniona", zone: "A" });
         yield* handleEvent!({ type: "zone", map: "queeniona", zone: "B" });
         yield* TestClock.adjust("500 millis");

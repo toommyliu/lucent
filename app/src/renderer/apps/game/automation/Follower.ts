@@ -448,7 +448,7 @@ export const makeFollower = Effect.fnUntraced(function* (
           {
             command: "warning",
             direction: "server",
-            wireType: "str",
+            encoding: "string",
           },
           (packet) =>
             roomFullWarning(packetMessage(packet.data))
@@ -498,7 +498,7 @@ export const makeFollower = Effect.fnUntraced(function* (
           {
             command: "warning",
             direction: "server",
-            wireType: "str",
+            encoding: "string",
           },
           (packet) =>
             lockedZoneWarning(packetMessage(packet.data))
@@ -509,7 +509,7 @@ export const makeFollower = Effect.fnUntraced(function* (
           {
             command: "server",
             direction: "server",
-            wireType: "str",
+            encoding: "string",
           },
           (packet) =>
             ignoredGoToWarning(packetMessage(packet.data), config.targetName)

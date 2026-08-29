@@ -54,19 +54,15 @@ export interface EnvironmentShape {
   getState(): Effect.Effect<EnvironmentState, unknown>;
   clear(): Effect.Effect<EnvironmentState, unknown>;
   addQuest(
-    questId: number | string,
-    rewardItemId?: number | string,
+    questId: number,
+    rewardItemId?: number,
   ): Effect.Effect<EnvironmentState, unknown>;
-  removeQuest(
-    questId: number | string,
-  ): Effect.Effect<EnvironmentState, unknown>;
+  removeQuest(questId: number): Effect.Effect<EnvironmentState, unknown>;
   setQuestReward(
-    questId: number | string,
-    rewardItemId: number | string,
+    questId: number,
+    rewardItemId: number,
   ): Effect.Effect<EnvironmentState, unknown>;
-  clearQuestReward(
-    questId: number | string,
-  ): Effect.Effect<EnvironmentState, unknown>;
+  clearQuestReward(questId: number): Effect.Effect<EnvironmentState, unknown>;
   clearQuests(): Effect.Effect<EnvironmentState, unknown>;
   /** Update both quest auto-registration options at once. */
   setQuestAutoRegister(

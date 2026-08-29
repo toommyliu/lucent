@@ -76,6 +76,11 @@ export interface WalkToOptions {
   readonly speed?: number;
 }
 
+export interface RestOptions {
+  /** Whether to wait until both HP and MP are full. */
+  readonly waitUntilFull?: boolean;
+}
+
 const toOutfit = (payload: typeof OutfitPayload.Type): LiveOutfit =>
   new LiveOutfit({
     colors: {
@@ -454,35 +459,34 @@ export const makePlayer = (
       return yield* jumpToCell(targetCell, pad);
     });
 
-  const rest = (full = false) =>
+  const rest = (options?: RestOptions) =>
     Effect.gen(function* () {
-      if (!(yield* wait.forGameAction("rest"))) return;
       const current = yield* get();
       if (
         current !== null &&
         current.hp >= current.maxHp &&
         current.mp >= current.maxMp
       )
-        return;
+        return true;
+      if (!(yield* wait.forGameAction("rest"))) return false;
       if (
         Option.isNone(
           yield* bridge.invoke("player.rest", undefined, Schema.Void),
         )
       )
-        return;
-      if (full) {
-        yield* wait.until(
-          get().pipe(
-            Effect.map(
-              (player) =>
-                player !== null &&
-                player.hp >= player.maxHp &&
-                player.mp >= player.maxMp,
-            ),
+        return false;
+      if (options?.waitUntilFull !== true) return true;
+      return yield* wait.until(
+        get().pipe(
+          Effect.map(
+            (player) =>
+              player !== null &&
+              player.hp >= player.maxHp &&
+              player.mp >= player.maxMp,
           ),
-          { timeout: "10 seconds" },
-        );
-      }
+        ),
+        { timeout: "10 seconds" },
+      );
     });
 
   const walkTo = (position: Position, options?: WalkToOptions) =>

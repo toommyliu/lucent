@@ -78,7 +78,7 @@ const makeHarness = Effect.fn("ArmyLoopTaunt.test.makeHarness")(function* (
           return { monsterMapId, success: true };
         }),
       getConsumableSkillItem: () => Effect.succeed({ itemId: 12_917 }),
-      getSkillCooldownRemaining: () => Effect.succeed(0),
+      getSkillCooldownRemainingMs: () => Effect.succeed(0),
       target: {
         get: () => Effect.succeed(null),
       },

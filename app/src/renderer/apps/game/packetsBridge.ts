@@ -14,7 +14,7 @@ import type {
 } from "../../../shared/ipc/packets";
 import type { DesktopGamePacketsBridge } from "../../../shared/desktopBridge";
 import { Api } from "./flash";
-import type { ClientPacketSendType } from "./flash/api/Packet";
+import type { ClientPacketEncoding } from "./flash/api/Packet";
 import type { flashRuntime } from "./flash";
 
 type GameRuntime = Pick<typeof flashRuntime, "runPromise">;
@@ -56,17 +56,17 @@ const sendPacketEffect = Effect.fn("packetsBridge.sendPacket")(function* (
   let sent: boolean;
 
   if (payload.target === "server-string") {
-    sent = yield* api.packet.sendServer(payload.packet, "String");
+    sent = yield* api.packet.sendToServer(payload.packet, "string");
   } else if (payload.target === "server-json") {
-    sent = yield* api.packet.sendServer(payload.packet, "Json");
+    sent = yield* api.packet.sendToServer(payload.packet, "json");
   } else {
-    const clientType: ClientPacketSendType =
+    const encoding: ClientPacketEncoding =
       payload.target === "client-json"
         ? "json"
         : payload.target === "client-xml"
           ? "xml"
-          : "str";
-    sent = yield* api.packet.sendClient(payload.packet, clientType);
+          : "string";
+    sent = yield* api.packet.sendToClient(payload.packet, encoding);
   }
 
   if (!sent) {

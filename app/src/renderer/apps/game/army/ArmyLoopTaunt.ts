@@ -890,7 +890,7 @@ export const makeArmyLoopTauntRuntime = (
                   const [alive, item, cooldownMs] = yield* Effect.all([
                     api.player.isAlive(),
                     api.combat.getConsumableSkillItem(),
-                    api.combat.getSkillCooldownRemaining(
+                    api.combat.getSkillCooldownRemainingMs(
                       LOOP_TAUNT_SCROLL_SKILL,
                     ),
                   ]);
@@ -900,12 +900,17 @@ export const makeArmyLoopTauntRuntime = (
                   if (!assigned) reason = "not-assigned";
                   else if (!alive) reason = "dead";
                   else if (!scrollEquipped) reason = "scroll-not-equipped";
+                  else if (cooldownMs === null) reason = "cooldown-unavailable";
                   else if (cooldownMs > 0) reason = "cooldown";
                   return {
                     alive,
                     cooldownMs,
                     reason,
-                    usable: assigned && alive && scrollEquipped,
+                    usable:
+                      assigned &&
+                      alive &&
+                      scrollEquipped &&
+                      cooldownMs !== null,
                   };
                 }).pipe(
                   Effect.mapError(
@@ -939,7 +944,7 @@ export const makeArmyLoopTauntRuntime = (
                     | "not-ready"
                     | "skipped",
                   details?: {
-                    readonly cooldownMs?: number;
+                    readonly cooldownMs?: number | null;
                     readonly reason?: string;
                   },
                 ) =>
@@ -957,7 +962,7 @@ export const makeArmyLoopTauntRuntime = (
                 const reportNotReady = (
                   commandId: number,
                   readiness: {
-                    readonly cooldownMs: number;
+                    readonly cooldownMs: number | null;
                     readonly reason: string | undefined;
                   },
                 ) =>
@@ -1009,7 +1014,11 @@ export const makeArmyLoopTauntRuntime = (
                           }
 
                           const readiness = yield* participantState;
-                          if (!readiness.usable || readiness.cooldownMs > 0) {
+                          if (
+                            !readiness.usable ||
+                            readiness.cooldownMs === null ||
+                            readiness.cooldownMs > 0
+                          ) {
                             yield* reportNotReady(payload.commandId, readiness);
                             return;
                           }
@@ -1123,6 +1132,7 @@ export const makeArmyLoopTauntRuntime = (
                             const currentReadiness = yield* participantState;
                             if (
                               !currentReadiness.usable ||
+                              currentReadiness.cooldownMs === null ||
                               currentReadiness.cooldownMs > 0
                             ) {
                               yield* reportNotReady(
@@ -1177,7 +1187,7 @@ export const makeArmyLoopTauntRuntime = (
                               Effect.catchCause(() => Effect.succeed(null)),
                             );
                           const cooldownMs =
-                            yield* api.combat.getSkillCooldownRemaining(
+                            yield* api.combat.getSkillCooldownRemainingMs(
                               LOOP_TAUNT_SCROLL_SKILL,
                             );
                           const confirmed =
@@ -1201,7 +1211,7 @@ export const makeArmyLoopTauntRuntime = (
                               dispatchTarget.monsterMapId
                           ) {
                             yield* api.combat
-                              .attackMonster(previousTarget.monsterMapId)
+                              .attack(previousTarget.monsterMapId)
                               .pipe(
                                 Effect.catchCause(() => Effect.succeed(false)),
                               );

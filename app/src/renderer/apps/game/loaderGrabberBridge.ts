@@ -43,10 +43,10 @@ export const loadWithLoaderGrabber = Effect.fn("loaderGrabber.load")(function* (
 
   switch (request.type) {
     case "armor-customizer":
-      yield* api.shops.loadArmorCustomize();
+      yield* api.shops.openArmorCustomize();
       return;
     case "hair-shop":
-      yield* api.shops.loadHairShop(request.id);
+      yield* api.shops.openHairShop(request.id);
       return;
     case "quest":
       if (!(yield* api.quests.load(request.id))) {
@@ -71,7 +71,7 @@ export const grabWithLoaderGrabber = Effect.fn("loaderGrabber.grab")(function* (
 
   switch (request.type) {
     case "shop": {
-      const shop = yield* api.shops.getInfo();
+      const shop = yield* api.shops.getCurrent();
       return shop?.toJSON() ?? null;
     }
     case "quest": {

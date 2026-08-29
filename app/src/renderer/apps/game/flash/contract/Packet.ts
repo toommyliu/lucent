@@ -8,15 +8,15 @@ export const PacketDirection = Schema.Literals([
 ]);
 export type PacketDirection = typeof PacketDirection.Type;
 
-export const PacketWireType = Schema.Literals(["str", "json"]);
-export type PacketWireType = typeof PacketWireType.Type;
+export const PacketEncoding = Schema.Literals(["string", "json"]);
+export type PacketEncoding = typeof PacketEncoding.Type;
 
 export const ClientPacket = Schema.Struct({
   command: Schema.String,
   direction: Schema.Literal("client"),
   params: Schema.Array(Schema.String),
   raw: Schema.String,
-  wireType: PacketWireType,
+  encoding: PacketEncoding,
 });
 export type ClientPacket = typeof ClientPacket.Type;
 
@@ -25,7 +25,7 @@ export const ServerPacket = Schema.Struct({
   data: Schema.Unknown,
   direction: Schema.Literal("server"),
   raw: Schema.String,
-  wireType: PacketWireType,
+  encoding: PacketEncoding,
 });
 export type ServerPacket = typeof ServerPacket.Type;
 
@@ -34,7 +34,7 @@ export const ExtensionPacket = Schema.Struct({
   data: Schema.Unknown,
   direction: Schema.Literal("extension"),
   raw: Schema.String,
-  wireType: PacketWireType,
+  encoding: PacketEncoding,
 });
 export type ExtensionPacket = typeof ExtensionPacket.Type;
 
@@ -54,8 +54,8 @@ export interface RawPacket {
 export interface PacketSelector {
   readonly command?: string;
   readonly direction?: PacketDirection;
+  readonly encoding?: PacketEncoding;
   readonly predicate?: (packet: FlashPacket) => boolean;
-  readonly wireType?: PacketWireType;
 }
 
 export interface WaitOptions {
@@ -93,5 +93,5 @@ export const matchesPacket = <S extends PacketSelector | undefined>(
   (selector?.command === undefined || selector.command === packet.command) &&
   (selector?.direction === undefined ||
     selector.direction === packet.direction) &&
-  (selector?.wireType === undefined || selector.wireType === packet.wireType) &&
+  (selector?.encoding === undefined || selector.encoding === packet.encoding) &&
   (selector?.predicate === undefined || selector.predicate(packet));
