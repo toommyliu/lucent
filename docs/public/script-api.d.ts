@@ -401,7 +401,7 @@ interface ScriptInventoryApi {
   /** @param quantity The minimum quantity required. */
     contains(query: ItemQuery, /** @defaultValue 1 */ quantity?: number): Effect<boolean, never>;
     equip(query: ItemQuery, options?: EquipOptions): Effect<boolean, never>;
-    equipByEnhancement(query: ScriptEquipEnhancementSelector): Effect<boolean, never>;
+    equipByEnhancement(query: ScriptEquipEnhancementSelector, options?: EquipOptions): Effect<boolean, never>;
     get(query: ItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
     getAvailableSlots(): Effect<number, never>;
