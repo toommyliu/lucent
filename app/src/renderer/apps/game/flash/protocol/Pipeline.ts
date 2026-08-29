@@ -31,6 +31,7 @@ export interface ProjectionTrace {
 
 interface EventSink {
   readonly handleEvent?: (event: Event) => Effect.Effect<void>;
+  readonly handleRuntimeEvent?: (event: RuntimeEvent) => Effect.Effect<void>;
   readonly publishEvent: (event: Event) => Effect.Effect<void>;
   readonly reportDiagnostic?: DiagnosticReporter;
   readonly reportProjectionTrace?: (
@@ -198,6 +199,12 @@ export const makePipeline = (
     },
     runtime: (event: RuntimeEvent) =>
       projectAuth(store, event).pipe(
+        Effect.flatMap(publish),
+        Effect.andThen(
+          sink.handleRuntimeEvent === undefined
+            ? Effect.void
+            : sink.handleRuntimeEvent(event),
+        ),
         Effect.andThen(
           sink.handleEvent === undefined
             ? Effect.void

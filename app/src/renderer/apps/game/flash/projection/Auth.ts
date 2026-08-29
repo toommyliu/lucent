@@ -1,15 +1,18 @@
 import * as Effect from "effect/Effect";
 
-import type { RuntimeEvent } from "../contract/Event";
+import type { Event, RuntimeEvent } from "../contract/Event";
 import type { Store } from "../state/Store";
 
-// A new connection begins a projection epoch, but only loss or failure proves
-// that an authenticated session ended.
+// Connection callbacks start a projection epoch; loss and failure also
+// invalidate the authenticated state.
 const lostConnections = new Set(["OnConnectionLost", "OnConnectionFailed"]);
 const resetConnections = new Set([...lostConnections, "OnConnection"]);
 
-export const projectAuth = (store: Store, event: RuntimeEvent) =>
-  event.type === "connection" && resetConnections.has(event.status)
+export const projectAuth = (
+  store: Store,
+  event: RuntimeEvent,
+): Effect.Effect<readonly Event[]> => {
+  return event.type === "connection" && resetConnections.has(event.status)
     ? Effect.all(
         [
           ...(lostConnections.has(event.status)
@@ -23,5 +26,6 @@ export const projectAuth = (store: Store, event: RuntimeEvent) =>
           store.world.clearSelf,
         ],
         { discard: true },
-      )
-    : Effect.void;
+      ).pipe(Effect.as([]))
+    : Effect.succeed([]);
+};

@@ -6,6 +6,12 @@ export type RuntimeEvent =
 
 export type ProjectionEvent =
   | {
+      readonly type: "login";
+    }
+  | {
+      readonly type: "logout";
+    }
+  | {
       readonly afk: boolean;
       readonly entityId: number;
       readonly type: "player-afk";
@@ -103,6 +109,16 @@ export type ProjectionEvent =
 export type Event = RuntimeEvent | ProjectionEvent;
 export type EventType = Event["type"];
 
+export type RuntimeEventSelector =
+  | {
+      readonly status?: string;
+      readonly type: "connection";
+    }
+  | {
+      readonly message?: string;
+      readonly type: "debug";
+    };
+
 /**
  * An event-shaped partial selector. `type` chooses the event variant, and every
  * other field is an exact-match constraint on a scalar field of that variant.
@@ -112,14 +128,9 @@ export type EventType = Event["type"];
  * fail to match instead of selecting events where the field happens to be
  * absent.
  */
-export type EventSelector =
+export type ProjectionEventSelector =
   | {
-      readonly status?: string;
-      readonly type: "connection";
-    }
-  | {
-      readonly message?: string;
-      readonly type: "debug";
+      readonly type: "login" | "logout";
     }
   | {
       readonly afk?: boolean;
@@ -192,6 +203,8 @@ export type EventSelector =
       readonly zone?: string;
     };
 
+export type EventSelector = RuntimeEventSelector | ProjectionEventSelector;
+
 export type EventForSelector<S extends EventSelector | undefined> = S extends {
   readonly type: infer T extends EventType;
 }
@@ -206,6 +219,9 @@ export type EventForType<T extends EventType> = Extract<
 export type EventSelectorForType<T extends EventType> = EventSelector & {
   readonly type: T;
 };
+
+export const isProjectionEvent = (event: Event): event is ProjectionEvent =>
+  event.type !== "connection" && event.type !== "debug";
 
 type Scalar = boolean | number | string;
 

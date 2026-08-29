@@ -70,10 +70,10 @@ import type {
 } from "../flash/api/Packet";
 import type { RestOptions, WalkToOptions } from "../flash/api/Player";
 import type { CompleteQuestOptions } from "../flash/api/Quests";
+
 import type {
-  EventSelector,
   ProjectionEvent,
-  RuntimeEvent,
+  ProjectionEventSelector,
 } from "../flash/contract/Event";
 import type { GameAction } from "../flash/contract/GameAction";
 import type {
@@ -100,9 +100,9 @@ export type { ScriptInputType } from "@lucent/core/scriptInputs";
 export type { ScriptInputsDefinition, ScriptInputValue, ScriptInputValues };
 export type { RoomPolicy };
 
-export type ScriptEvent = RuntimeEvent | ProjectionEvent;
+export type ScriptEvent = ProjectionEvent;
 export type ScriptEventType = ScriptEvent["type"];
-export type ScriptEventSelector = EventSelector;
+export type ScriptEventSelector = ProjectionEventSelector;
 
 export type ScriptEventForType<T extends ScriptEventType> = Extract<
   ScriptEvent,

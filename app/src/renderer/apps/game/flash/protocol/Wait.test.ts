@@ -4,7 +4,7 @@ import * as Fiber from "effect/Fiber";
 import * as PubSub from "effect/PubSub";
 import * as TestClock from "effect/testing/TestClock";
 
-import type { Event } from "../contract/Event";
+import type { Event, ProjectionEvent } from "../contract/Event";
 import type { ExtensionPacket, Packet } from "../contract/Packet";
 import { makeWait } from "./Wait";
 
@@ -52,6 +52,23 @@ describe("Wait", () => {
           { readonly type: "connection" }
         > | null>();
         expect(observedConnection).toEqual(connection);
+
+        const observedLogin = yield* wait.forProjectionEvent(
+          { type: "login" },
+          {
+            timeout: "1 second",
+            trigger: Effect.gen(function* () {
+              yield* PubSub.publish(events, connection);
+              yield* PubSub.publish(events, { type: "login" });
+              return true;
+            }),
+          },
+        );
+        expectTypeOf(observedLogin).toEqualTypeOf<Extract<
+          ProjectionEvent,
+          { readonly type: "login" }
+        > | null>();
+        expect(observedLogin).toEqual({ type: "login" });
 
         const skipped = yield* wait.forPacket(undefined, {
           timeout: "1 hour",
