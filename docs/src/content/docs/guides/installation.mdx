@@ -1,0 +1,36 @@
+---
+title: Installation
+description: Download Lucent, add Flash Player, and update it manually.
+---
+
+## Download Lucent
+
+Download the latest version for your system from the
+[releases page][latest-release].
+
+## Add Flash Player
+
+Lucent does not come with Flash Player. Sorry!
+
+Get a compatible Pepper Flash plugin separately, then place it in
+`Documents/Lucent` with the exact name shown below. Only use a plugin from a
+source you trust.
+
+| System  | Expected file              |
+| ------- | -------------------------- |
+| macOS   | `PepperFlashPlayer.plugin` |
+| Windows | `pepflashplayer.dll`       |
+| Linux   | `libpepflashplayer.so`     |
+
+Create the `Lucent` folder if it does not exist. If the plugin is missing,
+Lucent shows the expected path and closes.
+
+To keep the plugin elsewhere, start Lucent with
+[`--flash-plugin-path`](/reference/cli#options).
+
+## Update Lucent
+
+Lucent can tell you when a new release is available, but it cannot install it.
+Updates must be downloaded manually.
+
+[latest-release]: https://github.com/toommyliu/lucent/releases/latest#assets

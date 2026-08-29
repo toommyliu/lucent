@@ -1,6 +1,6 @@
 import { defineMeta } from "blume";
 
 export default defineMeta({
-  pages: ["index", "combat-profiles", "scripting"],
+  pages: ["index", "installation", "combat-profiles", "scripting"],
   title: "Guides",
 });
