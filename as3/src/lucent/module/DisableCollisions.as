@@ -1,5 +1,7 @@
 package lucent.module {
 	public class DisableCollisions extends Module {
+		private var _empty:Array = [];
+		private var _emptyR:Array = [];
 		private var _old:*;
 		private var _oldR:*;
 
@@ -8,20 +10,47 @@ package lucent.module {
 		}
 
 		override public function onToggle(game:*):void {
+			var world:* = game.world;
 			if (enabled) {
-				_old = game.world.arrSolid;
-				_oldR = game.world.arrSolidR;
-				game.world.arrSolid = [];
-				game.world.arrSolidR = [];
+				disableWorldCollisions(world);
 			}
 			else {
-				game.world.arrSolid = _old;
-				game.world.arrSolidR = _oldR;
+				if (world.arrSolid === _empty) {
+					world.arrSolid = _old;
+				}
+				if (world.arrSolidR === _emptyR) {
+					world.arrSolidR = _oldR;
+				}
+				_old = null;
+				_oldR = null;
 			}
 		}
 
 		override public function onFrame(game:*):void {
-			onToggle(game);
+			disableWorldCollisions(game.world);
+		}
+
+		private function disableWorldCollisions(world:*):void {
+			// Map loading may replace or repopulate these arrays while enabled.
+			// Preserve the latest collision data so disabling restores the current map.
+			if (world.arrSolid !== _empty) {
+				_old = world.arrSolid;
+				world.arrSolid = _empty;
+			}
+			else if (_empty.length > 0) {
+				_old = _empty;
+				_empty = [];
+				world.arrSolid = _empty;
+			}
+			if (world.arrSolidR !== _emptyR) {
+				_oldR = world.arrSolidR;
+				world.arrSolidR = _emptyR;
+			}
+			else if (_emptyR.length > 0) {
+				_oldR = _emptyR;
+				_emptyR = [];
+				world.arrSolidR = _emptyR;
+			}
 		}
 	}
 
