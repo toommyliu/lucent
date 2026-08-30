@@ -71,27 +71,36 @@ jobs:
   generate-docs:
     name: Generate API Documentation
     runs-on: ubuntu-latest
+    env:
+      SKIP_DOCGEN: >-
+        ${{ github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.body, '[skip-docgen]') }}
 
     steps:
       - name: Checkout repository
+        if: env.SKIP_DOCGEN != 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
 
       - name: Setup pnpm
+        if: env.SKIP_DOCGEN != 'true'
         uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
+        if: env.SKIP_DOCGEN != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24.x'
           cache: pnpm
 
       - name: Install dependencies
+        if: env.SKIP_DOCGEN != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Generate documentation
+        if: env.SKIP_DOCGEN != 'true'
         run: pnpm run docgen
 
       - name: Report generated documentation drift
@@ -101,7 +110,6 @@ jobs:
           CAN_AUTO_UPDATE: >-
             ${{ github.event.pull_request.head.repo.full_name == github.repository &&
             github.actor != 'dependabot[bot]' }}
-          SKIP_DOCGEN: ${{ contains(github.event.pull_request.body, '[skip-docgen]') }}
         run: |
           if [ "$SKIP_DOCGEN" = "true" ]; then
             echo "skipped=true" >> "$GITHUB_OUTPUT"
@@ -109,7 +117,7 @@ jobs:
             {
               echo "### Generated scripting docs check skipped"
               echo
-              echo 'The pull request body contains `[skip-docgen]`. This run did not check or commit generated documentation changes.'
+              echo 'The pull request body contains `[skip-docgen]`. This run did not generate, check, or commit scripting documentation.'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -268,7 +276,7 @@ jobs:
           if [ "$DOCGEN_SKIPPED" = "true" ]; then
             conclusion="neutral"
             title="Generated scripting docs check skipped"
-            summary="The pull request body contains \`[skip-docgen]\`."
+            summary="Skipped because the pull request body contains \`[skip-docgen]\`."
           elif [ "$AUTO_UPDATED" = "true" ]; then
             conclusion="success"
             title="Generated scripting docs updated"
