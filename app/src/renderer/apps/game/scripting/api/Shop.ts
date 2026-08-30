@@ -14,9 +14,9 @@ import { EnhancementSelectorSchema } from "../../EnhancementSelectors";
 import type { ApiService } from "../../flash/api/Api";
 import type { BridgeService } from "../../flash/bridge/Bridge";
 import type { Packet } from "../../flash/contract/Packet";
-import type { ScriptEnhanceItemOptions, ScriptShopsApi } from "../ScriptApi";
+import type { ScriptEnhanceItemOptions, ScriptShopApi } from "../ScriptApi";
 
-interface ScriptShopsDependencies {
+interface ScriptShopDependencies {
   readonly inventory: Pick<ApiService["inventory"], "get">;
   readonly player: Pick<
     ApiService["player"],
@@ -78,11 +78,11 @@ const decodeScriptEnhanceItemRequest = Schema.decodeUnknownOption(
   ScriptEnhanceItemRequestSchema,
 );
 
-export const makeScriptShopsApi = (
-  services: ScriptShopsDependencies,
+export const makeScriptShopApi = (
+  services: ScriptShopDependencies,
   bridge: BridgeService,
-): ScriptShopsApi => {
-  const enhanceItem = Effect.fn("ScriptShops.enhanceItem")(function* (
+): ScriptShopApi => {
+  const enhanceItem = Effect.fn("ScriptShop.enhanceItem")(function* (
     item: ItemQuery,
     options: ScriptEnhanceItemOptions,
   ) {
@@ -181,7 +181,7 @@ export const makeScriptShopsApi = (
     return updated !== null && matchesAppliedEnhancement(updated, strategy);
   });
 
-  const shops: ScriptShopsApi = {
+  const shop: ScriptShopApi = {
     buy: services.shops.buy,
     canBuy: services.shops.canBuy,
     close: services.shops.close,
@@ -201,5 +201,5 @@ export const makeScriptShopsApi = (
     openHairShop: services.shops.openHairShop,
     sell: services.shops.sell,
   };
-  return Object.freeze(shops);
+  return Object.freeze(shop);
 };

@@ -717,7 +717,7 @@ export interface ScriptShopQuantityOptions {
   readonly quantity?: number;
 }
 
-export interface ScriptShopsApi {
+export interface ScriptShopApi {
   readonly buy: (
     query: ShopItemQuery,
     options?: ScriptShopQuantityOptions,
@@ -911,7 +911,7 @@ export interface ScriptApi {
   readonly quests: ScriptQuestsApi;
   readonly recipes: ScriptRecipesApi;
   readonly settings: ScriptSettingsApi;
-  readonly shops: ScriptShopsApi;
+  readonly shop: ScriptShopApi;
   readonly tempInventory: ScriptTempInventoryApi;
   readonly wait: ScriptWaitApi;
 }
