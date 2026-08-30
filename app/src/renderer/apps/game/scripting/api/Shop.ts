@@ -196,7 +196,7 @@ export const makeScriptShopApi = (
     getMaxBuyQuantity: services.shops.getMaxBuyQuantity,
     isMergeShop: services.shops.isMergeShop,
     isOpen: services.shops.isOpen,
-    load: services.shops.load,
+    open: services.shops.load,
     openArmorCustomize: services.shops.openArmorCustomize,
     openHairShop: services.shops.openHairShop,
     sell: services.shops.sell,

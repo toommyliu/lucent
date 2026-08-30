@@ -737,7 +737,7 @@ export interface ScriptShopApi {
   readonly getMaxBuyQuantity: (query: ShopItemQuery) => Effect.Effect<number>;
   readonly isMergeShop: () => Effect.Effect<boolean>;
   readonly isOpen: (shopId?: number) => Effect.Effect<boolean>;
-  readonly load: (shopId: number) => Effect.Effect<boolean>;
+  readonly open: (shopId: number) => Effect.Effect<boolean>;
   readonly openArmorCustomize: () => Effect.Effect<void>;
   readonly openHairShop: (shopId: number) => Effect.Effect<void>;
   readonly sell: (
