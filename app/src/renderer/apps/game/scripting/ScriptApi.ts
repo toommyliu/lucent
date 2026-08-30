@@ -21,7 +21,6 @@ import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 import type * as Scope from "effect/Scope";
-import type { pipe } from "effect/Function";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type {
@@ -976,11 +975,221 @@ export interface ScriptRuntimeApi {
   ) => Effect.Effect<never, ScriptStopSignal>;
 }
 
+export type ScriptEffectCatch = {
+  <Error, Recovered, RecoveryError, RecoveryRequirements>(
+    recover: (
+      error: Error,
+    ) => Effect.Effect<Recovered, RecoveryError, RecoveryRequirements>,
+  ): <Value, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<
+    Value | Recovered,
+    RecoveryError,
+    Requirements | RecoveryRequirements
+  >;
+  <Value, Error, Requirements, Recovered, RecoveryError, RecoveryRequirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    recover: (
+      error: Error,
+    ) => Effect.Effect<Recovered, RecoveryError, RecoveryRequirements>,
+  ): Effect.Effect<
+    Value | Recovered,
+    RecoveryError,
+    Requirements | RecoveryRequirements
+  >;
+};
+
+export type ScriptEffectFlatMap = {
+  <Value, Next, NextError, NextRequirements>(
+    next: (value: Value) => Effect.Effect<Next, NextError, NextRequirements>,
+  ): <Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Next, Error | NextError, Requirements | NextRequirements>;
+  <Value, Error, Requirements, Next, NextError, NextRequirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    next: (value: Value) => Effect.Effect<Next, NextError, NextRequirements>,
+  ): Effect.Effect<Next, Error | NextError, Requirements | NextRequirements>;
+};
+
+export type ScriptEffectMap = {
+  <Value, Next>(
+    transform: (value: Value) => Next,
+  ): <Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Next, Error, Requirements>;
+  <Value, Error, Requirements, Next>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    transform: (value: Value) => Next,
+  ): Effect.Effect<Next, Error, Requirements>;
+};
+
+export type ScriptEffectMapError = {
+  <Error, NextError>(
+    transform: (error: Error) => NextError,
+  ): <Value, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Value, NextError, Requirements>;
+  <Value, Error, Requirements, NextError>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    transform: (error: Error) => NextError,
+  ): Effect.Effect<Value, NextError, Requirements>;
+};
+
+export type ScriptEffectTap = {
+  <Value, Next, NextError, NextRequirements>(
+    inspect: (value: Value) => Effect.Effect<Next, NextError, NextRequirements>,
+  ): <Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Value, Error | NextError, Requirements | NextRequirements>;
+  <Value, Error, Requirements, Next, NextError, NextRequirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    inspect: (value: Value) => Effect.Effect<Next, NextError, NextRequirements>,
+  ): Effect.Effect<Value, Error | NextError, Requirements | NextRequirements>;
+};
+
+export type ScriptEffectTimeoutOption = {
+  (
+    duration: Duration.Input,
+  ): <Value, Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Option.Option<Value>, Error, Requirements>;
+  <Value, Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    duration: Duration.Input,
+  ): Effect.Effect<Option.Option<Value>, Error, Requirements>;
+};
+
+export type ScriptEffectTry = {
+  <Value, Error>(options: {
+    readonly try: () => Value;
+    readonly catch: (error: unknown) => Error;
+  }): Effect.Effect<Value, Error>;
+};
+
+export type ScriptEffectTryPromise = {
+  <Value>(
+    evaluate: (signal: AbortSignal) => PromiseLike<Value>,
+  ): Effect.Effect<Value, unknown>;
+  <Value, Error>(options: {
+    readonly try: (signal: AbortSignal) => PromiseLike<Value>;
+    readonly catch: (error: unknown) => Error;
+  }): Effect.Effect<Value, Error>;
+};
+
+export interface ScriptEffectModule {
+  readonly all: <Value, Error, Requirements>(
+    effects: Iterable<Effect.Effect<Value, Error, Requirements>>,
+  ) => Effect.Effect<readonly Value[], Error, Requirements>;
+  readonly as: <Next>(
+    value: Next,
+  ) => <Value, Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<Next, Error, Requirements>;
+  readonly asVoid: <Value, Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<void, Error, Requirements>;
+  readonly catch: ScriptEffectCatch;
+  readonly fail: <Error>(error: Error) => Effect.Effect<never, Error>;
+  readonly flatMap: ScriptEffectFlatMap;
+  readonly forEach: <Value, Next, Error, Requirements>(
+    values: Iterable<Value>,
+    transform: (
+      value: Value,
+      index: number,
+    ) => Effect.Effect<Next, Error, Requirements>,
+  ) => Effect.Effect<readonly Next[], Error, Requirements>;
+  readonly map: ScriptEffectMap;
+  readonly mapError: ScriptEffectMapError;
+  readonly sleep: (duration: Duration.Input) => Effect.Effect<void>;
+  readonly succeed: <Value>(value: Value) => Effect.Effect<Value>;
+  readonly sync: <Value>(evaluate: () => Value) => Effect.Effect<Value>;
+  readonly tap: ScriptEffectTap;
+  readonly timeoutOption: ScriptEffectTimeoutOption;
+  readonly try: ScriptEffectTry;
+  readonly tryPromise: ScriptEffectTryPromise;
+  readonly void: Effect.Effect<void>;
+}
+
+export type ScriptOptionGetOrElse = {
+  <Fallback>(
+    onNone: () => Fallback,
+  ): <Value>(option: Option.Option<Value>) => Value | Fallback;
+  <Value, Fallback>(
+    option: Option.Option<Value>,
+    onNone: () => Fallback,
+  ): Value | Fallback;
+};
+
+export type ScriptOptionMap = {
+  <Value, Next>(
+    transform: (value: Value) => Next,
+  ): (option: Option.Option<Value>) => Option.Option<Next>;
+  <Value, Next>(
+    option: Option.Option<Value>,
+    transform: (value: Value) => Next,
+  ): Option.Option<Next>;
+};
+
+export type ScriptOptionIsNone = <Value>(
+  option: Option.Option<Value>,
+) => option is Extract<Option.Option<Value>, { readonly _tag: "None" }>;
+
+export type ScriptOptionIsSome = <Value>(
+  option: Option.Option<Value>,
+) => option is Extract<Option.Option<Value>, { readonly _tag: "Some" }>;
+
+export type ScriptOptionMatch = {
+  <None, Value, Some = None>(options: {
+    readonly onNone: () => None;
+    readonly onSome: (value: Value) => Some;
+  }): (option: Option.Option<Value>) => None | Some;
+  <Value, None, Some = None>(
+    option: Option.Option<Value>,
+    options: {
+      readonly onNone: () => None;
+      readonly onSome: (value: Value) => Some;
+    },
+  ): None | Some;
+};
+
+export interface ScriptOptionModule {
+  readonly getOrElse: ScriptOptionGetOrElse;
+  readonly isNone: ScriptOptionIsNone;
+  readonly isSome: ScriptOptionIsSome;
+  readonly map: ScriptOptionMap;
+  readonly match: ScriptOptionMatch;
+  readonly none: <Value = never>() => Option.Option<Value>;
+  readonly some: <Value>(value: Value) => Option.Option<Value>;
+}
+
+export interface ScriptDurationModule {
+  readonly days: (days: number) => Duration.Duration;
+  readonly hours: (hours: number) => Duration.Duration;
+  readonly millis: (millis: number) => Duration.Duration;
+  readonly minutes: (minutes: number) => Duration.Duration;
+  readonly seconds: (seconds: number) => Duration.Duration;
+  readonly toMillis: (duration: Duration.Input) => number;
+}
+
+export type ScriptPipe = {
+  <A>(value: A): A;
+  <A, B>(value: A, ab: (a: A) => B): B;
+  <A, B, C>(value: A, ab: (a: A) => B, bc: (b: B) => C): C;
+  <A, B, C, D>(value: A, ab: (a: A) => B, bc: (b: B) => C, cd: (c: C) => D): D;
+  <A, B, C, D, E>(
+    value: A,
+    ab: (a: A) => B,
+    bc: (b: B) => C,
+    cd: (c: C) => D,
+    de: (d: D) => E,
+  ): E;
+};
+
 export interface ScriptEffectStd {
-  readonly Duration: typeof Duration;
-  readonly Effect: typeof Effect;
-  readonly Option: typeof Option;
-  readonly pipe: typeof pipe;
+  readonly Duration: ScriptDurationModule;
+  readonly Effect: ScriptEffectModule;
+  readonly Option: ScriptOptionModule;
+  readonly pipe: ScriptPipe;
 }
 
 export type ScriptMain = () => ScriptGenerator<unknown>;
