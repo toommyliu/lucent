@@ -28,6 +28,9 @@ const CLEAN_RELATIVE_PATHS = [
   "docs/.blume-verify/node_modules",
   "docs/.blume-verify/dist",
   "docs/.blume-verify/build",
+  "observability/node_modules",
+  "observability/dist",
+  "observability/build",
   "packages/core/node_modules",
   "packages/core/dist",
   "packages/core/build",
@@ -44,6 +47,7 @@ const CLEAN_RELATIVE_PATHS = [
   "packages/ui/node_modules",
   "packages/ui/dist",
   "packages/ui/build",
+  "storybook-static",
 ] as const;
 const CLEAN_PATHS = CLEAN_RELATIVE_PATHS.map((path) => join(REPO_ROOT, path));
 

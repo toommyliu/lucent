@@ -49,6 +49,6 @@
     "esbuild": "^0.28.1",
     "esbuild-plugin-solid": "^0.6.0",
     "tsx": "^4.19.4",
-    "typescript": "^5.9.3"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }
