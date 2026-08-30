@@ -586,7 +586,7 @@ interface ScriptShopApi {
     getMaxBuyQuantity(query: ShopItemQuery): Effect<number, never>;
     isMergeShop(): Effect<boolean, never>;
     isOpen(shopId?: number): Effect<boolean, never>;
-    load(shopId: number): Effect<boolean, never>;
+    open(shopId: number): Effect<boolean, never>;
     openArmorCustomize(): Effect<void, never>;
     openHairShop(shopId: number): Effect<void, never>;
     sell(query: ItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
