@@ -165,8 +165,8 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.83",
-    "tsdown": "0.20.0-beta.3",
-    "typescript": "^5.9.3",
+    "tsdown": "0.22.14",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^3.2.6"
   }
 }

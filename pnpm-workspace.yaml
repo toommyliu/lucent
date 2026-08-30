@@ -29,5 +29,5 @@ overrides:
   "@effect/platform-node-shared": "4.0.0-beta.83"
   "fast-uri": "^3.1.2"
   "tmp": "^0.2.6"
-  "typescript": "^5.9.3"
+  "typescript": "npm:@typescript/typescript6@^6.0.2"
   "vitest": "^3.2.6"
