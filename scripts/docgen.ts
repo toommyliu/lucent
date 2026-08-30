@@ -786,6 +786,9 @@ const formatExpandedType = (
     )
     .replace(/import\(["'][^"']+["']\)\./g, "");
 
+const isLiteralUnionType = (node: ts.TypeNode): boolean =>
+  ts.isUnionTypeNode(node) && node.types.every(ts.isLiteralTypeNode);
+
 const normalizedTypeText = (value: string): string =>
   value
     .replace(/\s+/g, " ")
@@ -2413,8 +2416,10 @@ const buildAstReferencedTypeDoc = (
     : [];
   const expandedType =
     ts.isTypeAliasDeclaration(declaration) && sourceType !== null
-      ? (getNamedValueUnionType(name, sourceType, namedValues) ??
-        formatExpandedType(checker, declaration.type))
+      ? isLiteralUnionType(declaration.type)
+        ? sourceType
+        : (getNamedValueUnionType(name, sourceType, namedValues) ??
+          formatExpandedType(checker, declaration.type))
       : null;
   const resolvedDefinition =
     sourceType !== null &&
@@ -2433,7 +2438,7 @@ const buildAstReferencedTypeDoc = (
     aliasOf,
     definition: ts.isInterfaceDeclaration(declaration)
       ? `interface ${name}${typeParameters}`
-      : hasEmbeddedDocumentation
+      : hasEmbeddedDocumentation || isLiteralUnionType(declaration.type)
         ? (sourceDefinition ?? `type ${name}${typeParameters} = ${sourceType}`)
         : `type ${name}${typeParameters} = ${sourceType}`,
     resolvedDefinition,

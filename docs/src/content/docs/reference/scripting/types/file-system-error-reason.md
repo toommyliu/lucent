@@ -12,7 +12,21 @@ sidebar:
 Why a filesystem action failed.
 
 ```ts
-type FileSystemErrorReason = "invalid-path" | "not-found" | "not-file" | "not-directory" | "directory-not-empty" | "too-large" | "too-many-entries" | "invalid-utf8" | "invalid-json" | "not-json-serializable" | "permission-denied" | "busy" | "session-closed" | "unavailable"
+type FileSystemErrorReason =
+  | "invalid-path"
+  | "not-found"
+  | "not-file"
+  | "not-directory"
+  | "directory-not-empty"
+  | "too-large"
+  | "too-many-entries"
+  | "invalid-utf8"
+  | "invalid-json"
+  | "not-json-serializable"
+  | "permission-denied"
+  | "busy"
+  | "session-closed"
+  | "unavailable"
 ```
 
 <p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L821" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:821" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:821" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:821</code></a></p>
