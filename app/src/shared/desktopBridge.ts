@@ -260,6 +260,7 @@ export interface DesktopAccountsBridge {
 
 export interface DesktopGameAccountsBridge {
   readonly getGameLaunch: () => Promise<AccountGameLaunchPayload | null>;
+  readonly prepareGameLoadRecovery: () => Promise<void>;
   readonly reportSession: (report: AccountSessionReport) => Promise<void>;
 }
 

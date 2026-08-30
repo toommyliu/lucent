@@ -34,6 +34,7 @@ import {
   TabsTrigger,
   Textarea,
   TooltipIconButton,
+  VisuallyHidden,
 } from "@lucent/ui";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -167,10 +168,9 @@ import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
 
 const desktop = selectDesktopBridge(window.desktop, "game");
 
-interface GameLoadState {
-  readonly loaded: boolean;
-  readonly progress: number;
-}
+type GameLoadState =
+  | Readonly<{ phase: "loading" | "delayed"; progress: number }>
+  | Readonly<{ phase: "loaded"; progress: 100 }>;
 
 type DebugPanelFrame = {
   readonly height: number;
@@ -206,6 +206,7 @@ const DEFAULT_SCRIPT_DEBUG_SOURCE = `return yield* api.player.getCell();`;
 const AUTO_RELOGIN_DEFAULT_DELAY_SECONDS = "3";
 const PLAYER_READY_RETRY_INTERVAL_MS = 250;
 const PLAYER_READY_RETRY_TIMEOUT_MS = 10_000;
+const GAME_LOAD_RECOVERY_DELAY_MS = 10_000;
 const ACCOUNT_LAUNCH_GAME_LOAD_TIMEOUT_MS = 30_000;
 const INACTIVE_FOCUSED_LAYOUT_FRAME_RATE_LIMIT = 2;
 const INACTIVE_GRID_VIEW_FRAME_RATE_LIMIT = 8;
@@ -1187,9 +1188,17 @@ export function App(props: {
     props.initialSettings ?? DEFAULT_APP_SETTINGS,
   );
   const [loadState, setLoadState] = createSignal<GameLoadState>({
-    loaded: false,
+    phase: "loading",
     progress: 0,
   });
+  const loadRecoveryTimer = window.setTimeout(() => {
+    setLoadState((state) =>
+      state.phase === "loading"
+        ? { phase: "delayed", progress: state.progress }
+        : state,
+    );
+  }, GAME_LOAD_RECOVERY_DELAY_MS);
+  onCleanup(() => window.clearTimeout(loadRecoveryTimer));
   let resolveGameLoaded: (() => void) | undefined;
   const gameLoadedPromise = new Promise<void>((resolve) => {
     resolveGameLoaded = () => resolve();
@@ -1321,8 +1330,12 @@ export function App(props: {
   const [selectedCell, setSelectedCell] = createSignal(DEFAULT_CELL);
   const [selectedPad, setSelectedPad] = createSignal(DEFAULT_PAD);
   const [travelBusy, setTravelBusy] = createSignal(false);
-  const gameLoaded = createMemo(() => loadState().loaded);
+  const gameLoaded = createMemo(() => loadState().phase === "loaded");
+  const gameLoadDelayed = createMemo(() => loadState().phase === "delayed");
   const progress = createMemo(() => loadState().progress);
+  const [gameLoadRecoveryError, setGameLoadRecoveryError] = createSignal("");
+  const [gameLoadRecoveryPending, setGameLoadRecoveryPending] =
+    createSignal(false);
   const platformLabel = createMemo(() => props.platform);
   const [playerReady, setPlayerReady] = createSignal(false);
   const scriptReady = createMemo(() => playerReady() && scriptSettingsReady());
@@ -1331,7 +1344,8 @@ export function App(props: {
   let playerReadyRetryTimer: number | undefined;
   let playerReadyRetryToken = 0;
   let accountLaunchController: AbortController | undefined;
-  let activeAccountLaunchPayload: AccountGameLaunchPayload | null = null;
+  const [activeAccountLaunchPayload, setActiveAccountLaunchPayload] =
+    createSignal<AccountGameLaunchPayload | null>(null);
   const accountSessionTracker = makeAccountSessionTracker({
     onReportError: (error) => {
       console.error("[game:account-session]", "status report failed", error);
@@ -1386,18 +1400,20 @@ export function App(props: {
             ? "Script queue paused after a failure"
             : `Queue ${(scriptQueueState().currentIndex ?? 0) + 1} of ${scriptQueueState().latestRun?.items.length ?? scriptQueueState().entries.length}: ${scriptStatusLabel(null, scriptRunnerStatus())}`,
   );
-  const setLoadProgress = (percent: number) => {
+  const setLoadProgress = (percent: number): void => {
+    if (!Number.isFinite(percent)) return;
     const progress = Math.max(0, Math.min(100, Math.round(percent)));
-    setLoadState((state) => ({
-      loaded: progress >= 100 ? state.loaded : false,
-      progress,
-    }));
+    setLoadState((state) =>
+      state.phase === "loaded" || state.progress === progress
+        ? state
+        : { ...state, progress },
+    );
   };
   const markLoaded = () => {
-    setLoadState({
-      loaded: true,
-      progress: 100,
-    });
+    window.clearTimeout(loadRecoveryTimer);
+    setLoadState((state) =>
+      state.phase === "loaded" ? state : { phase: "loaded", progress: 100 },
+    );
     resolveGameLoaded?.();
   };
   const markGameViewActive = () => {
@@ -3068,7 +3084,7 @@ export function App(props: {
     accountLaunchController?.abort();
     const controller = new AbortController();
     accountLaunchController = controller;
-    activeAccountLaunchPayload = payload;
+    setActiveAccountLaunchPayload(payload);
     stopPlayerReadyRetry();
     const launchAttempt = accountSessionTracker.beginLaunch(
       payload.account.username,
@@ -3291,8 +3307,28 @@ export function App(props: {
   };
 
   const runGroupLogin = async (): Promise<void> => {
-    if (activeAccountLaunchPayload === null) return;
-    await runAccountLaunch(activeAccountLaunchPayload, { startScript: false });
+    const payload = activeAccountLaunchPayload();
+    if (payload === null) return;
+    await runAccountLaunch(payload, { startScript: false });
+  };
+
+  const reloadGameAfterLoadStall = async (): Promise<void> => {
+    if (gameLoadRecoveryPending()) return;
+
+    setGameLoadRecoveryError("");
+    setGameLoadRecoveryPending(true);
+    try {
+      await desktop.gameAccounts.prepareGameLoadRecovery();
+      window.location.reload();
+    } catch (error) {
+      console.error(
+        "[game:load-recovery]",
+        "failed to prepare game reload",
+        error,
+      );
+      setGameLoadRecoveryError("Unable to reload the game. Try again.");
+      setGameLoadRecoveryPending(false);
+    }
   };
 
   const runGroupLogout = async (): Promise<void> => {
@@ -4921,14 +4957,58 @@ export function App(props: {
         id="loader-container"
         class="game-loader"
         classList={{ "game-loader--hidden": gameLoaded() }}
+        aria-busy={gameLoaded() ? undefined : "true"}
         aria-hidden={gameLoaded() ? "true" : undefined}
-        aria-live="polite"
       >
         <div class="game-loader__content">
           <Spinner class="game-loader__spinner" size="xl" />
-          <span class="game-loader__progress">{progress()}%</span>
+          <span
+            aria-label="Game loading progress"
+            aria-valuemax="100"
+            aria-valuemin="0"
+            aria-valuenow={progress()}
+            class="game-loader__progress"
+            role="progressbar"
+          >
+            {progress()}%
+          </span>
+          <Show when={gameLoadDelayed()}>
+            <div class="game-loader__recovery">
+              <div class="game-loader__recovery-copy">
+                <strong class="game-loader__recovery-title">
+                  Still loading...
+                </strong>
+                <span
+                  class="game-loader__recovery-description"
+                  id="game-load-recovery-description"
+                >
+                  {gameLoadRecoveryError() ||
+                    "The game is taking longer than expected. You can keep waiting or reload it."}
+                </span>
+              </div>
+              <Button
+                aria-describedby="game-load-recovery-description"
+                loading={gameLoadRecoveryPending()}
+                onClick={() => void reloadGameAfterLoadStall()}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                {activeAccountLaunchPayload()?.script === undefined
+                  ? "Reload game"
+                  : "Reload without script"}
+              </Button>
+            </div>
+          </Show>
         </div>
       </section>
+
+      <VisuallyHidden aria-atomic="true" role="status">
+        {gameLoadRecoveryError() ||
+          (gameLoadDelayed()
+            ? "Still loading. The game is taking longer than expected. You can keep waiting or reload it."
+            : "")}
+      </VisuallyHidden>
 
       <section
         id="game-container"

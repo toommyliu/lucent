@@ -7,6 +7,8 @@ import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 
 const accountManagerSenders = ["account-manager"] as const;
 const gameSenders = ["game"] as const;
+const GAME_LOAD_RECOVERY_SCRIPT_MESSAGE =
+  "Launch script skipped after the game took too long to load";
 
 export const getState = makeDesktopIpcMethod({
   descriptor: AccountsIpc.getState,
@@ -51,6 +53,23 @@ export const getGameLaunch = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const accounts = yield* Accounts;
       return yield* accounts.getGameLaunch(sender.rendererId);
+    },
+  ),
+});
+
+export const prepareGameLoadRecovery = makeDesktopIpcMethod({
+  descriptor: AccountsIpc.prepareGameLoadRecovery,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.accounts.prepareGameLoadRecovery")(
+    function* (_payload, sender) {
+      const accounts = yield* Accounts;
+      const launch = yield* accounts.getGameLaunch(sender.rendererId);
+      if (launch?.script === undefined) return;
+
+      yield* accounts.suppressGameWindowLaunchScript(
+        sender.rendererId,
+        GAME_LOAD_RECOVERY_SCRIPT_MESSAGE,
+      );
     },
   ),
 });
@@ -179,6 +198,7 @@ export const methods = [
   getServerPings,
   refreshServers,
   getGameLaunch,
+  prepareGameLoadRecovery,
   createAccount,
   updateAccount,
   deleteAccount,
