@@ -10,6 +10,32 @@ item that already has a matching enhancement.
 [enhance-item]: /reference/scripting/api/shops/#member-api-shops-enhanceitem
 [equip-by-enhancement]: /reference/scripting/api/inventory/#member-api-inventory-equipbyenhancement
 
+## How enhancement selectors work
+
+Pass the first enhancement label as `enhancement` and the second, if present,
+as `special`.
+
+{/* prettier-ignore */}
+```js
+// Lucky
+{ enhancement: "lucky" }
+
+// Fighter, Dauntless
+{
+  enhancement: "fighter", // or forge
+  special: "dauntless",
+}
+```
+
+Unique names can be used on their own:
+
+- `dauntless`, `vim`, and `vainglory` work on their own.
+- For `Grimskull, Hearty`, use `hearty` on its own or pass both labels.
+- Awe traits need a pattern; `spiral carve` does not work on its own.
+
+Names are case-insensitive. Extra spaces and straight or curly apostrophes do
+not matter. Shortcuts such as `dtl`, `ely`, and `abso` are also accepted.
+
 ## Apply an enhancement
 
 {/* prettier-ignore */}
@@ -57,7 +83,9 @@ not cosmetic armor.
 
 ## Supported enhancements
 
-**Basic — all equipment slots**
+**Basic enhancements**
+
+Available for every equipment slot.
 
 <EnhancementLabels
   labels={[
@@ -131,28 +159,3 @@ not cosmetic armor.
     "Forge, Lament",
   ]}
 />
-
-## Write a selector
-
-Typically, pass the first label as `enhancement` and the second as `special`.
-
-{/* prettier-ignore */}
-```js
-// Lucky
-{ enhancement: "lucky" }
-
-// Fighter, Dauntless
-{
-  enhancement: "fighter",
-  special: "dauntless",
-}
-```
-
-Unique names can be used on their own:
-
-- `dauntless`, `vim`, and `vainglory` work on their own.
-- For `Grimskull, Hearty`, use `hearty` on its own or pass both labels.
-- Awe traits need a pattern; `spiral carve` does not work on its own.
-
-Names are case-insensitive. Extra spaces and straight or curly apostrophes do
-not matter. Shortcuts such as `dtl`, `ely`, and `abso` are also accepted.

@@ -6,7 +6,6 @@ export default defineMeta({
     "script-inputs",
     "script-packages",
     "armying",
-    "enhancements",
     "editor-setup",
   ],
   title: "Scripting",
