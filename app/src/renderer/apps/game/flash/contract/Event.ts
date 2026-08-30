@@ -58,14 +58,14 @@ export type ProjectionEvent =
       readonly source: "aura" | "message";
       readonly triggerId: string;
       readonly triggerText: string;
-      readonly type: "anti-counter-start";
+      readonly type: "counter-attack-start";
     }
   | {
       readonly monsterMapId: number;
       readonly source: "aura" | "message";
       readonly triggerId: string;
       readonly triggerText: string;
-      readonly type: "anti-counter-end";
+      readonly type: "counter-attack-end";
     }
   | ({
       readonly cell: string;
@@ -171,14 +171,14 @@ export type EventSelector =
       readonly source?: "aura" | "message";
       readonly triggerId?: string;
       readonly triggerText?: string;
-      readonly type: "anti-counter-start";
+      readonly type: "counter-attack-start";
     }
   | {
       readonly monsterMapId?: number;
       readonly source?: "aura" | "message";
       readonly triggerId?: string;
       readonly triggerText?: string;
-      readonly type: "anti-counter-end";
+      readonly type: "counter-attack-end";
     }
   | {
       readonly message?: string;

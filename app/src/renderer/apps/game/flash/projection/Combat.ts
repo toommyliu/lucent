@@ -240,7 +240,7 @@ export const projectCombat = (
           monsterMapId,
         );
         events.push({
-          type: "anti-counter-start",
+          type: "counter-attack-start",
           monsterMapId,
           source: "message",
           triggerId: antiCounterMatch.triggerId,
@@ -308,7 +308,7 @@ export const projectCombat = (
             ) {
               const durationMs = antiCounterDurationMsFromAura(payload.dur);
               events.push({
-                type: "anti-counter-start",
+                type: "counter-attack-start",
                 monsterMapId: target.id,
                 source: "aura",
                 triggerId: antiCounterMatch.triggerId,
@@ -332,7 +332,7 @@ export const projectCombat = (
               antiCounterMatch !== undefined
             ) {
               events.push({
-                type: "anti-counter-end",
+                type: "counter-attack-end",
                 monsterMapId: target.id,
                 source: "aura",
                 triggerId: antiCounterMatch.triggerId,
