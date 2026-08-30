@@ -54,7 +54,6 @@ const makeScriptAutoReloginApi = (
     getServer: api.getServer,
     getState: api.getState,
     isEnabled: api.isEnabled,
-    runLogin: api.runLogin,
     setDelay: api.setDelay,
     setEnabled: api.setEnabled,
     setServer: api.setServer,
