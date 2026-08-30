@@ -56,8 +56,12 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/entity-data/"><code>EntityData</code></a> | interface |  |
 | <a href="/reference/scripting/types/entity-snapshot/"><code>EntitySnapshot</code></a> | type alias |  |
 | <a href="/reference/scripting/types/entity-state/"><code>EntityState</code></a> | type alias |  |
+| <a href="/reference/scripting/types/environment-automation-capability/"><code>EnvironmentAutomationCapability</code></a> | type alias |  |
+| <a href="/reference/scripting/types/environment-automation-options/"><code>EnvironmentAutomationOptions</code></a> | type alias |  |
 | <a href="/reference/scripting/types/environment-drop-policy/"><code>EnvironmentDropPolicy</code></a> | type alias | Handling options for drops that are not registered by name. |
-| <a href="/reference/scripting/types/environment-state/"><code>EnvironmentState</code></a> | type alias |  |
+| <a href="/reference/scripting/types/environment-error/"><code>EnvironmentError</code></a> | interface |  |
+| <a href="/reference/scripting/types/environment-quest-auto-register-options/"><code>EnvironmentQuestAutoRegisterOptions</code></a> | type alias |  |
+| <a href="/reference/scripting/types/environment-snapshot/"><code>EnvironmentSnapshot</code></a> | interface | A detached view of the current Environment configuration. |
 | <a href="/reference/scripting/types/equip-options/"><code>EquipOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/extension-packet/"><code>ExtensionPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/faction-data/"><code>FactionData</code></a> | interface |  |

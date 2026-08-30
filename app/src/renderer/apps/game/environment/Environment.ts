@@ -51,7 +51,7 @@ const QUEST_JOB_INTERVAL = "1 second";
 const BOOST_JOB_INTERVAL = "5 seconds";
 
 export interface EnvironmentShape {
-  getState(): Effect.Effect<EnvironmentState, unknown>;
+  getState(): Effect.Effect<EnvironmentState>;
   clear(): Effect.Effect<EnvironmentState, unknown>;
   addQuest(
     questId: number,

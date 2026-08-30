@@ -25,8 +25,10 @@ import type { pipe } from "effect/Function";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type {
+  EnvironmentAutomationCapability,
+  EnvironmentAutomationOptions,
   EnvironmentDropPolicy,
-  EnvironmentState,
+  EnvironmentQuestAutoRegisterOptions,
 } from "@lucent/core/environment";
 import type {
   ScriptInputsDefinition,
@@ -328,84 +330,86 @@ export interface ScriptDropsApi {
   readonly reject: (query: ItemQuery) => Effect.Effect<boolean>;
 }
 
+/** A detached view of the current Environment configuration. */
+export interface EnvironmentSnapshot {
+  readonly automation: EnvironmentAutomationOptions;
+  readonly questIds: readonly number[];
+  readonly questAutoRegister: EnvironmentQuestAutoRegisterOptions;
+  readonly questRewards: Readonly<Record<number, number>>;
+  readonly itemNames: readonly string[];
+  readonly itemNotificationNames: readonly string[];
+  readonly dropPolicy: EnvironmentDropPolicy;
+  readonly boosts: readonly string[];
+}
+
+export interface EnvironmentError extends Error {
+  readonly _tag: "EnvironmentError";
+}
+
+/** Mutations apply partial updates and return the full resulting snapshot. */
 export interface ScriptEnvironmentApi {
-  readonly getState: () => Effect.Effect<EnvironmentState, unknown>;
-  readonly clear: () => Effect.Effect<EnvironmentState, unknown>;
+  readonly getState: () => Effect.Effect<EnvironmentSnapshot>;
+  /** Clears quest, item, and boost registrations. */
+  readonly clearRegistrations: () => Effect.Effect<
+    EnvironmentSnapshot,
+    EnvironmentError
+  >;
+  readonly setAutomationEnabled: (
+    capability: EnvironmentAutomationCapability,
+    enabled: boolean,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+
   readonly addQuest: (
     questId: number,
     rewardItemId?: number,
-  ) => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
   readonly removeQuest: (
     questId: number,
-  ) => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
   readonly setQuestReward: (
     questId: number,
     rewardItemId: number,
-  ) => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
   readonly clearQuestReward: (
     questId: number,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  readonly clearQuests: () => Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest requirements in the drop list. */
-  readonly setAutoRegisterRequirements: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest rewards in the drop list. */
-  readonly setAutoRegisterRewards: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  readonly addItem: (name: string) => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+  readonly clearQuests: () => Effect.Effect<
+    EnvironmentSnapshot,
+    EnvironmentError
+  >;
+  readonly updateQuestAutoRegister: (
+    patch: Partial<EnvironmentQuestAutoRegisterOptions>,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+
+  readonly addItem: (
+    name: string,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
   readonly removeItem: (
     name: string,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only AC-tagged items. */
-  readonly setAcceptAcMemberOnlyDrops: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member AC-tagged items. */
-  readonly setAcceptAcNonMemberDrops: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only non-AC items. */
-  readonly setAcceptNonAcMemberOnlyDrops: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member non-AC items. */
-  readonly setAcceptNonAcNonMemberDrops: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Reject or ignore unregistered drops that are not accepted by policy. */
-  readonly setRejectUnregisteredDrops: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Update one or more drop-handling options. */
-  readonly setDropPolicy: (
-    policy: Partial<EnvironmentDropPolicy>,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  readonly clearItems: () => Effect.Effect<EnvironmentState, unknown>;
-  readonly addBoost: (name: string) => Effect.Effect<EnvironmentState, unknown>;
-  readonly removeBoost: (
-    name: string,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  readonly clearBoosts: () => Effect.Effect<EnvironmentState, unknown>;
-  readonly fetchBoosts: () => Effect.Effect<readonly string[], unknown>;
-  /** Enable or pause automatic boost use. */
-  readonly setBoostAutomationEnabled: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic drop acceptance and rejection. */
-  readonly setDropAutomationEnabled: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+  readonly clearItems: () => Effect.Effect<
+    EnvironmentSnapshot,
+    EnvironmentError
+  >;
   readonly setItemNotification: (
     name: string,
     enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic quest acceptance and completion. */
-  readonly setQuestAutomationEnabled: (
-    enabled: boolean,
-  ) => Effect.Effect<EnvironmentState, unknown>;
-  readonly syncToAll: () => Effect.Effect<EnvironmentState, unknown>;
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+  /** Updates one or more drop-handling options. */
+  readonly updateDropPolicy: (
+    patch: Partial<EnvironmentDropPolicy>,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+
+  readonly addBoost: (
+    name: string,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+  readonly removeBoost: (
+    name: string,
+  ) => Effect.Effect<EnvironmentSnapshot, EnvironmentError>;
+  readonly clearBoosts: () => Effect.Effect<
+    EnvironmentSnapshot,
+    EnvironmentError
+  >;
 }
 
 export interface ScriptEventsOn {
