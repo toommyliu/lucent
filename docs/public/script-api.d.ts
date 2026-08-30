@@ -1588,9 +1588,11 @@ type ArmyLoopTauntSkipWhen = (
   | Generator<Effect<any, any, never>, boolean, any>;
 /** Selects the encounter event that starts each taunt attempt. */
 type ArmyLoopTauntStrategy = {
-  /** Cast after the target's Focus aura disappears. */readonly type: "focus";
+  /** Cast after the target's Focus aura disappears. */
+  readonly type: "focus";
 } | {
-  /** Case-insensitive text contained in the target's animation or aura message. */readonly message: string;
+  /** Case-insensitive text contained in the target's animation or aura message. */
+  readonly message: string;
   readonly type: "message";
 };
 interface ArmyConfigCore {
