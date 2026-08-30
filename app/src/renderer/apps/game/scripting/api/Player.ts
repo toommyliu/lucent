@@ -77,6 +77,6 @@ export const makeScriptPlayerApis = (
 
   return {
     player: playerApi,
-    players: makeScriptPlayersApi(players, playerApi.get),
+    players: makeScriptPlayersApi(players),
   };
 };
