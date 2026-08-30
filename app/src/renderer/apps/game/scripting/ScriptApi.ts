@@ -291,6 +291,7 @@ export interface ScriptCombatApi {
   readonly getSkillCooldownRemainingMs: (
     skill: SkillSlot,
   ) => Effect.Effect<number | null>;
+  /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
   readonly hunt: (
     query: MonsterQuery,
     options?: HuntOptions,
