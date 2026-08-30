@@ -49,6 +49,12 @@ export const AccountsIpc = {
     payload: Schema.Void,
     result: Schema.NullOr(AccountGameLaunchPayloadSchema),
   }),
+  prepareGameLoadRecovery: defineInvoke({
+    channel: `${namespace}:prepare-game-load-recovery`,
+    name: "accounts.prepareGameLoadRecovery",
+    payload: Schema.Void,
+    result: Schema.Void,
+  }),
   createAccount: defineInvoke({
     channel: `${namespace}:create-account`,
     name: "accounts.createAccount",

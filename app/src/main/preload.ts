@@ -270,6 +270,8 @@ const accountsBridge: DesktopAccountsBridge = {
 
 const gameAccountsBridge: DesktopGameAccountsBridge = {
   getGameLaunch: () => invoke(AccountsIpc.getGameLaunch, undefined),
+  prepareGameLoadRecovery: () =>
+    invoke(AccountsIpc.prepareGameLoadRecovery, undefined),
   reportSession: (report) => invoke(AccountsIpc.reportSession, report),
 };
 
