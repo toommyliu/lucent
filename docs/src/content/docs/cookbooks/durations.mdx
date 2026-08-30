@@ -1,0 +1,38 @@
+---
+title: Durations
+description: Learn how to write durations in scripts.
+---
+
+When the reference shows `Duration.Input`, pass a string with a unit or a number
+of milliseconds.
+
+## Use strings for readable durations
+
+Strings keep the unit next to the value:
+
+{/* prettier-ignore */}
+```js
+yield* script.sleep("1 second");
+
+yield* api.wait.forGameAction("loadShop", {
+  interval: "100 millis",
+  timeout: "2 seconds",
+});
+```
+
+A string needs a number, a space, and a lowercase unit. The supported units are
+`nano`, `micro`, `milli`, `second`, `minute`, `hour`, `day`, and `week`.
+Singular and plural forms both work. Decimal values work too, such as
+`"1.5 seconds"`.
+
+## Use numbers for milliseconds
+
+A bare number always means milliseconds:
+
+{/* prettier-ignore */}
+```js
+yield* script.sleep(1000); // 1 second
+```
+
+`1000` and `"1 second"` mean the same thing. Prefer a string when you write the
+value by hand so its unit is clear.

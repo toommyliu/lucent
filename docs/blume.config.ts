@@ -117,8 +117,7 @@ export default defineConfig({
   content: {
     root: "src/content/docs",
   },
-  description:
-    "Guides and reference for the Lucent AdventureQuest Worlds toolkit.",
+  description: "Guides, cookbooks, and reference for Lucent.",
   github: {
     dir: "docs",
     owner: "toommyliu",
@@ -146,7 +145,6 @@ export default defineConfig({
                   ],
                   label: "Armying",
                 },
-                "/guides/scripting/enhancements",
                 "/guides/scripting/editor-setup",
               ],
               label: "Scripting",
@@ -154,6 +152,11 @@ export default defineConfig({
           ],
           label: "Guides",
           root: "/guides",
+        },
+        {
+          items: ["/cookbooks/durations", "/cookbooks/enhancements"],
+          label: "Cookbooks",
+          root: "/cookbooks",
         },
         {
           items: [
@@ -202,6 +205,12 @@ export default defineConfig({
         icon: "book-open",
         label: "Guides",
         path: "/guides",
+      },
+      {
+        href: "/cookbooks",
+        icon: "book-open-check",
+        label: "Cookbooks",
+        path: "/cookbooks",
       },
       {
         href: "/reference",
