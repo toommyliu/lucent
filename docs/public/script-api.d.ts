@@ -208,7 +208,7 @@ interface ScriptApi {
     readonly quests: ScriptQuestsApi;
     readonly recipes: ScriptRecipesApi;
     readonly settings: ScriptSettingsApi;
-    readonly shops: ScriptShopsApi;
+    readonly shop: ScriptShopApi;
     readonly tempInventory: ScriptTempInventoryApi;
     readonly wait: ScriptWaitApi;
 }
@@ -575,7 +575,7 @@ interface ScriptSettingsApi {
     setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
     setWalkSpeed(speed: number): Effect<void, never>;
 }
-interface ScriptShopsApi {
+interface ScriptShopApi {
     buy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
     canBuy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
     close(shopId?: number): Effect<boolean, never>;

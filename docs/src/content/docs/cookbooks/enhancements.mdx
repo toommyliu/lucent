@@ -3,11 +3,11 @@ title: Enhancements
 description: Apply enhancements and equip matching gear from scripts.
 ---
 
-[`api.shops.enhanceItem()`][enhance-item] applies or upgrades an enhancement.
+[`api.shop.enhanceItem()`][enhance-item] applies or upgrades an enhancement.
 [`api.inventory.equipByEnhancement()`][equip-by-enhancement] equips an inventory
 item that already has a matching enhancement.
 
-[enhance-item]: /reference/scripting/api/shops/#member-api-shops-enhanceitem
+[enhance-item]: /reference/scripting/api/shop/#member-api-shop-enhanceitem
 [equip-by-enhancement]: /reference/scripting/api/inventory/#member-api-inventory-equipbyenhancement
 
 ## How enhancement selectors work
@@ -40,7 +40,7 @@ not matter. Shortcuts such as `dtl`, `ely`, and `abso` are also accepted.
 
 {/* prettier-ignore */}
 ```js
-yield* api.shops.enhanceItem("ArchPaladin", {
+yield* api.shop.enhanceItem("ArchPaladin", {
   enhancement: "lucky",
 });
 ```
@@ -51,7 +51,7 @@ trait:
 
 {/* prettier-ignore */}
 ```js
-yield* api.shops.enhanceItem("My Weapon", {
+yield* api.shop.enhanceItem("My Weapon", {
   enhancement: "lucky",
   special: "spiral carve",
 });

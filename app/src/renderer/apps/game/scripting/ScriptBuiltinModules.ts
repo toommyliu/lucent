@@ -13,7 +13,7 @@ import { makeScriptPublicServices } from "./api/PublicServices";
 import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
-import { makeScriptShopsApi } from "./api/Shops";
+import { makeScriptShopApi } from "./api/Shop";
 import type {
   ScriptApi,
   ScriptAutoReloginApi,
@@ -106,7 +106,7 @@ export const makeScriptBuiltinModules = (
     shops: options.services.shops,
     wait: options.services.wait,
   });
-  const shops = makeScriptShopsApi(
+  const shop = makeScriptShopApi(
     {
       inventory: options.services.inventory,
       player: {
@@ -139,7 +139,7 @@ export const makeScriptBuiltinModules = (
     quests: publicServices.quests,
     recipes,
     settings,
-    shops,
+    shop,
     tempInventory: publicServices.tempInventory,
     wait: publicServices.wait,
   });
