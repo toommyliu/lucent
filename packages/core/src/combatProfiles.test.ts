@@ -185,14 +185,17 @@ describe("combatProfiles", () => {
   });
 
   it("normalizes script profile definitions into runnable profiles", () => {
-    const definition = { steps: [{ skill: 1, skipIfUnavailable: true }] };
+    const definition = {
+      cooldownMode: "wait-for-cooldown" as const,
+      steps: [{ skill: 1, cooldownMode: "use-if-ready" as const }],
+    };
 
     expect(isCombatProfileDefinition(definition)).toBe(true);
     expect(normalizeCombatProfile(definition)).toEqual({
       id: DEFAULT_COMBAT_PROFILE_ID,
       label: "Profile",
       delayMs: 150,
-      cooldownMode: "use-if-ready",
+      cooldownMode: "wait-for-cooldown",
       steps: [
         {
           skill: 1,

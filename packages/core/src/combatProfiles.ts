@@ -314,10 +314,6 @@ const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
     decodeCombatProfileCooldownMode,
     record["cooldownMode"],
   );
-  const legacyCooldownMode =
-    fromOption(decodeBoolean, record["skipIfUnavailable"]) === true
-      ? "use-if-ready"
-      : undefined;
   const waitMs = clampInt(record["waitMs"], 0, 0, MAX_WAIT_MS);
 
   return {
@@ -326,11 +322,7 @@ const normalizeStep = (value: unknown): CombatProfileStep | undefined => {
     ...(fromOption(decodeBoolean, record["priority"])
       ? { priority: true }
       : {}),
-    ...(cooldownMode === undefined
-      ? legacyCooldownMode === undefined
-        ? {}
-        : { cooldownMode: legacyCooldownMode }
-      : { cooldownMode }),
+    ...(cooldownMode === undefined ? {} : { cooldownMode }),
     ...(waitMs > 0 ? { waitMs } : {}),
   };
 };
