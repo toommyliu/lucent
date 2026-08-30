@@ -498,6 +498,11 @@ const getJsDocText = (node: ts.Node): string => {
   return docs?.at(-1)?.getText(node.getSourceFile()).trim() ?? "";
 };
 
+const isInternalNode = (node: ts.Node): boolean =>
+  ts
+    .getJSDocTags(node)
+    .some((tag) => tag.tagName.text.toLowerCase() === "internal");
+
 const parameterText = (
   checker: ts.TypeChecker,
   parameter: ts.ParameterDeclaration,
@@ -629,6 +634,7 @@ const buildDeclarationMap = (
   };
 
   const isVisibleClassMember = (member: ts.ClassElement): boolean => {
+    if (isInternalNode(member)) return false;
     const modifiers = ts.canHaveModifiers(member)
       ? ts.getModifiers(member)
       : undefined;
@@ -641,10 +647,20 @@ const buildDeclarationMap = (
   };
 
   const visitDeclarationTypes = (declaration: Declaration): void => {
-    if (
-      ts.isInterfaceDeclaration(declaration) ||
-      ts.isTypeAliasDeclaration(declaration)
-    ) {
+    if (ts.isInterfaceDeclaration(declaration)) {
+      for (const typeParameter of declaration.typeParameters ?? []) {
+        visitTypeSyntax(typeParameter);
+      }
+      for (const clause of declaration.heritageClauses ?? []) {
+        visitTypeSyntax(clause);
+      }
+      for (const member of declaration.members) {
+        if (!isInternalNode(member)) visitTypeSyntax(member);
+      }
+      return;
+    }
+
+    if (ts.isTypeAliasDeclaration(declaration)) {
       ts.forEachChild(declaration, visitTypeSyntax);
       return;
     }
@@ -851,6 +867,8 @@ const renderInterfaceFromDeclaration = (
   const lines: string[] = [`interface ${outputName} {`];
 
   for (const member of declaration.members) {
+    if (isInternalNode(member)) continue;
+
     if (ts.isConstructSignatureDeclaration(member)) {
       const signature = renderConstructSignature(state.checker, member);
       collectTypeNames(signature, state.referencedTypes);
@@ -1003,6 +1021,8 @@ const renderClassAsInterface = (
   ];
 
   for (const member of declaration.members) {
+    if (isInternalNode(member)) continue;
+
     const modifiers = ts.canHaveModifiers(member)
       ? ts.getModifiers(member)
       : undefined;
