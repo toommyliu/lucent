@@ -548,34 +548,28 @@ const makeArmyApi = (
         }),
       );
 
-    const killForItem: ScriptArmyApi["killForItem"] = (
-      target,
-      item,
-      quantity,
-      options,
-    ) =>
+    const killForItem: ScriptArmyApi["killForItem"] = (target, goal, options) =>
       runUntilArmyProgressComplete({
         action: () => combat.kill(target, options).pipe(Effect.asVoid),
         isComplete: () =>
           Effect.gen(function* () {
-            if (yield* drops.contains(item)) {
-              yield* drops.accept(item);
+            if (yield* drops.contains(goal.item)) {
+              yield* drops.accept(goal.item);
             }
-            return yield* inventory.contains(item, quantity);
+            return yield* inventory.contains(goal.item, goal.quantity);
           }),
-        label: `kill-item:${String(item)}`,
+        label: `kill-item:${String(goal.item)}`,
       });
 
     const killForTempItem: ScriptArmyApi["killForTempItem"] = (
       target,
-      item,
-      quantity,
+      goal,
       options,
     ) =>
       runUntilArmyProgressComplete({
         action: () => combat.kill(target, options).pipe(Effect.asVoid),
-        isComplete: () => tempInventory.contains(item, quantity),
-        label: `kill-temp:${String(item)}`,
+        isComplete: () => tempInventory.contains(goal.item, goal.quantity),
+        label: `kill-temp:${String(goal.item)}`,
       });
 
     const equipItem = (
