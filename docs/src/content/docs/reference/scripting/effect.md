@@ -15,3 +15,30 @@ sidebar:
 | [`Option`](https://www.effect.website/docs/v4/api/effect/Option) | Represent a value that may be missing. |
 | [`Duration`](https://www.effect.website/docs/v4/api/effect/Duration) | Express a length of time. |
 | [`pipe`](https://www.effect.website/docs/v4/api/effect/Function) | Pass a value through a series of functions. |
+
+## Supported members
+
+| Export | Members |
+| --- | --- |
+| `Effect` | `all`, `as`, `asVoid`, `catch`, `fail`, `flatMap`, `forEach`, `map`, `mapError`, `sleep`, `succeed`, `sync`, `tap`, `timeoutOption`, `try`, `tryPromise`, `void` |
+| `Option` | `getOrElse`, `isNone`, `isSome`, `map`, `match`, `none`, `some` |
+| `Duration` | `days`, `hours`, `millis`, `minutes`, `seconds`, `toMillis` |
+
+## Example: bound a long-running action
+
+```js
+const api = require("lucent/api");
+const script = require("lucent/script");
+const { Effect, Option, pipe } = require("effect");
+
+module.exports = function* run() {
+  const result = yield* pipe(
+    api.combat.kill("Boss Name"),
+    Effect.timeoutOption("30 seconds"),
+  );
+
+  if (Option.isNone(result)) {
+    yield* script.log("The kill timed out.");
+  }
+};
+```

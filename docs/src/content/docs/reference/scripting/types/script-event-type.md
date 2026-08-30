@@ -11,4 +11,4 @@ sidebar:
 type ScriptEventType = "login" | "logout" | "player-afk" | "join-map" | "item-drop" | "quest-complete" | "monster-death" | "monster-respawn" | "player-death" | "players-changed" | "aura-added" | "aura-removed" | "counter-attack-start" | "counter-attack-end" | "player-location" | "update-message" | "zone"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L101" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:101" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:101" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:101</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L107" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:107" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:107" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:107</code></a></p>

@@ -18,4 +18,4 @@ type FileSystemOperation =
   | "write-text"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L807" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:807" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:807" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:807</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L801" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:801" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:801" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:801</code></a></p>

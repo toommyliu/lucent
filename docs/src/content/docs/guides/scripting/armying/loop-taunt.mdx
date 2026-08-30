@@ -27,7 +27,10 @@ const taunt = yield* api.army.loopTaunt([
   },
 ]);
 
-yield* api.army.killForItem("Boss Name", "Item Name", 1);
+yield* api.army.killForItem("Boss Name", {
+  item: "Item Name",
+  quantity: 1,
+});
 yield* taunt.stop();
 ```
 
