@@ -21,6 +21,10 @@ import type {
   FollowerState,
 } from "@lucent/core/follower";
 import type {
+  FileSystemEntry,
+  FileSystemFailure,
+} from "@lucent/core/filesystem";
+import type {
   ArmyConfigPayload,
   ArmyFailPayload,
   ArmyLeavePayload,
@@ -287,6 +291,45 @@ export interface DesktopGameRendererBridge {
   readonly ready: (generation: number) => Promise<void>;
 }
 
+export type DesktopFileSystemResult<A> =
+  | { readonly ok: true; readonly value: A }
+  | { readonly error: FileSystemFailure; readonly ok: false };
+
+export interface DesktopFileSystemBridge {
+  readonly closeSession: (sessionId: string) => Promise<void>;
+  readonly exists: (
+    sessionId: string,
+    path: string,
+  ) => Promise<DesktopFileSystemResult<boolean>>;
+  readonly list: (
+    sessionId: string,
+    path?: string,
+  ) => Promise<DesktopFileSystemResult<readonly FileSystemEntry[]>>;
+  readonly openSession: () => Promise<string>;
+  readonly readJson: (
+    sessionId: string,
+    path: string,
+  ) => Promise<DesktopFileSystemResult<unknown | undefined>>;
+  readonly readText: (
+    sessionId: string,
+    path: string,
+  ) => Promise<DesktopFileSystemResult<string | undefined>>;
+  readonly remove: (
+    sessionId: string,
+    path: string,
+  ) => Promise<DesktopFileSystemResult<void>>;
+  readonly writeJson: (
+    sessionId: string,
+    path: string,
+    value: unknown,
+  ) => Promise<DesktopFileSystemResult<void>>;
+  readonly writeText: (
+    sessionId: string,
+    path: string,
+    contents: string,
+  ) => Promise<DesktopFileSystemResult<void>>;
+}
+
 export interface DesktopGameViewHostBridge {
   readonly add: () => Promise<GameViewHostState>;
   readonly close: (id: string) => Promise<void>;
@@ -504,6 +547,7 @@ interface DesktopBridgeCapabilities {
   readonly combatProfiles: DesktopCombatProfilesBridge;
   readonly environment: DesktopEnvironmentBridge;
   readonly follower: DesktopFollowerBridge;
+  readonly fileSystem: DesktopFileSystemBridge;
   readonly gameAccounts: DesktopGameAccountsBridge;
   readonly gameConsoleObservability: DesktopGameConsoleObservabilityBridge;
   readonly gameFollower: DesktopGameFollowerBridge;
@@ -532,6 +576,7 @@ interface DesktopBridgeViewCapabilities {
     | "army"
     | "combatProfiles"
     | "environment"
+    | "fileSystem"
     | "gameAccounts"
     | "gameFollower"
     | "gameRenderer"

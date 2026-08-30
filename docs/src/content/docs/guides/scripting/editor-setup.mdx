@@ -5,8 +5,9 @@ description: Set up autocomplete and optional type checks for your scripts.
 
 ## Add autocomplete
 
-Lucent creates `script-api.d.ts` and `jsconfig.json` in `Documents/Lucent` if
-they don't exist yet. Open that folder in your editor.
+Lucent creates `script-api.d.ts` and `jsconfig.json` in `Documents/Lucent`.
+It refreshes the generated type file on startup, but preserves a replacement
+that no longer has the generated-file header. Open that folder in your editor.
 
 `script-api.d.ts` adds autocomplete and helpful details for most of the values
 you'll work with. The same `jsconfig.json` covers loose scripts and script

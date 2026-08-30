@@ -19,6 +19,7 @@ import type {
   ScriptAutoReloginApi,
   ScriptAutoZoneApi,
   ScriptEffectStd,
+  ScriptFileSystemApi,
   ScriptRuntimeApi,
 } from "./ScriptApi";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
@@ -29,6 +30,7 @@ export interface ScriptBuiltinModules {
   readonly "lucent/api": ScriptApi;
   readonly "lucent/autorelogin": ScriptAutoReloginApi;
   readonly "lucent/autozone": ScriptAutoZoneApi;
+  readonly "lucent/filesystem": ScriptFileSystemApi;
   readonly "lucent/script": ScriptRuntimeApi;
 }
 
@@ -37,6 +39,7 @@ export interface ScriptBuiltinModulesOptions {
   readonly autoZone: ScriptAutoZoneApi;
   readonly bridge: BridgeService;
   readonly failCause: (cause: Cause.Cause<unknown>) => Effect.Effect<void>;
+  readonly fileSystem: ScriptFileSystemApi;
   readonly roomPolicy: Effect.Effect<RoomPolicy>;
   readonly scope: ScriptAsyncScope;
   readonly script: ScriptRuntimeApi;
@@ -146,6 +149,7 @@ export const makeScriptBuiltinModules = (
     "lucent/api": api,
     "lucent/autorelogin": makeScriptAutoReloginApi(options.autoRelogin),
     "lucent/autozone": makeScriptAutoZoneApi(options.autoZone),
+    "lucent/filesystem": options.fileSystem,
     "lucent/script": options.script,
   });
 };

@@ -7,6 +7,7 @@ import * as ArmyIpcMethods from "./methods/army";
 import * as CombatProfilesIpcMethods from "./methods/combatProfiles";
 import * as EnvironmentIpcMethods from "./methods/environment";
 import * as FollowerIpcMethods from "./methods/follower";
+import * as FileSystemIpcMethods from "./methods/filesystem";
 import * as GameRendererIpcMethods from "./methods/gameRenderer";
 import * as GameViewsIpcMethods from "./methods/gameViews";
 import * as LoaderGrabberIpcMethods from "./methods/loaderGrabber";
@@ -47,6 +48,9 @@ export const installDesktopIpcHandlers = Effect.fn(
     yield* ipc.handle(method);
   }
   for (const method of FollowerIpcMethods.methods) {
+    yield* ipc.handle(method);
+  }
+  for (const method of FileSystemIpcMethods.methods) {
     yield* ipc.handle(method);
   }
   yield* ipc.handle(GameRendererIpcMethods.beginScriptExecution);
@@ -96,6 +100,7 @@ export const desktopIpcMethods = [
   ...CombatProfilesIpcMethods.methods,
   ...EnvironmentIpcMethods.methods,
   ...FollowerIpcMethods.methods,
+  ...FileSystemIpcMethods.methods,
   ...GameRendererIpcMethods.methods,
   ...GameViewsIpcMethods.methods,
   ...LoaderGrabberIpcMethods.methods,

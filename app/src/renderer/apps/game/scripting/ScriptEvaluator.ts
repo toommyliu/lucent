@@ -12,6 +12,7 @@ import { ProjectionReadiness } from "../flash/api/ProjectionReadiness";
 import { Bridge } from "../flash/bridge/Bridge";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
+import { makeScriptFileSystemApi } from "./ScriptFileSystem";
 import { ScriptRunner } from "./ScriptRunner";
 import {
   makeScriptRuntimeApi,
@@ -37,6 +38,7 @@ const ScriptEvalFunction = Function as unknown as new (
   script: ScriptBuiltinModules["lucent/script"],
   autoRelogin: ScriptBuiltinModules["lucent/autorelogin"],
   autoZone: ScriptBuiltinModules["lucent/autozone"],
+  filesystem: ScriptBuiltinModules["lucent/filesystem"],
   effect: ScriptBuiltinModules["effect"]["Effect"],
   console: Console,
 ) => Effect.Effect<unknown, unknown, never>;
@@ -58,6 +60,7 @@ export const compileScriptEval = (
         "script",
         "autoRelogin",
         "autoZone",
+        "filesystem",
         "Effect",
         "console",
         `"use strict";
@@ -71,6 +74,7 @@ ${source}
         modules["lucent/script"],
         modules["lucent/autorelogin"],
         modules["lucent/autozone"],
+        modules["lucent/filesystem"],
         modules.effect.Effect,
         debugConsole,
       );
@@ -84,7 +88,10 @@ ${source}
 
 export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
   function* (source: string, debugConsole: Console) {
-    const gameView = selectDesktopBridge(window.desktop, "game").gameView;
+    const { fileSystem: fileSystemBridge, gameView } = selectDesktopBridge(
+      window.desktop,
+      "game",
+    );
     const api = yield* Api;
     const projectionReadiness = yield* ProjectionReadiness;
     const army = yield* ArmyApi;
@@ -136,12 +143,17 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         scope,
         setOptions,
       });
+      const fileSystem = yield* makeScriptFileSystemApi(
+        fileSystemBridge,
+        scope,
+      );
       const modules = makeScriptBuiltinModules({
         autoRelogin: automation.autoRelogin,
         autoZone: automation.autoZone,
         bridge,
         failCause: (cause: Cause.Cause<unknown>) =>
           Deferred.failCause(callbackFailure, cause).pipe(Effect.asVoid),
+        fileSystem,
         roomPolicy: Ref.get(optionsRef).pipe(
           Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
         ),

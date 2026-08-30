@@ -23,6 +23,8 @@ const READ_CHUNK_BYTES = 64 * 1024;
 
 class InvalidReadLimitError extends Error {}
 class FileTooLargeError extends Error {}
+class InvalidDirectoryLimitError extends Error {}
+class DirectoryTooLargeError extends Error {}
 class ExpectedDirectoryError extends Error {}
 
 const errnoCode = (cause: unknown): unknown =>
@@ -31,6 +33,8 @@ const errnoCode = (cause: unknown): unknown =>
 const reasonFromCause = (cause: unknown): DesktopFileSystemReason => {
   if (cause instanceof InvalidReadLimitError) return "InvalidInput";
   if (cause instanceof FileTooLargeError) return "TooLarge";
+  if (cause instanceof InvalidDirectoryLimitError) return "InvalidInput";
+  if (cause instanceof DirectoryTooLargeError) return "TooLarge";
   if (cause instanceof ExpectedDirectoryError) return "NotDirectory";
 
   switch (errnoCode(cause)) {
@@ -181,6 +185,42 @@ const writeFlags = {
   "append-or-create": "a",
 } satisfies Record<WriteFileDisposition, "wx" | "w" | "a">;
 
+const readDirectoryBounded = async (
+  path: string,
+  options: {
+    readonly filter?: (entry: DesktopDirectoryEntry) => boolean;
+    readonly maxEntries: number;
+  },
+): Promise<readonly DesktopDirectoryEntry[]> => {
+  const { filter, maxEntries } = options;
+  if (!Number.isSafeInteger(maxEntries) || maxEntries < 0) {
+    throw new InvalidDirectoryLimitError(
+      `Invalid directory entry limit: ${maxEntries}`,
+    );
+  }
+
+  const directory = await fs.opendir(path);
+  const entries: DesktopDirectoryEntry[] = [];
+  try {
+    while (entries.length <= maxEntries) {
+      const entry = await directory.read();
+      if (entry === null) break;
+      const mapped = { name: entry.name, kindHint: fileKind(entry) };
+      if (filter?.(mapped) === false) continue;
+      entries.push(mapped);
+    }
+  } finally {
+    await directory.close();
+  }
+
+  if (entries.length > maxEntries) {
+    throw new DirectoryTooLargeError(
+      `Directory contains more than ${maxEntries} entries.`,
+    );
+  }
+  return entries;
+};
+
 const ignoreMissing = <Value>(
   effect: Effect.Effect<Value, DesktopFileSystemError>,
   behavior: MissingPathBehavior,
@@ -308,16 +348,9 @@ const service = DesktopFileSystem.of({
     fromPromise("read", pathTarget(path), () =>
       readBounded(path, options.maxBytes),
     ),
-  readDirectory: (path) =>
+  readDirectory: (path, options) =>
     fromPromise("list-directory", pathTarget(path), () =>
-      fs
-        .readdir(path, { withFileTypes: true })
-        .then((entries): readonly DesktopDirectoryEntry[] =>
-          entries.map((entry) => ({
-            name: entry.name,
-            kindHint: fileKind(entry),
-          })),
-        ),
+      readDirectoryBounded(path, options),
     ),
   stat: (path) =>
     fromPromise("stat", pathTarget(path), () => fs.stat(path).then(fileInfo)),
