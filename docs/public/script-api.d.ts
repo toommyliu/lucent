@@ -382,7 +382,7 @@ interface ScriptEventsApi {
 interface ScriptEventsOn {
     <const T extends ScriptEventType>(query: ScriptEventSelectorForType<T>, handler: (event: ScriptEventForType<T>) => ScriptCallbackResult): Effect<() => void, never>;
     (query: undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
-    (query: EventSelector | undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
+    (query: ProjectionEventSelector | undefined, handler: (event: ScriptEvent) => ScriptCallbackResult): Effect<() => void, never>;
 }
 interface ScriptHouseApi {
   /** @param quantity The minimum quantity required. */
@@ -583,7 +583,7 @@ interface ScriptWaitApi {
 }
 interface ScriptWaitForEvent {
     <const T extends ScriptEventType, E = never, R = never>(query: ScriptEventSelectorForType<T>, options?: TriggeredWaitOptions<E, R>): Effect<ScriptEventForType<T> | null, E, Exclude<R, Scope>>;
-    <E = never, R = never>(selector?: EventSelector, options?: TriggeredWaitOptions<E, R>): Effect<ScriptEvent | null, E, Exclude<R, Scope>>;
+    <E = never, R = never>(selector?: ProjectionEventSelector, options?: TriggeredWaitOptions<E, R>): Effect<ScriptEvent | null, E, Exclude<R, Scope>>;
 }
 interface ScriptWaitForPacket {
     <const D extends PacketDirection, E = never, R = never>(query: PacketSelector & { readonly direction: D; }, options?: TriggeredWaitOptions<E, R>): Effect<PacketForDirection<D> | null, E, Exclude<R, Scope>>;
@@ -715,94 +715,6 @@ interface EquipOptions {
    */
   readonly wear?: boolean;
 }
-/**
- * An event-shaped partial selector. `type` chooses the event variant, and every
- * other field is an exact-match constraint on a scalar field of that variant.
- *
- * Omitting a field leaves it unconstrained. With exact optional property types,
- * explicitly passing `undefined` is invalid; untyped callers that do so safely
- * fail to match instead of selecting events where the field happens to be
- * absent.
- */
-type EventSelector =
-  | {
-      readonly status?: string;
-      readonly type: "connection";
-    }
-  | {
-      readonly message?: string;
-      readonly type: "debug";
-    }
-  | {
-      readonly afk?: boolean;
-      readonly entityId?: number;
-      readonly type: "player-afk";
-      readonly username?: string;
-    }
-  | {
-      readonly type: "join-map";
-    }
-  | {
-      readonly type: "item-drop";
-    }
-  | {
-      readonly questId?: number;
-      readonly type: "quest-complete";
-    }
-  | {
-      readonly monsterMapId?: number;
-      readonly type: "monster-death" | "monster-respawn";
-    }
-  | {
-      readonly entityId?: number;
-      readonly type: "player-death";
-      readonly username?: string;
-    }
-  | {
-      readonly entityId?: number;
-      readonly kind?: "cell" | "position" | "walk";
-      readonly type: "player-location";
-      readonly username?: string;
-    }
-  | {
-      readonly type: "players-changed";
-    }
-  | {
-      readonly duration?: number;
-      readonly icon?: string;
-      readonly name?: string;
-      readonly sourceId?: number;
-      readonly sourceType?: "monster" | "player";
-      readonly targetId?: number;
-      readonly targetType?: "monster" | "player";
-      readonly type: "aura-added" | "aura-removed";
-    }
-  | {
-      readonly durationMs?: number;
-      readonly monsterMapId?: number;
-      readonly source?: "aura" | "message";
-      readonly triggerId?: string;
-      readonly triggerText?: string;
-      readonly type: "anti-counter-start";
-    }
-  | {
-      readonly monsterMapId?: number;
-      readonly source?: "aura" | "message";
-      readonly triggerId?: string;
-      readonly triggerText?: string;
-      readonly type: "anti-counter-end";
-    }
-  | {
-      readonly message?: string;
-      readonly monsterMapId?: number;
-      readonly source?: "animation" | "aura";
-      readonly type: "update-message";
-    }
-  | {
-      readonly map?: string;
-      readonly type: "zone";
-      readonly zone?: string;
-    };
 type GameAction = 'acceptQuest' | 'buyItem' | 'equipItem' | 'equipLoadout' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearItem' | 'wearLoadout';
 interface HuntOptions {
   /**
@@ -942,6 +854,89 @@ interface Position {
   readonly x: number;
   readonly y: number;
 }
+/**
+ * An event-shaped partial selector. `type` chooses the event variant, and every
+ * other field is an exact-match constraint on a scalar field of that variant.
+ *
+ * Omitting a field leaves it unconstrained. With exact optional property types,
+ * explicitly passing `undefined` is invalid; untyped callers that do so safely
+ * fail to match instead of selecting events where the field happens to be
+ * absent.
+ */
+type ProjectionEventSelector =
+  | {
+      readonly type: "login" | "logout";
+    }
+  | {
+      readonly afk?: boolean;
+      readonly entityId?: number;
+      readonly type: "player-afk";
+      readonly username?: string;
+    }
+  | {
+      readonly type: "join-map";
+    }
+  | {
+      readonly type: "item-drop";
+    }
+  | {
+      readonly questId?: number;
+      readonly type: "quest-complete";
+    }
+  | {
+      readonly monsterMapId?: number;
+      readonly type: "monster-death" | "monster-respawn";
+    }
+  | {
+      readonly entityId?: number;
+      readonly type: "player-death";
+      readonly username?: string;
+    }
+  | {
+      readonly entityId?: number;
+      readonly kind?: "cell" | "position" | "walk";
+      readonly type: "player-location";
+      readonly username?: string;
+    }
+  | {
+      readonly type: "players-changed";
+    }
+  | {
+      readonly duration?: number;
+      readonly icon?: string;
+      readonly name?: string;
+      readonly sourceId?: number;
+      readonly sourceType?: "monster" | "player";
+      readonly targetId?: number;
+      readonly targetType?: "monster" | "player";
+      readonly type: "aura-added" | "aura-removed";
+    }
+  | {
+      readonly durationMs?: number;
+      readonly monsterMapId?: number;
+      readonly source?: "aura" | "message";
+      readonly triggerId?: string;
+      readonly triggerText?: string;
+      readonly type: "counter-attack-start";
+    }
+  | {
+      readonly monsterMapId?: number;
+      readonly source?: "aura" | "message";
+      readonly triggerId?: string;
+      readonly triggerText?: string;
+      readonly type: "counter-attack-end";
+    }
+  | {
+      readonly message?: string;
+      readonly monsterMapId?: number;
+      readonly source?: "animation" | "aura";
+      readonly type: "update-message";
+    }
+  | {
+      readonly map?: string;
+      readonly type: "zone";
+      readonly zone?: string;
+    };
 interface RestOptions {
   /** Whether to wait until both HP and MP are full. */
   readonly waitUntilFull?: boolean;
@@ -962,7 +957,7 @@ interface ScriptEquipEnhancementSelector {
   readonly slot?: "cape" | "class" | "helm" | "weapon";
   readonly special?: string;
 }
-type ScriptEvent = RuntimeEvent | ProjectionEvent;
+type ScriptEvent = ProjectionEvent;
 type ScriptEventForType<T extends ScriptEventType> = Extract<
   ScriptEvent,
   { readonly type: T }
@@ -1337,17 +1332,24 @@ interface ScriptCombatPlayerTarget {
   readonly type: "player";
   readonly username: string;
 }
-type RuntimeEvent =
-  | { readonly type: "connection"; readonly status: string }
-  | { readonly type: "debug"; readonly message: string };
 type ProjectionEvent =
   | {
+      /** A game session starts. */
+      readonly type: "login";
+    }
+  | {
+      /** A game session ends. */
+      readonly type: "logout";
+    }
+  | {
+      /** A player goes AFK or comes back. */
+      readonly type: "player-afk";
       readonly afk: boolean;
       readonly entityId: number;
-      readonly type: "player-afk";
       readonly username: string;
     }
   | {
+      /** A map finishes loading. */
       readonly type: "join-map";
       readonly map: {
         readonly id: number;
@@ -1356,67 +1358,104 @@ type ProjectionEvent =
       };
     }
   | {
+      /** An item drops. */
       readonly type: "item-drop";
       readonly item: ItemSnapshot;
     }
-  | { readonly type: "quest-complete"; readonly questId: number }
-  | { readonly type: "monster-death"; readonly monsterMapId: number }
-  | { readonly type: "monster-respawn"; readonly monsterMapId: number }
   | {
+      /** A quest turn-in succeeds. */
+      readonly type: "quest-complete";
+      readonly questId: number;
+    }
+  | {
+      /** A monster dies. */
+      readonly type: "monster-death";
+      readonly monsterMapId: number;
+    }
+  | {
+      /** A monster respawns. */
+      readonly type: "monster-respawn";
+      readonly monsterMapId: number;
+    }
+  | {
+      /** A player dies. */
       readonly type: "player-death";
       readonly entityId: number;
       readonly username: string;
     }
-  | { readonly type: "players-changed" }
   | {
+      /** A player joins or leaves the current map. */
+      readonly type: "players-changed";
+    }
+  | {
+      /** An aura is added to or refreshed on a player or monster. */
       readonly type: "aura-added";
+      /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
       readonly name: string;
+      /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
+      /** The affected entity's map-scoped ID. */
       readonly targetId: number;
       readonly targetType: "monster" | "player";
     }
   | {
+      /** An aura is removed from a player or monster. */
       readonly type: "aura-removed";
+      /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
       readonly name: string;
+      /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
+      /** The affected entity's map-scoped ID. */
       readonly targetId: number;
       readonly targetType: "monster" | "player";
     }
   | {
+      /** A monster's counter attack starts. */
+      readonly type: "counter-attack-start";
+      /** The expected window duration in milliseconds, when known. */
       readonly durationMs?: number;
+      /** The monster's map-scoped ID. */
       readonly monsterMapId: number;
+      /** Where the trigger was detected. */
       readonly source: "aura" | "message";
+      /** A stable identifier for the recognized trigger. */
       readonly triggerId: string;
+      /** The aura name or combat message that matched the trigger. */
       readonly triggerText: string;
-      readonly type: "anti-counter-start";
     }
   | {
+      /** A monster's counter attack ends. */
+      readonly type: "counter-attack-end";
+      /** The monster's map-scoped ID. */
       readonly monsterMapId: number;
+      /** Where the trigger was detected. */
       readonly source: "aura" | "message";
+      /** A stable identifier for the recognized trigger. */
       readonly triggerId: string;
+      /** The aura name or combat message that matched the trigger. */
       readonly triggerText: string;
-      readonly type: "anti-counter-end";
     }
   | ({
+      /** A player's location changes. */
+      readonly type: "player-location";
       readonly cell: string;
       readonly entityId: number;
       readonly pad: string;
-      /** The latest coordinate projected for the player. */
+      /** The latest known coordinates for the player. */
       readonly position: {
         readonly x: number;
         readonly y: number;
       };
-      readonly type: "player-location";
       readonly username: string;
     } & (
       | {
-          /** The endpoint reported by a complete `tx`/`ty` movement. */
+          /** The destination reported by a complete walk update. */
           readonly destination: {
             readonly x: number;
             readonly y: number;
@@ -1429,13 +1468,20 @@ type ProjectionEvent =
         }
     ))
   | {
+      /** A yellow combat message appears. */
       readonly type: "update-message";
       readonly message: string;
+      /** The related monster's map-scoped ID, when the message names one. */
       readonly monsterMapId?: number;
       readonly source: "animation" | "aura";
     }
-  | { readonly type: "zone"; readonly map: string; readonly zone: string };
-type ScriptEventSelector = EventSelector;
+  | {
+      /** The current map's encounter zone changes. */
+      readonly type: "zone";
+      readonly map: string;
+      readonly zone: string;
+    };
+type ScriptEventSelector = ProjectionEventSelector;
 type ShopItemSelector = ItemSelector | ShopItemSelectorById;
 interface ArmyLoopTauntAssignment {
   /** One-based player numbers from the active Army roster. */
