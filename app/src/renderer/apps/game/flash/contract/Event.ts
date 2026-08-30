@@ -1,23 +1,36 @@
 import type { ItemSnapshot } from "@lucent/game";
 
 export type RuntimeEvent =
-  | { readonly type: "connection"; readonly status: string }
-  | { readonly type: "debug"; readonly message: string };
+  | {
+      /** The connection status changes. */
+      readonly type: "connection";
+      /** The connection status, such as `OnConnection` or `OnConnectionLost`. */
+      readonly status: string;
+    }
+  | {
+      /** A debug message is received. */
+      readonly type: "debug";
+      readonly message: string;
+    };
 
 export type ProjectionEvent =
   | {
+      /** A game session starts. */
       readonly type: "login";
     }
   | {
+      /** A game session ends. */
       readonly type: "logout";
     }
   | {
+      /** A player goes AFK or comes back. */
+      readonly type: "player-afk";
       readonly afk: boolean;
       readonly entityId: number;
-      readonly type: "player-afk";
       readonly username: string;
     }
   | {
+      /** A map finishes loading. */
       readonly type: "join-map";
       readonly map: {
         readonly id: number;
@@ -26,67 +39,104 @@ export type ProjectionEvent =
       };
     }
   | {
+      /** An item drops. */
       readonly type: "item-drop";
       readonly item: ItemSnapshot;
     }
-  | { readonly type: "quest-complete"; readonly questId: number }
-  | { readonly type: "monster-death"; readonly monsterMapId: number }
-  | { readonly type: "monster-respawn"; readonly monsterMapId: number }
   | {
+      /** A quest turn-in succeeds. */
+      readonly type: "quest-complete";
+      readonly questId: number;
+    }
+  | {
+      /** A monster dies. */
+      readonly type: "monster-death";
+      readonly monsterMapId: number;
+    }
+  | {
+      /** A monster respawns. */
+      readonly type: "monster-respawn";
+      readonly monsterMapId: number;
+    }
+  | {
+      /** A player dies. */
       readonly type: "player-death";
       readonly entityId: number;
       readonly username: string;
     }
-  | { readonly type: "players-changed" }
   | {
+      /** A player joins or leaves the current map. */
+      readonly type: "players-changed";
+    }
+  | {
+      /** An aura is added to or refreshed on a player or monster. */
       readonly type: "aura-added";
+      /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
       readonly name: string;
+      /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
+      /** The affected entity's map-scoped ID. */
       readonly targetId: number;
       readonly targetType: "monster" | "player";
     }
   | {
+      /** An aura is removed from a player or monster. */
       readonly type: "aura-removed";
+      /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
       readonly name: string;
+      /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
+      /** The affected entity's map-scoped ID. */
       readonly targetId: number;
       readonly targetType: "monster" | "player";
     }
   | {
-      readonly durationMs?: number;
-      readonly monsterMapId: number;
-      readonly source: "aura" | "message";
-      readonly triggerId: string;
-      readonly triggerText: string;
+      /** A monster's counter attack starts. */
       readonly type: "counter-attack-start";
+      /** The expected window duration in milliseconds, when known. */
+      readonly durationMs?: number;
+      /** The monster's map-scoped ID. */
+      readonly monsterMapId: number;
+      /** Where the trigger was detected. */
+      readonly source: "aura" | "message";
+      /** A stable identifier for the recognized trigger. */
+      readonly triggerId: string;
+      /** The aura name or combat message that matched the trigger. */
+      readonly triggerText: string;
     }
   | {
-      readonly monsterMapId: number;
-      readonly source: "aura" | "message";
-      readonly triggerId: string;
-      readonly triggerText: string;
+      /** A monster's counter attack ends. */
       readonly type: "counter-attack-end";
+      /** The monster's map-scoped ID. */
+      readonly monsterMapId: number;
+      /** Where the trigger was detected. */
+      readonly source: "aura" | "message";
+      /** A stable identifier for the recognized trigger. */
+      readonly triggerId: string;
+      /** The aura name or combat message that matched the trigger. */
+      readonly triggerText: string;
     }
   | ({
+      /** A player's location changes. */
+      readonly type: "player-location";
       readonly cell: string;
       readonly entityId: number;
       readonly pad: string;
-      /** The latest coordinate projected for the player. */
+      /** The latest known coordinates for the player. */
       readonly position: {
         readonly x: number;
         readonly y: number;
       };
-      readonly type: "player-location";
       readonly username: string;
     } & (
       | {
-          /** The endpoint reported by a complete `tx`/`ty` movement. */
+          /** The destination reported by a complete walk update. */
           readonly destination: {
             readonly x: number;
             readonly y: number;
@@ -99,12 +149,19 @@ export type ProjectionEvent =
         }
     ))
   | {
+      /** A yellow combat message appears. */
       readonly type: "update-message";
       readonly message: string;
+      /** The related monster's map-scoped ID, when the message names one. */
       readonly monsterMapId?: number;
       readonly source: "animation" | "aura";
     }
-  | { readonly type: "zone"; readonly map: string; readonly zone: string };
+  | {
+      /** The current map's encounter zone changes. */
+      readonly type: "zone";
+      readonly map: string;
+      readonly zone: string;
+    };
 
 export type Event = RuntimeEvent | ProjectionEvent;
 export type EventType = Event["type"];
