@@ -67,6 +67,10 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/extension-packet/"><code>ExtensionPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/faction-data/"><code>FactionData</code></a> | interface |  |
 | <a href="/reference/scripting/types/faction-snapshot/"><code>FactionSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/file-system-entry/"><code>FileSystemEntry</code></a> | interface |  |
+| <a href="/reference/scripting/types/file-system-error/"><code>FileSystemError</code></a> | class | Describes a failed filesystem action. |
+| <a href="/reference/scripting/types/file-system-error-reason/"><code>FileSystemErrorReason</code></a> | type alias | Why a filesystem action failed. |
+| <a href="/reference/scripting/types/file-system-operation/"><code>FileSystemOperation</code></a> | type alias |  |
 | <a href="/reference/scripting/types/flash-packet/"><code>FlashPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/game-action/"><code>GameAction</code></a> | type alias |  |
 | <a href="/reference/scripting/types/hunt-options/"><code>HuntOptions</code></a> | interface |  |

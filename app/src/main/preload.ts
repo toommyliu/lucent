@@ -21,6 +21,7 @@ import type {
   DesktopBridgeByView,
   DesktopCombatProfilesBridge,
   DesktopEnvironmentBridge,
+  DesktopFileSystemBridge,
   DesktopFollowerBridge,
   DesktopGameAccountsBridge,
   DesktopGameConsoleObservabilityBridge,
@@ -44,6 +45,7 @@ import {
   DiagnosticsIpc,
   EnvironmentIpc,
   FollowerIpc,
+  FileSystemIpc,
   GameRendererIpc,
   GameViewsIpc,
   ScriptingIpc,
@@ -318,6 +320,29 @@ const gameConsoleObservabilityBridge: DesktopGameConsoleObservabilityBridge = {
   },
 };
 
+const fileSystemBridge: DesktopFileSystemBridge = {
+  closeSession: (sessionId) =>
+    invoke(FileSystemIpc.closeSession, { sessionId }),
+  exists: (sessionId, path) =>
+    invoke(FileSystemIpc.exists, { path, sessionId }),
+  list: (sessionId, path) =>
+    invoke(FileSystemIpc.list, {
+      ...(path === undefined ? {} : { path }),
+      sessionId,
+    }),
+  openSession: () => invoke(FileSystemIpc.openSession, undefined),
+  readJson: (sessionId, path) =>
+    invoke(FileSystemIpc.readJson, { path, sessionId }),
+  readText: (sessionId, path) =>
+    invoke(FileSystemIpc.readText, { path, sessionId }),
+  remove: (sessionId, path) =>
+    invoke(FileSystemIpc.remove, { path, sessionId }),
+  writeJson: (sessionId, path, value) =>
+    invoke(FileSystemIpc.writeJson, { path, sessionId, value }),
+  writeText: (sessionId, path, contents) =>
+    invoke(FileSystemIpc.writeText, { contents, path, sessionId }),
+};
+
 const windowsBridge: DesktopWindowsBridge = {
   open: (kind) => invoke(WindowsIpc.open, { kind }),
 };
@@ -557,6 +582,7 @@ const bridges = {
     },
     combatProfiles: combatProfilesBridge,
     environment: environmentBridge,
+    fileSystem: fileSystemBridge,
     gameAccounts: gameAccountsBridge,
     gameFollower: gameFollowerBridge,
     gameRenderer: {
