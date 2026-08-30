@@ -239,7 +239,6 @@ interface ScriptAutoReloginApi {
     getServer(): Effect<string | undefined, never>;
     getState(): Effect<AutoReloginState, never>;
     isEnabled(): Effect<boolean, never>;
-    runLogin(request: AutoReloginLoginRequest): Effect<AutoReloginLoginResult, AutoReloginLoginError>;
     setDelay(delay: DurationInput): Effect<AutoReloginState, never>;
     setEnabled(enabled: boolean): Effect<AutoReloginState, never>;
     setServer(server: string | undefined): Effect<AutoReloginState, never>;
@@ -643,20 +642,6 @@ type ArmySession = ArmySessionPayload;
 interface AuraQueryOptions {
   readonly kind?: AuraKind;
 }
-interface AutoReloginLoginError {
-  readonly message: string;
-}
-interface AutoReloginLoginRequest {
-  readonly onLifecycle?: (
-    event: AutoReloginLifecycleEvent,
-  ) => Effect<void, unknown>;
-  readonly password: string;
-  readonly server?: string;
-  readonly username: string;
-}
-type AutoReloginLoginResult =
-  | { readonly status: "ready" }
-  | { readonly status: "server-select" };
 interface AutoReloginState {
   readonly attemptsRemaining?: number;
   readonly attempting: boolean;
@@ -1097,11 +1082,6 @@ interface ArmySessionPayload extends ArmyConfigPayload {
   readonly sessionId: string;
 }
 type AuraKind = "active" | "passive";
-interface AutoReloginLifecycleEvent {
-  readonly attemptsRemaining: number;
-  readonly message?: string;
-  readonly step: AutoReloginLifecycleStep;
-}
 type PacketEncoding = 'string' | 'json';
 interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | "messageTriggers">> {
   readonly steps: readonly CombatProfileStepDefinition[];
@@ -1556,7 +1536,6 @@ interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
 }
-type AutoReloginLifecycleStep = "connect" | "login" | "ready";
 type CombatProfile = { readonly id: string; readonly label: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly priority?: boolean; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly classNames?: readonly string[]; readonly consumable?: string; readonly resetSkillIndexOnTargetDeath?: boolean; readonly messageTriggers?: readonly { readonly messageIncludes: string; readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
 type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
   readonly skill: number;

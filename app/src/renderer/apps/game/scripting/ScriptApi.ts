@@ -44,12 +44,7 @@ import type {
   ArmyLoopTauntHandle,
   ArmyLoopTauntPlan,
 } from "../army/ArmyLoopTaunt";
-import type {
-  AutoReloginLoginError,
-  AutoReloginLoginRequest,
-  AutoReloginLoginResult,
-  AutoReloginState,
-} from "../automation/AutoRelogin";
+import type { AutoReloginState } from "../automation/AutoRelogin";
 import type {
   AutoZoneState,
   AutoZoneSupportedMap,
@@ -787,9 +782,6 @@ export interface ScriptAutoReloginApi {
   readonly getServer: () => Effect.Effect<string | undefined>;
   readonly getState: () => Effect.Effect<AutoReloginState>;
   readonly isEnabled: () => Effect.Effect<boolean>;
-  readonly runLogin: (
-    request: AutoReloginLoginRequest,
-  ) => Effect.Effect<AutoReloginLoginResult, AutoReloginLoginError>;
   readonly setDelay: (delay: Duration.Input) => Effect.Effect<AutoReloginState>;
   readonly setEnabled: (enabled: boolean) => Effect.Effect<AutoReloginState>;
   readonly setServer: (

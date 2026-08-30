@@ -34,11 +34,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/aura-kind/"><code>AuraKind</code></a> | type alias |  |
 | <a href="/reference/scripting/types/aura-query-options/"><code>AuraQueryOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/aura-snapshot/"><code>AuraSnapshot</code></a> | type alias |  |
-| <a href="/reference/scripting/types/auto-relogin-lifecycle-event/"><code>AutoReloginLifecycleEvent</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-relogin-lifecycle-step/"><code>AutoReloginLifecycleStep</code></a> | type alias |  |
-| <a href="/reference/scripting/types/auto-relogin-login-error/"><code>AutoReloginLoginError</code></a> | class |  |
-| <a href="/reference/scripting/types/auto-relogin-login-request/"><code>AutoReloginLoginRequest</code></a> | interface |  |
-| <a href="/reference/scripting/types/auto-relogin-login-result/"><code>AutoReloginLoginResult</code></a> | type alias |  |
 | <a href="/reference/scripting/types/auto-relogin-state/"><code>AutoReloginState</code></a> | interface |  |
 | <a href="/reference/scripting/types/auto-zone-state/"><code>AutoZoneState</code></a> | interface |  |
 | <a href="/reference/scripting/types/auto-zone-supported-map/"><code>AutoZoneSupportedMap</code></a> | type alias |  |
