@@ -21,11 +21,11 @@ export const makeScriptEventsApi = (
     handler: Parameters<ScriptEventsOn>[1],
   ) => {
     return events
-      .on(selector, notifyScriptCallbackFailure(handler, failCause))
+      .onProjection(selector, notifyScriptCallbackFailure(handler, failCause))
       .pipe(Effect.tap((dispose) => scope.addCleanup(dispose)));
   }) as ScriptEventsOn;
 
-  const once = events.once as ScriptWaitForEvent;
+  const once = events.onceProjection as ScriptWaitForEvent;
 
   return Object.freeze({
     on,

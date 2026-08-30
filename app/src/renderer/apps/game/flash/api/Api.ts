@@ -8,6 +8,7 @@ import { makePipeline } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
 import { makeAuth } from "./Auth";
 import { makeAntiCounter } from "./internal/AntiCounter";
+import { makeSessionEvents } from "./internal/SessionEvents";
 import { makeBank } from "./Bank";
 import { makeCombat } from "./Combat";
 import { makeDrops } from "./Drops";
@@ -46,6 +47,10 @@ const makeApiServices = Effect.gen(function* () {
   const monsters = monsterServices.api;
   const players = makePlayers(store);
   const player = makePlayer(bridge, store, auth, inventory, map, wait);
+  const sessionEvents = yield* makeSessionEvents(
+    wait.until(player.isReady()).pipe(Effect.asVoid),
+    gateway.publishEvent,
+  );
   const projectionReadiness = makeProjectionReadiness(store);
   const quests = makeQuests(bridge, store, wait);
   const settings = yield* makeSettings(bridge, store);
@@ -74,6 +79,7 @@ const makeApiServices = Effect.gen(function* () {
     store,
     {
       handleEvent: antiCounter.handleEvent,
+      handleRuntimeEvent: sessionEvents.handleRuntimeEvent,
       publishEvent: gateway.publishEvent,
       ...(debug ? { reportDiagnostic: gateway.reportDiagnostic } : {}),
       ...(traceProjections

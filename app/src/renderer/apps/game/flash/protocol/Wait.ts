@@ -6,12 +6,15 @@ import * as Scope from "effect/Scope";
 import type * as Duration from "effect/Duration";
 
 import {
+  isProjectionEvent,
   matchesEvent,
   type Event,
   type EventForType,
   type EventSelector,
   type EventSelectorForType,
   type EventType,
+  type ProjectionEvent,
+  type ProjectionEventSelector,
 } from "../contract/Event";
 import {
   matchesPacket,
@@ -56,6 +59,29 @@ interface WaitForEvent {
     selector?: EventSelector,
     options?: TriggeredWaitOptions<E, R>,
   ): Effect.Effect<Event | null, E, Exclude<R, Scope.Scope>>;
+}
+
+type ProjectionEventType = ProjectionEvent["type"];
+type ProjectionEventForType<T extends ProjectionEventType> = Extract<
+  ProjectionEvent,
+  { readonly type: T }
+>;
+type ProjectionEventSelectorForType<T extends ProjectionEventType> =
+  ProjectionEventSelector & { readonly type: T };
+
+interface WaitForProjectionEvent {
+  <const T extends ProjectionEventType, E = never, R = never>(
+    selector: ProjectionEventSelectorForType<T>,
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<
+    ProjectionEventForType<T> | null,
+    E,
+    Exclude<R, Scope.Scope>
+  >;
+  <E = never, R = never>(
+    selector?: ProjectionEventSelector,
+    options?: TriggeredWaitOptions<E, R>,
+  ): Effect.Effect<ProjectionEvent | null, E, Exclude<R, Scope.Scope>>;
 }
 
 interface WaitForPacket {
@@ -108,6 +134,27 @@ export const makeWait = (source: WaitSource) => ({
         );
       }),
     )) as WaitForEvent,
+  forProjectionEvent: (<E = never, R = never>(
+    selector?: ProjectionEventSelector,
+    options?: TriggeredWaitOptions<E, R>,
+  ) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const subscription = yield* source.subscribeEvents;
+        if (options?.trigger !== undefined) {
+          const responseExpected = yield* options.trigger;
+          if (!responseExpected) return null;
+        }
+        return yield* withTimeout(
+          takeMatching(
+            subscription,
+            (event): event is ProjectionEvent =>
+              isProjectionEvent(event) && matchesEvent(event, selector),
+          ),
+          options?.timeout,
+        );
+      }),
+    )) as WaitForProjectionEvent,
   forPacket: (<E = never, R = never>(
     selector?: PacketSelector,
     options?: TriggeredWaitOptions<E, R>,
