@@ -360,44 +360,25 @@ interface ScriptDropsApi {
     reject(query: ItemQuery): Effect<boolean, never>;
 }
 interface ScriptEnvironmentApi {
-    getState(): Effect<EnvironmentState, unknown>;
-    clear(): Effect<EnvironmentState, unknown>;
-    addQuest(questId: number, rewardItemId?: number): Effect<EnvironmentState, unknown>;
-    removeQuest(questId: number): Effect<EnvironmentState, unknown>;
-    setQuestReward(questId: number, rewardItemId: number): Effect<EnvironmentState, unknown>;
-    clearQuestReward(questId: number): Effect<EnvironmentState, unknown>;
-    clearQuests(): Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest requirements in the drop list. */
-    setAutoRegisterRequirements(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Enable or disable auto-registration of quest rewards in the drop list. */
-    setAutoRegisterRewards(enabled: boolean): Effect<EnvironmentState, unknown>;
-    addItem(name: string): Effect<EnvironmentState, unknown>;
-    removeItem(name: string): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only AC-tagged items. */
-    setAcceptAcMemberOnlyDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member AC-tagged items. */
-    setAcceptAcNonMemberDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore member-only non-AC items. */
-    setAcceptNonAcMemberOnlyDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Accept or ignore non-member non-AC items. */
-    setAcceptNonAcNonMemberDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Reject or ignore unregistered drops that are not accepted by policy. */
-    setRejectUnregisteredDrops(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Update one or more drop-handling options. */
-    setDropPolicy(policy: Partial<{ readonly acceptAcMemberOnlyDrops: boolean; readonly acceptAcNonMemberDrops: boolean; readonly acceptNonAcMemberOnlyDrops: boolean; readonly acceptNonAcNonMemberDrops: boolean; readonly rejectUnregisteredDrops: boolean; }>): Effect<EnvironmentState, unknown>;
-    clearItems(): Effect<EnvironmentState, unknown>;
-    addBoost(name: string): Effect<EnvironmentState, unknown>;
-    removeBoost(name: string): Effect<EnvironmentState, unknown>;
-    clearBoosts(): Effect<EnvironmentState, unknown>;
-    fetchBoosts(): Effect<readonly string[], unknown>;
-  /** Enable or pause automatic boost use. */
-    setBoostAutomationEnabled(enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic drop acceptance and rejection. */
-    setDropAutomationEnabled(enabled: boolean): Effect<EnvironmentState, unknown>;
-    setItemNotification(name: string, enabled: boolean): Effect<EnvironmentState, unknown>;
-  /** Enable or pause automatic quest acceptance and completion. */
-    setQuestAutomationEnabled(enabled: boolean): Effect<EnvironmentState, unknown>;
-    syncToAll(): Effect<EnvironmentState, unknown>;
+    getState(): Effect<EnvironmentSnapshot, never>;
+  /** Clears quest, item, and boost registrations. */
+    clearRegistrations(): Effect<EnvironmentSnapshot, EnvironmentError>;
+    setAutomationEnabled(capability: 'boosts' | 'drops' | 'quests', enabled: boolean): Effect<EnvironmentSnapshot, EnvironmentError>;
+    addQuest(questId: number, rewardItemId?: number): Effect<EnvironmentSnapshot, EnvironmentError>;
+    removeQuest(questId: number): Effect<EnvironmentSnapshot, EnvironmentError>;
+    setQuestReward(questId: number, rewardItemId: number): Effect<EnvironmentSnapshot, EnvironmentError>;
+    clearQuestReward(questId: number): Effect<EnvironmentSnapshot, EnvironmentError>;
+    clearQuests(): Effect<EnvironmentSnapshot, EnvironmentError>;
+    updateQuestAutoRegister(patch: Partial<{ readonly requirements: boolean; readonly rewards: boolean; }>): Effect<EnvironmentSnapshot, EnvironmentError>;
+    addItem(name: string): Effect<EnvironmentSnapshot, EnvironmentError>;
+    removeItem(name: string): Effect<EnvironmentSnapshot, EnvironmentError>;
+    clearItems(): Effect<EnvironmentSnapshot, EnvironmentError>;
+    setItemNotification(name: string, enabled: boolean): Effect<EnvironmentSnapshot, EnvironmentError>;
+  /** Updates one or more drop-handling options. */
+    updateDropPolicy(patch: Partial<{ readonly acceptAcMemberOnlyDrops: boolean; readonly acceptAcNonMemberDrops: boolean; readonly acceptNonAcMemberOnlyDrops: boolean; readonly acceptNonAcNonMemberDrops: boolean; readonly rejectUnregisteredDrops: boolean; }>): Effect<EnvironmentSnapshot, EnvironmentError>;
+    addBoost(name: string): Effect<EnvironmentSnapshot, EnvironmentError>;
+    removeBoost(name: string): Effect<EnvironmentSnapshot, EnvironmentError>;
+    clearBoosts(): Effect<EnvironmentSnapshot, EnvironmentError>;
 }
 interface ScriptEventsApi {
     readonly on: ScriptEventsOn;
@@ -714,10 +695,19 @@ interface ConnectOutcome {
     | "timeout";
 }
 type EntityState = 0 | 1 | 2;
-/**
- * @scriptingExpandSchema
- */
-type EnvironmentState = { readonly automation: { readonly boosts: boolean; readonly drops: boolean; readonly quests: boolean; }; readonly questIds: readonly number[]; readonly questAutoRegister: { readonly requirements: boolean; readonly rewards: boolean; }; readonly questRewards: { readonly [x: number]: number; }; readonly itemNames: readonly string[]; readonly itemNotificationNames: readonly string[]; readonly itemRules: { readonly buckets: readonly ('ac-member' | 'ac-non-member' | 'non-ac-member' | 'non-ac-non-member')[]; readonly rejectElse: boolean; }; readonly boosts: readonly string[]; };
+interface EnvironmentError extends Error {
+  readonly _tag: "EnvironmentError";
+}
+interface EnvironmentSnapshot {
+  readonly automation: EnvironmentAutomationOptions;
+  readonly questIds: readonly number[];
+  readonly questAutoRegister: EnvironmentQuestAutoRegisterOptions;
+  readonly questRewards: Readonly<Record<number, number>>;
+  readonly itemNames: readonly string[];
+  readonly itemNotificationNames: readonly string[];
+  readonly dropPolicy: EnvironmentDropPolicy;
+  readonly boosts: readonly string[];
+}
 interface EquipOptions {
   /**
    * Whether to wear wearable equipment after equipping it.
@@ -1087,6 +1077,20 @@ interface CombatProfileDefinition extends Partial<Omit<CombatProfile, "steps" | 
   readonly steps: readonly CombatProfileStepDefinition[];
   readonly messageTriggers?: readonly CombatProfileMessageTriggerDefinition[];
 }
+/**
+ * @scriptingExpandSchema
+ */
+type EnvironmentAutomationOptions = { readonly boosts: boolean; readonly drops: boolean; readonly quests: boolean; };
+/**
+ * @scriptingExpandSchema
+ */
+type EnvironmentQuestAutoRegisterOptions = { readonly requirements: boolean; readonly rewards: boolean; };
+/**
+ * Handling options for drops that are not registered by name.
+ *
+ * @scriptingExpandSchema
+ */
+type EnvironmentDropPolicy = { readonly acceptAcMemberOnlyDrops: boolean; readonly acceptAcNonMemberDrops: boolean; readonly acceptNonAcMemberOnlyDrops: boolean; readonly acceptNonAcNonMemberDrops: boolean; readonly rejectUnregisteredDrops: boolean; };
 type ItemSelector = ItemSelectorById | ItemSelectorByName;
 interface LiveModel<State extends object> {
   update(patch: Partial<State>): void;

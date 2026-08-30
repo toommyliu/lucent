@@ -33,10 +33,6 @@ const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
 const DEFAULT_SOURCE_FILE = "app/src/renderer/apps/game/scripting/ScriptApi.ts";
 const DEFAULT_OUTPUT_DIR =
   "docs/src/content/docs/reference/scripting";
-const LEGACY_OUTPUT_DIRS = [
-  "docs/src/content/docs/script-commands",
-  "docs/src/content/docs/scripting",
-] as const;
 const SCRIPTING_REFERENCE_ROUTE = "/reference/scripting";
 const APP_TSCONFIG = "app/tsconfig.json";
 const SOURCE_REF_ENV = "DOCGEN_SOURCE_REF";
@@ -828,7 +824,12 @@ const formatType = (
     return "unknown";
   }
 
-  return node.getText(node.getSourceFile()).replace(/\s+/g, " ").trim();
+  return node
+    .getText(node.getSourceFile())
+    .replace(/<[ \t]*\r?\n[ \t]*/g, "<")
+    .replace(/[ \t]*\r?\n[ \t]*>/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 const parseEffectReturn = (
@@ -3584,21 +3585,10 @@ const listMarkdownFiles = async (dir: string): Promise<readonly string[]> => {
 };
 
 const writeGeneratedDocs = (
-  repoRoot: string,
   outputDir: string,
   files: ReadonlyArray<RenderedFile>,
 ): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
-    for (const legacyOutputDir of LEGACY_OUTPUT_DIRS) {
-      const legacyDir = resolve(repoRoot, legacyOutputDir);
-      if (legacyDir === outputDir) {
-        continue;
-      }
-      yield* Effect.tryPromise(() =>
-        fs.rm(legacyDir, { recursive: true, force: true }),
-      );
-    }
-
     yield* Effect.tryPromise(() => fs.mkdir(outputDir, { recursive: true }));
 
     const expected = new Set(files.map((file) => resolve(file.path)));
@@ -3677,11 +3667,7 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
       renderTypeCodeBlock,
     );
 
-    yield* writeGeneratedDocs(
-      options.repoRoot,
-      options.outputDir,
-      renderedFiles,
-    );
+    yield* writeGeneratedDocs(options.outputDir, renderedFiles);
     yield* Console.log(
       `Generated ${renderedFiles.length} scripting API doc files in ${relative(
         options.repoRoot,
