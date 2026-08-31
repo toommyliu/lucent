@@ -41,7 +41,7 @@ const ScriptEvalFunction = Function as unknown as new (
   filesystem: ScriptBuiltinModules["lucent/filesystem"],
   effect: ScriptBuiltinModules["effect"]["Effect"],
   console: Console,
-) => Effect.Effect<unknown, unknown, never>;
+) => () => Effect.gen.Return<unknown, unknown>;
 
 const compileErrorMessage = (cause: unknown): string =>
   cause instanceof Error && cause.message.trim() !== ""
@@ -64,19 +64,21 @@ export const compileScriptEval = (
         "Effect",
         "console",
         `"use strict";
-return Effect.gen(function* debugScriptEval() {
+return function* debugScriptEval() {
 ${source}
-});
+};
 //# sourceURL=lucent-script-eval://scratch`,
       );
-      return evaluate(
-        modules["lucent/api"],
-        modules["lucent/script"],
-        modules["lucent/autorelogin"],
-        modules["lucent/autozone"],
-        modules["lucent/filesystem"],
-        modules.effect.Effect,
-        debugConsole,
+      return Effect.gen(
+        evaluate(
+          modules["lucent/api"],
+          modules["lucent/script"],
+          modules["lucent/autorelogin"],
+          modules["lucent/autozone"],
+          modules["lucent/filesystem"],
+          modules.effect.Effect,
+          debugConsole,
+        ),
       );
     },
     catch: (cause) =>
