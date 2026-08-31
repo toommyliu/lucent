@@ -5,6 +5,7 @@ import { pipe } from "effect/Function";
 
 import type {
   ScriptDurationModule,
+  ScriptEffectAllTuple,
   ScriptEffectModule,
   ScriptEffectStd,
   ScriptOptionModule,
@@ -20,8 +21,20 @@ const scriptDurationModule: ScriptDurationModule = {
 };
 Object.freeze(scriptDurationModule);
 
+function scriptEffectAll<
+  const Effects extends readonly Effect.Effect<unknown, unknown, unknown>[],
+>(effects: Effects): ScriptEffectAllTuple<Effects>;
+function scriptEffectAll<Value, Error, Requirements>(
+  effects: Iterable<Effect.Effect<Value, Error, Requirements>>,
+): Effect.Effect<readonly Value[], Error, Requirements>;
+function scriptEffectAll(
+  effects: Iterable<Effect.Effect<unknown, unknown, unknown>>,
+): Effect.Effect<readonly unknown[], unknown, unknown> {
+  return Effect.all(effects);
+}
+
 const scriptEffectModule: ScriptEffectModule = {
-  all: Effect.all,
+  all: scriptEffectAll,
   as: Effect.as,
   asVoid: Effect.asVoid,
   catch: Effect.catch,

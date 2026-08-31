@@ -1076,10 +1076,42 @@ export type ScriptEffectTryPromise = {
   }): Effect.Effect<Value, Error>;
 };
 
-export interface ScriptEffectModule {
-  readonly all: <Value, Error, Requirements>(
+type ScriptEffectSuccess<Input> =
+  Input extends Effect.Effect<infer Value, infer _Error, infer _Requirements>
+    ? Value
+    : never;
+
+type ScriptEffectError<Input> =
+  Input extends Effect.Effect<infer _Value, infer Error, infer _Requirements>
+    ? Error
+    : never;
+
+type ScriptEffectRequirements<Input> =
+  Input extends Effect.Effect<infer _Value, infer _Error, infer Requirements>
+    ? Requirements
+    : never;
+
+export type ScriptEffectAllTuple<
+  Effects extends readonly Effect.Effect<unknown, unknown, unknown>[],
+> = Effect.Effect<
+  {
+    readonly [Index in keyof Effects]: ScriptEffectSuccess<Effects[Index]>;
+  },
+  ScriptEffectError<Effects[number]>,
+  ScriptEffectRequirements<Effects[number]>
+>;
+
+export type ScriptEffectAll = {
+  <const Effects extends readonly Effect.Effect<unknown, unknown, unknown>[]>(
+    effects: Effects,
+  ): ScriptEffectAllTuple<Effects>;
+  <Value, Error, Requirements>(
     effects: Iterable<Effect.Effect<Value, Error, Requirements>>,
-  ) => Effect.Effect<readonly Value[], Error, Requirements>;
+  ): Effect.Effect<readonly Value[], Error, Requirements>;
+};
+
+export interface ScriptEffectModule {
+  readonly all: ScriptEffectAll;
   readonly as: <Next>(
     value: Next,
   ) => <Value, Error, Requirements>(
