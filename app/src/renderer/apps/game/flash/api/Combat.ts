@@ -3,7 +3,7 @@ import {
   orderMonstersByPriority,
   toMonsterSelector,
 } from "@lucent/game";
-import type { ItemQuery, MonsterQuery } from "@lucent/game";
+import type { ItemQuery, LiveMonster, MonsterQuery } from "@lucent/game";
 import {
   normalizeCombatProfile,
   type CombatProfileDefinition,
@@ -435,15 +435,19 @@ export const makeCombat = (
     });
   };
 
+  const reachHuntTarget = (target: LiveMonster | null) => {
+    if (target === null || target.cell === "") return Effect.succeed(null);
+    return player
+      .jumpToCell(target.cell)
+      .pipe(Effect.map((reached) => (reached ? target : null)));
+  };
+
   const hunt = (selector: MonsterQuery, options?: HuntOptions) => {
     return monsters.getAll().pipe(
       Effect.flatMap((all) => {
         const matches = all.filter((monster) => monster.matches(selector));
         if (options?.preferMostMatches !== true || matches.length < 2) {
-          const target = matches[0] ?? null;
-          return target === null || target.cell === ""
-            ? Effect.succeed(target)
-            : player.jumpToCell(target.cell).pipe(Effect.as(target));
+          return reachHuntTarget(matches[0] ?? null);
         }
         const cells = new Map<string, number>();
         for (const monster of matches) {
@@ -454,9 +458,7 @@ export const makeCombat = (
             ? candidate
             : best,
         );
-        return target.cell === ""
-          ? Effect.succeed(target)
-          : player.jumpToCell(target.cell).pipe(Effect.as(target));
+        return reachHuntTarget(target);
       }),
     );
   };
@@ -593,9 +595,9 @@ export const makeCombat = (
   ) =>
     Effect.gen(function* () {
       const available = yield* monsters.getAvailable();
-      const monster =
-        available.find((candidate) => candidate.matches(selector)) ??
-        orderMonstersByPriority(available, options?.targetPriority ?? [])[0];
+      const monster = available.find((candidate) =>
+        candidate.matches(selector),
+      );
       if (monster === undefined) return false;
 
       const death = yield* wait.forEvent(
