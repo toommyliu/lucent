@@ -131,15 +131,17 @@ const parsePlatform = (args: ReadonlyArray<string>): BuildPlatform => {
 const electronBuilderArgs = (
   platform: BuildPlatform,
 ): ReadonlyArray<string> => {
+  const publishArgs = ["--publish", "never"] as const;
+
   switch (platform) {
     case "all":
-      return ["-mwl"];
+      return ["-mwl", ...publishArgs];
     case "mac":
-      return ["--mac"];
+      return ["--mac", ...publishArgs];
     case "win":
-      return ["--win"];
+      return ["--win", ...publishArgs];
     case "linux":
-      return ["--linux"];
+      return ["--linux", ...publishArgs];
   }
 };
 

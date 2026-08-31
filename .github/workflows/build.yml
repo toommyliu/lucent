@@ -3,16 +3,19 @@ name: Build
 on:
   push:
     tags:
-      - '*.*.*'
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g., 1.0.0)'
+        description: 'Existing release tag (e.g., v0.0.1)'
         required: true
         type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
 
 jobs:
   build_electron:
@@ -21,6 +24,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag_name || github.ref_name }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -34,26 +40,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate release
+        run: pnpm release:validate "$RELEASE_TAG" "$RUNNER_TEMP/release-notes.md"
+
       - name: Verify
         run: |
           pnpm format
           pnpm lint
           pnpm typecheck
           pnpm test
+
+      - name: Audit dependencies
+        continue-on-error: true
+        run: |
           pnpm audit --audit-level high
 
       - name: Build electron app
         run: pnpm run dist:app:all
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release artifacts
+      - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          body_path: ${{ runner.temp }}/release-notes.md
+          draft: true
+          fail_on_unmatched_files: true
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             ./app/build/Lucent-*-mac-*.dmg
             ./app/build/Lucent-*-win-*.zip
             ./app/build/Lucent-*-linux-*.AppImage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

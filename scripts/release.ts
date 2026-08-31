@@ -12,23 +12,28 @@ import * as Effect from "effect/Effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { ChildProcess } from "effect/unstable/process";
 
+import {
+  findFirstStableRelease,
+  formatReleaseTag,
+  formatVersion,
+  gitCliffChangelogArgs,
+  makeInitialChangelog,
+  parseStableVersion,
+  RELEASE_NOTES_PLACEHOLDER_CONTENT,
+  releaseNotesAreReady,
+  resolveTargetVersion,
+  type StableRelease,
+} from "./release-logic";
+
 const execFileAsync = promisify(execFile);
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
 const APP_PACKAGE_JSON_PATH = join(REPO_ROOT, "app", "package.json");
-const STABLE_VERSION_PATTERN = /^([0-9]+)\.([0-9]+)\.([0-9]+)$/;
+const CHANGELOG_PATH = join(REPO_ROOT, "CHANGELOG.md");
+const RELEASE_NOTES_PATH = join(REPO_ROOT, "RELEASE_NOTES.md");
 const RELEASE_BRANCH = "main";
 const RELEASE_FILES = ["app/package.json", "CHANGELOG.md"] as const;
-const BUMP_KINDS = ["patch", "minor", "major"] as const;
-
-type BumpKind = (typeof BUMP_KINDS)[number];
-
-type Version = {
-  readonly major: number;
-  readonly minor: number;
-  readonly patch: number;
-};
 
 type CliInput = {
   readonly bumpOrVersion: string;
@@ -55,53 +60,6 @@ const toRelativePath = (path: string): string => {
   return value === "" ? "." : value.split(sep).join("/");
 };
 
-const isBumpKind = (value: string): value is BumpKind =>
-  BUMP_KINDS.includes(value as BumpKind);
-
-const parseStableVersion = (value: string): Version | null => {
-  const match = STABLE_VERSION_PATTERN.exec(value);
-  if (!match) {
-    return null;
-  }
-
-  const [, major, minor, patch] = match;
-  if (major === undefined || minor === undefined || patch === undefined) {
-    return null;
-  }
-
-  return {
-    major: Number(major),
-    minor: Number(minor),
-    patch: Number(patch),
-  };
-};
-
-const formatVersion = (version: Version): string =>
-  `${version.major}.${version.minor}.${version.patch}`;
-
-const compareVersions = (left: Version, right: Version): number => {
-  if (left.major !== right.major) {
-    return left.major - right.major;
-  }
-
-  if (left.minor !== right.minor) {
-    return left.minor - right.minor;
-  }
-
-  return left.patch - right.patch;
-};
-
-const bumpVersion = (version: Version, bump: BumpKind): Version => {
-  switch (bump) {
-    case "patch":
-      return { ...version, patch: version.patch + 1 };
-    case "minor":
-      return { major: version.major, minor: version.minor + 1, patch: 0 };
-    case "major":
-      return { major: version.major + 1, minor: 0, patch: 0 };
-  }
-};
-
 const runGit = (
   args: ReadonlyArray<string>,
 ): Effect.Effect<string, ReleaseError> =>
@@ -112,7 +70,8 @@ const runGit = (
         encoding: "utf8",
         maxBuffer: 10 * 1024 * 1024,
       });
-      return stdout.trim();
+      // Porcelain status uses a leading space as one of its two state bytes.
+      return stdout.trimEnd();
     },
     catch: (cause) =>
       new ReleaseError({
@@ -171,22 +130,16 @@ const requireReleaseBranch = (branch: string) =>
         }),
       );
 
-const getLatestStableTag = (): Effect.Effect<string, ReleaseError> =>
+const getLatestStableRelease = (): Effect.Effect<
+  StableRelease | null,
+  ReleaseError
+> =>
   runGit(["tag", "--merged", RELEASE_BRANCH, "--sort=-v:refname"]).pipe(
-    Effect.flatMap((output) => {
-      const tag = output
-        .split(/\r?\n/)
-        .map((value) => value.trim())
-        .find((value) => STABLE_VERSION_PATTERN.test(value));
-
-      return tag
-        ? Effect.succeed(tag)
-        : Effect.fail(
-            new ReleaseError({
-              message: `No stable semver tags found on ${RELEASE_BRANCH}`,
-            }),
-          );
-    }),
+    Effect.map((output) =>
+      findFirstStableRelease(
+        output.split(/\r?\n/).map((value) => value.trim()),
+      ),
+    ),
   );
 
 const readAppPackageJson = (): Effect.Effect<AppPackageJson, ReleaseError> =>
@@ -211,49 +164,29 @@ const readAppPackageJson = (): Effect.Effect<AppPackageJson, ReleaseError> =>
   });
 
 const getAppVersion = (packageJson: AppPackageJson) =>
-  typeof packageJson.version === "string"
+  typeof packageJson.version === "string" &&
+  parseStableVersion(packageJson.version) !== null
     ? Effect.succeed(packageJson.version)
     : Effect.fail(
         new ReleaseError({
-          message: `${toRelativePath(APP_PACKAGE_JSON_PATH)} is missing a string version`,
+          message: `${toRelativePath(APP_PACKAGE_JSON_PATH)} must contain a stable semantic version`,
         }),
       );
 
-const resolveTargetVersion = (
+const resolveReleaseTargetVersion = (
   bumpOrVersion: string,
-  latestVersion: Version,
+  latestRelease: StableRelease | null,
 ): Effect.Effect<string, ReleaseError> => {
-  if (isBumpKind(bumpOrVersion)) {
-    return Effect.succeed(
-      formatVersion(bumpVersion(latestVersion, bumpOrVersion)),
-    );
-  }
-
-  const parsed = parseStableVersion(bumpOrVersion);
-  if (!parsed) {
-    return Effect.fail(
-      new ReleaseError({
-        message:
-          "Release version must be patch, minor, major, or a stable semver version like 0.9.0",
-      }),
-    );
-  }
-
-  if (compareVersions(parsed, latestVersion) <= 0) {
-    return Effect.fail(
-      new ReleaseError({
-        message: `Target version ${bumpOrVersion} must be greater than latest release tag ${formatVersion(latestVersion)}`,
-      }),
-    );
-  }
-
-  return Effect.succeed(bumpOrVersion);
+  const result = resolveTargetVersion(bumpOrVersion, latestRelease);
+  return result.ok
+    ? Effect.succeed(result.version)
+    : Effect.fail(new ReleaseError({ message: result.message }));
 };
 
 const tagExists = (tag: string): Effect.Effect<boolean, never> =>
   runGit(["rev-parse", "--verify", "--quiet", `refs/tags/${tag}`]).pipe(
     Effect.as(true),
-    Effect.catch(() => Effect.succeed(false)),
+    Effect.orElseSucceed(() => false),
   );
 
 const requireNewTag = (tag: string) =>
@@ -279,24 +212,53 @@ const getDirtyStatus = (): Effect.Effect<ReadonlyArray<string>, ReleaseError> =>
 const checkDirtyTree = (
   dirtyStatus: ReadonlyArray<string>,
   input: CliInput,
+  allowedDirtyEntries: ReadonlySet<string> = new Set(),
 ): Effect.Effect<void, ReleaseError> =>
   Effect.gen(function* () {
     if (dirtyStatus.length === 0) {
       return;
     }
 
-    if (!input.allowDirty) {
+    const unexpectedChanges = dirtyStatus.filter(
+      (line) => !allowedDirtyEntries.has(line),
+    );
+    if (!input.allowDirty && unexpectedChanges.length > 0) {
       return yield* new ReleaseError({
         message:
           "Working tree is dirty. Commit or stash changes, or rerun with --allow-dirty.",
       });
     }
 
-    yield* Console.log("Working tree has existing changes:");
+    yield* Console.log(
+      unexpectedChanges.length === 0
+        ? "Including curated release file changes:"
+        : "Working tree has existing changes:",
+    );
     for (const line of dirtyStatus) {
       yield* Console.log(`  ${line}`);
     }
   });
+
+const readInitialReleaseNotes = (): Effect.Effect<string, ReleaseError> =>
+  Effect.tryPromise({
+    try: () => readFile(RELEASE_NOTES_PATH, "utf8"),
+    catch: (cause) =>
+      new ReleaseError({
+        message: `Failed to read ${toRelativePath(RELEASE_NOTES_PATH)}`,
+        cause,
+      }),
+  }).pipe(
+    Effect.flatMap((source) =>
+      releaseNotesAreReady(source)
+        ? Effect.succeed(source)
+        : Effect.fail(
+            new ReleaseError({
+              message:
+                "Replace the placeholder in RELEASE_NOTES.md before preparing the first release.",
+            }),
+          ),
+    ),
+  );
 
 const writeAppVersion = (
   packageJson: AppPackageJson,
@@ -315,20 +277,44 @@ const writeAppVersion = (
       }),
   });
 
-const gitCliffArgs = (targetVersion: string): ReadonlyArray<string> => [
-  "--config",
-  "cliff.toml",
-  "--tag",
-  targetVersion,
-  "--output",
-  "CHANGELOG.md",
-];
+const writeInitialChangelog = (
+  targetVersion: string,
+  targetTag: string,
+  releaseNotes: string,
+): Effect.Effect<void, ReleaseError> =>
+  Effect.tryPromise({
+    try: () =>
+      writeFile(
+        CHANGELOG_PATH,
+        makeInitialChangelog({
+          date: new Date().toISOString().slice(0, 10),
+          notes: releaseNotes,
+          tag: targetTag,
+          version: targetVersion,
+        }),
+      ),
+    catch: (cause) =>
+      new ReleaseError({
+        message: `Failed to write ${toRelativePath(CHANGELOG_PATH)}`,
+        cause,
+      }),
+  });
 
-const runGitCliff = (targetVersion: string) =>
+const resetInitialReleaseNotes = (): Effect.Effect<void, ReleaseError> =>
+  Effect.tryPromise({
+    try: () => writeFile(RELEASE_NOTES_PATH, RELEASE_NOTES_PLACEHOLDER_CONTENT),
+    catch: (cause) =>
+      new ReleaseError({
+        message: `Failed to reset ${toRelativePath(RELEASE_NOTES_PATH)}`,
+        cause,
+      }),
+  });
+
+const runGitCliff = (args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
     const child = yield* ChildProcess.make(
       "git-cliff",
-      gitCliffArgs(targetVersion),
+      args,
       {
         cwd: REPO_ROOT,
         env: process.env,
@@ -362,34 +348,48 @@ const runGitCliff = (targetVersion: string) =>
 
 const printPlan = (
   branch: string,
-  latestTag: string,
+  latestRelease: StableRelease | null,
   appVersion: string,
   targetVersion: string,
+  targetTag: string,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     yield* Console.log(`Current branch: ${branch}`);
-    yield* Console.log(`Latest stable release tag: ${latestTag}`);
+    yield* Console.log(
+      `Latest stable release tag: ${latestRelease?.tag ?? "none (first release)"}`,
+    );
     yield* Console.log(`Current app/package.json version: ${appVersion}`);
     yield* Console.log(`Target version: ${targetVersion}`);
+    yield* Console.log(`Target tag: ${targetTag}`);
     yield* Console.log("Files that would change:");
     for (const file of RELEASE_FILES) {
       yield* Console.log(`  ${file}`);
     }
-    yield* Console.log(
-      `git-cliff command: git-cliff ${gitCliffArgs(targetVersion).join(" ")}`,
-    );
+
+    if (latestRelease === null) {
+      yield* Console.log(
+        "Changelog source: curated notes from RELEASE_NOTES.md",
+      );
+      return;
+    }
+
+    const args = gitCliffChangelogArgs(targetTag);
+    yield* Console.log(`git-cliff command: git-cliff ${args.join(" ")}`);
   });
 
-const printNextCommands = (targetVersion: string): Effect.Effect<void> =>
+const printNextCommands = (
+  targetVersion: string,
+  targetTag: string,
+): Effect.Effect<void> =>
   Effect.gen(function* () {
     yield* Console.log("");
     yield* Console.log("Release files prepared. Next commands:");
     yield* Console.log("git diff -- app/package.json CHANGELOG.md");
     yield* Console.log("git add app/package.json CHANGELOG.md");
     yield* Console.log(`git commit -m "chore(release): ${targetVersion}"`);
-    yield* Console.log(`git tag ${targetVersion}`);
+    yield* Console.log(`git tag ${targetTag}`);
     yield* Console.log("git push origin main");
-    yield* Console.log(`git push origin ${targetVersion}`);
+    yield* Console.log(`git push origin ${targetTag}`);
   });
 
 const release = (input: CliInput) =>
@@ -399,39 +399,60 @@ const release = (input: CliInput) =>
     const branch = yield* getCurrentBranch();
     yield* requireReleaseBranch(branch);
 
-    const latestTag = yield* getLatestStableTag();
-    const latestVersion = parseStableVersion(latestTag);
-    if (!latestVersion) {
-      return yield* new ReleaseError({
-        message: `Latest release tag ${latestTag} is not stable semver`,
-      });
-    }
-
+    const latestRelease = yield* getLatestStableRelease();
     const appPackageJson = yield* readAppPackageJson();
     const appVersion = yield* getAppVersion(appPackageJson);
-    const targetVersion = yield* resolveTargetVersion(
+    const targetVersion = yield* resolveReleaseTargetVersion(
       input.bumpOrVersion,
-      latestVersion,
+      latestRelease,
     );
-    yield* requireNewTag(targetVersion);
+    const targetTag = formatReleaseTag(targetVersion);
+    yield* requireNewTag(targetTag);
 
-    if (appVersion !== latestTag) {
+    if (
+      latestRelease !== null &&
+      appVersion !== formatVersion(latestRelease.version)
+    ) {
       yield* Console.log(
-        `Warning: app/package.json is ${appVersion} but latest release tag is ${latestTag}. Bumping from ${latestTag}.`,
+        `Warning: app/package.json is ${appVersion} but latest release is ${latestRelease.tag}. Bumping from ${latestRelease.tag}.`,
       );
     }
 
+    const initialReleaseNotes =
+      latestRelease === null ? yield* readInitialReleaseNotes() : null;
     const dirtyStatus = yield* getDirtyStatus();
-    yield* checkDirtyTree(dirtyStatus, input);
+    yield* checkDirtyTree(
+      dirtyStatus,
+      input,
+      latestRelease === null ? new Set([" M RELEASE_NOTES.md"]) : new Set(),
+    );
 
     if (input.dryRun) {
-      yield* printPlan(branch, latestTag, appVersion, targetVersion);
+      yield* printPlan(
+        branch,
+        latestRelease,
+        appVersion,
+        targetVersion,
+        targetTag,
+      );
       return;
     }
 
     yield* writeAppVersion(appPackageJson, targetVersion);
-    yield* runGitCliff(targetVersion);
-    yield* printNextCommands(targetVersion);
+    if (initialReleaseNotes !== null) {
+      yield* writeInitialChangelog(
+        targetVersion,
+        targetTag,
+        initialReleaseNotes,
+      );
+      yield* resetInitialReleaseNotes();
+      yield* Console.log(
+        "Reset RELEASE_NOTES.md to its placeholder; it is not part of the release commit.",
+      );
+    } else {
+      yield* runGitCliff(gitCliffChangelogArgs(targetTag));
+    }
+    yield* printNextCommands(targetVersion, targetTag);
   });
 
 const command = Command.make("release", {
