@@ -2,43 +2,6 @@
 
 /* eslint-disable */
 
-type ScriptPipe = {
-  <A>(value: A): A;
-  <A, B>(value: A, ab: (a: A) => B): B;
-  <A, B, C>(value: A, ab: (a: A) => B, bc: (b: B) => C): C;
-  <A, B, C, D>(
-    value: A,
-    ab: (a: A) => B,
-    bc: (b: B) => C,
-    cd: (c: C) => D,
-  ): D;
-};
-
-interface ScriptEffectModule {
-  readonly [key: string]: any;
-}
-
-interface ScriptOptionModule {
-  some<Value>(value: Value): Option<Value>;
-  none<Value = never>(): Option<Value>;
-  isSome<Value>(
-    option: Option<Value>,
-  ): option is { readonly _tag: "Some"; readonly value: Value };
-  isNone<Value>(option: Option<Value>): option is { readonly _tag: "None" };
-  readonly [key: string]: any;
-}
-
-interface ScriptOpaqueModule {
-  readonly [key: string]: any;
-}
-
-interface ScriptEffectStd {
-  readonly Effect: ScriptEffectModule;
-  readonly Option: ScriptOptionModule;
-  readonly Duration: ScriptOpaqueModule;
-  readonly pipe: ScriptPipe;
-}
-
 declare module "effect" {
   const effect: ScriptEffectStd;
   export = effect;
@@ -77,10 +40,31 @@ declare module "lucent/script" {
   export = script;
 }
 
-type DurationInput = number | string | bigint | DurationLike;
+type DurationInput =
+  | number
+  | string
+  | bigint
+  | readonly [seconds: number, nanos: number]
+  | ScriptDuration
+  | {
+      readonly weeks?: number;
+      readonly days?: number;
+      readonly hours?: number;
+      readonly minutes?: number;
+      readonly seconds?: number;
+      readonly milliseconds?: number;
+      readonly microseconds?: number;
+      readonly nanoseconds?: number;
+    };
 
-interface DurationLike {
-  readonly _tag?: string;
+type ScriptDurationValue =
+  | { readonly _tag: "Millis"; readonly millis: number }
+  | { readonly _tag: "Nanos"; readonly nanos: bigint }
+  | { readonly _tag: "Infinity" }
+  | { readonly _tag: "NegativeInfinity" };
+
+interface ScriptDuration {
+  readonly value: ScriptDurationValue;
 }
 
 type Option<Value> =
@@ -267,6 +251,12 @@ interface ScriptFileSystemApi {
   /** Saves text to a file. */
     writeText(path: string, contents: string): Effect<void, FileSystemError>;
 }
+interface ScriptEffectStd {
+    readonly Duration: ScriptDurationModule;
+    readonly Effect: ScriptEffectModule;
+    readonly Option: ScriptOptionModule;
+    readonly pipe: ScriptPipe;
+}
 interface FileSystemErrorConstructor {
     new (fields: { readonly operation: FileSystemOperation; readonly path?: string; readonly reason: FileSystemErrorReason; }): FileSystemError;
 }
@@ -281,10 +271,8 @@ interface ScriptArmyApi {
     isStarted(): Effect<boolean, never>;
     joinMap(map: string, options?: CellPositionOptions): Effect<void, ArmyError>;
     kill(target: MonsterQuery, options?: CombatKillOptions): Effect<void, ArmyError>;
-  /** @param quantity The minimum quantity to collect. */
-    killForItem(target: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
-  /** @param quantity The minimum quantity to collect. */
-    killForTempItem(target: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<void, ArmyError>;
+    killForTempItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<void, ArmyError>;
     leave(): Effect<void, never>;
     runStep<A, E>(label: string, action: Effect<A, E, never>, options?: ArmyRunStepOptions): Effect<A, E | ArmyError>;
     start(configName: string): Effect<ArmySession, ArmyError>;
@@ -339,12 +327,11 @@ interface ScriptCombatApi {
     canUseSkill(skill: SkillSlot): Effect<boolean, never>;
     exit(): Effect<boolean, never>;
     getSkillCooldownRemainingMs(skill: SkillSlot): Effect<number | null, never>;
+  /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
     hunt(query: MonsterQuery, options?: HuntOptions): Effect<LiveMonster | null, never>;
     kill(query: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
-  /** @param quantity The minimum quantity to collect. */
-    killForItem(query: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
-  /** @param quantity The minimum quantity to collect. */
-    killForTempItem(query: MonsterQuery, item: ItemQuery, /** @defaultValue 1 */ quantity?: number, options?: CombatKillOptions): Effect<boolean, never>;
+    killForItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
+    killForTempItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
     useSkill(skill: SkillSlot, options?: SkillUseOptions): Effect<boolean, never>;
 }
@@ -358,6 +345,33 @@ interface ScriptDropsApi {
     get(query: ItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
     reject(query: ItemQuery): Effect<boolean, never>;
+}
+interface ScriptDurationModule {
+    days(days: number): ScriptDuration;
+    hours(hours: number): ScriptDuration;
+    millis(millis: number): ScriptDuration;
+    minutes(minutes: number): ScriptDuration;
+    seconds(seconds: number): ScriptDuration;
+    toMillis(duration: DurationInput): number;
+}
+interface ScriptEffectModule {
+    readonly all: ScriptEffectAll;
+    as<Next>(value: Next): <Value, Error, Requirements>(effect: Effect<Value, Error, Requirements>) => Effect<Next, Error, Requirements>;
+    asVoid<Value, Error, Requirements>(effect: Effect<Value, Error, Requirements>): Effect<void, Error, Requirements>;
+    readonly catch: ScriptEffectCatch;
+    fail<Error>(error: Error): Effect<never, Error>;
+    readonly flatMap: ScriptEffectFlatMap;
+    forEach<Value, Next, Error, Requirements>(values: Iterable<Value>, transform: (value: Value, index: number) => Effect<Next, Error, Requirements>): Effect<readonly Next[], Error, Requirements>;
+    readonly map: ScriptEffectMap;
+    readonly mapError: ScriptEffectMapError;
+    sleep(duration: DurationInput): Effect<void, never>;
+    succeed<Value>(value: Value): Effect<Value, never>;
+    sync<Value>(evaluate: () => Value): Effect<Value, never>;
+    readonly tap: ScriptEffectTap;
+    readonly timeoutOption: ScriptEffectTimeoutOption;
+    readonly try: ScriptEffectTry;
+    readonly tryPromise: ScriptEffectTryPromise;
+    readonly void: Effect<void, never, never>;
 }
 interface ScriptEnvironmentApi {
     getState(): Effect<EnvironmentSnapshot, never>;
@@ -438,6 +452,15 @@ interface ScriptMonstersApi {
   /** Checks whether a monster in the current cell is alive and can be targeted for combat. Hidden monsters count as available. */
     isAvailable(query: MonsterQuery): Effect<boolean, never>;
 }
+interface ScriptOptionModule {
+    readonly getOrElse: ScriptOptionGetOrElse;
+    readonly isNone: ScriptOptionIsNone;
+    readonly isSome: ScriptOptionIsSome;
+    readonly map: ScriptOptionMap;
+    readonly match: ScriptOptionMatch;
+    none<Value = never>(): Option<Value>;
+    some<Value>(value: Value): Option<Value>;
+}
 interface ScriptOptionsApi {
     getAll(): Effect<ScriptRuntimeOptions, never>;
     getRestartAfterReconnect(): Effect<boolean, never>;
@@ -508,7 +531,6 @@ interface ScriptPlayerOutfitsApi {
 interface ScriptPlayersApi {
     get(query: PlayerQuery): Effect<LivePlayer | null, never>;
     getAll(): Effect<readonly LivePlayer[], never>;
-    getMe(): Effect<LivePlayer | null, never>;
 }
 interface ScriptQuestsApi {
     abandon(questId: number): Effect<boolean, never>;
@@ -715,6 +737,11 @@ interface EquipOptions {
    */
   readonly wear?: boolean;
 }
+interface FarmItemGoal {
+  readonly item: ItemQuery;
+  /** @defaultValue 1 */
+  readonly quantity?: number;
+}
 interface FileSystemEntry {
   readonly kind: "file" | "directory" | "symbolic-link" | "other";
   readonly name: string;
@@ -816,7 +843,6 @@ interface LiveMonster extends LiveEntity<MonsterData> {
   readonly name: string;
   readonly race: string;
   matches(selector: MonsterQuery): boolean;
-  replaceDrops(drops: readonly MonsterDrop[]): void;
   toJSON(): MonsterSnapshot;
 }
 interface LiveOutfit extends LiveModel<OutfitData> {
@@ -982,6 +1008,107 @@ type ScriptCallbackResult<A = unknown> =
 type ScriptCombatTarget =
   | ScriptCombatMonsterTarget
   | ScriptCombatPlayerTarget;
+type ScriptEffectAll = {
+  <const Effects extends readonly Effect<unknown, unknown, unknown>[]>(
+    effects: Effects,
+  ): ScriptEffectAllTuple<Effects>;
+  <Value, Error, Requirements>(
+    effects: Iterable<Effect<Value, Error, Requirements>>,
+  ): Effect<readonly Value[], Error, Requirements>;
+};
+type ScriptEffectCatch = {
+  <Error, Recovered, RecoveryError, RecoveryRequirements>(
+    recover: (
+      error: Error,
+    ) => Effect<Recovered, RecoveryError, RecoveryRequirements>,
+  ): <Value, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<
+    Value | Recovered,
+    RecoveryError,
+    Requirements | RecoveryRequirements
+  >;
+  <Value, Error, Requirements, Recovered, RecoveryError, RecoveryRequirements>(
+    effect: Effect<Value, Error, Requirements>,
+    recover: (
+      error: Error,
+    ) => Effect<Recovered, RecoveryError, RecoveryRequirements>,
+  ): Effect<
+    Value | Recovered,
+    RecoveryError,
+    Requirements | RecoveryRequirements
+  >;
+};
+type ScriptEffectFlatMap = {
+  <Value, Next, NextError, NextRequirements>(
+    next: (value: Value) => Effect<Next, NextError, NextRequirements>,
+  ): <Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<Next, Error | NextError, Requirements | NextRequirements>;
+  <Value, Error, Requirements, Next, NextError, NextRequirements>(
+    effect: Effect<Value, Error, Requirements>,
+    next: (value: Value) => Effect<Next, NextError, NextRequirements>,
+  ): Effect<Next, Error | NextError, Requirements | NextRequirements>;
+};
+type ScriptEffectMap = {
+  <Value, Next>(
+    transform: (value: Value) => Next,
+  ): <Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<Next, Error, Requirements>;
+  <Value, Error, Requirements, Next>(
+    effect: Effect<Value, Error, Requirements>,
+    transform: (value: Value) => Next,
+  ): Effect<Next, Error, Requirements>;
+};
+type ScriptEffectMapError = {
+  <Error, NextError>(
+    transform: (error: Error) => NextError,
+  ): <Value, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<Value, NextError, Requirements>;
+  <Value, Error, Requirements, NextError>(
+    effect: Effect<Value, Error, Requirements>,
+    transform: (error: Error) => NextError,
+  ): Effect<Value, NextError, Requirements>;
+};
+type ScriptEffectTap = {
+  <Value, Next, NextError, NextRequirements>(
+    inspect: (value: Value) => Effect<Next, NextError, NextRequirements>,
+  ): <Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<Value, Error | NextError, Requirements | NextRequirements>;
+  <Value, Error, Requirements, Next, NextError, NextRequirements>(
+    effect: Effect<Value, Error, Requirements>,
+    inspect: (value: Value) => Effect<Next, NextError, NextRequirements>,
+  ): Effect<Value, Error | NextError, Requirements | NextRequirements>;
+};
+type ScriptEffectTimeoutOption = {
+  (
+    duration: DurationInput,
+  ): <Value, Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<Option<Value>, Error, Requirements>;
+  <Value, Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+    duration: DurationInput,
+  ): Effect<Option<Value>, Error, Requirements>;
+};
+type ScriptEffectTry = {
+  <Value, Error>(options: {
+    readonly try: () => Value;
+    readonly catch: (error: unknown) => Error;
+  }): Effect<Value, Error>;
+};
+type ScriptEffectTryPromise = {
+  <Value>(
+    evaluate: (signal: AbortSignal) => PromiseLike<Value>,
+  ): Effect<Value, unknown>;
+  <Value, Error>(options: {
+    readonly try: (signal: AbortSignal) => PromiseLike<Value>;
+    readonly catch: (error: unknown) => Error;
+  }): Effect<Value, Error>;
+};
 interface ScriptEnhanceItemOptions {
   readonly enhancement: string;
   readonly special?: string;
@@ -1006,6 +1133,56 @@ interface ScriptExitOptions {
   readonly closeClient?: boolean;
   readonly logout?: boolean;
 }
+type ScriptOptionGetOrElse = {
+  <Fallback>(
+    onNone: () => Fallback,
+  ): <Value>(option: Option<Value>) => Value | Fallback;
+  <Value, Fallback>(
+    option: Option<Value>,
+    onNone: () => Fallback,
+  ): Value | Fallback;
+};
+type ScriptOptionIsNone = <Value>(
+  option: Option<Value>,
+) => option is Extract<Option<Value>, { readonly _tag: "None" }>;
+type ScriptOptionIsSome = <Value>(
+  option: Option<Value>,
+) => option is Extract<Option<Value>, { readonly _tag: "Some" }>;
+type ScriptOptionMap = {
+  <Value, Next>(
+    transform: (value: Value) => Next,
+  ): (option: Option<Value>) => Option<Next>;
+  <Value, Next>(
+    option: Option<Value>,
+    transform: (value: Value) => Next,
+  ): Option<Next>;
+};
+type ScriptOptionMatch = {
+  <None, Value, Some = None>(options: {
+    readonly onNone: () => None;
+    readonly onSome: (value: Value) => Some;
+  }): (option: Option<Value>) => None | Some;
+  <Value, None, Some = None>(
+    option: Option<Value>,
+    options: {
+      readonly onNone: () => None;
+      readonly onSome: (value: Value) => Some;
+    },
+  ): None | Some;
+};
+type ScriptPipe = {
+  <A>(value: A): A;
+  <A, B>(value: A, ab: (a: A) => B): B;
+  <A, B, C>(value: A, ab: (a: A) => B, bc: (b: B) => C): C;
+  <A, B, C, D>(value: A, ab: (a: A) => B, bc: (b: B) => C, cd: (c: C) => D): D;
+  <A, B, C, D, E>(
+    value: A,
+    ab: (a: A) => B,
+    bc: (b: B) => C,
+    cd: (c: C) => D,
+    de: (d: D) => E,
+  ): E;
+};
 /** Controls game render visibility. */
 type ScriptRenderingMode =
   | "full"
@@ -1093,9 +1270,6 @@ type EnvironmentQuestAutoRegisterOptions = { readonly requirements: boolean; rea
 type EnvironmentDropPolicy = { readonly acceptAcMemberOnlyDrops: boolean; readonly acceptAcNonMemberDrops: boolean; readonly acceptNonAcMemberOnlyDrops: boolean; readonly acceptNonAcNonMemberDrops: boolean; readonly rejectUnregisteredDrops: boolean; };
 type ItemSelector = ItemSelectorById | ItemSelectorByName;
 interface LiveModel<State extends object> {
-  update(patch: Partial<State>): void;
-  replaceFrom(model: LiveModel<State>): void;
-  snapshot(): State;
 }
 interface AuraData {
   category?: string;
@@ -1191,11 +1365,8 @@ interface LiveEntity<State extends EntityData> extends LiveModel<State> {
   readonly mp: number;
   readonly mpPercent: number;
   readonly state: EntityState;
-  addAura(aura: LiveAura, operation: 'add' | 'refresh'): void;
-  clearAuras(): void;
   getAura(name: string, options?: AuraQueryOptions): LiveAura | null;
   hasAura(name: string, options?: AuraQueryOptions): boolean;
-  removeAura(name: string, kind?: AuraKind): void;
   isInCell(cell: string): boolean;
   toJSON(): EntitySnapshot;
 }
@@ -1375,6 +1546,15 @@ interface ScriptCombatPlayerTarget {
   readonly type: "player";
   readonly username: string;
 }
+type ScriptEffectAllTuple<
+  Effects extends readonly Effect<unknown, unknown, unknown>[],
+> = Effect<
+  {
+    readonly [Index in keyof Effects]: ScriptEffectSuccess<Effects[Index]>;
+  },
+  ScriptEffectError<Effects[number]>,
+  ScriptEffectRequirements<Effects[number]>
+>;
 type ProjectionEvent =
   | {
       /** A game session starts. */
@@ -1579,6 +1759,18 @@ type ExtensionPacket = { readonly command: string; readonly data: unknown; reado
 interface PlayerSelectorByUsername {
   readonly username: string;
 }
+type ScriptEffectSuccess<Input> =
+  Input extends Effect<infer Value, infer _Error, infer _Requirements>
+    ? Value
+    : never;
+type ScriptEffectError<Input> =
+  Input extends Effect<infer _Value, infer Error, infer _Requirements>
+    ? Error
+    : never;
+type ScriptEffectRequirements<Input> =
+  Input extends Effect<infer _Value, infer _Error, infer Requirements>
+    ? Requirements
+    : never;
 /** Returns true when the selected player should yield to the next participant. */
 type ArmyLoopTauntSkipWhen = (
   context: ArmyLoopTauntSkipContext,

@@ -44,7 +44,7 @@ module.exports = function* run() {
   yield* script.options.setRoomPolicy({ kind: "random-private" });
   yield* api.player.joinMap("battleon");
 
-  const me = yield* api.players.getMe();
+  const me = yield* api.player.get();
   if (me !== null) {
     yield* script.log(`Logged in as ${me.username}`);
   }

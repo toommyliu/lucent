@@ -66,6 +66,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/extension-packet/"><code>ExtensionPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/faction-data/"><code>FactionData</code></a> | interface |  |
 | <a href="/reference/scripting/types/faction-snapshot/"><code>FactionSnapshot</code></a> | type alias |  |
+| <a href="/reference/scripting/types/farm-item-goal/"><code>FarmItemGoal</code></a> | interface | Identifies the item and minimum quantity a farming action should collect. |
 | <a href="/reference/scripting/types/file-system-entry/"><code>FileSystemEntry</code></a> | interface |  |
 | <a href="/reference/scripting/types/file-system-error/"><code>FileSystemError</code></a> | class | Describes a failed filesystem action. |
 | <a href="/reference/scripting/types/file-system-error-reason/"><code>FileSystemErrorReason</code></a> | type alias | Why a filesystem action failed. |
