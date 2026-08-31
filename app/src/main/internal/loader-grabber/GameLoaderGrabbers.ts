@@ -177,6 +177,9 @@ export const makeGameLoaderGrabbers = Effect.gen(function* () {
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
     event.kind === "game" ? removeGame(event) : Effect.void,
   );
+  const unsubscribeUnavailable = yield* windows.onRendererUnavailable((event) =>
+    event.kind === "game" ? removeGame(event) : Effect.void,
+  );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
     event.kind === "game" ? removeGame(event) : Effect.void,
   );
@@ -184,6 +187,7 @@ export const makeGameLoaderGrabbers = Effect.gen(function* () {
     Effect.sync(() => {
       unsubscribeClosed();
       unsubscribeDestroyed();
+      unsubscribeUnavailable();
       unsubscribeReloaded();
     }),
   );

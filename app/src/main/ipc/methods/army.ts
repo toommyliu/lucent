@@ -199,6 +199,20 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     );
 
     yield* Effect.acquireRelease(
+      windows.onRendererUnavailable((event) =>
+        event.kind === "game"
+          ? coordinator.abortParticipant(
+              event.rendererId,
+              event.failure.type === "plugin-crashed"
+                ? "An army participant's Flash plugin crashed"
+                : `An army participant's game renderer stopped (${event.failure.reason})`,
+            )
+          : Effect.void,
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
+
+    yield* Effect.acquireRelease(
       windows.onRendererReloaded((event) =>
         event.kind === "game"
           ? coordinator.abortParticipant(

@@ -5,6 +5,9 @@ import {
   screen,
   type BrowserViewConstructorOptions,
   type BrowserWindowConstructorOptions,
+  type Event as ElectronEvent,
+  type RenderProcessGoneDetails,
+  type WebContents,
 } from "electron";
 
 import * as Context from "effect/Context";
@@ -148,6 +151,11 @@ export interface DesktopWindowsShape {
   readonly onRendererDestroyed: (
     listener: (
       event: DesktopWindowRendererDestroyedEvent,
+    ) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<() => void>;
+  readonly onRendererUnavailable: (
+    listener: (
+      event: DesktopWindowRendererUnavailableEvent,
     ) => Effect.Effect<void, unknown>,
   ) => Effect.Effect<() => void>;
   readonly onRendererReloaded: (
@@ -531,6 +539,24 @@ export interface DesktopWindowRendererDestroyedEvent {
   readonly kind: DesktopWindowKind;
 }
 
+export type DesktopWindowRendererUnavailableFailure =
+  | {
+      readonly name: string;
+      readonly type: "plugin-crashed";
+      readonly version: string;
+    }
+  | {
+      readonly reason: RenderProcessGoneDetails["reason"];
+      readonly type: "render-process-gone";
+    };
+
+export interface DesktopWindowRendererUnavailableEvent {
+  readonly failure: DesktopWindowRendererUnavailableFailure;
+  readonly rendererId: number;
+  readonly id: DesktopWindowInstanceId;
+  readonly kind: DesktopWindowKind;
+}
+
 export interface DesktopWindowRendererReloadedEvent {
   readonly rendererId: number;
   readonly generation: number;
@@ -699,12 +725,54 @@ const makeDesktopWindows = Effect.gen(function* () {
   const rendererDestroyedListeners = new Set<
     (event: DesktopWindowRendererDestroyedEvent) => Effect.Effect<void, unknown>
   >();
+  const rendererUnavailableListeners = new Set<
+    (
+      event: DesktopWindowRendererUnavailableEvent,
+    ) => Effect.Effect<void, unknown>
+  >();
   const rendererReloadedListeners = new Set<
     (event: DesktopWindowRendererReloadedEvent) => Effect.Effect<void, unknown>
   >();
   const rendererReadyListeners = new Set<
     (event: DesktopWindowRendererReadyEvent) => Effect.Effect<void, unknown>
   >();
+
+  const observeRendererAvailability = (
+    contents: Pick<WebContents, "off" | "on">,
+    event: Omit<DesktopWindowRendererUnavailableEvent, "failure">,
+    onRenderProcessGone?: (details: RenderProcessGoneDetails) => void,
+  ): (() => void) => {
+    const publish = (
+      failure: DesktopWindowRendererUnavailableFailure,
+    ): void => {
+      const unavailableEvent = { ...event, failure };
+      for (const listener of rendererUnavailableListeners) {
+        void runPromise(listener(unavailableEvent)).catch(() => undefined);
+      }
+    };
+    const handlePluginCrashed = (
+      _event: ElectronEvent,
+      name: string,
+      version: string,
+    ): void => publish({ name, type: "plugin-crashed", version });
+    const handleRenderProcessGone = (
+      _event: ElectronEvent,
+      details: RenderProcessGoneDetails,
+    ): void => {
+      onRenderProcessGone?.(details);
+      publish({
+        reason: details.reason,
+        type: "render-process-gone",
+      });
+    };
+
+    contents.on("plugin-crashed", handlePluginCrashed);
+    contents.on("render-process-gone", handleRenderProcessGone);
+    return () => {
+      contents.off("plugin-crashed", handlePluginCrashed);
+      contents.off("render-process-gone", handleRenderProcessGone);
+    };
+  };
 
   const forgetUnusableWindowRecord = (
     id: DesktopWindowInstanceId,
@@ -1326,6 +1394,16 @@ const makeDesktopWindows = Effect.gen(function* () {
       };
     });
 
+  const onRendererUnavailable: DesktopWindowsShape["onRendererUnavailable"] = (
+    listener,
+  ) =>
+    Effect.sync(() => {
+      rendererUnavailableListeners.add(listener);
+      return () => {
+        rendererUnavailableListeners.delete(listener);
+      };
+    });
+
   const onRendererReloaded: DesktopWindowsShape["onRendererReloaded"] = (
     listener,
   ) =>
@@ -1530,6 +1608,18 @@ const makeDesktopWindows = Effect.gen(function* () {
         id,
         kind: "game",
       };
+      const stopObservingAvailability = observeRendererAvailability(
+        view.webContents,
+        rendererDestroyedEvent,
+        (details) => {
+          record.rendererReady = false;
+          updateGameViewPhase(
+            id,
+            "error",
+            `Game renderer stopped (${details.reason}).`,
+          );
+        },
+      );
       record.stopObservingReloads = observeWindowReloads(
         view.webContents,
         (generation) => {
@@ -1583,16 +1673,9 @@ const makeDesktopWindows = Effect.gen(function* () {
           updateGameViewPhase(id, "error", errorDescription);
         },
       );
-      view.webContents.on("render-process-gone", (_event, details) => {
-        record.rendererReady = false;
-        updateGameViewPhase(
-          id,
-          "error",
-          `Game renderer stopped (${details.reason}).`,
-        );
-      });
       view.webContents.on("destroyed", () => {
         record.rendererReady = false;
+        stopObservingAvailability();
         record.stopObservingFocus();
         record.stopObservingReloads();
         record.stopObservingShortcutInput();
@@ -2463,6 +2546,10 @@ const makeDesktopWindows = Effect.gen(function* () {
           id,
           kind,
         };
+        const stopObservingAvailability = observeRendererAvailability(
+          webContents,
+          rendererDestroyedEvent,
+        );
         const stopObservingWindowReloads = observeWindowReloads(
           webContents,
           (generation) => {
@@ -2482,6 +2569,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
         webContents.on("destroyed", () => {
           record.rendererReady = false;
+          stopObservingAvailability();
           stopObservingWindowReloads();
           for (const listener of rendererDestroyedListeners) {
             void runPromise(listener(rendererDestroyedEvent)).catch(
@@ -2658,6 +2746,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     onClosed,
     onCreated,
     onRendererDestroyed,
+    onRendererUnavailable,
     onRendererReloaded,
     onRendererReady,
     open,

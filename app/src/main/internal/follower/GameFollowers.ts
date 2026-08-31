@@ -274,6 +274,9 @@ export const makeGameFollowers = Effect.gen(function* () {
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
     event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
   );
+  const unsubscribeUnavailable = yield* windows.onRendererUnavailable((event) =>
+    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
+  );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
     event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
   );
@@ -305,6 +308,7 @@ export const makeGameFollowers = Effect.gen(function* () {
     Effect.sync(() => {
       unsubscribeClosed();
       unsubscribeDestroyed();
+      unsubscribeUnavailable();
       unsubscribeReloaded();
       unsubscribeReady();
     }),

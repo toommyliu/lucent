@@ -1,6 +1,7 @@
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -67,11 +68,13 @@ export class ArmyApi extends Context.Service<ArmyApi, ArmyApiRuntimeShape>()(
 ) {}
 
 interface ArmyState {
+  readonly ended: Deferred.Deferred<never, ArmyError> | null;
   readonly nextStep: number;
   readonly session: ArmySession | null;
 }
 
 const defaultState: ArmyState = {
+  ended: null,
   nextStep: 0,
   session: null,
 };
@@ -248,7 +251,12 @@ const makeArmyApi = (
             ),
           );
         }
-        return yield* operation.pipe(
+        const ended = (yield* getState).ended;
+        const guarded =
+          ended === null
+            ? operation
+            : Effect.raceFirst(operation, Deferred.await(ended));
+        return yield* guarded.pipe(
           Effect.ensuring(SynchronizedRef.set(coordinationRef, false)),
         );
       });
@@ -366,7 +374,9 @@ const makeArmyApi = (
           const session = yield* fromDesktop("Failed to start army", () =>
             bridge.start({ configName, playerName: username }),
           );
+          const ended = yield* Deferred.make<never, ArmyError>();
           yield* SynchronizedRef.set(stateRef, {
+            ended,
             nextStep: 0,
             session,
           });
@@ -738,17 +748,19 @@ const makeArmyApi = (
 
     const disposeEnded = bridge.onEnded((payload) => {
       runFork(
-        Effect.all(
-          [
-            SynchronizedRef.update(stateRef, (state) =>
+        Effect.gen(function* () {
+          const ended = yield* SynchronizedRef.modify(
+            stateRef,
+            (state): readonly [ArmyState["ended"], ArmyState] =>
               state.session?.sessionId === payload.sessionId
-                ? defaultState
-                : state,
-            ),
-            loopTaunts.notifySessionEnded(payload),
-          ],
-          { discard: true },
-        ),
+                ? [state.ended, defaultState]
+                : [null, state],
+          );
+          if (ended !== null) {
+            yield* Deferred.fail(ended, new ArmyError(payload.reason));
+          }
+          yield* loopTaunts.notifySessionEnded(payload);
+        }),
       );
     });
     yield* Effect.addFinalizer(() => Effect.sync(disposeEnded));
