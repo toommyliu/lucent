@@ -239,27 +239,31 @@ const makeArmyApi = (
     const withCoordination = <A, E>(
       operation: Effect.Effect<A, E>,
     ): Effect.Effect<A, E | ArmyError> =>
-      Effect.gen(function* () {
-        const acquired = yield* SynchronizedRef.modify(
-          coordinationRef,
-          (busy) => [!busy, true] as const,
-        );
-        if (!acquired) {
-          return yield* Effect.fail(
-            new ArmyError(
-              "Another coordinated army operation is already running",
-            ),
+      Effect.acquireUseRelease(
+        Effect.gen(function* () {
+          const acquired = yield* SynchronizedRef.modify(
+            coordinationRef,
+            (busy) => [!busy, true] as const,
           );
-        }
-        const ended = (yield* getState).ended;
-        const guarded =
-          ended === null
-            ? operation
-            : Effect.raceFirst(operation, Deferred.await(ended));
-        return yield* guarded.pipe(
-          Effect.ensuring(SynchronizedRef.set(coordinationRef, false)),
-        );
-      });
+          if (!acquired) {
+            return yield* Effect.fail(
+              new ArmyError(
+                "Another coordinated army operation is already running",
+              ),
+            );
+          }
+        }),
+        () =>
+          Effect.gen(function* () {
+            const ended = (yield* getState).ended;
+            const guarded =
+              ended === null
+                ? operation
+                : Effect.raceFirst(operation, Deferred.await(ended));
+            return yield* guarded;
+          }),
+        () => SynchronizedRef.set(coordinationRef, false),
+      );
 
     const loopTaunt: ArmyApiRuntimeShape["loopTaunt"] = (plan, onFailure) =>
       withCoordination(loopTaunts.loopTaunt(plan, onFailure)).pipe(

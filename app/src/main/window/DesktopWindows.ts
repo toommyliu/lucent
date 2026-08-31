@@ -507,6 +507,8 @@ interface DesktopRendererRecordBase {
   // ownerId is logical ownership only; Electron parent windows are intentionally not used.
   readonly ownerId?: DesktopWindowInstanceId;
   rendererReady: boolean;
+  /** Rejects delayed readiness from a failed generation until navigation advances it. */
+  unavailableGeneration?: number;
 }
 
 interface DesktopBrowserWindowRecord extends DesktopRendererRecordBase {
@@ -577,6 +579,20 @@ const makeInstanceId = (kind: DesktopWindowKind): DesktopWindowInstanceId =>
 const isGameViewRecord = (
   record: DesktopRendererRecord,
 ): record is DesktopGameViewRecord => record.gameView !== undefined;
+
+const markRendererUnavailable = (record: DesktopRendererRecord): void => {
+  record.rendererReady = false;
+  record.unavailableGeneration = record.generation;
+};
+
+const beginRendererGeneration = (
+  record: DesktopRendererRecord,
+  generation: number,
+): void => {
+  record.generation = generation;
+  record.rendererReady = false;
+  delete record.unavailableGeneration;
+};
 
 /** Returns the native window containing a desktop renderer. */
 const nativeWindowForRenderer = (
@@ -740,11 +756,12 @@ const makeDesktopWindows = Effect.gen(function* () {
   const observeRendererAvailability = (
     contents: Pick<WebContents, "off" | "on">,
     event: Omit<DesktopWindowRendererUnavailableEvent, "failure">,
-    onRenderProcessGone?: (details: RenderProcessGoneDetails) => void,
+    onUnavailable: (failure: DesktopWindowRendererUnavailableFailure) => void,
   ): (() => void) => {
     const publish = (
       failure: DesktopWindowRendererUnavailableFailure,
     ): void => {
+      onUnavailable(failure);
       const unavailableEvent = { ...event, failure };
       for (const listener of rendererUnavailableListeners) {
         void runPromise(listener(unavailableEvent)).catch(() => undefined);
@@ -758,13 +775,11 @@ const makeDesktopWindows = Effect.gen(function* () {
     const handleRenderProcessGone = (
       _event: ElectronEvent,
       details: RenderProcessGoneDetails,
-    ): void => {
-      onRenderProcessGone?.(details);
+    ): void =>
       publish({
         reason: details.reason,
         type: "render-process-gone",
       });
-    };
 
     contents.on("plugin-crashed", handlePluginCrashed);
     contents.on("render-process-gone", handleRenderProcessGone);
@@ -1180,6 +1195,11 @@ const makeDesktopWindows = Effect.gen(function* () {
           if (record.generation !== generation) {
             throw new Error(
               `Renderer generation ${generation} is stale; current generation is ${record.generation}.`,
+            );
+          }
+          if (record.unavailableGeneration === generation) {
+            throw new Error(
+              `Renderer generation ${generation} is unavailable.`,
             );
           }
           if (record.rendererReady) {
@@ -1611,20 +1631,21 @@ const makeDesktopWindows = Effect.gen(function* () {
       const stopObservingAvailability = observeRendererAvailability(
         view.webContents,
         rendererDestroyedEvent,
-        (details) => {
-          record.rendererReady = false;
+        (failure) => {
+          markRendererUnavailable(record);
           updateGameViewPhase(
             id,
             "error",
-            `Game renderer stopped (${details.reason}).`,
+            failure.type === "plugin-crashed"
+              ? "Flash plugin crashed."
+              : `Game renderer stopped (${failure.reason}).`,
           );
         },
       );
       record.stopObservingReloads = observeWindowReloads(
         view.webContents,
         (generation) => {
-          record.generation = generation;
-          record.rendererReady = false;
+          beginRendererGeneration(record, generation);
           updateGameViewPhase(id, "loading");
           const reloadedEvent: DesktopWindowRendererReloadedEvent = {
             rendererId,
@@ -1674,7 +1695,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         },
       );
       view.webContents.on("destroyed", () => {
-        record.rendererReady = false;
+        markRendererUnavailable(record);
         stopObservingAvailability();
         record.stopObservingFocus();
         record.stopObservingReloads();
@@ -2549,12 +2570,14 @@ const makeDesktopWindows = Effect.gen(function* () {
         const stopObservingAvailability = observeRendererAvailability(
           webContents,
           rendererDestroyedEvent,
+          () => {
+            markRendererUnavailable(record);
+          },
         );
         const stopObservingWindowReloads = observeWindowReloads(
           webContents,
           (generation) => {
-            record.generation = generation;
-            record.rendererReady = false;
+            beginRendererGeneration(record, generation);
             const reloadedEvent: DesktopWindowRendererReloadedEvent = {
               rendererId,
               generation,
@@ -2568,7 +2591,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         );
 
         webContents.on("destroyed", () => {
-          record.rendererReady = false;
+          markRendererUnavailable(record);
           stopObservingAvailability();
           stopObservingWindowReloads();
           for (const listener of rendererDestroyedListeners) {
