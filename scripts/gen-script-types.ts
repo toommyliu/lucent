@@ -1243,6 +1243,10 @@ const timed = effect.pipe(
   effect.Effect.map((hasItem) => (hasItem ? "yes" : "no")),
   effect.Effect.timeoutOption("1 second"),
 );
+const combined: Effect<readonly [string, number]> = effect.Effect.all([
+  effect.Effect.succeed("ready"),
+  effect.Effect.succeed(2),
+]);
 const duration = effect.Duration.seconds(2);
 const milliseconds: number = effect.Duration.toMillis(duration);
 const optional = effect.Option.some(1);
@@ -1264,6 +1268,7 @@ api.players.getMe();
 effect.Effect.runPromise(timed);
 
 void milliseconds;
+void combined;
 `;
   const virtualFiles = new Map([
     [declarationPath, declarations],
