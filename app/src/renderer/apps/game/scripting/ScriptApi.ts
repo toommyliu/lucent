@@ -97,6 +97,13 @@ export type { ScriptInputType } from "@lucent/core/scriptInputs";
 export type { ScriptInputsDefinition, ScriptInputValue, ScriptInputValues };
 export type { RoomPolicy };
 
+/** Identifies the item and minimum quantity a farming action should collect. */
+export interface FarmItemGoal {
+  readonly item: ItemQuery;
+  /** @defaultValue 1 */
+  readonly quantity?: number;
+}
+
 export type ScriptEvent = ProjectionEvent;
 export type ScriptEventType = ScriptEvent["type"];
 export type ScriptEventSelector = ProjectionEventSelector;
@@ -137,20 +144,14 @@ export interface ScriptArmyApi {
     target: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
-  /** @param quantity The minimum quantity to collect. */
   readonly killForItem: (
     target: MonsterQuery,
-    item: ItemQuery,
-    /** @defaultValue 1 */
-    quantity?: number,
+    goal: FarmItemGoal,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
-  /** @param quantity The minimum quantity to collect. */
   readonly killForTempItem: (
     target: MonsterQuery,
-    item: ItemQuery,
-    /** @defaultValue 1 */
-    quantity?: number,
+    goal: FarmItemGoal,
     options?: CombatKillOptions,
   ) => Effect.Effect<void, ArmyError>;
   readonly leave: () => Effect.Effect<void>;
@@ -300,20 +301,14 @@ export interface ScriptCombatApi {
     query: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
-  /** @param quantity The minimum quantity to collect. */
   readonly killForItem: (
-    query: MonsterQuery,
-    item: ItemQuery,
-    /** @defaultValue 1 */
-    quantity?: number,
+    target: MonsterQuery,
+    goal: FarmItemGoal,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
-  /** @param quantity The minimum quantity to collect. */
   readonly killForTempItem: (
-    query: MonsterQuery,
-    item: ItemQuery,
-    /** @defaultValue 1 */
-    quantity?: number,
+    target: MonsterQuery,
+    goal: FarmItemGoal,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
   readonly target: ScriptCombatTargetApi;

@@ -4,6 +4,13 @@ import type { ScriptCombatApi } from "../ScriptApi";
 export const makeScriptCombatApi = (
   combat: ApiService["combat"],
 ): ScriptCombatApi => {
+  const killForItem: ScriptCombatApi["killForItem"] = (target, goal, options) =>
+    combat.killForItem(target, goal.item, goal.quantity, options);
+  const killForTempItem: ScriptCombatApi["killForTempItem"] = (
+    target,
+    goal,
+    options,
+  ) => combat.killForTempItem(target, goal.item, goal.quantity, options);
   const target = Object.freeze({
     auras: Object.freeze({
       get: combat.target.auras.get,
@@ -22,8 +29,8 @@ export const makeScriptCombatApi = (
     getSkillCooldownRemainingMs: combat.getSkillCooldownRemainingMs,
     hunt: combat.hunt,
     kill: combat.kill,
-    killForItem: combat.killForItem,
-    killForTempItem: combat.killForTempItem,
+    killForItem,
+    killForTempItem,
     target,
     useSkill: combat.useSkill,
   });

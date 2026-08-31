@@ -195,7 +195,7 @@ describe("Army API", () => {
             Effect.gen(function* () {
               yield* army.start("test");
               const fiber = yield* army
-                .killForItem("Boss", "Drop", 1)
+                .killForItem("Boss", { item: "Drop", quantity: 1 })
                 .pipe(Effect.forkScoped);
               yield* TestClock.adjust("200 millis");
               yield* Fiber.join(fiber);
