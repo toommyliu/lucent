@@ -22,6 +22,7 @@ const SCRIPT_API_ROOT_INTERFACES = [
   "ScriptAutoReloginApi",
   "ScriptAutoZoneApi",
   "ScriptFileSystemApi",
+  "ScriptEffectStd",
 ] as const;
 
 const BUILTIN_TYPE_NAMES = new Set([
@@ -37,6 +38,7 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Function",
   "Generator",
   "InitialValue",
+  "Iterable",
   "Key",
   "Map",
   "Math",
@@ -48,6 +50,7 @@ const BUILTIN_TYPE_NAMES = new Set([
   "Partial",
   "Pick",
   "Promise",
+  "PromiseLike",
   "Readonly",
   "ReadonlyArray",
   "ReadonlyMap",
@@ -79,64 +82,23 @@ const BUILTIN_TYPE_NAMES = new Set([
 
 const SUPPORT_TYPE_NAMES = new Set([
   "DurationInput",
-  "DurationLike",
   "Effect",
   "EffectYieldable",
   "Option",
   "ScriptExecutionError",
-  "ScriptEffectModule",
-  "ScriptEffectStd",
+  "ScriptDuration",
+  "ScriptDurationValue",
   "ScriptInputField",
   "ScriptInputType",
   "ScriptInputValue",
   "ScriptInputValues",
   "ScriptInputsDefinition",
   "ScriptModuleExports",
-  "ScriptOpaqueModule",
   "ScriptNotReadyError",
-  "ScriptOptionModule",
-  "ScriptPipe",
   "Scope",
 ]);
 
 const SUPPORT_DECLARATIONS = `
-type ScriptPipe = {
-  <A>(value: A): A;
-  <A, B>(value: A, ab: (a: A) => B): B;
-  <A, B, C>(value: A, ab: (a: A) => B, bc: (b: B) => C): C;
-  <A, B, C, D>(
-    value: A,
-    ab: (a: A) => B,
-    bc: (b: B) => C,
-    cd: (c: C) => D,
-  ): D;
-};
-
-interface ScriptEffectModule {
-  readonly [key: string]: any;
-}
-
-interface ScriptOptionModule {
-  some<Value>(value: Value): Option<Value>;
-  none<Value = never>(): Option<Value>;
-  isSome<Value>(
-    option: Option<Value>,
-  ): option is { readonly _tag: "Some"; readonly value: Value };
-  isNone<Value>(option: Option<Value>): option is { readonly _tag: "None" };
-  readonly [key: string]: any;
-}
-
-interface ScriptOpaqueModule {
-  readonly [key: string]: any;
-}
-
-interface ScriptEffectStd {
-  readonly Effect: ScriptEffectModule;
-  readonly Option: ScriptOptionModule;
-  readonly Duration: ScriptOpaqueModule;
-  readonly pipe: ScriptPipe;
-}
-
 declare module "effect" {
   const effect: ScriptEffectStd;
   export = effect;
@@ -175,10 +137,31 @@ declare module "lucent/script" {
   export = script;
 }
 
-type DurationInput = number | string | bigint | DurationLike;
+type DurationInput =
+  | number
+  | string
+  | bigint
+  | readonly [seconds: number, nanos: number]
+  | ScriptDuration
+  | {
+      readonly weeks?: number;
+      readonly days?: number;
+      readonly hours?: number;
+      readonly minutes?: number;
+      readonly seconds?: number;
+      readonly milliseconds?: number;
+      readonly microseconds?: number;
+      readonly nanoseconds?: number;
+    };
 
-interface DurationLike {
-  readonly _tag?: string;
+type ScriptDurationValue =
+  | { readonly _tag: "Millis"; readonly millis: number }
+  | { readonly _tag: "Nanos"; readonly nanos: bigint }
+  | { readonly _tag: "Infinity" }
+  | { readonly _tag: "NegativeInfinity" };
+
+interface ScriptDuration {
+  readonly value: ScriptDurationValue;
 }
 
 type Option<Value> =
@@ -431,6 +414,7 @@ const transformTypeText = (type: string): string => {
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
   output = output.replace(/\bScope\.Scope\b/g, "Scope");
   output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
+  output = output.replace(/\bDuration\.Duration\b/g, "ScriptDuration");
   output = output.replace(/\bReadonlyArray\s*</g, "readonly ");
   output = output.replace(
     /\bBridgeTypes\.InventoryItemSelector\b/g,
@@ -1240,6 +1224,91 @@ const renderScriptTypes = (
     .trimEnd()}\n`;
 };
 
+const validateScriptingFixture = (declarations: string): void => {
+  const compilerOptions: ts.CompilerOptions = {
+    module: ts.ModuleKind.CommonJS,
+    noEmit: true,
+    skipLibCheck: false,
+    strict: true,
+    target: ts.ScriptTarget.ESNext,
+  };
+  const declarationPath = "/__lucent_script_types__/script-api.d.ts";
+  const fixturePath = "/__lucent_script_types__/fixture.ts";
+  const fixture = `
+import effect = require("effect");
+import api = require("lucent/api");
+
+const timed = effect.pipe(
+  api.inventory.contains("Potion"),
+  effect.Effect.map((hasItem) => (hasItem ? "yes" : "no")),
+  effect.Effect.timeoutOption("1 second"),
+);
+const combined: Effect<readonly [string, number]> = effect.Effect.all([
+  effect.Effect.succeed("ready"),
+  effect.Effect.succeed(2),
+]);
+const duration = effect.Duration.seconds(2);
+const milliseconds: number = effect.Duration.toMillis(duration);
+const optional = effect.Option.some(1);
+if (effect.Option.isSome(optional)) {
+  const value: number = optional.value;
+  void value;
+}
+
+api.combat.killForItem("Boss", { item: "Drop", quantity: 2 });
+api.army.killForTempItem("Boss", { item: "Temporary Drop" });
+api.player.get();
+api.players.get("Artix");
+
+// @ts-expect-error The old positional farming arguments are not supported.
+api.combat.killForItem("Boss", "Drop", 2);
+// @ts-expect-error Self lookup belongs to api.player.
+api.players.getMe();
+// @ts-expect-error Lucent owns execution of script effects.
+effect.Effect.runPromise(timed);
+
+void milliseconds;
+void combined;
+`;
+  const virtualFiles = new Map([
+    [declarationPath, declarations],
+    [fixturePath, fixture],
+  ]);
+  const baseHost = ts.createCompilerHost(compilerOptions);
+  const host: ts.CompilerHost = {
+    ...baseHost,
+    fileExists: (fileName) =>
+      virtualFiles.has(fileName) || baseHost.fileExists(fileName),
+    getSourceFile: (fileName, languageVersion, onError, shouldCreateNew) => {
+      const source = virtualFiles.get(fileName);
+      return source === undefined
+        ? baseHost.getSourceFile(
+            fileName,
+            languageVersion,
+            onError,
+            shouldCreateNew,
+          )
+        : ts.createSourceFile(fileName, source, languageVersion, true);
+    },
+    readFile: (fileName) =>
+      virtualFiles.get(fileName) ?? baseHost.readFile(fileName),
+  };
+  const program = ts.createProgram({
+    rootNames: [declarationPath, fixturePath],
+    options: compilerOptions,
+    host,
+  });
+  const diagnostics = ts.getPreEmitDiagnostics(program);
+  if (diagnostics.length === 0) return;
+
+  const formatted = ts.formatDiagnostics(diagnostics, {
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => "/",
+    getNewLine: () => "\n",
+  });
+  fail(`Generated scripting types failed their usage fixture:\n${formatted}`);
+};
+
 const validateGeneratedTypes = (content: string): void => {
   const sourceFile = ts.createSourceFile(
     "script-api.d.ts",
@@ -1293,6 +1362,82 @@ const validateGeneratedTypes = (content: string): void => {
     }
   }
 
+  const interfaceMemberNames = (name: string): readonly string[] => {
+    const declaration = interfaces.get(name);
+    if (declaration === undefined) {
+      return fail(`Generated scripting types must include ${name}`);
+    }
+    if (declaration.members.some(ts.isIndexSignatureDeclaration)) {
+      fail(`Generated ${name} must not expose an open-ended index signature`);
+    }
+    return declaration.members
+      .flatMap((member) => {
+        if (!("name" in member) || member.name === undefined) return [];
+        const memberName = getPropertyName(member.name);
+        return memberName === null ? [] : [memberName];
+      })
+      .toSorted();
+  };
+
+  const expectedEffectMembers = [
+    "all",
+    "as",
+    "asVoid",
+    "catch",
+    "fail",
+    "flatMap",
+    "forEach",
+    "map",
+    "mapError",
+    "sleep",
+    "succeed",
+    "sync",
+    "tap",
+    "timeoutOption",
+    "try",
+    "tryPromise",
+    "void",
+  ];
+  const expectedOptionMembers = [
+    "getOrElse",
+    "isNone",
+    "isSome",
+    "map",
+    "match",
+    "none",
+    "some",
+  ];
+  const expectedDurationMembers = [
+    "days",
+    "hours",
+    "millis",
+    "minutes",
+    "seconds",
+    "toMillis",
+  ];
+  for (const [name, expected] of [
+    ["ScriptEffectModule", expectedEffectMembers],
+    ["ScriptOptionModule", expectedOptionMembers],
+    ["ScriptDurationModule", expectedDurationMembers],
+  ] as const) {
+    const actual = interfaceMemberNames(name);
+    if (actual.join("\n") !== expected.toSorted().join("\n")) {
+      fail(`Generated ${name} does not match its supported member list`);
+    }
+  }
+
+  for (const [name, hidden] of [
+    ["LiveModel", ["replaceFrom", "snapshot", "update"]],
+    ["LiveEntity", ["addAura", "clearAuras", "removeAura"]],
+    ["LiveMonster", ["replaceDrops"]],
+  ] as const) {
+    const members = new Set(interfaceMemberNames(name));
+    const leaked = hidden.filter((member) => members.has(member));
+    if (leaked.length > 0) {
+      fail(`Generated ${name} exposes @internal members: ${leaked.join(", ")}`);
+    }
+  }
+
   const packetForDirection = typeAliases.get("PacketForDirection");
   if (
     packetForDirection === undefined ||
@@ -1322,6 +1467,8 @@ const validateGeneratedTypes = (content: string): void => {
       fail(`Generated scripting types must not contain an opaque ${name}`);
     }
   }
+
+  validateScriptingFixture(content);
 };
 
 const main = async (options: CliOptions): Promise<void> => {
