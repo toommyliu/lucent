@@ -625,7 +625,6 @@ export interface ScriptPlayerApi {
 export interface ScriptPlayersApi {
   readonly get: (query: PlayerQuery) => Effect.Effect<LivePlayer | null>;
   readonly getAll: () => Effect.Effect<readonly LivePlayer[]>;
-  readonly getMe: () => Effect.Effect<LivePlayer | null>;
 }
 
 export interface ScriptQuestsApi {

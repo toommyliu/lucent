@@ -5,11 +5,9 @@ import type { ScriptPlayersApi } from "../ScriptApi";
 
 export const makeScriptPlayersApi = (
   players: Pick<ApiService["players"], "get" | "getAll">,
-  getMe: ApiService["players"]["getMe"],
 ): ScriptPlayersApi =>
   Object.freeze({
-    get: (selector: Parameters<ScriptPlayersApi["get"]>[0]) =>
-      players.get(toPlayerSelector(selector).username),
+    get: (query: Parameters<ScriptPlayersApi["get"]>[0]) =>
+      players.get(toPlayerSelector(query).username),
     getAll: players.getAll,
-    getMe,
   });
