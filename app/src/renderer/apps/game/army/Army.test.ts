@@ -202,7 +202,10 @@ describe("Army API", () => {
             Effect.gen(function* () {
               yield* army.start("test");
               const work = yield* army
-                .killForTempItem("Boss", "Defeated", 1)
+                .killForTempItem("Boss", {
+                  item: "Defeated",
+                  quantity: 1,
+                })
                 .pipe(Effect.forkScoped);
               yield* Deferred.await(actionStarted);
 
