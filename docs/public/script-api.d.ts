@@ -355,7 +355,7 @@ interface ScriptDurationModule {
     toMillis(duration: DurationInput): number;
 }
 interface ScriptEffectModule {
-    all<Value, Error, Requirements>(effects: Iterable<Effect<Value, Error, Requirements>>): Effect<readonly Value[], Error, Requirements>;
+    readonly all: ScriptEffectAll;
     as<Next>(value: Next): <Value, Error, Requirements>(effect: Effect<Value, Error, Requirements>) => Effect<Next, Error, Requirements>;
     asVoid<Value, Error, Requirements>(effect: Effect<Value, Error, Requirements>): Effect<void, Error, Requirements>;
     readonly catch: ScriptEffectCatch;
@@ -1008,6 +1008,14 @@ type ScriptCallbackResult<A = unknown> =
 type ScriptCombatTarget =
   | ScriptCombatMonsterTarget
   | ScriptCombatPlayerTarget;
+type ScriptEffectAll = {
+  <const Effects extends readonly Effect<unknown, unknown, unknown>[]>(
+    effects: Effects,
+  ): ScriptEffectAllTuple<Effects>;
+  <Value, Error, Requirements>(
+    effects: Iterable<Effect<Value, Error, Requirements>>,
+  ): Effect<readonly Value[], Error, Requirements>;
+};
 type ScriptEffectCatch = {
   <Error, Recovered, RecoveryError, RecoveryRequirements>(
     recover: (
@@ -1538,6 +1546,15 @@ interface ScriptCombatPlayerTarget {
   readonly type: "player";
   readonly username: string;
 }
+type ScriptEffectAllTuple<
+  Effects extends readonly Effect<unknown, unknown, unknown>[],
+> = Effect<
+  {
+    readonly [Index in keyof Effects]: ScriptEffectSuccess<Effects[Index]>;
+  },
+  ScriptEffectError<Effects[number]>,
+  ScriptEffectRequirements<Effects[number]>
+>;
 type ProjectionEvent =
   | {
       /** A game session starts. */
@@ -1742,6 +1759,18 @@ type ExtensionPacket = { readonly command: string; readonly data: unknown; reado
 interface PlayerSelectorByUsername {
   readonly username: string;
 }
+type ScriptEffectSuccess<Input> =
+  Input extends Effect<infer Value, infer _Error, infer _Requirements>
+    ? Value
+    : never;
+type ScriptEffectError<Input> =
+  Input extends Effect<infer _Value, infer Error, infer _Requirements>
+    ? Error
+    : never;
+type ScriptEffectRequirements<Input> =
+  Input extends Effect<infer _Value, infer _Error, infer Requirements>
+    ? Requirements
+    : never;
 /** Returns true when the selected player should yield to the next participant. */
 type ArmyLoopTauntSkipWhen = (
   context: ArmyLoopTauntSkipContext,
