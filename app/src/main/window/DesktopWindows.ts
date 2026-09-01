@@ -1245,6 +1245,10 @@ const makeDesktopWindows = Effect.gen(function* () {
       return;
     }
 
+    if (host.orderedIds.length === 1) {
+      host.layout = "focused";
+    }
+
     if (host.selectedId === id) {
       host.selectedId =
         host.orderedIds[Math.min(removedIndex, host.orderedIds.length - 1)]!;
