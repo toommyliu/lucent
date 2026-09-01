@@ -201,12 +201,13 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onRendererUnavailable((event) =>
         event.kind === "game"
-          ? coordinator.abortParticipant(
-              event.rendererId,
-              event.failure.type === "plugin-crashed"
-                ? "An army participant's Flash plugin crashed"
-                : `An army participant's game renderer stopped (${event.failure.reason})`,
-            )
+          ? coordinator.abortParticipant(event.rendererId, {
+              kind: "participant-unavailable",
+              reason:
+                event.failure.type === "plugin-crashed"
+                  ? "An army participant's Flash plugin crashed"
+                  : `An army participant's game renderer stopped (${event.failure.reason})`,
+            })
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),
@@ -215,10 +216,10 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onRendererReloaded((event) =>
         event.kind === "game"
-          ? coordinator.abortParticipant(
-              event.rendererId,
-              `Army window reloaded into renderer generation ${event.generation}`,
-            )
+          ? coordinator.abortParticipant(event.rendererId, {
+              kind: "participant-unavailable",
+              reason: `Army window reloaded into renderer generation ${event.generation}`,
+            })
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),
@@ -227,10 +228,10 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onRendererDestroyed((event) =>
         event.kind === "game"
-          ? coordinator.abortParticipant(
-              event.rendererId,
-              "Army window destroyed",
-            )
+          ? coordinator.abortParticipant(event.rendererId, {
+              kind: "participant-unavailable",
+              reason: "Army window destroyed",
+            })
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),
@@ -239,7 +240,10 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
     yield* Effect.acquireRelease(
       windows.onClosed((event) =>
         event.kind === "game"
-          ? coordinator.abortParticipant(event.rendererId, "Army window closed")
+          ? coordinator.abortParticipant(event.rendererId, {
+              kind: "participant-unavailable",
+              reason: "Army window closed",
+            })
           : Effect.void,
       ),
       (unsubscribe) => Effect.sync(unsubscribe),

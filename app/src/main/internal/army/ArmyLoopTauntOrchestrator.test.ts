@@ -328,10 +328,10 @@ describe("ArmyLoopTauntOrchestrator", () => {
             .pipe(Effect.forkScoped);
           yield* Effect.yieldNow;
 
-          yield* harness.coordinator.abortSession(
-            harness.sessionId,
-            "Session aborted during loop-taunt registration",
-          );
+          yield* harness.coordinator.abortSession(harness.sessionId, {
+            kind: "requested",
+            reason: "Session aborted during loop-taunt registration",
+          });
 
           const error = yield* Fiber.join(pending).pipe(Effect.flip);
           expect(error.message).toBe(
