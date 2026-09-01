@@ -730,6 +730,14 @@ export const layer = Layer.effect(
       (unsubscribe) => Effect.sync(unsubscribe),
     );
     yield* Effect.acquireRelease(
+      windows.onRendererUnavailable((event) =>
+        event.failure.type === "render-process-gone"
+          ? service.closeRenderer(event.rendererId)
+          : Effect.void,
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
+    yield* Effect.acquireRelease(
       windows.onRendererReloaded((event) =>
         service.closeRenderer(event.rendererId),
       ),

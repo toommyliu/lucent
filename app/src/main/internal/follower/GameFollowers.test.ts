@@ -38,6 +38,7 @@ describe("GameFollowers", () => {
           onRendererDestroyed: () => Effect.succeed(() => undefined),
           onRendererReady: () => Effect.succeed(() => undefined),
           onRendererReloaded: () => Effect.succeed(() => undefined),
+          onRendererUnavailable: () => Effect.succeed(() => undefined),
         } as unknown as DesktopWindows["Service"];
         const followers = yield* makeGameFollowers.pipe(
           Effect.provideService(DesktopIpc, ipc),
@@ -77,6 +78,7 @@ describe("GameFollowers", () => {
           onRendererDestroyed: () => Effect.succeed(() => undefined),
           onRendererReady: () => Effect.succeed(() => undefined),
           onRendererReloaded: () => Effect.succeed(() => undefined),
+          onRendererUnavailable: () => Effect.succeed(() => undefined),
         } as unknown as DesktopWindows["Service"];
         const followers = yield* makeGameFollowers.pipe(
           Effect.provideService(DesktopIpc, ipc),

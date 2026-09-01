@@ -238,6 +238,9 @@ export const makeGameEnvironments = Effect.gen(function* () {
   const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
     event.kind === "game" ? cancelPending(event.rendererId) : Effect.void,
   );
+  const unsubscribeUnavailable = yield* windows.onRendererUnavailable((event) =>
+    event.kind === "game" ? cancelPending(event.rendererId) : Effect.void,
+  );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
     event.kind === "game" ? cancelPending(event.rendererId) : Effect.void,
   );
@@ -245,6 +248,7 @@ export const makeGameEnvironments = Effect.gen(function* () {
     Effect.sync(() => {
       unsubscribeClosed();
       unsubscribeDestroyed();
+      unsubscribeUnavailable();
       unsubscribeReloaded();
     }),
   );
