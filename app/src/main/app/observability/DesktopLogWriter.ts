@@ -96,6 +96,7 @@ const renameIfPresent = async (from: string, to: string): Promise<void> => {
 
 export interface DesktopLogWriter {
   readonly close: (finalRecord?: unknown) => Promise<void>;
+  readonly flush: () => Promise<void>;
   readonly write: (record: unknown) => void;
 }
 
@@ -142,7 +143,7 @@ export const makeBufferedDesktopLogWriter = (
     fileBytes += bytes;
   };
 
-  const flush = (): Promise<void> => {
+  const flushBatch = (): Promise<void> => {
     if (flushTimer !== undefined) {
       clearTimeout(flushTimer);
       flushTimer = undefined;
@@ -206,7 +207,7 @@ export const makeBufferedDesktopLogWriter = (
     }
     flushTimer = setTimeout(() => {
       flushTimer = undefined;
-      void flush();
+      void flushBatch();
     }, delayMs);
     flushTimer.unref?.();
   };
@@ -226,6 +227,13 @@ export const makeBufferedDesktopLogWriter = (
     );
   };
 
+  const flush = async (): Promise<void> => {
+    await flushBatch();
+    if (writeInFlight !== undefined || pending.length > 0 || dropped > 0) {
+      await flush();
+    }
+  };
+
   const close = async (finalRecord?: unknown): Promise<void> => {
     if (closed) {
       return;
@@ -234,14 +242,8 @@ export const makeBufferedDesktopLogWriter = (
       pending.push(finalRecord);
     }
     closed = true;
-    const drain = async (): Promise<void> => {
-      await flush();
-      if (writeInFlight !== undefined || pending.length > 0 || dropped > 0) {
-        await drain();
-      }
-    };
-    await drain();
+    await flush();
   };
 
-  return { close, write };
+  return { close, flush, write };
 };

@@ -42,6 +42,24 @@ afterEach(async () => {
 });
 
 describe("DesktopLogWriter", () => {
+  it("flushes pending records without closing the writer", async () => {
+    const root = await makeFixture();
+    const logsDir = join(root, "logs");
+    const logFilePath = join(logsDir, "lucent.log");
+    const writer = makeBufferedDesktopLogWriter(logsDir, logFilePath);
+
+    writer.write({ sequence: "first" });
+    await writer.flush();
+    expect(await readRecords(logFilePath)).toEqual([{ sequence: "first" }]);
+
+    writer.write({ sequence: "second" });
+    await writer.close();
+    expect(await readRecords(logFilePath)).toEqual([
+      { sequence: "first" },
+      { sequence: "second" },
+    ]);
+  });
+
   it("bounds pending records while preserving accepted record order", async () => {
     const root = await makeFixture();
     const logsDir = join(root, "logs");

@@ -39,6 +39,7 @@ export interface DesktopObservabilityShape {
     cause?: unknown,
     data?: unknown,
   ) => Effect.Effect<void>;
+  readonly flush: Effect.Effect<void>;
   readonly info: (
     component: string,
     message: string,
@@ -115,6 +116,10 @@ const makeDesktopObservability = Effect.gen(function* () {
     cause,
     data,
   ) => writeRecord("error", component, message, data, cause);
+
+  const flush: DesktopObservabilityShape["flush"] = Effect.promise(() =>
+    bufferedWriter.flush(),
+  );
 
   const recordUnsafe: DesktopObservabilityShape["recordUnsafe"] =
     diagnosticRecordingEnabled === false
@@ -231,6 +236,7 @@ const makeDesktopObservability = Effect.gen(function* () {
   return DesktopObservability.of({
     debug,
     error,
+    flush,
     info,
     installProcessHooks,
     logFilePath,
