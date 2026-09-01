@@ -424,6 +424,8 @@ export const makePlayer = (
         return false;
       if (!(yield* wait.forGameAction("tfer", { timeout: "10 seconds" })))
         return false;
+      if (!(yield* wait.until(isAlive(), { timeout: "15 seconds" })))
+        return false;
       const args: Parameters<Window["swf"]["player.joinMap"]> =
         cell === undefined && pad === undefined
           ? [destination.map]
