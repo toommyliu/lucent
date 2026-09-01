@@ -13,7 +13,6 @@ import {
 } from "../../../shared/ipc";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import {
-  appendDesktopLogRecord,
   desktopLogErrorDetails,
   makeBufferedDesktopLogWriter,
 } from "./DesktopLogWriter";
@@ -40,6 +39,7 @@ export interface DesktopObservabilityShape {
     cause?: unknown,
     data?: unknown,
   ) => Effect.Effect<void>;
+  readonly flush: Effect.Effect<void>;
   readonly info: (
     component: string,
     message: string,
@@ -69,12 +69,11 @@ const makeDesktopObservability = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
   const logsDir = join(env.appDataDir, "logs");
   const logFilePath = join(logsDir, "lucent.log");
-  const bufferedWriter =
-    env.debug === true
-      ? makeBufferedDesktopLogWriter(logsDir, logFilePath)
-      : undefined;
-  const recordingStartedAt =
-    bufferedWriter === undefined ? null : new Date().toISOString();
+  const bufferedWriter = makeBufferedDesktopLogWriter(logsDir, logFilePath);
+  const diagnosticRecordingEnabled = env.debug === true;
+  const recordingStartedAt = diagnosticRecordingEnabled
+    ? new Date().toISOString()
+    : null;
   const traceBuffer = makeDesktopTraceBuffer(recordingStartedAt);
   const traceListeners = new Set<(span: DesktopTraceSpan) => void>();
   const isDesktopTraceSpan = Schema.is(DesktopTraceSpanSchema);
@@ -96,16 +95,7 @@ const makeDesktopObservability = Effect.gen(function* () {
       ...(data === undefined ? {} : { data }),
       ...(cause === undefined ? {} : { error: desktopLogErrorDetails(cause) }),
     };
-    if (bufferedWriter !== undefined) {
-      return Effect.sync(() => bufferedWriter.write(record));
-    }
-
-    return Effect.tryPromise({
-      try: async () => {
-        await appendDesktopLogRecord(logsDir, logFilePath, record);
-      },
-      catch: () => undefined,
-    }).pipe(Effect.catch(() => Effect.void));
+    return Effect.sync(() => bufferedWriter.write(record));
   };
 
   const info: DesktopObservabilityShape["info"] = (component, message, data) =>
@@ -127,8 +117,12 @@ const makeDesktopObservability = Effect.gen(function* () {
     data,
   ) => writeRecord("error", component, message, data, cause);
 
+  const flush: DesktopObservabilityShape["flush"] = Effect.promise(() =>
+    bufferedWriter.flush(),
+  );
+
   const recordUnsafe: DesktopObservabilityShape["recordUnsafe"] =
-    bufferedWriter === undefined
+    diagnosticRecordingEnabled === false
       ? () => undefined
       : (diagnostic) => {
           bufferedWriter.write({
@@ -166,7 +160,7 @@ const makeDesktopObservability = Effect.gen(function* () {
   };
 
   const record: DesktopObservabilityShape["record"] =
-    bufferedWriter === undefined
+    diagnosticRecordingEnabled === false
       ? () => Effect.void
       : (diagnostic) => Effect.sync(() => recordUnsafe(diagnostic));
 
@@ -202,7 +196,7 @@ const makeDesktopObservability = Effect.gen(function* () {
     );
   });
 
-  if (bufferedWriter !== undefined && recordingStartedAt !== null) {
+  if (recordingStartedAt !== null) {
     bufferedWriter.write({
       at: recordingStartedAt,
       level: "debug",
@@ -220,23 +214,29 @@ const makeDesktopObservability = Effect.gen(function* () {
         },
       },
     });
-    yield* Effect.addFinalizer(() =>
-      Effect.promise(() =>
-        bufferedWriter.close({
-          at: new Date().toISOString(),
-          level: "debug",
-          component: "startup",
-          message: "Diagnostic recording stopped",
-          event: "recording.stopped",
-          data: { pid: process.pid },
-        }),
-      ),
-    );
   }
+
+  yield* Effect.addFinalizer(() =>
+    Effect.promise(() =>
+      bufferedWriter.close(
+        diagnosticRecordingEnabled
+          ? {
+              at: new Date().toISOString(),
+              level: "debug",
+              component: "startup",
+              message: "Diagnostic recording stopped",
+              event: "recording.stopped",
+              data: { pid: process.pid },
+            }
+          : undefined,
+      ),
+    ),
+  );
 
   return DesktopObservability.of({
     debug,
     error,
+    flush,
     info,
     installProcessHooks,
     logFilePath,

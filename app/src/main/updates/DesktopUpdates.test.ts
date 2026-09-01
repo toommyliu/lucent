@@ -134,6 +134,7 @@ const makeUpdatesHarness = (options: {
     const observability = DesktopObservability.of({
       debug: () => Effect.void,
       error: () => Effect.void,
+      flush: Effect.void,
       info: () => Effect.void,
       installProcessHooks: Effect.void,
       logFilePath: join(env.appDataDir, "logs", "lucent.log"),

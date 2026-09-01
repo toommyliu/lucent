@@ -10,6 +10,7 @@ import { DesktopObservability } from "./observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 
 const SIGNAL_FORCE_EXIT_AFTER_MS = 1_500;
+const SIGNAL_FORCE_EXIT_LOG_FLUSH_TIMEOUT_MS = 250;
 const TERMINATION_SIGNALS = ["SIGHUP", "SIGINT", "SIGTERM"] as const;
 
 export interface DesktopLifecycleShape {
@@ -103,7 +104,12 @@ export const layer = Layer.effect(
                     timeoutMs: SIGNAL_FORCE_EXIT_AFTER_MS,
                   },
                 )
-                .pipe(Effect.flatMap(() => app.exit(0))),
+                .pipe(
+                  Effect.flatMap(() => observability.flush),
+                  Effect.timeoutOption(SIGNAL_FORCE_EXIT_LOG_FLUSH_TIMEOUT_MS),
+                  Effect.asVoid,
+                  Effect.flatMap(() => app.exit(0)),
+                ),
             ).catch(() => undefined);
           }, SIGNAL_FORCE_EXIT_AFTER_MS);
           forceExitTimer.unref?.();

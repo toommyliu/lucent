@@ -27,14 +27,6 @@ const fallbackSerializationRecord = () => ({
   message: "Failed to serialize log record",
 });
 
-const serializeDirect = (record: unknown): string => {
-  try {
-    return `${JSON.stringify(record)}\n`;
-  } catch {
-    return `${JSON.stringify(fallbackSerializationRecord())}\n`;
-  }
-};
-
 const serializeDiagnostic = (record: unknown): string => {
   const seen = new WeakSet<object>();
   try {
@@ -102,21 +94,13 @@ const renameIfPresent = async (from: string, to: string): Promise<void> => {
   }
 };
 
-export const appendDesktopLogRecord = async (
-  logsDir: string,
-  logFilePath: string,
-  record: unknown,
-): Promise<void> => {
-  await fs.mkdir(logsDir, { recursive: true });
-  await fs.appendFile(logFilePath, serializeDirect(record), "utf8");
-};
-
 export interface DesktopLogWriter {
-  readonly close: (finalRecord: unknown) => Promise<void>;
+  readonly close: (finalRecord?: unknown) => Promise<void>;
+  readonly flush: () => Promise<void>;
   readonly write: (record: unknown) => void;
 }
 
-/** Queues observability records so serialization and disk I/O stay off instrumented paths. */
+/** Queues observability records so serialization and disk I/O stay off calling paths. */
 export const makeBufferedDesktopLogWriter = (
   logsDir: string,
   logFilePath: string,
@@ -159,7 +143,7 @@ export const makeBufferedDesktopLogWriter = (
     fileBytes += bytes;
   };
 
-  const flush = (): Promise<void> => {
+  const flushBatch = (): Promise<void> => {
     if (flushTimer !== undefined) {
       clearTimeout(flushTimer);
       flushTimer = undefined;
@@ -223,7 +207,7 @@ export const makeBufferedDesktopLogWriter = (
     }
     flushTimer = setTimeout(() => {
       flushTimer = undefined;
-      void flush();
+      void flushBatch();
     }, delayMs);
     flushTimer.unref?.();
   };
@@ -243,20 +227,23 @@ export const makeBufferedDesktopLogWriter = (
     );
   };
 
-  const close = async (finalRecord: unknown): Promise<void> => {
+  const flush = async (): Promise<void> => {
+    await flushBatch();
+    if (writeInFlight !== undefined || pending.length > 0 || dropped > 0) {
+      await flush();
+    }
+  };
+
+  const close = async (finalRecord?: unknown): Promise<void> => {
     if (closed) {
       return;
     }
-    pending.push(finalRecord);
+    if (finalRecord !== undefined) {
+      pending.push(finalRecord);
+    }
     closed = true;
-    const drain = async (): Promise<void> => {
-      await flush();
-      if (writeInFlight !== undefined || pending.length > 0 || dropped > 0) {
-        await drain();
-      }
-    };
-    await drain();
+    await flush();
   };
 
-  return { close, write };
+  return { close, flush, write };
 };
