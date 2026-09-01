@@ -27,14 +27,6 @@ const fallbackSerializationRecord = () => ({
   message: "Failed to serialize log record",
 });
 
-const serializeDirect = (record: unknown): string => {
-  try {
-    return `${JSON.stringify(record)}\n`;
-  } catch {
-    return `${JSON.stringify(fallbackSerializationRecord())}\n`;
-  }
-};
-
 const serializeDiagnostic = (record: unknown): string => {
   const seen = new WeakSet<object>();
   try {
@@ -102,21 +94,12 @@ const renameIfPresent = async (from: string, to: string): Promise<void> => {
   }
 };
 
-export const appendDesktopLogRecord = async (
-  logsDir: string,
-  logFilePath: string,
-  record: unknown,
-): Promise<void> => {
-  await fs.mkdir(logsDir, { recursive: true });
-  await fs.appendFile(logFilePath, serializeDirect(record), "utf8");
-};
-
 export interface DesktopLogWriter {
-  readonly close: (finalRecord: unknown) => Promise<void>;
+  readonly close: (finalRecord?: unknown) => Promise<void>;
   readonly write: (record: unknown) => void;
 }
 
-/** Queues observability records so serialization and disk I/O stay off instrumented paths. */
+/** Queues observability records so serialization and disk I/O stay off calling paths. */
 export const makeBufferedDesktopLogWriter = (
   logsDir: string,
   logFilePath: string,
@@ -243,11 +226,13 @@ export const makeBufferedDesktopLogWriter = (
     );
   };
 
-  const close = async (finalRecord: unknown): Promise<void> => {
+  const close = async (finalRecord?: unknown): Promise<void> => {
     if (closed) {
       return;
     }
-    pending.push(finalRecord);
+    if (finalRecord !== undefined) {
+      pending.push(finalRecord);
+    }
     closed = true;
     const drain = async (): Promise<void> => {
       await flush();
