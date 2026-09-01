@@ -1,6 +1,4 @@
-export const getArtixLauncherUserAgent = (
-  platform: NodeJS.Platform,
-): string => {
+export const getGameUserAgent = (platform: NodeJS.Platform): string => {
   if (platform === "darwin") {
     return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_16_0) AppleWebKit/537.36 (KHTML, like Gecko) ArtixGameLauncher/2.2.0 Chrome/80.0.3987.163 Electron/8.5.5 Safari/537.36";
   }
@@ -12,10 +10,10 @@ export const getArtixLauncherUserAgent = (
   return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ArtixGameLauncher/2.2.0 Chrome/80.0.3987.163 Electron/8.5.5 Safari/537.36";
 };
 
-export const getArtixLauncherRequestHeaders = (
+export const getGameRequestHeaders = (
   platform: NodeJS.Platform,
 ): Record<string, string> => ({
-  "User-Agent": getArtixLauncherUserAgent(platform),
+  "User-Agent": getGameUserAgent(platform),
   "X-Requested-With": "ShockwaveFlash/32.0.0.371",
   artixmode: "launcher",
 });

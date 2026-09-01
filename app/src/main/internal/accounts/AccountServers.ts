@@ -22,7 +22,7 @@ import {
   type AccountServerData,
 } from "./AccountServerPing";
 import { AccountsError, accountError } from "./AccountsError";
-import { getArtixLauncherRequestHeaders } from "../ArtixLauncher";
+import { getGameRequestHeaders } from "../GameRequestHeaders";
 
 const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -116,7 +116,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
     const observability = yield* DesktopObservability;
-    const requestHeaders = getArtixLauncherRequestHeaders(env.platform);
+    const requestHeaders = getGameRequestHeaders(env.platform);
     const serverLoads = yield* Semaphore.make(1);
     const pingLoads = yield* Semaphore.make(1);
     let serverCache: AccountServerCache | null = null;

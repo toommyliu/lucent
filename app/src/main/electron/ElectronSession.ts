@@ -11,9 +11,9 @@ import { resolveFlashTrustRootPath } from "../flash/FlashPaths";
 import { cloneAqwFlashPreferences } from "../flash/FlashPreferences";
 import { writeTrustFile } from "../flash/FlashTrust";
 import {
-  getArtixLauncherRequestHeaders,
-  getArtixLauncherUserAgent,
-} from "../internal/ArtixLauncher";
+  getGameRequestHeaders,
+  getGameUserAgent,
+} from "../internal/GameRequestHeaders";
 import {
   activateManagedGamePartitionProfile,
   cleanupStaleGamePartitionProfiles,
@@ -56,8 +56,8 @@ export const layer = Layer.effect(
   ElectronSession,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const gameRequestHeaders = getArtixLauncherRequestHeaders(env.platform);
-    const gameUserAgent = getArtixLauncherUserAgent(env.platform);
+    const gameRequestHeaders = getGameRequestHeaders(env.platform);
+    const gameUserAgent = getGameUserAgent(env.platform);
     const configuredSessions = new Set<Session>();
     const gamePartitions = makeGamePartitionRegistry();
     let sessionCreatedHookInstalled = false;
