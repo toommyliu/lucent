@@ -6,6 +6,7 @@ app/.electron-runtime/
 .DS_Store
 *.lock
 storybook-static/
+RELEASE_NOTES.md
 /.repos/*
 !/.repos/effect-smol/
 !/.repos/effect-smol/**

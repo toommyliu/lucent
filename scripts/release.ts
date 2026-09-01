@@ -212,36 +212,47 @@ const getDirtyStatus = (): Effect.Effect<ReadonlyArray<string>, ReleaseError> =>
 const checkDirtyTree = (
   dirtyStatus: ReadonlyArray<string>,
   input: CliInput,
-  allowedDirtyEntries: ReadonlySet<string> = new Set(),
 ): Effect.Effect<void, ReleaseError> =>
   Effect.gen(function* () {
     if (dirtyStatus.length === 0) {
       return;
     }
 
-    const unexpectedChanges = dirtyStatus.filter(
-      (line) => !allowedDirtyEntries.has(line),
-    );
-    if (!input.allowDirty && unexpectedChanges.length > 0) {
+    if (!input.allowDirty) {
       return yield* new ReleaseError({
         message:
           "Working tree is dirty. Commit or stash changes, or rerun with --allow-dirty.",
       });
     }
 
-    yield* Console.log(
-      unexpectedChanges.length === 0
-        ? "Including curated release file changes:"
-        : "Working tree has existing changes:",
-    );
+    yield* Console.log("Working tree has existing changes:");
     for (const line of dirtyStatus) {
       yield* Console.log(`  ${line}`);
     }
   });
 
+// RELEASE_NOTES.md is ignored local input for the first release. Only the
+// generated CHANGELOG.md belongs in the release pull request.
 const readInitialReleaseNotes = (): Effect.Effect<string, ReleaseError> =>
   Effect.tryPromise({
-    try: () => readFile(RELEASE_NOTES_PATH, "utf8"),
+    try: async () => {
+      try {
+        return await readFile(RELEASE_NOTES_PATH, "utf8");
+      } catch (cause) {
+        if (
+          cause instanceof Error &&
+          "code" in cause &&
+          cause.code === "ENOENT"
+        ) {
+          await writeFile(
+            RELEASE_NOTES_PATH,
+            RELEASE_NOTES_PLACEHOLDER_CONTENT,
+          );
+          return RELEASE_NOTES_PLACEHOLDER_CONTENT;
+        }
+        throw cause;
+      }
+    },
     catch: (cause) =>
       new ReleaseError({
         message: `Failed to read ${toRelativePath(RELEASE_NOTES_PATH)}`,
@@ -254,7 +265,7 @@ const readInitialReleaseNotes = (): Effect.Effect<string, ReleaseError> =>
         : Effect.fail(
             new ReleaseError({
               message:
-                "Replace the placeholder in RELEASE_NOTES.md before preparing the first release.",
+                "Fill in the local RELEASE_NOTES.md file, then rerun the release command.",
             }),
           ),
     ),
@@ -431,11 +442,7 @@ const release = (input: CliInput) =>
     const initialReleaseNotes =
       latestRelease === null ? yield* readInitialReleaseNotes() : null;
     const dirtyStatus = yield* getDirtyStatus();
-    yield* checkDirtyTree(
-      dirtyStatus,
-      input,
-      latestRelease === null ? new Set([" M RELEASE_NOTES.md"]) : new Set(),
-    );
+    yield* checkDirtyTree(dirtyStatus, input);
 
     if (input.dryRun) {
       yield* printPlan(
