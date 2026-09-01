@@ -12,6 +12,10 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
+import {
+  DesktopObservability,
+  type DesktopObservabilityShape,
+} from "../../app/observability/DesktopObservability";
 
 export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
@@ -87,6 +91,22 @@ export type ArmyCoordinatorError =
 
 export type ArmyParticipantId = number;
 
+export type ArmySessionEndKind =
+  | "application-quit"
+  | "checkpoint-timeout"
+  | "interrupted"
+  | "participant-failed"
+  | "participant-left"
+  | "participant-unavailable"
+  | "requested"
+  | "start-timeout"
+  | "synchronization-error";
+
+export interface ArmySessionEndCause {
+  readonly kind: ArmySessionEndKind;
+  readonly reason: string;
+}
+
 export interface ArmySessionEndedEvent {
   readonly participantIds: readonly ArmyParticipantId[];
   readonly reason: string;
@@ -130,10 +150,12 @@ type Checkpoint = BarrierCheckpoint | ProgressCheckpoint;
 export interface ArmySessionState extends ArmyConfigPayload {
   readonly checkpoints: ReadonlyMap<number, Checkpoint>;
   readonly completedSteps: ReadonlySet<number>;
+  readonly createdAtMs: number;
   readonly participants: ReadonlyMap<string, Participant>;
   readonly playerKeys: ReadonlySet<string>;
   readonly sessionId: string;
   readonly signatures: ReadonlyMap<number, StepSignature>;
+  readonly startedAtMs: number | null;
   readonly startGate: Deferred.Deferred<void, ArmyCoordinatorError>;
   readonly status: "collecting" | "active";
 }
@@ -155,11 +177,11 @@ const initialState: CoordinatorState = {
 export interface ArmyCoordinatorShape {
   readonly abortParticipant: (
     participantId: ArmyParticipantId,
-    reason: string,
+    cause: ArmySessionEndCause,
   ) => Effect.Effect<void>;
   readonly abortSession: (
     sessionId: string,
-    reason: string,
+    cause: ArmySessionEndCause,
   ) => Effect.Effect<void>;
   readonly fail: (
     sessionId: string,
@@ -343,11 +365,55 @@ const sameSignature = (left: StepSignature, right: StepSignature): boolean =>
 const signatureDescription = (signature: StepSignature): string =>
   `${signature.kind} ${signature.label}`;
 
-export const makeArmyCoordinator = (): Effect.Effect<
-  ArmyCoordinatorShape,
-  never,
-  Scope.Scope
-> =>
+type ArmyObservability = Pick<DesktopObservabilityShape, "info" | "warn">;
+
+const noOpObservability: ArmyObservability = {
+  info: () => Effect.void,
+  warn: () => Effect.void,
+};
+
+const rosterSnapshot = (session: ArmySessionState) =>
+  session.players.map((playerName) => ({
+    playerName,
+    rendererId:
+      session.participants.get(normalizeArmyPlayerKey(playerName))?.id ?? null,
+  }));
+
+const checkpointSnapshot = (session: ArmySessionState) =>
+  [...session.checkpoints.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([step, checkpoint]) => {
+      const arrivedKeys =
+        checkpoint.kind === "barrier"
+          ? checkpoint.arrived
+          : new Set(checkpoint.arrived.keys());
+      return {
+        arrivedPlayers: session.players.filter((playerName) =>
+          arrivedKeys.has(normalizeArmyPlayerKey(playerName)),
+        ),
+        kind: checkpoint.kind === "barrier" ? "sync" : "progress",
+        label: checkpoint.signature.label,
+        missingPlayers: missingPlayers(session, arrivedKeys),
+        step,
+        timeoutMs: checkpoint.signature.timeoutMs,
+      };
+    });
+
+const lastCompletedStep = (session: ArmySessionState): number | null =>
+  session.completedSteps.size === 0
+    ? null
+    : Math.max(...session.completedSteps);
+
+const isNormalSessionEnd = (cause: ArmySessionEndCause): boolean =>
+  cause.kind === "application-quit" || cause.kind === "participant-left";
+
+// A slow filesystem must not delay roster gates or session-end notifications.
+const writeLifecycleLog = (log: Effect.Effect<void>): Effect.Effect<void> =>
+  log.pipe(Effect.forkDetach, Effect.asVoid);
+
+export const makeArmyCoordinator = (
+  observability: ArmyObservability = noOpObservability,
+): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
     const sessionEndedListeners = new Set<
@@ -377,7 +443,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
 
     const abortSession: ArmyCoordinatorShape["abortSession"] = (
       sessionId,
-      reason,
+      cause,
     ) =>
       Effect.gen(function* () {
         const removed = yield* SynchronizedRef.modify(
@@ -414,7 +480,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
         );
         if (removed === undefined) return;
 
-        const error = sessionError("aborted", reason, sessionId);
+        const error = sessionError("aborted", cause.reason, sessionId);
         yield* Deferred.fail(removed.startGate, error);
         yield* Effect.forEach(
           removed.checkpoints.values(),
@@ -428,25 +494,43 @@ export const makeArmyCoordinator = (): Effect.Effect<
             ),
           { concurrency: "unbounded", discard: true },
         );
+        const endedAtMs = Date.now();
+        const logData = {
+          cause,
+          configName: removed.configName,
+          durationMs: endedAtMs - (removed.startedAtMs ?? removed.createdAtMs),
+          lastCompletedStep: lastCompletedStep(removed),
+          room: removed.room,
+          roster: rosterSnapshot(removed),
+          sessionId,
+          status: removed.status,
+          ...(isNormalSessionEnd(cause)
+            ? {}
+            : { checkpoints: checkpointSnapshot(removed) }),
+        };
+        const writeEndLog = isNormalSessionEnd(cause)
+          ? observability.info("army", "Army session ended", logData)
+          : observability.warn("army", "Army session ended", logData);
         yield* publishSessionEnded({
           participantIds: [...removed.participants.values()].map(
             (participant) => participant.id,
           ),
-          reason,
+          reason: cause.reason,
           sessionId,
         });
+        yield* writeLifecycleLog(writeEndLog);
       });
 
     const abortParticipant: ArmyCoordinatorShape["abortParticipant"] = (
       participantId,
-      reason,
+      cause,
     ) =>
       SynchronizedRef.get(stateRef).pipe(
         Effect.map((state) => state.participantSessions.get(participantId)),
         Effect.flatMap((sessionId) =>
           sessionId === undefined
             ? Effect.void
-            : abortSession(sessionId, reason),
+            : abortSession(sessionId, cause),
         ),
       );
 
@@ -499,7 +583,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
 
     const awaitWithTimeout = <A>(args: {
       readonly effect: Effect.Effect<A, ArmyCoordinatorError>;
-      readonly interruptReason: string;
+      readonly interruptCause: ArmySessionEndCause;
       readonly onTimeout: () => Effect.Effect<A, ArmyCoordinatorError>;
       readonly sessionId: string;
       readonly timeoutMs: number;
@@ -512,7 +596,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
         // A canceled waiter makes a roster-wide checkpoint impossible to
         // complete, so interruption releases every peer by ending the session.
         Effect.onInterrupt(() =>
-          abortSession(args.sessionId, args.interruptReason),
+          abortSession(args.sessionId, args.interruptCause),
         ),
       );
 
@@ -551,12 +635,14 @@ export const makeArmyCoordinator = (): Effect.Effect<
                   ...config,
                   checkpoints: new Map(),
                   completedSteps: new Set(),
+                  createdAtMs: Date.now(),
                   participants: new Map(),
                   playerKeys: new Set(
                     config.players.map(normalizeArmyPlayerKey),
                   ),
                   sessionId,
                   signatures: new Map(),
+                  startedAtMs: null,
                   startGate,
                   status: "collecting",
                 };
@@ -611,10 +697,13 @@ export const makeArmyCoordinator = (): Effect.Effect<
                 id: participantId,
                 playerName: canonicalPlayerName(session, playerKey),
               });
-              const activated = participants.size === session.players.length;
+              const activated =
+                session.status === "collecting" &&
+                participants.size === session.players.length;
               const updated: ArmySessionState = {
                 ...session,
                 participants,
+                startedAtMs: activated ? Date.now() : session.startedAtMs,
                 status: activated ? "active" : session.status,
               };
               const sessions = new Map(nextState.sessions).set(
@@ -640,6 +729,14 @@ export const makeArmyCoordinator = (): Effect.Effect<
         if (outcome.type === "reject") return yield* outcome.error;
         if (outcome.activated) {
           yield* Deferred.succeed(outcome.session.startGate, undefined);
+          yield* writeLifecycleLog(
+            observability.info("army", "Army session started", {
+              configName: outcome.session.configName,
+              room: outcome.session.room,
+              roster: rosterSnapshot(outcome.session),
+              sessionId: outcome.session.sessionId,
+            }),
+          );
         }
 
         const startTimeout = sessionError(
@@ -649,13 +746,17 @@ export const makeArmyCoordinator = (): Effect.Effect<
         );
         yield* awaitWithTimeout({
           effect: Deferred.await(outcome.session.startGate),
-          interruptReason: "Army start interrupted",
+          interruptCause: {
+            kind: "interrupted",
+            reason: "Army start interrupted",
+          },
           sessionId: outcome.session.sessionId,
           timeoutMs: ARMY_START_TIMEOUT_MS,
           onTimeout: () =>
-            abortSession(outcome.session.sessionId, startTimeout.message).pipe(
-              Effect.andThen(Effect.fail(startTimeout)),
-            ),
+            abortSession(outcome.session.sessionId, {
+              kind: "start-timeout",
+              reason: startTimeout.message,
+            }).pipe(Effect.andThen(Effect.fail(startTimeout))),
         });
         return toPayload(outcome.session, outcome.playerKey);
       });
@@ -958,7 +1059,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           step,
           label,
         );
-        yield* abortSession(sessionId, error.message);
+        yield* abortSession(sessionId, {
+          kind: "checkpoint-timeout",
+          reason: error.message,
+        });
         return yield* error;
       });
 
@@ -993,13 +1097,19 @@ export const makeArmyCoordinator = (): Effect.Effect<
           payload.step,
         );
         if (outcome.type === "reject") {
-          yield* abortSession(sessionId, outcome.error.message);
+          yield* abortSession(sessionId, {
+            kind: "synchronization-error",
+            reason: outcome.error.message,
+          });
           return yield* outcome.error;
         }
         if (outcome.complete) yield* Deferred.succeed(outcome.gate, undefined);
         yield* awaitWithTimeout({
           effect: Deferred.await(outcome.gate),
-          interruptReason: "Army sync interrupted",
+          interruptCause: {
+            kind: "interrupted",
+            reason: "Army sync interrupted",
+          },
           sessionId,
           timeoutMs: signature.timeoutMs,
           onTimeout: () =>
@@ -1044,7 +1154,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           payload.complete,
         );
         if (outcome.type === "reject") {
-          yield* abortSession(sessionId, outcome.error.message);
+          yield* abortSession(sessionId, {
+            kind: "synchronization-error",
+            reason: outcome.error.message,
+          });
           return yield* outcome.error;
         }
         if (outcome.result !== undefined) {
@@ -1052,7 +1165,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
         }
         return yield* awaitWithTimeout({
           effect: Deferred.await(outcome.gate),
-          interruptReason: "Army progress interrupted",
+          interruptCause: {
+            kind: "interrupted",
+            reason: "Army progress interrupted",
+          },
           sessionId,
           timeoutMs: signature.timeoutMs,
           onTimeout: () =>
@@ -1072,7 +1188,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           participantId,
         );
         const playerName = canonicalPlayerName(session, playerKey);
-        yield* abortSession(sessionId, `Army player left: ${playerName}`);
+        yield* abortSession(sessionId, {
+          kind: "participant-left",
+          reason: `Army player left: ${playerName}`,
+        });
       });
 
     const fail: ArmyCoordinatorShape["fail"] = (
@@ -1086,10 +1205,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           participantId,
         );
         const playerName = canonicalPlayerName(session, playerKey);
-        yield* abortSession(
-          sessionId,
-          `Army failed for ${playerName}: ${reason}`,
-        );
+        yield* abortSession(sessionId, {
+          kind: "participant-failed",
+          reason: `Army failed for ${playerName}: ${reason}`,
+        });
       });
 
     const getSessions: ArmyCoordinatorShape["getSessions"] = () =>
@@ -1116,10 +1235,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
           Effect.forEach(
             sessions,
             (session) =>
-              service.abortSession(
-                session.sessionId,
-                "Application is quitting",
-              ),
+              service.abortSession(session.sessionId, {
+                kind: "application-quit",
+                reason: "Application is quitting",
+              }),
             { discard: true },
           ),
         ),
@@ -1134,4 +1253,10 @@ export const makeArmyCoordinator = (): Effect.Effect<
     return service;
   });
 
-export const layer = Layer.effect(ArmyCoordinator, makeArmyCoordinator());
+export const layer = Layer.effect(
+  ArmyCoordinator,
+  Effect.gen(function* () {
+    const observability = yield* DesktopObservability;
+    return yield* makeArmyCoordinator(observability);
+  }),
+);

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Result from "effect/Result";
 import * as TestClock from "effect/testing/TestClock";
 
 import type { ArmyConfigPayload } from "@lucent/core/army";
-import { makeArmyCoordinator } from "./ArmyCoordinator";
+import { ARMY_SYNC_TIMEOUT_MS, makeArmyCoordinator } from "./ArmyCoordinator";
 
 let nextParticipantId = 1;
 
@@ -18,6 +19,24 @@ const makeConfig = (players: readonly string[]): ArmyConfigPayload => ({
   raw: { players, room: "1234" },
   room: "1234",
   sets: {},
+});
+
+interface ObservabilityRecord {
+  readonly component: string;
+  readonly data?: unknown;
+  readonly level: "info" | "warn";
+  readonly message: string;
+}
+
+const makeObservability = (records: ObservabilityRecord[]) => ({
+  info: (component: string, message: string, data?: unknown) =>
+    Effect.sync(() => {
+      records.push({ component, data, level: "info", message });
+    }),
+  warn: (component: string, message: string, data?: unknown) =>
+    Effect.sync(() => {
+      records.push({ component, data, level: "warn", message });
+    }),
 });
 
 describe("ArmyCoordinator", () => {
@@ -38,7 +57,10 @@ describe("ArmyCoordinator", () => {
           participantId,
         );
 
-        yield* coordinator.abortSession(session.sessionId, "Test complete");
+        yield* coordinator.abortSession(session.sessionId, {
+          kind: "requested",
+          reason: "Test complete",
+        });
 
         expect(events).toEqual([
           {
@@ -65,10 +87,10 @@ describe("ArmyCoordinator", () => {
             step: 0,
           });
 
-          yield* coordinator.abortParticipant(
-            participantId,
-            "Renderer reloaded",
-          );
+          yield* coordinator.abortParticipant(participantId, {
+            kind: "participant-unavailable",
+            reason: "Renderer reloaded",
+          });
 
           const second = yield* coordinator.join(
             config,
@@ -111,6 +133,162 @@ describe("ArmyCoordinator", () => {
         expect(alicePayload.playerNumber).toBe(1);
         expect(bob.role).toBe("member");
         expect(bob.playerNumber).toBe(2);
+      }),
+    ),
+  );
+
+  it.effect("logs the active checkpoint when a session aborts", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const records: ObservabilityRecord[] = [];
+        const coordinator = yield* makeArmyCoordinator(
+          makeObservability(records),
+        );
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
+        const [alice] = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              "Alice",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        );
+        yield* Effect.yieldNow;
+        const waiting = yield* coordinator
+          .sync(alice.sessionId, aliceWindow, {
+            label: "map:whitemap-1234",
+            step: 7,
+          })
+          .pipe(Effect.result, Effect.forkScoped);
+        yield* Effect.yieldNow;
+
+        yield* coordinator.abortParticipant(aliceWindow, {
+          kind: "participant-unavailable",
+          reason: "Army window closed",
+        });
+        expect(Result.isFailure(yield* Fiber.join(waiting))).toBe(true);
+        yield* Effect.yieldNow;
+
+        expect(records).toEqual([
+          {
+            component: "army",
+            data: {
+              configName: "test",
+              room: "1234",
+              roster: [
+                { playerName: "Alice", rendererId: aliceWindow },
+                { playerName: "Bob", rendererId: bobWindow },
+              ],
+              sessionId: alice.sessionId,
+            },
+            level: "info",
+            message: "Army session started",
+          },
+          {
+            component: "army",
+            data: {
+              cause: {
+                kind: "participant-unavailable",
+                reason: "Army window closed",
+              },
+              checkpoints: [
+                {
+                  arrivedPlayers: ["Alice"],
+                  kind: "sync",
+                  label: "map:whitemap-1234",
+                  missingPlayers: ["Bob"],
+                  step: 7,
+                  timeoutMs: ARMY_SYNC_TIMEOUT_MS,
+                },
+              ],
+              configName: "test",
+              durationMs: expect.any(Number),
+              lastCompletedStep: null,
+              room: "1234",
+              roster: [
+                { playerName: "Alice", rendererId: aliceWindow },
+                { playerName: "Bob", rendererId: bobWindow },
+              ],
+              sessionId: alice.sessionId,
+              status: "active",
+            },
+            level: "warn",
+            message: "Army session ended",
+          },
+        ]);
+      }),
+    ),
+  );
+
+  it.effect("does not block session transitions on lifecycle logging", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const startLogStarted = yield* Deferred.make<void>();
+        const releaseStartLog = yield* Deferred.make<void>();
+        const endLogStarted = yield* Deferred.make<void>();
+        const releaseEndLog = yield* Deferred.make<void>();
+        const coordinator = yield* makeArmyCoordinator({
+          info: () =>
+            Deferred.succeed(startLogStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(releaseStartLog)),
+            ),
+          warn: () =>
+            Deferred.succeed(endLogStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(releaseEndLog)),
+            ),
+        });
+        const ended: Array<unknown> = [];
+        yield* coordinator.onSessionEnded((event) =>
+          Effect.sync(() => {
+            ended.push(event);
+          }),
+        );
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
+        const joining = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              "Alice",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        ).pipe(Effect.forkScoped);
+
+        yield* Deferred.await(startLogStarted);
+        yield* Effect.yieldNow;
+        const startCompleted = joining.pollUnsafe() !== undefined;
+        yield* Deferred.succeed(releaseStartLog, undefined);
+        const [session] = yield* Fiber.join(joining);
+
+        const ending = yield* coordinator
+          .abortParticipant(aliceWindow, {
+            kind: "participant-unavailable",
+            reason: "Army window closed",
+          })
+          .pipe(Effect.forkScoped);
+        yield* Deferred.await(endLogStarted);
+        yield* Effect.yieldNow;
+        const endCompleted = ending.pollUnsafe() !== undefined;
+        const endedBeforeLogCompleted = ended.length === 1;
+        yield* Deferred.succeed(releaseEndLog, undefined);
+        yield* Fiber.join(ending);
+
+        expect(startCompleted).toBe(true);
+        expect(endCompleted).toBe(true);
+        expect(endedBeforeLogCompleted).toBe(true);
+        expect(ended).toEqual([
+          expect.objectContaining({
+            reason: "Army window closed",
+            sessionId: session.sessionId,
+          }),
+        ]);
       }),
     ),
   );
