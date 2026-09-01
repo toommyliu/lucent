@@ -20,7 +20,6 @@
     "compile:prod": "pnpm run observability:build && cross-env NODE_ENV=production node esbuild.config.js",
     "electron": "node scripts/start-electron.mjs",
     "build": "pnpm run compile:prod",
-    "build:fast": "pnpm run compile:prod && pnpm run electron-builder build",
     "electron-builder": "electron-builder"
   },
   "dependencies": {
