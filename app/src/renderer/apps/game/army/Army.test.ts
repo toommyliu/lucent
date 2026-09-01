@@ -10,7 +10,12 @@ import { afterEach, vi } from "vitest";
 import type { ArmySessionPayload } from "@lucent/core/army";
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
-import { ArmyApi, type ArmyApiRuntimeShape, layer as armyLayer } from "./Army";
+import {
+  ArmyApi,
+  ArmyError,
+  type ArmyApiRuntimeShape,
+  layer as armyLayer,
+} from "./Army";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -157,6 +162,63 @@ describe("Army API", () => {
           yield* Fiber.join(first);
         }),
       ),
+    ),
+  );
+
+  it.effect("interrupts coordinated work when the army session ends", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actionStarted = yield* Deferred.make<void>();
+        const actionStopped = yield* Deferred.make<void>();
+        const testBridge = makeBridge({
+          progress: async () => ({
+            complete: false,
+            completedPlayers: ["Alice"],
+            pendingPlayers: ["Bob"],
+          }),
+        });
+        const reason = "Timed out waiting for army progress 25; missing: Bob";
+
+        yield* withArmy(
+          makeApi({
+            combat: {
+              getConsumableSkillItem: () =>
+                Effect.succeed({ itemId: 1, ready: true }),
+              kill: () =>
+                Deferred.succeed(actionStarted, undefined).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.ensuring(
+                    Deferred.succeed(actionStopped, undefined).pipe(
+                      Effect.asVoid,
+                    ),
+                  ),
+                ),
+              useSkill: () => Effect.succeed(true),
+            },
+            tempInventory: { contains: () => Effect.succeed(false) },
+          }),
+          testBridge.bridge,
+          (army) =>
+            Effect.gen(function* () {
+              yield* army.start("test");
+              const work = yield* army
+                .killForTempItem("Boss", {
+                  item: "Defeated",
+                  quantity: 1,
+                })
+                .pipe(Effect.forkScoped);
+              yield* Deferred.await(actionStarted);
+
+              testBridge.end(reason);
+              yield* Deferred.await(actionStopped);
+
+              const error = yield* Fiber.join(work).pipe(Effect.flip);
+              expect(error).toBeInstanceOf(ArmyError);
+              expect(error.message).toBe(reason);
+              expect(yield* army.isStarted()).toBe(false);
+            }),
+        );
+      }),
     ),
   );
 

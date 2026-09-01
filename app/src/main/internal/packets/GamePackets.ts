@@ -219,6 +219,16 @@ export const makeGamePackets = Effect.gen(function* () {
         )
       : Effect.void,
   );
+  const unsubscribeUnavailable = yield* windows.onRendererUnavailable((event) =>
+    event.kind === "game"
+      ? invalidateGame(
+          event,
+          event.failure.type === "plugin-crashed"
+            ? "Packet activity stopped because the Flash plugin crashed"
+            : "Packet activity stopped because the game renderer is unavailable",
+        )
+      : Effect.void,
+  );
   const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
     event.kind === "game" ? invalidateGame(event) : Effect.void,
   );
@@ -226,6 +236,7 @@ export const makeGamePackets = Effect.gen(function* () {
     Effect.sync(() => {
       unsubscribeClosed();
       unsubscribeDestroyed();
+      unsubscribeUnavailable();
       unsubscribeReloaded();
     }),
   );

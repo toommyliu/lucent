@@ -25,6 +25,7 @@ describe("GamePackets", () => {
           onClosed: () => Effect.succeed(() => undefined),
           onRendererDestroyed: () => Effect.succeed(() => undefined),
           onRendererReloaded: () => Effect.succeed(() => undefined),
+          onRendererUnavailable: () => Effect.succeed(() => undefined),
         } as unknown as DesktopWindows["Service"];
         const packets = yield* makeGamePackets.pipe(
           Effect.provideService(DesktopIpc, ipc),

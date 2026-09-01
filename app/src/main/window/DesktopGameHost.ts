@@ -46,6 +46,8 @@ export interface DesktopGameViewRecord {
   stopObservingFocus: () => void;
   stopObservingReloads: () => void;
   stopObservingShortcutInput: () => void;
+  /** Rejects delayed readiness from a failed generation until navigation advances it. */
+  unavailableGeneration?: number;
 }
 
 export interface DesktopGameHostRecord {
