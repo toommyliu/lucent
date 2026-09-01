@@ -65,6 +65,10 @@ export interface DesktopUpdatesShape {
     listener: (state: UpdateCheckState) => void,
   ) => Effect.Effect<() => void>;
   readonly openReleasePage: Effect.Effect<boolean>;
+  readonly shouldPromptForAvailableRelease: (
+    version: string,
+  ) => Effect.Effect<boolean>;
+  readonly skipAvailableRelease: (version: string) => Effect.Effect<boolean>;
 }
 
 export class DesktopUpdates extends Context.Service<
@@ -89,6 +93,7 @@ const decodeGitHubReleasePayload = Schema.decodeUnknownSync(
 const UpdateReleaseCacheSchema = Schema.Struct({
   release: UpdateReleaseInfo,
   etag: Schema.optionalKey(Schema.String),
+  skippedVersion: Schema.optionalKey(Schema.String),
 });
 const decodeUpdateReleaseCache = Schema.decodeUnknownOption(
   UpdateReleaseCacheSchema,
@@ -201,6 +206,9 @@ const serializeUpdateReleaseCache = (cache: UpdateReleaseCache): unknown => ({
     ...(cache.release.body === undefined ? {} : { body: cache.release.body }),
   },
   ...(cache.etag === undefined ? {} : { etag: cache.etag }),
+  ...(cache.skippedVersion === undefined
+    ? {}
+    : { skippedVersion: cache.skippedVersion }),
 });
 
 interface DesktopUpdatesOptions {
@@ -331,6 +339,9 @@ const makeDesktopUpdates = (
         const nextCache: UpdateReleaseCache = {
           release: result.release,
           ...(result.etag === undefined ? {} : { etag: result.etag }),
+          ...(cache?.skippedVersion === result.release.version
+            ? { skippedVersion: cache.skippedVersion }
+            : {}),
         };
         yield* saveCache(nextCache);
 
@@ -368,6 +379,34 @@ const makeDesktopUpdates = (
       ),
     );
 
+    const shouldPromptForAvailableRelease: DesktopUpdatesShape["shouldPromptForAvailableRelease"] =
+      Effect.fn("DesktopUpdates.shouldPromptForAvailableRelease")(
+        function* (version) {
+          const cache = yield* loadCacheOnce;
+          return cache?.skippedVersion !== version;
+        },
+        Effect.orElseSucceed(() => true),
+      );
+
+    const skipAvailableRelease: DesktopUpdatesShape["skipAvailableRelease"] =
+      Effect.fn("DesktopUpdates.skipAvailableRelease")(
+        function* (version) {
+          const state = yield* Ref.get(stateRef);
+          if (state.status !== "available" || state.latestVersion !== version) {
+            return false;
+          }
+
+          const cache = yield* loadCacheOnce;
+          yield* saveCache({
+            release: state.release,
+            ...(cache?.etag === undefined ? {} : { etag: cache.etag }),
+            skippedVersion: version,
+          });
+          return true;
+        },
+        Effect.orElseSucceed(() => false),
+      );
+
     const checkNow: DesktopUpdatesShape["checkNow"] = (checkOptions) => {
       if (inFlight !== null) {
         const active = inFlight;
@@ -390,6 +429,8 @@ const makeDesktopUpdates = (
       getState,
       onStateChanged,
       openReleasePage,
+      shouldPromptForAvailableRelease,
+      skipAvailableRelease,
     };
   });
 

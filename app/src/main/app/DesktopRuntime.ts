@@ -26,6 +26,7 @@ import { initializeBundledScriptPackages } from "../scripting/BundledScriptPacka
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopApplicationMenu } from "../window/DesktopApplicationMenu";
 import { DesktopWindows } from "../window/DesktopWindows";
+import { showUpdateCheckDialog } from "../window/UpdateCheckDialog";
 
 export const installDesktopNativeAppearanceSync = (
   initialSettings: AppSettings,
@@ -165,6 +166,19 @@ export const makeDesktopRuntime = (
         yield* observability.info("updates", "Startup update check completed", {
           status: updateState.status,
         });
+        yield* showUpdateCheckDialog(updateState, {
+          mode: "automatic",
+          dialog,
+          updates,
+        }).pipe(
+          Effect.catch((cause) =>
+            observability.warn(
+              "updates",
+              "Failed to show startup update dialog",
+              { cause },
+            ),
+          ),
+        );
       }
 
       yield* lifecycle.awaitQuit;

@@ -33,6 +33,7 @@ import { resolveFlashTrustRootPath } from "../flash/FlashPaths";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopWindows } from "./DesktopWindows";
+import { showUpdateCheckDialog } from "./UpdateCheckDialog";
 
 export interface DesktopApplicationMenuShape {
   readonly install: Effect.Effect<void, never, Scope.Scope>;
@@ -186,9 +187,17 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   };
 
   const checkForUpdates = (): void => {
-    void runPromise(updates.checkNow({ force: true })).catch((cause) =>
-      logMenuFailure("check-for-updates", cause),
-    );
+    void runPromise(
+      updates.checkNow({ force: true }).pipe(
+        Effect.flatMap((state) =>
+          showUpdateCheckDialog(state, {
+            mode: "manual",
+            dialog,
+            updates,
+          }),
+        ),
+      ),
+    ).catch((cause) => logMenuFailure("check-for-updates", cause));
   };
 
   const showPerformanceTraceFailure = (
