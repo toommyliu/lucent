@@ -14,6 +14,7 @@
 import * as Context from "../../Context.ts"
 import type * as Effect from "../../Effect.ts"
 import { constFalse, constTrue, identity } from "../../Function.ts"
+import * as StackTraceLimit from "../../internal/stackTraceLimit.ts"
 import type * as JsonSchema from "../../JsonSchema.ts"
 import { pipeArguments } from "../../Pipeable.ts"
 import * as Predicate from "../../Predicate.ts"
@@ -138,7 +139,7 @@ export interface NeedsApprovalContext {
  * @category models
  * @since 4.0.0
  */
-export type NeedsApprovalFunction<Params extends Schema.Top> = (
+export type NeedsApprovalFunction<Params extends Schema.Constraint> = (
   params: Params["Type"],
   context: NeedsApprovalContext
 ) => boolean | Effect.Effect<boolean>
@@ -155,7 +156,7 @@ export type NeedsApprovalFunction<Params extends Schema.Top> = (
  * @category models
  * @since 4.0.0
  */
-export type NeedsApproval<Params extends Schema.Top> =
+export type NeedsApproval<Params extends Schema.Constraint> =
   | boolean
   | NeedsApprovalFunction<Params>
 
@@ -170,7 +171,7 @@ export type NeedsApproval<Params extends Schema.Top> =
  *
  * **Example** (Defining a weather lookup tool)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -187,6 +188,7 @@ export type NeedsApproval<Params extends Schema.Top> =
  *     humidity: Schema.Number
  *   })
  * })
+ * const result = [GetWeather.name, GetWeather.failureMode] // => ["GetWeather", "error"]
  * ```
  *
  * @category models
@@ -195,9 +197,9 @@ export type NeedsApproval<Params extends Schema.Top> =
 export interface Tool<
   out Name extends string,
   out Config extends {
-    readonly parameters: Schema.Top
-    readonly success: Schema.Top
-    readonly failure: Schema.Top
+    readonly parameters: Schema.Constraint
+    readonly success: Schema.Constraint
+    readonly failure: Schema.Constraint
     readonly failureMode: FailureMode
   },
   out Requirements = never
@@ -273,6 +275,13 @@ export interface Tool<
   readonly needsApproval?: boolean | NeedsApprovalFunction<any> | undefined
 
   /**
+   * Set whether user approval is required before executing this tool.
+   */
+  setNeedsApproval(
+    needsApproval: NeedsApproval<Config["parameters"]>
+  ): Tool<Name, Config, Requirements>
+
+  /**
    * Adds a _request-level_ dependency which must be provided before the tool
    * call handler can be executed.
    *
@@ -289,7 +298,7 @@ export interface Tool<
   /**
    * Set the schema to use to validate the result of a tool call when successful.
    */
-  setSuccess<SuccessSchema extends Schema.Top>(
+  setSuccess<SuccessSchema extends Schema.Constraint>(
     schema: SuccessSchema
   ): Tool<
     Name,
@@ -305,7 +314,7 @@ export interface Tool<
   /**
    * Set the schema to use to validate the result of a tool call when it fails.
    */
-  setFailure<FailureSchema extends Schema.Top>(
+  setFailure<FailureSchema extends Schema.Constraint>(
     schema: FailureSchema
   ): Tool<
     Name,
@@ -321,7 +330,7 @@ export interface Tool<
   /**
    * Set the schema to use to validate the parameters of a tool call.
    */
-  setParameters<ParametersSchema extends Schema.Top>(
+  setParameters<ParametersSchema extends Schema.Constraint>(
     schema: ParametersSchema
   ): Tool<
     Name,
@@ -357,7 +366,7 @@ export interface Tool<
  *
  * **Example** (Defining a provider-defined web search tool)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -376,7 +385,8 @@ export interface Tool<
  *       snippet: Schema.String
  *     }))
  *   })
- * })
+ * })({ query: "Effect" })
+ * const result = [WebSearch.name, WebSearch.providerName] // => ["OpenAiWebSearch", "web_search"]
  * ```
  *
  * @category models
@@ -386,10 +396,10 @@ export interface ProviderDefined<
   out Identifier extends `${string}.${string}`,
   out Name extends string,
   out Config extends {
-    readonly args: Schema.Top
-    readonly parameters: Schema.Top
-    readonly success: Schema.Top
-    readonly failure: Schema.Top
+    readonly args: Schema.Constraint
+    readonly parameters: Schema.Constraint
+    readonly success: Schema.Constraint
+    readonly failure: Schema.Constraint
     readonly failureMode: FailureMode
   },
   out RequiresHandler extends boolean = false
@@ -449,7 +459,7 @@ export interface ProviderDefined<
  *
  * **Example** (Defining dynamic tools)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -472,6 +482,8 @@ export interface ProviderDefined<
  *     required: ["query"]
  *   }
  * })
+ *
+ * const result = [Calculator.name, McpTool.name] // => ["Calculator", "McpTool"]
  * ```
  *
  * @category models
@@ -480,9 +492,9 @@ export interface ProviderDefined<
 export interface Dynamic<
   out Name extends string,
   out Config extends {
-    readonly parameters: Schema.Top | JsonSchema.JsonSchema
-    readonly success: Schema.Top
-    readonly failure: Schema.Top
+    readonly parameters: Schema.Constraint | JsonSchema.JsonSchema
+    readonly success: Schema.Constraint
+    readonly failure: Schema.Constraint
     readonly failureMode: FailureMode
   },
   out Requirements = never
@@ -490,7 +502,7 @@ export interface Dynamic<
   Tool<
     Name,
     {
-      readonly parameters: Config["parameters"] extends Schema.Top ? Config["parameters"] : typeof Schema.Unknown
+      readonly parameters: Config["parameters"] extends Schema.Constraint ? Config["parameters"] : typeof Schema.Unknown
       readonly success: Config["success"]
       readonly failure: Config["failure"]
       readonly failureMode: Config["failureMode"]
@@ -504,7 +516,7 @@ export interface Dynamic<
    * The raw JSON Schema for parameters. Present when `parameters` was provided
    * as a JSON Schema, `undefined` when an Effect Schema was used.
    */
-  readonly jsonSchema: Config["parameters"] extends Schema.Top ? undefined : JsonSchema.JsonSchema
+  readonly jsonSchema: Config["parameters"] extends Schema.Constraint ? undefined : JsonSchema.JsonSchema
 }
 
 // =============================================================================
@@ -516,7 +528,7 @@ export interface Dynamic<
  *
  * **Example** (Checking for user-defined tools)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -546,8 +558,7 @@ export interface Dynamic<
  *   })
  * })
  *
- * console.log(Tool.isUserDefined(UserDefinedTool)) // true
- * console.log(Tool.isUserDefined(ProviderDefinedTool)) // false
+ * const result = [Tool.isUserDefined(UserDefinedTool), Tool.isUserDefined(ProviderDefinedTool)] // => [true, false]
  * ```
  *
  * @category guards
@@ -561,7 +572,7 @@ export const isUserDefined = (u: unknown): u is Tool<string, any, any> =>
  *
  * **Example** (Checking for provider-defined tools)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -591,8 +602,7 @@ export const isUserDefined = (u: unknown): u is Tool<string, any, any> =>
  *   })
  * })
  *
- * console.log(Tool.isProviderDefined(UserDefinedTool)) // false
- * console.log(Tool.isProviderDefined(ProviderDefinedTool)) // true
+ * const result = [Tool.isProviderDefined(UserDefinedTool), Tool.isProviderDefined(ProviderDefinedTool)] // => [false, false]
  * ```
  *
  * @category guards
@@ -607,7 +617,7 @@ export const isProviderDefined = (
  *
  * **Example** (Checking for dynamic tools)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -620,8 +630,7 @@ export const isProviderDefined = (
  *   success: Schema.Number
  * })
  *
- * console.log(Tool.isDynamic(DynamicTool)) // true
- * console.log(Tool.isDynamic(UserDefinedTool)) // false
+ * const result = [Tool.isDynamic(DynamicTool), Tool.isDynamic(UserDefinedTool)] // => [true, false]
  * ```
  *
  * @category guards
@@ -1027,37 +1036,37 @@ export type RequiresHandler<Tool extends Any> = Tool extends ProviderDefined<
 // Constructors
 // =============================================================================
 
+// Clones a tool while preserving its prototype (and thus its kind, e.g.
+// user-defined vs. provider-defined vs. dynamic) and its own properties such
+// as `id`. Optional `overrides` replace individual fields on the clone.
+const clone = (self: Any, overrides?: Record<string, unknown>): any =>
+  Object.assign(Object.create(Object.getPrototypeOf(self)), self, overrides)
+
 const Proto = {
   [TypeId]: { _Requirements: identity },
   pipe() {
     return pipeArguments(this, arguments)
   },
   addDependency(this: Any) {
-    return userDefinedProto({ ...this })
+    return clone(this)
   },
-  setParameters(this: Any, parametersSchema: Schema.Top) {
-    return userDefinedProto({
-      ...this,
-      parametersSchema
-    })
+  setParameters(this: Any, parametersSchema: Schema.Constraint) {
+    return clone(this, { parametersSchema })
   },
-  setSuccess(this: Any, successSchema: Schema.Top) {
-    return userDefinedProto({ ...this, successSchema })
+  setSuccess(this: Any, successSchema: Schema.Constraint) {
+    return clone(this, { successSchema })
   },
-  setFailure(this: Any, failureSchema: Schema.Top) {
-    return userDefinedProto({ ...this, failureSchema })
+  setFailure(this: Any, failureSchema: Schema.Constraint) {
+    return clone(this, { failureSchema })
+  },
+  setNeedsApproval(this: Any, needsApproval: NeedsApproval<any>) {
+    return clone(this, { needsApproval })
   },
   annotate<I, S>(this: Any, tag: Context.Key<I, S>, value: S) {
-    return userDefinedProto({
-      ...this,
-      annotations: Context.add(this.annotations, tag, value)
-    })
+    return clone(this, { annotations: Context.add(this.annotations, tag, value) })
   },
   annotateMerge<I>(this: Any, context: Context.Context<I>) {
-    return userDefinedProto({
-      ...this,
-      annotations: Context.merge(this.annotations, context)
-    })
+    return clone(this, { annotations: Context.merge(this.annotations, context) })
   }
 }
 
@@ -1073,9 +1082,9 @@ const DynamicProto = {
 
 const userDefinedProto = <
   const Name extends string,
-  Parameters extends Schema.Top,
-  Success extends Schema.Top,
-  Failure extends Schema.Top,
+  Parameters extends Schema.Constraint,
+  Success extends Schema.Constraint,
+  Failure extends Schema.Constraint,
   Mode extends FailureMode
 >(options: {
   readonly name: Name
@@ -1103,10 +1112,10 @@ const userDefinedProto = <
 const providerDefinedProto = <
   const Identifier extends `${string}.${string}`,
   const Name extends string,
-  Args extends Schema.Top,
-  Parameters extends Schema.Top,
-  Success extends Schema.Top,
-  Failure extends Schema.Top,
+  Args extends Schema.Constraint,
+  Parameters extends Schema.Constraint,
+  Success extends Schema.Constraint,
+  Failure extends Schema.Constraint,
   RequiresHandler extends boolean,
   Mode extends FailureMode
 >(options: {
@@ -1131,13 +1140,13 @@ const providerDefinedProto = <
     readonly failureMode: Mode
   },
   RequiresHandler
-> => Object.assign(Object.create(ProviderDefinedProto), { ...options })
+> => Object.assign(Object.create(ProviderDefinedProto), { annotations: Context.empty(), ...options })
 
 const dynamicProto = <
   const Name extends string,
-  Parameters extends Schema.Top | JsonSchema.JsonSchema,
-  Success extends Schema.Top,
-  Failure extends Schema.Top,
+  Parameters extends Schema.Constraint | JsonSchema.JsonSchema,
+  Success extends Schema.Constraint,
+  Failure extends Schema.Constraint,
   Mode extends FailureMode
 >(options: {
   readonly name: Name
@@ -1177,7 +1186,7 @@ const dynamicProto = <
  *
  * **Example** (Creating a tool without parameters)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -1186,6 +1195,7 @@ const dynamicProto = <
  *   description: "Returns the current timestamp",
  *   success: Schema.Number
  * })
+ * GetCurrentTime.name // => "GetCurrentTime"
  * ```
  *
  * @category constructors
@@ -1193,9 +1203,9 @@ const dynamicProto = <
  */
 export const make = <
   const Name extends string,
-  Parameters extends Schema.Top = typeof EmptyParams,
-  Success extends Schema.Top = typeof Schema.Void,
-  Failure extends Schema.Top = typeof Schema.Never,
+  Parameters extends Schema.Constraint = typeof EmptyParams,
+  Success extends Schema.Constraint = typeof Schema.Void,
+  Failure extends Schema.Constraint = typeof Schema.Never,
   Mode extends FailureMode | undefined = undefined,
   Dependencies extends Array<Context.Key<any, any> | Context.Key<never, any>> = []
 >(name: Name, options?: {
@@ -1283,7 +1293,7 @@ export const make = <
  *
  * **Example** (Creating a dynamic tool)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -1306,6 +1316,8 @@ export const make = <
  *     required: ["query"]
  *   }
  * })
+ *
+ * const result = [Calculator.name, McpTool.name] // => ["Calculator", "McpTool"]
  * ```
  *
  * @category constructors
@@ -1316,9 +1328,9 @@ export const dynamic: {
     const Name extends string,
     const Options extends {
       readonly description?: string | undefined
-      readonly parameters?: Schema.Top | JsonSchema.JsonSchema | undefined
-      readonly success?: Schema.Top | undefined
-      readonly failure?: Schema.Top | undefined
+      readonly parameters?: Schema.Constraint | JsonSchema.JsonSchema | undefined
+      readonly success?: Schema.Constraint | undefined
+      readonly failure?: Schema.Constraint | undefined
       readonly failureMode?: FailureMode | undefined
       readonly needsApproval?: NeedsApproval<any> | undefined
     }
@@ -1328,12 +1340,14 @@ export const dynamic: {
   ): Dynamic<
     Name,
     {
-      readonly parameters: Options extends { readonly parameters: infer P } ? P extends Schema.Top ? P
+      readonly parameters: Options extends { readonly parameters: infer P } ? P extends Schema.Constraint ? P
         : P extends JsonSchema.JsonSchema ? P
         : typeof Schema.Unknown
         : typeof Schema.Unknown
-      readonly success: Options extends { readonly success: infer S extends Schema.Top } ? S : typeof Schema.Unknown
-      readonly failure: Options extends { readonly failure: infer F extends Schema.Top } ? F : typeof Schema.Never
+      readonly success: Options extends { readonly success: infer S extends Schema.Constraint } ? S
+        : typeof Schema.Unknown
+      readonly failure: Options extends { readonly failure: infer F extends Schema.Constraint } ? F
+        : typeof Schema.Never
       readonly failureMode: Options extends { readonly failureMode: infer M extends FailureMode } ? M : "error"
     }
   >
@@ -1341,9 +1355,9 @@ export const dynamic: {
   const Name extends string,
   const Options extends {
     readonly description?: string | undefined
-    readonly parameters?: Schema.Top | JsonSchema.JsonSchema | undefined
-    readonly success?: Schema.Top | undefined
-    readonly failure?: Schema.Top | undefined
+    readonly parameters?: Schema.Constraint | JsonSchema.JsonSchema | undefined
+    readonly success?: Schema.Constraint | undefined
+    readonly failure?: Schema.Constraint | undefined
     readonly failureMode?: FailureMode | undefined
     readonly needsApproval?: NeedsApproval<any> | undefined
   }
@@ -1379,7 +1393,7 @@ export const dynamic: {
  *
  * **Example** (Creating a provider-defined tool)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -1398,7 +1412,8 @@ export const dynamic: {
  *       content: Schema.String
  *     }))
  *   })
- * })
+ * })({ query: "Effect" })
+ * const result = [WebSearch.name, WebSearch.providerName] // => ["OpenAiWebSearch", "web_search"]
  * ```
  *
  * @category constructors
@@ -1407,10 +1422,10 @@ export const dynamic: {
 export const providerDefined = <
   const Identifier extends `${string}.${string}`,
   const Name extends string,
-  Args extends Schema.Top = typeof Schema.Void,
-  Parameters extends Schema.Top = typeof Schema.Void,
-  Success extends Schema.Top = typeof Schema.Void,
-  Failure extends Schema.Top = typeof Schema.Never,
+  Args extends Schema.Constraint = typeof Schema.Void,
+  Parameters extends Schema.Constraint = typeof Schema.Void,
+  Success extends Schema.Constraint = typeof Schema.Void,
+  Failure extends Schema.Constraint = typeof Schema.Never,
   RequiresHandler extends boolean = false
 >(options: {
   /**
@@ -1576,7 +1591,7 @@ export class NameMapper<Tools extends ReadonlyArray<Any>> {
  *
  * **Example** (Reading a tool description)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Tool } from "effect/unstable/ai"
  *
  * const myTool = Tool.make("example", {
@@ -1584,7 +1599,7 @@ export class NameMapper<Tools extends ReadonlyArray<Any>> {
  * })
  *
  * const description = Tool.getDescription(myTool)
- * console.log(description) // "This is an example tool"
+ * description // => "This is an example tool"
  * ```
  *
  * @category getters
@@ -1615,7 +1630,7 @@ export const getDescription = <Tool extends Any>(tool: Tool): string | undefined
  *
  * **Example** (Generating a tool JSON schema)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Schema } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
@@ -1627,15 +1642,10 @@ export const getDescription = <Tool extends Any>(tool: Tool): string | undefined
  * })
  *
  * const jsonSchema = Tool.getJsonSchema(weatherTool)
- * console.log(jsonSchema)
- * // {
- * //   type: "object",
- * //   properties: {
- * //     location: { type: "string" },
- * //     units: { type: "string", enum: ["celsius", "fahrenheit"] }
- * //   },
- * //   required: ["location", "units"]
- * // }
+ * jsonSchema.type // => "object"
+ * if (typeof jsonSchema.properties === "object" && jsonSchema.properties !== null) {
+ *   Object.keys(jsonSchema.properties) // => ["location", "units"]
+ * }
  * ```
  *
  * @category getters
@@ -1663,13 +1673,21 @@ export const getJsonSchema = <Tool extends Any>(tool: Tool, options?: {
  * @category converting
  * @since 4.0.0
  */
-export const getJsonSchemaFromSchema = <S extends Schema.Top>(schema: S, options?: {
+export const getJsonSchemaFromSchema = <S extends Schema.Constraint>(schema: S, options?: {
   readonly transformer?: CodecTransformer
 }): JsonSchema.JsonSchema => {
+  return getJsonSchemaFromSchemaWith(schema, Schema.toJsonSchemaDocument, options)
+}
+
+const getJsonSchemaFromSchemaWith = <S extends Schema.Constraint>(
+  schema: S,
+  toJsonSchemaDocument: (schema: Schema.Constraint) => JsonSchema.Document<"draft-2020-12">,
+  options?: { readonly transformer?: CodecTransformer }
+): JsonSchema.JsonSchema => {
   if (Predicate.isNotUndefined(options?.transformer)) {
     return options.transformer(schema).jsonSchema
   }
-  const document = Schema.toJsonSchemaDocument(schema)
+  const document = toJsonSchemaDocument(schema)
   if (Object.keys(document.definitions).length > 0) {
     document.schema.$defs = document.definitions
   }
@@ -1685,14 +1703,16 @@ export const getJsonSchemaFromSchema = <S extends Schema.Top>(schema: S, options
  *
  * **Example** (Annotating a tool title)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const myTool = Tool.make("calculate_tip")
  *   .annotate(Tool.Title, "Tip Calculator")
+ * Context.getUnsafe(myTool.annotations, Tool.Title) // => "Tip Calculator"
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export class Title extends Context.Service<Title, string>()("effect/ai/Tool/Title") {}
@@ -1702,14 +1722,16 @@ export class Title extends Context.Service<Title, string>()("effect/ai/Tool/Titl
  *
  * **Example** (Annotating MCP metadata)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const myCalculatorUi = Tool.make("calculator_ui", {})
  *   .annotate(Tool.Meta, { ui: { resourceUri: "ui://example/calculator-ui" } })
+ * "ui" in Context.getUnsafe(myCalculatorUi.annotations, Tool.Meta) // => true
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export class Meta extends Context.Service<Meta, Record<string, unknown>>()("effect/ai/Tool/Meta") {}
@@ -1724,14 +1746,16 @@ export class Meta extends Context.Service<Meta, Record<string, unknown>>()("effe
  *
  * **Example** (Marking a tool as read-only)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const readOnlyTool = Tool.make("get_user_info")
  *   .annotate(Tool.Readonly, true)
+ * Context.get(readOnlyTool.annotations, Tool.Readonly) // => true
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export const Readonly = Context.Reference<boolean>("effect/ai/Tool/Readonly", {
@@ -1748,14 +1772,16 @@ export const Readonly = Context.Reference<boolean>("effect/ai/Tool/Readonly", {
  *
  * **Example** (Marking a tool as non-destructive)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const safeTool = Tool.make("search_database")
  *   .annotate(Tool.Destructive, false)
+ * Context.get(safeTool.annotations, Tool.Destructive) // => false
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export const Destructive = Context.Reference<boolean>("effect/ai/Tool/Destructive", {
@@ -1773,14 +1799,16 @@ export const Destructive = Context.Reference<boolean>("effect/ai/Tool/Destructiv
  *
  * **Example** (Marking a tool as idempotent)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const idempotentTool = Tool.make("get_current_time")
  *   .annotate(Tool.Idempotent, true)
+ * Context.get(idempotentTool.annotations, Tool.Idempotent) // => true
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export const Idempotent = Context.Reference<boolean>("effect/ai/Tool/Idempotent", {
@@ -1798,14 +1826,16 @@ export const Idempotent = Context.Reference<boolean>("effect/ai/Tool/Idempotent"
  *
  * **Example** (Disabling open-world access)
  *
- * ```ts
+ * ```ts import.meta.vitest
+ * import { Context } from "effect"
  * import { Tool } from "effect/unstable/ai"
  *
  * const restrictedTool = Tool.make("internal_operation")
  *   .annotate(Tool.OpenWorld, false)
+ * Context.get(restrictedTool.annotations, Tool.OpenWorld) // => false
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export const OpenWorld = Context.Reference<boolean>("effect/ai/Tool/OpenWorld", {
@@ -1827,14 +1857,15 @@ export const OpenWorld = Context.Reference<boolean>("effect/ai/Tool/OpenWorld", 
  *
  * **Example** (Disabling strict JSON schema mode)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Tool } from "effect/unstable/ai"
  *
  * const flexibleTool = Tool.make("search")
  *   .annotate(Tool.Strict, false)
+ * Tool.getStrictMode(flexibleTool) // => false
  * ```
  *
- * @category annotations
+ * @category services
  * @since 4.0.0
  */
 export const Strict = Context.Reference<boolean | undefined>("effect/ai/Tool/Strict", {
@@ -1915,13 +1946,13 @@ function filter(obj: any) {
     next = []
 
     for (const node of nodes) {
-      if (Object.prototype.hasOwnProperty.call(node, "__proto__")) {
+      if (Object.hasOwn(node, "__proto__")) {
         throw new SyntaxError("Object contains forbidden prototype property")
       }
 
       if (
-        Object.prototype.hasOwnProperty.call(node, "constructor") &&
-        Object.prototype.hasOwnProperty.call(node.constructor, "prototype")
+        Object.hasOwn(node, "constructor") &&
+        Object.hasOwn(node.constructor, "prototype")
       ) {
         throw new SyntaxError("Object contains forbidden prototype property")
       }
@@ -1956,12 +1987,12 @@ function filter(obj: any) {
  */
 export const unsafeSecureJsonParse = (text: string): unknown => {
   // Performance optimization, see https://github.com/fastify/secure-json-parse/pull/90
-  const { stackTraceLimit } = Error
-  Error.stackTraceLimit = 0
+  const prevLimit = StackTraceLimit.getStackTraceLimit()
+  StackTraceLimit.setStackTraceLimit(0)
   try {
     return _parse(text)
   } finally {
-    Error.stackTraceLimit = stackTraceLimit
+    StackTraceLimit.setStackTraceLimit(prevLimit)
   }
 }
 

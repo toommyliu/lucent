@@ -21,7 +21,7 @@ import type { Protocol } from "./RpcServer.ts"
  * Context service that supplies the initial RPC worker message as encoded data
  * paired with any transferables that should be posted with it.
  *
- * @category initial message
+ * @category services
  * @since 4.0.0
  */
 export class InitialMessage extends Context.Service<
@@ -44,7 +44,7 @@ export declare namespace InitialMessage {
    * Tagged wire representation of an RPC worker initial message after schema
    * encoding.
    *
-   * @category initial message
+   * @category models
    * @since 4.0.0
    */
   export interface Encoded {
@@ -61,10 +61,10 @@ const ProtocolTag = Context.Service<Protocol, Protocol["Service"]>(
  * Runs an effect, encodes its result with the schema's JSON codec, and returns
  * the encoded value together with collected transferables.
  *
- * @category initial message
+ * @category encoding
  * @since 4.0.0
  */
-export const makeInitialMessage = <S extends Schema.Top, E, R2>(
+export const makeInitialMessage = <S extends Schema.Constraint, E, R2>(
   schema: S,
   effect: Effect.Effect<S["Type"], E, R2>
 ): Effect.Effect<
@@ -86,10 +86,10 @@ export const makeInitialMessage = <S extends Schema.Top, E, R2>(
  * Provides the `InitialMessage` service from a schema and build effect,
  * capturing the layer context and dying if schema encoding fails.
  *
- * @category initial message
+ * @category layers
  * @since 4.0.0
  */
-export const layerInitialMessage = <S extends Schema.Top, R2>(
+export const layerInitialMessage = <S extends Schema.Constraint, R2>(
   schema: S,
   build: Effect.Effect<S["Type"], never, R2>
 ): Layer.Layer<InitialMessage, never, S["EncodingServices"] | R2> =>
@@ -105,10 +105,10 @@ export const layerInitialMessage = <S extends Schema.Top, R2>(
  * Reads the protocol initial message and decodes it with the supplied schema,
  * failing if no initial message is available or decoding fails.
  *
- * @category initial message
+ * @category decoding
  * @since 4.0.0
  */
-export const initialMessage = <S extends Schema.Top>(
+export const initialMessage = <S extends Schema.Constraint>(
   schema: S
 ): Effect.Effect<S["Type"], NoSuchElementError | Schema.SchemaError, Protocol | S["DecodingServices"]> =>
   ProtocolTag.pipe(
