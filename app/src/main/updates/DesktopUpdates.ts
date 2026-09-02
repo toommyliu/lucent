@@ -33,7 +33,7 @@ const RELEASE_URL =
 const CHECK_TIMEOUT_MS = 10_000;
 const CHECK_ATTEMPTS = 3;
 
-export class DesktopUpdateError extends Schema.TaggedErrorClass<DesktopUpdateError>()(
+export class DesktopUpdateError extends Schema.TaggedError<DesktopUpdateError>()(
   "DesktopUpdateError",
   {
     detail: Schema.String,

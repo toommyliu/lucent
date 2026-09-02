@@ -48,7 +48,7 @@ export type DesktopFileSystemOperation = typeof operationSchema.Type;
 export type DesktopFileSystemReason = typeof reasonSchema.Type;
 export type DesktopFileSystemTarget = typeof targetSchema.Type;
 
-export class DesktopFileSystemError extends Schema.TaggedErrorClass<DesktopFileSystemError>()(
+export class DesktopFileSystemError extends Schema.TaggedError<DesktopFileSystemError>()(
   "DesktopFileSystemError",
   {
     operation: operationSchema,

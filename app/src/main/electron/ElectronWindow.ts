@@ -56,7 +56,7 @@ export interface ElectronWindowHandle {
   readonly show: () => void;
 }
 
-export class ElectronWindowCreateError extends Schema.TaggedErrorClass<ElectronWindowCreateError>()(
+export class ElectronWindowCreateError extends Schema.TaggedError<ElectronWindowCreateError>()(
   "ElectronWindowCreateError",
   {
     cause: Schema.Defect(),
@@ -67,7 +67,7 @@ export class ElectronWindowCreateError extends Schema.TaggedErrorClass<ElectronW
   }
 }
 
-export class ElectronWindowLoadError extends Schema.TaggedErrorClass<ElectronWindowLoadError>()(
+export class ElectronWindowLoadError extends Schema.TaggedError<ElectronWindowLoadError>()(
   "ElectronWindowLoadError",
   {
     path: Schema.String,

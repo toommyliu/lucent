@@ -36,7 +36,7 @@ class DropRejectionMiss extends Data.TaggedError("DropRejectionMiss")<{
 }> {}
 
 const rejectionRetrySchedule = Schedule.exponential("100 millis").pipe(
-  Schedule.take(3),
+  Schedule.upTo({ times: 3 }),
 );
 
 // Reconcile every pending drop after each wake so a missed UI mutation cannot

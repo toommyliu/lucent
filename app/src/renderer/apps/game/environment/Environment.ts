@@ -150,7 +150,7 @@ const reportDropAutomationFailure = (
         message: "Environment drop reconciliation failed",
       });
 
-export class EnvironmentBridgeError extends Schema.TaggedErrorClass<EnvironmentBridgeError>()(
+export class EnvironmentBridgeError extends Schema.TaggedError<EnvironmentBridgeError>()(
   "EnvironmentBridgeError",
   {
     cause: Schema.Defect(),

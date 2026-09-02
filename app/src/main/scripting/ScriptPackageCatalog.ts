@@ -143,7 +143,7 @@ export interface ScriptPackageCatalogReplacement {
   readonly sourceRoot: string;
 }
 
-export class ScriptPackageCatalogError extends Schema.TaggedErrorClass<ScriptPackageCatalogError>()(
+export class ScriptPackageCatalogError extends Schema.TaggedError<ScriptPackageCatalogError>()(
   "ScriptPackageCatalogError",
   {
     operation: Schema.Literal("scan"),

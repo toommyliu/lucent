@@ -47,7 +47,7 @@ const LoopTauntReasons = Schema.Literals([
   "sender-mismatch",
 ]);
 
-export class ArmyLoopTauntError extends Schema.TaggedErrorClass<ArmyLoopTauntError>()(
+export class ArmyLoopTauntError extends Schema.TaggedError<ArmyLoopTauntError>()(
   "ArmyLoopTauntError",
   {
     reason: LoopTauntReasons,

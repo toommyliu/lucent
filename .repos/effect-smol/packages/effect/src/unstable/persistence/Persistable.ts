@@ -10,6 +10,7 @@
 import type * as Duration from "../../Duration.ts"
 import type * as Effect from "../../Effect.ts"
 import type * as Exit from "../../Exit.ts"
+import * as InternalRecord from "../../internal/record.ts"
 import * as PrimaryKey from "../../PrimaryKey.ts"
 import * as Request from "../../Request.ts"
 import * as Schema from "../../Schema.ts"
@@ -37,7 +38,7 @@ export const symbol = "~effect/persistence/Persistable" as const
  * @category models
  * @since 4.0.0
  */
-export interface Persistable<A extends Schema.Top, E extends Schema.Top> extends PrimaryKey.PrimaryKey {
+export interface Persistable<A extends Schema.Constraint, E extends Schema.Constraint> extends PrimaryKey.PrimaryKey {
   readonly [symbol]: {
     readonly success: A
     readonly error: E
@@ -50,12 +51,12 @@ export interface Persistable<A extends Schema.Top, E extends Schema.Top> extends
  * @category models
  * @since 4.0.0
  */
-export type Any = Persistable<Schema.Top, Schema.Top>
+export type Any = Persistable<Schema.Constraint, Schema.Constraint>
 
 /**
  * Extracts the success schema from a persistable request.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type SuccessSchema<A extends Any> = A["~effect/persistence/Persistable"]["success"]
@@ -63,7 +64,7 @@ export type SuccessSchema<A extends Any> = A["~effect/persistence/Persistable"][
 /**
  * Extracts the success value type from a persistable request.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type Success<A extends Any> = A["~effect/persistence/Persistable"]["success"]["Type"]
@@ -71,7 +72,7 @@ export type Success<A extends Any> = A["~effect/persistence/Persistable"]["succe
 /**
  * Extracts the error schema from a persistable request.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type ErrorSchema<A extends Any> = A["~effect/persistence/Persistable"]["error"]
@@ -79,7 +80,7 @@ export type ErrorSchema<A extends Any> = A["~effect/persistence/Persistable"]["e
 /**
  * Extracts the error value type from a persistable request.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type Error<A extends Any> = A["~effect/persistence/Persistable"]["error"]["Type"]
@@ -88,7 +89,7 @@ export type Error<A extends Any> = A["~effect/persistence/Persistable"]["error"]
  * Services required to decode a persisted success or error value for the
  * request.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type DecodingServices<A extends Any> =
@@ -98,7 +99,7 @@ export type DecodingServices<A extends Any> =
 /**
  * Services required to encode a success or error value for persistence.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type EncodingServices<A extends Any> =
@@ -109,7 +110,7 @@ export type EncodingServices<A extends Any> =
  * All schema services required to encode and decode a persistable request
  * result.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type Services<A extends Any> =
@@ -122,7 +123,7 @@ export type Services<A extends Any> =
  * Computes the time to live for a persisted result from the result `Exit` and
  * request value.
  *
- * @category models
+ * @category utility types
  * @since 4.0.0
  */
 export type TimeToLiveFn<K extends Any> = (exit: Exit.Exit<Success<K>, Error<K>>, request: K) => Duration.Input
@@ -147,8 +148,8 @@ export const Class = <
 >() =>
 <
   const Tag extends string,
-  A extends Schema.Top = Schema.Void,
-  E extends Schema.Top = Schema.Never
+  A extends Schema.Constraint = Schema.Void,
+  E extends Schema.Constraint = Schema.Never
 >(tag: Tag, options: {
   readonly primaryKey: (payload: Config["payload"]) => string
   readonly success?: A | undefined
@@ -179,10 +180,10 @@ export const Class = <
     | ("requires" extends keyof Config ? Config["requires"] : never)
   > =>
 {
-  function Persistable(this: any, props: any) {
+  function Persistable(this: any, props: object | undefined) {
     this._tag = tag
     if (props) {
-      Object.assign(this, props)
+      InternalRecord.assignProperties(this, props)
     }
   }
   Persistable.prototype = {
@@ -205,7 +206,7 @@ export const Class = <
  * @category accessors
  * @since 4.0.0
  */
-export const exitSchema = <A extends Schema.Top, E extends Schema.Top>(
+export const exitSchema = <A extends Schema.Constraint, E extends Schema.Constraint>(
   self: Persistable<A, E>
 ): Schema.Exit<A, E, Schema.Defect> => {
   let schema = exitSchemaCache.get(self)
@@ -224,7 +225,7 @@ const exitSchemaCache = new WeakMap<Persistable<any, any>, Schema.Exit<any, any,
  * @category serialization
  * @since 4.0.0
  */
-export const serializeExit = <A extends Schema.Top, E extends Schema.Top>(
+export const serializeExit = <A extends Schema.Constraint, E extends Schema.Constraint>(
   self: Persistable<A, E>,
   exit: Exit.Exit<A["Type"], E["Type"]>
 ): Effect.Effect<unknown, Schema.SchemaError, A["EncodingServices"] | E["EncodingServices"]> => {
@@ -239,7 +240,7 @@ export const serializeExit = <A extends Schema.Top, E extends Schema.Top>(
  * @category serialization
  * @since 4.0.0
  */
-export const deserializeExit = <A extends Schema.Top, E extends Schema.Top>(
+export const deserializeExit = <A extends Schema.Constraint, E extends Schema.Constraint>(
   self: Persistable<A, E>,
   encoded: unknown
 ): Effect.Effect<

@@ -44,7 +44,7 @@ import {
 const SNAPSHOT_MAX_ATTEMPTS = 3;
 const SOURCE_READ_CONCURRENCY = 8;
 
-export class ScriptSourceRegistryError extends Schema.TaggedErrorClass<ScriptSourceRegistryError>()(
+export class ScriptSourceRegistryError extends Schema.TaggedError<ScriptSourceRegistryError>()(
   "ScriptSourceRegistryError",
   {
     detail: Schema.String,

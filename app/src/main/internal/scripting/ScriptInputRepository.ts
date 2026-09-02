@@ -18,7 +18,7 @@ import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const inputRepositoryOperationSchema = Schema.Literals(["read", "write"]);
 
-export class ScriptInputRepositoryError extends Schema.TaggedErrorClass<ScriptInputRepositoryError>()(
+export class ScriptInputRepositoryError extends Schema.TaggedError<ScriptInputRepositoryError>()(
   "ScriptInputRepositoryError",
   {
     operation: inputRepositoryOperationSchema,

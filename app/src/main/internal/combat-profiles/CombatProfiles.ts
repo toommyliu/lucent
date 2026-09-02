@@ -33,7 +33,7 @@ const combatProfilesOperationSchema = Schema.Literals([
   "write",
 ]);
 
-export class CombatProfilesError extends Schema.TaggedErrorClass<CombatProfilesError>()(
+export class CombatProfilesError extends Schema.TaggedError<CombatProfilesError>()(
   "CombatProfilesError",
   {
     detail: Schema.String,

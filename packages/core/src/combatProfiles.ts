@@ -17,6 +17,14 @@ const MAX_CONSUMABLE_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
 const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
 
+// Core omits browser and Node globals from its types.
+// Both supported runtimes provide structuredClone.
+const structuredCloneValue = (
+  globalThis as typeof globalThis & {
+    structuredClone<T>(value: T): T;
+  }
+).structuredClone;
+
 export type SkillSlot = 0 | 1 | 2 | 3 | 4 | 5;
 export const SkillSlotSchema = Schema.Literals([
   0, 1, 2, 3, 4, 5,
@@ -385,7 +393,7 @@ const normalizeProfile = (
   const steps = normalizeArray(record["steps"], normalizeStep);
   const normalizedSteps =
     steps.length === 0
-      ? (structuredClone(
+      ? (structuredCloneValue(
           genericProfile().steps,
         ) as readonly CombatProfileStep[])
       : steps;
@@ -449,7 +457,8 @@ export const DEFAULT_COMBAT_PROFILE_LIBRARY: CombatProfileLibrary = {
 
 export const cloneCombatProfileLibrary = (
   library: CombatProfileLibrary,
-): CombatProfileLibrary => structuredClone(library) as CombatProfileLibrary;
+): CombatProfileLibrary =>
+  structuredCloneValue(library) as CombatProfileLibrary;
 
 export const normalizeCombatProfile = (value: unknown): CombatProfile =>
   normalizeProfile(value, DEFAULT_COMBAT_PROFILE_ID) ?? genericProfile();

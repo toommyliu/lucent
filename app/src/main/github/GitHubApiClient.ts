@@ -32,7 +32,7 @@ export const GitHubApiErrorKind = Schema.Literals([
   "unexpected-response",
 ]);
 
-export class GitHubApiClientError extends Schema.TaggedErrorClass<GitHubApiClientError>()(
+export class GitHubApiClientError extends Schema.TaggedError<GitHubApiClientError>()(
   "GitHubApiClientError",
   {
     kind: GitHubApiErrorKind,
@@ -205,10 +205,10 @@ const responseError = (
 };
 
 const retrySchedule = (attempts: number) =>
-  Schedule.exponential(RETRY_BASE_DELAY).pipe(
-    Schedule.jittered,
-    Schedule.both(Schedule.recurs(Math.max(0, attempts - 1))),
-  );
+  Schedule.max([
+    Schedule.exponential(RETRY_BASE_DELAY).pipe(Schedule.jittered),
+    Schedule.recurs(Math.max(0, attempts - 1)),
+  ]);
 
 const rateLimitKey = (credentialId: string | undefined): string =>
   `${credentialId ?? "public"}:core`;

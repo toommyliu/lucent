@@ -24,7 +24,7 @@ import {
   retireManagedGamePartitionProfile,
 } from "./ElectronGamePartitions";
 
-export class ElectronGamePartitionError extends Schema.TaggedErrorClass<ElectronGamePartitionError>()(
+export class ElectronGamePartitionError extends Schema.TaggedError<ElectronGamePartitionError>()(
   "ElectronGamePartitionError",
   {
     cause: Schema.Defect(),

@@ -31,7 +31,7 @@ export type FollowerCommandInput =
   | { readonly config: FollowerConfig; readonly kind: "start" }
   | { readonly kind: "stop" };
 
-export class GameFollowerRequestError extends Schema.TaggedErrorClass<GameFollowerRequestError>()(
+export class GameFollowerRequestError extends Schema.TaggedError<GameFollowerRequestError>()(
   "GameFollowerRequestError",
   {
     detail: Schema.String,

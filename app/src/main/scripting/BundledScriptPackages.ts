@@ -66,7 +66,7 @@ const decodePackageSubdirectory = Schema.decodeUnknownEffect(
 const directoryIdentity = (stat: Stats): string =>
   `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
 
-class BundledScriptPackageSetupError extends Schema.TaggedErrorClass<BundledScriptPackageSetupError>()(
+class BundledScriptPackageSetupError extends Schema.TaggedError<BundledScriptPackageSetupError>()(
   "BundledScriptPackageSetupError",
   { detail: Schema.String },
 ) {

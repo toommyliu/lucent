@@ -23,15 +23,15 @@ const StreamSchemaTypeId = "~effect/rpc/RpcSchema/StreamSchema"
  * Returns `true` when a schema is an RPC stream schema created by
  * `RpcSchema.Stream`.
  *
- * @category streams
+ * @category guards
  * @since 4.0.0
  */
-export function isStreamSchema(schema: Schema.Top): schema is Stream<Schema.Top, Schema.Top> {
+export function isStreamSchema(schema: Schema.Constraint): schema is Stream<Schema.Top, Schema.Top> {
   return Predicate.hasProperty(schema, StreamSchemaTypeId)
 }
 
 /** @internal */
-export function getStreamSchemas(schema: Schema.Top): Option.Option<{
+export function getStreamSchemas(schema: Schema.Constraint): Option.Option<{
   readonly success: Schema.Top
   readonly error: Schema.Top
 }> {
@@ -47,20 +47,23 @@ export function getStreamSchemas(schema: Schema.Top): Option.Option<{
  * A schema marker for RPC streaming responses, storing the success element
  * schema and stream error schema used for encoding and decoding stream chunks.
  *
- * @category streams
+ * @category models
  * @since 4.0.0
  */
-export interface Stream<A extends Schema.Top, E extends Schema.Top> extends
-  Schema.Bottom<
-    Stream_.Stream<A["Type"], E["Type"]>,
-    Stream_.Stream<A["Encoded"], E["Encoded"]>,
-    A["DecodingServices"] | E["DecodingServices"],
-    A["EncodingServices"] | E["EncodingServices"],
+export interface Stream<A extends Schema.Constraint, E extends Schema.Constraint> extends
+  Schema.BottomLazy<
     SchemaAST.Declaration,
     Stream<A, E>
   >
 {
+  readonly "Type": Stream_.Stream<A["Type"], E["Type"]>
+  readonly "Encoded": Stream_.Stream<A["Encoded"], E["Encoded"]>
+  readonly "DecodingServices": A["DecodingServices"] | E["DecodingServices"]
+  readonly "EncodingServices": A["EncodingServices"] | E["EncodingServices"]
   readonly "Rebuild": Stream<A, E>
+  readonly "~type.make.in": Stream_.Stream<A["Type"], E["Type"]>
+  readonly "~type.make": Stream_.Stream<A["Type"], E["Type"]>
+  readonly "Iso": Stream_.Stream<A["Type"], E["Type"]>
   readonly [StreamSchemaTypeId]: typeof StreamSchemaTypeId
   readonly success: A
   readonly error: E
@@ -72,10 +75,10 @@ const schema = Schema.declare(Stream_.isStream)
  * Creates an RPC stream schema from a stream element success schema and stream
  * error schema.
  *
- * @category streams
+ * @category constructors
  * @since 4.0.0
  */
-export function Stream<A extends Schema.Top, E extends Schema.Top>(success: A, error: E): Stream<A, E> {
+export function Stream<A extends Schema.Constraint, E extends Schema.Constraint>(success: A, error: E): Stream<A, E> {
   return Schema.make(schema.ast, { [StreamSchemaTypeId]: StreamSchemaTypeId, success, error })
 }
 
@@ -83,7 +86,7 @@ export function Stream<A extends Schema.Top, E extends Schema.Top>(success: A, e
  * Annotation that marks interruptions that originate from an RPC client
  * abort.
  *
- * @category Cause annotations
+ * @category services
  * @since 4.0.0
  */
 export class ClientAbort extends Context.Service<ClientAbort, true>()("effect/rpc/RpcSchema/ClientAbort") {

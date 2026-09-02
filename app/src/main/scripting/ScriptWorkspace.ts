@@ -15,7 +15,7 @@ const scriptWorkspaceOperationSchema = Schema.Literals([
   "create-directory",
 ]);
 
-export class ScriptWorkspaceError extends Schema.TaggedErrorClass<ScriptWorkspaceError>()(
+export class ScriptWorkspaceError extends Schema.TaggedError<ScriptWorkspaceError>()(
   "ScriptWorkspaceError",
   {
     operation: scriptWorkspaceOperationSchema,

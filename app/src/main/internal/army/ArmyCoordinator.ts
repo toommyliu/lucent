@@ -27,7 +27,7 @@ const SessionReasons = Schema.Literals([
   "start-timeout",
 ]);
 
-export class ArmySessionError extends Schema.TaggedErrorClass<ArmySessionError>()(
+export class ArmySessionError extends Schema.TaggedError<ArmySessionError>()(
   "ArmySessionError",
   {
     reason: SessionReasons,
@@ -47,7 +47,7 @@ const ParticipantReasons = Schema.Literals([
   "sender-mismatch",
 ]);
 
-export class ArmyParticipantError extends Schema.TaggedErrorClass<ArmyParticipantError>()(
+export class ArmyParticipantError extends Schema.TaggedError<ArmyParticipantError>()(
   "ArmyParticipantError",
   {
     reason: ParticipantReasons,
@@ -69,7 +69,7 @@ const SynchronizationReasons = Schema.Literals([
   "invalid-step",
 ]);
 
-export class ArmySynchronizationError extends Schema.TaggedErrorClass<ArmySynchronizationError>()(
+export class ArmySynchronizationError extends Schema.TaggedError<ArmySynchronizationError>()(
   "ArmySynchronizationError",
   {
     reason: SynchronizationReasons,

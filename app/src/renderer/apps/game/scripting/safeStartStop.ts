@@ -39,7 +39,7 @@ export type SafeMoveResult =
   | "timed-out";
 
 const safeMoveRetrySchedule = Schedule.exponential("1 second").pipe(
-  Schedule.take(maximumSafeMoveAttempts - 1),
+  Schedule.upTo({ times: maximumSafeMoveAttempts - 1 }),
 );
 
 const warnFailure = (phase: SafeStartStopPhase) =>

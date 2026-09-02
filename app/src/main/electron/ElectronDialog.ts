@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-export class ElectronDialogMessageBoxError extends Schema.TaggedErrorClass<ElectronDialogMessageBoxError>()(
+export class ElectronDialogMessageBoxError extends Schema.TaggedError<ElectronDialogMessageBoxError>()(
   "ElectronDialogMessageBoxError",
   {
     cause: Schema.Defect(),
@@ -24,7 +24,7 @@ export class ElectronDialogMessageBoxError extends Schema.TaggedErrorClass<Elect
   }
 }
 
-export class ElectronDialogOpenDialogError extends Schema.TaggedErrorClass<ElectronDialogOpenDialogError>()(
+export class ElectronDialogOpenDialogError extends Schema.TaggedError<ElectronDialogOpenDialogError>()(
   "ElectronDialogOpenDialogError",
   {
     cause: Schema.Defect(),

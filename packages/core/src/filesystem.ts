@@ -45,7 +45,7 @@ export const FileSystemFailureSchema = Schema.Struct(FileSystemErrorFields);
 export type FileSystemFailure = typeof FileSystemFailureSchema.Type;
 
 /** Describes a failed filesystem action. */
-export class FileSystemError extends Schema.TaggedErrorClass<FileSystemError>()(
+export class FileSystemError extends Schema.TaggedError<FileSystemError>()(
   "FileSystemError",
   FileSystemErrorFields,
 ) {

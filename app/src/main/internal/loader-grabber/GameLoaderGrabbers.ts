@@ -31,7 +31,7 @@ export type LoaderGrabberRequestInput =
       readonly payload: LoaderGrabberLoadRequest;
     };
 
-export class LoaderGrabberRequestError extends Schema.TaggedErrorClass<LoaderGrabberRequestError>()(
+export class LoaderGrabberRequestError extends Schema.TaggedError<LoaderGrabberRequestError>()(
   "LoaderGrabberRequestError",
   {
     detail: Schema.String,

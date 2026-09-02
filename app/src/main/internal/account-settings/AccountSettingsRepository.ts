@@ -29,7 +29,7 @@ const accountSettingsOperationSchema = Schema.Literals([
   "write",
 ]);
 
-export class AccountSettingsError extends Schema.TaggedErrorClass<AccountSettingsError>()(
+export class AccountSettingsError extends Schema.TaggedError<AccountSettingsError>()(
   "AccountSettingsError",
   {
     operation: accountSettingsOperationSchema,

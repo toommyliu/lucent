@@ -68,7 +68,7 @@ const packageManagerOperationSchema = Schema.Literals([
   "validate",
 ]);
 
-export class ScriptPackageManagerError extends Schema.TaggedErrorClass<ScriptPackageManagerError>()(
+export class ScriptPackageManagerError extends Schema.TaggedError<ScriptPackageManagerError>()(
   "ScriptPackageManagerError",
   {
     operation: packageManagerOperationSchema,
@@ -81,7 +81,7 @@ export class ScriptPackageManagerError extends Schema.TaggedErrorClass<ScriptPac
   }
 }
 
-class PackageDirectoryReplacementError extends Schema.TaggedErrorClass<PackageDirectoryReplacementError>()(
+class PackageDirectoryReplacementError extends Schema.TaggedError<PackageDirectoryReplacementError>()(
   "PackageDirectoryReplacementError",
   {
     detail: Schema.String,

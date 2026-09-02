@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 
 const validTrustFileName = /^[a-zA-Z0-9-_.]+$/;
 
-export class FlashTrustError extends Schema.TaggedErrorClass<FlashTrustError>()(
+export class FlashTrustError extends Schema.TaggedError<FlashTrustError>()(
   "FlashTrustError",
   {
     operation: Schema.Literals(["mkdir", "read", "validate", "write"]),

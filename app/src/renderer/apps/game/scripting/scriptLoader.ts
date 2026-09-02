@@ -9,7 +9,7 @@ import { isScriptBuiltinModuleSpecifier } from "@lucent/core/scriptPackages";
 import type { ScriptMain } from "./ScriptApi";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 
-export class ScriptLoadError extends Schema.TaggedErrorClass<ScriptLoadError>()(
+export class ScriptLoadError extends Schema.TaggedError<ScriptLoadError>()(
   "ScriptLoadError",
   {
     detail: Schema.String,

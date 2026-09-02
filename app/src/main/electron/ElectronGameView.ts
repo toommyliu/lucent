@@ -14,7 +14,7 @@ import type { ElectronWindowOpenRequestHandler } from "./ElectronWindow";
 
 export type ElectronGameViewHandle = BrowserView;
 
-export class ElectronGameViewCreateError extends Schema.TaggedErrorClass<ElectronGameViewCreateError>()(
+export class ElectronGameViewCreateError extends Schema.TaggedError<ElectronGameViewCreateError>()(
   "ElectronGameViewCreateError",
   { cause: Schema.Defect() },
 ) {
@@ -23,7 +23,7 @@ export class ElectronGameViewCreateError extends Schema.TaggedErrorClass<Electro
   }
 }
 
-export class ElectronGameViewLoadError extends Schema.TaggedErrorClass<ElectronGameViewLoadError>()(
+export class ElectronGameViewLoadError extends Schema.TaggedError<ElectronGameViewLoadError>()(
   "ElectronGameViewLoadError",
   {
     cause: Schema.Defect(),

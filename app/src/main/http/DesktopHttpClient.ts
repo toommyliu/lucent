@@ -37,7 +37,7 @@ export interface DesktopHttpDownloadOptions {
   readonly url: URL;
 }
 
-export class DesktopHttpClientError extends Schema.TaggedErrorClass<DesktopHttpClientError>()(
+export class DesktopHttpClientError extends Schema.TaggedError<DesktopHttpClientError>()(
   "DesktopHttpClientError",
   {
     kind: Schema.Literals([

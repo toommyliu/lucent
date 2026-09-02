@@ -69,7 +69,7 @@ type ScriptPackageLoadState =
       readonly error: ScriptPackageStateError;
     };
 
-export class ScriptPackageStateError extends Schema.TaggedErrorClass<ScriptPackageStateError>()(
+export class ScriptPackageStateError extends Schema.TaggedError<ScriptPackageStateError>()(
   "ScriptPackageStateError",
   {
     operation: Schema.Literals(["load", "save"]),

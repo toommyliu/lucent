@@ -27,7 +27,7 @@ const inputExtractorOperationSchema = Schema.Literals([
   "validate",
 ]);
 
-export class ScriptInputsExtractorError extends Schema.TaggedErrorClass<ScriptInputsExtractorError>()(
+export class ScriptInputsExtractorError extends Schema.TaggedError<ScriptInputsExtractorError>()(
   "ScriptInputsExtractorError",
   {
     operation: inputExtractorOperationSchema,

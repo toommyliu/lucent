@@ -24,7 +24,7 @@ export const AccountOperationSchema = Schema.Literals([
 
 export type AccountOperation = typeof AccountOperationSchema.Type;
 
-export class AccountsError extends Schema.TaggedErrorClass<AccountsError>()(
+export class AccountsError extends Schema.TaggedError<AccountsError>()(
   "AccountsError",
   {
     operation: AccountOperationSchema,

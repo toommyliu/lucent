@@ -28,7 +28,7 @@ interface QueueState {
   timeout: ReturnType<typeof setTimeout> | undefined;
 }
 
-export class PacketOperationError extends Schema.TaggedErrorClass<PacketOperationError>()(
+export class PacketOperationError extends Schema.TaggedError<PacketOperationError>()(
   "PacketOperationError",
   {
     detail: Schema.String,

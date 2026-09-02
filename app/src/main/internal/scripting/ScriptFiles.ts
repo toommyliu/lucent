@@ -21,7 +21,7 @@ import {
   type ScriptFileWorkerResponse,
 } from "./ScriptFileWorkerProtocol";
 
-export class ScriptFilesError extends Schema.TaggedErrorClass<ScriptFilesError>()(
+export class ScriptFilesError extends Schema.TaggedError<ScriptFilesError>()(
   "ScriptFilesError",
   {
     path: Schema.String,

@@ -27,7 +27,7 @@ export interface ElectronRendererHeapUsage {
   readonly usedSizeBytes: number;
 }
 
-export class ElectronChromiumPerformanceError extends Schema.TaggedErrorClass<ElectronChromiumPerformanceError>()(
+export class ElectronChromiumPerformanceError extends Schema.TaggedError<ElectronChromiumPerformanceError>()(
   "ElectronChromiumPerformanceError",
   {
     operation: Schema.String,

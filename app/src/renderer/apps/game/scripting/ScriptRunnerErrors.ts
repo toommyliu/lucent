@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 
 import type { ScriptExitOptions } from "./ScriptApi";
 
-export class ScriptExecutionError extends Schema.TaggedErrorClass<ScriptExecutionError>()(
+export class ScriptExecutionError extends Schema.TaggedError<ScriptExecutionError>()(
   "ScriptExecutionError",
   {
     detail: Schema.String,
@@ -14,7 +14,7 @@ export class ScriptExecutionError extends Schema.TaggedErrorClass<ScriptExecutio
   }
 }
 
-export class ScriptNotReadyError extends Schema.TaggedErrorClass<ScriptNotReadyError>()(
+export class ScriptNotReadyError extends Schema.TaggedError<ScriptNotReadyError>()(
   "ScriptNotReadyError",
   {
     detail: Schema.String,
@@ -26,7 +26,7 @@ export class ScriptNotReadyError extends Schema.TaggedErrorClass<ScriptNotReadyE
   }
 }
 
-export class ScriptStopSignal extends Schema.TaggedErrorClass<ScriptStopSignal>()(
+export class ScriptStopSignal extends Schema.TaggedError<ScriptStopSignal>()(
   "ScriptStopSignal",
   {
     reason: Schema.optionalKey(Schema.String),

@@ -66,7 +66,7 @@ export const normalizeGitHubRepositoryUrl = (
   return input.repository;
 };
 
-export class GitHubScriptPackageClientError extends Schema.TaggedErrorClass<GitHubScriptPackageClientError>()(
+export class GitHubScriptPackageClientError extends Schema.TaggedError<GitHubScriptPackageClientError>()(
   "GitHubScriptPackageClientError",
   {
     kind: GitHubApiErrorKind,

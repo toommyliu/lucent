@@ -29,7 +29,7 @@ export type PacketsRequestInput =
   | { readonly kind: "start-queue"; readonly payload: PacketQueuePayload }
   | { readonly kind: "stop-queue" };
 
-export class PacketsRequestError extends Schema.TaggedErrorClass<PacketsRequestError>()(
+export class PacketsRequestError extends Schema.TaggedError<PacketsRequestError>()(
   "PacketsRequestError",
   {
     detail: Schema.String,

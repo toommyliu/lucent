@@ -69,7 +69,7 @@ export interface DesktopChromiumPerformanceRecordingResult {
   readonly warningCount: number;
 }
 
-export class DesktopChromiumPerformanceRecordingBusyError extends Schema.TaggedErrorClass<DesktopChromiumPerformanceRecordingBusyError>()(
+export class DesktopChromiumPerformanceRecordingBusyError extends Schema.TaggedError<DesktopChromiumPerformanceRecordingBusyError>()(
   "DesktopChromiumPerformanceRecordingBusyError",
   {
     status: Schema.String,
@@ -80,7 +80,7 @@ export class DesktopChromiumPerformanceRecordingBusyError extends Schema.TaggedE
   }
 }
 
-export class DesktopChromiumPerformanceRecordingNotActiveError extends Schema.TaggedErrorClass<DesktopChromiumPerformanceRecordingNotActiveError>()(
+export class DesktopChromiumPerformanceRecordingNotActiveError extends Schema.TaggedError<DesktopChromiumPerformanceRecordingNotActiveError>()(
   "DesktopChromiumPerformanceRecordingNotActiveError",
   {},
 ) {
@@ -89,7 +89,7 @@ export class DesktopChromiumPerformanceRecordingNotActiveError extends Schema.Ta
   }
 }
 
-export class DesktopChromiumPerformanceRecordingStartError extends Schema.TaggedErrorClass<DesktopChromiumPerformanceRecordingStartError>()(
+export class DesktopChromiumPerformanceRecordingStartError extends Schema.TaggedError<DesktopChromiumPerformanceRecordingStartError>()(
   "DesktopChromiumPerformanceRecordingStartError",
   {
     cause: Schema.Defect(),
@@ -100,7 +100,7 @@ export class DesktopChromiumPerformanceRecordingStartError extends Schema.Tagged
   }
 }
 
-export class DesktopChromiumPerformanceRecordingSaveError extends Schema.TaggedErrorClass<DesktopChromiumPerformanceRecordingSaveError>()(
+export class DesktopChromiumPerformanceRecordingSaveError extends Schema.TaggedError<DesktopChromiumPerformanceRecordingSaveError>()(
   "DesktopChromiumPerformanceRecordingSaveError",
   {
     cause: Schema.Defect(),
@@ -112,7 +112,7 @@ export class DesktopChromiumPerformanceRecordingSaveError extends Schema.TaggedE
   }
 }
 
-export class DesktopChromiumHeapSnapshotError extends Schema.TaggedErrorClass<DesktopChromiumHeapSnapshotError>()(
+export class DesktopChromiumHeapSnapshotError extends Schema.TaggedError<DesktopChromiumHeapSnapshotError>()(
   "DesktopChromiumHeapSnapshotError",
   {
     cause: Schema.Defect(),
@@ -276,7 +276,7 @@ interface ChromiumPerformanceRecordingTimers {
   readonly segment: NodeJS.Timeout;
 }
 
-class ChromiumPerformanceArtifactError extends Schema.TaggedErrorClass<ChromiumPerformanceArtifactError>()(
+class ChromiumPerformanceArtifactError extends Schema.TaggedError<ChromiumPerformanceArtifactError>()(
   "ChromiumPerformanceArtifactError",
   {
     cause: Schema.Defect(),
