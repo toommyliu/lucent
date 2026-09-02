@@ -64,8 +64,10 @@ export const makeUpdateCheckDialog = (
           type: "info",
           title: "Update available",
           message: `Lucent ${state.latestVersion} is available.`,
-          detail: `You are currently using Lucent ${state.currentVersion}.`,
-          buttons: ["View release", "Skip this version"],
+          detail: `You are currently using Lucent ${state.currentVersion}. You will be notified again when a newer version is available.`,
+          // Escape and window close intentionally choose "Not now" to suppress
+          // repeated automatic prompts for this version; newer versions still prompt.
+          buttons: ["View release", "Not now"],
           defaultId: 0,
           cancelId: 1,
         },
