@@ -28,9 +28,11 @@
     "format:write": "oxfmt",
     "prepare": "effect-tsgo patch",
     "release": "tsx scripts/release.ts",
+    "release:validate": "tsx scripts/validate-release.ts",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm test:scripts && pnpm -r --if-present test",
+    "test:scripts": "vitest run scripts/release-logic.test.ts",
     "test:watch": "pnpm -r --if-present test:watch",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck"
   },

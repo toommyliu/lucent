@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
+import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
+const BUILD_OUTPUT_DIR = join(REPO_ROOT, "app", "build");
 const BUILD_PLATFORMS = ["mac", "win", "linux", "all"] as const;
 
 type BuildPlatform = (typeof BUILD_PLATFORMS)[number];
@@ -131,21 +133,25 @@ const parsePlatform = (args: ReadonlyArray<string>): BuildPlatform => {
 const electronBuilderArgs = (
   platform: BuildPlatform,
 ): ReadonlyArray<string> => {
+  const publishArgs = ["--publish", "never"] as const;
+
   switch (platform) {
     case "all":
-      return ["-mwl"];
+      return ["-mwl", ...publishArgs];
     case "mac":
-      return ["--mac"];
+      return ["--mac", ...publishArgs];
     case "win":
-      return ["--win"];
+      return ["--win", ...publishArgs];
     case "linux":
-      return ["--linux"];
+      return ["--linux", ...publishArgs];
   }
 };
 
 const main = async (): Promise<void> => {
   const platform = parsePlatform(process.argv.slice(2));
 
+  console.log("Cleaning app/build");
+  await rm(BUILD_OUTPUT_DIR, { recursive: true, force: true });
   await run("pnpm", ["run", "typecheck"]);
   await run("pnpm", [
     "--filter",
