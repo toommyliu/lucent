@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema";
 
 import { ThemeModeSchema, type ThemeMode } from "@lucent/core/settings";
 
-export class ElectronThemeError extends Schema.TaggedErrorClass<ElectronThemeError>()(
+export class ElectronThemeError extends Schema.TaggedError<ElectronThemeError>()(
   "ElectronThemeError",
   {
     cause: Schema.Defect(),

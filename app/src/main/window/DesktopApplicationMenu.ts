@@ -53,7 +53,7 @@ const themeModes: readonly {
   { label: "System", mode: "system" },
 ];
 
-class DesktopFlashDataClearError extends Schema.TaggedErrorClass<DesktopFlashDataClearError>()(
+class DesktopFlashDataClearError extends Schema.TaggedError<DesktopFlashDataClearError>()(
   "DesktopFlashDataClearError",
   {
     cause: Schema.Defect(),
@@ -64,7 +64,7 @@ class DesktopFlashDataClearError extends Schema.TaggedErrorClass<DesktopFlashDat
   }
 }
 
-class DesktopAppDataClearError extends Schema.TaggedErrorClass<DesktopAppDataClearError>()(
+class DesktopAppDataClearError extends Schema.TaggedError<DesktopAppDataClearError>()(
   "DesktopAppDataClearError",
   {
     cause: Schema.Defect(),

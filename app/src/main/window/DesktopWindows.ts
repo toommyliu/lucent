@@ -75,7 +75,7 @@ import {
 
 export type DesktopWindowInstanceId = string;
 
-export class DesktopWindowError extends Schema.TaggedErrorClass<DesktopWindowError>()(
+export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()(
   "DesktopWindowError",
   {
     id: Schema.String,

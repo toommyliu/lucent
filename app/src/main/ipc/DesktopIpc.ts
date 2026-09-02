@@ -71,7 +71,7 @@ export const makeDesktopIpcMethod = <
     method.handler(payload as IpcInvokePayload<Descriptor>, sender),
 });
 
-export class DesktopIpcRegistrationError extends Schema.TaggedErrorClass<DesktopIpcRegistrationError>()(
+export class DesktopIpcRegistrationError extends Schema.TaggedError<DesktopIpcRegistrationError>()(
   "DesktopIpcRegistrationError",
   {
     channel: Schema.String,
@@ -83,7 +83,7 @@ export class DesktopIpcRegistrationError extends Schema.TaggedErrorClass<Desktop
   }
 }
 
-export class DesktopIpcUnregistrationError extends Schema.TaggedErrorClass<DesktopIpcUnregistrationError>()(
+export class DesktopIpcUnregistrationError extends Schema.TaggedError<DesktopIpcUnregistrationError>()(
   "DesktopIpcUnregistrationError",
   {
     channel: Schema.String,

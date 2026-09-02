@@ -13,7 +13,7 @@ import type { flashRuntime } from "./flash";
 
 type GameRuntime = Pick<typeof flashRuntime, "runPromise">;
 
-export class LoaderGrabberOperationError extends Schema.TaggedErrorClass<LoaderGrabberOperationError>()(
+export class LoaderGrabberOperationError extends Schema.TaggedError<LoaderGrabberOperationError>()(
   "LoaderGrabberOperationError",
   {
     detail: Schema.String,

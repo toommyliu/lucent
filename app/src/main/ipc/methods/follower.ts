@@ -14,7 +14,7 @@ import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 import type { DesktopIpcSender } from "../DesktopIpcSenders";
 
-export class FollowerOwnerError extends Schema.TaggedErrorClass<FollowerOwnerError>()(
+export class FollowerOwnerError extends Schema.TaggedError<FollowerOwnerError>()(
   "FollowerOwnerError",
   {
     rendererId: Schema.Int,

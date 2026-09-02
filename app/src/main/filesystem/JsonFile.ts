@@ -25,7 +25,7 @@ const jsonFileOperationSchema = Schema.Literals([
 
 type JsonFileOperation = typeof jsonFileOperationSchema.Type;
 
-export class JsonFileError extends Schema.TaggedErrorClass<JsonFileError>()(
+export class JsonFileError extends Schema.TaggedError<JsonFileError>()(
   "JsonFileError",
   {
     operation: jsonFileOperationSchema,

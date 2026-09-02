@@ -45,7 +45,7 @@ const settingsOperationSchema = Schema.Literals([
   "validate-hotkey",
 ]);
 
-export class DesktopSettingsError extends Schema.TaggedErrorClass<DesktopSettingsError>()(
+export class DesktopSettingsError extends Schema.TaggedError<DesktopSettingsError>()(
   "DesktopSettingsError",
   {
     detail: Schema.String,

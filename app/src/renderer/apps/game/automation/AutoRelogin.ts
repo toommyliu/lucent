@@ -530,27 +530,32 @@ export const makeAutoRelogin = Effect.fnUntraced(function* (
       return yield* completePlayerConnection(attemptsRemaining);
     });
 
-    const retrySchedule = Schedule.exponential("5 seconds").pipe(
-      Schedule.take(maximumRetries),
-      Schedule.setInputType<AutoReloginAttemptError>(),
-      Schedule.tapInput((error) =>
-        observer
-          .failure(error)
-          .pipe(
-            Effect.andThen(
-              lifecycle(
-                request,
-                error.step,
-                error.attemptsRemaining,
-                error.detail,
+    const reportRetryableFailure = (error: AutoReloginAttemptError) =>
+      error.retryable
+        ? observer
+            .failure(error)
+            .pipe(
+              Effect.andThen(
+                lifecycle(
+                  request,
+                  error.step,
+                  error.attemptsRemaining,
+                  error.detail,
+                ),
               ),
-            ),
-          ),
+            )
+        : Effect.void;
+
+    const retrySchedule = Schedule.exponential("5 seconds").pipe(
+      Schedule.upTo({ times: maximumRetries }),
+      Schedule.setInputType<AutoReloginAttemptError>(),
+      Schedule.tap(({ output: delay }) =>
+        observer.backoff(Duration.toMillis(delay)),
       ),
-      Schedule.tapOutput((delay) => observer.backoff(Duration.toMillis(delay))),
     );
 
     return attempt.pipe(
+      Effect.tapError(reportRetryableFailure),
       Effect.retry({
         schedule: retrySchedule,
         while: (error) => error.retryable,

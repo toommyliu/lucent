@@ -13,7 +13,7 @@ import type {
   ScriptEnvironmentApi,
 } from "../ScriptApi";
 
-class ScriptEnvironmentError extends Schema.TaggedErrorClass<ScriptEnvironmentError>()(
+class ScriptEnvironmentError extends Schema.TaggedError<ScriptEnvironmentError>()(
   "EnvironmentError",
   {
     cause: Schema.Defect(),

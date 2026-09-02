@@ -29,7 +29,7 @@ import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 import type { DesktopIpcSender } from "../DesktopIpcSenders";
 
-export class EnvironmentOwnerError extends Schema.TaggedErrorClass<EnvironmentOwnerError>()(
+export class EnvironmentOwnerError extends Schema.TaggedError<EnvironmentOwnerError>()(
   "EnvironmentOwnerError",
   {
     rendererId: Schema.Int,

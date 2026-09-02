@@ -161,12 +161,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.83"
+    "effect": "4.0.0-rc.112"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-beta.83",
+    "@effect/vitest": "4.0.0-rc.112",
     "tsdown": "0.22.14",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   }
 }

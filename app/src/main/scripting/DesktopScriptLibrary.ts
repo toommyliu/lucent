@@ -40,7 +40,7 @@ const causeMessage = (cause: unknown): string | undefined => {
   return trimmed === "" ? undefined : trimmed;
 };
 
-export class DesktopScriptLibraryError extends Schema.TaggedErrorClass<DesktopScriptLibraryError>()(
+export class DesktopScriptLibraryError extends Schema.TaggedError<DesktopScriptLibraryError>()(
   "DesktopScriptLibraryError",
   {
     operation: scriptLibraryOperationSchema,

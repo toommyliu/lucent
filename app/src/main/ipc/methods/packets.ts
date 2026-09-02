@@ -16,7 +16,7 @@ import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 import type { DesktopIpcSender } from "../DesktopIpcSenders";
 
-export class PacketsOwnerError extends Schema.TaggedErrorClass<PacketsOwnerError>()(
+export class PacketsOwnerError extends Schema.TaggedError<PacketsOwnerError>()(
   "PacketsOwnerError",
   {
     rendererId: Schema.Int,

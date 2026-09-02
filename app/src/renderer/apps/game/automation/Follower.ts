@@ -45,9 +45,10 @@ const fiberKey = "follower";
 const followerWatchdogIntervalMs = 5_000;
 const goToPlayerTimeout = "10 seconds";
 const goToPlayerWithFallbackTimeout = "3 seconds";
-const followerRetrySchedule = Schedule.exponential("500 millis").pipe(
-  Schedule.either(Schedule.spaced("8 seconds")),
-);
+const followerRetrySchedule = Schedule.min([
+  Schedule.exponential("500 millis"),
+  Schedule.spaced("8 seconds"),
+]);
 
 type FollowResult =
   | { readonly ok: true }

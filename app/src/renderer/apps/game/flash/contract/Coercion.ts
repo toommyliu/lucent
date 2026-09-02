@@ -1,14 +1,11 @@
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
 const invalid = (value: unknown, message: string) =>
   Effect.fail(
-    new SchemaIssue.InvalidValue(Option.some(value), {
-      message,
-    }),
+    new SchemaIssue.InvalidValue({ message }, value, { reportInput: true }),
   );
 
 const NumberInput = Schema.Union([Schema.Number, Schema.String]);

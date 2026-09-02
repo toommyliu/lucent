@@ -125,7 +125,7 @@ export interface DesktopPerformanceTraceResult {
   readonly sampleCount: number;
 }
 
-export class DesktopPerformanceTraceBusyError extends Schema.TaggedErrorClass<DesktopPerformanceTraceBusyError>()(
+export class DesktopPerformanceTraceBusyError extends Schema.TaggedError<DesktopPerformanceTraceBusyError>()(
   "DesktopPerformanceTraceBusyError",
   {
     status: Schema.String,
@@ -136,7 +136,7 @@ export class DesktopPerformanceTraceBusyError extends Schema.TaggedErrorClass<De
   }
 }
 
-export class DesktopPerformanceTraceWriteError extends Schema.TaggedErrorClass<DesktopPerformanceTraceWriteError>()(
+export class DesktopPerformanceTraceWriteError extends Schema.TaggedError<DesktopPerformanceTraceWriteError>()(
   "DesktopPerformanceTraceWriteError",
   {
     cause: Schema.Defect(),

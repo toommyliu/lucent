@@ -65,7 +65,7 @@ export interface DesktopObservabilityServerInstall {
   readonly url: string;
 }
 
-export class DesktopObservabilityServerStartError extends Schema.TaggedErrorClass<DesktopObservabilityServerStartError>()(
+export class DesktopObservabilityServerStartError extends Schema.TaggedError<DesktopObservabilityServerStartError>()(
   "DesktopObservabilityServerStartError",
   {
     port: Schema.Number,

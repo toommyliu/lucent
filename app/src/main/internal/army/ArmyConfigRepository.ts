@@ -20,7 +20,7 @@ const armyConfigOperationSchema = Schema.Literals([
   "validate",
 ]);
 
-export class ArmyConfigRepositoryError extends Schema.TaggedErrorClass<ArmyConfigRepositoryError>()(
+export class ArmyConfigRepositoryError extends Schema.TaggedError<ArmyConfigRepositoryError>()(
   "ArmyConfigRepositoryError",
   {
     operation: armyConfigOperationSchema,

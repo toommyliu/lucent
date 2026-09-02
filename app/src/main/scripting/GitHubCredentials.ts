@@ -44,7 +44,7 @@ interface GitHubCredential {
   readonly token: string;
 }
 
-export class GitHubCredentialsError extends Schema.TaggedErrorClass<GitHubCredentialsError>()(
+export class GitHubCredentialsError extends Schema.TaggedError<GitHubCredentialsError>()(
   "GitHubCredentialsError",
   {
     operation: Schema.Literals(["delete", "list", "load", "resolve", "save"]),

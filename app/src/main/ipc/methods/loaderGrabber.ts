@@ -10,7 +10,7 @@ import { DesktopWindows } from "../../window/DesktopWindows";
 import { makeDesktopIpcMethod } from "../DesktopIpc";
 import type { DesktopIpcSender } from "../DesktopIpcSenders";
 
-export class LoaderGrabberOwnerError extends Schema.TaggedErrorClass<LoaderGrabberOwnerError>()(
+export class LoaderGrabberOwnerError extends Schema.TaggedError<LoaderGrabberOwnerError>()(
   "LoaderGrabberOwnerError",
   {
     rendererId: Schema.Int,

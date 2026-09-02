@@ -17,7 +17,7 @@ export type DesktopIpcSenderKinds = readonly [
   ...DesktopRendererKind[],
 ];
 
-export class DesktopIpcSenderError extends Schema.TaggedErrorClass<DesktopIpcSenderError>()(
+export class DesktopIpcSenderError extends Schema.TaggedError<DesktopIpcSenderError>()(
   "DesktopIpcSenderError",
   {
     detail: Schema.String,
