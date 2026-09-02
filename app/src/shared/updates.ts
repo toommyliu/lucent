@@ -14,6 +14,7 @@ export class UpdateReleaseInfo extends Schema.Class<UpdateReleaseInfo>(
 export type UpdateReleaseCache = {
   readonly release: UpdateReleaseInfo;
   readonly etag?: string;
+  readonly skippedVersion?: string;
 };
 
 export const UpdateCheckStateSchema = Schema.Union([
