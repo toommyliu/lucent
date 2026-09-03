@@ -336,11 +336,12 @@
   align-items: center;
   color: rgb(var(--muted-foreground));
   display: flex;
+  flex: 1 1 auto;
   font-size: var(--text-sm);
   gap: 0.5rem;
+  justify-content: center;
   min-height: 4rem;
   padding: 0.875rem 1rem;
-  width: fit-content;
 }
 
 .account-list__loading-spinner {
