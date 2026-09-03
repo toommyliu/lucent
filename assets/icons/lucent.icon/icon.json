@@ -1,7 +1,15 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+    "solid" : "srgb:0.95686,0.95294,0.93725,1.00000"
   },
+  "fill-specializations" : [
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "srgb:0.06275,0.06275,0.07059,1.00000"
+      }
+    }
+  ],
   "groups" : [
     {
       "layers" : [
@@ -9,63 +17,57 @@
           "fill-specializations" : [
             {
               "value" : {
-                "solid" : "display-p3:0.14905,0.14905,0.14905,1.00000"
+                "solid" : "srgb:0.08235,0.08235,0.09020,1.00000"
               }
             },
             {
               "appearance" : "dark",
               "value" : {
-                "solid" : "display-p3:0.96094,0.96094,0.96094,1.00000"
+                "solid" : "srgb:0.96863,0.96863,0.96078,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : {
+                "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
               }
             }
           ],
           "glass" : false,
-          "image-name" : "Image 2.png",
-          "name" : "Image 2"
+          "image-name" : "mark-large.svg",
+          "name" : "Mark Large"
         },
         {
           "fill-specializations" : [
             {
               "value" : {
-                "solid" : "display-p3:0.87704,0.87087,0.85653,1.00000"
+                "solid" : "srgb:0.08235,0.08235,0.09020,1.00000"
               }
             },
             {
               "appearance" : "dark",
               "value" : {
-                "solid" : "display-p3:0.12549,0.12549,0.13262,1.00000"
-              }
-            }
-          ],
-          "glass" : false,
-          "image-name" : "Image 3.png",
-          "name" : "Image 3"
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "display-p3:0.96094,0.96094,0.96094,1.00000"
+                "solid" : "srgb:0.96863,0.96863,0.96078,1.00000"
               }
             },
             {
-              "appearance" : "dark",
+              "appearance" : "tinted",
               "value" : {
-                "solid" : "display-p3:0.05490,0.05490,0.05849,1.00000"
+                "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
               }
             }
           ],
           "glass" : false,
-          "image-name" : "Image 4.png",
-          "name" : "Image 4"
+          "image-name" : "mark-small.svg",
+          "name" : "Mark Small"
         }
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.35
       },
       "translucency" : {
-        "enabled" : true,
+        "enabled" : false,
         "value" : 0.5
       }
     }
