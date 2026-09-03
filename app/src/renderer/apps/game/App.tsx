@@ -165,8 +165,23 @@ import {
 } from "./TopNav";
 import { createRandomId } from "../../../shared/randomId";
 import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
+import { ScriptDialogHost } from "./ScriptDialogHost";
+import {
+  ScriptDialogs,
+  type ScriptDialogRequest,
+  type ScriptDialogResponse,
+} from "./scripting/ScriptDialogs";
 
 const desktop = selectDesktopBridge(window.desktop, "game");
+
+const respondToScriptDialog = (response: ScriptDialogResponse): void => {
+  runtime.runFork(
+    Effect.gen(function* () {
+      const dialogs = yield* ScriptDialogs;
+      yield* dialogs.respond(response);
+    }),
+  );
+};
 
 type GameLoadState =
   | Readonly<{ phase: "loading" | "delayed"; progress: number }>
@@ -1285,6 +1300,8 @@ export function App(props: {
   const [fatalScriptAlert, setFatalScriptAlert] =
     createSignal<FatalScriptAlert | null>(null);
   const [fatalScriptAlertOpen, setFatalScriptAlertOpen] = createSignal(false);
+  const [scriptDialogRequest, setScriptDialogRequest] =
+    createSignal<ScriptDialogRequest | null>(null);
   const [fatalScriptAlertCopied, setFatalScriptAlertCopied] =
     createSignal(false);
   const scriptInputFieldRefs = new Map<string, HTMLElement>();
@@ -4079,6 +4096,7 @@ export function App(props: {
         event.repeat ||
         event.isComposing ||
         fatalScriptAlertOpen() ||
+        scriptDialogRequest() !== null ||
         isEditableHotkeyTarget(event.target) ||
         isFlashTextFieldFocused()
       ) {
@@ -4125,6 +4143,7 @@ export function App(props: {
     let autoZoneDisposer: (() => void) | undefined;
     let flashSettingsDisposer: (() => void) | undefined;
     let scriptOptionsDisposer: (() => void) | undefined;
+    let scriptDialogDisposer: (() => void) | undefined;
     let scriptStatusDisposer: (() => void) | undefined;
     let cleanedUp = false;
     const travelEventFiber = runtime.runFork(
@@ -4280,6 +4299,25 @@ export function App(props: {
         console.error("[game:script]", "state subscription failed", error);
       });
 
+    void runtime
+      .runPromise(
+        Effect.gen(function* () {
+          const dialogs = yield* ScriptDialogs;
+          return yield* dialogs.onCurrent(setScriptDialogRequest);
+        }),
+      )
+      .then((dispose) => {
+        if (cleanedUp) {
+          dispose();
+          return;
+        }
+
+        scriptDialogDisposer = dispose;
+      })
+      .catch((error: unknown) => {
+        console.error("[game:script-dialog]", "subscription failed", error);
+      });
+
     void desktop.gameAccounts
       .getGameLaunch()
       .then((payload) => {
@@ -4300,6 +4338,7 @@ export function App(props: {
       autoReloginDisposer?.();
       autoZoneDisposer?.();
       flashSettingsDisposer?.();
+      scriptDialogDisposer?.();
       scriptOptionsDisposer?.();
       scriptStatusDisposer?.();
       accountLaunchController?.abort();
@@ -4633,6 +4672,10 @@ export function App(props: {
       data-platform={platformLabel()}
     >
       <HotkeyStatus announcement={hotkeyStatus.announcement()} />
+      <ScriptDialogHost
+        request={scriptDialogRequest}
+        respond={respondToScriptDialog}
+      />
       <ScriptsDialog
         bridge={desktop.scripting}
         inputsAvailable={scriptInputsAvailable()}

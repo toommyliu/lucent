@@ -198,8 +198,12 @@ interface ScriptApi {
 }
 interface ScriptRuntimeApi {
     readonly signal: AbortSignal;
+  /** Opens a message dialog and waits until it is dismissed. */
+    alert(message: string): Effect<void, never>;
   /** @param times Number of repetitions. */
     beep(/** @defaultValue 1 */ times?: number): Effect<void, ScriptExecutionError>;
+  /** Opens a confirmation dialog. Canceling the dialog yields `false`. */
+    confirm(message: string): Effect<boolean, never>;
     readonly inputs: ScriptInputsApi;
     readonly options: ScriptOptionsApi;
   /**
@@ -210,6 +214,13 @@ interface ScriptRuntimeApi {
   */
     exit(/** @defaultValue { closeClient: false, logout: false } */ options?: ScriptExitOptions): Effect<never, ScriptStopSignal>;
     log(message: unknown): Effect<void, never>;
+  /**
+  * Opens a text prompt. Canceling the dialog yields `null`; submitting an
+  * empty value yields an empty string.
+  *
+  * @param defaultValue Input placeholder.
+  */
+    prompt(message: string, /** @defaultValue "" */ defaultValue?: string): Effect<string | null, never>;
     sleep(duration: DurationInput): Effect<void, ScriptExecutionError>;
   /**
   * Stops the current script. If it is part of a queue, the next script runs.
@@ -1720,7 +1731,7 @@ interface ArmyConfigPayload extends ArmyConfigCore {
   readonly configName: string;
   readonly raw: ArmyConfigRaw;
 }
-type CombatProfile = { readonly id: string; readonly label: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly priority?: boolean; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; }[]; readonly classNames?: readonly string[]; readonly consumable?: string; readonly resetSkillIndexOnTargetDeath?: boolean; readonly messageTriggers?: readonly { readonly messageIncludes: string; readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
+type CombatProfile = { readonly id: string; readonly label: string; readonly delayMs: number; readonly cooldownMode: 'use-if-ready' | 'wait-for-cooldown'; readonly steps: readonly { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly priority?: boolean; readonly waitMs?: number; }[]; readonly classNames?: readonly string[]; readonly consumable?: string; readonly resetSkillIndexOnTargetDeath?: boolean; readonly messageTriggers?: readonly { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly messageIncludes: string; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; }[]; };
 type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
   readonly skill: number;
 };
@@ -1794,8 +1805,8 @@ interface ArmyConfigCore {
   readonly sets: Readonly<Record<string, ArmySetConfig>>;
 }
 type ArmyConfigRaw = Record<string, unknown>;
-type CombatProfileStep = { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly priority?: boolean; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly waitMs?: number; };
-type CombatProfileMessageTrigger = { readonly messageIncludes: string; readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
+type CombatProfileStep = { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly conditions: readonly ({ readonly type: 'self-hp' | 'self-mp' | 'ally-hp'; readonly op: '<=' | '>='; readonly value: number; readonly unit: 'value' | 'percent'; } | { readonly type: 'self-aura' | 'target-aura'; readonly auraName: string; readonly op: '<=' | '>='; readonly value: number; })[]; readonly cooldownMode?: 'use-if-ready' | 'wait-for-cooldown'; readonly priority?: boolean; readonly waitMs?: number; };
+type CombatProfileMessageTrigger = { readonly skill: 0 | 1 | 2 | 3 | 4 | 5; readonly messageIncludes: string; readonly source: 'any' | 'animation' | 'aura'; readonly cooldownMs?: number; };
 type AuraSnapshot = Readonly<AuraData>;
 interface ArmyLoopTauntSkipContext {
   /** Snapshots for the players assigned to this target. */

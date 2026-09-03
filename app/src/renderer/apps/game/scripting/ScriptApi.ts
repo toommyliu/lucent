@@ -943,11 +943,15 @@ export interface ScriptOptionsApi {
 
 export interface ScriptRuntimeApi {
   readonly signal: AbortSignal;
+  /** Opens a message dialog and waits until it is dismissed. */
+  readonly alert: (message: string) => Effect.Effect<void>;
   /** @param times Number of repetitions. */
   readonly beep: (
     /** @defaultValue 1 */
     times?: number,
   ) => Effect.Effect<void, ScriptExecutionError>;
+  /** Opens a confirmation dialog. Canceling the dialog yields `false`. */
+  readonly confirm: (message: string) => Effect.Effect<boolean>;
   readonly inputs: ScriptInputsApi;
   readonly options: ScriptOptionsApi;
   /**
@@ -961,6 +965,17 @@ export interface ScriptRuntimeApi {
     options?: ScriptExitOptions,
   ) => Effect.Effect<never, ScriptStopSignal>;
   readonly log: (message: unknown) => Effect.Effect<void>;
+  /**
+   * Opens a text prompt. Canceling the dialog yields `null`; submitting an
+   * empty value yields an empty string.
+   *
+   * @param defaultValue Input placeholder.
+   */
+  readonly prompt: (
+    message: string,
+    /** @defaultValue "" */
+    defaultValue?: string,
+  ) => Effect.Effect<string | null>;
   readonly sleep: (
     duration: Duration.Input,
   ) => Effect.Effect<void, ScriptExecutionError>;

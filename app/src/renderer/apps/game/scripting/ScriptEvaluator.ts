@@ -13,6 +13,7 @@ import { Bridge } from "../flash/bridge/Bridge";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptFileSystemApi } from "./ScriptFileSystem";
+import { ScriptDialogs } from "./ScriptDialogs";
 import { ScriptRunner } from "./ScriptRunner";
 import {
   makeScriptRuntimeApi,
@@ -100,6 +101,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
     const automation = yield* Automation;
     const environment = yield* Environment;
     const bridge = yield* Bridge;
+    const dialogs = yield* ScriptDialogs;
     const runner = yield* ScriptRunner;
     const scope = makeScriptAsyncScope();
 
@@ -139,11 +141,13 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
           snapshotScriptRuntimeOptions(update(options)),
         ).pipe(Effect.map(snapshotScriptRuntimeOptions));
       const script = makeScriptRuntimeApi({
+        dialogs,
         getOptions,
         inputValues: {},
         log: (message) => debugConsole.log("[script]", message),
         scope,
         setOptions,
+        source: { sourceName: "Debug Eval" },
       });
       const fileSystem = yield* makeScriptFileSystemApi(
         fileSystemBridge,

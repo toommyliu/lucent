@@ -9,11 +9,11 @@ sidebar:
 
 ```ts
 type CombatProfileMessageTrigger = {
-    readonly messageIncludes: string;
     readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
+    readonly messageIncludes: string;
     readonly source: "aura" | "animation" | "any";
     readonly cooldownMs?: number;
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L89" aria-label="Open source: packages/core/src/combatProfiles.ts:89" title="packages/core/src/combatProfiles.ts:89" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:89</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L97" aria-label="Open source: packages/core/src/combatProfiles.ts:97" title="packages/core/src/combatProfiles.ts:97" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:97</code></a></p>

@@ -19,7 +19,24 @@ describe("ScriptRuntime", () => {
         safeStartStop: true,
       };
       const rewards = ["Weapon"];
+      const dialogCalls: string[] = [];
       const script = makeScriptRuntimeApi({
+        dialogs: {
+          alert: (_source, message) =>
+            Effect.sync(() => {
+              dialogCalls.push(`alert:${message}`);
+            }),
+          confirm: (_source, message) =>
+            Effect.sync(() => {
+              dialogCalls.push(`confirm:${message}`);
+              return false;
+            }),
+          prompt: (_source, message, defaultValue) =>
+            Effect.sync(() => {
+              dialogCalls.push(`prompt:${message}:${defaultValue ?? ""}`);
+              return "Gravelyn";
+            }),
+        },
         getOptions: () => Effect.succeed(snapshotScriptRuntimeOptions(options)),
         inputValues: { item: "Weapon", rewards },
         log: () => undefined,
@@ -29,7 +46,17 @@ describe("ScriptRuntime", () => {
             options = snapshotScriptRuntimeOptions(update(options));
             return snapshotScriptRuntimeOptions(options);
           }),
+        source: { sourceName: "Runtime test" },
       });
+
+      yield* script.alert("Finished");
+      expect(yield* script.confirm("Continue?")).toBe(false);
+      expect(yield* script.prompt("Target", "Artix")).toBe("Gravelyn");
+      expect(dialogCalls).toEqual([
+        "alert:Finished",
+        "confirm:Continue?",
+        "prompt:Target:Artix",
+      ]);
 
       expect(yield* script.inputs.get("item")).toBe("Weapon");
       rewards.push("Armor");
