@@ -16,7 +16,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
+  DialogPanel,
   DialogTitle,
   Field,
   Icon,
@@ -40,8 +42,12 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  Tooltip,
+  TooltipContent,
   TooltipIconButton,
+  TooltipTrigger,
   type AlertVariant,
+  type ButtonProps,
   type ButtonVariant,
   type IconButtonProps,
   type IconName,
@@ -112,17 +118,22 @@ import {
 } from "./scriptPathDisplay";
 
 const SCRIPT_ROW_HEIGHT = 40;
+const QUEUE_ADDED_FEEDBACK_DURATION_MS = 1_200;
+const QUEUE_BADGE_MAX_COUNT = 99;
 const GITHUB_TOKEN_URL =
   "https://github.com/settings/personal-access-tokens/new";
+const GITHUB_TOKEN_USE_HINT =
+  "Use a token for private repositories or higher GitHub API rate limits.";
+const INSTALL_ADVANCED_OPTIONS_HINT_ID = "script-package-install-options-hint";
+const GITHUB_TOKEN_LABEL_FEEDBACK_ID =
+  "script-package-credential-label-feedback";
+const GITHUB_TOKEN_VALUE_FEEDBACK_ID =
+  "script-package-credential-token-feedback";
 
 const roomPolicyLabels: Record<RoomPolicyMode, string> = {
   public: "Public rooms",
   "random-private": "Random private room",
   specific: "Specific room",
-};
-
-const openGitHubTokenPage = (): void => {
-  window.open(GITHUB_TOKEN_URL, "_blank", "noopener,noreferrer");
 };
 
 export type ScriptsDialogTab = "options" | "packages" | "queue" | "scripts";
@@ -135,8 +146,18 @@ export type PackageManagementView =
   | "details"
   | "install"
   | "installed";
-type CredentialManagerParentView = "install" | "installed";
-type CredentialEditorReturnView = "credentials" | "install";
+type PackageCollectionView = Extract<
+  PackageManagementView,
+  "details" | "installed"
+>;
+type PackageTaskState =
+  | { readonly view: "closed" }
+  | { readonly view: "install" }
+  | { readonly view: "tokens" }
+  | {
+      readonly returnView: "install" | "tokens";
+      readonly view: "token-editor";
+    };
 
 interface ConfirmationState {
   readonly confirmLabel: string;
@@ -145,6 +166,11 @@ interface ConfirmationState {
   readonly icon?: IconName;
   readonly onConfirm: () => Promise<void>;
   readonly title: string;
+}
+
+interface CredentialFormErrors {
+  readonly label?: string;
+  readonly token?: string;
 }
 
 interface ErrorAlertProps {
@@ -168,6 +194,77 @@ function ErrorAlert(props: ErrorAlertProps): JSX.Element {
         <span>{props.message}</span>
       </AlertDescription>
     </Alert>
+  );
+}
+
+interface ScriptsConfirmationDialogProps {
+  readonly busy: boolean;
+  readonly error: string;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly pending: ConfirmationState | null;
+}
+
+function ScriptsConfirmationDialog(
+  props: ScriptsConfirmationDialogProps,
+): JSX.Element {
+  let cancelButton: HTMLButtonElement | null = null;
+
+  return (
+    <AlertDialog
+      initialFocusEl={() => cancelButton}
+      open={props.pending !== null}
+      onOpenChange={(details) => {
+        if (!details.open) props.onClose();
+      }}
+    >
+      <AlertDialogContent
+        class="game-scripts-dialog__confirmation-dialog"
+        showCloseButton={false}
+      >
+        <Show when={props.pending} keyed>
+          {(pending) => (
+            <section class="game-scripts-dialog__confirmation">
+              <div>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{pending.title}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {pending.description}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Show when={props.error !== ""}>
+                  <ErrorAlert
+                    class="game-scripts-dialog__confirmation-alert"
+                    message={props.error}
+                  />
+                </Show>
+                <AlertDialogFooter
+                  class="game-scripts-dialog__confirmation-actions"
+                  variant="bare"
+                >
+                  <AlertDialogCancel
+                    disabled={props.busy}
+                    ref={(element) => {
+                      cancelButton = element;
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <Button
+                    loading={props.busy}
+                    onClick={props.onConfirm}
+                    variant={pending.destructive ? "destructive" : "default"}
+                  >
+                    {pending.confirmLabel}
+                  </Button>
+                </AlertDialogFooter>
+              </div>
+            </section>
+          )}
+        </Show>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -215,10 +312,7 @@ function PackageUpdateCheckButton(
       title={props.title}
       variant={props.variant}
     >
-      <Show
-        when={props.checking}
-        fallback={<Icon icon="git_compare_arrows" size="sm" />}
-      >
+      <Show when={props.checking}>
         <Spinner
           class="game-scripts-dialog__package-update-spinner"
           size="sm"
@@ -262,6 +356,7 @@ export interface ScriptsDialogProps {
   readonly onToggleRestartAfterReconnect: () => void;
   readonly onToggleSafeStartStop: () => void;
   readonly onToggleScript: () => void | Promise<void>;
+  readonly loggedIn: boolean;
   readonly open: boolean;
   readonly optionsReady: boolean;
   readonly optionsSaveStatus: ScriptOptionsSaveStatus;
@@ -762,6 +857,8 @@ const needsPackageNotice = (entry: ValidScriptPackage): boolean =>
 
 export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const fixtureMode = props.fixture !== undefined;
+  const initialPackageManagementView =
+    props.fixture?.packageManagementView ?? "installed";
   let queueList: ScriptQueueListApi | undefined;
   const queueRunItems = createMemo(
     () =>
@@ -806,6 +903,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   const [scriptTotal, setScriptTotal] = createSignal(
     props.fixture?.scripts?.length ?? 0,
   );
+  const [enqueueingReference, setEnqueueingReference] =
+    createSignal<ScriptReference>();
+  const [recentlyQueuedReference, setRecentlyQueuedReference] =
+    createSignal<ScriptReference>();
+  const [queueAnnouncement, setQueueAnnouncement] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [checkingPackageUpdates, setCheckingPackageUpdates] =
     createSignal(false);
@@ -830,16 +932,19 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setErrorText("");
   };
   const [packageManagementView, setPackageManagementView] =
-    createSignal<PackageManagementView>(
-      props.fixture?.packageManagementView ?? "installed",
+    createSignal<PackageCollectionView>(
+      initialPackageManagementView === "details" ? "details" : "installed",
     );
+  const [packageTask, setPackageTask] = createSignal<PackageTaskState>(
+    initialPackageManagementView === "install"
+      ? { view: "install" }
+      : initialPackageManagementView === "credentials"
+        ? { view: "tokens" }
+        : { view: "closed" },
+  );
   const [selectedPackagePath, setSelectedPackagePath] = createSignal<
     string | undefined
   >(props.fixture?.selectedPackagePath);
-  const [credentialManagerParentView, setCredentialManagerParentView] =
-    createSignal<CredentialManagerParentView>("installed");
-  const [credentialEditorReturnView, setCredentialEditorReturnView] =
-    createSignal<CredentialEditorReturnView>("credentials");
   const [installOptionsOpen, setInstallOptionsOpen] = createSignal(false);
   const [roomEditingMode, setRoomEditingMode] =
     createSignal<RoomPolicyMode | null>(null);
@@ -858,17 +963,19 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
             title: initialConfirmation.title,
           },
     );
-  let confirmationCancelButton: HTMLButtonElement | null = null;
   const [repositoryUrl, setRepositoryUrl] = createSignal("");
+  const [repositoryValidationAttempted, setRepositoryValidationAttempted] =
+    createSignal(false);
   const [packageDirectory, setPackageDirectory] = createSignal("");
   const [packageDirectoryInvalid, setPackageDirectoryInvalid] =
     createSignal(false);
   const [repositoryRef, setRepositoryRef] = createSignal("");
   const [credentialId, setCredentialId] = createSignal("");
-  const [credentialEditorOpen, setCredentialEditorOpen] = createSignal(false);
   const [editingCredentialId, setEditingCredentialId] = createSignal("");
   const [credentialLabel, setCredentialLabel] = createSignal("");
   const [credentialToken, setCredentialToken] = createSignal("");
+  const [credentialFormErrors, setCredentialFormErrors] =
+    createSignal<CredentialFormErrors>({});
   const [credentialTokenVisible, setCredentialTokenVisible] =
     createSignal(false);
   const [copiedRevisionPath, setCopiedRevisionPath] = createSignal<string>();
@@ -879,8 +986,16 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
   let scriptPageGeneration = 0;
   const scriptPageRequests = new Set<string>();
   let searchTimer: number | undefined;
+  let queueAddedFeedbackTimer: number | undefined;
+  let queueAnnouncementFrame: number | undefined;
   let copiedRevisionTimer: number | undefined;
+  let packageInstallButton: HTMLButtonElement | undefined;
+  let packageTaskTitle: HTMLHeadingElement | undefined;
+  let repositoryInputElement: HTMLInputElement | undefined;
   let packageDirectoryInput: HTMLInputElement | undefined;
+  let credentialLabelInput: HTMLInputElement | undefined;
+  let credentialTokenInput: HTMLInputElement | undefined;
+  let manageTokensAddButton: HTMLButtonElement | undefined;
   let scriptViewportResizeObserver: ResizeObserver | undefined;
   const scrollPositions: Record<ScrollableScriptsDialogTab, number> = {
     packages: 0,
@@ -916,13 +1031,89 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     catalog().packages.find((entry) => entry.path === selectedPackagePath()),
   );
 
-  const firstPackageInstall = createMemo(
-    () =>
-      packageManagementView() === "installed" &&
-      catalog().revision !== "" &&
-      !catalogLoading() &&
-      catalog().packages.length === 0,
-  );
+  const packageTaskOpen = createMemo(() => packageTask().view !== "closed");
+
+  const queueEntryCount = createMemo(() => props.queueState.entries.length);
+
+  const queueBadgeText = createMemo(() => {
+    const count = queueEntryCount();
+    return count > QUEUE_BADGE_MAX_COUNT
+      ? `${QUEUE_BADGE_MAX_COUNT}+`
+      : String(count);
+  });
+
+  const queueTabLabel = createMemo(() => {
+    const count = queueEntryCount();
+    if (count === 0) return "Queue";
+    return `Queue, ${count.toLocaleString()} ${count === 1 ? "item" : "items"}`;
+  });
+
+  const packageTaskTitleText = createMemo(() => {
+    const task = packageTask();
+    switch (task.view) {
+      case "closed":
+        return "";
+      case "install":
+        return "Install package";
+      case "tokens":
+        return "GitHub tokens";
+      case "token-editor":
+        return editingCredentialId() === ""
+          ? "Add GitHub token"
+          : "Replace token";
+    }
+  });
+
+  const packageTaskDescription = createMemo(() => {
+    const task = packageTask();
+    switch (task.view) {
+      case "closed":
+        return "";
+      case "install":
+        return "Install a package from a GitHub repository you trust. It can contain scripts, reusable library code, or both.";
+      case "tokens":
+        return "Manage personal access tokens used to install and update GitHub packages.";
+      case "token-editor":
+        return editingCredentialId() === ""
+          ? GITHUB_TOKEN_USE_HINT
+          : `Enter a new token for ${credentialLabel()}.`;
+    }
+  });
+
+  const packageTaskInitialFocusElement = (): HTMLElement | null => {
+    const task = packageTask();
+    switch (task.view) {
+      case "closed":
+        return null;
+      case "install":
+        return repositoryInputElement ?? null;
+      case "tokens":
+        return manageTokensAddButton ?? null;
+      case "token-editor":
+        return editingCredentialId() === ""
+          ? (credentialLabelInput ?? null)
+          : (credentialTokenInput ?? null);
+    }
+  };
+
+  let previousPackageTaskView: PackageTaskState["view"] = packageTask().view;
+  createEffect(() => {
+    const nextView = packageTask().view;
+    const previousView = previousPackageTaskView;
+    previousPackageTaskView = nextView;
+    if (
+      previousView === "closed" ||
+      nextView === "closed" ||
+      previousView === nextView
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      packageTaskTitle?.focus({ preventScroll: true });
+    });
+    onCleanup(() => window.cancelAnimationFrame(frame));
+  });
 
   const repositoryInput = createMemo(() =>
     parseGitHubRepositoryInput(repositoryUrl()),
@@ -931,43 +1122,23 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     const input = repositoryInput();
     return input.kind === "tree" ? input : undefined;
   });
+  const repositoryFieldInvalid = createMemo(() => {
+    const input = repositoryInput();
+    return (
+      (input.kind === "invalid" && repositoryUrl().trim() !== "") ||
+      (repositoryValidationAttempted() && input.kind !== "repository")
+    );
+  });
 
   const applyRepositorySuggestion = (): void => {
     const input = repositoryInput();
     if (input.kind !== "tree") return;
     setRepositoryUrl(input.repository.url);
     setRepositoryRef(input.ref);
+    setRepositoryValidationAttempted(false);
     setInstallOptionsOpen(true);
     setError("");
   };
-
-  const packageManagementBreadcrumb = createMemo(() => {
-    switch (packageManagementView()) {
-      case "credentials":
-        if (credentialEditorOpen()) {
-          return {
-            current:
-              editingCredentialId() === "" ? "Add credential" : "Replace token",
-            parent: "GitHub credentials",
-            parentView: "credentials" as const,
-          };
-        }
-        return {
-          current: "GitHub credentials",
-          parent:
-            credentialManagerParentView() === "install"
-              ? "Install package"
-              : "Packages",
-          parentView: credentialManagerParentView(),
-        };
-      case "details":
-        return undefined;
-      case "install":
-        return undefined;
-      case "installed":
-        return undefined;
-    }
-  });
 
   const activePackageRateLimits = createMemo(() =>
     activeScriptPackageRateLimits(catalog().packages, rateLimitNow()),
@@ -982,6 +1153,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     scriptPackagesEligibleForUpdateCheck(
       catalog().packages,
       activePackageRateLimits(),
+    ),
+  );
+
+  const hasManagedPackages = createMemo(() =>
+    catalog().packages.some(
+      (entry) => entry.status === "valid" && entry.source !== undefined,
     ),
   );
 
@@ -1359,7 +1536,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     try {
       setCredentials(await bridge.listCredentials());
     } catch (cause) {
-      setOperationError("Failed to load GitHub credentials.", cause);
+      setOperationError("Unable to load GitHub tokens. Try again.", cause);
     }
   };
 
@@ -1496,6 +1673,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     if (searchTimer !== undefined) {
       window.clearTimeout(searchTimer);
     }
+    if (queueAddedFeedbackTimer !== undefined) {
+      window.clearTimeout(queueAddedFeedbackTimer);
+    }
+    if (queueAnnouncementFrame !== undefined) {
+      window.cancelAnimationFrame(queueAnnouncementFrame);
+    }
     if (copiedRevisionTimer !== undefined) {
       window.clearTimeout(copiedRevisionTimer);
     }
@@ -1568,13 +1751,36 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const enqueueScript = async (entry: ScriptCatalogEntry): Promise<void> => {
     if (busy() || props.scriptBusy || props.queueState.phase !== "idle") return;
+    if (queueAddedFeedbackTimer !== undefined) {
+      window.clearTimeout(queueAddedFeedbackTimer);
+      queueAddedFeedbackTimer = undefined;
+    }
+    if (queueAnnouncementFrame !== undefined) {
+      window.cancelAnimationFrame(queueAnnouncementFrame);
+      queueAnnouncementFrame = undefined;
+    }
+    setRecentlyQueuedReference(undefined);
+    setQueueAnnouncement("");
+    setEnqueueingReference(entry.reference);
     setBusy(true);
     setError("");
     try {
-      await props.onEnqueueScript(entry.reference);
+      const added = await props.onEnqueueScript(entry.reference);
+      if (!added) return;
+
+      setRecentlyQueuedReference(entry.reference);
+      queueAddedFeedbackTimer = window.setTimeout(() => {
+        setRecentlyQueuedReference(undefined);
+        queueAddedFeedbackTimer = undefined;
+      }, QUEUE_ADDED_FEEDBACK_DURATION_MS);
+      queueAnnouncementFrame = window.requestAnimationFrame(() => {
+        setQueueAnnouncement(`${scriptLocation(entry)} added to the queue.`);
+        queueAnnouncementFrame = undefined;
+      });
     } catch (cause) {
       setOperationError(`Failed to add ${entry.name} to the queue.`, cause);
     } finally {
+      setEnqueueingReference(undefined);
       setBusy(false);
     }
   };
@@ -1635,10 +1841,12 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     applyMutation(result);
     if (result.status !== "completed" && result.status !== "unchanged") return;
     setRepositoryUrl("");
+    setRepositoryValidationAttempted(false);
     setPackageDirectory("");
     setPackageDirectoryInvalid(false);
     setRepositoryRef("");
     setInstallOptionsOpen(false);
+    setPackageTask({ view: "closed" });
     setPackageManagementView("installed");
   };
 
@@ -1665,19 +1873,21 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     applyInstallMutation(result);
   };
 
-  const beginInstall = (): void => {
-    if (installRateLimit() !== undefined) return;
+  const beginInstall = async (): Promise<void> => {
+    if (busy() || installRateLimit() !== undefined) return;
+    setRepositoryValidationAttempted(true);
+    setError("");
     const input = repositoryInput();
     if (repositoryUrl().trim() === "") {
-      setError("Enter a GitHub repository URL.");
+      window.requestAnimationFrame(() => repositoryInputElement?.focus());
       return;
     }
     if (input.kind === "tree") {
-      setError("Use the suggested repository and Git ref before installing.");
+      window.requestAnimationFrame(() => repositoryInputElement?.focus());
       return;
     }
     if (input.kind === "invalid") {
-      setError("Enter a valid GitHub.com repository URL.");
+      window.requestAnimationFrame(() => repositoryInputElement?.focus());
       return;
     }
     const subdirectory = packageDirectory().trim();
@@ -1697,13 +1907,18 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       ...(credentialId() === "" ? {} : { credentialId: credentialId() }),
       ...(subdirectory === "" ? {} : { subdirectory }),
     };
-    askForConfirmation({
-      confirmLabel: "Install package",
-      description:
-        "Package code has the same access as Lucent scripts. Only install repositories you trust.",
-      onConfirm: () => installPackage(request),
-      title: "Install this package?",
-    });
+    setBusy(true);
+    setError("");
+    try {
+      await installPackage(request);
+    } catch (cause) {
+      setOperationError(
+        "Unable to install the package. Check the repository and GitHub access, then try again.",
+        cause,
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   const updatePackage = async (
@@ -1904,10 +2119,21 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const openPackageInstaller = (): void => {
     setInstallOptionsOpen(
-      repositoryRef().trim() !== "" || credentialId() !== "",
+      packageDirectory().trim() !== "" || repositoryRef().trim() !== "",
     );
+    setSelectedPackagePath(undefined);
+    setPackageManagementView("installed");
+    setRepositoryValidationAttempted(false);
     setError("");
-    setPackageManagementView("install");
+    setPackageTask({ view: "install" });
+  };
+
+  const openPackageInstallerFromLibrary = (): void => {
+    changeActiveTab("packages");
+    queueMicrotask(() => {
+      packageInstallButton?.focus({ preventScroll: true });
+      openPackageInstaller();
+    });
   };
 
   const openPackageDetails = (entry: ScriptPackageSummary): void => {
@@ -1927,73 +2153,93 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     setEditingCredentialId("");
     setCredentialLabel("");
     setCredentialToken("");
+    setCredentialFormErrors({});
     setCredentialTokenVisible(false);
+  };
+
+  const closePackageTask = (): void => {
+    if (busy()) return;
+    resetCredentialDraft();
+    setRepositoryValidationAttempted(false);
+    setError("");
+    setPackageTask({ view: "closed" });
   };
 
   const openCredentialEditor = (
     entry?: GitHubCredentialSummary,
-    returnView: CredentialEditorReturnView = "credentials",
+    returnView: "install" | "tokens" = "tokens",
   ): void => {
     setError("");
-    setCredentialEditorReturnView(returnView);
     setEditingCredentialId(entry?.id ?? "");
     setCredentialLabel(entry?.label ?? "");
     setCredentialToken("");
+    setCredentialFormErrors({});
     setCredentialTokenVisible(false);
-    setCredentialEditorOpen(true);
-    setPackageManagementView("credentials");
+    setPackageTask({ returnView, view: "token-editor" });
   };
 
   const closeCredentialEditor = (): void => {
     if (busy()) return;
+    const task = packageTask();
+    const returnView =
+      task.view === "token-editor" ? task.returnView : "tokens";
     resetCredentialDraft();
-    setCredentialEditorOpen(false);
     setError("");
-    if (credentialEditorReturnView() === "install") {
-      setPackageManagementView("install");
-    }
+    setPackageTask({ view: returnView });
   };
 
-  const openCredentialManager = (
-    parentView: CredentialManagerParentView = "installed",
-  ): void => {
-    setCredentialManagerParentView(parentView);
+  const openCredentialManager = (): void => {
     resetCredentialDraft();
-    setCredentialEditorOpen(false);
     setError("");
-    if (parentView === "install" && credentials().length === 0) {
-      openCredentialEditor(undefined, "install");
-      return;
-    }
-    setPackageManagementView("credentials");
+    setPackageTask({ view: "tokens" });
   };
 
   const saveCredential = async (): Promise<void> => {
     const bridge = props.bridge;
     if (bridge === undefined) return;
     if (busy()) return;
+    const task = packageTask();
+    if (task.view !== "token-editor") return;
+    const nextErrors: CredentialFormErrors = {
+      ...(editingCredentialId() === "" && credentialLabel().trim() === ""
+        ? { label: "Enter a name." }
+        : {}),
+      ...(credentialToken().trim() === "" ? { token: "Enter a token." } : {}),
+    };
+    setCredentialFormErrors(nextErrors);
+    setError("");
+    const firstInvalidInput = nextErrors.label
+      ? credentialLabelInput
+      : nextErrors.token
+        ? credentialTokenInput
+        : undefined;
+    if (firstInvalidInput !== undefined) {
+      window.requestAnimationFrame(() => firstInvalidInput.focus());
+      return;
+    }
+
+    const returnView = task.returnView;
     setBusy(true);
     setError("");
     try {
       const saved = await bridge.saveCredential({
         ...(editingCredentialId() === "" ? {} : { id: editingCredentialId() }),
-        label: credentialLabel(),
-        token: credentialToken(),
+        label: credentialLabel().trim(),
+        token: credentialToken().trim(),
       });
       setCredentials((current) =>
-        [...current.filter((entry) => entry.id !== saved.id), saved].sort(
+        [...current.filter((entry) => entry.id !== saved.id), saved].toSorted(
           (left, right) => left.label.localeCompare(right.label),
         ),
       );
-      setCredentialId(saved.id);
-      const returnView = credentialEditorReturnView();
+      if (returnView === "install") setCredentialId(saved.id);
       resetCredentialDraft();
-      setCredentialEditorOpen(false);
-      setPackageManagementView(
-        returnView === "install" ? "install" : "credentials",
-      );
+      setPackageTask({ view: returnView });
     } catch (cause) {
-      setOperationError("Failed to save the GitHub credential.", cause);
+      setOperationError(
+        "Unable to save the GitHub token. Check the token and try again.",
+        cause,
+      );
     } finally {
       setBusy(false);
     }
@@ -2001,8 +2247,8 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
 
   const deleteCredential = (entry: GitHubCredentialSummary): void => {
     askForConfirmation({
-      confirmLabel: "Delete credential",
-      description: `Delete ${entry.label}? Packages that use it will stay installed, but Lucent won't be able to check for updates. Reinstall those packages with another credential to resume update checks.`,
+      confirmLabel: "Delete token",
+      description: `Delete ${entry.label}? Packages that use it will stay installed, but Lucent won't be able to check for updates. Reinstall those packages with another token to resume update checks.`,
       destructive: true,
       onConfirm: async () => {
         const bridge = props.bridge;
@@ -2014,13 +2260,30 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
         if (credentialId() === entry.id) setCredentialId("");
         if (editingCredentialId() === entry.id) {
           resetCredentialDraft();
-          setCredentialEditorOpen(false);
         }
         setConfirmation(null);
+        window.requestAnimationFrame(() => manageTokensAddButton?.focus());
       },
-      title: "Delete this credential?",
+      title: "Delete this token?",
     });
   };
+
+  const resetDialogViewState = (): void => {
+    setConfirmation(null);
+    resetCredentialDraft();
+    setPackageTask({ view: "closed" });
+    setInstallOptionsOpen(false);
+    setSelectedPackagePath(undefined);
+    setPackageManagementView("installed");
+    setRoomEditingMode(null);
+  };
+
+  let scriptsDialogWasOpen = props.open;
+  createEffect(() => {
+    const open = props.open;
+    if (scriptsDialogWasOpen && !open) resetDialogViewState();
+    scriptsDialogWasOpen = open;
+  });
 
   const handleRoomModeChange = (value: string): void => {
     if (value === "specific") {
@@ -2048,17 +2311,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
       open={props.open}
       onOpenChange={(details) => {
         if (busy()) return;
-        if (!details.open) {
-          setConfirmation(null);
-          resetCredentialDraft();
-          setCredentialEditorOpen(false);
-          setCredentialEditorReturnView("credentials");
-          setCredentialManagerParentView("installed");
-          setInstallOptionsOpen(false);
-          setSelectedPackagePath(undefined);
-          setPackageManagementView("installed");
-          setRoomEditingMode(null);
-        }
+        if (!details.open) resetDialogViewState();
         props.onOpenChange(details.open);
       }}
     >
@@ -2125,7 +2378,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           </DialogHeader>
 
           <div class="game-scripts-dialog__alert-slot">
-            <Show when={error() !== "" && confirmation() === null}>
+            <Show
+              when={
+                error() !== "" && confirmation() === null && !packageTaskOpen()
+              }
+            >
               <ErrorAlert
                 class="game-scripts-dialog__alert"
                 message={error()}
@@ -2140,10 +2397,25 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           >
             <TabsList variant="underline">
               <TabsTrigger value="scripts">Library</TabsTrigger>
-              <TabsTrigger value="queue">Queue</TabsTrigger>
+              <TabsTrigger aria-label={queueTabLabel()} value="queue">
+                Queue
+                <Show when={queueEntryCount() > 0}>
+                  <Badge
+                    aria-hidden="true"
+                    class="game-scripts-dialog__queue-count"
+                    size="sm"
+                    variant="secondary"
+                  >
+                    {queueBadgeText()}
+                  </Badge>
+                </Show>
+              </TabsTrigger>
               <TabsTrigger value="packages">Packages</TabsTrigger>
               <TabsTrigger value="options">Options</TabsTrigger>
             </TabsList>
+            <div aria-atomic="true" class="visually-hidden" role="status">
+              {queueAnnouncement()}
+            </div>
             <TabsContent
               class="game-scripts-dialog__tab-content game-scripts-dialog__scripts"
               value="scripts"
@@ -2226,10 +2498,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                               Load script...
                             </Button>
                             <Button
-                              onClick={() => {
-                                changeActiveTab("packages");
-                                openPackageInstaller();
-                              }}
+                              onClick={openPackageInstallerFromLibrary}
                               size="sm"
                               variant="secondary"
                             >
@@ -2284,6 +2553,16 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                     props.loadedReference,
                                     script.reference,
                                   );
+                                const enqueueing = () =>
+                                  sameReference(
+                                    enqueueingReference(),
+                                    script.reference,
+                                  );
+                                const recentlyQueued = () =>
+                                  sameReference(
+                                    recentlyQueuedReference(),
+                                    script.reference,
+                                  );
                                 return (
                                   <div
                                     class="game-scripts-dialog__script-row"
@@ -2330,22 +2609,44 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                         <span class="game-scripts-dialog__script-name">
                                           {script.name}
                                         </span>
+                                        <Icon
+                                          aria-hidden="true"
+                                          class="game-scripts-dialog__script-open-icon"
+                                          icon="pencil"
+                                          size="xs"
+                                        />
                                       </button>
                                     </div>
                                     <div class="game-scripts-dialog__row-actions">
                                       <Button
+                                        class="game-scripts-dialog__queue-add"
+                                        data-added={
+                                          recentlyQueued() ? "" : undefined
+                                        }
                                         disabled={
                                           busy() ||
                                           props.scriptBusy ||
-                                          props.queueState.phase !== "idle"
+                                          props.queueState.phase !== "idle" ||
+                                          recentlyQueued()
                                         }
+                                        loading={enqueueing()}
                                         onClick={() =>
                                           void enqueueScript(script)
                                         }
                                         size="sm"
                                         variant="ghost"
                                       >
-                                        Add to queue
+                                        <Show
+                                          when={recentlyQueued()}
+                                          fallback="Add to queue"
+                                        >
+                                          <Icon
+                                            aria-hidden="true"
+                                            icon="check"
+                                            size="xs"
+                                          />
+                                          Added
+                                        </Show>
                                       </Button>
                                       <Button
                                         disabled={
@@ -2471,7 +2772,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                       Queue is empty
                     </p>
                     <p class="game-scripts-dialog__collection-empty-description">
-                      Add scripts from the Scripts tab.
+                      Add scripts from the Library tab.
                     </p>
                     <Button
                       onClick={() => changeActiveTab("scripts")}
@@ -2497,29 +2798,48 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 >
                   {(entry, index) => {
                     const runItem = () => queueRunItems().get(entry.id);
-                    const detail = () => {
+                    const status = () => {
                       const item = runItem();
                       return item !== undefined &&
                         (item.state !== "pending" ||
                           props.queueState.phase !== "idle")
                         ? queueItemStatus(item)
-                        : entry.file.path;
+                        : undefined;
                     };
                     return (
                       <>
                         <span class="game-scripts-dialog__queue-copy">
-                          <span
-                            class="game-scripts-dialog__queue-name"
-                            title={entry.file.path}
+                          <Tooltip
+                            closeDelay={0}
+                            openDelay={400}
+                            positioning={{ placement: "bottom-start" }}
+                            unmountOnExit
                           >
-                            {entry.file.name}
-                          </span>
-                          <span
-                            class="game-scripts-dialog__queue-path"
-                            title={detail()}
-                          >
-                            {detail()}
-                          </span>
+                            <TooltipTrigger
+                              asChild={(triggerProps) => (
+                                <span
+                                  {...triggerProps({
+                                    class: "game-scripts-dialog__queue-name",
+                                  })}
+                                >
+                                  {entry.file.name}
+                                </span>
+                              )}
+                            />
+                            <TooltipContent class="game-scripts-dialog__queue-path-tooltip">
+                              {entry.file.path}
+                            </TooltipContent>
+                          </Tooltip>
+                          <Show when={status()} keyed>
+                            {(value) => (
+                              <span
+                                class="game-scripts-dialog__queue-status"
+                                title={value}
+                              >
+                                {value}
+                              </span>
+                            )}
+                          </Show>
                         </span>
                         <span class="game-scripts-dialog__queue-row-trailing">
                           <Show when={runItem()}>
@@ -2619,38 +2939,51 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                     class="visually-hidden"
                     role="status"
                   >
-                    {props.optionsSaveStatus === "saving"
-                      ? "Saving script preferences."
-                      : props.optionsSaveStatus === "failed"
-                        ? "Couldn't save script preferences. Changes last only for this session."
-                        : ""}
+                    {!props.loggedIn
+                      ? "Log in to change script preferences."
+                      : props.optionsSaveStatus === "saving"
+                        ? "Saving script preferences."
+                        : props.optionsSaveStatus === "failed"
+                          ? "Couldn't save script preferences. Changes last only for this session."
+                          : ""}
                   </span>
-                  <Show when={props.optionsSaveStatus !== "idle"}>
+                  <Show
+                    when={!props.loggedIn || props.optionsSaveStatus !== "idle"}
+                  >
                     <div class="game-scripts-dialog__options-save-feedback">
-                      <div class="game-scripts-dialog__options-save-summary">
-                        <span
-                          class="game-scripts-dialog__options-save-status"
-                          data-state={props.optionsSaveStatus}
-                        >
-                          {props.optionsSaveStatus === "saving"
-                            ? "Saving…"
-                            : "Couldn't save"}
-                        </span>
-                        <Show when={props.optionsSaveStatus === "failed"}>
-                          <Button
-                            class="game-scripts-dialog__options-save-retry"
-                            onClick={props.onRetryOptionsSave}
-                            size="sm"
-                            variant="link"
+                      <Show
+                        when={props.loggedIn}
+                        fallback={
+                          <span class="game-scripts-dialog__options-save-status">
+                            Log in to change script preferences.
+                          </span>
+                        }
+                      >
+                        <div class="game-scripts-dialog__options-save-summary">
+                          <span
+                            class="game-scripts-dialog__options-save-status"
+                            data-state={props.optionsSaveStatus}
                           >
-                            Retry
-                          </Button>
+                            {props.optionsSaveStatus === "saving"
+                              ? "Saving…"
+                              : "Couldn't save"}
+                          </span>
+                          <Show when={props.optionsSaveStatus === "failed"}>
+                            <Button
+                              class="game-scripts-dialog__options-save-retry"
+                              onClick={props.onRetryOptionsSave}
+                              size="sm"
+                              variant="link"
+                            >
+                              Retry
+                            </Button>
+                          </Show>
+                        </div>
+                        <Show when={props.optionsSaveStatus === "failed"}>
+                          <span class="game-scripts-dialog__options-save-note">
+                            Changes last only for this session.
+                          </span>
                         </Show>
-                      </div>
-                      <Show when={props.optionsSaveStatus === "failed"}>
-                        <span class="game-scripts-dialog__options-save-note">
-                          Changes last only for this session.
-                        </span>
                       </Show>
                     </div>
                   </Show>
@@ -2799,44 +3132,64 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
               class="game-scripts-dialog__tab-content game-scripts-dialog__packages"
               value="packages"
             >
-              <Show
-                when={
-                  packageManagementView() === "installed" &&
-                  catalog().packages.length > 0
-                }
-              >
+              <Show when={packageManagementView() === "installed"}>
                 <div
                   aria-label="Package actions"
                   class="game-scripts-dialog__package-toolbar"
                   role="toolbar"
                 >
                   <div class="game-scripts-dialog__package-toolbar-group">
-                    <Button onClick={openPackageInstaller} size="sm">
+                    <Button
+                      ref={(element) => {
+                        packageInstallButton = element;
+                      }}
+                      disabled={busy() || catalogLoading()}
+                      onClick={openPackageInstaller}
+                      size="sm"
+                    >
                       <Icon icon="plus" size="sm" />
                       Install package
                     </Button>
-                    <Button
-                      disabled={busy()}
-                      onClick={() => openCredentialManager("installed")}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      <Icon icon="key_round" size="sm" />
-                      GitHub credentials
-                    </Button>
+                    <Show when={hasManagedPackages()}>
+                      <PackageUpdateCheckButton
+                        checking={checkingPackageUpdates()}
+                        disabled={
+                          busy() ||
+                          catalogLoading() ||
+                          packagesEligibleForUpdateCheck().length === 0
+                        }
+                        label="Check for updates"
+                        onClick={() => void checkAllPackageUpdates()}
+                        variant="secondary"
+                      />
+                    </Show>
                   </div>
                   <div class="game-scripts-dialog__package-toolbar-actions">
-                    <PackageUpdateCheckButton
-                      checking={checkingPackageUpdates()}
-                      disabled={
-                        busy() ||
-                        catalogLoading() ||
-                        packagesEligibleForUpdateCheck().length === 0
-                      }
-                      label="Check for updates"
-                      onClick={() => void checkAllPackageUpdates()}
-                      variant="ghost"
-                    />
+                    <Menu positioning={{ gutter: 4, placement: "bottom-end" }}>
+                      <MenuTrigger
+                        asChild={(triggerProps) => (
+                          <IconButton
+                            {...(triggerProps({
+                              "aria-label": "More package actions",
+                              children: <Icon icon="ellipsis" size="sm" />,
+                              disabled: busy(),
+                              size: "icon",
+                              title: "More package actions",
+                              type: "button",
+                              variant: "outline",
+                            } as IconButtonProps) as IconButtonProps)}
+                          />
+                        )}
+                      />
+                      <MenuContent>
+                        <MenuItem
+                          onSelect={() => queueMicrotask(openCredentialManager)}
+                          value="manage-github-tokens"
+                        >
+                          Manage GitHub tokens
+                        </MenuItem>
+                      </MenuContent>
+                    </Menu>
                     <CatalogRefreshButton
                       disabled={busy() || catalogLoading()}
                       loading={catalogLoading() && catalog().revision !== ""}
@@ -2844,363 +3197,6 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                     />
                   </div>
                 </div>
-              </Show>
-
-              <Show when={packageManagementBreadcrumb()} keyed>
-                {(breadcrumb) => (
-                  <div class="game-scripts-dialog__section-heading">
-                    <nav
-                      aria-label="Package navigation"
-                      class="game-scripts-dialog__breadcrumb"
-                    >
-                      <Button
-                        class="game-scripts-dialog__breadcrumb-link"
-                        disabled={busy()}
-                        onClick={() => {
-                          if (packageManagementView() === "credentials") {
-                            resetCredentialDraft();
-                            setCredentialEditorOpen(false);
-                            setError("");
-                          }
-                          setPackageManagementView(breadcrumb.parentView);
-                        }}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        <Icon
-                          aria-hidden="true"
-                          class="game-scripts-dialog__breadcrumb-back-icon"
-                          icon="arrow_left"
-                          size="xs"
-                        />
-                        {breadcrumb.parent}
-                      </Button>
-                      <Icon
-                        aria-hidden="true"
-                        class="game-scripts-dialog__breadcrumb-separator"
-                        icon="chevron_right"
-                        size="xs"
-                      />
-                      <span
-                        aria-current="page"
-                        class="game-scripts-dialog__breadcrumb-current"
-                        id="script-package-management-title"
-                      >
-                        {breadcrumb.current}
-                      </span>
-                    </nav>
-                    <Show
-                      when={
-                        packageManagementView() === "credentials" &&
-                        !credentialEditorOpen() &&
-                        credentials().length > 0
-                      }
-                    >
-                      <Button
-                        onClick={() => openCredentialEditor()}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        <Icon icon="plus" size="sm" />
-                        Add credential
-                      </Button>
-                    </Show>
-                  </div>
-                )}
-              </Show>
-
-              <Show
-                when={
-                  packageManagementView() === "install" || firstPackageInstall()
-                }
-              >
-                <section
-                  aria-labelledby="script-package-management-title"
-                  class="game-scripts-dialog__install"
-                >
-                  <Show
-                    when={
-                      packageManagementView() === "install" &&
-                      catalog().packages.length > 0
-                    }
-                  >
-                    <Button
-                      class="game-scripts-dialog__install-back"
-                      disabled={busy()}
-                      onClick={() => {
-                        setError("");
-                        setPackageManagementView("installed");
-                      }}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <Icon icon="arrow_left" size="xs" />
-                      Packages
-                    </Button>
-                  </Show>
-                  <div class="game-scripts-dialog__install-heading">
-                    <h2 id="script-package-management-title">
-                      Install package
-                    </h2>
-                    <Button
-                      disabled={busy()}
-                      onClick={() => openCredentialManager("install")}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      <Icon icon="key_round" size="sm" />
-                      GitHub credentials
-                    </Button>
-                  </div>
-                  <div class="game-scripts-dialog__install-fields">
-                    <Field
-                      class="game-scripts-dialog__install-repository"
-                      contentClass="game-scripts-dialog__repository-field"
-                      error={
-                        repositoryInput().kind === "invalid" &&
-                        repositoryUrl().trim() !== ""
-                      }
-                      for="script-package-repository"
-                      label="GitHub repository"
-                    >
-                      <Input
-                        aria-describedby={
-                          repositoryInput().kind === "repository"
-                            ? undefined
-                            : "script-package-repository-feedback"
-                        }
-                        fullWidth
-                        id="script-package-repository"
-                        invalid={
-                          repositoryInput().kind === "invalid" &&
-                          repositoryUrl().trim() !== ""
-                        }
-                        required
-                        placeholder="https://github.com/owner/repository"
-                        value={repositoryUrl()}
-                        onInput={(event) => {
-                          setRepositoryUrl(event.currentTarget.value);
-                          setError("");
-                        }}
-                      />
-                      <Show when={repositoryInput().kind !== "repository"}>
-                        <div
-                          class="game-scripts-dialog__repository-feedback"
-                          data-invalid={
-                            repositoryInput().kind === "invalid" &&
-                            repositoryUrl().trim() !== ""
-                              ? ""
-                              : undefined
-                          }
-                          id="script-package-repository-feedback"
-                        >
-                          <Show
-                            when={repositorySuggestion()}
-                            fallback={
-                              repositoryUrl().trim() === ""
-                                ? "Enter the repository's GitHub URL."
-                                : "Enter an https://github.com/owner/repository URL."
-                            }
-                          >
-                            {(suggestion) => (
-                              <>
-                                <span>
-                                  Did you mean {suggestion().repository.owner}/
-                                  {suggestion().repository.repository} at ref{" "}
-                                  {suggestion().ref}?
-                                </span>
-                                <Button
-                                  onClick={applyRepositorySuggestion}
-                                  size="xs"
-                                  type="button"
-                                  variant="link"
-                                >
-                                  Use suggestion
-                                </Button>
-                              </>
-                            )}
-                          </Show>
-                        </div>
-                      </Show>
-                    </Field>
-                    <Button
-                      aria-controls="script-package-install-options"
-                      aria-expanded={installOptionsOpen()}
-                      class="game-scripts-dialog__install-options-toggle"
-                      onClick={() =>
-                        setInstallOptionsOpen((current) => !current)
-                      }
-                      size="xs"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        class={
-                          installOptionsOpen()
-                            ? "game-scripts-dialog__install-options-icon game-scripts-dialog__install-options-icon--open"
-                            : "game-scripts-dialog__install-options-icon"
-                        }
-                        icon="chevron_right"
-                        size="xs"
-                      />
-                      Advanced options
-                    </Button>
-                    <Show when={installOptionsOpen()}>
-                      <div
-                        class="game-scripts-dialog__install-options"
-                        id="script-package-install-options"
-                      >
-                        <Field
-                          class="game-scripts-dialog__install-directory"
-                          contentClass="game-scripts-dialog__install-directory-field"
-                          error={packageDirectoryInvalid()}
-                          for="script-package-directory"
-                          label="Package directory"
-                          optional
-                        >
-                          <Input
-                            ref={(element) => {
-                              packageDirectoryInput = element;
-                            }}
-                            aria-describedby="script-package-directory-feedback"
-                            fullWidth
-                            id="script-package-directory"
-                            invalid={packageDirectoryInvalid()}
-                            placeholder="script-packages/package-name"
-                            value={packageDirectory()}
-                            onInput={(event) => {
-                              setPackageDirectory(event.currentTarget.value);
-                              setPackageDirectoryInvalid(false);
-                              setError("");
-                            }}
-                          />
-                          <div
-                            class="game-scripts-dialog__install-field-feedback"
-                            data-invalid={
-                              packageDirectoryInvalid() ? "" : undefined
-                            }
-                            id="script-package-directory-feedback"
-                          >
-                            {packageDirectoryInvalid()
-                              ? "Use a repository-relative path with forward slashes and no . or .. segments."
-                              : "Leave blank when package.json is at the repository root."}
-                          </div>
-                        </Field>
-                        <Field
-                          class="game-scripts-dialog__install-ref"
-                          for="script-package-ref"
-                          label="Git ref"
-                        >
-                          <Input
-                            fullWidth
-                            id="script-package-ref"
-                            placeholder="Branch, tag, or commit"
-                            value={repositoryRef()}
-                            onInput={(event) =>
-                              setRepositoryRef(event.currentTarget.value)
-                            }
-                          />
-                        </Field>
-                        <Field
-                          class="game-scripts-dialog__install-credential"
-                          contentClass="game-scripts-dialog__credential-field"
-                          for="script-package-credential"
-                          label="GitHub access"
-                        >
-                          <Select
-                            class="game-scripts-dialog__credential-select"
-                            ids={{ trigger: "script-package-credential" }}
-                            positioning={{
-                              fitViewport: true,
-                              gutter: 4,
-                              placement: "bottom-start",
-                              sameWidth: true,
-                            }}
-                            value={[
-                              credentialId() === ""
-                                ? "no-credential"
-                                : credentialId(),
-                            ]}
-                            onValueChange={(details) => {
-                              const value = details.value[0];
-                              if (value === undefined) return;
-                              setCredentialId(
-                                value === "no-credential" ? "" : value,
-                              );
-                            }}
-                          >
-                            <SelectTrigger
-                              class="game-scripts-dialog__credential-menu-trigger select__trigger select__trigger--sm"
-                              title="Optional. Use a token for private repositories or a higher GitHub request limit."
-                            >
-                              <span
-                                class="select__value"
-                                title={
-                                  selectedCredential()?.label ??
-                                  "No credential. Works with public repositories."
-                                }
-                              >
-                                {selectedCredential()?.label ?? "No credential"}
-                              </span>
-                            </SelectTrigger>
-                            <SelectContent class="game-scripts-dialog__credential-select-content">
-                              <SelectItem
-                                class="game-scripts-dialog__credential-option"
-                                label="No credential"
-                                value="no-credential"
-                              >
-                                <span class="game-scripts-dialog__credential-option-copy">
-                                  <span class="game-scripts-dialog__credential-option-label">
-                                    No credential
-                                  </span>
-                                </span>
-                              </SelectItem>
-                              <For each={credentials()}>
-                                {(credential) => (
-                                  <SelectItem
-                                    class="game-scripts-dialog__credential-option"
-                                    label={credential.label}
-                                    title={credential.label}
-                                    value={credential.id}
-                                  >
-                                    <span class="game-scripts-dialog__credential-option-label">
-                                      {credential.label}
-                                    </span>
-                                  </SelectItem>
-                                )}
-                              </For>
-                            </SelectContent>
-                          </Select>
-                          <div class="game-scripts-dialog__credential-field-footer">
-                            Public repositories don't need a credential.
-                          </div>
-                        </Field>
-                      </div>
-                    </Show>
-                    <div class="game-scripts-dialog__install-actions">
-                      <Button
-                        disabled={
-                          busy() ||
-                          repositoryInput().kind !== "repository" ||
-                          installRateLimit() !== undefined
-                        }
-                        onClick={beginInstall}
-                        size="sm"
-                        title={packageRateLimitTitle(installRateLimit())}
-                      >
-                        <Show when={installRateLimit()} fallback="Install">
-                          {(limit) =>
-                            formatScriptPackageRetryLabel(
-                              limit().retryAtTimestamp,
-                              rateLimitNow(),
-                            )
-                          }
-                        </Show>
-                      </Button>
-                    </div>
-                  </div>
-                </section>
               </Show>
 
               <Show
@@ -3411,7 +3407,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                                 </Show>
                                                 <Icon
                                                   aria-hidden="true"
-                                                  class="game-scripts-dialog__package-source-open-icon"
+                                                  class="game-scripts-dialog__external-link-icon"
                                                   icon="arrow_up_right"
                                                   size="xs"
                                                 />
@@ -3617,241 +3613,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 )}
               </Show>
 
-              <Show when={packageManagementView() === "credentials"}>
-                <section
-                  aria-labelledby="script-package-management-title"
-                  class="game-scripts-dialog__credential-manager"
-                  data-editor-open={credentialEditorOpen() ? "" : undefined}
-                >
-                  <div class="game-scripts-dialog__credential-manager-body">
-                    <Show
-                      when={credentialEditorOpen()}
-                      fallback={
-                        <>
-                          <Show
-                            when={credentials().length > 0}
-                            fallback={
-                              <div class="game-scripts-dialog__credential-manager-empty">
-                                <div>
-                                  <strong>No GitHub credentials</strong>
-                                  <span>
-                                    Only needed for private repositories.
-                                  </span>
-                                </div>
-                                <Button
-                                  onClick={() => openCredentialEditor()}
-                                  size="sm"
-                                >
-                                  <Icon icon="plus" size="sm" />
-                                  Add credential
-                                </Button>
-                              </div>
-                            }
-                          >
-                            <div class="game-scripts-dialog__credential-manager-list">
-                              <For each={credentials()}>
-                                {(credential) => (
-                                  <div class="game-scripts-dialog__credential-manager-row">
-                                    <div class="game-scripts-dialog__credential-manager-copy">
-                                      <span
-                                        class="game-scripts-dialog__credential-manager-label"
-                                        title={credential.label}
-                                      >
-                                        {credential.label}
-                                      </span>
-                                    </div>
-                                    <Menu
-                                      positioning={{
-                                        gutter: 4,
-                                        placement: "bottom-end",
-                                      }}
-                                    >
-                                      <MenuTrigger
-                                        asChild={(triggerProps) => (
-                                          <IconButton
-                                            {...(triggerProps({
-                                              "aria-label": `More actions for ${credential.label}`,
-                                              children: (
-                                                <Icon
-                                                  icon="ellipsis"
-                                                  size="sm"
-                                                />
-                                              ),
-                                              disabled: busy(),
-                                              size: "icon-sm",
-                                              type: "button",
-                                              variant: "ghost",
-                                            } as IconButtonProps) as IconButtonProps)}
-                                          />
-                                        )}
-                                      />
-                                      <MenuContent>
-                                        <MenuItem
-                                          onSelect={() =>
-                                            queueMicrotask(() =>
-                                              openCredentialEditor(credential),
-                                            )
-                                          }
-                                          value="replace-token"
-                                        >
-                                          Replace token
-                                        </MenuItem>
-                                        <MenuSeparator />
-                                        <MenuItem
-                                          onSelect={() =>
-                                            queueMicrotask(() =>
-                                              deleteCredential(credential),
-                                            )
-                                          }
-                                          value="delete-credential"
-                                          variant="destructive"
-                                        >
-                                          Delete
-                                        </MenuItem>
-                                      </MenuContent>
-                                    </Menu>
-                                  </div>
-                                )}
-                              </For>
-                            </div>
-                          </Show>
-                        </>
-                      }
-                    >
-                      <div class="game-scripts-dialog__credential-editor">
-                        <div class="game-scripts-dialog__credential-editor-body">
-                          <div class="game-scripts-dialog__credential-editor-heading">
-                            <h3 class="game-scripts-dialog__credential-editor-title">
-                              {editingCredentialId() === ""
-                                ? "Add credential"
-                                : "Replace token"}
-                            </h3>
-                            <p class="game-scripts-dialog__credential-view-description">
-                              {editingCredentialId() === ""
-                                ? "Use a personal access token for private repositories and higher GitHub API rate limits."
-                                : `Enter a new token for ${credentialLabel()}.`}
-                            </p>
-                          </div>
-                          <Show when={editingCredentialId() === ""}>
-                            <Field
-                              for="script-package-credential-label"
-                              label="Name"
-                            >
-                              <Input
-                                autofocus
-                                fullWidth
-                                id="script-package-credential-label"
-                                placeholder="Personal GitHub"
-                                value={credentialLabel()}
-                                onInput={(event) =>
-                                  setCredentialLabel(event.currentTarget.value)
-                                }
-                              />
-                            </Field>
-                          </Show>
-                          <Field
-                            contentClass="game-scripts-dialog__credential-token-field"
-                            for="script-package-credential-token"
-                            label={
-                              editingCredentialId() === ""
-                                ? "Personal access token"
-                                : "New personal access token"
-                            }
-                          >
-                            <InputGroup class="game-scripts-dialog__credential-token-control">
-                              <InputGroupInput
-                                autofocus={editingCredentialId() !== ""}
-                                id="script-package-credential-token"
-                                type={
-                                  credentialTokenVisible() ? "text" : "password"
-                                }
-                                value={credentialToken()}
-                                onInput={(event) =>
-                                  setCredentialToken(event.currentTarget.value)
-                                }
-                              />
-                              <InputGroupAddon
-                                align="inline-end"
-                                class="game-scripts-dialog__credential-token-addon"
-                              >
-                                <Button
-                                  aria-label={
-                                    credentialTokenVisible()
-                                      ? "Hide personal access token"
-                                      : "Show personal access token"
-                                  }
-                                  aria-pressed={credentialTokenVisible()}
-                                  class="game-scripts-dialog__credential-token-visibility"
-                                  onClick={() =>
-                                    setCredentialTokenVisible(
-                                      (visible) => !visible,
-                                    )
-                                  }
-                                  size="sm"
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  <Icon
-                                    icon={
-                                      credentialTokenVisible()
-                                        ? "eye_off"
-                                        : "eye"
-                                    }
-                                    size="xs"
-                                  />
-                                </Button>
-                              </InputGroupAddon>
-                            </InputGroup>
-                            <div class="game-scripts-dialog__credential-token-help">
-                              <span>Prefer read-only repository access.</span>
-                              <Button
-                                class="game-scripts-dialog__credential-token-link"
-                                onClick={openGitHubTokenPage}
-                                size="xs"
-                                variant="ghost"
-                              >
-                                Create a GitHub token
-                                <Icon icon="arrow_up_right" size="xs" />
-                              </Button>
-                            </div>
-                          </Field>
-                        </div>
-                        <div class="game-scripts-dialog__credential-editor-actions">
-                          <Button
-                            disabled={busy()}
-                            onClick={closeCredentialEditor}
-                            size="sm"
-                            variant="outline"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            disabled={
-                              busy() ||
-                              credentialLabel().trim() === "" ||
-                              credentialToken().trim() === ""
-                            }
-                            loading={busy()}
-                            onClick={() => void saveCredential()}
-                            size="sm"
-                          >
-                            {editingCredentialId() !== ""
-                              ? "Replace token"
-                              : "Save credential"}
-                          </Button>
-                        </div>
-                      </div>
-                    </Show>
-                  </div>
-                </section>
-              </Show>
-
-              <Show
-                when={
-                  packageManagementView() === "installed" &&
-                  !firstPackageInstall()
-                }
-              >
+              <Show when={packageManagementView() === "installed"}>
                 <Show
                   when={catalog().revision !== "" || !catalogLoading()}
                   fallback={
@@ -3864,7 +3626,20 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                     </div>
                   }
                 >
-                  <Show when={catalog().packages.length > 0}>
+                  <Show
+                    when={catalog().packages.length > 0}
+                    fallback={
+                      <div class="game-scripts-dialog__empty game-scripts-dialog__collection-empty">
+                        <p class="game-scripts-dialog__collection-empty-title">
+                          No packages installed
+                        </p>
+                        <p class="game-scripts-dialog__collection-empty-description">
+                          Install a script package from a GitHub repository to
+                          get started.
+                        </p>
+                      </div>
+                    }
+                  >
                     <div
                       ref={mountPackageViewport}
                       class="game-scripts-dialog__package-list"
@@ -3972,62 +3747,625 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
           </Tabs>
         </div>
       </DialogContent>
-      <AlertDialog
-        initialFocusEl={() => confirmationCancelButton}
-        open={confirmation() !== null}
+      <Dialog
+        initialFocusEl={packageTaskInitialFocusElement}
+        open={packageTaskOpen()}
         onOpenChange={(details) => {
-          if (!details.open) closeConfirmation();
+          if (!details.open) closePackageTask();
         }}
       >
-        <AlertDialogContent
-          class="game-scripts-dialog__confirmation-dialog"
-          showCloseButton={false}
+        <DialogContent
+          class="game-scripts-dialog__package-task-dialog"
+          closeProps={{ disabled: busy() }}
         >
-          <Show when={confirmation()}>
-            {(pending) => (
-              <section class="game-scripts-dialog__confirmation">
-                <div>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{pending().title}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {pending().description}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <Show when={error() !== ""}>
-                    <ErrorAlert
-                      class="game-scripts-dialog__confirmation-alert"
-                      message={error()}
-                    />
-                  </Show>
-                  <AlertDialogFooter
-                    class="game-scripts-dialog__confirmation-actions"
-                    variant="bare"
-                  >
-                    <AlertDialogCancel
-                      disabled={busy()}
-                      ref={(element) => {
-                        confirmationCancelButton = element;
-                      }}
-                      variant="outline"
-                    >
-                      Cancel
-                    </AlertDialogCancel>
-                    <Button
-                      loading={busy()}
-                      onClick={() => void runConfirmation()}
-                      variant={
-                        pending().destructive ? "destructive" : "default"
-                      }
-                    >
-                      {pending().confirmLabel}
-                    </Button>
-                  </AlertDialogFooter>
-                </div>
-              </section>
-            )}
+          <DialogHeader class="game-scripts-dialog__package-task-header">
+            <DialogTitle
+              ref={(element) => {
+                packageTaskTitle = element;
+              }}
+              tabIndex={-1}
+            >
+              {packageTaskTitleText()}
+            </DialogTitle>
+            <DialogDescription>{packageTaskDescription()}</DialogDescription>
+          </DialogHeader>
+
+          <Show when={error() !== "" && confirmation() === null}>
+            <ErrorAlert
+              class="game-scripts-dialog__package-task-error"
+              message={error()}
+            />
           </Show>
-        </AlertDialogContent>
-      </AlertDialog>
+
+          <Show when={packageTask().view === "install"}>
+            <form
+              class="game-scripts-dialog__package-task-form"
+              novalidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                void beginInstall();
+              }}
+            >
+              <DialogPanel class="game-scripts-dialog__package-task-panel game-scripts-dialog__install-fields">
+                <Field
+                  class="game-scripts-dialog__install-repository"
+                  contentClass="game-scripts-dialog__repository-field"
+                  error={repositoryFieldInvalid()}
+                  for="script-package-repository"
+                  label="GitHub repository"
+                >
+                  <Input
+                    ref={(element) => {
+                      repositoryInputElement = element;
+                    }}
+                    aria-describedby={
+                      repositoryInput().kind === "repository"
+                        ? undefined
+                        : "script-package-repository-feedback"
+                    }
+                    fullWidth
+                    id="script-package-repository"
+                    invalid={repositoryFieldInvalid()}
+                    name="repository-url"
+                    required
+                    spellcheck={false}
+                    type="url"
+                    placeholder="https://github.com/owner/repository"
+                    value={repositoryUrl()}
+                    onInput={(event) => {
+                      setRepositoryUrl(event.currentTarget.value);
+                      setRepositoryValidationAttempted(false);
+                      setError("");
+                    }}
+                  />
+                  <Show when={repositoryInput().kind !== "repository"}>
+                    <div
+                      class="game-scripts-dialog__repository-feedback"
+                      data-invalid={repositoryFieldInvalid() ? "" : undefined}
+                      id="script-package-repository-feedback"
+                    >
+                      <Show
+                        when={repositorySuggestion()}
+                        fallback={
+                          repositoryUrl().trim() === ""
+                            ? repositoryValidationAttempted()
+                              ? "Enter a GitHub repository URL."
+                              : "Enter the repository's GitHub URL."
+                            : "Enter an https://github.com/owner/repository URL."
+                        }
+                      >
+                        {(suggestion) => (
+                          <>
+                            <span>
+                              Did you mean {suggestion().repository.owner}/
+                              {suggestion().repository.repository} at ref{" "}
+                              {suggestion().ref}?
+                            </span>
+                            <Button
+                              onClick={applyRepositorySuggestion}
+                              size="xs"
+                              type="button"
+                              variant="link"
+                            >
+                              Use suggestion
+                            </Button>
+                          </>
+                        )}
+                      </Show>
+                    </div>
+                  </Show>
+                </Field>
+
+                <Field
+                  class="game-scripts-dialog__install-credential"
+                  contentClass="game-scripts-dialog__credential-field"
+                  for="script-package-credential"
+                  label="GitHub token"
+                >
+                  <Select
+                    class="game-scripts-dialog__credential-select"
+                    ids={{ trigger: "script-package-credential" }}
+                    positioning={{
+                      fitViewport: true,
+                      gutter: 4,
+                      placement: "bottom-start",
+                      sameWidth: true,
+                    }}
+                    value={[
+                      credentialId() === "" ? "no-token" : credentialId(),
+                    ]}
+                    onValueChange={(details) => {
+                      const value = details.value[0];
+                      if (value === undefined) return;
+                      setCredentialId(value === "no-token" ? "" : value);
+                      setError("");
+                    }}
+                  >
+                    <SelectTrigger class="game-scripts-dialog__credential-menu-trigger select__trigger select__trigger--sm">
+                      <span
+                        class="select__value"
+                        title={selectedCredential()?.label}
+                      >
+                        {selectedCredential()?.label ?? "No token"}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent class="game-scripts-dialog__credential-select-content">
+                      <SelectItem
+                        class="game-scripts-dialog__credential-option"
+                        label="No token"
+                        value="no-token"
+                      >
+                        <span class="game-scripts-dialog__credential-option-copy">
+                          <span class="game-scripts-dialog__credential-option-label">
+                            No token
+                          </span>
+                        </span>
+                      </SelectItem>
+                      <For each={credentials()}>
+                        {(credential) => (
+                          <SelectItem
+                            class="game-scripts-dialog__credential-option"
+                            label={credential.label}
+                            title={credential.label}
+                            value={credential.id}
+                          >
+                            <span class="game-scripts-dialog__credential-option-label">
+                              {credential.label}
+                            </span>
+                          </SelectItem>
+                        )}
+                      </For>
+                    </SelectContent>
+                  </Select>
+                  <div class="game-scripts-dialog__credential-field-footer">
+                    <span>{GITHUB_TOKEN_USE_HINT}</span>
+                    <Button
+                      onClick={() => openCredentialEditor(undefined, "install")}
+                      size="xs"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon aria-hidden="true" icon="plus" size="xs" />
+                      Add GitHub token
+                    </Button>
+                  </div>
+                </Field>
+
+                <Button
+                  aria-controls="script-package-install-options"
+                  aria-expanded={installOptionsOpen()}
+                  class="game-scripts-dialog__install-options-toggle"
+                  onClick={() => setInstallOptionsOpen((current) => !current)}
+                  size="xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon
+                    aria-hidden="true"
+                    class={
+                      installOptionsOpen()
+                        ? "game-scripts-dialog__install-options-icon game-scripts-dialog__install-options-icon--open"
+                        : "game-scripts-dialog__install-options-icon"
+                    }
+                    icon="chevron_right"
+                    size="xs"
+                  />
+                  <span>Advanced options</span>
+                  <span class="game-scripts-dialog__install-options-optional">
+                    Optional
+                  </span>
+                </Button>
+
+                <Show when={installOptionsOpen()}>
+                  <div
+                    class="game-scripts-dialog__install-options"
+                    id="script-package-install-options"
+                  >
+                    <p
+                      class="game-scripts-dialog__install-options-hint"
+                      id={INSTALL_ADVANCED_OPTIONS_HINT_ID}
+                    >
+                      Leave both blank to use the repository root and default
+                      branch.
+                    </p>
+                    <Field
+                      class="game-scripts-dialog__install-directory"
+                      contentClass="game-scripts-dialog__install-directory-field"
+                      error={packageDirectoryInvalid()}
+                      for="script-package-directory"
+                      label="Package directory"
+                    >
+                      <Input
+                        ref={(element) => {
+                          packageDirectoryInput = element;
+                        }}
+                        aria-describedby={`${INSTALL_ADVANCED_OPTIONS_HINT_ID} script-package-directory-feedback`}
+                        fullWidth
+                        id="script-package-directory"
+                        invalid={packageDirectoryInvalid()}
+                        name="package-directory"
+                        placeholder="script-packages/package-name"
+                        spellcheck={false}
+                        value={packageDirectory()}
+                        onInput={(event) => {
+                          setPackageDirectory(event.currentTarget.value);
+                          setPackageDirectoryInvalid(false);
+                          setError("");
+                        }}
+                      />
+                      <div
+                        class="game-scripts-dialog__install-field-feedback"
+                        data-invalid={
+                          packageDirectoryInvalid() ? "" : undefined
+                        }
+                        id="script-package-directory-feedback"
+                      >
+                        {packageDirectoryInvalid()
+                          ? "Use a repository-relative path with forward slashes and no . or .. segments."
+                          : "Folder containing package.json, relative to the repository root."}
+                      </div>
+                    </Field>
+                    <Field
+                      class="game-scripts-dialog__install-ref"
+                      for="script-package-ref"
+                      label="Git ref"
+                    >
+                      <Input
+                        aria-describedby={INSTALL_ADVANCED_OPTIONS_HINT_ID}
+                        fullWidth
+                        id="script-package-ref"
+                        name="repository-ref"
+                        placeholder="Branch, tag, or commit"
+                        spellcheck={false}
+                        value={repositoryRef()}
+                        onInput={(event) => {
+                          setRepositoryRef(event.currentTarget.value);
+                          setError("");
+                        }}
+                      />
+                    </Field>
+                  </div>
+                </Show>
+              </DialogPanel>
+
+              <DialogFooter>
+                <Button
+                  disabled={busy()}
+                  onClick={closePackageTask}
+                  type="button"
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={installRateLimit() !== undefined}
+                  loading={busy()}
+                  title={packageRateLimitTitle(installRateLimit())}
+                  type="submit"
+                >
+                  <Show when={installRateLimit()} fallback="Install package">
+                    {(limit) =>
+                      formatScriptPackageRetryLabel(
+                        limit().retryAtTimestamp,
+                        rateLimitNow(),
+                      )
+                    }
+                  </Show>
+                </Button>
+              </DialogFooter>
+            </form>
+          </Show>
+
+          <Show when={packageTask().view === "tokens"}>
+            <DialogPanel class="game-scripts-dialog__package-task-panel game-scripts-dialog__credential-manager-body">
+              <Show
+                when={credentials().length > 0}
+                fallback={
+                  <div class="game-scripts-dialog__credential-manager-empty">
+                    <Icon aria-hidden="true" icon="key_round" size="md" />
+                    <div>
+                      <strong>No GitHub tokens</strong>
+                      <span>
+                        Add one for private repositories or higher GitHub API
+                        rate limits.
+                      </span>
+                    </div>
+                  </div>
+                }
+              >
+                <div class="game-scripts-dialog__credential-manager-list">
+                  <For each={credentials()}>
+                    {(credential) => (
+                      <div class="game-scripts-dialog__credential-manager-row">
+                        <div class="game-scripts-dialog__credential-manager-copy">
+                          <span
+                            class="game-scripts-dialog__credential-manager-label"
+                            title={credential.label}
+                          >
+                            {credential.label}
+                          </span>
+                        </div>
+                        <Menu
+                          positioning={{
+                            gutter: 4,
+                            placement: "bottom-end",
+                          }}
+                        >
+                          <MenuTrigger
+                            asChild={(triggerProps) => (
+                              <IconButton
+                                {...(triggerProps({
+                                  "aria-label": `More actions for ${credential.label}`,
+                                  children: <Icon icon="ellipsis" size="sm" />,
+                                  disabled: busy(),
+                                  size: "icon-sm",
+                                  type: "button",
+                                  variant: "ghost",
+                                } as IconButtonProps) as IconButtonProps)}
+                              />
+                            )}
+                          />
+                          <MenuContent>
+                            <MenuItem
+                              onSelect={() =>
+                                queueMicrotask(() =>
+                                  openCredentialEditor(credential),
+                                )
+                              }
+                              value="replace-token"
+                            >
+                              Replace token
+                            </MenuItem>
+                            <MenuSeparator />
+                            <MenuItem
+                              onSelect={() =>
+                                queueMicrotask(() =>
+                                  deleteCredential(credential),
+                                )
+                              }
+                              value="delete-token"
+                              variant="destructive"
+                            >
+                              Delete token
+                            </MenuItem>
+                          </MenuContent>
+                        </Menu>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </DialogPanel>
+
+            <DialogFooter class="game-scripts-dialog__token-manager-actions">
+              <Button
+                ref={(element) => {
+                  manageTokensAddButton = element;
+                }}
+                class="game-scripts-dialog__token-manager-add"
+                disabled={busy()}
+                onClick={() => openCredentialEditor()}
+                type="button"
+              >
+                <Icon icon="plus" size="sm" />
+                Add token
+              </Button>
+              <Button
+                disabled={busy()}
+                onClick={closePackageTask}
+                type="button"
+                variant="outline"
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </Show>
+
+          <Show when={packageTask().view === "token-editor"}>
+            <form
+              class="game-scripts-dialog__package-task-form"
+              novalidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveCredential();
+              }}
+            >
+              <DialogPanel class="game-scripts-dialog__package-task-panel game-scripts-dialog__credential-editor-body">
+                <Show when={editingCredentialId() === ""}>
+                  <Field
+                    class="game-scripts-dialog__credential-editor-form-field"
+                    contentClass="game-scripts-dialog__credential-field"
+                    error={credentialFormErrors().label !== undefined}
+                    for="script-package-credential-label"
+                    label="Name"
+                  >
+                    <Input
+                      ref={(element) => {
+                        credentialLabelInput = element;
+                      }}
+                      aria-describedby={GITHUB_TOKEN_LABEL_FEEDBACK_ID}
+                      fullWidth
+                      id="script-package-credential-label"
+                      invalid={credentialFormErrors().label !== undefined}
+                      name="token-label"
+                      placeholder="Personal GitHub"
+                      required
+                      size="lg"
+                      value={credentialLabel()}
+                      onInput={(event) => {
+                        setCredentialLabel(event.currentTarget.value);
+                        setCredentialFormErrors((current) => {
+                          const next = { ...current };
+                          delete next.label;
+                          return next;
+                        });
+                        setError("");
+                      }}
+                    />
+                    <div
+                      class="game-scripts-dialog__credential-field-feedback"
+                      data-invalid={
+                        credentialFormErrors().label === undefined
+                          ? undefined
+                          : ""
+                      }
+                      id={GITHUB_TOKEN_LABEL_FEEDBACK_ID}
+                    >
+                      {credentialFormErrors().label ??
+                        "Choose a name you'll recognize."}
+                    </div>
+                  </Field>
+                </Show>
+                <Field
+                  class="game-scripts-dialog__credential-editor-form-field"
+                  contentClass="game-scripts-dialog__credential-field"
+                  error={credentialFormErrors().token !== undefined}
+                  for="script-package-credential-token"
+                  label={
+                    editingCredentialId() === ""
+                      ? "Personal access token"
+                      : "New personal access token"
+                  }
+                >
+                  <InputGroup
+                    class="game-scripts-dialog__credential-token-control"
+                    size="lg"
+                  >
+                    <InputGroupInput
+                      ref={(element) => {
+                        credentialTokenInput = element;
+                      }}
+                      aria-describedby={GITHUB_TOKEN_VALUE_FEEDBACK_ID}
+                      autocomplete="off"
+                      id="script-package-credential-token"
+                      invalid={credentialFormErrors().token !== undefined}
+                      name="github-token"
+                      required
+                      spellcheck={false}
+                      type={credentialTokenVisible() ? "text" : "password"}
+                      value={credentialToken()}
+                      onInput={(event) => {
+                        setCredentialToken(event.currentTarget.value);
+                        setCredentialFormErrors((current) => {
+                          const next = { ...current };
+                          delete next.token;
+                          return next;
+                        });
+                        setError("");
+                      }}
+                    />
+                    <InputGroupAddon
+                      align="inline-end"
+                      class="game-scripts-dialog__credential-token-addon"
+                    >
+                      <Tooltip closeDelay={0} openDelay={200}>
+                        <TooltipTrigger
+                          asChild={(triggerProps) => (
+                            <Button
+                              {...(triggerProps({
+                                "aria-label": credentialTokenVisible()
+                                  ? "Hide personal access token"
+                                  : "Show personal access token",
+                                "aria-pressed": credentialTokenVisible(),
+                                class:
+                                  "game-scripts-dialog__credential-token-visibility",
+                                onClick: () =>
+                                  setCredentialTokenVisible(
+                                    (visible) => !visible,
+                                  ),
+                                size: "sm",
+                                type: "button",
+                                variant: "ghost",
+                              } as ButtonProps) as ButtonProps)}
+                            >
+                              <Icon
+                                icon={
+                                  credentialTokenVisible() ? "eye_off" : "eye"
+                                }
+                              />
+                            </Button>
+                          )}
+                        />
+                        <TooltipContent>
+                          {credentialTokenVisible()
+                            ? "Hide personal access token"
+                            : "Show personal access token"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <div class="game-scripts-dialog__credential-token-help">
+                    <span
+                      class="game-scripts-dialog__credential-field-feedback"
+                      data-invalid={
+                        credentialFormErrors().token === undefined
+                          ? undefined
+                          : ""
+                      }
+                      id={GITHUB_TOKEN_VALUE_FEEDBACK_ID}
+                    >
+                      {credentialFormErrors().token ??
+                        "Use read-only access to repository contents."}
+                    </span>
+                    <Button
+                      as="a"
+                      href={GITHUB_TOKEN_URL}
+                      rel="noopener noreferrer"
+                      size="xs"
+                      target="_blank"
+                      variant="link"
+                    >
+                      Create token on GitHub
+                      <Icon
+                        aria-hidden="true"
+                        class="game-scripts-dialog__external-link-icon"
+                        icon="arrow_up_right"
+                        size="xs"
+                      />
+                    </Button>
+                  </div>
+                </Field>
+              </DialogPanel>
+
+              <DialogFooter>
+                <Button
+                  disabled={busy()}
+                  onClick={closeCredentialEditor}
+                  type="button"
+                  variant="outline"
+                >
+                  Back
+                </Button>
+                <Button loading={busy()} type="submit">
+                  {editingCredentialId() === ""
+                    ? "Save token"
+                    : "Replace token"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Show>
+        </DialogContent>
+
+        <Show when={packageTaskOpen()}>
+          <ScriptsConfirmationDialog
+            busy={busy()}
+            error={error()}
+            onClose={closeConfirmation}
+            onConfirm={() => void runConfirmation()}
+            pending={confirmation()}
+          />
+        </Show>
+      </Dialog>
+
+      <Show when={!packageTaskOpen()}>
+        <ScriptsConfirmationDialog
+          busy={busy()}
+          error={error()}
+          onClose={closeConfirmation}
+          onConfirm={() => void runConfirmation()}
+          pending={confirmation()}
+        />
+      </Show>
     </Dialog>
   );
 }

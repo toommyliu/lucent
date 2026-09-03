@@ -40,7 +40,9 @@ export interface ButtonProps extends Omit<
   readonly href?: string;
   readonly loading?: boolean;
   readonly pending?: boolean;
+  readonly rel?: JSX.AnchorHTMLAttributes<HTMLAnchorElement>["rel"];
   readonly size?: ButtonSize;
+  readonly target?: JSX.AnchorHTMLAttributes<HTMLAnchorElement>["target"];
   readonly variant?: ButtonVariant;
 }
 
