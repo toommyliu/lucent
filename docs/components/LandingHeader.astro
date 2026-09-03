@@ -6,3 +6,81 @@ type Props = ComponentProps<typeof Header>;
 ---
 
 <Header {...Astro.props} hasSidebar={false} />
+<landing-header-controller></landing-header-controller>
+
+<style is:global>
+  body > header[data-lucent-landing-header][data-scroll-hidden] {
+    transform: translateY(calc(-100% - 1px));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    body > header[data-lucent-landing-header] {
+      transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+    }
+  }
+</style>
+
+<script>
+  /** Hides landing-page navigation after sustained downward scrolling. */
+  class LandingHeaderController extends HTMLElement {
+    #frame: number | null = null;
+    #header: HTMLElement | null = null;
+    #lastScrollY = 0;
+
+    #show = (): void => {
+      this.#header?.removeAttribute("data-scroll-hidden");
+    };
+
+    #update = (): void => {
+      this.#frame = null;
+
+      const header = this.#header;
+      if (header === null) return;
+
+      const scrollY = Math.max(window.scrollY, 0);
+      const delta = scrollY - this.#lastScrollY;
+      const hideAfter = Math.max(160, header.offsetHeight * 2);
+
+      if (scrollY <= header.offsetHeight || delta < -2) {
+        this.#show();
+      } else if (
+        scrollY >= hideAfter &&
+        delta > 2 &&
+        !header.contains(document.activeElement)
+      ) {
+        header.setAttribute("data-scroll-hidden", "");
+      }
+
+      this.#lastScrollY = scrollY;
+    };
+
+    #onScroll = (): void => {
+      if (this.#frame !== null) return;
+      this.#frame = window.requestAnimationFrame(this.#update);
+    };
+
+    connectedCallback(): void {
+      this.#header = document.querySelector("body > header");
+      if (this.#header === null) return;
+
+      this.#header.setAttribute("data-lucent-landing-header", "");
+      this.#lastScrollY = Math.max(window.scrollY, 0);
+      this.#header.addEventListener("focusin", this.#show);
+      window.addEventListener("scroll", this.#onScroll, { passive: true });
+    }
+
+    disconnectedCallback(): void {
+      window.removeEventListener("scroll", this.#onScroll);
+      this.#header?.removeEventListener("focusin", this.#show);
+      this.#header?.removeAttribute("data-lucent-landing-header");
+      this.#header?.removeAttribute("data-scroll-hidden");
+      if (this.#frame !== null) window.cancelAnimationFrame(this.#frame);
+      this.#frame = null;
+      this.#header = null;
+    }
+  }
+
+  if (!customElements.get("landing-header-controller")) {
+    customElements.define("landing-header-controller", LandingHeaderController);
+  }
+</script>
