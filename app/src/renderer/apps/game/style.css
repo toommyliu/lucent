@@ -101,6 +101,40 @@ body {
   flex: 0 0 auto;
 }
 
+.game-script-dialog.dialog__content {
+  max-width: min(30rem, calc(100vw - 2rem));
+}
+
+.game-script-dialog__description {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.game-script-dialog__source {
+  color: rgb(var(--foreground));
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.game-script-dialog__message {
+  max-height: min(10rem, 30vh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+}
+
+.game-script-dialog__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.game-script-dialog__field {
+  padding: 0 1.5rem 1.5rem;
+}
+
 #swf {
   position: fixed;
   top: var(--topnav-height, 35px);

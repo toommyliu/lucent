@@ -9,7 +9,6 @@ sidebar:
 
 ```ts
 type CombatProfileStep = {
-    readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
     readonly conditions: readonly ({
         readonly type: "self-hp" | "self-mp" | "ally-hp";
         readonly op: "<=" | ">=";
@@ -21,10 +20,11 @@ type CombatProfileStep = {
         readonly op: "<=" | ">=";
         readonly value: number;
     })[];
+    readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
     readonly priority?: boolean;
     readonly cooldownMode?: "use-if-ready" | "wait-for-cooldown";
     readonly waitMs?: number;
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L73" aria-label="Open source: packages/core/src/combatProfiles.ts:73" title="packages/core/src/combatProfiles.ts:73" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:73</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L81" aria-label="Open source: packages/core/src/combatProfiles.ts:81" title="packages/core/src/combatProfiles.ts:81" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:81</code></a></p>

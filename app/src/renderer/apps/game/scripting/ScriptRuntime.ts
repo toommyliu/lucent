@@ -17,6 +17,7 @@ import type {
 } from "./ScriptApi";
 import { playBeep } from "../audio/beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
+import type { ScriptDialogSource, ScriptDialogsShape } from "./ScriptDialogs";
 import {
   makeScriptExitSignal,
   ScriptExecutionError,
@@ -62,6 +63,7 @@ export type ScriptRuntimeOptionsUpdate = (
 ) => ScriptRuntimeOptions;
 
 export interface ScriptRuntimeApiOptions {
+  readonly dialogs: Pick<ScriptDialogsShape, "alert" | "confirm" | "prompt">;
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly inputValues: ScriptInputValues;
   readonly log: (message: unknown) => void;
@@ -69,6 +71,7 @@ export interface ScriptRuntimeApiOptions {
   readonly setOptions: (
     update: ScriptRuntimeOptionsUpdate,
   ) => Effect.Effect<ScriptRuntimeOptions>;
+  readonly source: ScriptDialogSource;
 }
 
 export interface ScriptExitActions {
@@ -97,7 +100,9 @@ export const makeScriptRuntimeApi = (
   options: ScriptRuntimeApiOptions,
 ): ScriptRuntimeApi => {
   const inputValues = snapshotScriptInputValues(options.inputValues);
+  const source = { ...options.source };
   const script: ScriptRuntimeApi = {
+    alert: (message) => options.dialogs.alert(source, message),
     beep: (times = 1) =>
       Number.isFinite(times)
         ? Effect.sync(() => playBeep(Math.max(1, Math.floor(times))))
@@ -106,6 +111,7 @@ export const makeScriptRuntimeApi = (
               detail: "script.beep requires a finite number of repetitions.",
             }),
           ),
+    confirm: (message) => options.dialogs.confirm(source, message),
     exit: (exitOptions) => Effect.fail(makeScriptExitSignal(exitOptions)),
     inputs: Object.freeze({
       get: (key: string) => {
@@ -168,6 +174,8 @@ export const makeScriptRuntimeApi = (
           safeStartStop: enabled,
         })),
     }),
+    prompt: (message, defaultValue) =>
+      options.dialogs.prompt(source, message, defaultValue),
     signal: options.scope.signal,
     sleep: (duration) =>
       Effect.try({

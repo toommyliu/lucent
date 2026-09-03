@@ -3176,8 +3176,6 @@ const renderScriptOverview = (
     "",
     GENERATED_HEADER,
     "",
-    '`require("lucent/script")` exposes lifecycle, inputs, options, logging, and other runtime utilities for the current script.',
-    "",
     "```js",
     'const script = require("lucent/script");',
     "```",

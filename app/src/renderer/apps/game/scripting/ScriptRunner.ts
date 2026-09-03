@@ -46,6 +46,7 @@ import {
 } from "./ScriptRuntime";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptFileSystemApi } from "./ScriptFileSystem";
+import { ScriptDialogs } from "./ScriptDialogs";
 import { makeScriptRuntimeServices } from "./api/Services";
 import {
   makeMoveToSafeDestination,
@@ -465,6 +466,7 @@ export const layer = Layer.effect(
     const automation = yield* Automation;
     const environment = yield* Environment;
     const bridge = yield* Bridge;
+    const dialogs = yield* ScriptDialogs;
     const {
       accountSettings,
       fileSystem: fileSystemBridge,
@@ -1053,12 +1055,14 @@ export const layer = Layer.effect(
           army.leave().pipe(Effect.catchCause(() => Effect.void)),
         );
         const script = makeScriptRuntimeApi({
+          dialogs,
           getOptions,
           inputValues: inputs,
           log: (message) => console.log("[script]", message),
           scope: scriptScope,
           setOptions: (update) =>
             setOptions(update).pipe(Effect.map((result) => result.options)),
+          source: { sourceName: statusName(file) },
         });
         const fileSystem = yield* makeScriptFileSystemApi(
           fileSystemBridge,

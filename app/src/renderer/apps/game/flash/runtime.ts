@@ -6,6 +6,7 @@ import * as Automation from "../automation/Automation";
 import * as Environment from "../environment/Environment";
 import * as SettingsPolicy from "../automation/SettingsPolicy";
 import * as Scripting from "../scripting/ScriptRunner";
+import * as ScriptDialogs from "../scripting/ScriptDialogs";
 import * as Api from "./api/Api";
 import * as Bridge from "./bridge/Bridge";
 import * as DiagnosticSink from "./bridge/DiagnosticSink";
@@ -23,6 +24,7 @@ const consumerLayer = Layer.mergeAll(
   Automation.layer,
   Army.layer,
   Environment.layer,
+  ScriptDialogs.layer,
 ).pipe(Layer.provideMerge(apiLayer));
 
 export const liveLayer = Layer.mergeAll(

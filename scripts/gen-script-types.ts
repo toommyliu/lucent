@@ -1237,6 +1237,7 @@ const validateScriptingFixture = (declarations: string): void => {
   const fixture = `
 import effect = require("effect");
 import api = require("lucent/api");
+import script = require("lucent/script");
 
 const timed = effect.pipe(
   api.inventory.contains("Potion"),
@@ -1259,6 +1260,9 @@ api.combat.killForItem("Boss", { item: "Drop", quantity: 2 });
 api.army.killForTempItem("Boss", { item: "Temporary Drop" });
 api.player.get();
 api.players.get("Artix");
+const alertEffect: Effect<void> = script.alert("Finished");
+const confirmEffect: Effect<boolean> = script.confirm("Continue?");
+const promptEffect: Effect<string | null> = script.prompt("Target", "Artix");
 
 // @ts-expect-error The old positional farming arguments are not supported.
 api.combat.killForItem("Boss", "Drop", 2);
@@ -1269,6 +1273,9 @@ effect.Effect.runPromise(timed);
 
 void milliseconds;
 void combined;
+void alertEffect;
+void confirmEffect;
+void promptEffect;
 `;
   const virtualFiles = new Map([
     [declarationPath, declarations],

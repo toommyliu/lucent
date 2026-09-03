@@ -9,12 +9,7 @@ sidebar:
 
 ```ts
 type CombatProfile = {
-    readonly id: string;
-    readonly label: string;
-    readonly delayMs: number;
-    readonly cooldownMode: "use-if-ready" | "wait-for-cooldown";
     readonly steps: readonly {
-        readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
         readonly conditions: readonly ({
             readonly type: "self-hp" | "self-mp" | "ally-hp";
             readonly op: "<=" | ">=";
@@ -26,20 +21,25 @@ type CombatProfile = {
             readonly op: "<=" | ">=";
             readonly value: number;
         })[];
+        readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
         readonly priority?: boolean;
         readonly cooldownMode?: "use-if-ready" | "wait-for-cooldown";
         readonly waitMs?: number;
     }[];
+    readonly cooldownMode: "use-if-ready" | "wait-for-cooldown";
+    readonly id: string;
+    readonly label: string;
+    readonly delayMs: number;
     readonly classNames?: readonly string[];
     readonly consumable?: string;
     readonly resetSkillIndexOnTargetDeath?: boolean;
     readonly messageTriggers?: readonly {
-        readonly messageIncludes: string;
         readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
+        readonly messageIncludes: string;
         readonly source: "aura" | "animation" | "any";
         readonly cooldownMs?: number;
     }[];
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L105" aria-label="Open source: packages/core/src/combatProfiles.ts:105" title="packages/core/src/combatProfiles.ts:105" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:105</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L113" aria-label="Open source: packages/core/src/combatProfiles.ts:113" title="packages/core/src/combatProfiles.ts:113" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:113</code></a></p>
