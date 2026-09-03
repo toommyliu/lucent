@@ -1206,6 +1206,7 @@ export function App(props: {
     phase: "loading",
     progress: 0,
   });
+  const [gameLoaderMounted, setGameLoaderMounted] = createSignal(true);
   const loadRecoveryTimer = window.setTimeout(() => {
     setLoadState((state) =>
       state.phase === "loading"
@@ -4996,62 +4997,73 @@ export function App(props: {
         />
       </Show>
 
-      <section
-        id="loader-container"
-        class="game-loader"
-        classList={{ "game-loader--hidden": gameLoaded() }}
-        aria-busy={gameLoaded() ? undefined : "true"}
-        aria-hidden={gameLoaded() ? "true" : undefined}
-      >
-        <div class="game-loader__content">
-          <Spinner class="game-loader__spinner" size="xl" />
-          <span
-            aria-label="Game loading progress"
-            aria-valuemax="100"
-            aria-valuemin="0"
-            aria-valuenow={progress()}
-            class="game-loader__progress"
-            role="progressbar"
-          >
-            {progress()}%
-          </span>
-          <Show when={gameLoadDelayed()}>
-            <div class="game-loader__recovery">
-              <div class="game-loader__recovery-copy">
-                <strong class="game-loader__recovery-title">
-                  Still loading...
-                </strong>
-                <span
-                  class="game-loader__recovery-description"
-                  id="game-load-recovery-description"
+      <Show when={gameLoaderMounted()}>
+        <section
+          id="loader-container"
+          class="game-loader"
+          classList={{ "game-loader--hidden": gameLoaded() }}
+          aria-busy={gameLoaded() ? undefined : "true"}
+          aria-hidden={gameLoaded() ? "true" : undefined}
+          onTransitionEnd={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              event.propertyName === "opacity" &&
+              gameLoaded()
+            ) {
+              setGameLoaderMounted(false);
+            }
+          }}
+        >
+          <div class="game-loader__content">
+            <Spinner class="game-loader__spinner" size="xl" />
+            <span
+              aria-label="Game loading progress"
+              aria-valuemax="100"
+              aria-valuemin="0"
+              aria-valuenow={progress()}
+              class="game-loader__progress"
+              role="progressbar"
+            >
+              {progress()}%
+            </span>
+            <Show when={gameLoadDelayed()}>
+              <div class="game-loader__recovery">
+                <div class="game-loader__recovery-copy">
+                  <strong class="game-loader__recovery-title">
+                    Still loading...
+                  </strong>
+                  <span
+                    class="game-loader__recovery-description"
+                    id="game-load-recovery-description"
+                  >
+                    {gameLoadRecoveryError() ||
+                      "The game is taking longer than expected. You can keep waiting or reload it."}
+                  </span>
+                </div>
+                <Button
+                  aria-describedby="game-load-recovery-description"
+                  loading={gameLoadRecoveryPending()}
+                  onClick={() => void reloadGameAfterLoadStall()}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
                 >
-                  {gameLoadRecoveryError() ||
-                    "The game is taking longer than expected. You can keep waiting or reload it."}
-                </span>
+                  {activeAccountLaunchPayload()?.script === undefined
+                    ? "Reload game"
+                    : "Reload without script"}
+                </Button>
               </div>
-              <Button
-                aria-describedby="game-load-recovery-description"
-                loading={gameLoadRecoveryPending()}
-                onClick={() => void reloadGameAfterLoadStall()}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                {activeAccountLaunchPayload()?.script === undefined
-                  ? "Reload game"
-                  : "Reload without script"}
-              </Button>
-            </div>
-          </Show>
-        </div>
-      </section>
+            </Show>
+          </div>
+        </section>
 
-      <VisuallyHidden aria-atomic="true" role="status">
-        {gameLoadRecoveryError() ||
-          (gameLoadDelayed()
-            ? "Still loading. The game is taking longer than expected. You can keep waiting or reload it."
-            : "")}
-      </VisuallyHidden>
+        <VisuallyHidden aria-atomic="true" role="status">
+          {gameLoadRecoveryError() ||
+            (gameLoadDelayed()
+              ? "Still loading. The game is taking longer than expected. You can keep waiting or reload it."
+              : "")}
+        </VisuallyHidden>
+      </Show>
 
       <section
         id="game-container"
