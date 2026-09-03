@@ -57,7 +57,7 @@ export function ScriptQueueList<T>(
     get enabled() {
       return props.active && mounted();
     },
-    estimateSize: () => 52,
+    estimateSize: () => 40,
     get getItemKey() {
       return itemKey();
     },

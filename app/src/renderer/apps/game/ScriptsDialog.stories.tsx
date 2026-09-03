@@ -569,6 +569,7 @@ function ScriptsDialogStory(props: {
         onToggleScript={() => {
           setScriptRunning((current) => !current);
         }}
+        loggedIn={true}
         open={open()}
         optionsReady={fixture.optionsReady ?? true}
         optionsSaveStatus={fixture.optionsSaveStatus ?? "idle"}

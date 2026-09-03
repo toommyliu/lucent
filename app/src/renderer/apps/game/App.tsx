@@ -1355,6 +1355,7 @@ export function App(props: {
   const [gameLoadRecoveryPending, setGameLoadRecoveryPending] =
     createSignal(false);
   const platformLabel = createMemo(() => props.platform);
+  const [playerLoggedIn, setPlayerLoggedIn] = createSignal(false);
   const [playerReady, setPlayerReady] = createSignal(false);
   const scriptReady = createMemo(() => playerReady() && scriptSettingsReady());
   let autoAttackToggleInFlight = false;
@@ -2070,6 +2071,7 @@ export function App(props: {
       if (!accountSessionTracker.markOnline(identityEpoch, username)) {
         return false;
       }
+      setPlayerLoggedIn(true);
       const settingsBound = await bindScriptSettingsForAccount(username);
       if (
         version !== playerReadyRefreshVersion ||
@@ -3362,6 +3364,7 @@ export function App(props: {
       );
       accountSessionTracker.disconnected();
       stopPlayerReadyRetry();
+      setPlayerLoggedIn(false);
       setPlayerReady(false);
       clearScriptSettingsBinding();
       resetTravelOptions();
@@ -4169,6 +4172,7 @@ export function App(props: {
               ) {
                 accountSessionTracker.disconnected();
                 stopPlayerReadyRetry();
+                setPlayerLoggedIn(false);
                 setPlayerReady(false);
                 clearScriptSettingsBinding();
                 resetTravelOptions();
@@ -4359,6 +4363,7 @@ export function App(props: {
       schedulePlayerReadyRefresh({ retry: true });
     } else {
       stopPlayerReadyRetry();
+      setPlayerLoggedIn(false);
       setPlayerReady(false);
       clearScriptSettingsBinding();
     }
@@ -4704,6 +4709,7 @@ export function App(props: {
         onToggleRestartAfterReconnect={handleToggleScriptRestartAfterReconnect}
         onToggleSafeStartStop={handleToggleScriptSafeStartStop}
         onToggleScript={toggleScript}
+        loggedIn={playerLoggedIn()}
         open={scriptsDialogOpen()}
         optionsReady={scriptReady()}
         optionsSaveStatus={scriptOptionsSaveStatus()}

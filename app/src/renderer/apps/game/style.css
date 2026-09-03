@@ -1453,6 +1453,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   --game-scripts-dialog-body-padding-block-start: 0.625rem;
   --game-scripts-dialog-body-padding-inline: 1rem;
   --game-scripts-dialog-package-tail-width: 8.75rem;
+  --game-scripts-dialog-scrollbar-leading-inset: 0.375rem;
   --game-scripts-dialog-section-gap: 0.625rem;
   --game-scripts-dialog-section-padding-block: 0.75rem;
   --game-scripts-dialog-section-padding-inline: 0.75rem;
@@ -1461,7 +1462,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   max-width: min(64rem, calc(100vw - 2rem));
 }
 
-.game-scripts-dialog.dialog__content[data-nested-dialog-open] {
+.game-scripts-dialog.dialog__content[data-nested-dialog-open],
+.game-scripts-dialog__package-task-dialog.dialog__content[data-nested-dialog-open] {
   opacity: 1;
   transform: none;
 }
@@ -1598,6 +1600,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   font-size: var(--text-sm);
   height: var(--control-height-md);
   padding-inline: 0.75rem;
+}
+
+.game-scripts-dialog__queue-count.badge {
+  font-variant-numeric: tabular-nums;
 }
 
 .game-scripts-dialog__tab-content.tabs__content {
@@ -1796,7 +1802,9 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   border-radius: var(--radius-md);
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  padding-inline-start: var(--game-scripts-dialog-scrollbar-leading-inset);
   position: relative;
 }
 
@@ -1828,17 +1836,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   gap: 0.75rem;
   grid-template-columns: minmax(0, 1fr) auto;
   inset: 0 0 auto;
+  isolation: isolate;
   padding: 0.375rem var(--game-scripts-dialog-section-padding-inline);
   position: absolute;
   width: 100%;
-}
-
-.game-scripts-dialog__script-row:not([data-last]) {
-  border-bottom: 1px solid rgba(var(--border), 0.75);
-}
-
-.game-scripts-dialog__script-row[data-selected] {
-  background: rgba(var(--primary), 0.07);
 }
 
 .game-scripts-dialog__script-row--loading
@@ -1914,6 +1915,12 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   white-space: nowrap;
 }
 
+.game-scripts-dialog__script-open-icon {
+  color: rgb(var(--muted-foreground));
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
 .game-scripts-dialog__script-context {
   color: rgb(var(--muted-foreground));
   display: inline-block;
@@ -1933,9 +1940,29 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-scripts-dialog__script-path:hover
+  .game-scripts-dialog__script-name,
+.game-scripts-dialog__script-path:focus-visible
   .game-scripts-dialog__script-name {
   text-decoration: underline;
   text-underline-offset: 0.2rem;
+}
+
+.game-scripts-dialog__script-path:focus-visible
+  .game-scripts-dialog__script-open-icon {
+  opacity: 0.8;
+}
+
+@media (hover: hover) {
+  .game-scripts-dialog__script-path:hover
+    .game-scripts-dialog__script-open-icon {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .game-scripts-dialog__script-open-icon {
+    transition: opacity 120ms ease-out;
+  }
 }
 
 .game-scripts-dialog__script-path:focus-visible {
@@ -1949,6 +1976,15 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   flex-wrap: wrap;
   gap: 0.375rem;
   justify-content: flex-end;
+}
+
+.game-scripts-dialog__queue-add.button {
+  min-width: 6rem;
+}
+
+.game-scripts-dialog__queue-add.button[data-added] {
+  color: rgb(var(--success-foreground));
+  opacity: 1;
 }
 
 .game-scripts-dialog__queue[data-selected] {
@@ -1996,8 +2032,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   border-radius: var(--radius-md);
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
   overscroll-behavior: contain;
+  padding-inline-start: var(--game-scripts-dialog-scrollbar-leading-inset);
 }
 
 .game-scripts-dialog__queue-viewport:focus-visible {
@@ -2019,14 +2057,10 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
     max(1.5rem, var(--game-scripts-dialog-queue-position-width))
     minmax(0, 1fr) auto;
   inset-inline: 0;
-  min-height: 3.25rem;
+  min-height: 2.5rem;
   padding: 0.375rem var(--game-scripts-dialog-section-padding-inline);
   position: absolute;
   top: 0;
-}
-
-.game-scripts-dialog__queue-row:not([data-index="0"]) {
-  border-top: 1px solid rgba(var(--border), 0.75);
 }
 
 .game-scripts-dialog__queue-row[data-attention] {
@@ -2044,19 +2078,34 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-scripts-dialog__queue-copy {
-  display: grid;
+  align-items: baseline;
+  display: flex;
+  gap: 0.5rem;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .game-scripts-dialog__queue-name {
+  flex: 0 1 auto;
   font-size: var(--text-sm);
   font-weight: 500;
-  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.game-scripts-dialog__queue-path {
+.game-scripts-dialog__queue-path-tooltip {
+  max-width: min(28rem, calc(100vw - 2rem));
+  overflow-wrap: break-word;
+}
+
+.game-scripts-dialog__queue-status {
   color: rgb(var(--muted-foreground));
+  flex: 1 1 auto;
   font-size: var(--text-xs);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2159,14 +2208,13 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   display: flex;
   flex: 0 0 auto;
   gap: 0.375rem;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .game-scripts-dialog__package-update-spinner {
   flex-shrink: 0;
   height: 0.875rem;
-  margin-left: -0.125rem;
-  margin-right: -0.125rem;
+  margin-inline: -0.125rem;
   width: 0.875rem;
 }
 
@@ -2177,77 +2225,62 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   width: 0.875rem;
 }
 
-.game-scripts-dialog__breadcrumb {
-  align-items: center;
+.game-scripts-dialog__package-task-dialog.dialog__content {
+  border-color: rgba(var(--foreground), 0.16);
+  box-shadow:
+    0 12px 32px rgba(var(--black), 0.2),
+    var(--shadow-sm);
+  max-width: min(32rem, calc(100vw - 2rem));
+}
+
+.game-scripts-dialog__package-task-header.dialog__header {
+  flex: 0 0 auto;
+  padding-inline-end: 3rem;
+}
+
+.game-scripts-dialog__package-task-dialog .dialog__footer {
+  flex: 0 0 auto;
+}
+
+.game-scripts-dialog__package-task-form {
   display: flex;
-  gap: 0.375rem;
-  height: var(--control-height-sm);
-  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.game-scripts-dialog__breadcrumb-link {
-  font-size: var(--text-sm);
+.game-scripts-dialog__package-task-panel.dialog__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overscroll-behavior: contain;
 }
 
-.game-scripts-dialog__breadcrumb-back-icon {
-  flex: 0 0 auto;
+.game-scripts-dialog__package-task-form
+  > .game-scripts-dialog__package-task-panel {
+  flex: 1 1 auto;
 }
 
-.game-scripts-dialog__breadcrumb-separator {
-  color: rgb(var(--muted-foreground));
-  flex: 0 0 auto;
-  opacity: 0.48;
-}
-
-.game-scripts-dialog__section-heading
-  .game-scripts-dialog__breadcrumb-current {
-  color: rgb(var(--foreground));
-  font-size: var(--text-sm);
-  font-weight: 500;
-  line-height: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.game-scripts-dialog__package-task-error.alert {
+  margin: 0 1.5rem 1rem;
 }
 
 .game-scripts-dialog__install-fields,
 .game-scripts-dialog__credential-editor-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.25rem;
   min-height: 0;
   width: 100%;
 }
 
-.game-scripts-dialog__install-back.button {
-  align-self: flex-start;
-}
-
-.game-scripts-dialog__install-heading {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
-  min-width: 0;
-  width: 100%;
-}
-
-.game-scripts-dialog__install-heading h2,
-.game-scripts-dialog__credential-editor-title {
-  color: rgb(var(--foreground));
-  font-size: var(--text-base);
-  font-weight: 500;
-  line-height: 1.25;
-  margin: 0;
-}
-
 .game-scripts-dialog__install-options {
-  border-left: 1px solid rgb(var(--border));
+  border-inline-start: 1px solid rgb(var(--border));
   display: grid;
   gap: 0.875rem;
-  margin-left: 0.5rem;
-  padding: 0.25rem 0 0.25rem 0.875rem;
+  margin-inline-start: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline-start: 0.875rem;
 }
 
 .game-scripts-dialog__repository-field {
@@ -2266,7 +2299,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   font-size: var(--text-xs);
   line-height: 1.35;
   overflow-wrap: anywhere;
-  padding-inline: 0.75rem;
 }
 
 .game-scripts-dialog__repository-feedback .button {
@@ -2283,19 +2315,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   width: 100%;
 }
 
-.game-scripts-dialog__install,
-.game-scripts-dialog__credential-editor {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin: -0.375rem -0.375rem 0;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 0.375rem 0.375rem 0.5rem;
-}
-
 .game-scripts-dialog__install-fields .form-field .label,
 .game-scripts-dialog__credential-editor-body .form-field .label {
   font-size: var(--text-xs);
@@ -2307,6 +2326,11 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   justify-content: flex-start;
 }
 
+.game-scripts-dialog__install-options-optional {
+  color: rgb(var(--muted-foreground));
+  font-weight: 400;
+}
+
 .game-scripts-dialog__install-options-icon {
   transition: transform 160ms ease-out;
 }
@@ -2315,16 +2339,12 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   transform: rotate(90deg);
 }
 
-.game-scripts-dialog__install-actions,
-.game-scripts-dialog__credential-editor-actions {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  padding-top: 0.125rem;
-  width: 100%;
+.game-scripts-dialog__install-options-hint {
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .game-scripts-dialog__credential-select,
@@ -2356,7 +2376,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-scripts-dialog__credential-option.select__item {
-  padding-right: 1.5rem;
+  padding-inline-end: 1.5rem;
 }
 
 .game-scripts-dialog__credential-option-copy {
@@ -2373,19 +2393,14 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 }
 
 .game-scripts-dialog__credential-field-footer {
+  align-items: center;
   color: rgb(var(--muted-foreground));
-  font-size: var(--text-xs);
-  line-height: 1.35;
-}
-
-.game-scripts-dialog__credential-manager {
   display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.game-scripts-dialog__credential-editor-body {
-  overflow: visible;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  gap: 0.375rem 0.75rem;
+  justify-content: space-between;
+  line-height: 1.35;
 }
 
 .game-scripts-dialog__credential-manager-body {
@@ -2395,23 +2410,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   min-height: 0;
   overflow: auto;
   width: 100%;
-}
-
-.game-scripts-dialog__credential-manager[data-editor-open]
-  .game-scripts-dialog__credential-manager-body {
-  overflow: visible;
-}
-
-.game-scripts-dialog__credential-editor-heading {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.game-scripts-dialog__credential-view-description {
-  color: rgb(var(--muted-foreground));
-  font-size: var(--text-xs);
-  line-height: 1.35;
-  margin: 0;
 }
 
 .game-scripts-dialog__credential-token-help {
@@ -2425,9 +2423,15 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   line-height: 1.35;
 }
 
-.game-scripts-dialog__credential-token-field {
-  display: grid;
-  gap: 0.25rem;
+.game-scripts-dialog__credential-field-feedback {
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.game-scripts-dialog__credential-field-feedback[data-invalid] {
+  color: rgb(var(--destructive));
 }
 
 .game-scripts-dialog__credential-token-control {
@@ -2436,7 +2440,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
 .game-scripts-dialog__credential-token-addon {
   min-height: 0;
-  padding-right: 0.5rem;
+  padding-inline-end: 0.5rem;
 }
 
 .game-scripts-dialog__credential-token-visibility.button {
@@ -2462,11 +2466,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 .game-scripts-dialog__credential-token-visibility.button svg {
   height: 0.9375rem;
   width: 0.9375rem;
-}
-
-.game-scripts-dialog__credential-token-link.button {
-  border-radius: 9999px;
-  flex: 0 0 auto;
 }
 
 .game-scripts-dialog__credential-manager-empty {
@@ -2513,7 +2512,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   gap: 0.75rem;
   justify-content: space-between;
   min-height: 2.5rem;
-  padding: 0.375rem var(--game-scripts-dialog-section-padding-inline);
+  padding-block: 0.375rem;
+  padding-inline: 0.75rem;
 }
 
 .game-scripts-dialog__credential-manager-row
@@ -2536,14 +2536,20 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   white-space: nowrap;
 }
 
+.game-scripts-dialog__token-manager-add {
+  margin-inline-end: auto;
+}
+
 .game-scripts-dialog__package-list {
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-md);
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   max-height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
   overscroll-behavior: contain;
+  padding-inline-start: var(--game-scripts-dialog-scrollbar-leading-inset);
 }
 
 .game-scripts-dialog__package-row {
@@ -2559,26 +2565,86 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   gap: 0.75rem;
   grid-template-columns:
     minmax(0, 1fr) var(--game-scripts-dialog-package-tail-width);
+  isolation: isolate;
   min-height: 2.5rem;
   outline: none;
   padding: 0.375rem var(--game-scripts-dialog-section-padding-inline);
+  position: relative;
   text-align: left;
-  transition: background-color 120ms ease-out;
   width: 100%;
 }
 
-.game-scripts-dialog__package-row + .game-scripts-dialog__package-row {
-  border-top: 1px solid rgba(var(--border), 0.75);
+.game-scripts-dialog__script-row::before,
+.game-scripts-dialog__package-row::before {
+  border-radius: var(--radius-lg);
+  content: "";
+  inset-block: 0.125rem;
+  inset-inline: 0.25rem;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
 }
 
-.game-scripts-dialog__package-row:hover {
+.game-scripts-dialog__script-row > *,
+.game-scripts-dialog__package-row > * {
+  position: relative;
+  z-index: 1;
+}
+
+.game-scripts-dialog__script-row:not([data-last])::after,
+.game-scripts-dialog__package-row:not(:last-child)::after,
+.game-scripts-dialog__queue-row:not([data-index="0"])::after {
+  background: rgba(var(--border), 0.75);
+  block-size: 1px;
+  content: "";
+  inset-inline: var(--game-scripts-dialog-section-padding-inline);
+  pointer-events: none;
+  position: absolute;
+}
+
+.game-scripts-dialog__script-row:not([data-last])::after,
+.game-scripts-dialog__package-row:not(:last-child)::after {
+  inset-block-end: 0;
+}
+
+.game-scripts-dialog__queue-row:not([data-index="0"])::after {
+  inset-block-start: 0;
+}
+
+.game-scripts-dialog__script-row:not(
+    .game-scripts-dialog__script-row--loading
+  ):focus-within::before,
+.game-scripts-dialog__package-row:focus-visible::before {
   background: rgba(var(--accent), 0.56);
 }
 
-.game-scripts-dialog__package-row:focus-visible {
+.game-scripts-dialog__package-row:focus-visible::before {
   box-shadow: inset 0 0 0 2px rgba(var(--ring), 0.52);
-  position: relative;
+}
+
+.game-scripts-dialog__script-row[data-selected]::before {
+  background: rgba(var(--primary), 0.07);
+}
+
+.game-scripts-dialog__package-row:focus-visible {
   z-index: 1;
+}
+
+@media (hover: hover) {
+  .game-scripts-dialog__script-row:not(
+      .game-scripts-dialog__script-row--loading,
+      [data-selected]
+    ):hover::before,
+  .game-scripts-dialog__package-row:hover::before {
+    background: rgba(var(--accent), 0.56);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .game-scripts-dialog__script-row::before,
+  .game-scripts-dialog__package-row::before {
+    transition: background-color 120ms ease-out;
+  }
 }
 
 .game-scripts-dialog__package-title {
@@ -2633,10 +2699,12 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   transition: transform 120ms ease-out;
 }
 
-.game-scripts-dialog__package-row:hover
-  .game-scripts-dialog__package-row-tail
-  > svg {
-  transform: translateX(1px);
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .game-scripts-dialog__package-row:hover
+    .game-scripts-dialog__package-row-tail
+    > svg {
+    transform: translateX(1px);
+  }
 }
 
 .game-scripts-dialog__package-row-tail[data-tone="success"] {
@@ -2852,17 +2920,8 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   text-overflow: ellipsis;
 }
 
-.game-scripts-dialog__package-source-repository.button
-  .game-scripts-dialog__package-source-open-icon {
-  color: rgb(var(--muted-foreground));
-  opacity: 0;
-  transition: opacity var(--duration-fast) ease;
-}
-
-.game-scripts-dialog__package-source-repository.button:hover
-  .game-scripts-dialog__package-source-open-icon,
-.game-scripts-dialog__package-source-repository.button:focus-visible
-  .game-scripts-dialog__package-source-open-icon {
+.game-scripts-dialog__external-link-icon {
+  flex: 0 0 auto;
   opacity: 0.72;
 }
 
@@ -3583,11 +3642,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-
-  .game-scripts-dialog__breadcrumb {
-    flex: 1 1 100%;
-  }
-
 }
 
 @media (max-height: 480px) {
@@ -3605,7 +3659,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
   .game-scripts-dialog__tabs > .tabs__list {
     margin-top: 0.25rem;
   }
-
 }
 
 @media (max-height: 480px) and (min-width: 481px) {
@@ -3721,7 +3774,7 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
 
   .game-scripts-dialog__package-toolbar-actions {
     align-self: flex-end;
-    margin-left: 0;
+    margin-inline-start: 0;
   }
 
   .game-scripts-dialog__package-details-heading {
@@ -3738,11 +3791,6 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
     justify-self: start;
   }
 
-  .game-scripts-dialog__install-heading {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
   .game-scripts-dialog__package-detail-row {
     align-items: start;
     gap: 0.25rem;
@@ -3754,20 +3802,34 @@ body[data-inert] .game-topnav__menu-portal .select__positioner {
     flex-direction: column;
   }
 
-  .game-scripts-dialog__package-detail-actions .button,
-  .game-scripts-dialog__install-actions .button {
+  .game-scripts-dialog__package-detail-actions .button {
     width: 100%;
   }
 
-  .game-scripts-dialog__credential-editor-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
-    gap: 0.5rem;
+  .game-scripts-dialog__package-task-dialog .dialog__header,
+  .game-scripts-dialog__package-task-dialog .dialog__footer {
+    padding: 1rem;
   }
 
-  .game-scripts-dialog__credential-editor-actions .button {
-    flex: none;
-    width: 100%;
+  .game-scripts-dialog__package-task-dialog .dialog__panel {
+    padding: 0 1rem 1rem;
+  }
+
+  .game-scripts-dialog__package-task-dialog .dialog__footer {
+    flex-wrap: wrap;
+  }
+
+  .game-scripts-dialog__package-task-dialog .dialog__footer > .button {
+    flex: 1 1 auto;
+  }
+
+  .game-scripts-dialog__package-task-error.alert {
+    margin: 0 1rem 1rem;
+  }
+
+  .game-scripts-dialog__credential-field-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .game-scripts-dialog__room-policy-select {
