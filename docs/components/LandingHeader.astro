@@ -39,7 +39,7 @@ type Props = ComponentProps<typeof Header>;
 
       const scrollY = Math.max(window.scrollY, 0);
       const delta = scrollY - this.#lastScrollY;
-      const hideAfter = Math.max(160, header.offsetHeight * 2);
+      const hideAfter = Math.max(128, header.offsetHeight * 1.5);
 
       if (scrollY <= header.offsetHeight || delta < -2) {
         this.#show();

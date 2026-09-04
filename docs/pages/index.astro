@@ -15,18 +15,34 @@ const latestReleaseUrl = `${releasesUrl}/latest`;
 const latestAssetsUrl = `${latestReleaseUrl}#assets`;
 const guidesUrl = withBase("/guides");
 const iconUrl = withBase("/icon.svg");
-const screenshotUrl = withBase("/screenshots/lucent-overview.png");
-const screenshotAlt =
+const overviewScreenshotUrl = withBase("/screenshots/lucent-overview.webp");
+const workspaceScreenshotUrl = withBase("/screenshots/lucent-workspace.png");
+const accountManagerScreenshotUrl = withBase("/screenshots/account-manager.webp");
+const overviewScreenshotAlt =
   "Lucent with tabbed accounts, mixed rendering modes, and group controls open";
+const workspaceScreenshotAlt =
+  "Lucent running AQW alongside the Combat Profiles and Environment windows, with a Relic of Chaos drop ready to accept";
 const galleryItems = [
-  { alt: screenshotAlt, label: "Tabbed windows", src: screenshotUrl },
-  { alt: screenshotAlt, label: "Group controls", src: screenshotUrl },
   {
-    alt: screenshotAlt,
-    label: "Interface-only rendering",
-    src: screenshotUrl,
+    alt: overviewScreenshotAlt,
+    label: "Tabbed windows",
+    src: overviewScreenshotUrl,
   },
-  { alt: screenshotAlt, label: "Minimal rendering", src: screenshotUrl },
+  {
+    alt: workspaceScreenshotAlt,
+    label: "Automation workspace",
+    src: workspaceScreenshotUrl,
+  },
+  {
+    alt: overviewScreenshotAlt,
+    label: "Account manager",
+    src: accountManagerScreenshotUrl,
+  },
+  {
+    alt: overviewScreenshotAlt,
+    label: "Minimal rendering",
+    src: overviewScreenshotUrl,
+  },
 ] as const;
 const layout = { Header: LandingHeader, Search };
 const siteBase = config.site?.replace(/\/$/u, "") ?? null;
@@ -216,13 +232,14 @@ const ogImage =
         <img
           alt={galleryItems[0].alt}
           data-gallery-image
+          data-no-zoom
           decoding="async"
           draggable="false"
-          height="967"
+          height="942"
           id="gallery-image"
           loading="eager"
           src={galleryItems[0].src}
-          width="1481"
+          width="1392"
         />
       </div>
 
@@ -293,6 +310,8 @@ const ogImage =
   }
 
   #lucent-landing .landing-hero {
+    position: relative;
+    z-index: 10;
     max-width: 40rem;
   }
 
@@ -527,13 +546,9 @@ const ogImage =
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 1481 / 967;
+    aspect-ratio: 1392 / 942;
     object-fit: cover;
     user-select: none;
-  }
-
-  body:has(#lucent-landing) > .cursor-zoom-out > img.shadow-2xl {
-    box-shadow: none;
   }
 
   #lucent-landing .landing-gallery-selector {
@@ -699,6 +714,45 @@ const ogImage =
   }
 
   @media (prefers-reduced-motion: no-preference) {
+    @keyframes landing-enter {
+      from {
+        opacity: 0;
+        transform: translateY(0.375rem);
+      }
+    }
+
+    #lucent-landing
+      :is(
+        .landing-lockup,
+        h1,
+        .landing-intro,
+        .landing-actions,
+        .landing-note,
+        .landing-gallery
+      ) {
+      animation: landing-enter 400ms cubic-bezier(0.2, 0, 0, 1) both;
+    }
+
+    #lucent-landing h1 {
+      animation-delay: 50ms;
+    }
+
+    #lucent-landing .landing-intro {
+      animation-delay: 100ms;
+    }
+
+    #lucent-landing .landing-actions {
+      animation-delay: 150ms;
+    }
+
+    #lucent-landing .landing-note {
+      animation-delay: 190ms;
+    }
+
+    #lucent-landing .landing-gallery {
+      animation-delay: 230ms;
+    }
+
     #lucent-landing .landing-download-group > a,
     #lucent-landing .landing-download-group > details > summary,
     #lucent-landing .landing-download-menu a,
@@ -736,6 +790,12 @@ const ogImage =
         .landing-gallery-selector button
       ):active {
       scale: 0.96;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    #lucent-landing {
+      width: min(72rem, calc(100vw - 2.5rem));
     }
   }
 
