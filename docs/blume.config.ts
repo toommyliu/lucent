@@ -221,6 +221,11 @@ export default defineConfig({
     ],
   },
   redirects,
+  seo: {
+    og: {
+      logo: "/icon.svg",
+    },
+  },
   theme: {
     fonts: {
       body: "inter",
