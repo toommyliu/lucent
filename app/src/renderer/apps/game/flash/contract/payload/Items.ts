@@ -10,6 +10,12 @@ import {
   WireNumber,
 } from "../Coercion";
 
+const MergeRequirementPayload = Schema.Struct({
+  ItemID: PositiveWireInt,
+  sName: Schema.optionalKey(Schema.String),
+  iQty: PositiveWireInt,
+});
+
 export const ItemFields = {
   ItemID: PositiveWireInt,
   CharItemID: Schema.optionalKey(PositiveWireInt),
@@ -35,6 +41,8 @@ export const ItemFields = {
   iEnh: Schema.optionalKey(WireInt),
   iLvl: Schema.optionalKey(NonNegativeWireInt),
   iQty: Schema.optionalKey(WireInt),
+  iStk: Schema.optionalKey(NonNegativeWireInt),
+  turnin: Schema.optionalKey(Schema.Array(MergeRequirementPayload)),
   iQtyNow: Schema.optionalKey(WireInt),
   sDesc: Schema.optionalKey(Schema.String),
   sES: Schema.optionalKey(Schema.String),
@@ -121,6 +129,19 @@ export const toItem = (
     houseItem,
     itemId: payload.ItemID,
     link: payload.sLink ?? defaults.link ?? "",
+    ...(payload.iStk === undefined
+      ? defaults.maxStack === undefined
+        ? {}
+        : { maxStack: defaults.maxStack }
+      : { maxStack: Math.max(1, payload.iStk) }),
+    mergeRequirements:
+      payload.turnin?.map((item) => ({
+        itemId: item.ItemID,
+        name: item.sName ?? `Item ${item.ItemID}`,
+        quantity: item.iQty,
+      })) ??
+      defaults.mergeRequirements ??
+      [],
     memberOnly: payload.bUpg ?? defaults.memberOnly ?? false,
     meta: payload.sMeta ?? defaults.meta ?? "",
     name: payload.sName ?? defaults.name ?? `Item ${payload.ItemID}`,

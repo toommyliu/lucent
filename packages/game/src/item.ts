@@ -124,6 +124,12 @@ export const normalizeItemQuantity = (value: number | undefined): number =>
     ? 1
     : Math.max(1, Math.trunc(value));
 
+export interface ItemRequirement {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
+}
+
 export interface Item {
   readonly armor: boolean;
   readonly banked: boolean;
@@ -145,6 +151,9 @@ export interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
+  /** Materials consumed per shop batch. */
+  readonly mergeRequirements: readonly ItemRequirement[];
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
@@ -173,6 +182,8 @@ export interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  maxStack?: number;
+  mergeRequirements?: readonly ItemRequirement[];
   memberOnly: boolean;
   meta: string;
   name: string;
@@ -253,6 +264,12 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   }
   get link(): string {
     return this.modelData.link;
+  }
+  get maxStack(): number | undefined {
+    return this.modelData.maxStack;
+  }
+  get mergeRequirements(): readonly ItemRequirement[] {
+    return this.modelData.mergeRequirements ?? [];
   }
   get memberOnly(): boolean {
     return this.modelData.memberOnly;

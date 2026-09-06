@@ -5,6 +5,7 @@ export interface QuestItem {
   readonly name: string;
   readonly quantity: number;
   readonly temporaryItem?: boolean;
+  readonly maxStack?: number;
 }
 
 export interface QuestReward extends QuestItem {
