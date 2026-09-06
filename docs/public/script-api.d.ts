@@ -833,6 +833,8 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
+  readonly mergeRequirements: readonly ItemRequirement[];
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
@@ -1311,6 +1313,8 @@ interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  maxStack?: number;
+  mergeRequirements?: readonly ItemRequirement[];
   memberOnly: boolean;
   meta: string;
   name: string;
@@ -1336,6 +1340,11 @@ interface Enhancement {
   readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
+}
+interface ItemRequirement {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
 }
 interface ItemSelectorById {
   readonly itemId: number;
@@ -1459,6 +1468,7 @@ interface QuestItem {
   readonly name: string;
   readonly quantity: number;
   readonly temporaryItem?: boolean;
+  readonly maxStack?: number;
 }
 interface QuestReward extends QuestItem {
   readonly dropChance?: number;
@@ -1504,6 +1514,9 @@ interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
+  /** Materials consumed per shop batch. */
+  readonly mergeRequirements: readonly ItemRequirement[];
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
