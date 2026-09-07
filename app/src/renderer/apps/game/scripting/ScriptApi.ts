@@ -666,11 +666,6 @@ export interface ScriptEnhanceItemOptions {
 }
 
 export interface ScriptRecipesApi {
-  /** @param toBank Whether to send wheel rewards to the bank. */
-  readonly doWheelOfDoom: (
-    /** @defaultValue false */
-    toBank?: boolean,
-  ) => Effect.Effect<boolean>;
   readonly ensureLifeSteal: (quantity: number) => Effect.Effect<boolean>;
   readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
 }

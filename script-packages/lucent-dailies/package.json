@@ -1,0 +1,10 @@
+{
+  "name": "@lucent/dailies",
+  "version": "0.0.1",
+  "description": "Daily and recurring AdventureQuest Worlds activities for Lucent.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "lucent": {
+    "version": ">=0.0.1 <0.1.0"
+  }
+}
