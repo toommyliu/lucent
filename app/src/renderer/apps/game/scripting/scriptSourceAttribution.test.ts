@@ -37,7 +37,7 @@ describe("script source attribution", () => {
       ).toBe("error.js:2:9: hello world");
       expect(
         attributedScriptErrorMessage(
-          new Error("lucent-script://loose/error.js?v=abc:2:9: hello world"),
+          new Error("lucent-script://loose/error.js?v=abc:5:9: hello world"),
         ),
       ).toBe("error.js:2:9: hello world");
     } finally {
@@ -52,6 +52,35 @@ describe("script source attribution", () => {
       ),
     ).toMatchObject({ displayPath: "error.js", line: 2, column: 9 });
   });
+
+  it.each(["loose/my(script).js", "package/%40a%2Fb/lib/my(script).js"])(
+    "preserves parentheses in %s without retaining revisions or consuming stack delimiters",
+    (identity) => {
+      const url = `lucent-script://${identity}?v=abc`;
+      const path = identity.startsWith("loose/")
+        ? "my(script).js"
+        : "@a/b/lib/my(script).js";
+      const stack = `Error: boom\n    at run (${url}:5:9)`;
+      expect(displayScriptSourceText(stack)).toBe(
+        `Error: boom\n    at run (${path}:5:9)`,
+      );
+      expect(displayScriptSourceText(`Import failed: ${url}`)).toBe(
+        `Import failed: ${path}`,
+      );
+      expect(firstScriptSourceFrame(stack)).toEqual({
+        url,
+        displayPath: path,
+        line: 2,
+        column: 9,
+      });
+      expect(attributedScriptErrorMessage(new Error(`${url}:5:9: boom`))).toBe(
+        `${path}:2:9: boom`,
+      );
+      expect(displayScriptSourceText(normalizeScriptSourceStack(stack))).toBe(
+        `Error: boom\n    at run (${path}:2:9)`,
+      );
+    },
+  );
 
   it("maps CommonJS wrapper lines back to package source", () => {
     const stack = [

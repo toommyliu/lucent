@@ -8,7 +8,12 @@ export interface ScriptSourceFrame {
 // `Function` contributes two wrapper lines and scriptLoader adds one strict-mode
 // prologue line before author source.
 const COMMONJS_LINE_OFFSET = 3;
-const SCRIPT_FRAME_PATTERN = /(lucent-script:\/\/[^\s):]+):(\d+):(\d+)/g;
+const SCRIPT_SOURCE_PATTERN =
+  /lucent-script:\/\/[^\s?:]+\?v=[^\s):]+|lucent-script:\/\/[^\s):]+/g;
+const SCRIPT_FRAME_PATTERN = new RegExp(
+  `(${SCRIPT_SOURCE_PATTERN.source}):(\\d+):(\\d+)`,
+  "g",
+);
 
 const decodeSegment = (value: string): string => {
   try {
@@ -28,7 +33,7 @@ const displayPathFromUrl = (value: string): string => {
 
 /** Replaces internal source URLs with author-facing paths, retaining locations. */
 export const displayScriptSourceText = (text: string): string =>
-  text.replace(/lucent-script:\/\/[^\s):]+/g, displayPathFromUrl);
+  text.replace(SCRIPT_SOURCE_PATTERN, displayPathFromUrl);
 
 /** Removes the fixed CommonJS wrapper offset from Lucent-owned stack frames. */
 export const normalizeScriptSourceStack = (stack: string): string =>
@@ -76,7 +81,7 @@ const errorChain = (error: Error): readonly Error[] => {
 
 export const attributedScriptErrorMessage = (error: Error): string => {
   if (firstScriptSourceFrame(error.message) !== undefined) {
-    return displayScriptSourceText(error.message);
+    return displayScriptSourceText(normalizeScriptSourceStack(error.message));
   }
   for (const entry of errorChain(error)) {
     const frame = firstScriptSourceFrame(entry.stack);
