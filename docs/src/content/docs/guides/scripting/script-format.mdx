@@ -41,7 +41,7 @@ const api = require("lucent/api");
 const script = require("lucent/script");
 
 module.exports = function* run() {
-  yield* script.options.setRoomPolicy({ kind: "random-private" });
+  yield* script.options.update({ roomPolicy: { kind: "random-private" } });
   yield* api.player.joinMap("battleon");
 
   const me = yield* api.player.get();

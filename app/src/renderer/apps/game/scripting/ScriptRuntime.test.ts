@@ -18,6 +18,7 @@ describe("ScriptRuntime", () => {
         roomPolicy: { kind: "random-private" },
         safeStartStop: true,
       };
+      let optionUpdates = 0;
       const rewards = ["Weapon"];
       const dialogCalls: string[] = [];
       const script = makeScriptRuntimeApi({
@@ -43,6 +44,7 @@ describe("ScriptRuntime", () => {
         scope,
         setOptions: (update) =>
           Effect.sync(() => {
+            optionUpdates += 1;
             options = snapshotScriptRuntimeOptions(update(options));
             return snapshotScriptRuntimeOptions(options);
           }),
@@ -71,34 +73,64 @@ describe("ScriptRuntime", () => {
       }
       expect(yield* script.inputs.get("rewards")).toEqual(["Weapon"]);
 
-      yield* script.options.setRestartAfterReconnect(true);
-      yield* script.options.setRoomPolicy({
-        kind: "specific",
-        roomNumber: 42,
+      const patch = {
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "specific", roomNumber: 42 } as const,
+      };
+      yield* script.options.update(patch);
+      expect(optionUpdates).toBe(1);
+      expect(yield* script.options.get()).toEqual({
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "specific", roomNumber: 42 },
+        safeStartStop: true,
       });
-      expect(options.restartAfterReconnect).toBe(true);
-      expect(yield* script.options.getRoomPolicy()).toEqual({
-        kind: "specific",
-        roomNumber: 42,
-      });
-      expect(options.roomPolicy).toEqual({
+
+      const snapshot = yield* script.options.get();
+      Object.assign(snapshot.roomPolicy, { roomNumber: 99 });
+      Object.assign(patch.roomPolicy, { roomNumber: 100 });
+      expect((yield* script.options.get()).roomPolicy).toEqual({
         kind: "specific",
         roomNumber: 42,
       });
 
       const invalidPolicy = yield* script.options
-        .setRoomPolicy({
-          kind: "specific",
-          roomNumber: 0,
+        .update({
+          restartAfterReconnect: false,
+          roomPolicy: { kind: "specific", roomNumber: 0 },
         })
         .pipe(Effect.flip);
       expect(invalidPolicy).toBeInstanceOf(ScriptExecutionError);
-      expect(options.roomPolicy).toEqual({
-        kind: "specific",
-        roomNumber: 42,
+      expect(optionUpdates).toBe(1);
+      expect(yield* script.options.get()).toEqual({
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "specific", roomNumber: 42 },
+        safeStartStop: true,
       });
 
-      expect(yield* script.options.reset()).toEqual({
+      const invalidBoolean = yield* script.options
+        .update({
+          // JavaScript scripts can pass values outside the declared types.
+          // @ts-expect-error Validate boolean options at runtime.
+          safeStartStop: "false",
+        })
+        .pipe(Effect.flip);
+      expect(invalidBoolean).toBeInstanceOf(ScriptExecutionError);
+      expect(optionUpdates).toBe(1);
+
+      yield* script.options.update({});
+      expect(optionUpdates).toBe(1);
+      yield* script.options.update({
+        roomPolicy: { kind: "public" },
+        safeStartStop: false,
+      });
+      expect(yield* script.options.get()).toEqual({
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "public" },
+        safeStartStop: false,
+      });
+
+      yield* script.options.reset();
+      expect(yield* script.options.get()).toEqual({
         restartAfterReconnect: false,
         roomPolicy: { kind: "random-private" },
         safeStartStop: true,

@@ -931,6 +931,11 @@ export interface ScriptInputsApi {
   readonly getAll: () => Effect.Effect<ScriptInputValues>;
 }
 
+/**
+ * Runner options shared by scripts and saved for the current account.
+ * Changes remain after the script exits. If saving fails, the session keeps
+ * the changes and Lucent logs a warning.
+ */
 export interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
   readonly roomPolicy: RoomPolicy;
@@ -944,21 +949,29 @@ export interface ScriptExitOptions {
   readonly logout?: boolean;
 }
 
+/** Only supplied fields are changed. Room policy is replaced as a whole. */
+export type ScriptRuntimeOptionsPatch = Partial<ScriptRuntimeOptions>;
+
 export interface ScriptOptionsApi {
-  readonly getAll: () => Effect.Effect<ScriptRuntimeOptions>;
-  readonly getRestartAfterReconnect: () => Effect.Effect<boolean>;
-  readonly getRoomPolicy: () => Effect.Effect<RoomPolicy>;
-  readonly getSafeStartStop: () => Effect.Effect<boolean>;
-  readonly reset: () => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setRestartAfterReconnect: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setRoomPolicy: (
-    policy: RoomPolicy,
-  ) => Effect.Effect<ScriptRuntimeOptions, ScriptExecutionError>;
-  readonly setSafeStartStop: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRuntimeOptions>;
+  /** Returns a snapshot of the current options. */
+  readonly get: () => Effect.Effect<ScriptRuntimeOptions>;
+  /** Restores Lucent's built-in defaults, not the options from before the script. */
+  readonly reset: () => Effect.Effect<void>;
+  /**
+   * Updates the supplied options, leaving the rest unchanged.
+   * Invalid values fail with ScriptExecutionError before any options change.
+   *
+   * @example
+   * ```ts
+   * yield* script.options.update({
+   *   restartAfterReconnect: true,
+   *   roomPolicy: { kind: "specific", roomNumber: 42 },
+   * });
+   * ```
+   */
+  readonly update: (
+    patch: ScriptRuntimeOptionsPatch,
+  ) => Effect.Effect<void, ScriptExecutionError>;
 }
 
 export interface ScriptRuntimeApi {
