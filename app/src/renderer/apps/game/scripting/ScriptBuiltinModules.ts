@@ -91,7 +91,7 @@ export const makeScriptBuiltinModules = (
   const { player, players } = makeScriptPlayerApis(
     options.services.player,
     options.services.players,
-    { policy: options.roomPolicy },
+    { policy: options.roomPolicy, map: options.services.map },
   );
   const settings = makeScriptSettingsApi(options.services.settings);
   const recipes = makeScriptRecipesApi({
