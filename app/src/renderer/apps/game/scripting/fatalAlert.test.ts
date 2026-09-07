@@ -6,6 +6,29 @@ import {
 } from "./fatalAlert";
 
 describe("fatal script alerts", () => {
+  it("cleans internal URLs from both messages and copied stack traces", () => {
+    const message = "lucent-script://loose/error.js?v=abc:2:9: hello world";
+    const stack = `Error: ${message}\n    at lucent-script://loose/error.js?v=abc:2:9`;
+    const error = new Error(message);
+    error.stack = stack;
+    const alerts = [
+      fatalScriptAlertFromError("error.js", error),
+      fatalScriptAlertFromStatus({
+        state: "failed",
+        name: "error.js",
+        failedAt: "now",
+        message,
+        detailsText: stack,
+      }),
+    ];
+    for (const alert of alerts) {
+      expect(alert.message).toBe("error.js:2:9: hello world");
+      expect(alert.detailsText).toBe(
+        "Error: error.js:2:9: hello world\n    at error.js:2:9",
+      );
+    }
+  });
+
   it("maps failed runner status into the dialog payload", () => {
     expect(
       fatalScriptAlertFromStatus({
