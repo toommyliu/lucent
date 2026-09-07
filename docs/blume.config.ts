@@ -154,7 +154,11 @@ export default defineConfig({
           root: "/guides",
         },
         {
-          items: ["/cookbooks/durations", "/cookbooks/enhancements"],
+          items: [
+            "/cookbooks/durations",
+            "/cookbooks/queries-and-selectors",
+            "/cookbooks/enhancements",
+          ],
           label: "Cookbooks",
           root: "/cookbooks",
         },
