@@ -8,7 +8,7 @@ export interface ScriptSourceFrame {
 // `Function` contributes two wrapper lines and scriptLoader adds one strict-mode
 // prologue line before author source.
 const COMMONJS_LINE_OFFSET = 3;
-const SCRIPT_FRAME_PATTERN = /(lucent-script:\/\/[^\s)]+):(\d+):(\d+)/g;
+const SCRIPT_FRAME_PATTERN = /(lucent-script:\/\/[^\s):]+):(\d+):(\d+)/g;
 
 const decodeSegment = (value: string): string => {
   try {
@@ -19,24 +19,16 @@ const decodeSegment = (value: string): string => {
 };
 
 const displayPathFromUrl = (value: string): string => {
-  try {
-    const url = new URL(value);
-    const segments = url.pathname
-      .split("/")
-      .filter((segment) => segment !== "")
-      .map(decodeSegment);
-    if (url.hostname === "package") {
-      const packageName = segments.shift();
-      return packageName === undefined
-        ? value
-        : [packageName, ...segments].join("/");
-    }
-    if (url.hostname === "loose") return segments.join("/") || value;
-    return decodeSegment(url.hostname) || value;
-  } catch {
-    return value;
-  }
+  const identity =
+    value.slice("lucent-script://".length).split(/[?#]/, 1)[0] ?? "";
+  const segments = identity.split("/").filter(Boolean).map(decodeSegment);
+  if (segments[0] === "package" || segments[0] === "loose") segments.shift();
+  return segments.join("/") || "script";
 };
+
+/** Replaces internal source URLs with author-facing paths, retaining locations. */
+export const displayScriptSourceText = (text: string): string =>
+  text.replace(/lucent-script:\/\/[^\s):]+/g, displayPathFromUrl);
 
 /** Removes the fixed CommonJS wrapper offset from Lucent-owned stack frames. */
 export const normalizeScriptSourceStack = (stack: string): string =>
@@ -83,13 +75,16 @@ const errorChain = (error: Error): readonly Error[] => {
 };
 
 export const attributedScriptErrorMessage = (error: Error): string => {
+  if (firstScriptSourceFrame(error.message) !== undefined) {
+    return displayScriptSourceText(error.message);
+  }
   for (const entry of errorChain(error)) {
     const frame = firstScriptSourceFrame(entry.stack);
     if (frame !== undefined) {
-      return `${frame.displayPath}:${frame.line}:${frame.column}: ${error.message}`;
+      return `${frame.displayPath}:${frame.line}:${frame.column}: ${displayScriptSourceText(error.message)}`;
     }
   }
-  return error.message;
+  return displayScriptSourceText(error.message);
 };
 
 export const attributedScriptErrorDetails = (

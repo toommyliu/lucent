@@ -808,6 +808,14 @@ export const ScriptCatalogError: Story = {
   },
 };
 
+export const LongScriptError: Story = {
+  args: {
+    fixture: {
+      scriptStatus: `Failed: error.js:2:9: ${"A very long script error. ".repeat(30)}`,
+    },
+  },
+};
+
 export const RunningScriptReplacement: Story = {
   args: {
     fixture: {

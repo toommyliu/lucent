@@ -1,3 +1,4 @@
+import { displayScriptSourceText } from "./scripting/scriptSourceAttribution";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import {
   Alert,
@@ -1740,7 +1741,7 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
     ) {
       askForConfirmation({
         confirmLabel: start ? "Stop and start" : "Stop and load",
-        description: `${props.scriptStatus}. Stop it and ${start ? "start" : "load"} ${entry.name}?`,
+        description: `${displayScriptSourceText(props.scriptStatus)}. Stop it and ${start ? "start" : "load"} ${entry.name}?`,
         onConfirm: () => runScriptSelection(entry, start, true),
         title: "Replace the running script?",
       });
@@ -2328,8 +2329,11 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                 data-loaded={props.scriptLoaded ? "" : undefined}
                 data-running={props.scriptRunning ? "" : undefined}
               >
-                <DialogDescription aria-live="polite">
-                  {props.scriptStatus}
+                <DialogDescription
+                  aria-live="polite"
+                  title={displayScriptSourceText(props.scriptStatus)}
+                >
+                  {displayScriptSourceText(props.scriptStatus)}
                 </DialogDescription>
               </div>
               <div class="game-scripts-dialog__common-actions">
