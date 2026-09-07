@@ -571,8 +571,6 @@ interface ScriptQuestsApi {
     loadBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
 }
 interface ScriptRecipesApi {
-  /** @param toBank Whether to send wheel rewards to the bank. */
-    doWheelOfDoom(/** @defaultValue false */ toBank?: boolean): Effect<boolean, never>;
     ensureLifeSteal(quantity: number): Effect<boolean, never>;
     ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
 }

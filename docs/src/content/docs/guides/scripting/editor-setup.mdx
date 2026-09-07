@@ -38,6 +38,10 @@ packages:
 
 Keep `jsconfig.json` in `Documents/Lucent`. Packages don't need their own copy.
 
+A package can include an `index.d.ts` file for its own exports. Each declaration
+is attached to the package's import name, so two packages can export functions
+with the same name without mixing their types.
+
 ## Turn on type checks
 
 This setup enables autocomplete without reporting type errors. Add `// @ts-check`
