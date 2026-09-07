@@ -569,24 +569,20 @@ interface ScriptRecipesApi {
     ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
 }
 interface ScriptSettingsApi {
-  /** Returns the active rendering mode. */
-    getRenderingMode(): Effect<ScriptRenderingMode, never>;
-    isAntiCounterEnabled(): Effect<boolean, never>;
-    setAnimationsEnabled(enabled: boolean): Effect<void, never>;
-    setAntiCounterEnabled(enabled: boolean): Effect<void, never>;
-    setCollisionsEnabled(enabled: boolean): Effect<void, never>;
-    setCustomGuild(name: string): Effect<void, never>;
-    setCustomName(name: string): Effect<void, never>;
-    setDeathAdsVisible(visible: boolean): Effect<void, never>;
-    setEnemyMagnetEnabled(enabled: boolean): Effect<void, never>;
-    setFrameRate(fps: number): Effect<void, never>;
-    setInfiniteRangeEnabled(enabled: boolean): Effect<void, never>;
-    setOtherPlayersVisible(visible: boolean): Effect<void, never>;
-    setProvokeCellEnabled(enabled: boolean): Effect<void, never>;
-  /** @param mode The rendering mode to activate. */
-    setRenderingMode(mode: ScriptRenderingMode): Effect<void, never>;
-    setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
-    setWalkSpeed(speed: number): Effect<void, never>;
+  /**
+  * Updates the supplied settings, leaving the rest unchanged.
+  *
+  * @example
+  * ```ts
+  * yield* api.settings.update({
+  *   animations: false,
+  *   hidePlayers: true,
+  *   frameRate: 30,
+  * });
+  * ```
+  */
+    update(patch: Partial<ScriptSettings>): Effect<void, never>;
+    get(): Effect<ScriptSettings, never>;
 }
 interface ScriptShopApi {
     buy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
@@ -1194,15 +1190,30 @@ type ScriptPipe = {
     de: (d: D) => E,
   ): E;
 };
-/** Controls game render visibility. */
-type ScriptRenderingMode =
-  | "full"
-  | /** A.k.a. Lag Killer. */ "interface-only"
-  | "minimal";
 interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
   readonly roomPolicy: RoomPolicy;
   readonly safeStartStop: boolean;
+}
+interface ScriptSettings {
+  readonly animations: boolean;
+  readonly antiCounter: boolean;
+  readonly collisions: boolean;
+  /** Local guild override. Null restores the original guild. */
+  readonly customGuild: string | null;
+  /** Local name override. Null restores the original name. */
+  readonly customName: string | null;
+  readonly deathAds: boolean;
+  readonly enemyMagnet: boolean;
+  /** Configured FPS. Minimal rendering uses 2 FPS; app limits may lower it. */
+  readonly frameRate: number;
+  readonly infiniteRange: boolean;
+  /** Hides other players, leaving your own character visible. */
+  readonly hidePlayers: boolean;
+  readonly provokeCell: boolean;
+  readonly renderingMode: ScriptRenderingMode;
+  readonly skipCutscenes: boolean;
+  readonly walkSpeed: number;
 }
 interface ScriptShopQuantityOptions {
   /**
@@ -1716,6 +1727,11 @@ type ProjectionEvent =
       readonly zone: string;
     };
 type ScriptEventSelector = ProjectionEventSelector;
+/** Controls game render visibility. */
+type ScriptRenderingMode =
+  | "full"
+  | /** A.k.a. Lag Killer. */ "interface-only"
+  | "minimal";
 type ShopItemSelector = ItemSelector | ShopItemSelectorById;
 interface ArmyLoopTauntAssignment {
   /** One-based player numbers from the active Army roster. */

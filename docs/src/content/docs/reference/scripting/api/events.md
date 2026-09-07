@@ -327,7 +327,7 @@ Runs a handler for every matching event until the script stops or the yielded di
 | `query` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="projection-event-selector" data-script-type-name="ProjectionEventSelector" href="/reference/scripting/types/projection-event-selector/" title="Preview ProjectionEventSelector"><code>ProjectionEventSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `handler` | (`event`: <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-event" data-script-type-name="ScriptEvent" href="/reference/scripting/types/script-event/" title="Preview ScriptEvent"><code>ScriptEvent</code></a>) =&gt; <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-callback-result" data-script-type-name="ScriptCallbackResult" href="/reference/scripting/types/script-callback-result/" title="Preview ScriptCallbackResult"><code>ScriptCallbackResult</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** () =&gt; `void`
+**Returns:** () =&gt; `void`
 
 **Errors:** `never`
 
@@ -347,6 +347,6 @@ Waits for the next matching event.
 | `selector` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="projection-event-selector" data-script-type-name="ProjectionEventSelector" href="/reference/scripting/types/projection-event-selector/" title="Preview ProjectionEventSelector"><code>ProjectionEventSelector</code></a> \| `undefined` |  |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="triggered-wait-options" data-script-type-name="TriggeredWaitOptions" href="/reference/scripting/types/triggered-wait-options/" title="Preview TriggeredWaitOptions"><code>TriggeredWaitOptions</code></a>&lt;`E`, `R`&gt; \| `undefined` |  |  |  |
 
-**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-event" data-script-type-name="ScriptEvent" href="/reference/scripting/types/script-event/" title="Preview ScriptEvent"><code>ScriptEvent</code></a> \| `null`
+**Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-event" data-script-type-name="ScriptEvent" href="/reference/scripting/types/script-event/" title="Preview ScriptEvent"><code>ScriptEvent</code></a> \| `null`
 
 **Errors:** `E`

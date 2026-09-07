@@ -22,7 +22,7 @@ sidebar:
 | `setName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-equip-set-options" data-script-type-name="ArmyEquipSetOptions" href="/reference/scripting/types/army-equip-set-options/" title="Preview ArmyEquipSetOptions"><code>ArmyEquipSetOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -41,7 +41,7 @@ api.army.getConfigString(key: string, defaultValue?: string): Effect.Effect<stri
 | `key` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `defaultValue` | `string` |  |  |  |
 
-**Yields:** `string`
+**Returns:** `string`
 
 **Errors:** `never`
 
@@ -60,7 +60,7 @@ api.army.getConfigValue(key: string, defaultValue?: unknown): Effect.Effect<unkn
 | `key` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `defaultValue` | `unknown` |  |  |  |
 
-**Yields:** `unknown`
+**Returns:** `unknown`
 
 **Errors:** `never`
 
@@ -74,7 +74,7 @@ api.army.getConfigValue(key: string, defaultValue?: unknown): Effect.Effect<unkn
 api.army.getPlayerNumber(): Effect.Effect<number | null>
 ```
 
-**Yields:** `number` \| `null`
+**Returns:** `number` \| `null`
 
 **Errors:** `never`
 
@@ -86,7 +86,7 @@ api.army.getPlayerNumber(): Effect.Effect<number | null>
 
 <pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.army.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">getSession</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E"><a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="army-session" data-script-type-name="ArmySession" data-script-type-preview="" href="/reference/scripting/types/army-session/" title="Preview ArmySession">ArmySession</a> </span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">|</span><span style="--shiki-dark:#79B8FF;--shiki-light:#005CC5"> null</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-session" data-script-type-name="ArmySession" href="/reference/scripting/types/army-session/" title="Preview ArmySession"><code>ArmySession</code></a> \| `null`
+**Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-session" data-script-type-name="ArmySession" href="/reference/scripting/types/army-session/" title="Preview ArmySession"><code>ArmySession</code></a> \| `null`
 
 **Errors:** `never`
 
@@ -100,7 +100,7 @@ api.army.getPlayerNumber(): Effect.Effect<number | null>
 api.army.isLeader(): Effect.Effect<boolean>
 ```
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -114,7 +114,7 @@ api.army.isLeader(): Effect.Effect<boolean>
 api.army.isMember(): Effect.Effect<boolean>
 ```
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -128,7 +128,7 @@ api.army.isMember(): Effect.Effect<boolean>
 api.army.isStarted(): Effect.Effect<boolean>
 ```
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -145,7 +145,7 @@ api.army.isStarted(): Effect.Effect<boolean>
 | `map` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="cell-position-options" data-script-type-name="CellPositionOptions" href="/reference/scripting/types/cell-position-options/" title="Preview CellPositionOptions"><code>CellPositionOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -162,7 +162,7 @@ api.army.isStarted(): Effect.Effect<boolean>
 | `target` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="monster-query" data-script-type-name="MonsterQuery" href="/reference/scripting/types/monster-query/" title="Preview MonsterQuery"><code>MonsterQuery</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="combat-kill-options" data-script-type-name="CombatKillOptions" href="/reference/scripting/types/combat-kill-options/" title="Preview CombatKillOptions"><code>CombatKillOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -180,7 +180,7 @@ api.army.isStarted(): Effect.Effect<boolean>
 | `goal` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="farm-item-goal" data-script-type-name="FarmItemGoal" href="/reference/scripting/types/farm-item-goal/" title="Preview FarmItemGoal"><code>FarmItemGoal</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="combat-kill-options" data-script-type-name="CombatKillOptions" href="/reference/scripting/types/combat-kill-options/" title="Preview CombatKillOptions"><code>CombatKillOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -198,7 +198,7 @@ api.army.isStarted(): Effect.Effect<boolean>
 | `goal` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="farm-item-goal" data-script-type-name="FarmItemGoal" href="/reference/scripting/types/farm-item-goal/" title="Preview FarmItemGoal"><code>FarmItemGoal</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="combat-kill-options" data-script-type-name="CombatKillOptions" href="/reference/scripting/types/combat-kill-options/" title="Preview CombatKillOptions"><code>CombatKillOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -212,7 +212,7 @@ api.army.isStarted(): Effect.Effect<boolean>
 api.army.leave(): Effect.Effect<void>
 ```
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** `never`
 
@@ -230,7 +230,7 @@ Starts a map-scoped Loop Taunt plan across the full Army roster.
 | --- | --- | --- | --- | --- |
 | `plan` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-loop-taunt-plan" data-script-type-name="ArmyLoopTauntPlan" href="/reference/scripting/types/army-loop-taunt-plan/" title="Preview ArmyLoopTauntPlan"><code>ArmyLoopTauntPlan</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  | The ordered target priority groups every participant runs. |
 
-**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-loop-taunt-handle" data-script-type-name="ArmyLoopTauntHandle" href="/reference/scripting/types/army-loop-taunt-handle/" title="Preview ArmyLoopTauntHandle"><code>ArmyLoopTauntHandle</code></a>
+**Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-loop-taunt-handle" data-script-type-name="ArmyLoopTauntHandle" href="/reference/scripting/types/army-loop-taunt-handle/" title="Preview ArmyLoopTauntHandle"><code>ArmyLoopTauntHandle</code></a>
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-loop-taunt-error" data-script-type-name="ArmyLoopTauntError" href="/reference/scripting/types/army-loop-taunt-error/" title="Preview ArmyLoopTauntError"><code>ArmyLoopTauntError</code></a>
 
@@ -248,7 +248,7 @@ Starts a map-scoped Loop Taunt plan across the full Army roster.
 | `action` | `Effect`.`Effect`&lt;`A`, `E`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-run-step-options" data-script-type-name="ArmyRunStepOptions" href="/reference/scripting/types/army-run-step-options/" title="Preview ArmyRunStepOptions"><code>ArmyRunStepOptions</code></a> |  |  |  |
 
-**Yields:** `A`
+**Returns:** `A`
 
 **Errors:** `E` \| <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -264,7 +264,7 @@ Starts a map-scoped Loop Taunt plan across the full Army roster.
 | --- | --- | --- | --- | --- |
 | `configName` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-session" data-script-type-name="ArmySession" href="/reference/scripting/types/army-session/" title="Preview ArmySession"><code>ArmySession</code></a>
+**Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-session" data-script-type-name="ArmySession" href="/reference/scripting/types/army-session/" title="Preview ArmySession"><code>ArmySession</code></a>
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -281,7 +281,7 @@ Starts a map-scoped Loop Taunt plan across the full Army roster.
 | `label` | `string` |  | `"sync"` | The coordination label. |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-run-step-options" data-script-type-name="ArmyRunStepOptions" href="/reference/scripting/types/army-run-step-options/" title="Preview ArmyRunStepOptions"><code>ArmyRunStepOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>
 
@@ -293,6 +293,6 @@ Starts a map-scoped Loop Taunt plan across the full Army roster.
 
 <pre class="shiki shiki-themes github-dark github-light astro-code script-type-signature" style="--shiki-dark:#e1e4e8;--shiki-light:#24292e;--shiki-dark-bg:#24292e;--shiki-light-bg:#fff" tabindex="0" data-icon="" data-language="ts"><svg aria-hidden="true" class="blume-lang-icon" fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"></path></svg><code><span class="line"><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">api.army.</span><span style="--shiki-dark:#B392F0;--shiki-light:#6F42C1">waitForAllInMap</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">(): Effect.Effect</span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">&#x3C;void</span><span style="--shiki-dark:#E1E4E8;--shiki-light:#24292E">, <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type="army-error" data-script-type-name="ArmyError" data-script-type-preview="" href="/reference/scripting/types/army-error/" title="Preview ArmyError">ArmyError</a></span><span style="--shiki-dark:#F97583;--shiki-light:#D73A49">></span></span></code></pre>
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="army-error" data-script-type-name="ArmyError" href="/reference/scripting/types/army-error/" title="Preview ArmyError"><code>ArmyError</code></a>

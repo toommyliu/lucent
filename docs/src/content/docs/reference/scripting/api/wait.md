@@ -11,7 +11,7 @@ sidebar:
 
 <a id="member-api-wait-forgameaction"></a>
 
-### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L755" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:755" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.forGameAction()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L775" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:775" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.wait.forGameAction(action);" hidden></div>
 
@@ -22,13 +22,13 @@ sidebar:
 | `action` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="game-action" data-script-type-name="GameAction" href="/reference/scripting/types/game-action/" title="Preview GameAction"><code>GameAction</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="wait-options" data-script-type-name="WaitOptions" href="/reference/scripting/types/wait-options/" title="Preview WaitOptions"><code>WaitOptions</code></a> \| `Duration`.`Input` |  | `{ interval: "100 millis", timeout: "2 seconds" }` | Polling options or a timeout value. |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
 <a id="member-api-wait-isgameactionavailable"></a>
 
-### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L760" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:760" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.isGameActionAvailable()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L780" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:780" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.wait.isGameActionAvailable(action);" hidden></div>
 
@@ -38,13 +38,13 @@ sidebar:
 | --- | --- | --- | --- | --- |
 | `action` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="game-action" data-script-type-name="GameAction" href="/reference/scripting/types/game-action/" title="Preview GameAction"><code>GameAction</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
 <a id="member-api-wait-until"></a>
 
-### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L764" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:764" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.until()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L784" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:784" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.wait.until(condition);" hidden></div>
 
@@ -55,13 +55,13 @@ sidebar:
 | `condition` | `Effect`.`Effect`&lt;`boolean`&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="wait-options" data-script-type-name="WaitOptions" href="/reference/scripting/types/wait-options/" title="Preview WaitOptions"><code>WaitOptions</code></a> |  | `{ interval: "100 millis", timeout: undefined }` | Polling options. |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
 <a id="member-api-wait-untilsome"></a>
 
-### `api.wait.untilSome()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L770" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:770" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.wait.untilSome()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L790" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:790" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 <div data-api-copy-call="yield* api.wait.untilSome(condition);" hidden></div>
 
@@ -72,6 +72,6 @@ sidebar:
 | `condition` | `Effect`.`Effect`&lt;`Option`.`Option`&lt;`A`&gt;&gt; | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="wait-options" data-script-type-name="WaitOptions" href="/reference/scripting/types/wait-options/" title="Preview WaitOptions"><code>WaitOptions</code></a> |  | `{ interval: "100 millis", timeout: undefined }` | Polling options. |
 
-**Yields:** `A` \| `null`
+**Returns:** `A` \| `null`
 
 **Errors:** `never`

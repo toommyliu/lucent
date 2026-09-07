@@ -29,4 +29,4 @@ type FileSystemErrorReason =
   | "unavailable"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L811" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:811" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:811" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:811</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L831" aria-label="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:831" title="app/src/renderer/apps/game/scripting/ScriptApi.ts:831" target="_blank" rel="noreferrer"><code class="source-reference__path">ScriptApi.ts:831</code></a></p>

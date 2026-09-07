@@ -94,7 +94,6 @@ import { Api, type ApiService, flashRuntime as runtime } from "./flash";
 import type {
   RenderingMode,
   Settings as FlashSettingsSnapshot,
-  SettingsPatch as FlashSettingsPatch,
 } from "./flash/contract/Settings";
 import { Automation } from "./automation/Automation";
 import { Environment } from "./environment/Environment";
@@ -1537,9 +1536,8 @@ export function App(props: {
       enabled: boolean,
     ) => Effect.Effect<void>,
   ): Promise<FlashSettingsSnapshot> =>
-    executeSettingsUpdate(
-      { [key]: enabled } as FlashSettingsPatch,
-      (settings) => update(settings, enabled),
+    executeSettingsUpdate({ [key]: enabled }, (settings) =>
+      update(settings, enabled),
     );
 
   const setFlashSetting = (
