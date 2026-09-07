@@ -173,8 +173,6 @@ export const AuraPayload = Schema.Struct({
 });
 export type AuraPayload = typeof AuraPayload.Type;
 
-export const AuraPayloads = Schema.Array(AuraPayload);
-
 export const toAura = (
   payload: AuraPayload,
   kind: AuraKind,

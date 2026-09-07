@@ -8,6 +8,7 @@ import {
 } from "@lucent/core/appearance";
 import { THEME_TOKEN_NAMES, type ThemeTokenName } from "@lucent/core/settings";
 import type { DesktopBridgeView } from "./desktopBridge";
+import { readArgumentValue } from "./rendererBootstrapArguments";
 
 export * from "@lucent/core/appearance";
 
@@ -47,15 +48,6 @@ const radiusBaseRem = {
 
 type RadiusTokenName = keyof typeof radiusBaseRem;
 type TextSizeTokenName = keyof ReturnType<typeof getTextSizeTokens>;
-
-const readArgumentValue = (
-  argv: readonly string[],
-  name: string,
-): string | null => {
-  const prefix = `${name}=`;
-  const value = argv.find((argument) => argument.startsWith(prefix));
-  return value === undefined ? null : value.slice(prefix.length);
-};
 
 export const serializeDesktopViewArgument = (view: DesktopBridgeView): string =>
   `${DESKTOP_VIEW_ARGUMENT}=${view}`;

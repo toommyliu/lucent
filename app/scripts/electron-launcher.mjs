@@ -146,7 +146,7 @@ function getTreeMtimeMs(path) {
   return mtimeMs;
 }
 
-function compileIconComposerAssets(sourceAppBundlePath) {
+function compileIconComposerAssets() {
   if (!existsSync(devIconComposerPath)) {
     return null;
   }
@@ -287,11 +287,8 @@ function ensureDevelopmentIconIcns(sourceAppBundlePath) {
 }
 
 function ensureDevelopmentIconAssets(sourceAppBundlePath) {
-  const iconComposerAssets = compileIconComposerAssets(sourceAppBundlePath);
-  if (
-    iconComposerAssets !== null &&
-    iconComposerAssets.kind === "icon-composer"
-  ) {
+  const iconComposerAssets = compileIconComposerAssets();
+  if (iconComposerAssets !== null) {
     return iconComposerAssets;
   }
 

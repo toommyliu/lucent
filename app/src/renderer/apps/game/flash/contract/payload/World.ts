@@ -81,9 +81,6 @@ export const EntityPatchPayload = Schema.Struct({
 });
 export type EntityPatchPayload = typeof EntityPatchPayload.Type;
 
-export const PlayerPayloads = Schema.Array(PlayerPayload);
-export const MonsterPayloads = Schema.Array(MonsterPayload);
-
 export const toPlayer = (payload: PlayerPayload): LivePlayer => {
   const username =
     "strUsername" in payload ? payload.strUsername : payload.uoName;

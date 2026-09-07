@@ -52,7 +52,6 @@ import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
 import * as ElectronWindow from "../electron/ElectronWindow";
-import * as FlashTrust from "../flash/FlashTrust";
 import * as DesktopFileSystemNode from "../filesystem/DesktopFileSystemNode";
 
 export const makeDesktopLayer = (
@@ -117,7 +116,6 @@ export const makeDesktopLayer = (
     ElectronShell.layer,
     ElectronTheme.layer,
     ElectronWindow.layer,
-    FlashTrust.layer,
   );
 
   const settingsLayer = DesktopSettings.layer.pipe(
@@ -135,12 +133,7 @@ export const makeDesktopLayer = (
   );
 
   const scriptFilesLayer = ScriptFiles.layer;
-  const httpClientLayer = Layer.succeed(
-    DesktopHttpClient.DesktopHttpClient,
-    DesktopHttpClient.DesktopHttpClient.of(
-      DesktopHttpClient.makeDesktopHttpClient(),
-    ),
-  );
+  const httpClientLayer = DesktopHttpClient.layer;
   const scriptPackageStateLayer = ScriptPackageState.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );

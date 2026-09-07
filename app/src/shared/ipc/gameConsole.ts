@@ -8,9 +8,6 @@ export const GameConsoleRendererMessagePayloadSchema = Schema.Struct({
   message: Schema.String,
 });
 
-export type GameConsoleRendererMessagePayload =
-  typeof GameConsoleRendererMessagePayloadSchema.Type;
-
 export const GameConsoleIpc = {
   rendererMessage: defineEvent({
     channel: `${namespace}:renderer-message`,

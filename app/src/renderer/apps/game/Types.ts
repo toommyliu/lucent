@@ -11,12 +11,6 @@ export type ConnectToSelectionFailureReason =
   | "test-client-required"
   | "underage-chat";
 
-export type ConnectToSelectionStatus =
-  | "blocked"
-  | "not-found"
-  | "not-ready"
-  | "selected";
-
 export type ConnectToSelectionResult =
   | {
       ok: true;

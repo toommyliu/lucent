@@ -53,37 +53,4 @@ export const UpdateCheckStateSchema = Schema.Union([
   }),
 ]);
 
-export type UpdateCheckState =
-  | {
-      readonly status: "idle";
-      readonly currentVersion: string;
-    }
-  | {
-      readonly status: "disabled";
-      readonly currentVersion: string;
-      readonly reason: string;
-    }
-  | {
-      readonly status: "checking";
-      readonly currentVersion: string;
-      readonly startedAt: string;
-    }
-  | {
-      readonly status: "current";
-      readonly currentVersion: string;
-      readonly latestVersion: string;
-      readonly checkedAt: string;
-    }
-  | {
-      readonly status: "available";
-      readonly currentVersion: string;
-      readonly latestVersion: string;
-      readonly checkedAt: string;
-      readonly release: UpdateReleaseInfo;
-    }
-  | {
-      readonly status: "error";
-      readonly currentVersion: string;
-      readonly checkedAt: string;
-      readonly message: string;
-    };
+export type UpdateCheckState = typeof UpdateCheckStateSchema.Type;

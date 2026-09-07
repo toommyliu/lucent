@@ -4,8 +4,6 @@ export const QUEST_ACTION_TIMEOUT = "5 seconds";
 
 export const QUEST_ACTION_RETRY_DELAYS_MS = [2_000, 5_000, 15_000] as const;
 
-export type QuestAutomationAction = "accept" | "complete";
-
 export type QuestAutomationIntent =
   | {
       readonly action: "accept";

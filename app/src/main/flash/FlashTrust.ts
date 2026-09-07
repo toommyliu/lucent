@@ -2,9 +2,6 @@ import { mkdirSync, writeFileSync } from "fs";
 import { EOL } from "os";
 import { join } from "path";
 
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 const validTrustFileName = /^[a-zA-Z0-9-_.]+$/;
@@ -21,18 +18,6 @@ export class FlashTrustError extends Schema.TaggedError<FlashTrustError>()(
     return `Flash trust ${this.operation} failed at ${this.path}.`;
   }
 }
-
-export interface FlashTrustShape {
-  readonly trustOnly: (input: {
-    readonly appName: string;
-    readonly rootPath: string;
-    readonly trustedPaths: readonly string[];
-  }) => Effect.Effect<void, FlashTrustError>;
-}
-
-export class FlashTrust extends Context.Service<FlashTrust, FlashTrustShape>()(
-  "lucent/desktop/flash/FlashTrust",
-) {}
 
 const trustDirectory = (rootPath: string): string =>
   join(rootPath, "#Security", "FlashPlayerTrust");
@@ -73,20 +58,3 @@ export const writeTrustFile = (input: {
     throw new FlashTrustError({ operation: "write", path, cause });
   }
 };
-
-const makeFlashTrust = (): FlashTrustShape => ({
-  trustOnly: (input) =>
-    Effect.try({
-      try: () => writeTrustFile(input),
-      catch: (cause) =>
-        cause instanceof FlashTrustError
-          ? cause
-          : new FlashTrustError({
-              operation: "write",
-              path: input.rootPath,
-              cause,
-            }),
-    }),
-});
-
-export const layer = Layer.succeed(FlashTrust, FlashTrust.of(makeFlashTrust()));
