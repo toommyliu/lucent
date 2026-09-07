@@ -117,7 +117,7 @@ function ScriptDialog(props: ScriptDialogProps): JSX.Element {
                 fullWidth
                 id={inputId}
                 onInput={(event) => setValue(event.currentTarget.value)}
-                placeholder={props.request.defaultValue}
+                placeholder={props.request.placeholder}
                 ref={(element) => {
                   promptInput = element;
                 }}

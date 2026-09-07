@@ -29,9 +29,9 @@ const makeRuntime = () => {
           dialogCalls.push(`confirm:${message}`);
           return false;
         }),
-      prompt: (_source, message, defaultValue) =>
+      prompt: (_source, message, placeholder) =>
         Effect.sync(() => {
-          dialogCalls.push(`prompt:${message}:${defaultValue ?? ""}`);
+          dialogCalls.push(`prompt:${message}:${placeholder ?? ""}`);
           return "Gravelyn";
         }),
     },

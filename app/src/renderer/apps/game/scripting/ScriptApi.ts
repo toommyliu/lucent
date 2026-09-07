@@ -987,15 +987,27 @@ export interface ScriptRuntimeApi {
   ) => Effect.Effect<never, ScriptStopSignal>;
   readonly log: (...values: unknown[]) => Effect.Effect<void>;
   /**
-   * Opens a text prompt. Canceling the dialog yields `null`; submitting an
-   * empty value yields an empty string.
+   * Opens a text prompt with an empty input. Canceling the dialog yields `null`;
+   * submitting without entering text yields an empty string, not the placeholder.
    *
-   * @param defaultValue Input placeholder.
+   * @param placeholder Hint shown in the empty input. It is not a default value.
+   *
+   * @example
+   * ```js
+   * const name = yield* script.prompt("Character name", "Artix");
+   * if (name === null) {
+   *   yield* script.stop("Prompt canceled.");
+   * }
+   * if (name === "") {
+   *   yield* script.stop("No name entered.");
+   * }
+   * yield* script.log(name);
+   * ```
    */
   readonly prompt: (
     message: string,
     /** @defaultValue "" */
-    defaultValue?: string,
+    placeholder?: string,
   ) => Effect.Effect<string | null>;
   readonly sleep: (
     duration: Duration.Input,
