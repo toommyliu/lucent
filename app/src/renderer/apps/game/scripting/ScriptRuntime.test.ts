@@ -71,13 +71,12 @@ describe("ScriptRuntime", () => {
       }
       expect(yield* script.inputs.get("rewards")).toEqual(["Weapon"]);
 
-      yield* script.options.setRestartAfterReconnect(true);
-      yield* script.options.setRoomPolicy({
-        kind: "specific",
-        roomNumber: 42,
+      yield* script.options.update({
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "specific", roomNumber: 42 },
       });
       expect(options.restartAfterReconnect).toBe(true);
-      expect(yield* script.options.getRoomPolicy()).toEqual({
+      expect((yield* script.options.get()).roomPolicy).toEqual({
         kind: "specific",
         roomNumber: 42,
       });
@@ -87,9 +86,8 @@ describe("ScriptRuntime", () => {
       });
 
       const invalidPolicy = yield* script.options
-        .setRoomPolicy({
-          kind: "specific",
-          roomNumber: 0,
+        .update({
+          roomPolicy: { kind: "specific", roomNumber: 0 },
         })
         .pipe(Effect.flip);
       expect(invalidPolicy).toBeInstanceOf(ScriptExecutionError);
@@ -98,7 +96,8 @@ describe("ScriptRuntime", () => {
         roomNumber: 42,
       });
 
-      expect(yield* script.options.reset()).toEqual({
+      yield* script.options.reset();
+      expect(yield* script.options.get()).toEqual({
         restartAfterReconnect: false,
         roomPolicy: { kind: "random-private" },
         safeStartStop: true,

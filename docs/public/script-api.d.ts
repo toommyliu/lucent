@@ -473,14 +473,22 @@ interface ScriptOptionModule {
     some<Value>(value: Value): Option<Value>;
 }
 interface ScriptOptionsApi {
-    getAll(): Effect<ScriptRuntimeOptions, never>;
-    getRestartAfterReconnect(): Effect<boolean, never>;
-    getRoomPolicy(): Effect<RoomPolicy, never>;
-    getSafeStartStop(): Effect<boolean, never>;
-    reset(): Effect<ScriptRuntimeOptions, never>;
-    setRestartAfterReconnect(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
-    setRoomPolicy(policy: { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; }): Effect<ScriptRuntimeOptions, ScriptExecutionError>;
-    setSafeStartStop(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
+  /** Returns a snapshot of the current options. */
+    get(): Effect<ScriptRuntimeOptions, never>;
+  /** Restores Lucent's built-in defaults, not the options from before the script. */
+    reset(): Effect<void, never>;
+  /**
+  * Updates the supplied options, leaving the rest unchanged.
+  *
+  * @example
+  * ```ts
+  * yield* script.options.update({
+  *   restartAfterReconnect: true,
+  *   roomPolicy: { kind: "specific", roomNumber: 42 },
+  * });
+  * ```
+  */
+    update(patch: Partial<ScriptRuntimeOptions>): Effect<void, ScriptExecutionError>;
 }
 interface ScriptPacketApi {
     readonly on: ScriptPacketOn;
@@ -1008,7 +1016,6 @@ interface RestOptions {
   /** Whether to wait until both HP and MP are full. */
   readonly waitUntilFull?: boolean;
 }
-type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
 type ScriptCallbackResult<A = unknown> =
   | Effect<A, unknown>
   | ScriptGenerator<A>;
@@ -1727,6 +1734,7 @@ type ProjectionEvent =
       readonly zone: string;
     };
 type ScriptEventSelector = ProjectionEventSelector;
+type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
 /** Controls game render visibility. */
 type ScriptRenderingMode =
   | "full"
