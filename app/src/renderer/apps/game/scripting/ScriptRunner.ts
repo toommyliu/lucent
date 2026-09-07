@@ -1058,7 +1058,7 @@ export const layer = Layer.effect(
           dialogs,
           getOptions,
           inputValues: inputs,
-          log: (message) => console.log("[script]", message),
+          log: (...values) => console.log("[script]", ...values),
           scope: scriptScope,
           setOptions: (update) =>
             setOptions(update).pipe(Effect.map((result) => result.options)),

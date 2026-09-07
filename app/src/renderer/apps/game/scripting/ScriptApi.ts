@@ -984,7 +984,7 @@ export interface ScriptRuntimeApi {
     /** @defaultValue { closeClient: false, logout: false } */
     options?: ScriptExitOptions,
   ) => Effect.Effect<never, ScriptStopSignal>;
-  readonly log: (message: unknown) => Effect.Effect<void>;
+  readonly log: (...values: unknown[]) => Effect.Effect<void>;
   /**
    * Opens a text prompt. Canceling the dialog yields `null`; submitting an
    * empty value yields an empty string.

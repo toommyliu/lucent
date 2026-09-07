@@ -144,7 +144,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         dialogs,
         getOptions,
         inputValues: {},
-        log: (message) => debugConsole.log("[script]", message),
+        log: (...values) => debugConsole.log("[script]", ...values),
         scope,
         setOptions,
         source: { sourceName: "Debug Eval" },
