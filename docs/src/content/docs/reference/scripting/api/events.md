@@ -312,9 +312,13 @@ The current map's encounter zone changes.
 
 <a id="member-api-events-on"></a>
 
-### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L437" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:437" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.on()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L483" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:483" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
-Runs a handler for every matching event until the script stops or the yielded disposer is called.
+Runs a handler for every matching event. The handler must return an Effect
+or generator; plain values and Promises are not supported.
+
+Call the returned function to stop listening early.
+The subscription is also removed automatically when the script stops.
 
 <div data-api-copy-call="yield* api.events.on(query, handler);" hidden></div>
 
@@ -331,11 +335,32 @@ Runs a handler for every matching event until the script stops or the yielded di
 
 **Errors:** `never`
 
+#### Example
+
+```js
+const script = require("lucent/script");
+
+const unsubscribe = yield* api.events.on(
+  { type: "monster-death" },
+  function* (event) {
+    yield* script.log(`Monster ${event.monsterMapId} died.`);
+  },
+);
+
+yield* script.sleep("30 seconds");
+unsubscribe();
+```
+
 <a id="member-api-events-once"></a>
 
-### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L438" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:438" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `api.events.once()` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/scripting/ScriptApi.ts#L513" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/scripting/ScriptApi.ts:513" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
-Waits for the next matching event.
+Waits for the next matching event. With a `trigger`, starts listening before
+running that action so an immediate event is not missed.
+
+Returns `null` if the trigger returns `false` or the wait times out. The
+timeout starts after the trigger finishes; omitting it waits indefinitely.
+Timing out stops the wait but does not undo the action started by the trigger.
 
 <div data-api-copy-call="yield* api.events.once();" hidden></div>
 
@@ -350,3 +375,25 @@ Waits for the next matching event.
 **Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-event" data-script-type-name="ScriptEvent" href="/reference/scripting/types/script-event/" title="Preview ScriptEvent"><code>ScriptEvent</code></a> \| `null`
 
 **Errors:** `E`
+
+#### Example
+
+```js
+const script = require("lucent/script");
+
+const [monster] = yield* api.monsters.getAvailable();
+if (monster !== undefined) {
+  const death = yield* api.events.once(
+    { type: "monster-death", monsterMapId: monster.monsterMapId },
+    {
+      trigger: api.combat.attack(monster.monsterMapId),
+      timeout: "30 seconds",
+    },
+  );
+  yield* api.combat.cancelAutoAttack();
+
+  if (death === null) {
+    yield* script.log("Attack failed or the monster did not die in time.");
+  }
+}
+```
