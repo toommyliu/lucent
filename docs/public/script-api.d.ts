@@ -213,7 +213,7 @@ interface ScriptRuntimeApi {
   * @param options Exit actions.
   */
     exit(/** @defaultValue { closeClient: false, logout: false } */ options?: ScriptExitOptions): Effect<never, ScriptStopSignal>;
-    log(message: unknown): Effect<void, never>;
+    log(...values: unknown[]): Effect<void, never>;
   /**
   * Opens a text prompt. Canceling the dialog yields `null`; submitting an
   * empty value yields an empty string.

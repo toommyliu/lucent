@@ -66,7 +66,7 @@ export interface ScriptRuntimeApiOptions {
   readonly dialogs: Pick<ScriptDialogsShape, "alert" | "confirm" | "prompt">;
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly inputValues: ScriptInputValues;
-  readonly log: (message: unknown) => void;
+  readonly log: (...values: unknown[]) => void;
   readonly scope: ScriptAsyncScope;
   readonly setOptions: (
     update: ScriptRuntimeOptionsUpdate,
@@ -122,7 +122,7 @@ export const makeScriptRuntimeApi = (
       },
       getAll: () => Effect.succeed(snapshotScriptInputValues(inputValues)),
     }),
-    log: (message) => Effect.sync(() => options.log(message)),
+    log: (...values) => Effect.sync(() => options.log(...values)),
     options: Object.freeze({
       getAll: options.getOptions,
       getRestartAfterReconnect: () =>

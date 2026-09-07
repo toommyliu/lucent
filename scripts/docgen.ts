@@ -960,7 +960,7 @@ const methodSignature = (
     .map(
       (parameter) =>
         `${parameter.rest ? "..." : ""}${parameter.name}${
-          parameter.required ? "" : "?"
+          parameter.required || parameter.rest ? "" : "?"
         }: ${parameter.type}`,
     )
     .join(", ")}): ${returnDoc.raw}`;
@@ -2005,7 +2005,8 @@ const methodSignatureText = (
   const parameters = (signature.parameters ?? [])
     .map((parameter) => {
       const rest = parameter.flags.isRest ? "..." : "";
-      const optional = parameter.flags.isOptional ? "?" : "";
+      const optional =
+        parameter.flags.isOptional && !parameter.flags.isRest ? "?" : "";
       return `${rest}${parameter.name}${optional}: ${typeToString(parameter.type)}`;
     })
     .join(", ");
