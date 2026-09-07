@@ -129,7 +129,7 @@ describe("game domain models", () => {
       state: EntityState.Idle,
     });
 
-    expect(monster.matches("undead")).toBe(true);
+    expect(monster.matches("undead warrior")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
     for (const query of ["id:9", "id.9", "id-9", "id'9"]) {
       expect(toMonsterSelector(query)).toEqual({ monsterMapId: 9 });

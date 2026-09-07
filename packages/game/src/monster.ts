@@ -134,22 +134,20 @@ export class LiveMonster extends LiveEntity<MonsterData> implements Monster {
   matches(selector: MonsterQuery): boolean {
     if (typeof selector === "number") return this.monsterMapId === selector;
     if (typeof selector === "string") {
-      const value = selector.trim();
-      const monsterMapId = parseMonsterMapId(value);
+      const monsterMapId = parseMonsterMapId(selector);
       if (monsterMapId !== undefined) {
         return this.monsterMapId === monsterMapId;
       }
-      return (
-        value === "*" ||
-        normalizeGameText(this.name).includes(normalizeGameText(value))
-      );
+    } else if ("monsterMapId" in selector) {
+      return this.monsterMapId === selector.monsterMapId;
     }
-    return "monsterMapId" in selector
-      ? this.monsterMapId === selector.monsterMapId
-      : selector.name === "*" ||
-          normalizeGameText(this.name).includes(
-            normalizeGameText(selector.name),
-          );
+
+    const name = normalizeGameText(
+      typeof selector === "string" ? selector : selector.name,
+    );
+    return (
+      name === "*" || (name !== "" && normalizeGameText(this.name) === name)
+    );
   }
 
   /**

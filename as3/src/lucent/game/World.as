@@ -184,14 +184,19 @@ public class World
         return null;
       }
 
+      name = name.replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (name == "")
+      {
+        return null;
+      }
+
       var game:Object = Main.Game;
-      name = name.toLowerCase();
       for each (var mon:Object in game.world.getMonstersByCell(game.world.strFrame))
       {
         if (mon.pMC)
         {
-          var monsterName:String = mon.pMC.pname.ti.text.toLowerCase();
-          if (((monsterName.indexOf(name) > -1) || (name == "*")) && mon.dataLeaf.intState > 0)
+          var monsterName:String = mon.pMC.pname.ti.text.replace(/^\s+|\s+$/g, "").toLowerCase();
+          if ((monsterName == name || name == "*") && mon.dataLeaf.intState > 0)
           {
             return mon;
           }
