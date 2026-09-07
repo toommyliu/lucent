@@ -112,90 +112,88 @@ describe("ProjectionReadiness", () => {
   it.effect(
     "projects a raw callback initialization sequence before becoming ready",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          const target = {
-            swf: {
-              "player.getUserId": () => 10,
-            },
-          } as unknown as Window;
-          const bridge = yield* makeBridge(target);
-          const gateway = yield* makeGateway(target).pipe(
-            Effect.provideService(Bridge, bridge),
-          );
-          const store = yield* makeStore;
-          const readiness = makeProjectionReadiness(store);
-          const pipeline = makePipeline(
-            store,
-            { publishEvent: () => Effect.void },
-            bridge,
-          );
-          yield* store.auth.setCredentials("Hero", "");
-          yield* gateway.start(pipeline.packet, pipeline.runtime);
+      Effect.gen(function* () {
+        const target = {
+          swf: {
+            "player.getUserId": () => 10,
+          },
+        } as unknown as Window;
+        const bridge = yield* makeBridge(target);
+        const gateway = yield* makeGateway(target).pipe(
+          Effect.provideService(Bridge, bridge),
+        );
+        const store = yield* makeStore;
+        const readiness = makeProjectionReadiness(store);
+        const pipeline = makePipeline(
+          store,
+          { publishEvent: () => Effect.void },
+          bridge,
+        );
+        yield* store.auth.setCredentials("Hero", "");
+        yield* gateway.start(pipeline.packet, pipeline.runtime);
 
-          target.onConnection?.("OnConnection");
-          target.onExtensionResponse?.(
-            JSON.stringify({
-              dataObj: {
-                cmd: "loadInventoryBig",
-                hitems: [
-                  {
-                    ItemID: "2",
-                    bEquip: "1",
-                    sName: "Hero's House",
-                    sType: "House",
-                  },
-                ],
-                items: [{ ItemID: "1", iQty: "3", sName: "Potion" }],
-              },
-              type: "json",
-            }),
-          );
-          target.onExtensionResponse?.(
-            JSON.stringify({
-              dataObj: {
-                areaId: "12",
-                areaName: "battleon-42",
-                cmd: "moveToArea",
-                monBranch: [],
-                uoBranch: [],
-              },
-              type: "json",
-            }),
-          );
-          const playerBaseline = yield* makeWait(gateway).forPacket(
-            { command: "uotls", direction: "extension" },
-            {
-              timeout: "1 second",
-              trigger: Effect.sync(() => {
-                target.onExtensionResponse?.(
-                  JSON.stringify({
-                    dataObj: {
-                      cmd: "uotls",
-                      o: {
-                        entID: "10",
-                        intHP: "100",
-                        intHPMax: "100",
-                        strFrame: "Enter",
-                      },
-                      unm: "Hero",
+        target.onConnection?.("OnConnection");
+        target.onExtensionResponse?.(
+          JSON.stringify({
+            dataObj: {
+              cmd: "loadInventoryBig",
+              hitems: [
+                {
+                  ItemID: "2",
+                  bEquip: "1",
+                  sName: "Hero's House",
+                  sType: "House",
+                },
+              ],
+              items: [{ ItemID: "1", iQty: "3", sName: "Potion" }],
+            },
+            type: "json",
+          }),
+        );
+        target.onExtensionResponse?.(
+          JSON.stringify({
+            dataObj: {
+              areaId: "12",
+              areaName: "battleon-42",
+              cmd: "moveToArea",
+              monBranch: [],
+              uoBranch: [],
+            },
+            type: "json",
+          }),
+        );
+        const playerBaseline = yield* makeWait(gateway).forPacket(
+          { command: "uotls", direction: "extension" },
+          {
+            timeout: "1 second",
+            trigger: Effect.sync(() => {
+              target.onExtensionResponse?.(
+                JSON.stringify({
+                  dataObj: {
+                    cmd: "uotls",
+                    o: {
+                      entID: "10",
+                      intHP: "100",
+                      intHPMax: "100",
+                      strFrame: "Enter",
                     },
-                    type: "json",
-                  }),
-                );
-                return true;
-              }),
-            },
-          );
+                    unm: "Hero",
+                  },
+                  type: "json",
+                }),
+              );
+              return true;
+            }),
+          },
+        );
 
-          expect(playerBaseline).not.toBeNull();
-          expect(yield* readiness.isReady()).toBe(true);
-          expect((yield* store.items.get("inventory", 1))?.quantity).toBe(3);
-          expect((yield* store.items.get("house", 2))?.equipped).toBe(true);
-          expect((yield* store.world.getMap).roomNumber).toBe(42);
-          expect((yield* store.world.getMe)?.username).toBe("Hero");
-        }),
-      ),
+        expect(playerBaseline).not.toBeNull();
+        expect(yield* readiness.isReady()).toBe(true);
+        expect((yield* store.items.get("inventory", 1))?.quantity).toBe(3);
+        expect((yield* store.items.get("house", 2))?.equipped).toBe(true);
+        expect((yield* store.world.getMap).roomNumber).toBe(42);
+        expect((yield* store.world.getMe)?.username).toBe("Hero");
+      }),
   );
 
   it.effect(

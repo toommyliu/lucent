@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   addEnvironmentBoosts,
@@ -26,10 +26,22 @@ describe("Environment", () => {
   it("normalizes quest state and treats invalid IDs as no-ops", () => {
     const initial = normalizeEnvironmentState({
       ...createEmptyEnvironmentState(),
+      automation: {
+        ...createEmptyEnvironmentState().automation,
+        boosts: false,
+      },
       questIds: [9, 2, 9, -1],
       questRewards: { 2: 30, 4: 40, 9: -1 },
     });
 
+    expect(initial.automation).toEqual({
+      boosts: false,
+      drops: true,
+      quests: true,
+    });
+    expect(
+      setEnvironmentAutomationEnabled(initial, "boosts", true).automation,
+    ).toEqual({ boosts: true, drops: true, quests: true });
     expect(initial.questIds).toEqual([2, 9]);
     expect(initial.questRewards).toEqual({ 2: 30 });
     expect(addEnvironmentQuest(initial, Number.NaN)).toEqual(initial);
@@ -114,20 +126,6 @@ describe("Environment", () => {
       questAutoRegister: { requirements: true, rewards: true },
       questIds: [],
       questRewards: {},
-    });
-  });
-
-  it("normalizes automation options", () => {
-    const state = setEnvironmentAutomationEnabled(
-      createEmptyEnvironmentState(),
-      "boosts",
-      false,
-    );
-
-    expect(state.automation).toEqual({
-      boosts: false,
-      drops: true,
-      quests: true,
     });
   });
 

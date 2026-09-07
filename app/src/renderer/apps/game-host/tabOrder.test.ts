@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   gameViewTabNavigationTargetId,
@@ -8,16 +8,15 @@ import {
 describe("game view tab keyboard navigation", () => {
   const ids = ["a", "b", "c"];
 
-  it("moves with arrows and wraps at each end", () => {
-    expect(gameViewTabNavigationTargetId(ids, "b", "ArrowLeft")).toBe("a");
-    expect(gameViewTabNavigationTargetId(ids, "a", "ArrowLeft")).toBe("c");
-    expect(gameViewTabNavigationTargetId(ids, "b", "ArrowRight")).toBe("c");
-    expect(gameViewTabNavigationTargetId(ids, "c", "ArrowRight")).toBe("a");
-  });
-
-  it("moves to the first or last tab with Home and End", () => {
-    expect(gameViewTabNavigationTargetId(ids, "b", "Home")).toBe("a");
-    expect(gameViewTabNavigationTargetId(ids, "b", "End")).toBe("c");
+  it.each([
+    ["b", "ArrowLeft", "a"],
+    ["a", "ArrowLeft", "c"],
+    ["b", "ArrowRight", "c"],
+    ["c", "ArrowRight", "a"],
+    ["b", "Home", "a"],
+    ["b", "End", "c"],
+  ] as const)("navigates from %s using %s to %s", (current, key, expected) => {
+    expect(gameViewTabNavigationTargetId(ids, current, key)).toBe(expected);
   });
 });
 

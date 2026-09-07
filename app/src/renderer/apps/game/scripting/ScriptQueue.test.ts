@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "@effect/vitest";
 
 import type { ScriptFile } from "@lucent/core/scriptInputs";
 import {
@@ -137,6 +137,10 @@ describe("ScriptQueue", () => {
     firstTerminal.resolve(completed(first));
     await waitForState(queue, (state) => state.currentIndex === 1);
     expect(startScript).toHaveBeenCalledTimes(2);
+    expect(startScript.mock.calls.map(([script]) => script)).toEqual([
+      first,
+      second,
+    ]);
 
     secondTerminal.resolve(completed(second));
     const finished = await waitForPhase(queue, "idle");

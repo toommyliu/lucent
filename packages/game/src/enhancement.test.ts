@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import { LiveItem } from "./item";
 import {
@@ -38,7 +38,7 @@ const item = (
   });
 
 describe("enhancement strategy", () => {
-  it("resolves basic enhancement shops by item slot", () => {
+  it("resolves a basic lucky enhancement for the class slot", () => {
     expect(resolveEnhancementStrategy(item("ar"), "lucky", 100)).toEqual({
       ok: true,
       strategy: {
@@ -201,6 +201,17 @@ describe("enhancement strategy", () => {
         procId: 14,
       },
       "Enhancement",
+    );
+    const wrongProc = item(
+      "Weapon",
+      { level: 100, patternId: 2, procId: 13 },
+      "Enhancement",
+    );
+    expect(matchesEnhancementShopItem(wrongProc, resolution.strategy)).toBe(
+      false,
+    );
+    expect(matchesAppliedEnhancement(wrongProc, resolution.strategy)).toBe(
+      false,
     );
     expect(matchesEnhancementShopItem(candidate, resolution.strategy)).toBe(
       true,

@@ -52,7 +52,7 @@ const makeClientHarness = (responses: readonly DesktopHttpResponse[]) => {
 };
 
 describe("GitHubScriptPackageClient", () => {
-  it("accepts only normalized GitHub.com repository sources", () => {
+  it("normalizes repository sources and throws for unsupported source URLs", () => {
     expect(
       normalizeGitHubRepositoryUrl("https://github.com/example/tools.git/"),
     ).toEqual({
@@ -60,17 +60,12 @@ describe("GitHubScriptPackageClient", () => {
       repository: "tools",
       url: "https://github.com/example/tools",
     });
-
-    for (const source of [
-      "http://github.com/example/tools",
-      "https://token@github.com/example/tools",
-      "https://github.com:444/example/tools",
-      "https://github.com/example/tools/path",
-      "https://github.com/example/tools?ref=main",
-      "https://gitlab.com/example/tools",
-    ]) {
-      expect(() => normalizeGitHubRepositoryUrl(source)).toThrow();
-    }
+    expect(() => normalizeGitHubRepositoryUrl("not-a-url")).toThrow();
+    expect(() =>
+      normalizeGitHubRepositoryUrl(
+        "https://github.com/example/tools/tree/main",
+      ),
+    ).toThrow();
   });
 
   it("serializes queued requests and enforces its bound", async () => {

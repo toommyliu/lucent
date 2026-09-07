@@ -46,9 +46,10 @@ return yield* Effect.succeed([api.marker, api.environment.marker, filesystem.mar
       if (!(error instanceof ScriptExecutionError)) {
         return;
       }
-      expect(error.message).not.toBe(
-        "Script evaluation could not be compiled.",
-      );
+      expect(error.cause).toBeInstanceOf(SyntaxError);
+      expect(error.message).toMatch(/unexpected/i);
+      if (error.cause instanceof SyntaxError)
+        expect(error.message).toBe(error.cause.message);
     }),
   );
 });

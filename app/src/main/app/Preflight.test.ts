@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+// Vitest requires a direct import for hoisted mocks.
+import { vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
   appendSwitch: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { configureFlashStartup, resolveWorkspaceHome } from "./Preflight";
+import { configureFlashStartup } from "./Preflight";
 
 const temporaryDirectories: string[] = [];
 
@@ -47,12 +48,6 @@ const makeEnvironmentConfig = () => {
 };
 
 describe("main preflight", () => {
-  it("resolves the Lucent workspace beneath Documents", () => {
-    expect(
-      resolveWorkspaceHome({ documentsPath: "/Users/example/Documents" }),
-    ).toBe(join("/Users/example/Documents", "Lucent"));
-  });
-
   it("configures the optional Flash version with the plugin path", () => {
     const { config, flashPluginPath } = makeEnvironmentConfig();
 

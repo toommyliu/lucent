@@ -67,38 +67,34 @@ const makeIpcMain = () => {
 
 describe("DesktopIpc", () => {
   it.effect("runs a typed method with its resolved sender", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { handlers, main } = makeIpcMain();
-        const ipc = makeDesktopIpc(main);
-        yield* ipc.handle(method);
-        const listener = handlers.get(descriptor.channel);
+    Effect.gen(function* () {
+      const { handlers, main } = makeIpcMain();
+      const ipc = makeDesktopIpc(main);
+      yield* ipc.handle(method);
+      const listener = handlers.get(descriptor.channel);
 
-        expect(listener).toBeDefined();
-        const envelope = yield* Effect.promise(() =>
-          listener!({} as IpcMainInvokeEvent, "hello"),
-        );
+      expect(listener).toBeDefined();
+      const envelope = yield* Effect.promise(() =>
+        listener!({} as IpcMainInvokeEvent, "hello"),
+      );
 
-        expect(envelope).toEqual({ ok: true, value: "hello:42" });
-      }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
-    ),
+      expect(envelope).toEqual({ ok: true, value: "hello:42" });
+    }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
   );
 
   it.effect(
     "fails duplicate handler registration instead of replacing it",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          const { main } = makeIpcMain();
-          const ipc = makeDesktopIpc(main);
-          yield* ipc.handle(method);
+      Effect.gen(function* () {
+        const { main } = makeIpcMain();
+        const ipc = makeDesktopIpc(main);
+        yield* ipc.handle(method);
 
-          const error = yield* Effect.flip(ipc.handle(method));
+        const error = yield* Effect.flip(ipc.handle(method));
 
-          expect(error).toBeInstanceOf(DesktopIpcRegistrationError);
-          expect(error.channel).toBe(descriptor.channel);
-        }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
-      ),
+        expect(error).toBeInstanceOf(DesktopIpcRegistrationError);
+        expect(error.channel).toBe(descriptor.channel);
+      }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
   );
 
   it.effect("continues delivery after a destroyed-window race", () =>

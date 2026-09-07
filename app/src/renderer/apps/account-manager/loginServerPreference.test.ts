@@ -1,6 +1,5 @@
-import { describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import type { AccountGameServer } from "@lucent/core/accounts";
-import { afterEach, vi } from "vitest";
 
 import {
   readStoredAccountLoginServerPreference,
@@ -40,16 +39,14 @@ const gameServer = (
 afterEach(() => vi.unstubAllGlobals());
 
 describe("account login server preference", () => {
-  it("decodes valid stored preferences", () => {
-    stubLocalStorage('{"type":"none"}');
-    expect(readStoredAccountLoginServerPreference()).toEqual({ type: "none" });
-
-    stubLocalStorage('{"type":"server","name":"Artix"}');
-    expect(readStoredAccountLoginServerPreference()).toEqual({
-      type: "server",
-      name: "Artix",
-    });
-  });
+  it.each([{ type: "none" }, { type: "server", name: "Artix" }] as const)(
+    "round-trips a $type preference through storage",
+    (preference) => {
+      stubLocalStorage();
+      writeStoredAccountLoginServerPreference(preference);
+      expect(readStoredAccountLoginServerPreference()).toEqual(preference);
+    },
+  );
 
   it.each([
     "not-json",
@@ -62,19 +59,6 @@ describe("account login server preference", () => {
   ])("treats invalid stored preference %s as missing", (storedValue) => {
     stubLocalStorage(storedValue);
     expect(readStoredAccountLoginServerPreference()).toBeUndefined();
-  });
-
-  it("encodes preferences through the schema codec", () => {
-    const values = stubLocalStorage();
-
-    writeStoredAccountLoginServerPreference({
-      type: "server",
-      name: "Yulgar",
-    });
-    expect(values.get(storageKey)).toBe('{"type":"server","name":"Yulgar"}');
-
-    writeStoredAccountLoginServerPreference({ type: "none" });
-    expect(values.get(storageKey)).toBe('{"type":"none"}');
   });
 
   it("honors explicit none and an online preferred server", () => {

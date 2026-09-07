@@ -4,7 +4,7 @@ import { join, resolve as resolvePath } from "path";
 import { EventEmitter } from "events";
 import type { Worker } from "worker_threads";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
 
 import { makeScriptFileResolver, ScriptFileWorkerClient } from "./ScriptFiles";
 import { processScriptFile } from "./ScriptFileWorker";

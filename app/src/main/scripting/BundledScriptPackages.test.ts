@@ -3,8 +3,7 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 
-import { it } from "@effect/vitest";
-import { afterEach, describe, expect, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";

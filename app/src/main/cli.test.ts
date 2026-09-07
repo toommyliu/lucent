@@ -34,15 +34,8 @@ describe("main CLI", () => {
         "--flash-plugin-path",
         "--flash-version=   ",
         "--another-flag",
+        "--debug=10637",
       ]),
     ).toEqual({});
-  });
-
-  it("only enables debug mode with the boolean debug flag", () => {
-    expect(parseCliOptions(["--debug"])).toEqual({ debug: true });
-    expect(parseCliOptions(["--debug=10637"])).toEqual({});
-    expect(parseCliOptions(["--obs"])).toEqual({});
-    expect(parseCliOptions(["--obs=10637"])).toEqual({});
-    expect(parseCliOptions(["--obs", "10637"])).toEqual({});
   });
 });

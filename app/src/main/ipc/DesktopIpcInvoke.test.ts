@@ -72,12 +72,12 @@ describe("createDesktopIpcInvokeHandler", () => {
 
   it.effect("accepts a single-token appearance patch", () =>
     Effect.gen(function* () {
-      let saveCount = 0;
+      const savedPatches: unknown[] = [];
       const invoke = createDesktopIpcInvokeHandler(
         SettingsIpc.updateAppearance,
-        () =>
+        (patch) =>
           Effect.sync(() => {
-            saveCount += 1;
+            savedPatches.push(patch);
             return DEFAULT_APP_SETTINGS;
           }),
         Effect.runPromise,
@@ -96,7 +96,9 @@ describe("createDesktopIpcInvokeHandler", () => {
       );
 
       expect(envelope.ok).toBe(true);
-      expect(saveCount).toBe(1);
+      expect(savedPatches).toEqual([
+        { themes: { dark: { tokens: { background: [1, 2, 3] } } } },
+      ]);
     }),
   );
 });

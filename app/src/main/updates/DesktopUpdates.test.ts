@@ -2,8 +2,9 @@ import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+// Vitest requires a direct import for hoisted mocks.
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 

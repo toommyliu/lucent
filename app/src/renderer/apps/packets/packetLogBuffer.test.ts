@@ -1,19 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import { appendPacketLogBatch } from "./packetLogBuffer";
 
 describe("appendPacketLogBatch", () => {
-  it("appends a batch in capture order", () => {
-    expect(appendPacketLogBatch([1, 2], [3, 4], 5)).toEqual([1, 2, 3, 4]);
-  });
-
-  it("evicts the oldest entries when the combined log exceeds the limit", () => {
-    expect(appendPacketLogBatch([1, 2, 3], [4, 5], 4)).toEqual([2, 3, 4, 5]);
-  });
-
-  it("retains only the newest entries from an oversized batch", () => {
-    expect(appendPacketLogBatch([1, 2], [3, 4, 5, 6], 3)).toEqual([4, 5, 6]);
-  });
+  it.each([
+    { current: [1, 2], batch: [3, 4], limit: 5, expected: [1, 2, 3, 4] },
+    { current: [1, 2, 3], batch: [4, 5], limit: 4, expected: [2, 3, 4, 5] },
+    { current: [1, 2], batch: [3, 4, 5, 6], limit: 3, expected: [4, 5, 6] },
+  ])(
+    "preserves capture order within a limit of $limit",
+    ({ current, batch, limit, expected }) => {
+      expect(appendPacketLogBatch(current, batch, limit)).toEqual(expected);
+    },
+  );
 
   it("does not invalidate the log for an empty batch", () => {
     const current = [1, 2];

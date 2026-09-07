@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   EntityState,
@@ -114,7 +114,7 @@ describe("game domain models", () => {
     expect(classItem.toJSON()).toMatchObject({ classRank: 10 });
   });
 
-  it("matches monster selectors and derives server capacity", () => {
+  it("matches monster selectors and distinguishes IDs from numeric names", () => {
     const monster = new LiveMonster({
       cell: "r1",
       hp: 100,
@@ -128,15 +128,6 @@ describe("game domain models", () => {
       race: "Undead",
       state: EntityState.Idle,
     });
-    const server = new LiveServer({
-      chat: 2,
-      count: 100,
-      language: "en",
-      max: 100,
-      memberOnly: false,
-      name: "Artix",
-      online: true,
-    });
 
     expect(monster.matches("undead")).toBe(true);
     expect(monster.matches("id:9")).toBe(true);
@@ -146,6 +137,23 @@ describe("game domain models", () => {
     for (const query of ["9", "id9"]) {
       expect(toMonsterSelector(query)).toEqual({ name: query });
     }
+  });
+
+  it("retains drop metadata when a monster snapshot is replaced", () => {
+    const monster = new LiveMonster({
+      cell: "r1",
+      hp: 100,
+      level: 5,
+      maxHp: 100,
+      maxMp: 0,
+      monsterId: 8,
+      monsterMapId: 9,
+      mp: 0,
+      name: "Undead Warrior",
+      race: "Undead",
+      state: EntityState.Idle,
+    });
+
     monster.replaceDrops([
       {
         eventDrop: true,
@@ -189,8 +197,26 @@ describe("game domain models", () => {
     expect(monster.drops[0]?.item.name).toBe("Bone");
     expect(monster.toJSON().drops[0]?.ratePercent).toBe(25);
     expect(monster.toJSON().drops[0]?.requiredQuestIds).toEqual([2972]);
-    expect(getItemRarityName(16)).toBe("Boss Drop");
-    expect(getItemRarityName(22)).toBe("Unknown");
+  });
+
+  it.each([
+    [16, "Boss Drop"],
+    [22, "Unknown"],
+  ])("labels rarity %i as %s", (rarity, expected) => {
+    expect(getItemRarityName(rarity)).toBe(expected);
+  });
+
+  it("treats a server at its player limit as full", () => {
+    const server = new LiveServer({
+      chat: 2,
+      count: 100,
+      language: "en",
+      max: 100,
+      memberOnly: false,
+      name: "Artix",
+      online: true,
+    });
+
     expect(server.full).toBe(true);
   });
 

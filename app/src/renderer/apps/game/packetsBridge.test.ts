@@ -1,6 +1,5 @@
-import { describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import { afterEach, vi } from "vitest";
 
 import type { DesktopGamePacketsBridge } from "../../../shared/desktopBridge";
 import type {
