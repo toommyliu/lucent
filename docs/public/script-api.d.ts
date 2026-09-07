@@ -215,12 +215,24 @@ interface ScriptRuntimeApi {
     exit(/** @defaultValue { closeClient: false, logout: false } */ options?: ScriptExitOptions): Effect<never, ScriptStopSignal>;
     log(...values: unknown[]): Effect<void, never>;
   /**
-  * Opens a text prompt. Canceling the dialog yields `null`; submitting an
-  * empty value yields an empty string.
+  * Opens a text prompt with an empty input. Canceling the dialog yields `null`;
+  * submitting without entering text yields an empty string, not the placeholder.
   *
-  * @param defaultValue Input placeholder.
+  * @param placeholder Hint shown in the empty input. It is not a default value.
+  *
+  * @example
+  * ```js
+  * const name = yield* script.prompt("Character name", "Artix");
+  * if (name === null) {
+  *   yield* script.stop("Prompt canceled.");
+  * }
+  * if (name === "") {
+  *   yield* script.stop("No name entered.");
+  * }
+  * yield* script.log(name);
+  * ```
   */
-    prompt(message: string, /** @defaultValue "" */ defaultValue?: string): Effect<string | null, never>;
+    prompt(message: string, /** @defaultValue "" */ placeholder?: string): Effect<string | null, never>;
     sleep(duration: DurationInput): Effect<void, ScriptExecutionError>;
   /**
   * Stops the current script. If it is part of a queue, the next script runs.

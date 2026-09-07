@@ -151,8 +151,8 @@ export const makeScriptRuntimeApi = (
         }));
       }),
     }),
-    prompt: (message, defaultValue) =>
-      options.dialogs.prompt(source, message, defaultValue),
+    prompt: (message, placeholder) =>
+      options.dialogs.prompt(source, message, placeholder),
     signal: options.scope.signal,
     sleep: (duration) =>
       Effect.try({

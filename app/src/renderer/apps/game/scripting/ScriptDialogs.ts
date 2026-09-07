@@ -26,7 +26,7 @@ export interface ScriptConfirmRequest extends ScriptDialogRequestBase {
 }
 
 export interface ScriptPromptRequest extends ScriptDialogRequestBase {
-  readonly defaultValue: string;
+  readonly placeholder: string;
   readonly kind: "prompt";
 }
 
@@ -75,7 +75,7 @@ export interface ScriptDialogsShape {
   readonly prompt: (
     source: ScriptDialogSource,
     message: string,
-    defaultValue?: string,
+    placeholder?: string,
   ) => Effect.Effect<string | null>;
   readonly respond: (response: ScriptDialogResponse) => Effect.Effect<boolean>;
 }
@@ -185,12 +185,12 @@ export const makeScriptDialogs = Effect.fnUntraced(function* () {
   const prompt: ScriptDialogsShape["prompt"] = (
     source,
     message,
-    defaultValue = "",
+    placeholder = "",
   ) =>
     Effect.gen(function* () {
       const response = yield* enqueue({
         ...source,
-        defaultValue,
+        placeholder,
         kind: "prompt",
         message,
       });
