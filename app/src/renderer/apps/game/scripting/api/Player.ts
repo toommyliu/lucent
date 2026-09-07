@@ -2,20 +2,40 @@ import * as Effect from "effect/Effect";
 
 import type { RoomPolicy } from "@lucent/core/accountSettings";
 import type { ApiService } from "../../flash/api/Api";
-import { applyRoomPolicy } from "../../flash/domain/MapTarget";
+import {
+  applyRoomPolicy,
+  roomPolicyAcceptsRoom,
+  withRoomNumber,
+} from "../../flash/domain/MapTarget";
 import type { ScriptPlayerApi, ScriptPlayersApi } from "../ScriptApi";
 import { makeScriptPlayersApi } from "./Players";
 
 type ScriptRoomPolicyContext = {
   readonly policy: Effect.Effect<RoomPolicy>;
+  readonly map: Pick<
+    ApiService["map"],
+    "isLoaded" | "getName" | "getRoomNumber"
+  >;
 };
 
-const makeScriptPlayerJoinMap = (
+export const makeScriptPlayerJoinMap = (
   joinMap: ApiService["player"]["joinMap"],
   script: ScriptRoomPolicyContext,
 ): ApiService["player"]["joinMap"] =>
   Effect.fn("ScriptPlayer.joinMap")(function* (map, options) {
     const policy = yield* script.policy;
+    if (policy.kind === "random-private" && (yield* script.map.isLoaded())) {
+      const currentName = yield* script.map.getName();
+      const currentRoom = yield* script.map.getRoomNumber();
+      // Only a bare map name can reuse the current room; explicit room requests
+      // must retain their existing destination semantics.
+      if (
+        map.trim().toLowerCase() === currentName.trim().toLowerCase() &&
+        roomPolicyAcceptsRoom(policy, currentRoom)
+      ) {
+        return yield* joinMap(withRoomNumber(map.trim(), currentRoom), options);
+      }
+    }
     return yield* joinMap(yield* applyRoomPolicy(map, policy), options);
   });
 
