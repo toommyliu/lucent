@@ -1,0 +1,54 @@
+---
+title: Queries and selectors
+description: Find items, monsters, and players by name or ID.
+---
+
+Use an ID selector when a name has multiple matches or an ID is ambiguous.
+A selector names what you want to match, such as `{ itemId: 12345 }`.
+
+## Look up by name
+
+Use the full name. A plain name and a name selector work the same way:
+
+{/* prettier-ignore */}
+```js
+yield* api.inventory.get("Scroll of Enrage");
+yield* api.inventory.get({ name: "Scroll of Enrage" });
+```
+
+For players, use their username:
+
+{/* prettier-ignore */}
+```js
+yield* api.players.get("player_name");
+yield* api.players.get({ username: "player_name" });
+```
+
+## Pick one of several matches
+
+When names aren't enough, use `itemId` for an item or `monsterMapId` for a
+specific monster:
+
+{/* prettier-ignore */}
+```js
+yield* api.inventory.get({ itemId: 12345 });
+yield* api.monsters.get({ monsterMapId: 3 });
+```
+
+If any monster will do, use `"*"`:
+
+{/* prettier-ignore */}
+```js
+yield* api.monsters.get("*");
+```
+
+## Choose a shop entry
+
+Use `itemId` to find an item, or `shopItemId` to choose a particular shop entry.
+You can get these IDs from `api.shop.getAll()`.
+
+{/* prettier-ignore */}
+```js
+yield* api.shop.get({ itemId: 12345 });
+yield* api.shop.get({ shopItemId: 67890 });
+```
