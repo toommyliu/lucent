@@ -929,7 +929,9 @@ const renderInterfaceFromDeclaration = (
     if (childDeclaration && ts.isInterfaceDeclaration(childDeclaration)) {
       const childOutputName = childDeclaration.name.text;
       renderApiInterface(state, childDeclaration.name.text, childOutputName);
-      lines.push(`    readonly ${name}: ${childOutputName};`);
+      lines.push(
+        `${getJsDocComment(member)}    readonly ${name}: ${childOutputName};`,
+      );
       continue;
     }
 

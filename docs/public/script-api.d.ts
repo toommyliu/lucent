@@ -258,6 +258,7 @@ interface ScriptAutoZoneApi {
     setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
 }
 interface ScriptFileSystemApi {
+  /** Use with `instanceof` to identify filesystem errors. */
     readonly FileSystemError: FileSystemErrorConstructor;
   /** Checks whether a path exists. */
     exists(path: string): Effect<boolean, FileSystemError>;
@@ -353,6 +354,30 @@ interface ScriptCombatApi {
   /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
     hunt(query: MonsterQuery, options?: HuntOptions): Effect<LiveMonster | null, never>;
     kill(query: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
+  /**
+  * Fights monsters in the current cell until your inventory has the requested
+  * quantity. Counts items you already own and accepts matching drops.
+  * Keeps trying until the goal is reached or the action is interrupted.
+  * A timeout stops farming; items already collected stay in your inventory.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  * const { Effect, Option, pipe } = require("effect");
+  *
+  * const result = yield* pipe(
+  *   api.combat.killForItem("Boss Name", {
+  *     item: "Item Name",
+  *     quantity: 10,
+  *   }),
+  *   Effect.timeoutOption("5 minutes"),
+  * );
+  *
+  * if (Option.isNone(result)) {
+  *   yield* script.log("Farming timed out before reaching the quantity.");
+  * }
+  * ```
+  */
     killForItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
     killForTempItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
@@ -418,7 +443,58 @@ interface ScriptEnvironmentApi {
     clearBoosts(): Effect<EnvironmentSnapshot, EnvironmentError>;
 }
 interface ScriptEventsApi {
+  /**
+  * Runs a handler for every matching event. The handler must return an Effect
+  * or generator; plain values and Promises are not supported.
+  *
+  * Call the returned function to stop listening early.
+  * The subscription is also removed automatically when the script stops.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  *
+  * const unsubscribe = yield* api.events.on(
+  *   { type: "monster-death" },
+  *   function* (event) {
+  *     yield* script.log(`Monster ${event.monsterMapId} died.`);
+  *   },
+  * );
+  *
+  * yield* script.sleep("30 seconds");
+  * unsubscribe();
+  * ```
+  */
     readonly on: ScriptEventsOn;
+  /**
+  * Waits for the next matching event. With a `trigger`, starts listening before
+  * running that action so an immediate event is not missed.
+  *
+  * Returns `null` if the trigger returns `false` or the wait times out. The
+  * timeout starts after the trigger finishes; omitting it waits indefinitely.
+  * Timing out stops the wait but does not undo the action started by the trigger.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  *
+  * const [monster] = yield* api.monsters.getAvailable();
+  * if (monster !== undefined) {
+  *   const death = yield* api.events.once(
+  *     { type: "monster-death", monsterMapId: monster.monsterMapId },
+  *     {
+  *       trigger: api.combat.attack(monster.monsterMapId),
+  *       timeout: "30 seconds",
+  *     },
+  *   );
+  *   yield* api.combat.cancelAutoAttack();
+  *
+  *   if (death === null) {
+  *     yield* script.log("Attack failed or the monster did not die in time.");
+  *   }
+  * }
+  * ```
+  */
     readonly once: ScriptWaitForEvent;
 }
 interface ScriptEventsOn {

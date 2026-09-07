@@ -300,6 +300,30 @@ export interface ScriptCombatApi {
     query: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
+  /**
+   * Fights monsters in the current cell until your inventory has the requested
+   * quantity. Counts items you already own and accepts matching drops.
+   * Keeps trying until the goal is reached or the action is interrupted.
+   * A timeout stops farming; items already collected stay in your inventory.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   * const { Effect, Option, pipe } = require("effect");
+   *
+   * const result = yield* pipe(
+   *   api.combat.killForItem("Boss Name", {
+   *     item: "Item Name",
+   *     quantity: 10,
+   *   }),
+   *   Effect.timeoutOption("5 minutes"),
+   * );
+   *
+   * if (Option.isNone(result)) {
+   *   yield* script.log("Farming timed out before reaching the quantity.");
+   * }
+   * ```
+   */
   readonly killForItem: (
     target: MonsterQuery,
     goal: FarmItemGoal,
@@ -434,7 +458,58 @@ export interface ScriptWaitForEvent {
 }
 
 export interface ScriptEventsApi {
+  /**
+   * Runs a handler for every matching event. The handler must return an Effect
+   * or generator; plain values and Promises are not supported.
+   *
+   * Call the returned function to stop listening early.
+   * The subscription is also removed automatically when the script stops.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   *
+   * const unsubscribe = yield* api.events.on(
+   *   { type: "monster-death" },
+   *   function* (event) {
+   *     yield* script.log(`Monster ${event.monsterMapId} died.`);
+   *   },
+   * );
+   *
+   * yield* script.sleep("30 seconds");
+   * unsubscribe();
+   * ```
+   */
   readonly on: ScriptEventsOn;
+  /**
+   * Waits for the next matching event. With a `trigger`, starts listening before
+   * running that action so an immediate event is not missed.
+   *
+   * Returns `null` if the trigger returns `false` or the wait times out. The
+   * timeout starts after the trigger finishes; omitting it waits indefinitely.
+   * Timing out stops the wait but does not undo the action started by the trigger.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   *
+   * const [monster] = yield* api.monsters.getAvailable();
+   * if (monster !== undefined) {
+   *   const death = yield* api.events.once(
+   *     { type: "monster-death", monsterMapId: monster.monsterMapId },
+   *     {
+   *       trigger: api.combat.attack(monster.monsterMapId),
+   *       timeout: "30 seconds",
+   *     },
+   *   );
+   *   yield* api.combat.cancelAutoAttack();
+   *
+   *   if (death === null) {
+   *     yield* script.log("Attack failed or the monster did not die in time.");
+   *   }
+   * }
+   * ```
+   */
   readonly once: ScriptWaitForEvent;
 }
 
