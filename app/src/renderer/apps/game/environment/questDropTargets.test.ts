@@ -1,5 +1,5 @@
 import { LiveQuest } from "@lucent/game";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import { getQuestDropTargetNames } from "./questDropTargets";
 

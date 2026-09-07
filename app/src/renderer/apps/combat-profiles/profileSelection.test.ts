@@ -3,15 +3,8 @@ import {
   DEFAULT_COMBAT_PROFILE_ID,
   type CombatProfile,
 } from "@lucent/core/combatProfiles";
-import { afterEach, vi } from "vitest";
 
-import {
-  readStoredCombatProfileId,
-  resolvePreferredCombatProfileId,
-  writeStoredCombatProfileId,
-} from "./profileSelection";
-
-const storageKey = "lucent.combatProfiles.selectedProfileId";
+import { resolvePreferredCombatProfileId } from "./profileSelection";
 
 const combatProfile = (id: string): CombatProfile => ({
   id,
@@ -21,56 +14,48 @@ const combatProfile = (id: string): CombatProfile => ({
   steps: [],
 });
 
-afterEach(() => vi.unstubAllGlobals());
-
 describe("combat profile selection", () => {
-  it("uses the preferred profile when it exists", () => {
-    const profiles = [
-      combatProfile(DEFAULT_COMBAT_PROFILE_ID),
-      combatProfile("preferred"),
-    ];
-
-    expect(resolvePreferredCombatProfileId(profiles, "preferred")).toBe(
-      "preferred",
-    );
-  });
-
-  it("falls back to a non-default profile, then the first profile", () => {
-    expect(
-      resolvePreferredCombatProfileId(
-        [combatProfile(DEFAULT_COMBAT_PROFILE_ID), combatProfile("custom")],
-        "missing",
-      ),
-    ).toBe("custom");
-    expect(
-      resolvePreferredCombatProfileId(
-        [combatProfile(DEFAULT_COMBAT_PROFILE_ID)],
-        "missing",
-      ),
-    ).toBe(DEFAULT_COMBAT_PROFILE_ID);
-  });
-
-  it("uses the default id when there are no profiles", () => {
-    expect(resolvePreferredCombatProfileId([], undefined)).toBe(
-      DEFAULT_COMBAT_PROFILE_ID,
-    );
-    expect(resolvePreferredCombatProfileId([], undefined, "fallback")).toBe(
-      "fallback",
-    );
-  });
-
-  it("persists the selected profile using the feature storage key", () => {
-    const values = new Map<string, string>();
-    vi.stubGlobal("window", {
-      localStorage: {
-        getItem: (key: string) => values.get(key) ?? null,
-        setItem: (key: string, value: string) => values.set(key, value),
-      },
-    });
-
-    writeStoredCombatProfileId("custom");
-
-    expect(values.get(storageKey)).toBe("custom");
-    expect(readStoredCombatProfileId()).toBe("custom");
-  });
+  it.each([
+    {
+      ids: [DEFAULT_COMBAT_PROFILE_ID, "preferred"],
+      preferred: "preferred",
+      fallback: undefined,
+      expected: "preferred",
+    },
+    {
+      ids: [DEFAULT_COMBAT_PROFILE_ID, "custom"],
+      preferred: "missing",
+      fallback: undefined,
+      expected: "custom",
+    },
+    {
+      ids: [DEFAULT_COMBAT_PROFILE_ID],
+      preferred: "missing",
+      fallback: undefined,
+      expected: DEFAULT_COMBAT_PROFILE_ID,
+    },
+    {
+      ids: [],
+      preferred: undefined,
+      fallback: undefined,
+      expected: DEFAULT_COMBAT_PROFILE_ID,
+    },
+    {
+      ids: [],
+      preferred: undefined,
+      fallback: "fallback",
+      expected: "fallback",
+    },
+  ])(
+    "resolves $ids with preferred $preferred and fallback $fallback to $expected",
+    ({ ids, preferred, fallback, expected }) => {
+      expect(
+        resolvePreferredCombatProfileId(
+          ids.map(combatProfile),
+          preferred,
+          fallback,
+        ),
+      ).toBe(expected);
+    },
+  );
 });

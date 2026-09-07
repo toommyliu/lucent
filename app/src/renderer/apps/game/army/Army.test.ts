@@ -1,11 +1,10 @@
-import { describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as TestClock from "effect/testing/TestClock";
-import { afterEach, vi } from "vitest";
 
 import type { ArmySessionPayload } from "@lucent/core/army";
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
@@ -123,320 +122,302 @@ const withArmy = <A, E, R>(
 
 describe("Army API", () => {
   it.effect("rejects repeated starts and resets after a remote end event", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const testBridge = makeBridge();
-        yield* withArmy(makeApi(), testBridge.bridge, (army) =>
-          Effect.gen(function* () {
-            yield* army.start("test");
-            const error = yield* Effect.flip(army.start("test"));
-            expect(error.message).toContain("already been started");
-            testBridge.end();
-            yield* Effect.yieldNow;
-            expect(yield* army.isStarted()).toBe(false);
-          }),
-        );
-      }),
-    ),
+    Effect.gen(function* () {
+      const testBridge = makeBridge();
+      yield* withArmy(makeApi(), testBridge.bridge, (army) =>
+        Effect.gen(function* () {
+          yield* army.start("test");
+          const error = yield* Effect.flip(army.start("test"));
+          expect(error.message).toContain("already been started");
+          testBridge.end();
+          yield* Effect.yieldNow;
+          expect(yield* army.isStarted()).toBe(false);
+        }),
+      );
+    }),
   );
 
   it.effect("rejects overlapping coordinated operations", () =>
-    Effect.scoped(
-      withArmy(makeApi(), makeBridge().bridge, (army) =>
-        Effect.gen(function* () {
-          yield* army.start("test");
-          const started = yield* Deferred.make<void>();
-          const release = yield* Deferred.make<void>();
-          const first = yield* army
-            .runStep(
-              "first",
-              Deferred.succeed(started, undefined).pipe(
-                Effect.andThen(Deferred.await(release)),
-              ),
-            )
-            .pipe(Effect.forkScoped);
-          yield* Deferred.await(started);
-          const error = yield* Effect.flip(army.sync("second"));
-          expect(error.message).toContain("already running");
-          yield* Deferred.succeed(release, undefined);
-          yield* Fiber.join(first);
-        }),
-      ),
+    withArmy(makeApi(), makeBridge().bridge, (army) =>
+      Effect.gen(function* () {
+        yield* army.start("test");
+        const started = yield* Deferred.make<void>();
+        const release = yield* Deferred.make<void>();
+        const first = yield* army
+          .runStep(
+            "first",
+            Deferred.succeed(started, undefined).pipe(
+              Effect.andThen(Deferred.await(release)),
+            ),
+          )
+          .pipe(Effect.forkScoped);
+        yield* Deferred.await(started);
+        const error = yield* Effect.flip(army.sync("second"));
+        expect(error.message).toContain("already running");
+        yield* Deferred.succeed(release, undefined);
+        yield* Fiber.join(first);
+      }),
     ),
   );
 
   it.effect("interrupts coordinated work when the army session ends", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const actionStarted = yield* Deferred.make<void>();
-        const actionStopped = yield* Deferred.make<void>();
-        const testBridge = makeBridge({
-          progress: async () => ({
-            complete: false,
-            completedPlayers: ["Alice"],
-            pendingPlayers: ["Bob"],
-          }),
-        });
-        const reason = "Timed out waiting for army progress 25; missing: Bob";
+    Effect.gen(function* () {
+      const actionStarted = yield* Deferred.make<void>();
+      const actionStopped = yield* Deferred.make<void>();
+      const testBridge = makeBridge({
+        progress: async () => ({
+          complete: false,
+          completedPlayers: ["Alice"],
+          pendingPlayers: ["Bob"],
+        }),
+      });
+      const reason = "Timed out waiting for army progress 25; missing: Bob";
 
-        yield* withArmy(
-          makeApi({
-            combat: {
-              getConsumableSkillItem: () =>
-                Effect.succeed({ itemId: 1, ready: true }),
-              kill: () =>
-                Deferred.succeed(actionStarted, undefined).pipe(
-                  Effect.andThen(Effect.never),
-                  Effect.ensuring(
-                    Deferred.succeed(actionStopped, undefined).pipe(
-                      Effect.asVoid,
-                    ),
+      yield* withArmy(
+        makeApi({
+          combat: {
+            getConsumableSkillItem: () =>
+              Effect.succeed({ itemId: 1, ready: true }),
+            kill: () =>
+              Deferred.succeed(actionStarted, undefined).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(
+                  Deferred.succeed(actionStopped, undefined).pipe(
+                    Effect.asVoid,
                   ),
                 ),
-              useSkill: () => Effect.succeed(true),
-            },
-            tempInventory: { contains: () => Effect.succeed(false) },
+              ),
+            useSkill: () => Effect.succeed(true),
+          },
+          tempInventory: { contains: () => Effect.succeed(false) },
+        }),
+        testBridge.bridge,
+        (army) =>
+          Effect.gen(function* () {
+            yield* army.start("test");
+            const work = yield* army
+              .killForTempItem("Boss", {
+                item: "Defeated",
+                quantity: 1,
+              })
+              .pipe(Effect.forkScoped);
+            yield* Deferred.await(actionStarted);
+
+            testBridge.end(reason);
+            yield* Deferred.await(actionStopped);
+
+            const error = yield* Fiber.join(work).pipe(Effect.flip);
+            expect(error).toBeInstanceOf(ArmyError);
+            expect(error.message).toBe(reason);
+            expect(yield* army.isStarted()).toBe(false);
           }),
-          testBridge.bridge,
-          (army) =>
-            Effect.gen(function* () {
-              yield* army.start("test");
-              const work = yield* army
-                .killForTempItem("Boss", {
-                  item: "Defeated",
-                  quantity: 1,
-                })
-                .pipe(Effect.forkScoped);
-              yield* Deferred.await(actionStarted);
-
-              testBridge.end(reason);
-              yield* Deferred.await(actionStopped);
-
-              const error = yield* Fiber.join(work).pipe(Effect.flip);
-              expect(error).toBeInstanceOf(ArmyError);
-              expect(error.message).toBe(reason);
-              expect(yield* army.isStarted()).toBe(false);
-            }),
-        );
-      }),
-    ),
+      );
+    }),
   );
 
   it.effect("keeps helping after the local item guard passes", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const kills = yield* Ref.make(0);
-        let progressRound = 0;
-        const testBridge = makeBridge({
-          progress: async () => {
-            progressRound += 1;
-            return progressRound === 1
-              ? {
-                  complete: false,
-                  completedPlayers: ["Alice"],
-                  pendingPlayers: ["Bob"],
-                }
-              : {
-                  complete: true,
-                  completedPlayers: ["Alice", "Bob"],
-                  pendingPlayers: [],
-                };
+    Effect.gen(function* () {
+      const kills = yield* Ref.make(0);
+      let progressRound = 0;
+      const testBridge = makeBridge({
+        progress: async () => {
+          progressRound += 1;
+          return progressRound === 1
+            ? {
+                complete: false,
+                completedPlayers: ["Alice"],
+                pendingPlayers: ["Bob"],
+              }
+            : {
+                complete: true,
+                completedPlayers: ["Alice", "Bob"],
+                pendingPlayers: [],
+              };
+        },
+      });
+      yield* withArmy(
+        makeApi({
+          combat: {
+            getConsumableSkillItem: () =>
+              Effect.succeed({ itemId: 1, ready: true }),
+            kill: () => Ref.update(kills, (count) => count + 1),
+            useSkill: () => Effect.succeed(true),
           },
-        });
-        yield* withArmy(
-          makeApi({
-            combat: {
-              getConsumableSkillItem: () =>
-                Effect.succeed({ itemId: 1, ready: true }),
-              kill: () => Ref.update(kills, (count) => count + 1),
-              useSkill: () => Effect.succeed(true),
-            },
+        }),
+        testBridge.bridge,
+        (army) =>
+          Effect.gen(function* () {
+            yield* army.start("test");
+            const fiber = yield* army
+              .killForItem("Boss", { item: "Drop", quantity: 1 })
+              .pipe(Effect.forkScoped);
+            yield* TestClock.adjust("200 millis");
+            yield* Fiber.join(fiber);
           }),
-          testBridge.bridge,
-          (army) =>
-            Effect.gen(function* () {
-              yield* army.start("test");
-              const fiber = yield* army
-                .killForItem("Boss", { item: "Drop", quantity: 1 })
-                .pipe(Effect.forkScoped);
-              yield* TestClock.adjust("200 millis");
-              yield* Fiber.join(fiber);
-            }),
-        );
-        expect(yield* Ref.get(kills)).toBe(1);
-        expect(progressRound).toBe(2);
-      }),
-    ),
+      );
+      expect(yield* Ref.get(kills)).toBe(1);
+      expect(progressRound).toBe(2);
+    }),
   );
 
   it.effect("reports map identity and full-roster visibility", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        let reported:
-          | { readonly complete: boolean; readonly label?: string }
-          | undefined;
-        const bridge = makeBridge({
-          progress: async (payload) => {
-            reported = payload;
-            return {
-              complete: true,
-              completedPlayers: ["Alice"],
-              pendingPlayers: [],
-            };
-          },
-        }).bridge;
-        yield* withArmy(makeApi(), bridge, (army) =>
-          Effect.gen(function* () {
-            yield* army.start("test");
-            yield* army.waitForAllInMap();
-          }),
-        );
-        expect(reported).toMatchObject({
-          complete: true,
-          label: "map:ultra-1234",
-        });
-      }),
-    ),
+    Effect.gen(function* () {
+      let reported:
+        | { readonly complete: boolean; readonly label?: string }
+        | undefined;
+      const bridge = makeBridge({
+        progress: async (payload) => {
+          reported = payload;
+          return {
+            complete: true,
+            completedPlayers: ["Alice"],
+            pendingPlayers: [],
+          };
+        },
+      }).bridge;
+      yield* withArmy(makeApi(), bridge, (army) =>
+        Effect.gen(function* () {
+          yield* army.start("test");
+          yield* army.waitForAllInMap();
+        }),
+      );
+      expect(reported).toMatchObject({
+        complete: true,
+        label: "map:ultra-1234",
+      });
+    }),
   );
 
   it.effect("preserves the pot-lock-safe equipment order", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const equipped = yield* Ref.make<readonly string[]>([]);
-        const skillUses = yield* Ref.make(0);
-        let quantity = 3;
-        const session = makeSession({
-          boss: {
-            default: {
-              armor: "armor",
-              cape: "cape",
-              class: "class",
-              helm: "helm",
-              pet: "pet",
-              pots: ["pot-one", "pot-two"],
-              safeClass: "safe-class",
-              safePot: "safe-pot",
-              scroll: "scroll",
-              weapon: "weapon",
-            },
-            players: {},
+    Effect.gen(function* () {
+      const equipped = yield* Ref.make<readonly string[]>([]);
+      const skillUses = yield* Ref.make(0);
+      let quantity = 3;
+      const session = makeSession({
+        boss: {
+          default: {
+            armor: "armor",
+            cape: "cape",
+            class: "class",
+            helm: "helm",
+            pet: "pet",
+            pots: ["pot-one", "pot-two"],
+            safeClass: "safe-class",
+            safePot: "safe-pot",
+            scroll: "scroll",
+            weapon: "weapon",
           },
-        });
-        const bridge = makeBridge({ start: async () => session }).bridge;
-        yield* withArmy(
-          makeApi({
-            combat: {
-              getConsumableSkillItem: () =>
-                Effect.succeed({ itemId: 1, ready: true }),
-              kill: () => Effect.void,
-              useSkill: () =>
-                Ref.update(skillUses, (count) => count + 1).pipe(
-                  Effect.tap(() =>
-                    Effect.sync(() => {
-                      quantity -= 1;
-                    }),
-                  ),
-                  Effect.as(true),
+          players: {},
+        },
+      });
+      const bridge = makeBridge({ start: async () => session }).bridge;
+      yield* withArmy(
+        makeApi({
+          combat: {
+            getConsumableSkillItem: () =>
+              Effect.succeed({ itemId: 1, ready: true }),
+            kill: () => Effect.void,
+            useSkill: () =>
+              Ref.update(skillUses, (count) => count + 1).pipe(
+                Effect.tap(() =>
+                  Effect.sync(() => {
+                    quantity -= 1;
+                  }),
                 ),
-            },
-            inventory: {
-              contains: () => Effect.succeed(true),
-              equip: (item: string) =>
-                Ref.update(equipped, (items) => [...items, item]).pipe(
-                  Effect.as(true),
-                ),
-              get: () =>
-                Effect.sync(() => ({
-                  itemId: 1,
-                  link: "potion",
-                  quantity,
-                })),
-            },
+                Effect.as(true),
+              ),
+          },
+          inventory: {
+            contains: () => Effect.succeed(true),
+            equip: (item: string) =>
+              Ref.update(equipped, (items) => [...items, item]).pipe(
+                Effect.as(true),
+              ),
+            get: () =>
+              Effect.sync(() => ({
+                itemId: 1,
+                link: "potion",
+                quantity,
+              })),
+          },
+        }),
+        bridge,
+        (army) =>
+          Effect.gen(function* () {
+            yield* army.start("test");
+            const fiber = yield* army.equipSet("boss").pipe(Effect.forkScoped);
+            yield* TestClock.adjust("20 seconds");
+            yield* Fiber.join(fiber);
           }),
-          bridge,
-          (army) =>
-            Effect.gen(function* () {
-              yield* army.start("test");
-              const fiber = yield* army
-                .equipSet("boss")
-                .pipe(Effect.forkScoped);
-              yield* TestClock.adjust("20 seconds");
-              yield* Fiber.join(fiber);
-            }),
-        );
-        expect(yield* Ref.get(equipped)).toEqual([
-          "safe-class",
-          "safe-pot",
-          "class",
-          "safe-pot",
-          "weapon",
-          "cape",
-          "helm",
-          "armor",
-          "pet",
-          "pot-one",
-          "pot-two",
-          "scroll",
-        ]);
-        expect(yield* Ref.get(skillUses)).toBe(2);
-        expect(quantity).toBe(1);
-      }),
-    ),
+      );
+      expect(yield* Ref.get(equipped)).toEqual([
+        "safe-class",
+        "safe-pot",
+        "class",
+        "safe-pot",
+        "weapon",
+        "cape",
+        "helm",
+        "armor",
+        "pet",
+        "pot-one",
+        "pot-two",
+        "scroll",
+      ]);
+      expect(yield* Ref.get(skillUses)).toBe(2);
+      expect(quantity).toBe(1);
+    }),
   );
 
   it.effect("uses tonics directly from inventory", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const equipped = yield* Ref.make<readonly string[]>([]);
-        const directUses = yield* Ref.make<readonly number[]>([]);
-        const skillUses = yield* Ref.make(0);
-        const session = makeSession({
-          boss: {
-            default: { pots: ["Fate Tonic"] },
-            players: {},
+    Effect.gen(function* () {
+      const equipped = yield* Ref.make<readonly string[]>([]);
+      const directUses = yield* Ref.make<readonly number[]>([]);
+      const skillUses = yield* Ref.make(0);
+      const session = makeSession({
+        boss: {
+          default: { pots: ["Fate Tonic"] },
+          players: {},
+        },
+      });
+      const bridge = makeBridge({ start: async () => session }).bridge;
+      yield* withArmy(
+        makeApi({
+          combat: {
+            getConsumableSkillItem: () => Effect.succeed(null),
+            kill: () => Effect.void,
+            useSkill: () => Ref.update(skillUses, (count) => count + 1),
           },
-        });
-        const bridge = makeBridge({ start: async () => session }).bridge;
-        yield* withArmy(
-          makeApi({
-            combat: {
-              getConsumableSkillItem: () => Effect.succeed(null),
-              kill: () => Effect.void,
-              useSkill: () => Ref.update(skillUses, (count) => count + 1),
-            },
-            inventory: {
-              contains: () => Effect.succeed(true),
-              equip: (item: string) =>
-                Ref.update(equipped, (items) => [...items, item]).pipe(
-                  Effect.as(true),
-                ),
-              get: () =>
-                Effect.succeed({
-                  itemId: 42,
-                  link: "Tonic",
-                  quantity: 2,
-                }),
-              use: (itemId: number) =>
-                Ref.update(directUses, (items) => [...items, itemId]).pipe(
-                  Effect.as(true),
-                ),
-            },
+          inventory: {
+            contains: () => Effect.succeed(true),
+            equip: (item: string) =>
+              Ref.update(equipped, (items) => [...items, item]).pipe(
+                Effect.as(true),
+              ),
+            get: () =>
+              Effect.succeed({
+                itemId: 42,
+                link: "Tonic",
+                quantity: 2,
+              }),
+            use: (itemId: number) =>
+              Ref.update(directUses, (items) => [...items, itemId]).pipe(
+                Effect.as(true),
+              ),
+          },
+        }),
+        bridge,
+        (army) =>
+          Effect.gen(function* () {
+            yield* army.start("test");
+            const fiber = yield* army.equipSet("boss").pipe(Effect.forkScoped);
+            yield* TestClock.adjust("2 seconds");
+            yield* Fiber.join(fiber);
           }),
-          bridge,
-          (army) =>
-            Effect.gen(function* () {
-              yield* army.start("test");
-              const fiber = yield* army
-                .equipSet("boss")
-                .pipe(Effect.forkScoped);
-              yield* TestClock.adjust("2 seconds");
-              yield* Fiber.join(fiber);
-            }),
-        );
-        expect(yield* Ref.get(equipped)).toEqual([]);
-        expect(yield* Ref.get(directUses)).toEqual([42]);
-        expect(yield* Ref.get(skillUses)).toBe(0);
-      }),
-    ),
+      );
+      expect(yield* Ref.get(equipped)).toEqual([]);
+      expect(yield* Ref.get(directUses)).toEqual([42]);
+      expect(yield* Ref.get(skillUses)).toBe(0);
+    }),
   );
 });

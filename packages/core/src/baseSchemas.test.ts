@@ -12,24 +12,21 @@ import {
 describe("baseSchemas", () => {
   const SmallInt = boundedInt(2, 4);
 
-  it("decodes valid normalized primitives", () => {
-    expect(Schema.decodeUnknownSync(TrimmedString)("  Hero ")).toBe("Hero");
-    expect(Schema.decodeUnknownSync(TrimmedNonEmptyString)("  Hero ")).toBe(
-      "Hero",
-    );
-    expect(Schema.decodeUnknownSync(NonNegativeInt)(0)).toBe(0);
-    expect(Schema.decodeUnknownSync(PositiveInt)(1)).toBe(1);
-    expect(Schema.decodeUnknownSync(SmallInt)(2)).toBe(2);
-    expect(Schema.decodeUnknownSync(SmallInt)(4)).toBe(4);
-  });
-
-  it("rejects values outside primitive contracts", () => {
-    expect(() =>
-      Schema.decodeUnknownSync(TrimmedNonEmptyString)("   "),
-    ).toThrow();
-    expect(() => Schema.decodeUnknownSync(NonNegativeInt)(-1)).toThrow();
-    expect(() => Schema.decodeUnknownSync(PositiveInt)(0)).toThrow();
-    expect(() => Schema.decodeUnknownSync(SmallInt)(1)).toThrow();
-    expect(() => Schema.decodeUnknownSync(SmallInt)(5)).toThrow();
+  it.each([
+    ["trimmed string", TrimmedString, "  Hero ", "Hero"],
+    ["trimmed nonempty", TrimmedNonEmptyString, "  Hero ", "Hero"],
+    ["whitespace only", TrimmedNonEmptyString, "   ", undefined],
+    ["nonnegative zero", NonNegativeInt, 0, 0],
+    ["negative integer", NonNegativeInt, -1, undefined],
+    ["positive integer", PositiveInt, 1, 1],
+    ["positive zero", PositiveInt, 0, undefined],
+    ["below lower bound", SmallInt, 1, undefined],
+    ["inclusive lower bound", SmallInt, 2, 2],
+    ["inclusive upper bound", SmallInt, 4, 4],
+    ["above upper bound", SmallInt, 5, undefined],
+  ] as const)("validates %s", (_name, schema, input, expected) => {
+    const decode = () => Schema.decodeUnknownSync(schema)(input);
+    if (expected === undefined) expect(decode).toThrow();
+    else expect(decode()).toBe(expected);
   });
 });

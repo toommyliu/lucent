@@ -11,49 +11,47 @@ import { makeAutoZone } from "./AutoZone";
 
 describe("AutoZone", () => {
   it.effect("interrupts an obsolete delayed transition", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const positions = yield* Ref.make<readonly { x: number; y: number }[]>(
-          [],
-        );
-        const fibers = yield* FiberMap.make<string>();
-        let handleEvent: ((event: Event) => Effect.Effect<void>) | undefined;
-        const api = {
-          events: {
-            on: (
-              _selector: EventSelector | undefined,
-              handler: (event: Event) => Effect.Effect<void>,
-            ) => {
-              handleEvent = handler;
-              return Effect.succeed(() => undefined);
-            },
+    Effect.gen(function* () {
+      const positions = yield* Ref.make<readonly { x: number; y: number }[]>(
+        [],
+      );
+      const fibers = yield* FiberMap.make<string>();
+      let handleEvent: ((event: Event) => Effect.Effect<void>) | undefined;
+      const api = {
+        events: {
+          on: (
+            _selector: EventSelector | undefined,
+            handler: (event: Event) => Effect.Effect<void>,
+          ) => {
+            handleEvent = handler;
+            return Effect.succeed(() => undefined);
           },
-          map: { getName: () => Effect.succeed("queeniona") },
-          player: {
-            auras: { get: () => Effect.succeed({}) },
-            walkTo: (position: Position) =>
-              Ref.update(positions, (current) => [...current, position]).pipe(
-                Effect.as(true),
-              ),
-          },
-        } as unknown as ApiService;
-        const autoZone = yield* makeAutoZone(api, fibers);
+        },
+        map: { getName: () => Effect.succeed("queeniona") },
+        player: {
+          auras: { get: () => Effect.succeed({}) },
+          walkTo: (position: Position) =>
+            Ref.update(positions, (current) => [...current, position]).pipe(
+              Effect.as(true),
+            ),
+        },
+      } as unknown as ApiService;
+      const autoZone = yield* makeAutoZone(api, fibers);
 
-        const mapState = yield* autoZone.setMap("queeniona");
-        const enabledState = yield* autoZone.setEnabled(true);
-        const readState = yield* autoZone.getState();
-        expect(mapState).not.toBe(enabledState);
-        expect(enabledState).not.toBe(readState);
-        yield* handleEvent!({ type: "zone", map: "queeniona", zone: "A" });
-        yield* handleEvent!({ type: "zone", map: "queeniona", zone: "B" });
-        yield* TestClock.adjust("500 millis");
-        yield* Effect.yieldNow;
+      const mapState = yield* autoZone.setMap("queeniona");
+      const enabledState = yield* autoZone.setEnabled(true);
+      const readState = yield* autoZone.getState();
+      expect(mapState).not.toBe(enabledState);
+      expect(enabledState).not.toBe(readState);
+      yield* handleEvent!({ type: "zone", map: "queeniona", zone: "A" });
+      yield* handleEvent!({ type: "zone", map: "queeniona", zone: "B" });
+      yield* TestClock.adjust("500 millis");
+      yield* Effect.yieldNow;
 
-        const moved = yield* Ref.get(positions);
-        expect(moved).toHaveLength(1);
-        expect(moved[0]!.x).toBeGreaterThanOrEqual(111);
-        expect(moved[0]!.x).toBeLessThanOrEqual(272);
-      }),
-    ).pipe(Effect.provide(TestClock.layer())),
+      const moved = yield* Ref.get(positions);
+      expect(moved).toHaveLength(1);
+      expect(moved[0]!.x).toBeGreaterThanOrEqual(111);
+      expect(moved[0]!.x).toBeLessThanOrEqual(272);
+    }),
   );
 });

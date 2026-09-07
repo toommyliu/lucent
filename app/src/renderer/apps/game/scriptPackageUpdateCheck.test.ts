@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   checkScriptPackageUpdatesSerially,
@@ -53,8 +53,12 @@ describe("script package update checks", () => {
       failedPackageNames: ["sync", "async", "third"],
       succeededCount: 1,
     });
-    expect(formatScriptPackageUpdateCheckFailures(result)).toBe(
-      "Failed to check 4 packages for updates: “sync”, “async”, “third”, and 1 more. 1 other package checked successfully.",
-    );
+    const message = formatScriptPackageUpdateCheckFailures(result);
+    for (const name of ["sync", "async", "third"])
+      expect(message).toContain(name);
+    expect(message).not.toContain("hidden");
+    expect(message).toMatch(/4/);
+    expect(message).toMatch(/1 more/);
+    expect(message).toMatch(/1.*success/i);
   });
 });

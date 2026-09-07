@@ -1,13 +1,22 @@
-import { describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 
 import { createRandomId } from "./randomId";
 
-describe("createRandomId", () => {
-  it("creates an opaque id without a prefix", () => {
-    expect(createRandomId()).toMatch(/^[a-f0-9]{32}$/u);
-  });
+afterEach(() => vi.unstubAllGlobals());
 
-  it("adds a readable prefix when provided", () => {
-    expect(createRandomId("profile")).toMatch(/^profile-[a-f0-9]{32}$/u);
-  });
+describe("createRandomId", () => {
+  it.each([undefined, "", "profile"])(
+    "encodes every random byte with prefix %s",
+    (prefix) => {
+      const getRandomValues = vi.fn((bytes: Uint8Array) => {
+        bytes.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 127, 128, 255]);
+        return bytes;
+      });
+      vi.stubGlobal("crypto", { getRandomValues });
+      expect(createRandomId(prefix)).toBe(
+        (prefix ? prefix + "-" : "") + "000102030405060708090a0f107f80ff",
+      );
+      expect(getRandomValues).toHaveBeenCalledOnce();
+    },
+  );
 });

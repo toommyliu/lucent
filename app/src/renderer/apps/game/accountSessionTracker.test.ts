@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import type { AccountSessionReport } from "@lucent/core/accounts";
 import { makeAccountSessionTracker } from "./accountSessionTracker";

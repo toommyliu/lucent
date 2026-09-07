@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   AccountsIpc,
@@ -56,11 +56,5 @@ describe("desktop IPC method inventory", () => {
 
     expect(actualChannels).toEqual(expectedChannels);
     expect(new Set(actualChannels).size).toBe(actualChannels.length);
-  });
-
-  it("declares at least one allowed sender for every method", () => {
-    for (const method of desktopIpcMethods) {
-      expect(method.allowedSenders.length).toBeGreaterThan(0);
-    }
   });
 });

@@ -188,214 +188,252 @@ const makeTarget = () => {
   };
 };
 
+const makeApiHarness = () =>
+  Effect.gen(function* () {
+    const {
+      calls,
+      closeBankUi,
+      closeShopUi,
+      failNextBankLoad,
+      resetBankSession,
+      target,
+    } = makeTarget();
+    const bridge = yield* makeBridge(target);
+    const gateway = yield* makeGateway(target).pipe(
+      Effect.provideService(Bridge, bridge),
+    );
+    const api = yield* makeApi.pipe(
+      Effect.provideService(Bridge, bridge),
+      Effect.provideService(Gateway, gateway),
+    );
+
+    return {
+      api,
+      calls,
+      closeBankUi,
+      closeShopUi,
+      failNextBankLoad,
+      resetBankSession,
+      target,
+    };
+  });
+
+const loadTestInventory = (
+  api: Effect.Success<typeof makeApi>,
+  target: Window,
+) =>
+  Effect.gen(function* () {
+    const inventoryLoad = yield* api.wait.forPacket(
+      {
+        command: "loadInventoryBig",
+        direction: "extension",
+        encoding: "json",
+      },
+      {
+        timeout: "1 second",
+        trigger: Effect.sync(() => {
+          emitExtension(target, {
+            cmd: "loadInventoryBig",
+            hitems: [{ ItemID: 60, sName: "Placed House Item" }],
+            items: [
+              { ItemID: 50, sName: "Normal Item" },
+              { ItemID: 51, bCoins: 1, sName: "Coin Item" },
+              {
+                ItemID: 52,
+                bWear: 0,
+                sES: "Weapon",
+                sName: "Wearable Item",
+              },
+              {
+                ItemID: 53,
+                bUpg: 1,
+                bWear: 0,
+                sES: "ba",
+                sName: "Member Item",
+              },
+              {
+                ItemID: 54,
+                bWear: 0,
+                sES: "Weapon",
+                sName: "Cosmetic Item",
+              },
+            ],
+          });
+          return true;
+        }),
+      },
+    );
+    expect(inventoryLoad).not.toBeNull();
+  });
+
 describe("Api", () => {
   it.effect("resolves named skill targets from available monsters", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { calls, target } = makeTarget();
-        const bridge = yield* makeBridge(target);
-        const gateway = yield* makeGateway(target).pipe(
-          Effect.provideService(Bridge, bridge),
-        );
-        const api = yield* makeApi.pipe(
-          Effect.provideService(Bridge, bridge),
-          Effect.provideService(Gateway, gateway),
-        );
+    Effect.gen(function* () {
+      const { calls, target } = makeTarget();
+      const bridge = yield* makeBridge(target);
+      const gateway = yield* makeGateway(target).pipe(
+        Effect.provideService(Bridge, bridge),
+      );
+      const api = yield* makeApi.pipe(
+        Effect.provideService(Bridge, bridge),
+        Effect.provideService(Gateway, gateway),
+      );
 
-        const loaded = yield* api.wait.forPacket(
-          {
-            command: "moveToArea",
-            direction: "extension",
-            encoding: "json",
-          },
-          {
-            timeout: "1 second",
-            trigger: Effect.sync(() => {
-              emitExtension(target, {
-                areaId: 1,
-                areaName: "test-1",
-                cmd: "moveToArea",
-                monBranch: [
-                  {
-                    MonID: 1,
-                    MonMapID: 1,
-                    intHP: 0,
-                    intHPMax: 100,
-                    intState: 0,
-                    strMonName: "Slime",
-                  },
-                  {
-                    MonID: 1,
-                    MonMapID: 2,
-                    intHP: 100,
-                    intHPMax: 100,
-                    intState: 1,
-                    strMonName: "Slime",
-                  },
-                ],
-                uoBranch: [
-                  {
-                    entID: 1,
-                    intHP: 100,
-                    intHPMax: 100,
-                    intState: 1,
-                    strUsername: "Hero",
-                  },
-                ],
-              });
-              return true;
-            }),
-          },
-        );
-        expect(loaded).not.toBeNull();
-
-        expect(
-          yield* api.combat.useSkill(1, {
-            force: true,
-            target: "Slime",
+      const loaded = yield* api.wait.forPacket(
+        {
+          command: "moveToArea",
+          direction: "extension",
+          encoding: "json",
+        },
+        {
+          timeout: "1 second",
+          trigger: Effect.sync(() => {
+            emitExtension(target, {
+              areaId: 1,
+              areaName: "test-1",
+              cmd: "moveToArea",
+              monBranch: [
+                {
+                  MonID: 1,
+                  MonMapID: 1,
+                  intHP: 0,
+                  intHPMax: 100,
+                  intState: 0,
+                  strMonName: "Slime",
+                },
+                {
+                  MonID: 1,
+                  MonMapID: 2,
+                  intHP: 100,
+                  intHPMax: 100,
+                  intState: 1,
+                  strMonName: "Slime",
+                },
+              ],
+              uoBranch: [
+                {
+                  entID: 1,
+                  intHP: 100,
+                  intHPMax: 100,
+                  intState: 1,
+                  strUsername: "Hero",
+                },
+              ],
+            });
+            return true;
           }),
-        ).toBe(true);
-        expect(calls.skillUses).toEqual([
-          { force: true, index: "1", selector: { monsterMapId: 2 } },
-        ]);
-      }),
-    ),
+        },
+      );
+      expect(loaded).not.toBeNull();
+
+      expect(
+        yield* api.combat.useSkill(1, {
+          force: true,
+          target: "Slime",
+        }),
+      ).toBe(true);
+      expect(calls.skillUses).toEqual([
+        { force: true, index: "1", selector: { monsterMapId: 2 } },
+      ]);
+    }),
   );
 
   it.effect("reads class ranks from projections without bridge calls", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { calls, target } = makeTarget();
-        const bridge = yield* makeBridge(target);
-        const gateway = yield* makeGateway(target).pipe(
-          Effect.provideService(Bridge, bridge),
-        );
-        const api = yield* makeApi.pipe(
-          Effect.provideService(Bridge, bridge),
-          Effect.provideService(Gateway, gateway),
-        );
+    Effect.gen(function* () {
+      const { calls, target } = makeTarget();
+      const bridge = yield* makeBridge(target);
+      const gateway = yield* makeGateway(target).pipe(
+        Effect.provideService(Bridge, bridge),
+      );
+      const api = yield* makeApi.pipe(
+        Effect.provideService(Bridge, bridge),
+        Effect.provideService(Gateway, gateway),
+      );
 
-        expect(yield* api.player.getClassRank()).toBeNull();
-        expect(yield* api.player.getClassRank(45)).toBeNull();
-        expect(calls.bankLoadForces).toEqual([]);
+      expect(yield* api.player.getClassRank()).toBeNull();
+      expect(yield* api.player.getClassRank(45)).toBeNull();
+      expect(calls.bankLoadForces).toEqual([]);
 
-        expect(yield* api.bank.open()).toBe(true);
-        const bankedClass = yield* api.bank.get(45);
-        expect(bankedClass).not.toBeNull();
-        expect(bankedClass?.category).toBe("Class");
-        expect(bankedClass?.classRank).toBe(10);
-        expect(yield* api.player.getClassRank(45)).toBe(10);
+      expect(yield* api.bank.open()).toBe(true);
+      const bankedClass = yield* api.bank.get(45);
+      expect(bankedClass).not.toBeNull();
+      expect(bankedClass?.category).toBe("Class");
+      expect(bankedClass?.classRank).toBe(10);
+      expect(yield* api.player.getClassRank(45)).toBe(10);
 
-        const inventoryLoad = yield* api.wait.forPacket(
-          {
-            command: "loadInventoryBig",
-            direction: "extension",
-            encoding: "json",
-          },
-          {
-            timeout: "1 second",
-            trigger: Effect.sync(() => {
-              emitExtension(target, {
-                cmd: "loadInventoryBig",
-                items: [
-                  {
-                    ItemID: 46,
-                    bEquip: 1,
-                    iQty: 10_000,
-                    sES: "ar",
-                    sName: "Equipped Class",
-                    sType: "Class",
-                  },
-                ],
-              });
-              return true;
-            }),
-          },
-        );
-        expect(inventoryLoad).not.toBeNull();
-        expect(yield* api.player.getClassRank()).toBe(4);
-        expect(yield* api.player.getClassRank(46)).toBe(4);
-        expect(yield* api.player.getClassRank(45)).toBe(10);
-      }),
-    ),
+      const inventoryLoad = yield* api.wait.forPacket(
+        {
+          command: "loadInventoryBig",
+          direction: "extension",
+          encoding: "json",
+        },
+        {
+          timeout: "1 second",
+          trigger: Effect.sync(() => {
+            emitExtension(target, {
+              cmd: "loadInventoryBig",
+              items: [
+                {
+                  ItemID: 46,
+                  bEquip: 1,
+                  iQty: 10_000,
+                  sES: "ar",
+                  sName: "Equipped Class",
+                  sType: "Class",
+                },
+              ],
+            });
+            return true;
+          }),
+        },
+      );
+      expect(inventoryLoad).not.toBeNull();
+      expect(yield* api.player.getClassRank()).toBe(4);
+      expect(yield* api.player.getClassRank(46)).toBe(4);
+      expect(yield* api.player.getClassRank(45)).toBe(10);
+    }),
   );
 
   it.effect("opens the requested bank view for house withdrawals", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { calls, target } = makeTarget();
-        const bridge = yield* makeBridge(target);
-        const gateway = yield* makeGateway(target).pipe(
-          Effect.provideService(Bridge, bridge),
-        );
-        const api = yield* makeApi.pipe(
-          Effect.provideService(Bridge, bridge),
-          Effect.provideService(Gateway, gateway),
-        );
+    Effect.gen(function* () {
+      const { calls, target } = makeTarget();
+      const bridge = yield* makeBridge(target);
+      const gateway = yield* makeGateway(target).pipe(
+        Effect.provideService(Bridge, bridge),
+      );
+      const api = yield* makeApi.pipe(
+        Effect.provideService(Bridge, bridge),
+        Effect.provideService(Gateway, gateway),
+      );
 
-        expect(yield* api.bank.isOpen()).toBe(false);
-        expect(yield* api.bank.open({ view: "house" })).toBe(true);
-        expect(yield* api.bank.isOpen()).toBe(true);
-        expect(yield* api.bank.isOpen("house")).toBe(true);
-        expect(yield* api.bank.isOpen("regular")).toBe(false);
-        expect(calls.bankOpenViews).toEqual(["house"]);
+      expect(yield* api.bank.isOpen()).toBe(false);
+      expect(yield* api.bank.open({ view: "house" })).toBe(true);
+      expect(yield* api.bank.isOpen()).toBe(true);
+      expect(yield* api.bank.isOpen("house")).toBe(true);
+      expect(yield* api.bank.isOpen("regular")).toBe(false);
+      expect(calls.bankOpenViews).toEqual(["house"]);
 
-        expect(yield* api.bank.open({ view: "house" })).toBe(true);
-        expect(calls.bankOpenViews).toEqual(["house"]);
+      expect(yield* api.bank.open({ view: "house" })).toBe(true);
+      expect(calls.bankOpenViews).toEqual(["house"]);
 
-        expect(yield* api.bank.open({ force: true })).toBe(true);
-        expect(calls.bankLoadForces).toEqual([true, true]);
-        expect(calls.bankOpenViews).toEqual(["house", "regular"]);
+      expect(yield* api.bank.open({ force: true })).toBe(true);
+      expect(calls.bankLoadForces).toEqual([true, true]);
+      expect(calls.bankOpenViews).toEqual(["house", "regular"]);
 
-        expect(yield* api.bank.withdraw(43)).toBe(false);
-        expect(calls.withdrawalViews).toEqual(["house"]);
-        expect(calls.bankOpenViews).toEqual(["house", "regular", "house"]);
-        expect((yield* api.bank.get(43))?.context).toBe("bank");
-        expect(yield* api.house.get(43)).toBeNull();
-      }),
-    ),
+      expect(yield* api.bank.withdraw(43)).toBe(false);
+      expect(calls.withdrawalViews).toEqual(["house"]);
+      expect(calls.bankOpenViews).toEqual(["house", "regular", "house"]);
+      expect((yield* api.bank.get(43))?.context).toBe("bank");
+      expect(yield* api.house.get(43)).toBeNull();
+    }),
   );
 
-  it.effect("protects container commands and action-locked workflows", () =>
-    Effect.scoped(
+  it.effect(
+    "caches bank loads until disconnect and retains items after a failed reload",
+    () =>
       Effect.gen(function* () {
-        const {
-          calls,
-          closeBankUi,
-          closeShopUi,
-          failNextBankLoad,
-          resetBankSession,
-          target,
-        } = makeTarget();
-        const bridge = yield* makeBridge(target);
-        const gateway = yield* makeGateway(target).pipe(
-          Effect.provideService(Bridge, bridge),
-        );
-        const api = yield* makeApi.pipe(
-          Effect.provideService(Bridge, bridge),
-          Effect.provideService(Gateway, gateway),
-        );
-
-        expect(Object.keys(api).toSorted()).toEqual([
-          "auth",
-          "bank",
-          "combat",
-          "drops",
-          "events",
-          "house",
-          "inventory",
-          "map",
-          "monsters",
-          "packet",
-          "player",
-          "players",
-          "quests",
-          "settings",
-          "shops",
-          "tempInventory",
-          "wait",
-        ]);
-        expect(api.bank).not.toBe(api.inventory);
+        const { api, calls, resetBankSession, target, failNextBankLoad } =
+          yield* makeApiHarness();
         expect(yield* api.bank.getAll()).toEqual([]);
         expect(yield* api.bank.open()).toBe(true);
         expect(calls.bankLoadForces).toEqual([true]);
@@ -429,71 +467,45 @@ describe("Api", () => {
         expect(calls.bankLoadForces).toEqual([true, true, true]);
         const retained = yield* api.bank.getAll();
         expect(retained[0]?.itemId).toBe(42);
+      }),
+  );
 
-        const inventoryLoad = yield* api.wait.forPacket(
-          {
-            command: "loadInventoryBig",
-            direction: "extension",
-            encoding: "json",
-          },
-          {
-            timeout: "1 second",
-            trigger: Effect.sync(() => {
-              emitExtension(target, {
-                cmd: "loadInventoryBig",
-                hitems: [{ ItemID: 60, sName: "Placed House Item" }],
-                items: [
-                  { ItemID: 50, sName: "Normal Item" },
-                  { ItemID: 51, bCoins: 1, sName: "Coin Item" },
-                  {
-                    ItemID: 52,
-                    bWear: 0,
-                    sES: "Weapon",
-                    sName: "Wearable Item",
-                  },
-                  {
-                    ItemID: 53,
-                    bUpg: 1,
-                    bWear: 0,
-                    sES: "ba",
-                    sName: "Member Item",
-                  },
-                  {
-                    ItemID: 54,
-                    bWear: 0,
-                    sES: "Weapon",
-                    sName: "Cosmetic Item",
-                  },
-                ],
-              });
-              return true;
-            }),
-          },
-        );
-        expect(inventoryLoad).not.toBeNull();
-        expect(yield* api.house.contains(60)).toBe(true);
-        expect(yield* api.house.contains(60, 2)).toBe(false);
+  it.effect("guards full containers and projects deposits and swaps", () =>
+    Effect.gen(function* () {
+      const { api, calls, closeBankUi, target } = yield* makeApiHarness();
+      yield* api.bank.open();
+      yield* loadTestInventory(api, target);
+      expect(yield* api.house.contains(60)).toBe(true);
+      expect(yield* api.house.contains(60, 2)).toBe(false);
+      expect(yield* api.bank.getAvailableSlots()).toBe(0);
+      expect(yield* api.bank.deposit(50)).toBe(false);
+      expect(yield* api.bank.withdraw(42)).toBe(false);
+      expect(yield* api.bank.withdraw(43)).toBe(false);
+      expect(calls.deposits).toBe(0);
+      expect(calls.withdrawals).toBe(0);
 
-        expect(yield* api.bank.getAvailableSlots()).toBe(0);
-        expect(yield* api.bank.deposit(50)).toBe(false);
-        expect(yield* api.bank.withdraw(42)).toBe(false);
-        expect(yield* api.bank.withdraw(43)).toBe(false);
-        expect(calls.deposits).toBe(0);
-        expect(calls.withdrawals).toBe(0);
+      const opensBeforeDeposit = calls.bankOpens;
+      closeBankUi();
+      expect(yield* api.bank.deposit(51)).toBe(true);
+      expect(calls.deposits).toBe(1);
+      expect(calls.bankOpens).toBe(opensBeforeDeposit + 1);
+      expect(calls.bankLoadForces).toEqual([true]);
+      expect(yield* api.bank.contains(51)).toBe(true);
+      expect(yield* api.inventory.contains(51)).toBe(false);
 
-        closeBankUi();
-        expect(yield* api.bank.deposit(51)).toBe(true);
-        expect(calls.deposits).toBe(1);
-        expect(calls.bankOpens).toBe(4);
-        expect(calls.bankLoadForces).toEqual([true, true, true]);
-        expect(yield* api.bank.contains(51)).toBe(true);
-        expect(yield* api.inventory.contains(51)).toBe(false);
+      expect(yield* api.bank.swap(50, 42)).toBe(true);
+      expect(calls.swaps).toBe(1);
+      expect(yield* api.bank.contains(50)).toBe(true);
+      expect(yield* api.inventory.contains(42)).toBe(true);
+    }),
+  );
 
-        expect(yield* api.bank.swap(50, 42)).toBe(true);
-        expect(calls.swaps).toBe(1);
-        expect(yield* api.bank.contains(50)).toBe(true);
-        expect(yield* api.inventory.contains(42)).toBe(true);
-
+  it.effect(
+    "keeps cosmetic wear distinct from equipment and rejects member-only items",
+    () =>
+      Effect.gen(function* () {
+        const { api, calls, target } = yield* makeApiHarness();
+        yield* loadTestInventory(api, target);
         const playerLoad = yield* api.wait.forPacket(
           {
             command: "initUserDatas",
@@ -545,17 +557,22 @@ describe("Api", () => {
         expect(yield* api.inventory.equip(53)).toBe(false);
         expect(calls.equips).toBe(1);
 
-        expect(yield* api.shops.load(101)).toBe(true);
-        closeShopUi();
-        expect(yield* api.shops.isOpen(101)).toBe(false);
-        expect(yield* api.shops.load(101)).toBe(true);
-        expect(calls.shopLoads).toBe(2);
-        yield* api.shops.openHairShop(202);
-        expect(calls.actions).toContain("loadShop");
-        expect(calls.actions).toContain("loadHairShop");
         expect(calls.actions).toContain("wearItem");
-        expect(calls.hairShopLoads).toBe(1);
       }),
-    ),
+  );
+
+  it.effect("reopens cached shops and dispatches hair-shop actions", () =>
+    Effect.gen(function* () {
+      const { api, calls, closeShopUi } = yield* makeApiHarness();
+      expect(yield* api.shops.load(101)).toBe(true);
+      closeShopUi();
+      expect(yield* api.shops.isOpen(101)).toBe(false);
+      expect(yield* api.shops.load(101)).toBe(true);
+      expect(calls.shopLoads).toBe(2);
+      yield* api.shops.openHairShop(202);
+      expect(calls.actions).toContain("loadShop");
+      expect(calls.actions).toContain("loadHairShop");
+      expect(calls.hairShopLoads).toBe(1);
+    }),
   );
 });

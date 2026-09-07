@@ -2,8 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
 
 import { cloneAqwFlashPreferences } from "./FlashPreferences";
 

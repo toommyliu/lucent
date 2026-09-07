@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import type { AccountGameSession } from "@lucent/core/accounts";
 import { groupActiveWindowSessions } from "./activeWindowSessionGroups";

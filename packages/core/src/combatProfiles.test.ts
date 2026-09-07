@@ -102,6 +102,9 @@ describe("combatProfiles", () => {
     ]);
     expect(normalized.profiles[0]?.label).toBe("Generic Custom");
     expect(normalized.profiles[1]?.consumable).toBe("Potion");
+    expect(getCombatProfileById(normalized, "missing")).toEqual(
+      normalized.profiles[0],
+    );
   });
 
   it("recovers colliding profile ids without dropping definitions", () => {
@@ -204,16 +207,6 @@ describe("combatProfiles", () => {
         },
       ],
     });
-  });
-
-  it("uses the generic profile as the lookup fallback", () => {
-    const library = normalizeCombatProfileLibrary({
-      profiles: [{ id: "custom", label: "Custom", steps: [{ skill: 1 }] }],
-    });
-
-    expect(getCombatProfileById(library, "missing").id).toBe(
-      DEFAULT_COMBAT_PROFILE_ID,
-    );
   });
 
   it("duplicates profiles with a fresh id and a unique label", () => {

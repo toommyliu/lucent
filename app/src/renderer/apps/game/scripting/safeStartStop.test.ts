@@ -29,27 +29,23 @@ const advance = (duration: Parameters<typeof TestClock.adjust>[0]) =>
 
 describe("safeStartStop", () => {
   it.effect("runs the safe stop when the script fiber is interrupted", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const phases: string[] = [];
-        const started = yield* Deferred.make<void>();
-        const fiber = yield* runWithSafeStartStop(
-          Deferred.succeed(started, undefined).pipe(
-            Effect.andThen(Effect.never),
-          ),
-          Effect.succeed(true),
-          (phase) =>
-            Effect.sync(() => {
-              phases.push(phase);
-            }),
-        ).pipe(Effect.forkScoped);
+    Effect.gen(function* () {
+      const phases: string[] = [];
+      const started = yield* Deferred.make<void>();
+      const fiber = yield* runWithSafeStartStop(
+        Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+        Effect.succeed(true),
+        (phase) =>
+          Effect.sync(() => {
+            phases.push(phase);
+          }),
+      ).pipe(Effect.forkScoped);
 
-        yield* Deferred.await(started);
-        yield* Fiber.interrupt(fiber);
+      yield* Deferred.await(started);
+      yield* Fiber.interrupt(fiber);
 
-        expect(phases).toEqual(["before", "after"]);
-      }),
-    ),
+      expect(phases).toEqual(["before", "after"]);
+    }),
   );
 
   it.effect("aborts the house move when the connection is unavailable", () =>
@@ -104,146 +100,78 @@ describe("safeStartStop", () => {
   it.effect(
     "moves to the local player's house from another player's house",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          let inOwnHouse = false;
-          let combatExitCount = 0;
-          const sentPackets: string[] = [];
-          const combatExited = yield* Deferred.make<void>();
-          const services = {
-            auth: {
-              getUsername: () => Effect.succeed("Local Player"),
-              isLoggedIn: () => Effect.succeed(true),
-            },
-            bridge: {
-              invoke: (method: string) =>
-                Effect.succeed(
-                  method === "flash.isNull" ? Option.some(true) : Option.none(),
-                ),
-              invokeJson: (method: string) =>
-                Effect.sync(() =>
-                  method === "flash.callGameFunction0"
-                    ? Option.some(inOwnHouse)
-                    : Option.none(),
-                ),
-            },
-            combat: {
-              exit: () =>
-                Effect.sync(() => {
-                  combatExitCount += 1;
-                }).pipe(
-                  Effect.andThen(Deferred.succeed(combatExited, undefined)),
-                  Effect.as(true),
-                ),
-            },
-            house: {
-              getAll: () =>
-                Effect.succeed([{ category: "House", equipped: true }]),
-            },
-            packet: {
-              sendToServer: (packet: string) =>
-                Effect.sync(() => {
-                  sentPackets.push(packet);
-                  inOwnHouse = true;
-                  return true;
-                }),
-            },
-            player: {
-              isAlive: () => Effect.succeed(true),
-              isReady: () => Effect.succeed(true),
-            },
-            wait: {
-              untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
-                condition.pipe(Effect.map(Option.getOrNull)),
-            },
-          } as unknown as SafeStartStopServices;
-          const resultFiber = yield* makeMoveToSafeDestination(services)(
-            "before",
-          ).pipe(Effect.forkScoped);
+      Effect.gen(function* () {
+        let inOwnHouse = false;
+        let combatExitCount = 0;
+        const sentPackets: string[] = [];
+        const combatExited = yield* Deferred.make<void>();
+        const services = {
+          auth: {
+            getUsername: () => Effect.succeed("Local Player"),
+            isLoggedIn: () => Effect.succeed(true),
+          },
+          bridge: {
+            invoke: (method: string) =>
+              Effect.succeed(
+                method === "flash.isNull" ? Option.some(true) : Option.none(),
+              ),
+            invokeJson: (method: string) =>
+              Effect.sync(() =>
+                method === "flash.callGameFunction0"
+                  ? Option.some(inOwnHouse)
+                  : Option.none(),
+              ),
+          },
+          combat: {
+            exit: () =>
+              Effect.sync(() => {
+                combatExitCount += 1;
+              }).pipe(
+                Effect.andThen(Deferred.succeed(combatExited, undefined)),
+                Effect.as(true),
+              ),
+          },
+          house: {
+            getAll: () =>
+              Effect.succeed([{ category: "House", equipped: true }]),
+          },
+          packet: {
+            sendToServer: (packet: string) =>
+              Effect.sync(() => {
+                sentPackets.push(packet);
+                inOwnHouse = true;
+                return true;
+              }),
+          },
+          player: {
+            isAlive: () => Effect.succeed(true),
+            isReady: () => Effect.succeed(true),
+          },
+          wait: {
+            untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
+              condition.pipe(Effect.map(Option.getOrNull)),
+          },
+        } as unknown as SafeStartStopServices;
+        const resultFiber = yield* makeMoveToSafeDestination(services)(
+          "before",
+        ).pipe(Effect.forkScoped);
 
-          yield* Deferred.await(combatExited);
-          yield* Effect.yieldNow;
-          yield* advance("1 second");
-          yield* Fiber.join(resultFiber);
+        yield* Deferred.await(combatExited);
+        yield* Effect.yieldNow;
+        yield* advance("1 second");
+        yield* Fiber.join(resultFiber);
 
-          expect(combatExitCount).toBe(1);
-          expect(sentPackets).toEqual(["%xt%zm%house%1%Local Player%"]);
-        }),
-      ).pipe(Effect.provide(TestClock.layer())),
+        expect(combatExitCount).toBe(1);
+        expect(sentPackets).toEqual(["%xt%zm%house%1%Local Player%"]);
+      }),
   );
 
   it.effect(
     "routes a decor-only house inventory directly to public buyhouse",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          const joinedMaps: string[] = [];
-          const sentPackets: string[] = [];
-          const combatExited = yield* Deferred.make<void>();
-          const services = {
-            auth: {
-              getUsername: () => Effect.succeed("Local Player"),
-              isLoggedIn: () => Effect.succeed(true),
-            },
-            bridge: {
-              invoke: (method: string) =>
-                Effect.succeed(
-                  method === "flash.isNull" ? Option.some(true) : Option.none(),
-                ),
-              invokeJson: () => Effect.succeed(Option.some(false)),
-            },
-            combat: {
-              exit: () =>
-                Deferred.succeed(combatExited, undefined).pipe(Effect.as(true)),
-            },
-            house: {
-              getAll: () =>
-                Effect.succeed([{ category: "Floor Item", equipped: true }]),
-            },
-            map: {
-              getName: () => Effect.succeed("battleon"),
-              getRoomNumber: () => Effect.succeed(1),
-            },
-            packet: {
-              sendToServer: (packet: string) =>
-                Effect.sync(() => {
-                  sentPackets.push(packet);
-                  return true;
-                }),
-            },
-            player: {
-              isAlive: () => Effect.succeed(true),
-              isReady: () => Effect.succeed(true),
-              joinMap: (map: string) =>
-                Effect.sync(() => {
-                  joinedMaps.push(map);
-                  return true;
-                }),
-            },
-            roomPolicy: Effect.succeed(PUBLIC_ROOM_POLICY),
-            wait: {
-              untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
-                condition.pipe(Effect.map(Option.getOrNull)),
-            },
-          } as unknown as SafeStartStopServices;
-          const resultFiber = yield* makeMoveToSafeDestination(services)(
-            "before",
-          ).pipe(Effect.forkScoped);
-
-          yield* Deferred.await(combatExited);
-          yield* advance("1 second");
-          yield* Fiber.join(resultFiber);
-
-          expect(joinedMaps).toEqual(["buyhouse"]);
-          expect(sentPackets).toEqual([]);
-        }),
-      ).pipe(Effect.provide(TestClock.layer())),
-  );
-
-  it.effect("reuses one private buyhouse target across retries", () =>
-    Effect.scoped(
       Effect.gen(function* () {
         const joinedMaps: string[] = [];
+        const sentPackets: string[] = [];
         const combatExited = yield* Deferred.make<void>();
         const services = {
           auth: {
@@ -262,14 +190,19 @@ describe("safeStartStop", () => {
               Deferred.succeed(combatExited, undefined).pipe(Effect.as(true)),
           },
           house: {
-            getAll: () => Effect.succeed([]),
+            getAll: () =>
+              Effect.succeed([{ category: "Floor Item", equipped: true }]),
           },
           map: {
-            getName: () => Effect.succeed("buyhouse"),
+            getName: () => Effect.succeed("battleon"),
             getRoomNumber: () => Effect.succeed(1),
           },
           packet: {
-            sendToServer: () => Effect.succeed(true),
+            sendToServer: (packet: string) =>
+              Effect.sync(() => {
+                sentPackets.push(packet);
+                return true;
+              }),
           },
           player: {
             isAlive: () => Effect.succeed(true),
@@ -277,42 +210,98 @@ describe("safeStartStop", () => {
             joinMap: (map: string) =>
               Effect.sync(() => {
                 joinedMaps.push(map);
-                return joinedMaps.length === 3;
+                return true;
               }),
           },
-          roomPolicy: Effect.succeed<RoomPolicy>({
-            kind: "specific",
-            roomNumber: minimumPrivateRoom,
-          }),
+          roomPolicy: Effect.succeed(PUBLIC_ROOM_POLICY),
           wait: {
             untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
               condition.pipe(Effect.map(Option.getOrNull)),
           },
         } as unknown as SafeStartStopServices;
         const resultFiber = yield* makeMoveToSafeDestination(services)(
-          "after",
+          "before",
         ).pipe(Effect.forkScoped);
 
         yield* Deferred.await(combatExited);
         yield* advance("1 second");
-        expect(joinedMaps).toEqual([`buyhouse-${minimumPrivateRoom}`]);
-
-        yield* advance("1 second");
-        expect(joinedMaps).toEqual([
-          `buyhouse-${minimumPrivateRoom}`,
-          `buyhouse-${minimumPrivateRoom}`,
-        ]);
-
-        yield* advance("2 seconds");
         yield* Fiber.join(resultFiber);
-        expect(joinedMaps).toEqual([
-          `buyhouse-${minimumPrivateRoom}`,
-          `buyhouse-${minimumPrivateRoom}`,
-          `buyhouse-${minimumPrivateRoom}`,
-        ]);
+
+        expect(joinedMaps).toEqual(["buyhouse"]);
+        expect(sentPackets).toEqual([]);
       }),
-    ).pipe(
-      Effect.provide(TestClock.layer()),
+  );
+
+  it.effect("reuses one private buyhouse target across retries", () =>
+    Effect.gen(function* () {
+      const joinedMaps: string[] = [];
+      const combatExited = yield* Deferred.make<void>();
+      const services = {
+        auth: {
+          getUsername: () => Effect.succeed("Local Player"),
+          isLoggedIn: () => Effect.succeed(true),
+        },
+        bridge: {
+          invoke: (method: string) =>
+            Effect.succeed(
+              method === "flash.isNull" ? Option.some(true) : Option.none(),
+            ),
+          invokeJson: () => Effect.succeed(Option.some(false)),
+        },
+        combat: {
+          exit: () =>
+            Deferred.succeed(combatExited, undefined).pipe(Effect.as(true)),
+        },
+        house: {
+          getAll: () => Effect.succeed([]),
+        },
+        map: {
+          getName: () => Effect.succeed("buyhouse"),
+          getRoomNumber: () => Effect.succeed(1),
+        },
+        packet: {
+          sendToServer: () => Effect.succeed(true),
+        },
+        player: {
+          isAlive: () => Effect.succeed(true),
+          isReady: () => Effect.succeed(true),
+          joinMap: (map: string) =>
+            Effect.sync(() => {
+              joinedMaps.push(map);
+              return joinedMaps.length === 3;
+            }),
+        },
+        roomPolicy: Effect.succeed<RoomPolicy>({
+          kind: "specific",
+          roomNumber: minimumPrivateRoom,
+        }),
+        wait: {
+          untilSome: (condition: Effect.Effect<Option.Option<unknown>>) =>
+            condition.pipe(Effect.map(Option.getOrNull)),
+        },
+      } as unknown as SafeStartStopServices;
+      const resultFiber = yield* makeMoveToSafeDestination(services)(
+        "after",
+      ).pipe(Effect.forkScoped);
+
+      yield* Deferred.await(combatExited);
+      yield* advance("1 second");
+      expect(joinedMaps).toEqual([`buyhouse-${minimumPrivateRoom}`]);
+
+      yield* advance("1 second");
+      expect(joinedMaps).toEqual([
+        `buyhouse-${minimumPrivateRoom}`,
+        `buyhouse-${minimumPrivateRoom}`,
+      ]);
+
+      yield* advance("2 seconds");
+      yield* Fiber.join(resultFiber);
+      expect(joinedMaps).toEqual([
+        `buyhouse-${minimumPrivateRoom}`,
+        `buyhouse-${minimumPrivateRoom}`,
+        `buyhouse-${minimumPrivateRoom}`,
+      ]);
+    }).pipe(
       Effect.provideService(Random.Random, {
         nextDoubleUnsafe: () => 0,
         nextIntUnsafe: () => 0,
@@ -371,47 +360,43 @@ describe("safeStartStop", () => {
   );
 
   it.effect("makes three attempts with exponential backoff", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const attemptTimes: number[] = [];
-        const resultFiber = yield* retrySafeMove(
-          Effect.gen(function* () {
-            attemptTimes.push(yield* Clock.currentTimeMillis);
-            return "retry" as const;
-          }),
-        ).pipe(Effect.forkScoped);
+    Effect.gen(function* () {
+      const attemptTimes: number[] = [];
+      const resultFiber = yield* retrySafeMove(
+        Effect.gen(function* () {
+          attemptTimes.push(yield* Clock.currentTimeMillis);
+          return "retry" as const;
+        }),
+      ).pipe(Effect.forkScoped);
 
-        yield* Effect.yieldNow;
-        expect(attemptTimes).toEqual([0]);
+      yield* Effect.yieldNow;
+      expect(attemptTimes).toEqual([0]);
 
-        yield* advance("1 second");
-        expect(attemptTimes).toEqual([0, 1_000]);
+      yield* advance("1 second");
+      expect(attemptTimes).toEqual([0, 1_000]);
 
-        yield* advance("2 seconds");
-        expect(yield* Fiber.join(resultFiber)).toBe("timed-out");
-        expect(attemptTimes).toEqual([0, 1_000, 3_000]);
-      }),
-    ).pipe(Effect.provide(TestClock.layer())),
+      yield* advance("2 seconds");
+      expect(yield* Fiber.join(resultFiber)).toBe("timed-out");
+      expect(attemptTimes).toEqual([0, 1_000, 3_000]);
+    }),
   );
 
   it.effect("stops retrying after a successful move", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        let attempts = 0;
-        const resultFiber = yield* retrySafeMove(
-          Effect.sync<SafeMoveAttemptResult>(() => {
-            attempts += 1;
-            return attempts === 2 ? "moved" : "retry";
-          }),
-        ).pipe(Effect.forkScoped);
+    Effect.gen(function* () {
+      let attempts = 0;
+      const resultFiber = yield* retrySafeMove(
+        Effect.sync<SafeMoveAttemptResult>(() => {
+          attempts += 1;
+          return attempts === 2 ? "moved" : "retry";
+        }),
+      ).pipe(Effect.forkScoped);
 
-        yield* Effect.yieldNow;
-        yield* advance("1 second");
+      yield* Effect.yieldNow;
+      yield* advance("1 second");
 
-        expect(yield* Fiber.join(resultFiber)).toBe("moved");
-        expect(attempts).toBe(2);
-      }),
-    ).pipe(Effect.provide(TestClock.layer())),
+      expect(yield* Fiber.join(resultFiber)).toBe("moved");
+      expect(attempts).toBe(2);
+    }),
   );
 
   it.effect("does not retry an aborted move", () =>

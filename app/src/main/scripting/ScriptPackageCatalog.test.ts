@@ -172,7 +172,7 @@ describe("discoverScriptCatalog", () => {
     expect(discovery.packages.has("shared-name")).toBe(false);
   });
 
-  it("blocks incompatible packages but treats malformed ranges as warnings", async () => {
+  it("classifies incompatible and malformed minimum versions", async () => {
     const workspace = await makeWorkspace();
     await Promise.all([
       write(
@@ -388,133 +388,153 @@ describe("discoverScriptCatalog", () => {
   });
 });
 
+const makeCatalogHarness = () =>
+  Effect.gen(function* () {
+    const workspace = yield* Effect.promise(makeWorkspace);
+    yield* Effect.promise(() =>
+      write(join(workspace.scriptsDir, "first.js"), ""),
+    );
+    let scanCount = 0;
+    const environment = DesktopEnvironment.of({
+      appDataDir: join(workspace.root, "app-data"),
+      assetsDir: join(workspace.root, "assets"),
+      isDev: true,
+      platform: "darwin",
+      workspaceDir: workspace.root,
+    });
+    const app = ElectronApp.of({
+      appendCommandLineSwitch: () => Effect.void,
+      exit: () => Effect.void,
+      getAppMetrics: Effect.succeed([]),
+      getVersion: Effect.succeed("1.0.0"),
+      isPackaged: Effect.succeed(false),
+      on: () => Effect.succeed(() => undefined),
+      quit: Effect.void,
+      relaunch: Effect.void,
+      whenReady: Effect.void,
+    });
+    const state = ScriptPackageState.of({
+      get: () => Effect.sync((): ManagedScriptPackage | undefined => undefined),
+      getAll: Effect.sync(() => {
+        scanCount += 1;
+        return [];
+      }),
+      remove: () => Effect.void,
+      save: () => Effect.void,
+    });
+    const testLayer = scriptPackageCatalogLayer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(DesktopEnvironment, environment),
+          Layer.succeed(ElectronApp, app),
+          Layer.succeed(ScriptPackageState, state),
+        ),
+      ),
+    );
+
+    const catalog = yield* ScriptPackageCatalog.pipe(Effect.provide(testLayer));
+    return { catalog, workspace, scanCount: () => scanCount };
+  });
+
 describe("ScriptPackageCatalog", () => {
   it.effect(
-    "scans lazily once and refreshes only when explicitly requested",
+    "coalesces the first scan and rescans only on explicit refresh",
     () =>
       Effect.gen(function* () {
-        const workspace = yield* Effect.promise(makeWorkspace);
+        const { catalog, workspace, scanCount } = yield* makeCatalogHarness();
+        expect(scanCount()).toBe(0);
+        const [first, concurrent] = yield* Effect.all(
+          [catalog.getOverview, catalog.getOverview],
+          { concurrency: "unbounded" },
+        );
+        expect(first.scriptCount).toBe(1);
+        expect(concurrent.revision).toBe(first.revision);
+        expect(scanCount()).toBe(1);
+
         yield* Effect.promise(() =>
-          write(join(workspace.scriptsDir, "first.js"), ""),
+          write(join(workspace.scriptsDir, "second.js"), ""),
         );
-        let scanCount = 0;
-        const environment = DesktopEnvironment.of({
-          appDataDir: join(workspace.root, "app-data"),
-          assetsDir: join(workspace.root, "assets"),
-          isDev: true,
-          platform: "darwin",
-          workspaceDir: workspace.root,
-        });
-        const app = ElectronApp.of({
-          appendCommandLineSwitch: () => Effect.void,
-          exit: () => Effect.void,
-          getAppMetrics: Effect.succeed([]),
-          getVersion: Effect.succeed("1.0.0"),
-          isPackaged: Effect.succeed(false),
-          on: () => Effect.succeed(() => undefined),
-          quit: Effect.void,
-          relaunch: Effect.void,
-          whenReady: Effect.void,
-        });
-        const state = ScriptPackageState.of({
-          get: () =>
-            Effect.sync((): ManagedScriptPackage | undefined => undefined),
-          getAll: Effect.sync(() => {
-            scanCount += 1;
-            return [];
-          }),
-          remove: () => Effect.void,
-          save: () => Effect.void,
-        });
-        const testLayer = scriptPackageCatalogLayer.pipe(
-          Layer.provide(
-            Layer.mergeAll(
-              Layer.succeed(DesktopEnvironment, environment),
-              Layer.succeed(ElectronApp, app),
-              Layer.succeed(ScriptPackageState, state),
-            ),
-          ),
-        );
+        expect((yield* catalog.getOverview).scriptCount).toBe(1);
+        expect(scanCount()).toBe(1);
 
-        yield* Effect.gen(function* () {
-          const catalog = yield* ScriptPackageCatalog;
-          const [first, concurrent] = yield* Effect.all([
-            catalog.getOverview,
-            catalog.getOverview,
-          ]);
-          expect(first.scriptCount).toBe(1);
-          expect(concurrent.revision).toBe(first.revision);
-          expect(scanCount).toBe(1);
-
-          yield* Effect.promise(() =>
-            write(join(workspace.scriptsDir, "second.js"), ""),
-          );
-          expect((yield* catalog.getOverview).scriptCount).toBe(1);
-          expect(scanCount).toBe(1);
-
-          const refreshed = yield* catalog.refresh;
-          expect(refreshed.scriptCount).toBe(2);
-          expect(scanCount).toBe(2);
-          const page = yield* catalog.getPage({
-            limit: 128,
-            offset: 0,
-            query: "second",
-            revision: refreshed.revision,
-          });
-          expect(page.total).toBe(1);
-          expect(page.entries[0]?.relativePath).toBe("second.js");
-
-          const sourceRoot = join(workspace.root, "staged-tools");
-          const rootPath = join(workspace.packagesDir, "tools");
-          yield* Effect.promise(() =>
-            Promise.all([
-              write(
-                join(sourceRoot, "package.json"),
-                JSON.stringify({ name: "tools" }),
-              ),
-              write(join(sourceRoot, "scripts", "tool.js"), ""),
-            ]),
-          );
-          const inspected = yield* Effect.promise(() =>
-            inspectScriptPackageDirectory(sourceRoot),
-          );
-          yield* Effect.promise(() => fs.rename(sourceRoot, rootPath));
-          const managed: ManagedScriptPackage = {
-            directory: "tools",
-            files: yield* Effect.promise(() => hashDirectory(rootPath)),
-            installedAt: new Date(0).toISOString(),
-            name: "tools",
-            source: {
-              kind: "repository",
-              repositoryUrl: "https://github.com/example/tools",
-              resolvedCommit: "abc123",
-            },
-          };
-          const replaced = yield* catalog.replacePackage({
-            inspected,
-            managed,
-            rootPath,
-            sourceRoot,
-          });
-          expect(replaced.scriptCount).toBe(3);
-          expect(scanCount).toBe(2);
-          expect(
-            (yield* catalog.getPage({
-              limit: 128,
-              offset: 0,
-              query: "tool",
-              revision: replaced.revision,
-            })).entries[0]?.reference,
-          ).toEqual({
-            kind: "package",
-            packageName: "tools",
-            path: "scripts/tool.js",
-          });
-
-          const removed = yield* catalog.removePackage("tools");
-          expect(removed.scriptCount).toBe(2);
-          expect(scanCount).toBe(2);
-        }).pipe(Effect.provide(testLayer));
+        const refreshed = yield* catalog.refresh;
+        expect(refreshed.scriptCount).toBe(2);
+        expect(scanCount()).toBe(2);
       }),
+  );
+
+  it.effect("filters catalog pages from the requested revision", () =>
+    Effect.gen(function* () {
+      const { catalog, workspace } = yield* makeCatalogHarness();
+      yield* Effect.promise(() =>
+        write(join(workspace.scriptsDir, "second.js"), ""),
+      );
+      const refreshed = yield* catalog.getOverview;
+      const page = yield* catalog.getPage({
+        limit: 128,
+        offset: 0,
+        query: "second",
+        revision: refreshed.revision,
+      });
+      expect(page.total).toBe(1);
+      expect(page.entries[0]?.relativePath).toBe("second.js");
+    }),
+  );
+
+  it.effect("replaces and removes a package without a full rescan", () =>
+    Effect.gen(function* () {
+      const { catalog, workspace, scanCount } = yield* makeCatalogHarness();
+      yield* catalog.getOverview;
+      const sourceRoot = join(workspace.root, "staged-tools");
+      const rootPath = join(workspace.packagesDir, "tools");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(
+            join(sourceRoot, "package.json"),
+            JSON.stringify({ name: "tools" }),
+          ),
+          write(join(sourceRoot, "scripts", "tool.js"), ""),
+        ]),
+      );
+      const inspected = yield* Effect.promise(() =>
+        inspectScriptPackageDirectory(sourceRoot),
+      );
+      yield* Effect.promise(() => fs.rename(sourceRoot, rootPath));
+      const managed: ManagedScriptPackage = {
+        directory: "tools",
+        files: yield* Effect.promise(() => hashDirectory(rootPath)),
+        installedAt: new Date(0).toISOString(),
+        name: "tools",
+        source: {
+          kind: "repository",
+          repositoryUrl: "https://github.com/example/tools",
+          resolvedCommit: "abc123",
+        },
+      };
+      const replaced = yield* catalog.replacePackage({
+        inspected,
+        managed,
+        rootPath,
+        sourceRoot,
+      });
+      expect(replaced.scriptCount).toBe(2);
+      expect(scanCount()).toBe(1);
+      expect(
+        (yield* catalog.getPage({
+          limit: 128,
+          offset: 0,
+          query: "tool",
+          revision: replaced.revision,
+        })).entries[0]?.reference,
+      ).toEqual({
+        kind: "package",
+        packageName: "tools",
+        path: "scripts/tool.js",
+      });
+
+      const removed = yield* catalog.removePackage("tools");
+      expect(removed.scriptCount).toBe(1);
+      expect(scanCount()).toBe(1);
+    }),
   );
 });

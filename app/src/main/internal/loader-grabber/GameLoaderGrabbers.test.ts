@@ -10,55 +10,65 @@ import { makeGameLoaderGrabbers } from "./GameLoaderGrabbers";
 
 describe("GameLoaderGrabbers", () => {
   it.effect("correlates responses with the requesting game and operation", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const sent = yield* Ref.make<LoaderGrabberRequest | undefined>(
-          undefined,
-        );
-        const ipc = DesktopIpc.of({
-          handle: () => Effect.void,
-          sendToAll: () => Effect.void,
-          sendToRendererIds: (_ids, _descriptor, payload) =>
-            Ref.set(sent, payload as LoaderGrabberRequest),
-        });
-        const windows = {
-          isRendererReady: () => Effect.succeed(true),
-          onClosed: () => Effect.succeed(() => undefined),
-          onRendererDestroyed: () => Effect.succeed(() => undefined),
-          onRendererReloaded: () => Effect.succeed(() => undefined),
-          onRendererUnavailable: () => Effect.succeed(() => undefined),
-        } as unknown as DesktopWindows["Service"];
-        const loaderGrabbers = yield* makeGameLoaderGrabbers.pipe(
-          Effect.provideService(DesktopIpc, ipc),
-          Effect.provideService(DesktopWindows, windows),
-        );
+    Effect.gen(function* () {
+      const sent = yield* Ref.make<LoaderGrabberRequest | undefined>(undefined);
+      const ipc = DesktopIpc.of({
+        handle: () => Effect.void,
+        sendToAll: () => Effect.void,
+        sendToRendererIds: (_ids, _descriptor, payload) =>
+          Ref.set(sent, payload as LoaderGrabberRequest),
+      });
+      const windows = {
+        isRendererReady: () => Effect.succeed(true),
+        onClosed: () => Effect.succeed(() => undefined),
+        onRendererDestroyed: () => Effect.succeed(() => undefined),
+        onRendererReloaded: () => Effect.succeed(() => undefined),
+        onRendererUnavailable: () => Effect.succeed(() => undefined),
+      } as unknown as DesktopWindows["Service"];
+      const loaderGrabbers = yield* makeGameLoaderGrabbers.pipe(
+        Effect.provideService(DesktopIpc, ipc),
+        Effect.provideService(DesktopWindows, windows),
+      );
 
-        const pending = yield* Effect.forkScoped(
-          loaderGrabbers.request(42, {
-            kind: "grab",
-            payload: { type: "inventory" },
-          }),
-        );
-        yield* Effect.yieldNow;
-        const request = yield* Ref.get(sent);
-        expect(request?.kind).toBe("grab");
-
-        yield* loaderGrabbers.respond(7, {
-          ok: true,
-          outcome: { kind: "grab", value: null },
-          requestId: request!.requestId,
-        });
-
-        yield* loaderGrabbers.respond(42, {
-          ok: true,
-          outcome: { kind: "grab", value: [] },
-          requestId: request!.requestId,
-        });
-        expect(yield* Fiber.join(pending)).toEqual({
+      const pending = yield* Effect.forkScoped(
+        loaderGrabbers.request(42, {
           kind: "grab",
-          value: [],
-        });
-      }),
-    ),
+          payload: { type: "inventory" },
+        }),
+      );
+      yield* Effect.yieldNow;
+      const request = yield* Ref.get(sent);
+      expect(request?.kind).toBe("grab");
+
+      yield* loaderGrabbers.respond(7, {
+        ok: true,
+        outcome: { kind: "grab", value: null },
+        requestId: request!.requestId,
+      });
+
+      yield* Effect.yieldNow;
+      expect(pending.pollUnsafe()).toBeUndefined();
+
+      yield* loaderGrabbers.respond(42, {
+        ok: true,
+        outcome: { kind: "grab", value: [] },
+        requestId: request!.requestId,
+      });
+      expect(yield* Fiber.join(pending)).toEqual({
+        kind: "grab",
+        value: [],
+      });
+      const mismatched = yield* loaderGrabbers
+        .request(42, { kind: "grab", payload: { type: "inventory" } })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Effect.yieldNow;
+      const next = yield* Ref.get(sent);
+      yield* loaderGrabbers.respond(42, {
+        ok: true,
+        outcome: { kind: "load" },
+        requestId: next!.requestId,
+      });
+      expect((yield* Fiber.join(mismatched)).message).toMatch(/returned/);
+    }),
   );
 });
