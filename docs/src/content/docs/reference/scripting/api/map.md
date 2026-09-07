@@ -19,7 +19,7 @@ sidebar:
 api.map.getCellPads(): Effect.Effect<readonly string[]>
 ```
 
-**Yields:** `readonly` `string`[]
+**Returns:** `readonly` `string`[]
 
 **Errors:** `never`
 
@@ -33,7 +33,7 @@ api.map.getCellPads(): Effect.Effect<readonly string[]>
 api.map.getCells(): Effect.Effect<readonly string[]>
 ```
 
-**Yields:** `readonly` `string`[]
+**Returns:** `readonly` `string`[]
 
 **Errors:** `never`
 
@@ -47,7 +47,7 @@ api.map.getCells(): Effect.Effect<readonly string[]>
 api.map.getId(): Effect.Effect<number>
 ```
 
-**Yields:** `number`
+**Returns:** `number`
 
 **Errors:** `never`
 
@@ -65,7 +65,7 @@ api.map.getMapItem(itemId: number): Effect.Effect<void>
 | --- | --- | --- | --- | --- |
 | `itemId` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** `never`
 
@@ -79,7 +79,7 @@ api.map.getMapItem(itemId: number): Effect.Effect<void>
 api.map.getName(): Effect.Effect<string>
 ```
 
-**Yields:** `string`
+**Returns:** `string`
 
 **Errors:** `never`
 
@@ -93,7 +93,7 @@ api.map.getName(): Effect.Effect<string>
 api.map.getRoomNumber(): Effect.Effect<number>
 ```
 
-**Yields:** `number`
+**Returns:** `number`
 
 **Errors:** `never`
 
@@ -107,7 +107,7 @@ api.map.getRoomNumber(): Effect.Effect<number>
 api.map.isLoaded(): Effect.Effect<boolean>
 ```
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -125,7 +125,7 @@ api.map.loadSwf(swf: string): Effect.Effect<void>
 | --- | --- | --- | --- | --- |
 | `swf` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** `never`
 
@@ -139,7 +139,7 @@ api.map.loadSwf(swf: string): Effect.Effect<void>
 api.map.reload(): Effect.Effect<void>
 ```
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** `never`
 
@@ -157,6 +157,6 @@ Sets the spawn point, using the current cell or pad when omitted.
 | --- | --- | --- | --- | --- |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="cell-position-options" data-script-type-name="CellPositionOptions" href="/reference/scripting/types/cell-position-options/" title="Preview CellPositionOptions"><code>CellPositionOptions</code></a> |  |  |  |
 
-**Yields:** `void`
+**Returns:** `void`
 
 **Errors:** `never`

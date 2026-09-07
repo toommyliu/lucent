@@ -23,7 +23,7 @@ api.recipes.doWheelOfDoom(toBank?: boolean): Effect.Effect<boolean>
 | --- | --- | --- | --- | --- |
 | `toBank` | `boolean` |  | `false` | Whether to send wheel rewards to the bank. |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -41,7 +41,7 @@ api.recipes.ensureLifeSteal(quantity: number): Effect.Effect<boolean>
 | --- | --- | --- | --- | --- |
 | `quantity` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -59,6 +59,6 @@ api.recipes.ensureScrollOfEnrage(quantity: number): Effect.Effect<boolean>
 | --- | --- | --- | --- | --- |
 | `quantity` | `number` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`

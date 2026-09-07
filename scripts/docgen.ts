@@ -151,6 +151,7 @@ type ReturnDoc = {
 };
 
 type MemberDoc = SourceInfo & {
+  readonly examples: readonly string[];
   readonly path: string;
   readonly name: string;
   readonly kind: "method" | "effect" | "value";
@@ -451,6 +452,12 @@ const getNodeJsDoc = (node: ts.Node): ts.JSDoc | null => {
 
 const getSummary = (node: ts.Node): string =>
   getText(getNodeJsDoc(node)?.comment);
+
+const getExamples = (node: ts.Node): readonly string[] =>
+  (getNodeJsDoc(node)?.tags ?? [])
+    .filter((tag) => tag.tagName.text === "example")
+    .map((tag) => getText(tag.comment))
+    .filter((example) => example !== "");
 
 const getJsDocTagText = (node: ts.Node, tagName: string): string => {
   const tag = getNodeJsDoc(node)?.tags?.find(
@@ -1261,6 +1268,7 @@ const collectMembersFromInterface = (
         ),
         parameters,
         returnDoc,
+        examples: getExamples(member),
         ...getSourceInfo(options, git, member),
       });
       continue;
@@ -1309,6 +1317,7 @@ const collectMembersFromInterface = (
         signature: signatures.map(({ signature }) => signature).join("\n"),
         parameters: primarySignature.parameters,
         returnDoc: primarySignature.returnDoc,
+        examples: getExamples(member),
         ...getSourceInfo(options, git, member),
       });
       continue;
@@ -1353,6 +1362,7 @@ const collectMembersFromInterface = (
         ),
         parameters,
         returnDoc,
+        examples: getExamples(member),
         ...getSourceInfo(options, git, member),
       });
       continue;
@@ -1373,6 +1383,7 @@ const collectMembersFromInterface = (
       signature: `${basePath}.${name}: ${returnDoc.raw}`,
       parameters: [],
       returnDoc,
+      examples: getExamples(member),
       ...getSourceInfo(options, git, member),
     });
   }
@@ -1585,6 +1596,7 @@ const collectMembersFromType = (
           .join("\n"),
         parameters: primarySignature.parameters,
         returnDoc: primarySignature.returnDoc,
+        examples: getExamples(sourceNode),
         ...getSourceInfo(options, git, sourceNode),
       });
       continue;
@@ -1626,6 +1638,7 @@ const collectMembersFromType = (
       signature: `${path}: ${rawType}`,
       parameters: [],
       returnDoc,
+      examples: getExamples(sourceNode),
       ...getSourceInfo(options, git, sourceNode),
     });
   }
@@ -2957,18 +2970,19 @@ const renderMember = (
     lines.push("");
   }
 
+  lines.push(
+    `**Returns:** ${renderTypeExpression(member.returnDoc.result ?? member.returnDoc.raw, typeLinks)}`,
+    "",
+  );
   if (member.returnDoc.result !== null) {
     lines.push(
-      `**Yields:** ${renderTypeExpression(member.returnDoc.result, typeLinks)}`,
-      "",
       `**Errors:** ${renderTypeExpression(member.returnDoc.error ?? "never", typeLinks)}`,
       "",
     );
-  } else {
-    lines.push(
-      `**Returns:** ${renderTypeExpression(member.returnDoc.raw, typeLinks)}`,
-      "",
-    );
+  }
+
+  for (const example of member.examples) {
+    lines.push("#### Example", "", example, "");
   }
 };
 

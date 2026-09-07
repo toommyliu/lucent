@@ -96,11 +96,16 @@ export const makeSettings = Effect.fnUntraced(function* (
       method: keyof Window["swf"],
     ) => {
       const value = patch[key];
-      if (value !== undefined) effects.push(command(method, value));
+      if (value !== undefined && value !== null)
+        effects.push(command(method, value));
     };
     enqueue("animationsEnabled", "settings.setAnimationsEnabled");
     enqueue("collisionsEnabled", "settings.setCollisionsEnabled");
+    if (patch.customGuild === null)
+      effects.push(command("settings.resetCustomGuild"));
     enqueue("customGuild", "settings.setCustomGuild");
+    if (patch.customName === null)
+      effects.push(command("settings.resetCustomName"));
     enqueue("customName", "settings.setCustomName");
     enqueue("deathAdsVisible", "settings.setDeathAdsVisible");
     enqueue("otherPlayersVisible", "settings.setOtherPlayersVisible");
@@ -136,16 +141,26 @@ export const makeSettings = Effect.fnUntraced(function* (
   ) {
     const patch = normalizePatch(input);
     const current = yield* store.settings.get;
-    const next: SettingsState = { ...current, ...patch };
+    const { customGuild, customName, ...values } = patch;
+    const statePatch = {
+      ...values,
+      ...(customGuild === undefined
+        ? {}
+        : {
+            customGuild: customGuild ?? "",
+            customGuildConfigured: customGuild !== null,
+          }),
+      ...(customName === undefined
+        ? {}
+        : {
+            customName: customName ?? "",
+            customNameConfigured: customName !== null,
+          }),
+    };
+    const next: SettingsState = { ...current, ...statePatch };
 
     yield* execute(patch, next);
-    yield* store.settings.patch({
-      ...patch,
-      ...(patch.customGuild === undefined
-        ? {}
-        : { customGuildConfigured: true }),
-      ...(patch.customName === undefined ? {} : { customNameConfigured: true }),
-    });
+    yield* store.settings.patch(statePatch);
 
     if (patch.renderingMode === "minimal") {
       if (isNonMinimalRenderingMode(current.renderingMode)) {

@@ -23,7 +23,7 @@ sidebar:
 | `query` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="packet-selector" data-script-type-name="PacketSelector" href="/reference/scripting/types/packet-selector/" title="Preview PacketSelector"><code>PacketSelector</code></a> \| `undefined` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `handler` | (`packet`: <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="packet" data-script-type-name="Packet" href="/reference/scripting/types/packet/" title="Preview Packet"><code>Packet</code></a>) =&gt; <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="script-callback-result" data-script-type-name="ScriptCallbackResult" href="/reference/scripting/types/script-callback-result/" title="Preview ScriptCallbackResult"><code>ScriptCallbackResult</code></a> | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 
-**Yields:** () =&gt; `void`
+**Returns:** () =&gt; `void`
 
 **Errors:** `never`
 
@@ -41,7 +41,7 @@ sidebar:
 | `selector` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="packet-selector" data-script-type-name="PacketSelector" href="/reference/scripting/types/packet-selector/" title="Preview PacketSelector"><code>PacketSelector</code></a> \| `undefined` |  |  |  |
 | `options` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="triggered-wait-options" data-script-type-name="TriggeredWaitOptions" href="/reference/scripting/types/triggered-wait-options/" title="Preview TriggeredWaitOptions"><code>TriggeredWaitOptions</code></a>&lt;`E`, `R`&gt; \| `undefined` |  |  |  |
 
-**Yields:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="packet" data-script-type-name="Packet" href="/reference/scripting/types/packet/" title="Preview Packet"><code>Packet</code></a> \| `null`
+**Returns:** <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="packet" data-script-type-name="Packet" href="/reference/scripting/types/packet/" title="Preview Packet"><code>Packet</code></a> \| `null`
 
 **Errors:** `E`
 
@@ -58,7 +58,7 @@ sidebar:
 | `packet` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `encoding` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="client-packet-encoding" data-script-type-name="ClientPacketEncoding" href="/reference/scripting/types/client-packet-encoding/" title="Preview ClientPacketEncoding"><code>ClientPacketEncoding</code></a> |  | `"string"` | The client packet encoding. |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`
 
@@ -75,6 +75,6 @@ sidebar:
 | `packet` | `string` | <span class="required-mark" role="img" aria-label="Required"></span> |  |  |
 | `encoding` | <a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="server-packet-encoding" data-script-type-name="ServerPacketEncoding" href="/reference/scripting/types/server-packet-encoding/" title="Preview ServerPacketEncoding"><code>ServerPacketEncoding</code></a> |  | `"string"` | The server packet encoding. |
 
-**Yields:** `boolean`
+**Returns:** `boolean`
 
 **Errors:** `never`

@@ -681,25 +681,45 @@ export type ScriptRenderingMode =
   | /** A.k.a. Lag Killer. */ "interface-only"
   | "minimal";
 
+export interface ScriptSettings {
+  readonly animations: boolean;
+  readonly antiCounter: boolean;
+  readonly collisions: boolean;
+  /** Local guild override. Null restores the original guild. */
+  readonly customGuild: string | null;
+  /** Local name override. Null restores the original name. */
+  readonly customName: string | null;
+  readonly deathAds: boolean;
+  readonly enemyMagnet: boolean;
+  /** Configured FPS. Minimal rendering uses 2 FPS; app limits may lower it. */
+  readonly frameRate: number;
+  readonly infiniteRange: boolean;
+  /** Hides other players, leaving your own character visible. */
+  readonly hidePlayers: boolean;
+  readonly provokeCell: boolean;
+  readonly renderingMode: ScriptRenderingMode;
+  readonly skipCutscenes: boolean;
+  readonly walkSpeed: number;
+}
+
+/** Only supplied fields are changed. */
+export type ScriptSettingsPatch = Partial<ScriptSettings>;
+
 export interface ScriptSettingsApi {
-  /** Returns the active rendering mode. */
-  readonly getRenderingMode: () => Effect.Effect<ScriptRenderingMode>;
-  readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
-  readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCollisionsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCustomGuild: (name: string) => Effect.Effect<void>;
-  readonly setCustomName: (name: string) => Effect.Effect<void>;
-  readonly setDeathAdsVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setEnemyMagnetEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setFrameRate: (fps: number) => Effect.Effect<void>;
-  readonly setInfiniteRangeEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setOtherPlayersVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
-  /** @param mode The rendering mode to activate. */
-  readonly setRenderingMode: (mode: ScriptRenderingMode) => Effect.Effect<void>;
-  readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
+  /**
+   * Updates the supplied settings, leaving the rest unchanged.
+   *
+   * @example
+   * ```ts
+   * yield* api.settings.update({
+   *   animations: false,
+   *   hidePlayers: true,
+   *   frameRate: 30,
+   * });
+   * ```
+   */
+  readonly update: (patch: ScriptSettingsPatch) => Effect.Effect<void>;
+  readonly get: () => Effect.Effect<ScriptSettings>;
 }
 
 export interface ScriptShopQuantityOptions {
