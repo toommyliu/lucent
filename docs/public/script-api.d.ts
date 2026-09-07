@@ -479,7 +479,6 @@ interface ScriptOptionsApi {
     reset(): Effect<void, never>;
   /**
   * Updates the supplied options, leaving the rest unchanged.
-  * Invalid values fail with ScriptExecutionError before any options change.
   *
   * @example
   * ```ts

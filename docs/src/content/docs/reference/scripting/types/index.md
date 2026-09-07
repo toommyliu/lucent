@@ -139,8 +139,8 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-input-value/"><code>ScriptInputValue</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-rendering-mode/"><code>ScriptRenderingMode</code></a> | type alias | Controls game render visibility. |
-| <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface | Runner options shared by scripts and saved for the current account.<br>Changes remain after the script exits. If saving fails, the session keeps<br>the changes and Lucent logs a warning. |
-| <a href="/reference/scripting/types/script-runtime-options-patch/"><code>ScriptRuntimeOptionsPatch</code></a> | type alias | Only supplied fields are changed. Room policy is replaced as a whole. |
+| <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-runtime-options-patch/"><code>ScriptRuntimeOptionsPatch</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-settings/"><code>ScriptSettings</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-settings-patch/"><code>ScriptSettingsPatch</code></a> | type alias | Only supplied fields are changed. |
 | <a href="/reference/scripting/types/script-shop-quantity-options/"><code>ScriptShopQuantityOptions</code></a> | interface |  |

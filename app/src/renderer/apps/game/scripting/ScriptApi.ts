@@ -931,11 +931,6 @@ export interface ScriptInputsApi {
   readonly getAll: () => Effect.Effect<ScriptInputValues>;
 }
 
-/**
- * Runner options shared by scripts and saved for the current account.
- * Changes remain after the script exits. If saving fails, the session keeps
- * the changes and Lucent logs a warning.
- */
 export interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
   readonly roomPolicy: RoomPolicy;
@@ -949,7 +944,6 @@ export interface ScriptExitOptions {
   readonly logout?: boolean;
 }
 
-/** Only supplied fields are changed. Room policy is replaced as a whole. */
 export type ScriptRuntimeOptionsPatch = Partial<ScriptRuntimeOptions>;
 
 export interface ScriptOptionsApi {
@@ -959,7 +953,6 @@ export interface ScriptOptionsApi {
   readonly reset: () => Effect.Effect<void>;
   /**
    * Updates the supplied options, leaving the rest unchanged.
-   * Invalid values fail with ScriptExecutionError before any options change.
    *
    * @example
    * ```ts
