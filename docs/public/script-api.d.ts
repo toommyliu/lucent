@@ -73,7 +73,7 @@ type Option<Value> =
 
 interface Effect<
   Value = unknown,
-  Error = unknown,
+  Error = never,
   Requirements = never,
 > {
   readonly "~effect/Effect": {

@@ -169,7 +169,7 @@ type Option<Value> =
 
 interface Effect<
   Value = unknown,
-  Error = unknown,
+  Error = never,
   Requirements = never,
 > {
   readonly "~effect/Effect": {
@@ -1267,6 +1267,8 @@ function* ready() {
   return alive && (yield* api.player.getHp()) > 1000;
 }
 api.wait.until(effect.Effect.gen(ready));
+declare const hp: Effect<number>;
+api.wait.until(effect.Effect.gen(function* () { return (yield* hp) > 1000; }));
 // @ts-expect-error A generator is not an Effect; wrap it with Effect.gen.
 api.wait.until(ready());
 // @ts-expect-error Effect callbacks require Effects, not raw generators.
