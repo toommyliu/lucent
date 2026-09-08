@@ -56,6 +56,7 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
         { timeout: "5 seconds" },
       );
     },
+    Effect.catch(() => Effect.succeed(false)),
     Effect.repeat({ times: 1, until: Boolean }),
   );
 
@@ -70,7 +71,7 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
       Array.chunksOf(ids, 30),
       (batch) => requestBatch(batch, silent),
       { concurrency: 1, discard: true },
-    ).pipe(loads.withPermit, Effect.ignore);
+    ).pipe(loads.withPermit);
     return yield* Effect.forEach(ids, isLoaded);
   });
 
