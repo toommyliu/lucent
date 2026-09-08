@@ -11,13 +11,13 @@ sidebar:
 interface CompleteQuestOptions
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L15" aria-label="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:15" title="app/src/renderer/apps/game/flash/api/Quests.ts:15" target="_blank" rel="noreferrer"><code class="source-reference__path">Quests.ts:15</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L18" aria-label="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:18" title="app/src/renderer/apps/game/flash/api/Quests.ts:18" target="_blank" rel="noreferrer"><code class="source-reference__path">Quests.ts:18</code></a></p>
 
 ## Properties
 
 <a id="property-rewarditemid"></a>
 
-### `rewardItemId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L19" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:19" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `rewardItemId` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L22" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:22" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Preferred reward item. Omit when no specific reward is requested.
 
@@ -27,7 +27,7 @@ readonly rewardItemId?: number
 
 <a id="property-turnins"></a>
 
-### `turnIns` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L17" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:17" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
+### `turnIns` <a class="source-reference__heading-link" style="float: right; display: inline-flex; align-items: center; justify-content: center; margin-block: -0.125rem; margin-inline-start: 0.5rem; border-radius: var(--radius-sm); text-decoration: none;" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Quests.ts#L20" tabindex="-1" aria-hidden="true" title="Open source: app/src/renderer/apps/game/flash/api/Quests.ts:20" target="_blank" rel="noreferrer"><svg class="source-reference__icon" width="16" height="16" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"></path><path d="m6 8-4 4 4 4"></path><path d="m14.5 4-5 16"></path></svg></a>
 
 Number of turn-ins to complete. Must be finite. Omit to use the maximum currently possible.
 
