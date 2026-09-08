@@ -25,7 +25,9 @@ const hasRef = (ref) => run("git", ["rev-parse", "--verify", ref]).status === 0;
 const splitLines = (value) => value.trim().split(/\r?\n/).filter(Boolean);
 
 const isDocsRelevantPath = (path) =>
-  path.startsWith(docsPath) || docsRelevantFiles.has(path);
+  path.startsWith(docsPath) ||
+  path.startsWith("script-packages/") ||
+  docsRelevantFiles.has(path);
 
 const pathsFromNameStatus = (value) =>
   splitLines(value).flatMap((line) => {
