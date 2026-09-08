@@ -190,8 +190,18 @@ const optionButton =
       }
 
       if (this.#picker !== undefined) {
+        const activeElement = document.activeElement;
         this.#picker.removeAttribute("open");
-        this.#picker.querySelector<HTMLElement>("summary")?.focus();
+        if (event.detail === 0) {
+          this.#picker
+            .querySelector<HTMLElement>("summary")
+            ?.focus({ preventScroll: true });
+        } else if (
+          activeElement instanceof HTMLElement &&
+          this.#picker.contains(activeElement)
+        ) {
+          activeElement.blur();
+        }
         void this.#picker.offsetWidth;
       }
 
