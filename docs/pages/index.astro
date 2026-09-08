@@ -141,16 +141,16 @@ const ogImage =
               <Icon name="chevron-down" size={16} />
             </summary>
             <div class="landing-download-menu">
-              <p>Choose the matching file</p>
-              <a href={latestAssetsUrl} rel="noreferrer" target="_blank">
+              <p>Download the latest version</p>
+              <a data-download-platform="mac" href={latestAssetsUrl} rel="noreferrer" target="_blank">
                 <span>macOS</span>
                 <span>DMG</span>
               </a>
-              <a href={latestAssetsUrl} rel="noreferrer" target="_blank">
+              <a data-download-platform="windows" href={latestAssetsUrl} rel="noreferrer" target="_blank">
                 <span>Windows</span>
                 <span>ZIP</span>
               </a>
-              <a href={latestAssetsUrl} rel="noreferrer" target="_blank">
+              <a data-download-platform="linux" href={latestAssetsUrl} rel="noreferrer" target="_blank">
                 <span>Linux</span>
                 <span>AppImage</span>
               </a>
@@ -924,6 +924,54 @@ const ogImage =
   class LucentDownloadMenu extends HTMLElement {
     #details: HTMLDetailsElement | null = null;
 
+    async #resolveDownloads(): Promise<void> {
+      try {
+        const response = await fetch(
+          "https://api.github.com/repos/toommyliu/lucent/releases/latest",
+        );
+        if (!response.ok) return;
+
+        const release: unknown = await response.json();
+        if (
+          typeof release !== "object" || release === null ||
+          !("assets" in release) || !Array.isArray(release.assets) ||
+          !this.isConnected
+        ) return;
+
+        const suffixes = {
+          mac: "-mac-x64.dmg",
+          windows: "-win-x64.zip",
+          linux: "-linux-x86_64.AppImage",
+        };
+        for (const [platform, suffix] of Object.entries(suffixes)) {
+          const asset: unknown = release.assets.find((candidate: unknown) =>
+            typeof candidate === "object" && candidate !== null &&
+            "name" in candidate && typeof candidate.name === "string" &&
+            candidate.name.startsWith("Lucent-") && candidate.name.endsWith(suffix),
+          );
+          if (
+            typeof asset !== "object" || asset === null ||
+            !("browser_download_url" in asset) ||
+            typeof asset.browser_download_url !== "string" ||
+            !asset.browser_download_url.startsWith(
+              "https://github.com/toommyliu/lucent/releases/download/",
+            )
+          ) continue;
+
+          const link = this.querySelector<HTMLAnchorElement>(
+            `a[data-download-platform="${platform}"]`,
+          );
+          if (link) link.href = asset.browser_download_url;
+          if (this.dataset.downloadPlatform === platform) {
+            const primary = this.querySelector<HTMLAnchorElement>(".landing-download");
+            if (primary) primary.href = asset.browser_download_url;
+          }
+        }
+      } catch {
+        // Network failures leave the GitHub assets page available.
+      }
+    }
+
     #onDocumentClick = (event: MouseEvent): void => {
       if (
         this.#details?.open === true &&
@@ -945,6 +993,7 @@ const ogImage =
       this.#details = this.querySelector("[data-landing-download-menu]");
       document.addEventListener("click", this.#onDocumentClick);
       document.addEventListener("keydown", this.#onDocumentKeydown);
+      void this.#resolveDownloads();
     }
 
     disconnectedCallback(): void {

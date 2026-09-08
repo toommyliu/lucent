@@ -116,6 +116,15 @@ export default defineConfig({
   },
   content: {
     root: "src/content/docs",
+    sources: [
+      { type: "filesystem", root: "src/content/docs" },
+      {
+        type: "github-releases",
+        prefix: "changelog",
+        owner: "toommyliu",
+        repo: "lucent",
+      },
+    ],
   },
   description: "Guides, cookbooks, and reference for Lucent.",
   github: {
@@ -237,6 +246,12 @@ export default defineConfig({
         icon: "braces",
         label: "Reference",
         path: "/reference",
+      },
+      {
+        href: "/changelog",
+        icon: "history",
+        label: "Changelog",
+        path: "/changelog",
       },
     ],
   },
