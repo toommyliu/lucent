@@ -740,11 +740,6 @@ export interface ScriptEnhanceItemOptions {
   readonly special?: string;
 }
 
-export interface ScriptRecipesApi {
-  readonly ensureLifeSteal: (quantity: number) => Effect.Effect<boolean>;
-  readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
-}
-
 /** Controls game render visibility. */
 export type ScriptRenderingMode =
   | "full"
@@ -989,7 +984,6 @@ export interface ScriptApi {
   readonly player: ScriptPlayerApi;
   readonly players: ScriptPlayersApi;
   readonly quests: ScriptQuestsApi;
-  readonly recipes: ScriptRecipesApi;
   readonly settings: ScriptSettingsApi;
   readonly shop: ScriptShopApi;
   readonly tempInventory: ScriptTempInventoryApi;

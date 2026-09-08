@@ -78,6 +78,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/item-context/"><code>ItemContext</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-data/"><code>ItemData</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-query/"><code>ItemQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/item-requirement/"><code>ItemRequirement</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-selector/"><code>ItemSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-selector-by-id/"><code>ItemSelectorById</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-selector-by-name/"><code>ItemSelectorByName</code></a> | interface |  |

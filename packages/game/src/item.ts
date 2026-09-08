@@ -124,6 +124,12 @@ export const normalizeItemQuantity = (value: number | undefined): number =>
     ? 1
     : Math.max(1, Math.trunc(value));
 
+export interface ItemRequirement {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
+}
+
 export interface Item {
   readonly armor: boolean;
   readonly banked: boolean;
@@ -145,11 +151,14 @@ export interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
+  /** Items consumed per merge for this shop offer. */
+  readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
   readonly wearable: boolean;
@@ -173,10 +182,12 @@ export interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  maxStack?: number;
   memberOnly: boolean;
   meta: string;
   name: string;
   quantity: number;
+  requirements?: readonly ItemRequirement[];
   shopItemId?: number;
   temporaryItem: boolean;
   wearable?: boolean;
@@ -254,6 +265,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   get link(): string {
     return this.modelData.link;
   }
+  get maxStack(): number | undefined {
+    return this.modelData.maxStack;
+  }
   get memberOnly(): boolean {
     return this.modelData.memberOnly;
   }
@@ -268,6 +282,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   }
   get quantity(): number {
     return this.modelData.quantity;
+  }
+  get requirements(): readonly ItemRequirement[] {
+    return this.modelData.requirements ?? [];
   }
   get shopItemId(): number | undefined {
     return this.modelData.shopItemId;
@@ -311,6 +328,13 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
         : { enhancement: { ...this.enhancement } }),
       helm: this.helm,
       pet: this.pet,
+      ...(this.modelData.requirements === undefined
+        ? {}
+        : {
+            requirements: this.requirements.map((requirement) => ({
+              ...requirement,
+            })),
+          }),
       wearable: this.wearable,
       weapon: this.weapon,
       worn: this.worn,

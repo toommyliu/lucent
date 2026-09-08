@@ -258,16 +258,43 @@ describe("Projection", () => {
     "indexes shop entries by item ID while preserving shop item ID",
     () =>
       Effect.gen(function* () {
-        const { store } = yield* makeItemProjection();
-        yield* store.items.replace(
-          "shop",
-          [
-            { ItemID: 7, ShopItemID: 70, iQty: 1, sName: "Indexed Shop Item" },
-          ].map((payload) => toItem(payload, { context: "shop" })),
+        const { store, pipeline } = yield* makeItemProjection();
+        yield* pipeline.packet(
+          extension("loadShop", {
+            ShopID: 1,
+            items: [
+              {
+                ItemID: 7,
+                ShopItemID: 70,
+                iQty: 1,
+                iStk: "99",
+                sName: "Indexed Shop Item",
+                turnin: null,
+              },
+              {
+                ItemID: 7,
+                ShopItemID: 71,
+                iQty: "5",
+                iStk: "99",
+                sName: "Indexed Shop Item",
+                turnin: [{ ItemID: "8", sName: "Bank Item", iQty: "2" }],
+              },
+            ],
+          }),
         );
         expect(
           (yield* store.items.get("shop", { itemId: 7 }))?.shopItemId,
         ).toBe(70);
+        expect(
+          (yield* store.items.get("shop", { shopItemId: 70 }))?.requirements,
+        ).toEqual([]);
+        expect(
+          yield* store.items.get("shop", { shopItemId: 71 }),
+        ).toMatchObject({
+          maxStack: 99,
+          quantity: 5,
+          requirements: [{ itemId: 8, name: "Bank Item", quantity: 2 }],
+        });
       }),
   );
 

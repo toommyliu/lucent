@@ -190,7 +190,6 @@ interface ScriptApi {
     readonly player: ScriptPlayerApi;
     readonly players: ScriptPlayersApi;
     readonly quests: ScriptQuestsApi;
-    readonly recipes: ScriptRecipesApi;
     readonly settings: ScriptSettingsApi;
     readonly shop: ScriptShopApi;
     readonly tempInventory: ScriptTempInventoryApi;
@@ -658,10 +657,6 @@ interface ScriptQuestsApi {
   /** @param silent Whether to load the quests without opening their UI. */
     loadBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
 }
-interface ScriptRecipesApi {
-    ensureLifeSteal(quantity: number): Effect<boolean, never>;
-    ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
-}
 interface ScriptSettingsApi {
   /**
   * Updates the supplied settings, leaving the rest unchanged.
@@ -923,11 +918,13 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
+  readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
   readonly weapon: boolean;
@@ -1415,10 +1412,12 @@ interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  maxStack?: number;
   memberOnly: boolean;
   meta: string;
   name: string;
   quantity: number;
+  requirements?: readonly ItemRequirement[];
   shopItemId?: number;
   temporaryItem: boolean;
   wearable?: boolean;
@@ -1440,6 +1439,11 @@ interface Enhancement {
   readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
+}
+interface ItemRequirement {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
 }
 interface ItemSelectorById {
   readonly itemId: number;
@@ -1562,6 +1566,7 @@ interface QuestItem {
   readonly itemId: number;
   readonly name: string;
   readonly quantity: number;
+  readonly maxStack?: number;
   readonly temporaryItem?: boolean;
 }
 interface QuestReward extends QuestItem {
@@ -1608,11 +1613,14 @@ interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
+  /** Items consumed per merge for this shop offer. */
+  readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
   readonly wearable: boolean;

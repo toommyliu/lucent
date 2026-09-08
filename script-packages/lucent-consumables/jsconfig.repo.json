@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["ES2020", "DOM"],
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020",
+    "types": []
+  },
+  "include": [
+    "../../docs/public/script-api.d.ts",
+    "index.d.ts",
+    "index.js",
+    "lib/**/*.js",
+    "scripts/**/*.js"
+  ]
+}
