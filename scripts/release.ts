@@ -218,10 +218,10 @@ const checkDirtyTree = (
       return;
     }
 
-    if (!input.allowDirty) {
+    if (!input.dryRun || !input.allowDirty) {
       return yield* new ReleaseError({
         message:
-          "Working tree is dirty. Commit or stash changes, or rerun with --allow-dirty.",
+          "Working tree is dirty. Commit or stash changes before creating a release PR. Use --dry-run --allow-dirty to preview.",
       });
     }
 
@@ -321,28 +321,24 @@ const resetInitialReleaseNotes = (): Effect.Effect<void, ReleaseError> =>
       }),
   });
 
-const runGitCliff = (args: ReadonlyArray<string>) =>
+const runCommand = (command: string, args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    const child = yield* ChildProcess.make(
-      "git-cliff",
-      args,
-      {
-        cwd: REPO_ROOT,
-        env: process.env,
-        extendEnv: true,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-        shell: process.platform === "win32",
-        detached: false,
-        forceKillAfter: "30 seconds",
-      },
-    );
+    const child = yield* ChildProcess.make(command, args, {
+      cwd: REPO_ROOT,
+      env: process.env,
+      extendEnv: true,
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+      shell: process.platform === "win32",
+      detached: false,
+      forceKillAfter: "30 seconds",
+    });
     const exitCode = Number(yield* child.exitCode);
 
     if (exitCode !== 0) {
       return yield* new ReleaseError({
-        message: `git-cliff exited with code ${exitCode}`,
+        message: `${command} ${args.join(" ")} exited with code ${exitCode}`,
       });
     }
   }).pipe(
@@ -350,7 +346,7 @@ const runGitCliff = (args: ReadonlyArray<string>) =>
       cause instanceof ReleaseError
         ? cause
         : new ReleaseError({
-            message: "git-cliff failed",
+            message: `${command} failed`,
             cause,
           }),
     ),
@@ -377,6 +373,10 @@ const printPlan = (
       yield* Console.log(`  ${file}`);
     }
 
+    yield* Console.log(
+      `Would create release/${targetTag}, commit the release files, run typecheck/lint/format, push, and open a PR with an empty body.`,
+    );
+
     if (latestRelease === null) {
       yield* Console.log(
         "Changelog source: curated notes from RELEASE_NOTES.md",
@@ -388,30 +388,37 @@ const printPlan = (
     yield* Console.log(`git-cliff command: git-cliff ${args.join(" ")}`);
   });
 
-const printNextCommands = (
+const createReleasePr = Effect.fn("createReleasePr")(function* (
   targetVersion: string,
   targetTag: string,
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const releaseBranch = `release/${targetTag}`;
-
-    yield* Console.log("");
-    yield* Console.log("Release files prepared. Next commands:");
-    yield* Console.log("git diff -- app/package.json CHANGELOG.md");
-    yield* Console.log(`git switch -c ${releaseBranch}`);
-    yield* Console.log("git add app/package.json CHANGELOG.md");
-    yield* Console.log(`git commit -m "chore(release): ${targetVersion}"`);
-    yield* Console.log(`git push --set-upstream origin ${releaseBranch}`);
-    yield* Console.log(
-      `gh pr create --base main --head ${releaseBranch} --fill`,
-    );
-    yield* Console.log("");
-    yield* Console.log("After the release pull request merges:");
-    yield* Console.log("git switch main");
-    yield* Console.log("git pull --ff-only origin main");
-    yield* Console.log(`git tag ${targetTag}`);
-    yield* Console.log(`git push origin ${targetTag}`);
-  });
+) {
+  const releaseBranch = `release/${targetTag}`;
+  const title = `chore(release): ${targetVersion}`;
+  yield* runGit(["add", "--", ...RELEASE_FILES]);
+  yield* runGit(["commit", "-m", title, "--", ...RELEASE_FILES]);
+  for (const check of ["typecheck", "lint", "format"]) {
+    yield* runCommand("pnpm", [check]);
+  }
+  yield* runGit(["push", "--set-upstream", "origin", releaseBranch]);
+  yield* runCommand("gh", [
+    "pr",
+    "create",
+    "--base",
+    RELEASE_BRANCH,
+    "--head",
+    releaseBranch,
+    "--title",
+    title,
+    "--body",
+    "",
+  ]);
+  yield* Console.log(
+    `After this pull request merges, GitHub Actions tags the merged commit as ${targetTag} and builds a draft release.`,
+  );
+  yield* Console.log(
+    "Review and publish the draft on GitHub when it is ready.",
+  );
+});
 
 const release = (input: CliInput) =>
   Effect.gen(function* () {
@@ -419,6 +426,22 @@ const release = (input: CliInput) =>
 
     const branch = yield* getCurrentBranch();
     yield* requireReleaseBranch(branch);
+
+    const dirtyStatus = yield* getDirtyStatus();
+    yield* checkDirtyTree(dirtyStatus, input);
+
+    if (!input.dryRun) {
+      yield* runCommand("gh", ["auth", "status"]);
+      yield* runGit(["fetch", "origin", "main", "--tags"]);
+      const head = yield* runGit(["rev-parse", "HEAD"]);
+      const remoteMain = yield* runGit(["rev-parse", "origin/main"]);
+      if (head !== remoteMain) {
+        return yield* new ReleaseError({
+          message:
+            "Local main must match origin/main. Update main before releasing.",
+        });
+      }
+    }
 
     const latestRelease = yield* getLatestStableRelease();
     const appPackageJson = yield* readAppPackageJson();
@@ -441,9 +464,6 @@ const release = (input: CliInput) =>
 
     const initialReleaseNotes =
       latestRelease === null ? yield* readInitialReleaseNotes() : null;
-    const dirtyStatus = yield* getDirtyStatus();
-    yield* checkDirtyTree(dirtyStatus, input);
-
     if (input.dryRun) {
       yield* printPlan(
         branch,
@@ -455,6 +475,10 @@ const release = (input: CliInput) =>
       return;
     }
 
+    yield* runGit(["switch", "-c", `release/${targetTag}`]);
+    yield* Console.log(
+      `Preparing release/${targetTag}. If a later step fails, the branch and files are kept for recovery.`,
+    );
     yield* writeAppVersion(appPackageJson, targetVersion);
     if (initialReleaseNotes !== null) {
       yield* writeInitialChangelog(
@@ -462,14 +486,14 @@ const release = (input: CliInput) =>
         targetTag,
         initialReleaseNotes,
       );
-      yield* resetInitialReleaseNotes();
-      yield* Console.log(
-        "Reset RELEASE_NOTES.md to its placeholder; it is not part of the release commit.",
-      );
     } else {
-      yield* runGitCliff(gitCliffChangelogArgs(targetTag));
+      yield* runCommand("git-cliff", gitCliffChangelogArgs(targetTag));
     }
-    yield* printNextCommands(targetVersion, targetTag);
+    yield* runCommand("pnpm", ["release:validate", targetTag]);
+    yield* createReleasePr(targetVersion, targetTag);
+    if (initialReleaseNotes !== null) {
+      yield* resetInitialReleaseNotes();
+    }
   });
 
 const command = Command.make("release", {
@@ -482,12 +506,14 @@ const command = Command.make("release", {
   ),
   allowDirty: Flag.boolean("allow-dirty").pipe(
     Flag.withDescription(
-      "Allow release prep with existing working tree changes",
+      "Allow existing working tree changes when using --dry-run",
     ),
     Flag.withDefault(false),
   ),
 }).pipe(
-  Command.withDescription("Prepare a Lucent release from main"),
+  Command.withDescription(
+    "Prepare a Lucent release and open its pull request from main",
+  ),
   Command.withHandler(release),
 );
 
@@ -504,7 +530,9 @@ if (
     Effect.catch((error) =>
       Effect.gen(function* () {
         yield* error instanceof ReleaseError
-          ? Console.error(`Release failed: ${error.message}`)
+          ? Console.error(
+              `Release failed: ${error.message}${error.cause ? `\n${toErrorMessage(error.cause)}` : ""}`,
+            )
           : Console.error(`Release failed: ${toErrorMessage(error)}`);
         process.exitCode = 1;
       }),
