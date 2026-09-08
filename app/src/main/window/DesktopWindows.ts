@@ -34,10 +34,10 @@ import {
   serializeSettingsSnapshotArgument,
 } from "../../shared/appearance";
 import {
-  serializeDebugModeArgument,
-  serializeGameConsoleObservabilityArgument,
+  DEBUG_MODE_ARGUMENT,
+  GAME_CONSOLE_OBSERVABILITY_ARGUMENT,
   serializeGameViewLayoutArgument,
-  serializeTraceProjectionsArgument,
+  TRACE_PROJECTIONS_ARGUMENT,
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
@@ -376,12 +376,12 @@ const createRendererWebPreferences = (
     ...(options.gameViewLayout === undefined
       ? []
       : [serializeGameViewLayoutArgument(options.gameViewLayout)]),
-    ...(env.debug === true ? [serializeDebugModeArgument()] : []),
+    ...(env.debug === true ? [DEBUG_MODE_ARGUMENT] : []),
     ...(bridgeView === "game" && env.debug === true
-      ? [serializeGameConsoleObservabilityArgument()]
+      ? [GAME_CONSOLE_OBSERVABILITY_ARGUMENT]
       : []),
     ...(bridgeView === "game" && env.traceProjections === true
-      ? [serializeTraceProjectionsArgument()]
+      ? [TRACE_PROJECTIONS_ARGUMENT]
       : []),
   ],
   ...(options.backgroundThrottling === undefined

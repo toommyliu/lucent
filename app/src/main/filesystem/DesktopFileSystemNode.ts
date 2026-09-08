@@ -1,7 +1,6 @@
 import { constants as bufferConstants } from "buffer";
 import { constants, promises as fs, type Dirent, type Stats } from "fs";
-import { tmpdir } from "os";
-import { join, sep } from "path";
+import { join } from "path";
 
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -281,20 +280,6 @@ const removeDirectoryTree = Effect.fn("DesktopFileSystem.removeDirectoryTree")(
   },
 );
 
-const makeTempDirectory: DesktopFileSystem["Service"]["makeTempDirectory"] = (
-  options = {},
-) => {
-  const directory = options.directory ?? tmpdir();
-  const prefix = options.prefix ?? "lucent-";
-  const pathPrefix =
-    prefix === "" ? `${directory}${sep}` : join(directory, prefix);
-  return fromMutationPromise(
-    "make-temp-directory",
-    pathTarget(pathPrefix),
-    () => fs.mkdtemp(pathPrefix),
-  );
-};
-
 const removeDirectory: DesktopFileSystem["Service"]["removeDirectory"] = (
   path,
   options,
@@ -343,7 +328,6 @@ const service = DesktopFileSystem.of({
         })
         .then(() => undefined),
     ),
-  makeTempDirectory,
   readFile: (path, options) =>
     fromPromise("read", pathTarget(path), () =>
       readBounded(path, options.maxBytes),

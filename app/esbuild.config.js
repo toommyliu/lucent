@@ -147,10 +147,7 @@ const rendererOptions = {
   outdir: "dist/renderer",
   platform: "browser",
   splitting: true,
-  plugins: [
-    solidPlugin(),
-    ...rendererViews.flatMap((view) => view.plugins ?? []),
-  ],
+  plugins: [solidPlugin()],
   target: `chrome${runtimeTargets.chrome}`,
 };
 

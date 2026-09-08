@@ -59,8 +59,6 @@ const installCryptoFallback = (): void => {
   });
 };
 
-const parseMainCliOptions = (): CliOptions => parseCliOptions(process.argv);
-
 export const resolveWorkspaceHome = (
   options: {
     readonly documentsPath?: string;
@@ -187,7 +185,7 @@ export const prepareMainProcess = (): MainProcessBootstrap => {
   process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
   installCryptoFallback();
 
-  const cliOptions = parseMainCliOptions();
+  const cliOptions = parseCliOptions(process.argv);
   const envConfig = resolveEnvironmentConfig(cliOptions);
   const flash = configureFlashStartup(envConfig, {
     ...(cliOptions.flashPluginPath === undefined

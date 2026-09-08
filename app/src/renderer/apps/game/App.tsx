@@ -753,27 +753,7 @@ const runDebugEval = (
     ? runScriptDebugEval(source, signal)
     : runFlashEval(source, signal);
 
-const readCachedTravelOptions = (): Promise<TravelOptions> =>
-  runtime.runPromise(
-    Effect.gen(function* () {
-      const { map, player } = yield* Api;
-      const [mapCells, mapPads, currentCell, currentPad] = yield* Effect.all([
-        map.getCells(),
-        map.getCellPads(),
-        player.getCell(),
-        player.getPad(),
-      ]);
-
-      return {
-        currentCell,
-        currentPad,
-        mapCells,
-        mapPads,
-      };
-    }),
-  );
-
-const readBridgeTravelOptions = (): Promise<TravelOptions> =>
+const readTravelOptions = (): Promise<TravelOptions> =>
   runtime.runPromise(
     Effect.gen(function* () {
       const { map, player } = yield* Api;
@@ -2178,7 +2158,7 @@ export function App(props: {
 
   const syncTravelOptionsFromState = () => {
     void ensurePlayerReady()
-      .then((ready) => (ready ? readCachedTravelOptions() : null))
+      .then((ready) => (ready ? readTravelOptions() : null))
       .then((options) => {
         if (options !== null) {
           applyTravelOptions(options);
@@ -2194,14 +2174,14 @@ export function App(props: {
       return;
     }
 
-    void readCachedTravelOptions()
+    void readTravelOptions()
       .then((options) => {
         if (options === null) {
           return null;
         }
 
         applyTravelOptions(options);
-        return readBridgeTravelOptions();
+        return readTravelOptions();
       })
       .then((options) => {
         if (options !== null) {
@@ -2218,7 +2198,7 @@ export function App(props: {
       return;
     }
 
-    void readBridgeTravelOptions()
+    void readTravelOptions()
       .then((options) => {
         if (options !== null) {
           applyTravelOptions(options);

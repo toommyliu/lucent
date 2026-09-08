@@ -8,7 +8,6 @@ const operationSchema = Schema.Literals([
   "list-directory",
   "lstat",
   "make-directory",
-  "make-temp-directory",
   "read",
   "real-path",
   "remove-directory",
@@ -106,10 +105,6 @@ interface DesktopFileSystemShape {
     path: string,
     options: { readonly recursive: boolean; readonly mode?: number },
   ) => Effect.Effect<void, DesktopFileSystemError>;
-  readonly makeTempDirectory: (options?: {
-    readonly directory?: string;
-    readonly prefix?: string;
-  }) => Effect.Effect<string, DesktopFileSystemError>;
   readonly readFile: (
     path: string,
     options: { readonly maxBytes: number },

@@ -82,8 +82,7 @@
   display: none;
 }
 
-.settings-tabs__list.tabs__list,
-.hotkey-category-tabs__list.tabs__list {
+.settings-tabs__list.tabs__list {
   display: flex;
   flex-wrap: nowrap;
   justify-content: flex-start;
@@ -91,8 +90,7 @@
   padding: 0.25rem;
 }
 
-.settings-tabs__list.tabs__list > *,
-.hotkey-category-tabs__list.tabs__list > * {
+.settings-tabs__list.tabs__list > * {
   flex-shrink: 0;
 }
 
@@ -307,29 +305,6 @@
   line-height: 1.35;
   margin: 0;
   max-width: 38rem;
-}
-
-.hotkey-category-toolbar {
-  align-items: center;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.hotkey-category-tabs {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.hotkey-category-tabs__list {
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.hotkey-category-tabs__list::-webkit-scrollbar {
-  display: none;
 }
 
 .reset-settings-button {
@@ -746,48 +721,6 @@
   margin: 0 0 0.75rem 0;
 }
 
-.hotkey-layouts--sidebar {
-  display: grid;
-  gap: 2rem;
-  grid-template-columns: 12rem minmax(0, 1fr);
-  height: calc(100vh - 14rem);
-}
-
-.hotkey-sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.button.hotkey-sidebar-link {
-  justify-content: flex-start;
-  text-align: left;
-  width: 100%;
-}
-
-.hotkey-sidebar-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-}
-
-.hotkey-layouts--dropdown {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.hotkey-dropdown-toolbar {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.hotkey-category-select {
-  width: 16rem;
-}
-
 @media (max-width: 560px) {
   .settings-layout {
     display: flex;
@@ -900,12 +833,6 @@
     min-width: 4rem;
   }
 
-  .hotkey-category-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
   .theme-profile__actions {
     justify-content: flex-start;
   }
@@ -936,20 +863,5 @@
     display: flex;
     justify-content: flex-start;
     width: 100%;
-  }
-
-  .hotkey-layouts--sidebar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .hotkey-sidebar-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 0.5rem;
-    position: relative;
-  }
-
-  .hotkey-sidebar-nav::-webkit-scrollbar {
-    display: none;
   }
 }
