@@ -20,7 +20,7 @@ sidebar:
 
 | Export | Members |
 | --- | --- |
-| `Effect` | `all`, `as`, `asVoid`, `catch`, `fail`, `flatMap`, `forEach`, `map`, `mapError`, `sleep`, `succeed`, `sync`, `tap`, `timeoutOption`, `try`, `tryPromise`, `void` |
+| `Effect` | `all`, `as`, `asVoid`, `catch`, `fail`, `flatMap`, `forEach`, `gen`, `map`, `mapError`, `raceFirst`, `sleep`, `succeed`, `sync`, `tap`, `timeoutOption`, `try`, `tryPromise`, `void` |
 | `Option` | `getOrElse`, `isNone`, `isSome`, `map`, `match`, `none`, `some` |
 | `Duration` | `days`, `hours`, `millis`, `minutes`, `seconds`, `toMillis` |
 

@@ -1227,6 +1227,37 @@ export type ScriptEffectAll = {
   ): Effect.Effect<readonly Value[], Error, Requirements>;
 };
 
+export type ScriptEffectGen = <
+  Yielded extends Effect.Effect<unknown, unknown, unknown>,
+  Value,
+>(
+  body: () => Generator<Yielded, Value, never>,
+) => Effect.Effect<
+  Value,
+  ScriptEffectError<Yielded>,
+  ScriptEffectRequirements<Yielded>
+>;
+
+export type ScriptEffectRaceFirst = {
+  <OtherValue, OtherError, OtherRequirements>(
+    other: Effect.Effect<OtherValue, OtherError, OtherRequirements>,
+  ): <Value, Error, Requirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+  ) => Effect.Effect<
+    Value | OtherValue,
+    Error | OtherError,
+    Requirements | OtherRequirements
+  >;
+  <Value, Error, Requirements, OtherValue, OtherError, OtherRequirements>(
+    effect: Effect.Effect<Value, Error, Requirements>,
+    other: Effect.Effect<OtherValue, OtherError, OtherRequirements>,
+  ): Effect.Effect<
+    Value | OtherValue,
+    Error | OtherError,
+    Requirements | OtherRequirements
+  >;
+};
+
 export interface ScriptEffectModule {
   readonly all: ScriptEffectAll;
   readonly as: <Next>(
@@ -1247,8 +1278,10 @@ export interface ScriptEffectModule {
       index: number,
     ) => Effect.Effect<Next, Error, Requirements>,
   ) => Effect.Effect<readonly Next[], Error, Requirements>;
+  readonly gen: ScriptEffectGen;
   readonly map: ScriptEffectMap;
   readonly mapError: ScriptEffectMapError;
+  readonly raceFirst: ScriptEffectRaceFirst;
   readonly sleep: (duration: Duration.Input) => Effect.Effect<void>;
   readonly succeed: <Value>(value: Value) => Effect.Effect<Value>;
   readonly sync: <Value>(evaluate: () => Value) => Effect.Effect<Value>;

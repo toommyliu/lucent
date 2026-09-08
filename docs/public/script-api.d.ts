@@ -71,19 +71,17 @@ type Option<Value> =
   | { readonly _tag: "Some"; readonly value: Value }
   | { readonly _tag: "None" };
 
-type EffectYieldable<
-  Value = unknown,
-  Error = unknown,
-  Requirements = never,
-  Next = never,
-> = unknown;
-
 interface Effect<
   Value = unknown,
-  Error = unknown,
+  Error = never,
   Requirements = never,
 > {
-  [Symbol.iterator](): Generator<EffectYieldable<Value, Error>, Value, any>;
+  readonly "~effect/Effect": {
+    readonly _A: () => Value;
+    readonly _E: () => Error;
+    readonly _R: () => Requirements;
+  };
+  [Symbol.iterator](): Iterator<Effect<Value, Error, Requirements>, Value, unknown>;
 }
 
 interface Scope {
@@ -409,8 +407,10 @@ interface ScriptEffectModule {
     fail<Error>(error: Error): Effect<never, Error>;
     readonly flatMap: ScriptEffectFlatMap;
     forEach<Value, Next, Error, Requirements>(values: Iterable<Value>, transform: (value: Value, index: number) => Effect<Next, Error, Requirements>): Effect<readonly Next[], Error, Requirements>;
+    readonly gen: ScriptEffectGen;
     readonly map: ScriptEffectMap;
     readonly mapError: ScriptEffectMapError;
+    readonly raceFirst: ScriptEffectRaceFirst;
     sleep(duration: DurationInput): Effect<void, never>;
     succeed<Value>(value: Value): Effect<Value, never>;
     sync<Value>(evaluate: () => Value): Effect<Value, never>;
@@ -1147,6 +1147,16 @@ type ScriptEffectFlatMap = {
     next: (value: Value) => Effect<Next, NextError, NextRequirements>,
   ): Effect<Next, Error | NextError, Requirements | NextRequirements>;
 };
+type ScriptEffectGen = <
+  Yielded extends Effect<unknown, unknown, unknown>,
+  Value,
+>(
+  body: () => Generator<Yielded, Value, never>,
+) => Effect<
+  Value,
+  ScriptEffectError<Yielded>,
+  ScriptEffectRequirements<Yielded>
+>;
 type ScriptEffectMap = {
   <Value, Next>(
     transform: (value: Value) => Next,
@@ -1168,6 +1178,25 @@ type ScriptEffectMapError = {
     effect: Effect<Value, Error, Requirements>,
     transform: (error: Error) => NextError,
   ): Effect<Value, NextError, Requirements>;
+};
+type ScriptEffectRaceFirst = {
+  <OtherValue, OtherError, OtherRequirements>(
+    other: Effect<OtherValue, OtherError, OtherRequirements>,
+  ): <Value, Error, Requirements>(
+    effect: Effect<Value, Error, Requirements>,
+  ) => Effect<
+    Value | OtherValue,
+    Error | OtherError,
+    Requirements | OtherRequirements
+  >;
+  <Value, Error, Requirements, OtherValue, OtherError, OtherRequirements>(
+    effect: Effect<Value, Error, Requirements>,
+    other: Effect<OtherValue, OtherError, OtherRequirements>,
+  ): Effect<
+    Value | OtherValue,
+    Error | OtherError,
+    Requirements | OtherRequirements
+  >;
 };
 type ScriptEffectTap = {
   <Value, Next, NextError, NextRequirements>(
@@ -1678,6 +1707,14 @@ type ScriptEffectAllTuple<
   ScriptEffectError<Effects[number]>,
   ScriptEffectRequirements<Effects[number]>
 >;
+type ScriptEffectError<Input> =
+  Input extends Effect<infer _Value, infer Error, infer _Requirements>
+    ? Error
+    : never;
+type ScriptEffectRequirements<Input> =
+  Input extends Effect<infer _Value, infer _Error, infer Requirements>
+    ? Requirements
+    : never;
 type ProjectionEvent =
   | {
       /** A game session starts. */
@@ -1891,14 +1928,6 @@ interface PlayerSelectorByUsername {
 type ScriptEffectSuccess<Input> =
   Input extends Effect<infer Value, infer _Error, infer _Requirements>
     ? Value
-    : never;
-type ScriptEffectError<Input> =
-  Input extends Effect<infer _Value, infer Error, infer _Requirements>
-    ? Error
-    : never;
-type ScriptEffectRequirements<Input> =
-  Input extends Effect<infer _Value, infer _Error, infer Requirements>
-    ? Requirements
     : never;
 /** Returns true when the selected player should yield to the next participant. */
 type ArmyLoopTauntSkipWhen = (

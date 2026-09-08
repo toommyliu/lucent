@@ -83,7 +83,6 @@ const BUILTIN_TYPE_NAMES = new Set([
 const SUPPORT_TYPE_NAMES = new Set([
   "DurationInput",
   "Effect",
-  "EffectYieldable",
   "Option",
   "ScriptExecutionError",
   "ScriptDuration",
@@ -168,19 +167,17 @@ type Option<Value> =
   | { readonly _tag: "Some"; readonly value: Value }
   | { readonly _tag: "None" };
 
-type EffectYieldable<
-  Value = unknown,
-  Error = unknown,
-  Requirements = never,
-  Next = never,
-> = unknown;
-
 interface Effect<
   Value = unknown,
-  Error = unknown,
+  Error = never,
   Requirements = never,
 > {
-  [Symbol.iterator](): Generator<EffectYieldable<Value, Error>, Value, any>;
+  readonly "~effect/Effect": {
+    readonly _A: () => Value;
+    readonly _E: () => Error;
+    readonly _R: () => Requirements;
+  };
+  [Symbol.iterator](): Iterator<Effect<Value, Error, Requirements>, Value, unknown>;
 }
 
 interface Scope {
@@ -410,7 +407,6 @@ const transformTypeText = (type: string): string => {
   let output = type;
 
   output = output.replace(/\bEffect\.Effect\s*</g, "Effect<");
-  output = output.replace(/\bEffect\.Yieldable\s*</g, "EffectYieldable<");
   output = output.replace(/\bOption\.Option\s*</g, "Option<");
   output = output.replace(/\bScope\.Scope\b/g, "Scope");
   output = output.replace(/\bDuration\.Input\b/g, "DurationInput");
@@ -1250,6 +1246,38 @@ const combined: Effect<readonly [string, number]> = effect.Effect.all([
   effect.Effect.succeed("ready"),
   effect.Effect.succeed(2),
 ]);
+declare const first: Effect<number, "first-error", "first-service">;
+declare const second: Effect<string, "second-error", "second-service">;
+const workflow = effect.Effect.gen(function* () {
+  const count = yield* first;
+  const label = yield* second;
+  return label.repeat(count);
+});
+const inferred: Effect<string, "first-error" | "second-error", "first-service" | "second-service"> = workflow;
+const empty: Effect<number, never, never> = effect.Effect.gen(function* () { return 1; });
+const raced: Effect<number | string, "first-error" | "second-error", "first-service" | "second-service"> = effect.Effect.raceFirst(first, second);
+const pipedRace: typeof raced = effect.pipe(first, effect.Effect.raceFirst(second));
+// @ts-expect-error Generator errors must not be erased.
+const infallible: Effect<string, never, "first-service" | "second-service"> = workflow;
+// @ts-expect-error Race errors must not be erased.
+const infallibleRace: Effect<number | string, never, "first-service" | "second-service"> = raced;
+
+function* ready() {
+  const alive = yield* api.player.isAlive();
+  return alive && (yield* api.player.getHp()) > 1000;
+}
+api.wait.until(effect.Effect.gen(ready));
+declare const hp: Effect<number>;
+api.wait.until(effect.Effect.gen(function* () { return (yield* hp) > 1000; }));
+// @ts-expect-error A generator is not an Effect; wrap it with Effect.gen.
+api.wait.until(ready());
+// @ts-expect-error Effect callbacks require Effects, not raw generators.
+effect.Effect.flatMap(effect.Effect.succeed(1), ready);
+api.events.on(undefined, ready);
+
+void inferred;
+void empty;
+void pipedRace;
 const duration = effect.Duration.seconds(2);
 const milliseconds: number = effect.Duration.toMillis(duration);
 const optional = effect.Option.some(1);
@@ -1396,8 +1424,10 @@ const validateGeneratedTypes = (content: string): void => {
     "fail",
     "flatMap",
     "forEach",
+    "gen",
     "map",
     "mapError",
+    "raceFirst",
     "sleep",
     "succeed",
     "sync",
