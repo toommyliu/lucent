@@ -8,6 +8,7 @@ const docsRelevantFiles = new Set([
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "scripts/docgen.ts",
+  "scripts/docgen-packages.ts",
   "scripts/gen-script-types.ts",
   "scripts/vercel-docs-ignore.mjs",
   "vercel.json",

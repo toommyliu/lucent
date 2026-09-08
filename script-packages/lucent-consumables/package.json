@@ -1,7 +1,7 @@
 {
   "name": "@lucent/consumables",
   "version": "0.0.1",
-  "description": "Buy finished potions or craft consumables using farmed or purchased ingredients.",
+  "description": "Buy finished potions or craft consumables.",
   "main": "index.js",
   "types": "index.d.ts",
   "lucent": {

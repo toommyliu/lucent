@@ -193,6 +193,22 @@ export default defineConfig({
                   root: "/reference/scripting/effect",
                 },
                 "/reference/scripting/types",
+                {
+                  label: "Packages",
+                  items: [
+                    {
+                      label: "Overview",
+                      root: "/reference/scripting/packages",
+                    },
+                    ...collectRouteSuffixes(
+                      join(scriptingReferenceRoot, "packages"),
+                    )
+                      .filter((suffix) => suffix !== "")
+                      .map(
+                        (suffix) => `/reference/scripting/packages${suffix}`,
+                      ),
+                  ],
+                },
               ],
               display: "group",
               label: "Scripting",

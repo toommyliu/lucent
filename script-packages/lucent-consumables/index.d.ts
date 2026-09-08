@@ -1,4 +1,5 @@
 declare module "@lucent/consumables" {
+  /** Potion names accepted by ensure and listed in potionNames. */
   export type PotionName =
     | "Judgment Tonic"
     | "Fortitude Tonic"
@@ -25,6 +26,7 @@ declare module "@lucent/consumables" {
     | "Endurance Draught"
     | "Felicitous Philtre";
 
+  /** Scroll names accepted by ensure and listed in scrollNames. */
   export type ScrollName =
     | "Scroll of Fireball"
     | "Scroll of Shadowburn"
@@ -87,12 +89,15 @@ declare module "@lucent/consumables" {
     | "Scroll of Cripple"
     | "Scroll of Life Steal";
 
+  /** A consumable and the total quantity to have in inventory. */
   export interface ConsumableRequest {
+    /** A supported potion or scroll. */
     readonly item: PotionName | ScrollName;
     /** Inventory target, including banked stock; capped at the item stack limit. */
     readonly quantity: number;
   }
 
+  /** Acquisition methods and limits shared across all requested consumables. */
   export interface ConsumableOptions {
     /** Buy finished potions or craft with alchemy. Defaults to buy. Scroll quests are unchanged. */
     readonly potionMethod?: "buy" | "craft";
@@ -104,11 +109,26 @@ declare module "@lucent/consumables" {
     readonly maxCrafts?: number;
   }
 
-  /** Get consumables with yield*. Throws on a failed transaction or unmet prerequisite. */
+  /**
+   * Gets the requested quantities of potions and scrolls, using banked stock first.
+   *
+   * @param requests Consumables and inventory targets, including existing banked stock.
+   * @param options Acquisition methods and limits shared across the entire call.
+   * @example
+   * ```js
+   * const pkg = require("@lucent/consumables");
+   *
+   * module.exports = function* run() {
+   *   yield* pkg.ensure([{ item: "Potent Honor Potion", quantity: 50 }]);
+   * };
+   * ```
+   */
   export function ensure(
     requests: readonly ConsumableRequest[],
     options?: ConsumableOptions,
   ): ScriptGenerator<void>;
+  /** All supported potion names. */
   export const potionNames: readonly PotionName[];
+  /** All supported scroll names. */
   export const scrollNames: readonly ScrollName[];
 }
