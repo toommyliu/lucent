@@ -1,6 +1,9 @@
+import * as Array from "effect/Array";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 
 import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireInt } from "../contract/Coercion";
@@ -20,27 +23,61 @@ export interface CompleteQuestOptions {
 }
 
 export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
-  const load = (questId: number, silent = false) => {
-    if (!isQuestId(questId)) return Effect.succeed(false);
-    return Effect.gen(function* () {
-      if ((yield* store.quests.get(questId)) !== null) return true;
-      if (
-        Option.isNone(
-          yield* bridge.invoke(
-            silent ? "quests.get" : "quests.load",
-            [questId],
-            Schema.Void,
-          ),
+  const loads = Semaphore.makeUnsafe(1);
+  let nextLoadAt = 0;
+  const isLoaded = (questId: number) =>
+    store.quests.get(questId).pipe(Effect.map((quest) => quest !== null));
+
+  // Call under `loads` so single and batch requests share the same cooldown.
+  const waitForLoadSlot = Effect.gen(function* () {
+    const delay = nextLoadAt - (yield* Clock.currentTimeMillis);
+    if (delay > 0) yield* Effect.sleep(delay);
+    nextLoadAt = (yield* Clock.currentTimeMillis) + 1_500;
+  });
+
+  const requestBatch = Effect.fn("Quests.requestBatch")(
+    function* (questIds: readonly number[], silent: boolean) {
+      const missing = yield* Effect.filter(questIds, (id) =>
+        isLoaded(id).pipe(Effect.map((loaded) => !loaded)),
+      );
+      if (missing.length === 0) return true;
+      yield* waitForLoadSlot;
+      yield* bridge
+        .invoke(
+          silent ? "quests.getMultiple" : "quests.loadMultiple",
+          [missing.join(",")],
+          Schema.Void,
         )
-      ) {
-        return false;
-      }
+        .pipe(Effect.flatMap(Effect.fromOption));
       return yield* wait.until(
-        store.quests.get(questId).pipe(Effect.map((quest) => quest !== null)),
+        Effect.forEach(missing, isLoaded).pipe(
+          Effect.map((results) => results.every(Boolean)),
+        ),
         { timeout: "5 seconds" },
       );
-    });
-  };
+    },
+    Effect.repeat({ times: 1, until: Boolean }),
+  );
+
+  const loadBatch = Effect.fn("Quests.loadBatch")(function* (
+    questIds: readonly number[],
+    silent = false,
+  ) {
+    const ids = Array.dedupe(questIds.filter(isQuestId));
+    const initial = yield* Effect.forEach(ids, isLoaded);
+    if (initial.every(Boolean)) return initial;
+    yield* Effect.forEach(
+      Array.chunksOf(ids, 30),
+      (batch) => requestBatch(batch, silent),
+      { concurrency: 1, discard: true },
+    ).pipe(loads.withPermit, Effect.ignore);
+    return yield* Effect.forEach(ids, isLoaded);
+  });
+
+  const load = (questId: number, silent = false) =>
+    loadBatch([questId], silent).pipe(
+      Effect.map((loaded) => loaded[0] ?? false),
+    );
 
   const isInProgress = (questId: number) => {
     if (!isQuestId(questId)) return Effect.succeed(false);
@@ -182,37 +219,6 @@ export const makeQuests = (bridge: BridgeService, store: Store, wait: Wait) => {
     return bridge
       .invoke("quests.isAvailable", [questId], Schema.Boolean)
       .pipe(Effect.map(Option.getOrElse(() => false)));
-  };
-
-  const loadBatch = (questIds: readonly number[], silent = false) => {
-    const ids = Array.from(new Set(questIds.filter(isQuestId)));
-    if (ids.length === 0) return Effect.succeed([]);
-    return Effect.gen(function* () {
-      const initial = yield* Effect.forEach(ids, (id) =>
-        store.quests.get(id).pipe(Effect.map((quest) => quest !== null)),
-      );
-      if (!initial.every(Boolean)) {
-        if (
-          Option.isSome(
-            yield* bridge.invoke(
-              silent ? "quests.getMultiple" : "quests.loadMultiple",
-              [ids.join(",")],
-              Schema.Void,
-            ),
-          )
-        ) {
-          yield* wait.until(
-            Effect.forEach(ids, store.quests.get).pipe(
-              Effect.map((quests) => quests.every((quest) => quest !== null)),
-            ),
-            { timeout: "5 seconds" },
-          );
-        }
-      }
-      return yield* Effect.forEach(ids, (id) =>
-        store.quests.get(id).pipe(Effect.map((quest) => quest !== null)),
-      );
-    });
   };
 
   return {
