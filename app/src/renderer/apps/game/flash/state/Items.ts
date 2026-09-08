@@ -191,7 +191,10 @@ export const getItem = (
   selector: ItemQuery | ShopItemQuery,
 ): LiveItem | null => {
   const items = values(state, container);
-  if (typeof selector === "number") return items.get(selector) ?? null;
+  if (typeof selector === "number") {
+    const key = itemIds(state, container).get(selector)?.values().next().value;
+    return key === undefined ? null : (items.get(key) ?? null);
+  }
   if (typeof selector === "string") {
     const key = names(state, container)
       .get(normalizeItemName(selector))

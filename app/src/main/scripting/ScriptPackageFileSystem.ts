@@ -15,11 +15,6 @@ export interface RegularFilePath {
   readonly relativePath: string;
 }
 
-export interface StableFileContents {
-  readonly contents: Buffer;
-  readonly fingerprint: string;
-}
-
 interface ListRegularFilesOptions {
   readonly maxFiles?: number;
   readonly rejectSymlinks?: boolean;
@@ -63,10 +58,10 @@ const assertSize = (path: string, size: number, maxBytes: number): void => {
   );
 };
 
-export const readStableFileWithFingerprint = async (
+export const readStableFile = async (
   path: string,
   maxBytes = SCRIPT_FILE_MAX_BYTES,
-): Promise<StableFileContents> => {
+): Promise<Buffer> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const before = await fs.stat(path);
     if (!before.isFile()) throw new Error(`Expected a regular file: ${path}.`);
@@ -88,21 +83,12 @@ export const readStableFileWithFingerprint = async (
 
     const after = await fs.stat(path);
     if (fingerprint(before) === fingerprint(after)) {
-      return {
-        contents: Buffer.concat(chunks, bytes),
-        fingerprint: fingerprint(after),
-      };
+      return Buffer.concat(chunks, bytes);
     }
   }
 
   throw new Error(`File changed while it was being read: ${path}.`);
 };
-
-export const readStableFile = async (
-  path: string,
-  maxBytes = SCRIPT_FILE_MAX_BYTES,
-): Promise<Buffer> =>
-  (await readStableFileWithFingerprint(path, maxBytes)).contents;
 
 export const regularFileFingerprint = async (path: string): Promise<string> => {
   const stat = await fs.stat(path);

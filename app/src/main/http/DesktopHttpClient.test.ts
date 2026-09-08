@@ -6,8 +6,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { Readable } from "stream";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+// Vitest requires a direct import for hoisted mocks.
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 
 import {
@@ -101,42 +102,28 @@ describe("DesktopHttpClient", () => {
     });
   });
 
-  it.effect("rejects buffered responses beyond their byte limit", () =>
-    Effect.gen(function* () {
-      queueResponse(
-        makeResponse({
-          body: "oversized",
-          headers: { "content-length": "9" },
-        }),
-      );
-
-      const error = yield* makeDesktopHttpClient()
-        .get({
-          maxBytes: 8,
+  it.effect.each([undefined, 9, 8])(
+    "enforces a buffered response limit of %s bytes",
+    (maxBytes) =>
+      Effect.gen(function* () {
+        queueResponse(
+          makeResponse({
+            body: "123456789",
+            headers: { "content-length": "9" },
+          }),
+        );
+        const request = makeDesktopHttpClient().get({
+          ...(maxBytes === undefined ? {} : { maxBytes }),
           url: new URL("https://example.com/value"),
-        })
-        .pipe(Effect.flip);
-
-      expect(error).toBeInstanceOf(DesktopHttpClientError);
-      expect(error.kind).toBe("response-too-large");
-    }),
-  );
-
-  it.effect("accepts buffered responses when no byte limit is requested", () =>
-    Effect.gen(function* () {
-      queueResponse(
-        makeResponse({
-          body: "unbounded",
-          headers: { "content-length": "9" },
-        }),
-      );
-
-      const response = yield* makeDesktopHttpClient().get({
-        url: new URL("https://example.com/value"),
-      });
-
-      expect(response.body.toString("utf8")).toBe("unbounded");
-    }),
+        });
+        if (maxBytes === 8) {
+          const error = yield* Effect.flip(request);
+          expect(error).toBeInstanceOf(DesktopHttpClientError);
+          expect(error.kind).toBe("response-too-large");
+        } else {
+          expect((yield* request).body.toString("utf8")).toBe("123456789");
+        }
+      }),
   );
 
   it.effect("does not delete a pre-existing download target", () =>

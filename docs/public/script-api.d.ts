@@ -190,7 +190,6 @@ interface ScriptApi {
     readonly player: ScriptPlayerApi;
     readonly players: ScriptPlayersApi;
     readonly quests: ScriptQuestsApi;
-    readonly recipes: ScriptRecipesApi;
     readonly settings: ScriptSettingsApi;
     readonly shop: ScriptShopApi;
     readonly tempInventory: ScriptTempInventoryApi;
@@ -213,14 +212,26 @@ interface ScriptRuntimeApi {
   * @param options Exit actions.
   */
     exit(/** @defaultValue { closeClient: false, logout: false } */ options?: ScriptExitOptions): Effect<never, ScriptStopSignal>;
-    log(message: unknown): Effect<void, never>;
+    log(...values: unknown[]): Effect<void, never>;
   /**
-  * Opens a text prompt. Canceling the dialog yields `null`; submitting an
-  * empty value yields an empty string.
+  * Opens a text prompt with an empty input. Canceling the dialog yields `null`;
+  * submitting without entering text yields an empty string, not the placeholder.
   *
-  * @param defaultValue Input placeholder.
+  * @param placeholder Hint shown in the empty input. It is not a default value.
+  *
+  * @example
+  * ```js
+  * const name = yield* script.prompt("Character name", "Artix");
+  * if (name === null) {
+  *   yield* script.stop("Prompt canceled.");
+  * }
+  * if (name === "") {
+  *   yield* script.stop("No name entered.");
+  * }
+  * yield* script.log(name);
+  * ```
   */
-    prompt(message: string, /** @defaultValue "" */ defaultValue?: string): Effect<string | null, never>;
+    prompt(message: string, /** @defaultValue "" */ placeholder?: string): Effect<string | null, never>;
     sleep(duration: DurationInput): Effect<void, ScriptExecutionError>;
   /**
   * Stops the current script. If it is part of a queue, the next script runs.
@@ -246,6 +257,7 @@ interface ScriptAutoZoneApi {
     setMap(map: 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus' | undefined): Effect<AutoZoneState, never>;
 }
 interface ScriptFileSystemApi {
+  /** Use with `instanceof` to identify filesystem errors. */
     readonly FileSystemError: FileSystemErrorConstructor;
   /** Checks whether a path exists. */
     exists(path: string): Effect<boolean, FileSystemError>;
@@ -341,6 +353,30 @@ interface ScriptCombatApi {
   /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
     hunt(query: MonsterQuery, options?: HuntOptions): Effect<LiveMonster | null, never>;
     kill(query: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
+  /**
+  * Fights monsters in the current cell until your inventory has the requested
+  * quantity. Counts items you already own and accepts matching drops.
+  * Keeps trying until the goal is reached or the action is interrupted.
+  * A timeout stops farming; items already collected stay in your inventory.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  * const { Effect, Option, pipe } = require("effect");
+  *
+  * const result = yield* pipe(
+  *   api.combat.killForItem("Boss Name", {
+  *     item: "Item Name",
+  *     quantity: 10,
+  *   }),
+  *   Effect.timeoutOption("5 minutes"),
+  * );
+  *
+  * if (Option.isNone(result)) {
+  *   yield* script.log("Farming timed out before reaching the quantity.");
+  * }
+  * ```
+  */
     killForItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
     killForTempItem(target: MonsterQuery, goal: FarmItemGoal, options?: CombatKillOptions): Effect<boolean, never>;
     readonly target: ScriptCombatTargetApi;
@@ -406,7 +442,58 @@ interface ScriptEnvironmentApi {
     clearBoosts(): Effect<EnvironmentSnapshot, EnvironmentError>;
 }
 interface ScriptEventsApi {
+  /**
+  * Runs a handler for every matching event. The handler must return an Effect
+  * or generator; plain values and Promises are not supported.
+  *
+  * Call the returned function to stop listening early.
+  * The subscription is also removed automatically when the script stops.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  *
+  * const unsubscribe = yield* api.events.on(
+  *   { type: "monster-death" },
+  *   function* (event) {
+  *     yield* script.log(`Monster ${event.monsterMapId} died.`);
+  *   },
+  * );
+  *
+  * yield* script.sleep("30 seconds");
+  * unsubscribe();
+  * ```
+  */
     readonly on: ScriptEventsOn;
+  /**
+  * Waits for the next matching event. With a `trigger`, starts listening before
+  * running that action so an immediate event is not missed.
+  *
+  * Returns `null` if the trigger returns `false` or the wait times out. The
+  * timeout starts after the trigger finishes; omitting it waits indefinitely.
+  * Timing out stops the wait but does not undo the action started by the trigger.
+  *
+  * @example
+  * ```js
+  * const script = require("lucent/script");
+  *
+  * const [monster] = yield* api.monsters.getAvailable();
+  * if (monster !== undefined) {
+  *   const death = yield* api.events.once(
+  *     { type: "monster-death", monsterMapId: monster.monsterMapId },
+  *     {
+  *       trigger: api.combat.attack(monster.monsterMapId),
+  *       timeout: "30 seconds",
+  *     },
+  *   );
+  *   yield* api.combat.cancelAutoAttack();
+  *
+  *   if (death === null) {
+  *     yield* script.log("Attack failed or the monster did not die in time.");
+  *   }
+  * }
+  * ```
+  */
     readonly once: ScriptWaitForEvent;
 }
 interface ScriptEventsOn {
@@ -473,14 +560,22 @@ interface ScriptOptionModule {
     some<Value>(value: Value): Option<Value>;
 }
 interface ScriptOptionsApi {
-    getAll(): Effect<ScriptRuntimeOptions, never>;
-    getRestartAfterReconnect(): Effect<boolean, never>;
-    getRoomPolicy(): Effect<RoomPolicy, never>;
-    getSafeStartStop(): Effect<boolean, never>;
-    reset(): Effect<ScriptRuntimeOptions, never>;
-    setRestartAfterReconnect(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
-    setRoomPolicy(policy: { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; }): Effect<ScriptRuntimeOptions, ScriptExecutionError>;
-    setSafeStartStop(enabled: boolean): Effect<ScriptRuntimeOptions, never>;
+  /** Returns a snapshot of the current options. */
+    get(): Effect<ScriptRuntimeOptions, never>;
+  /** Restores Lucent's built-in defaults, not the options from before the script. */
+    reset(): Effect<void, never>;
+  /**
+  * Updates the supplied options, leaving the rest unchanged.
+  *
+  * @example
+  * ```ts
+  * yield* script.options.update({
+  *   restartAfterReconnect: true,
+  *   roomPolicy: { kind: "specific", roomNumber: 42 },
+  * });
+  * ```
+  */
+    update(patch: Partial<ScriptRuntimeOptions>): Effect<void, ScriptExecutionError>;
 }
 interface ScriptPacketApi {
     readonly on: ScriptPacketOn;
@@ -562,31 +657,21 @@ interface ScriptQuestsApi {
   /** @param silent Whether to load the quests without opening their UI. */
     loadBatch(questIds: readonly number[], /** @defaultValue false */ silent?: boolean): Effect<boolean[], never>;
 }
-interface ScriptRecipesApi {
-  /** @param toBank Whether to send wheel rewards to the bank. */
-    doWheelOfDoom(/** @defaultValue false */ toBank?: boolean): Effect<boolean, never>;
-    ensureLifeSteal(quantity: number): Effect<boolean, never>;
-    ensureScrollOfEnrage(quantity: number): Effect<boolean, never>;
-}
 interface ScriptSettingsApi {
-  /** Returns the active rendering mode. */
-    getRenderingMode(): Effect<ScriptRenderingMode, never>;
-    isAntiCounterEnabled(): Effect<boolean, never>;
-    setAnimationsEnabled(enabled: boolean): Effect<void, never>;
-    setAntiCounterEnabled(enabled: boolean): Effect<void, never>;
-    setCollisionsEnabled(enabled: boolean): Effect<void, never>;
-    setCustomGuild(name: string): Effect<void, never>;
-    setCustomName(name: string): Effect<void, never>;
-    setDeathAdsVisible(visible: boolean): Effect<void, never>;
-    setEnemyMagnetEnabled(enabled: boolean): Effect<void, never>;
-    setFrameRate(fps: number): Effect<void, never>;
-    setInfiniteRangeEnabled(enabled: boolean): Effect<void, never>;
-    setOtherPlayersVisible(visible: boolean): Effect<void, never>;
-    setProvokeCellEnabled(enabled: boolean): Effect<void, never>;
-  /** @param mode The rendering mode to activate. */
-    setRenderingMode(mode: ScriptRenderingMode): Effect<void, never>;
-    setSkipCutscenesEnabled(enabled: boolean): Effect<void, never>;
-    setWalkSpeed(speed: number): Effect<void, never>;
+  /**
+  * Updates the supplied settings, leaving the rest unchanged.
+  *
+  * @example
+  * ```ts
+  * yield* api.settings.update({
+  *   animations: false,
+  *   hidePlayers: true,
+  *   frameRate: 30,
+  * });
+  * ```
+  */
+    update(patch: Partial<ScriptSettings>): Effect<void, never>;
+    get(): Effect<ScriptSettings, never>;
 }
 interface ScriptShopApi {
     buy(query: ShopItemQuery, options?: ScriptShopQuantityOptions): Effect<boolean, never>;
@@ -833,11 +918,13 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
+  readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
   readonly weapon: boolean;
@@ -1012,7 +1099,6 @@ interface RestOptions {
   /** Whether to wait until both HP and MP are full. */
   readonly waitUntilFull?: boolean;
 }
-type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
 type ScriptCallbackResult<A = unknown> =
   | Effect<A, unknown>
   | ScriptGenerator<A>;
@@ -1194,15 +1280,30 @@ type ScriptPipe = {
     de: (d: D) => E,
   ): E;
 };
-/** Controls game render visibility. */
-type ScriptRenderingMode =
-  | "full"
-  | /** A.k.a. Lag Killer. */ "interface-only"
-  | "minimal";
 interface ScriptRuntimeOptions {
   readonly restartAfterReconnect: boolean;
   readonly roomPolicy: RoomPolicy;
   readonly safeStartStop: boolean;
+}
+interface ScriptSettings {
+  readonly animations: boolean;
+  readonly antiCounter: boolean;
+  readonly collisions: boolean;
+  /** Local guild override. Null restores the original guild. */
+  readonly customGuild: string | null;
+  /** Local name override. Null restores the original name. */
+  readonly customName: string | null;
+  readonly deathAds: boolean;
+  readonly enemyMagnet: boolean;
+  /** Configured FPS. Minimal rendering uses 2 FPS; app limits may lower it. */
+  readonly frameRate: number;
+  readonly infiniteRange: boolean;
+  /** Hides other players, leaving your own character visible. */
+  readonly hidePlayers: boolean;
+  readonly provokeCell: boolean;
+  readonly renderingMode: ScriptRenderingMode;
+  readonly skipCutscenes: boolean;
+  readonly walkSpeed: number;
 }
 interface ScriptShopQuantityOptions {
   /**
@@ -1311,10 +1412,12 @@ interface ItemData {
   houseItem: boolean;
   itemId: number;
   link: string;
+  maxStack?: number;
   memberOnly: boolean;
   meta: string;
   name: string;
   quantity: number;
+  requirements?: readonly ItemRequirement[];
   shopItemId?: number;
   temporaryItem: boolean;
   wearable?: boolean;
@@ -1336,6 +1439,11 @@ interface Enhancement {
   readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
+}
+interface ItemRequirement {
+  readonly itemId: number;
+  readonly name: string;
+  readonly quantity: number;
 }
 interface ItemSelectorById {
   readonly itemId: number;
@@ -1458,6 +1566,7 @@ interface QuestItem {
   readonly itemId: number;
   readonly name: string;
   readonly quantity: number;
+  readonly maxStack?: number;
   readonly temporaryItem?: boolean;
 }
 interface QuestReward extends QuestItem {
@@ -1504,11 +1613,14 @@ interface Item {
   readonly houseItem: boolean;
   readonly itemId: number;
   readonly link: string;
+  readonly maxStack: number | undefined;
   readonly memberOnly: boolean;
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
   readonly quantity: number;
+  /** Items consumed per merge for this shop offer. */
+  readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
   readonly temporaryItem: boolean;
   readonly wearable: boolean;
@@ -1716,6 +1828,12 @@ type ProjectionEvent =
       readonly zone: string;
     };
 type ScriptEventSelector = ProjectionEventSelector;
+type RoomPolicy = { readonly kind: 'public'; } | { readonly kind: 'random-private'; } | { readonly kind: 'specific'; readonly roomNumber: number; };
+/** Controls game render visibility. */
+type ScriptRenderingMode =
+  | "full"
+  | /** A.k.a. Lag Killer. */ "interface-only"
+  | "minimal";
 type ShopItemSelector = ItemSelector | ShopItemSelectorById;
 interface ArmyLoopTauntAssignment {
   /** One-based player numbers from the active Army roster. */

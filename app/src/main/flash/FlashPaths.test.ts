@@ -23,16 +23,6 @@ describe("FlashPaths", () => {
     );
   });
 
-  it("prefers an explicit plugin override", () => {
-    expect(
-      resolvePepperFlashPluginPath({
-        override: "/custom/pepflashplayer.dll",
-        platform: "win32",
-        workspaceDir: "/workspace",
-      }),
-    ).toBe("/custom/pepflashplayer.dll");
-  });
-
   it("resolves Flash trust storage beneath app data", () => {
     expect(resolveFlashTrustRootPath("/internal/Lucent")).toBe(
       join(

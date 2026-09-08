@@ -20,7 +20,7 @@ const ACCOUNT_MANAGER_STORAGE_FILE = "accounts.json";
 
 const wrapJsonError = (error: JsonFileError): AccountsError =>
   new AccountsError({
-    operation: error.operation === "parse" ? "parse" : error.operation,
+    operation: error.operation,
     detail: error.message,
     cause: error,
   });

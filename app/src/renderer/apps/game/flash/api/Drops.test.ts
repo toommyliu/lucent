@@ -36,36 +36,34 @@ describe("Drops", () => {
   it.effect(
     "removes a rejected drop only after Flash confirms the action",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          let outcome: "failure" | boolean = false;
-          const target = {
-            swf: {
-              "drops.reject": () => {
-                if (outcome === "failure") {
-                  throw new Error("Flash rejection failed");
-                }
-                return outcome;
-              },
+      Effect.gen(function* () {
+        let outcome: "failure" | boolean = false;
+        const target = {
+          swf: {
+            "drops.reject": () => {
+              if (outcome === "failure") {
+                throw new Error("Flash rejection failed");
+              }
+              return outcome;
             },
-          } as unknown as Window;
-          const bridge = yield* makeBridge(target);
-          const store = yield* makeStore;
-          const drops = yield* makeDrops(bridge, store, auth, wait);
-          yield* store.items.upsert("drop", drop);
+          },
+        } as unknown as Window;
+        const bridge = yield* makeBridge(target);
+        const store = yield* makeStore;
+        const drops = yield* makeDrops(bridge, store, auth, wait);
+        yield* store.items.upsert("drop", drop);
 
-          expect((yield* drops.get("Drop"))?.itemId).toBe(drop.itemId);
-          expect(yield* drops.reject(drop.itemId)).toBe(false);
-          expect(yield* drops.contains(drop.itemId)).toBe(true);
+        expect((yield* drops.get("Drop"))?.itemId).toBe(drop.itemId);
+        expect(yield* drops.reject(drop.itemId)).toBe(false);
+        expect(yield* drops.contains(drop.itemId)).toBe(true);
 
-          outcome = "failure";
-          expect(yield* drops.reject(drop.itemId)).toBe(false);
-          expect(yield* drops.contains(drop.itemId)).toBe(true);
+        outcome = "failure";
+        expect(yield* drops.reject(drop.itemId)).toBe(false);
+        expect(yield* drops.contains(drop.itemId)).toBe(true);
 
-          outcome = true;
-          expect(yield* drops.reject(drop.itemId)).toBe(true);
-          expect(yield* drops.contains(drop.itemId)).toBe(false);
-        }),
-      ),
+        outcome = true;
+        expect(yield* drops.reject(drop.itemId)).toBe(true);
+        expect(yield* drops.contains(drop.itemId)).toBe(false);
+      }),
   );
 });

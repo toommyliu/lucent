@@ -23,7 +23,6 @@ export const GameViewPhaseSchema = Schema.Literals([
 ]);
 
 export type GameViewLayout = typeof GameViewLayoutSchema.Type;
-export type GameViewPhase = typeof GameViewPhaseSchema.Type;
 
 export const GameViewSessionSchema = Schema.Struct({
   id: Schema.String,

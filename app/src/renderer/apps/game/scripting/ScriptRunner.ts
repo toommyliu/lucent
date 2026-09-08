@@ -217,6 +217,9 @@ export interface ScriptRunnerShape {
   ) => Effect.Effect<StateDisposer>;
   readonly persistOptions: () => Effect.Effect<ScriptOptionsUpdateResult>;
   readonly resetOptions: () => Effect.Effect<ScriptRuntimeOptions>;
+  readonly setOptions: (
+    update: ScriptRuntimeOptionsUpdate,
+  ) => Effect.Effect<ScriptOptionsUpdateResult>;
   readonly setRestartAfterReconnect: (
     enabled: boolean,
   ) => Effect.Effect<ScriptOptionsUpdateResult>;
@@ -1058,7 +1061,7 @@ export const layer = Layer.effect(
           dialogs,
           getOptions,
           inputValues: inputs,
-          log: (message) => console.log("[script]", message),
+          log: (...values) => console.log("[script]", ...values),
           scope: scriptScope,
           setOptions: (update) =>
             setOptions(update).pipe(Effect.map((result) => result.options)),
@@ -1659,6 +1662,7 @@ export const layer = Layer.effect(
         observe(SubscriptionRef.changes(statusRef), snapshotStatus, listener),
       persistOptions: () => setOptions((options) => options),
       resetOptions,
+      setOptions,
       setRoomPolicy: (roomPolicy) =>
         setOptions((options) => ({
           ...options,

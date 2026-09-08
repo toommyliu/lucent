@@ -78,6 +78,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/item-context/"><code>ItemContext</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-data/"><code>ItemData</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-query/"><code>ItemQuery</code></a> | type alias |  |
+| <a href="/reference/scripting/types/item-requirement/"><code>ItemRequirement</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-selector/"><code>ItemSelector</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-selector-by-id/"><code>ItemSelectorById</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-selector-by-name/"><code>ItemSelectorByName</code></a> | interface |  |
@@ -122,7 +123,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/quest-reward/"><code>QuestReward</code></a> | interface |  |
 | <a href="/reference/scripting/types/quest-snapshot/"><code>QuestSnapshot</code></a> | type alias |  |
 | <a href="/reference/scripting/types/rest-options/"><code>RestOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/room-policy/"><code>RoomPolicy</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-callback-result/"><code>ScriptCallbackResult</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-combat-monster-target/"><code>ScriptCombatMonsterTarget</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-combat-player-target/"><code>ScriptCombatPlayerTarget</code></a> | interface |  |
@@ -141,6 +141,9 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/script-input-values/"><code>ScriptInputValues</code></a> | type alias |  |
 | <a href="/reference/scripting/types/script-rendering-mode/"><code>ScriptRenderingMode</code></a> | type alias | Controls game render visibility. |
 | <a href="/reference/scripting/types/script-runtime-options/"><code>ScriptRuntimeOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-runtime-options-patch/"><code>ScriptRuntimeOptionsPatch</code></a> | type alias |  |
+| <a href="/reference/scripting/types/script-settings/"><code>ScriptSettings</code></a> | interface |  |
+| <a href="/reference/scripting/types/script-settings-patch/"><code>ScriptSettingsPatch</code></a> | type alias | Only supplied fields are changed. |
 | <a href="/reference/scripting/types/script-shop-quantity-options/"><code>ScriptShopQuantityOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/script-stop-signal/"><code>ScriptStopSignal</code></a> | class |  |
 | <a href="/reference/scripting/types/server-data/"><code>ServerData</code></a> | interface |  |

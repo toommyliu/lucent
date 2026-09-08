@@ -386,12 +386,6 @@ export const makeStore = Effect.gen(function* () {
         entityForAura(state, target, id)?.removeAura(name, kind);
         return state;
       }),
-    removeMonster: (id: number) =>
-      SynchronizedRef.modify(worldRef, (state) => {
-        const current = state.monsters.get(id) ?? null;
-        state.monsters.delete(id);
-        return [current, state];
-      }),
     removePlayer: (username: string) =>
       SynchronizedRef.modify(worldRef, (state) => {
         const key = normalizeUsername(username);

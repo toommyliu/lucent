@@ -107,135 +107,125 @@ const yieldToWorker = Effect.yieldNow.pipe(Effect.andThen(Effect.yieldNow));
 
 describe("Environment drop automation", () => {
   it.effect("reconciles the complete pending list on one wake-up", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const harness = yield* makeHarness([
-          drop(1, "Old A"),
-          drop(2, "Old B"),
-          drop(3, "New C"),
-        ]);
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([
+        drop(1, "Old A"),
+        drop(2, "Old B"),
+        drop(3, "New C"),
+      ]);
 
-        yield* harness.requestReconciliation;
-        const actions = yield* Effect.all(
-          [harness.nextAction, harness.nextAction, harness.nextAction],
-          { concurrency: "unbounded" },
-        );
+      yield* harness.requestReconciliation;
+      const actions = yield* Effect.all(
+        [harness.nextAction, harness.nextAction, harness.nextAction],
+        { concurrency: "unbounded" },
+      );
 
-        expect(actions.map(({ itemId }) => itemId).toSorted()).toEqual([
-          1, 2, 3,
-        ]);
-        expect(yield* harness.getReconciliationCount).toBe(1);
-      }),
-    ),
+      expect(actions.map(({ itemId }) => itemId).toSorted()).toEqual([1, 2, 3]);
+      expect(yield* harness.getReconciliationCount).toBe(1);
+    }),
   );
 
   it.effect(
     "makes one immediate rejection attempt and three backoff retries",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          const harness = yield* makeHarness([drop(1, "A")], () => false);
+      Effect.gen(function* () {
+        const harness = yield* makeHarness([drop(1, "A")], () => false);
 
-          yield* harness.requestReconciliation;
-          expect(yield* harness.nextAction).toMatchObject({ attempt: 1 });
-          yield* yieldToWorker;
+        yield* harness.requestReconciliation;
+        expect(yield* harness.nextAction).toMatchObject({ attempt: 1 });
+        yield* yieldToWorker;
 
-          yield* TestClock.adjust("99 millis");
-          expect(harness.actions).toHaveLength(1);
-          yield* TestClock.adjust("1 millis");
-          expect(yield* harness.nextAction).toMatchObject({ attempt: 2 });
-          yield* yieldToWorker;
+        yield* TestClock.adjust("99 millis");
+        expect(harness.actions).toHaveLength(1);
+        yield* TestClock.adjust("1 millis");
+        expect(yield* harness.nextAction).toMatchObject({ attempt: 2 });
+        yield* yieldToWorker;
 
-          yield* TestClock.adjust("199 millis");
-          expect(harness.actions).toHaveLength(2);
-          yield* TestClock.adjust("1 millis");
-          expect(yield* harness.nextAction).toMatchObject({ attempt: 3 });
-          yield* yieldToWorker;
+        yield* TestClock.adjust("199 millis");
+        expect(harness.actions).toHaveLength(2);
+        yield* TestClock.adjust("1 millis");
+        expect(yield* harness.nextAction).toMatchObject({ attempt: 3 });
+        yield* yieldToWorker;
 
-          yield* TestClock.adjust("399 millis");
-          expect(harness.actions).toHaveLength(3);
-          yield* TestClock.adjust("1 millis");
-          expect(yield* harness.nextAction).toMatchObject({ attempt: 4 });
-          yield* yieldToWorker;
+        yield* TestClock.adjust("399 millis");
+        expect(harness.actions).toHaveLength(3);
+        yield* TestClock.adjust("1 millis");
+        expect(yield* harness.nextAction).toMatchObject({ attempt: 4 });
+        yield* yieldToWorker;
 
-          yield* TestClock.adjust("1 second");
-          expect(harness.actions).toHaveLength(4);
-        }),
-      ).pipe(Effect.provide(TestClock.layer())),
+        yield* TestClock.adjust("1 second");
+        expect(harness.actions).toHaveLength(4);
+      }),
   );
 
   it.effect("does not hold the mutation semaphore during retry backoff", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const harness = yield* makeHarness(
-          [drop(1, "A"), drop(2, "B")],
-          (itemId) => itemId === 2,
-        );
+    Effect.gen(function* () {
+      const harness = yield* makeHarness(
+        [drop(1, "A"), drop(2, "B")],
+        (itemId) => itemId === 2,
+      );
 
-        yield* harness.requestReconciliation;
-        const actions = yield* Effect.all(
-          [harness.nextAction, harness.nextAction],
-          { concurrency: "unbounded" },
-        );
+      yield* harness.requestReconciliation;
+      const actions = yield* Effect.all(
+        [harness.nextAction, harness.nextAction],
+        { concurrency: "unbounded" },
+      );
 
-        expect(actions).toEqual([
-          { action: "reject", attempt: 1, itemId: 1 },
-          { action: "reject", attempt: 1, itemId: 2 },
-        ]);
-      }),
-    ).pipe(Effect.provide(TestClock.layer())),
+      expect(actions).toEqual([
+        { action: "reject", attempt: 1, itemId: 1 },
+        { action: "reject", attempt: 1, itemId: 2 },
+      ]);
+    }),
   );
 
   it.effect("coalesces events during backoff into one follow-up rescan", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const harness = yield* makeHarness(
-          [drop(1, "A")],
-          (_itemId, attempt) => attempt > 4,
-        );
+    Effect.gen(function* () {
+      const harness = yield* makeHarness(
+        [drop(1, "A")],
+        (_itemId, attempt) => attempt > 4,
+      );
 
-        yield* harness.requestReconciliation;
-        expect(yield* harness.nextAction).toMatchObject({
-          attempt: 1,
-          itemId: 1,
-        });
-        yield* yieldToWorker;
-        yield* harness.addDrop(drop(2, "C"));
-        yield* Effect.all(
-          [
-            harness.requestReconciliation,
-            harness.requestReconciliation,
-            harness.requestReconciliation,
-          ],
-          { concurrency: "unbounded" },
-        );
+      yield* harness.requestReconciliation;
+      expect(yield* harness.nextAction).toMatchObject({
+        attempt: 1,
+        itemId: 1,
+      });
+      yield* yieldToWorker;
+      yield* harness.addDrop(drop(2, "C"));
+      yield* Effect.all(
+        [
+          harness.requestReconciliation,
+          harness.requestReconciliation,
+          harness.requestReconciliation,
+        ],
+        { concurrency: "unbounded" },
+      );
 
-        yield* TestClock.adjust("100 millis");
-        expect(yield* harness.nextAction).toMatchObject({
-          attempt: 2,
-          itemId: 1,
-        });
-        yield* yieldToWorker;
-        yield* TestClock.adjust("200 millis");
-        expect(yield* harness.nextAction).toMatchObject({
-          attempt: 3,
-          itemId: 1,
-        });
-        yield* yieldToWorker;
-        yield* TestClock.adjust("400 millis");
-        expect(yield* harness.nextAction).toMatchObject({
-          attempt: 4,
-          itemId: 1,
-        });
+      yield* TestClock.adjust("100 millis");
+      expect(yield* harness.nextAction).toMatchObject({
+        attempt: 2,
+        itemId: 1,
+      });
+      yield* yieldToWorker;
+      yield* TestClock.adjust("200 millis");
+      expect(yield* harness.nextAction).toMatchObject({
+        attempt: 3,
+        itemId: 1,
+      });
+      yield* yieldToWorker;
+      yield* TestClock.adjust("400 millis");
+      expect(yield* harness.nextAction).toMatchObject({
+        attempt: 4,
+        itemId: 1,
+      });
 
-        const followUp = yield* Effect.all(
-          [harness.nextAction, harness.nextAction],
-          { concurrency: "unbounded" },
-        );
-        expect(followUp.map(({ itemId }) => itemId).toSorted()).toEqual([1, 2]);
-        yield* yieldToWorker;
-        expect(yield* harness.getReconciliationCount).toBe(2);
-      }),
-    ).pipe(Effect.provide(TestClock.layer())),
+      const followUp = yield* Effect.all(
+        [harness.nextAction, harness.nextAction],
+        { concurrency: "unbounded" },
+      );
+      expect(followUp.map(({ itemId }) => itemId).toSorted()).toEqual([1, 2]);
+      yield* yieldToWorker;
+      expect(yield* harness.getReconciliationCount).toBe(2);
+    }),
   );
 });

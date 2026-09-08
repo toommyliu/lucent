@@ -1,3 +1,5 @@
+import { displayScriptSourceText } from "./scriptSourceAttribution";
+
 import type { ScriptRunnerStatus } from "./ScriptRunner";
 
 export interface FatalScriptAlert {
@@ -48,8 +50,10 @@ export const fatalScriptAlertFromError = (
     key: `error:${(nextErrorAlertId += 1).toString(36)}`,
     sourceName,
     ...(sourcePath === undefined ? {} : { sourcePath }),
-    message: errorMessage(error),
-    ...(detailsText === undefined ? {} : { detailsText }),
+    message: displayScriptSourceText(errorMessage(error)),
+    ...(detailsText === undefined
+      ? {}
+      : { detailsText: displayScriptSourceText(detailsText) }),
   };
 };
 
@@ -59,8 +63,8 @@ export const fatalScriptAlertFromStatus = (
   key: `status:${status.failedAt}:${status.name}`,
   sourceName: status.name,
   ...(status.path === undefined ? {} : { sourcePath: status.path }),
-  message: status.message,
+  message: displayScriptSourceText(status.message),
   ...(status.detailsText === undefined
     ? {}
-    : { detailsText: status.detailsText }),
+    : { detailsText: displayScriptSourceText(status.detailsText) }),
 });

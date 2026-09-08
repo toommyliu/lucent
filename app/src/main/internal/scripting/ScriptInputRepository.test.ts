@@ -2,13 +2,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import {
-  findMissingRequiredScriptInputs,
+  normalizeScriptInputValues,
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
@@ -102,27 +101,13 @@ const makeRepository = () =>
   });
 
 describe("ScriptInputRepository service", () => {
-  it.effect("returns default values when no saved values exist", () =>
-    Effect.gen(function* () {
-      const { repository } = yield* makeRepository();
-
-      const values = yield* repository.getValues(definition);
-
-      expect(values).toEqual({
-        count: 3,
-        enabled: false,
-        rewards: ["Armor"],
-        server: "Artix",
-      });
-      expect(findMissingRequiredScriptInputs(definition, values)).toEqual([
-        "target",
-      ]);
-    }),
-  );
-
   it.effect("normalizes saved values before persisting", () =>
     Effect.gen(function* () {
       const { env, repository } = yield* makeRepository();
+
+      expect(yield* repository.getValues(definition)).toEqual(
+        normalizeScriptInputValues(definition, {}),
+      );
 
       const values = yield* repository.saveValues(definition, {
         count: Number.NaN,

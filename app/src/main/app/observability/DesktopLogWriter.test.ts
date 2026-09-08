@@ -2,8 +2,7 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, expect, it } from "@effect/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 
 import { makeBufferedDesktopLogWriter } from "./DesktopLogWriter";
 

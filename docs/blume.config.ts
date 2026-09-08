@@ -154,7 +154,11 @@ export default defineConfig({
           root: "/guides",
         },
         {
-          items: ["/cookbooks/durations", "/cookbooks/enhancements"],
+          items: [
+            "/cookbooks/durations",
+            "/cookbooks/queries-and-selectors",
+            "/cookbooks/enhancements",
+          ],
           label: "Cookbooks",
           root: "/cookbooks",
         },
@@ -189,6 +193,22 @@ export default defineConfig({
                   root: "/reference/scripting/effect",
                 },
                 "/reference/scripting/types",
+                {
+                  label: "Packages",
+                  items: [
+                    {
+                      label: "Overview",
+                      root: "/reference/scripting/packages",
+                    },
+                    ...collectRouteSuffixes(
+                      join(scriptingReferenceRoot, "packages"),
+                    )
+                      .filter((suffix) => suffix !== "")
+                      .map(
+                        (suffix) => `/reference/scripting/packages${suffix}`,
+                      ),
+                  ],
+                },
               ],
               display: "group",
               label: "Scripting",

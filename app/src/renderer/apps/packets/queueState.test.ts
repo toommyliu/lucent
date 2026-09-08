@@ -1,13 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
-import { isValidQueuePacketDraft, replaceQueuePacketAt } from "./queueState";
+import { replaceQueuePacketAt } from "./queueState";
 
 describe("packet queue state", () => {
-  it("rejects empty packet drafts", () => {
-    expect(isValidQueuePacketDraft(" \n ")).toBe(false);
-    expect(isValidQueuePacketDraft("%xt%zm%")).toBe(true);
-  });
-
   it("replaces only an existing queue position", () => {
     const queue = ["first", "second"];
 

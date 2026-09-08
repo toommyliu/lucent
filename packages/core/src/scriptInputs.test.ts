@@ -43,9 +43,9 @@ const definition = {
 } satisfies ScriptInputsDefinition;
 
 describe("scriptInputs", () => {
-  it("normalizes matching values and applies defaults", () => {
+  it("normalizes values and returns a successful validation result", () => {
     expect(
-      normalizeScriptInputValues(definition, {
+      validateScriptInputValues(definition, {
         name: "Hero",
         count: "not-a-number",
         enabled: false,
@@ -53,27 +53,19 @@ describe("scriptInputs", () => {
         extra: "ignored",
       }),
     ).toEqual({
-      name: "Hero",
-      count: 3,
-      enabled: false,
-      mode: "fast",
+      status: "ok",
+      values: { name: "Hero", count: 3, enabled: false, mode: "fast" },
     });
   });
 
-  it("reports required fields that remain absent after normalization", () => {
-    const values = normalizeScriptInputValues(definition, {
-      count: 7,
-      mode: "unknown",
+  it("reports required fields still absent after normalization", () => {
+    expect(
+      validateScriptInputValues(definition, { count: 7, mode: "unknown" }),
+    ).toEqual({
+      status: "missing-required",
+      fieldKeys: ["name"],
+      values: { count: 7, enabled: true, mode: "safe" },
     });
-
-    expect(values).toEqual({
-      count: 7,
-      enabled: true,
-      mode: "safe",
-    });
-    expect(findMissingRequiredScriptInputs(definition, values)).toEqual([
-      "name",
-    ]);
   });
 
   it("normalizes multi-select values in declared option order", () => {
@@ -105,32 +97,6 @@ describe("scriptInputs", () => {
     expect(
       findMissingRequiredScriptInputs(multiSelectDefinition, { rewards: [] }),
     ).toEqual(["rewards"]);
-  });
-
-  it("returns discriminated validation results", () => {
-    expect([
-      validateScriptInputValues(definition, { name: "Hero" }),
-      validateScriptInputValues(definition, {}),
-    ]).toEqual([
-      {
-        status: "ok",
-        values: {
-          name: "Hero",
-          count: 3,
-          enabled: true,
-          mode: "safe",
-        },
-      },
-      {
-        status: "missing-required",
-        fieldKeys: ["name"],
-        values: {
-          count: 3,
-          enabled: true,
-          mode: "safe",
-        },
-      },
-    ]);
   });
 
   it("rejects duplicate field keys and invalid select defaults", () => {

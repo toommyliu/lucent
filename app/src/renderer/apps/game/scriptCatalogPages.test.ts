@@ -6,7 +6,6 @@ import {
   groupScriptCatalogPageOffsets,
   scriptCatalogEntryAt,
   scriptCatalogPageOffsetsForRange,
-  storeScriptCatalogPage,
   storeScriptCatalogPageRange,
   touchScriptCatalogPages,
 } from "./scriptCatalogPages";
@@ -55,13 +54,21 @@ describe("script catalog page cache", () => {
     for (let page = 0; page < 4; page += 1) {
       const offset = page * SCRIPT_CATALOG_PAGE_SIZE;
       cache = new Map(
-        storeScriptCatalogPage(cache, offset, [entry(offset)], 3),
+        storeScriptCatalogPageRange(
+          cache,
+          offset,
+          [entry(offset)],
+          [offset],
+          3,
+        ),
       );
     }
     expect([...cache.keys()]).toEqual([256, 512, 768]);
 
     cache = new Map(touchScriptCatalogPages(cache, [256], 3));
-    cache = new Map(storeScriptCatalogPage(cache, 1024, [entry(1024)], 3));
+    cache = new Map(
+      storeScriptCatalogPageRange(cache, 1024, [entry(1024)], [1024], 3),
+    );
     expect([...cache.keys()]).toEqual([768, 256, 1024]);
     expect(scriptCatalogEntryAt(cache, 256)?.name).toBe("script-256.js");
     expect(scriptCatalogEntryAt(cache, 512)).toBeUndefined();

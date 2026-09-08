@@ -300,6 +300,30 @@ export interface ScriptCombatApi {
     query: MonsterQuery,
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
+  /**
+   * Fights monsters in the current cell until your inventory has the requested
+   * quantity. Counts items you already own and accepts matching drops.
+   * Keeps trying until the goal is reached or the action is interrupted.
+   * A timeout stops farming; items already collected stay in your inventory.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   * const { Effect, Option, pipe } = require("effect");
+   *
+   * const result = yield* pipe(
+   *   api.combat.killForItem("Boss Name", {
+   *     item: "Item Name",
+   *     quantity: 10,
+   *   }),
+   *   Effect.timeoutOption("5 minutes"),
+   * );
+   *
+   * if (Option.isNone(result)) {
+   *   yield* script.log("Farming timed out before reaching the quantity.");
+   * }
+   * ```
+   */
   readonly killForItem: (
     target: MonsterQuery,
     goal: FarmItemGoal,
@@ -434,7 +458,58 @@ export interface ScriptWaitForEvent {
 }
 
 export interface ScriptEventsApi {
+  /**
+   * Runs a handler for every matching event. The handler must return an Effect
+   * or generator; plain values and Promises are not supported.
+   *
+   * Call the returned function to stop listening early.
+   * The subscription is also removed automatically when the script stops.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   *
+   * const unsubscribe = yield* api.events.on(
+   *   { type: "monster-death" },
+   *   function* (event) {
+   *     yield* script.log(`Monster ${event.monsterMapId} died.`);
+   *   },
+   * );
+   *
+   * yield* script.sleep("30 seconds");
+   * unsubscribe();
+   * ```
+   */
   readonly on: ScriptEventsOn;
+  /**
+   * Waits for the next matching event. With a `trigger`, starts listening before
+   * running that action so an immediate event is not missed.
+   *
+   * Returns `null` if the trigger returns `false` or the wait times out. The
+   * timeout starts after the trigger finishes; omitting it waits indefinitely.
+   * Timing out stops the wait but does not undo the action started by the trigger.
+   *
+   * @example
+   * ```js
+   * const script = require("lucent/script");
+   *
+   * const [monster] = yield* api.monsters.getAvailable();
+   * if (monster !== undefined) {
+   *   const death = yield* api.events.once(
+   *     { type: "monster-death", monsterMapId: monster.monsterMapId },
+   *     {
+   *       trigger: api.combat.attack(monster.monsterMapId),
+   *       timeout: "30 seconds",
+   *     },
+   *   );
+   *   yield* api.combat.cancelAutoAttack();
+   *
+   *   if (death === null) {
+   *     yield* script.log("Attack failed or the monster did not die in time.");
+   *   }
+   * }
+   * ```
+   */
   readonly once: ScriptWaitForEvent;
 }
 
@@ -665,41 +740,51 @@ export interface ScriptEnhanceItemOptions {
   readonly special?: string;
 }
 
-export interface ScriptRecipesApi {
-  /** @param toBank Whether to send wheel rewards to the bank. */
-  readonly doWheelOfDoom: (
-    /** @defaultValue false */
-    toBank?: boolean,
-  ) => Effect.Effect<boolean>;
-  readonly ensureLifeSteal: (quantity: number) => Effect.Effect<boolean>;
-  readonly ensureScrollOfEnrage: (quantity: number) => Effect.Effect<boolean>;
-}
-
 /** Controls game render visibility. */
 export type ScriptRenderingMode =
   | "full"
   | /** A.k.a. Lag Killer. */ "interface-only"
   | "minimal";
 
+export interface ScriptSettings {
+  readonly animations: boolean;
+  readonly antiCounter: boolean;
+  readonly collisions: boolean;
+  /** Local guild override. Null restores the original guild. */
+  readonly customGuild: string | null;
+  /** Local name override. Null restores the original name. */
+  readonly customName: string | null;
+  readonly deathAds: boolean;
+  readonly enemyMagnet: boolean;
+  /** Configured FPS. Minimal rendering uses 2 FPS; app limits may lower it. */
+  readonly frameRate: number;
+  readonly infiniteRange: boolean;
+  /** Hides other players, leaving your own character visible. */
+  readonly hidePlayers: boolean;
+  readonly provokeCell: boolean;
+  readonly renderingMode: ScriptRenderingMode;
+  readonly skipCutscenes: boolean;
+  readonly walkSpeed: number;
+}
+
+/** Only supplied fields are changed. */
+export type ScriptSettingsPatch = Partial<ScriptSettings>;
+
 export interface ScriptSettingsApi {
-  /** Returns the active rendering mode. */
-  readonly getRenderingMode: () => Effect.Effect<ScriptRenderingMode>;
-  readonly isAntiCounterEnabled: () => Effect.Effect<boolean>;
-  readonly setAnimationsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setAntiCounterEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCollisionsEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setCustomGuild: (name: string) => Effect.Effect<void>;
-  readonly setCustomName: (name: string) => Effect.Effect<void>;
-  readonly setDeathAdsVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setEnemyMagnetEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setFrameRate: (fps: number) => Effect.Effect<void>;
-  readonly setInfiniteRangeEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setOtherPlayersVisible: (visible: boolean) => Effect.Effect<void>;
-  readonly setProvokeCellEnabled: (enabled: boolean) => Effect.Effect<void>;
-  /** @param mode The rendering mode to activate. */
-  readonly setRenderingMode: (mode: ScriptRenderingMode) => Effect.Effect<void>;
-  readonly setSkipCutscenesEnabled: (enabled: boolean) => Effect.Effect<void>;
-  readonly setWalkSpeed: (speed: number) => Effect.Effect<void>;
+  /**
+   * Updates the supplied settings, leaving the rest unchanged.
+   *
+   * @example
+   * ```ts
+   * yield* api.settings.update({
+   *   animations: false,
+   *   hidePlayers: true,
+   *   frameRate: 30,
+   * });
+   * ```
+   */
+  readonly update: (patch: ScriptSettingsPatch) => Effect.Effect<void>;
+  readonly get: () => Effect.Effect<ScriptSettings>;
 }
 
 export interface ScriptShopQuantityOptions {
@@ -899,7 +984,6 @@ export interface ScriptApi {
   readonly player: ScriptPlayerApi;
   readonly players: ScriptPlayersApi;
   readonly quests: ScriptQuestsApi;
-  readonly recipes: ScriptRecipesApi;
   readonly settings: ScriptSettingsApi;
   readonly shop: ScriptShopApi;
   readonly tempInventory: ScriptTempInventoryApi;
@@ -924,21 +1008,27 @@ export interface ScriptExitOptions {
   readonly logout?: boolean;
 }
 
+export type ScriptRuntimeOptionsPatch = Partial<ScriptRuntimeOptions>;
+
 export interface ScriptOptionsApi {
-  readonly getAll: () => Effect.Effect<ScriptRuntimeOptions>;
-  readonly getRestartAfterReconnect: () => Effect.Effect<boolean>;
-  readonly getRoomPolicy: () => Effect.Effect<RoomPolicy>;
-  readonly getSafeStartStop: () => Effect.Effect<boolean>;
-  readonly reset: () => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setRestartAfterReconnect: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRuntimeOptions>;
-  readonly setRoomPolicy: (
-    policy: RoomPolicy,
-  ) => Effect.Effect<ScriptRuntimeOptions, ScriptExecutionError>;
-  readonly setSafeStartStop: (
-    enabled: boolean,
-  ) => Effect.Effect<ScriptRuntimeOptions>;
+  /** Returns a snapshot of the current options. */
+  readonly get: () => Effect.Effect<ScriptRuntimeOptions>;
+  /** Restores Lucent's built-in defaults, not the options from before the script. */
+  readonly reset: () => Effect.Effect<void>;
+  /**
+   * Updates the supplied options, leaving the rest unchanged.
+   *
+   * @example
+   * ```ts
+   * yield* script.options.update({
+   *   restartAfterReconnect: true,
+   *   roomPolicy: { kind: "specific", roomNumber: 42 },
+   * });
+   * ```
+   */
+  readonly update: (
+    patch: ScriptRuntimeOptionsPatch,
+  ) => Effect.Effect<void, ScriptExecutionError>;
 }
 
 export interface ScriptRuntimeApi {
@@ -964,17 +1054,29 @@ export interface ScriptRuntimeApi {
     /** @defaultValue { closeClient: false, logout: false } */
     options?: ScriptExitOptions,
   ) => Effect.Effect<never, ScriptStopSignal>;
-  readonly log: (message: unknown) => Effect.Effect<void>;
+  readonly log: (...values: unknown[]) => Effect.Effect<void>;
   /**
-   * Opens a text prompt. Canceling the dialog yields `null`; submitting an
-   * empty value yields an empty string.
+   * Opens a text prompt with an empty input. Canceling the dialog yields `null`;
+   * submitting without entering text yields an empty string, not the placeholder.
    *
-   * @param defaultValue Input placeholder.
+   * @param placeholder Hint shown in the empty input. It is not a default value.
+   *
+   * @example
+   * ```js
+   * const name = yield* script.prompt("Character name", "Artix");
+   * if (name === null) {
+   *   yield* script.stop("Prompt canceled.");
+   * }
+   * if (name === "") {
+   *   yield* script.stop("No name entered.");
+   * }
+   * yield* script.log(name);
+   * ```
    */
   readonly prompt: (
     message: string,
     /** @defaultValue "" */
-    defaultValue?: string,
+    placeholder?: string,
   ) => Effect.Effect<string | null>;
   readonly sleep: (
     duration: Duration.Input,

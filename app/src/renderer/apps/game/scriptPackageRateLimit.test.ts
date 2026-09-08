@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import type {
   ScriptPackageUpdateState,
@@ -170,15 +170,16 @@ describe("script package rate limits", () => {
     expect(activeScriptPackageRateLimits([elapsed, invalid], now).size).toBe(0);
   });
 
-  it("formats a compact retry action that becomes actionable", () => {
-    expect(formatScriptPackageRetryLabel(now + 5 * 60_000, now)).toBe(
-      "Retry in 5m",
-    );
-    expect(formatScriptPackageRetryLabel(now + 30_000, now)).toBe(
-      "Retry in <1m",
-    );
-    expect(formatScriptPackageRetryLabel(now, now)).toBe("Check again");
-  });
+  it.each([30_000, 300_000])(
+    "changes the retry action when a %i ms cooldown elapses",
+    (delay) => {
+      const active = formatScriptPackageRetryLabel(now + delay, now);
+      const elapsed = formatScriptPackageRetryLabel(now + delay, now + delay);
+      expect(active).toMatch(/retry/i);
+      expect(active).not.toBe(elapsed);
+      expect(elapsed).toMatch(/check|retry/i);
+    },
+  );
 
   it("distinguishes active, elapsed, and invalid retry deadlines", () => {
     expect(

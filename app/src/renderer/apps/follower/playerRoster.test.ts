@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   filterPlayerRoster,
@@ -7,12 +7,14 @@ import {
 } from "./playerRoster";
 
 describe("observePlayerRoster", () => {
-  it("filters players by a case-insensitive substring query", () => {
-    const players = ["Alpha", "Example Player", "XYZ"];
-
-    expect(filterPlayerRoster(players, "")).toEqual(players);
-    expect(filterPlayerRoster(players, "AMP")).toEqual(["Example Player"]);
-    expect(filterPlayerRoster(players, "missing")).toEqual([]);
+  it.each([
+    ["", ["Alpha", "Example Player", "XYZ"]],
+    ["AMP", ["Example Player"]],
+    ["missing", []],
+  ] as const)("filters a roster with query %s", (query, expected) => {
+    expect(
+      filterPlayerRoster(["Alpha", "Example Player", "XYZ"], query),
+    ).toEqual(expected);
   });
 
   it("does not let an initial read overwrite a newer roster event", async () => {

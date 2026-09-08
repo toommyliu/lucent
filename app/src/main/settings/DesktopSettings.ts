@@ -89,11 +89,6 @@ const wrapDataError = (error: JsonFileError): DesktopSettingsError =>
     cause: error,
   });
 
-const normalizeThemeTokenPatch = (
-  value: ThemeRgb | null,
-  fallback: ThemeRgb,
-): ThemeRgb => value ?? fallback;
-
 const mergeThemeProfile = (
   variant: ThemeVariant,
   current: ThemeProfile,
@@ -107,10 +102,7 @@ const mergeThemeProfile = (
   if (patch.tokens !== undefined) {
     for (const [name, value] of Object.entries(patch.tokens)) {
       const tokenName = name as ThemeTokenName;
-      tokens[tokenName] = normalizeThemeTokenPatch(
-        value,
-        defaults.tokens[tokenName],
-      );
+      tokens[tokenName] = value ?? defaults.tokens[tokenName];
     }
   }
 

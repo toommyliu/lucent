@@ -41,13 +41,6 @@ export const PacketsStatusPayloadSchema = Schema.Struct({
 });
 export type PacketsStatusPayload = typeof PacketsStatusPayloadSchema.Type;
 
-export interface PacketPlaceholderContext {
-  readonly mapId: number;
-  readonly mapName: string;
-  readonly playerName: string;
-  readonly roomNumber: number;
-}
-
 export const PACKET_LOG_BUFFER_LIMIT = 5_000;
 export const PACKET_QUEUE_DEFAULT_DELAY_MS = 1_000;
 export const PACKET_QUEUE_MAX_DELAY_MS = 60_000;
@@ -55,41 +48,27 @@ export const PACKET_QUEUE_MIN_DELAY_MS = 10;
 
 export const PACKET_PLACEHOLDER_DEFINITIONS = [
   {
-    contextKey: "mapId",
     label: "Map ID",
     token: "{MAP_ID}",
   },
   {
-    contextKey: "roomNumber",
     label: "Room Number",
     token: "{ROOM_NUMBER}",
   },
   {
-    contextKey: "mapName",
     label: "Map Name",
     token: "{MAP_NAME}",
   },
   {
-    contextKey: "playerName",
     label: "Player Name",
     token: "{PLAYER_NAME}",
   },
 ] as const satisfies readonly {
-  readonly contextKey: keyof PacketPlaceholderContext;
   readonly label: string;
   readonly token: string;
 }[];
 
-export type PacketPlaceholderToken =
-  (typeof PACKET_PLACEHOLDER_DEFINITIONS)[number]["token"];
-
 const CLIENT_PACKET_PREFIX = "[Sending - STR]: ";
-
-export const isPacketCaptureType = (
-  value: unknown,
-): value is PacketCaptureType =>
-  typeof value === "string" &&
-  PacketCaptureTypes.includes(value as PacketCaptureType);
 
 export const isPacketSendTarget = (value: unknown): value is PacketSendTarget =>
   typeof value === "string" &&
@@ -116,24 +95,6 @@ export const normalizePacketQueuePayload = (
     packets,
     target: payload.target,
   };
-};
-
-export const hasSupportedPacketPlaceholders = (packet: string): boolean =>
-  PACKET_PLACEHOLDER_DEFINITIONS.some((definition) =>
-    packet.includes(definition.token),
-  );
-
-export const resolvePacketPlaceholders = (
-  packet: string,
-  context: PacketPlaceholderContext,
-): string => {
-  let resolved = packet;
-  for (const definition of PACKET_PLACEHOLDER_DEFINITIONS) {
-    resolved = resolved
-      .split(definition.token)
-      .join(String(context[definition.contextKey]));
-  }
-  return resolved;
 };
 
 const parsePacketQueueDelay = (value: unknown): number => {

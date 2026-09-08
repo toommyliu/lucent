@@ -1,6 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Random from "effect/Random";
+import * as Result from "effect/Result";
 import { TestClock } from "effect/testing";
 
 import {
@@ -97,30 +99,54 @@ describe("GitHubApiClient", () => {
     ).toBe(true);
   });
 
-  it.effect("retries unavailable responses with a bounded backoff", () =>
-    Effect.gen(function* () {
-      const requestCount = { value: 0 };
-      const client = makeGitHubApiClient(
-        makeHttpClient(
-          [
-            response({ statusCode: 503 }),
-            response({ statusCode: 502 }),
-            response({ statusCode: 200 }),
-          ],
-          requestCount,
-        ),
-        "Lucent/test",
-      );
-      const fiber = yield* Effect.forkChild(
-        client.get({ attempts: 3, url: API_URL }),
-      );
-
-      yield* TestClock.adjust("10 seconds");
-      const result = yield* Fiber.join(fiber);
-
-      expect(result.statusCode).toBe(200);
-      expect(requestCount.value).toBe(3);
-    }),
+  it.effect.each([200, 503])(
+    "backs off and stops after three attempts when the final response is %i",
+    (lastStatus) =>
+      Effect.gen(function* () {
+        const requestCount = { value: 0 };
+        const client = makeGitHubApiClient(
+          makeHttpClient(
+            [
+              response({ statusCode: 503 }),
+              response({ statusCode: 502 }),
+              response({ statusCode: lastStatus }),
+            ],
+            requestCount,
+          ),
+          "Lucent/test",
+        );
+        const fiber = yield* client
+          .get({ attempts: 3, url: API_URL })
+          .pipe(Effect.result, Effect.forkChild);
+        yield* TestClock.adjust("199 millis");
+        expect(requestCount.value).toBe(1);
+        yield* TestClock.adjust("1 millis");
+        expect(requestCount.value).toBe(2);
+        yield* TestClock.adjust("399 millis");
+        expect(requestCount.value).toBe(2);
+        expect(fiber.pollUnsafe()).toBeUndefined();
+        yield* TestClock.adjust("1 millis");
+        const result = yield* Fiber.join(fiber);
+        if (lastStatus === 200) {
+          expect(Result.isSuccess(result)).toBe(true);
+          if (Result.isSuccess(result))
+            expect(result.success.statusCode).toBe(200);
+        } else {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isFailure(result))
+            expect(result.failure).toMatchObject({
+              kind: "unavailable",
+              statusCode: 503,
+            });
+        }
+        yield* TestClock.adjust("10 seconds");
+        expect(requestCount.value).toBe(3);
+      }).pipe(
+        Effect.provideService(Random.Random, {
+          nextDoubleUnsafe: () => 0.5,
+          nextIntUnsafe: () => 0,
+        }),
+      ),
   );
 
   it.effect("fails permission errors without retrying", () =>

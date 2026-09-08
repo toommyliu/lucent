@@ -9,6 +9,7 @@ export default defineMeta({
     "autorelogin",
     "effect",
     "types",
+    "packages",
   ],
   title: "Scripting modules",
 });

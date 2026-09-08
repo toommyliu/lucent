@@ -10,7 +10,6 @@ import { makeScriptEnvironmentApi } from "./api/Environment";
 import { makeScriptPacketApi } from "./api/Packet";
 import { makeScriptPlayerApis } from "./api/Player";
 import { makeScriptPublicServices } from "./api/PublicServices";
-import { makeScriptRecipesApi } from "./api/Recipes";
 import type { ScriptRuntimeServices } from "./api/Services";
 import { makeScriptSettingsApi } from "./api/Settings";
 import { makeScriptShopApi } from "./api/Shop";
@@ -91,20 +90,9 @@ export const makeScriptBuiltinModules = (
   const { player, players } = makeScriptPlayerApis(
     options.services.player,
     options.services.players,
-    { policy: options.roomPolicy },
+    { policy: options.roomPolicy, map: options.services.map },
   );
   const settings = makeScriptSettingsApi(options.services.settings);
-  const recipes = makeScriptRecipesApi({
-    bank: options.services.bank,
-    drops: options.services.drops,
-    inventory: options.services.inventory,
-    player: {
-      joinMap: player.joinMap,
-    },
-    quests: options.services.quests,
-    shops: options.services.shops,
-    wait: options.services.wait,
-  });
   const shop = makeScriptShopApi(
     {
       inventory: options.services.inventory,
@@ -136,7 +124,6 @@ export const makeScriptBuiltinModules = (
     player,
     players,
     quests: publicServices.quests,
-    recipes,
     settings,
     shop,
     tempInventory: publicServices.tempInventory,

@@ -2,10 +2,11 @@ import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
-import { afterEach } from "vitest";
 
 import {
   COMBAT_PROFILE_LIBRARY_VERSION,
@@ -15,6 +16,7 @@ import {
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
 import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
 import {
   CombatProfiles,
@@ -36,7 +38,11 @@ afterEach(async () => {
   tempDirs.clear();
 });
 
-const makeHarness = () =>
+const makeHarness = (
+  wrapFileSystem: (
+    fs: DesktopFileSystem["Service"],
+  ) => DesktopFileSystem["Service"] = (fs) => fs,
+) =>
   Effect.gen(function* () {
     const appDataDir = yield* Effect.promise(() =>
       makeTempDir("lucent-combat-profiles-data-"),
@@ -55,7 +61,10 @@ const makeHarness = () =>
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(DesktopEnvironment, env),
-          desktopFileSystemLayer,
+          Layer.effect(
+            DesktopFileSystem,
+            Effect.map(DesktopFileSystem, wrapFileSystem),
+          ).pipe(Layer.provide(desktopFileSystemLayer)),
         ),
       ),
     );
@@ -213,27 +222,53 @@ describe("CombatProfiles", () => {
       }),
   );
 
-  it.effect("keeps concurrent load and save notifications ordered", () =>
-    Effect.gen(function* () {
-      const { combatProfiles } = yield* makeHarness();
-      const changes: CombatProfileLibrary[] = [];
-      yield* combatProfiles.onChanged((library) => changes.push(library));
-
-      for (let index = 0; index < 8; index += 1) {
-        changes.length = 0;
-        yield* Effect.all(
-          [
-            combatProfiles.load,
-            combatProfiles.saveProfile({
-              ...testProfile,
-              id: `${testProfile.id}-${index}`,
+  it.effect(
+    "orders a save behind an in-flight load and publishes committed state",
+    () =>
+      Effect.gen(function* () {
+        const readStarted = yield* Deferred.make<void>();
+        const releaseRead = yield* Deferred.make<void>();
+        let blockRead = false;
+        const { combatProfiles, path } = yield* makeHarness((fs) => ({
+          ...fs,
+          readFile: (path, options) =>
+            Effect.gen(function* () {
+              const bytes = yield* fs.readFile(path, options);
+              if (blockRead) {
+                yield* Deferred.succeed(readStarted, undefined);
+                yield* Deferred.await(releaseRead);
+              }
+              return bytes;
             }),
-          ],
-          { concurrency: "unbounded" },
+        }));
+        const initial = yield* combatProfiles.load;
+        const changes: CombatProfileLibrary[] = [];
+        yield* combatProfiles.onChanged((library) => changes.push(library));
+        blockRead = true;
+        const loading = yield* combatProfiles.load.pipe(Effect.forkScoped);
+        yield* Deferred.await(readStarted);
+        const saving = yield* combatProfiles
+          .saveProfile(testProfile)
+          .pipe(Effect.forkScoped);
+        yield* Effect.yieldNow;
+        expect(saving.pollUnsafe()).toBeUndefined();
+        expect(changes).toEqual([]);
+        yield* Deferred.succeed(releaseRead, undefined);
+        expect(yield* Fiber.join(loading)).toEqual(initial);
+        const saved = yield* Fiber.join(saving);
+        expect(saved.profiles).toContainEqual(
+          expect.objectContaining({
+            id: testProfile.id,
+            steps: testProfile.steps,
+          }),
         );
-
-        expect(changes.at(-1)).toEqual(yield* combatProfiles.get);
-      }
-    }),
+        expect(changes).toEqual([initial, saved]);
+        expect(yield* combatProfiles.get).toEqual(saved);
+        expect(
+          normalizeCombatProfileLibrary(
+            JSON.parse(yield* Effect.promise(() => readFile(path, "utf8"))),
+          ),
+        ).toEqual(saved);
+      }),
   );
 });

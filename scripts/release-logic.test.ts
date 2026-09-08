@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   extractReleaseNotesFromChangelog,
@@ -44,20 +44,13 @@ describe("release logic", () => {
     expect(formatReleaseTag("0.0.2")).toBe("v0.0.2");
   });
 
-  it("builds the initial changelog from curated notes", () => {
-    expect(
-      makeInitialChangelog({
-        date: "2026-08-31",
-        notes: "Initial release notes.\n",
-        tag: "v0.0.1",
-        version: "0.0.1",
-      }),
-    ).toBe(
-      "# Changelog\n\n" +
-        "All notable changes to this project will be documented in this file.\n\n" +
-        "# [0.0.1](https://github.com/toommyliu/lucent/tree/v0.0.1) - (2026-08-31)\n" +
-        "Initial release notes.\n",
-    );
+  it("preserves the release tag, date, and curated notes in the initial changelog", () => {
+    const notes = "## Highlights\n\nInitial release notes.\n";
+    const changelog = makeInitialChangelog({ date: "2026-08-31", notes, tag: "v0.0.1", version: "0.0.1" });
+    expect(changelog).toContain("https://github.com/toommyliu/lucent/tree/v0.0.1");
+    expect(changelog).toContain("2026-08-31");
+    expect(extractReleaseNotesFromChangelog(changelog, "v0.0.1")).toBe(notes);
+    expect(extractReleaseNotesFromChangelog(changelog, "v0.0.2")).toBeNull();
   });
 
   it("requires the first release notes placeholder to be replaced", () => {

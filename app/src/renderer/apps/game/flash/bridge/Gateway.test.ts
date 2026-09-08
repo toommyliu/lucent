@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -26,24 +27,36 @@ describe("Gateway", () => {
         yield* Effect.scoped(
           Effect.gen(function* () {
             const gateway = yield* makeGateway(target);
+            const projecting = yield* Deferred.make<void>();
+            const release = yield* Deferred.make<void>();
             yield* gateway.start((packet) =>
               Effect.sync(() => {
                 projected.push(packet.command);
-              }),
+              }).pipe(
+                Effect.andThen(Deferred.succeed(projecting, undefined)),
+                Effect.andThen(Deferred.await(release)),
+              ),
             );
             const wait = makeWait(gateway);
-            const packet = yield* wait.forPacket(
-              { command: "moveToCell", direction: "client" },
-              {
-                timeout: "1 second",
-                trigger: Effect.sync(() => {
-                  target.packetFromClient?.(
-                    "%xt%zm%moveToCell%1%battleon-1%Enter%Spawn%",
-                  );
-                }).pipe(Effect.as(true)),
-              },
-            );
+            const waiting = yield* wait
+              .forPacket(
+                { command: "moveToCell", direction: "client" },
+                {
+                  timeout: "1 second",
+                  trigger: Effect.sync(() => {
+                    target.packetFromClient?.(
+                      "%xt%zm%moveToCell%1%battleon-1%Enter%Spawn%",
+                    );
+                  }).pipe(Effect.as(true)),
+                },
+              )
+              .pipe(Effect.forkScoped);
 
+            yield* Deferred.await(projecting);
+            yield* Effect.yieldNow;
+            expect(waiting.pollUnsafe()).toBeUndefined();
+            yield* Deferred.succeed(release, undefined);
+            const packet = yield* Fiber.join(waiting);
             expect(packet?.command).toBe("moveToCell");
             expect(projected).toEqual(["moveToCell"]);
             expect(target.packetFromClient).toBeTypeOf("function");

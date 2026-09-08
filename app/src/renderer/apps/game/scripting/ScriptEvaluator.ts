@@ -1,7 +1,6 @@
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
-import * as Ref from "effect/Ref";
 
 import { selectDesktopBridge } from "../../../../shared/desktopBridge";
 import { ArmyApi } from "../army/Army";
@@ -19,8 +18,6 @@ import {
   makeScriptRuntimeApi,
   runScriptExitActions,
   snapshotRoomPolicy,
-  snapshotScriptRuntimeOptions,
-  type ScriptRuntimeOptionsUpdate,
 } from "./ScriptRuntime";
 import { makeScriptAsyncScope } from "./scriptAsyncScope";
 import {
@@ -125,28 +122,22 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         projectionReadiness,
         wait: api.wait,
       });
-      yield* Effect.raceFirst(
+      const ready = yield* Effect.raceFirst(
         readiness.awaitReady(),
         Deferred.await(callbackFailure),
       );
 
-      const runnerOptions = yield* runner.getOptions();
-      const optionsRef = yield* Ref.make(
-        snapshotScriptRuntimeOptions(runnerOptions),
-      );
-      const getOptions = () =>
-        Ref.get(optionsRef).pipe(Effect.map(snapshotScriptRuntimeOptions));
-      const setOptions = (update: ScriptRuntimeOptionsUpdate) =>
-        Ref.updateAndGet(optionsRef, (options) =>
-          snapshotScriptRuntimeOptions(update(options)),
-        ).pipe(Effect.map(snapshotScriptRuntimeOptions));
+      yield* runner.bindAccount(ready.username);
       const script = makeScriptRuntimeApi({
         dialogs,
-        getOptions,
+        getOptions: runner.getOptions,
         inputValues: {},
-        log: (message) => debugConsole.log("[script]", message),
+        log: (...values) => debugConsole.log("[script]", ...values),
         scope,
-        setOptions,
+        setOptions: (update) =>
+          runner
+            .setOptions(update)
+            .pipe(Effect.map((result) => result.options)),
         source: { sourceName: "Debug Eval" },
       });
       const fileSystem = yield* makeScriptFileSystemApi(
@@ -160,9 +151,11 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         failCause: (cause: Cause.Cause<unknown>) =>
           Deferred.failCause(callbackFailure, cause).pipe(Effect.asVoid),
         fileSystem,
-        roomPolicy: Ref.get(optionsRef).pipe(
-          Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
-        ),
+        roomPolicy: runner
+          .getOptions()
+          .pipe(
+            Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
+          ),
         scope,
         script,
         services: makeScriptRuntimeServices(api, army, environment),

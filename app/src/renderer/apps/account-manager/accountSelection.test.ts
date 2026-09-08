@@ -6,24 +6,19 @@ import {
 } from "./accountSelection";
 
 describe("account selection", () => {
-  it("returns selected usernames in account order", () => {
+  it("reconciles selection in account order and detects membership changes", () => {
+    const selected = new Set(["Gamma", "missing", "Alpha"]);
+    const resolved = resolveSelectedAccountUsernames(
+      [{ username: "Alpha" }, { username: "Beta" }, { username: "Gamma" }],
+      selected,
+    );
+    expect(resolved).toEqual(["Alpha", "Gamma"]);
+    expect(haveSameAccountUsernames(selected, new Set(resolved))).toBe(false);
     expect(
-      resolveSelectedAccountUsernames(
-        [{ username: "Alpha" }, { username: "Beta" }, { username: "Gamma" }],
-        new Set(["Gamma", "missing", "Alpha"]),
-      ),
-    ).toEqual(["Alpha", "Gamma"]);
-  });
-
-  it("compares username sets without depending on insertion order", () => {
-    expect(
-      haveSameAccountUsernames(
-        new Set(["Alpha", "Beta"]),
-        new Set(["Beta", "Alpha"]),
-      ),
+      haveSameAccountUsernames(new Set(["Gamma", "Alpha"]), new Set(resolved)),
     ).toBe(true);
     expect(
-      haveSameAccountUsernames(new Set(["Alpha"]), new Set(["Alpha", "Beta"])),
+      haveSameAccountUsernames(new Set(["Beta", "Alpha"]), new Set(resolved)),
     ).toBe(false);
   });
 });

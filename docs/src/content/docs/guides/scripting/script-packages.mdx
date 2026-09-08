@@ -9,7 +9,7 @@ A script package is a folder directly inside `Documents/Lucent/packages` with a
 `package.json`. It can hold several runnable scripts, some shared code, or both.
 
 A standalone `.js` file in `Documents/Lucent/scripts` is called a loose script.
-Script packages look like npm packages, but do not use npm.
+Script packages resemble npm packages.
 
 ## Make a package
 
@@ -119,6 +119,17 @@ Lucent checks dependency versions before a script runs, but it does not install
 them for you. Install each dependency separately. A dependency also needs an
 exact `version` in its own `package.json`, otherwise Lucent cannot check the
 range.
+
+## Vendored script packages
+
+Each Lucent release includes snapshots of its vendored script packages. Browse
+the [package reference](/reference/scripting/packages/) for the included packages,
+their documented versions, and their public APIs.
+
+On first launch, Lucent installs the package snapshot included with that release
+if no matching package or folder exists.
+
+Script packages can be updated independently of Lucent.
 
 ## Install from GitHub
 

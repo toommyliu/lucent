@@ -16,6 +16,7 @@ export const QuestItemPayload = Schema.Struct({
   DropChance: Schema.optionalKey(WireNumber),
   ItemID: PositiveWireInt,
   iQty: Schema.optionalKey(WireInt),
+  iStk: Schema.optionalKey(PositiveWireInt),
   iRate: Schema.optionalKey(WireNumber),
   sName: Schema.optionalKey(Schema.String),
   bTemp: Schema.optionalKey(WireBoolean),
@@ -88,6 +89,7 @@ const toQuestItem = (
   itemId: payload.ItemID,
   name: payload.sName ?? `Item ${payload.ItemID}`,
   quantity: Math.max(1, quantityOverride ?? payload.iQty ?? 1),
+  ...(payload.iStk === undefined ? {} : { maxStack: payload.iStk }),
   ...(payload.bTemp === undefined ? {} : { temporaryItem: payload.bTemp }),
 });
 

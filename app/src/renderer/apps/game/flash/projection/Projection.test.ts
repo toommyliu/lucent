@@ -48,30 +48,111 @@ const client = (command: string, params: readonly string[]): Packet => ({
 const bridgeTarget = (methods: Record<string, () => unknown>) =>
   ({ swf: methods }) as unknown as Pick<Window, "swf">;
 
+const makeItemProjection = () =>
+  Effect.gen(function* () {
+    const store = yield* makeStore;
+    const diagnostics: string[] = [];
+    const events: Event[] = [];
+    const traces: ProjectionTrace[] = [];
+    const pipeline = makePipeline(store, {
+      publishEvent: (event) =>
+        Effect.sync(() => {
+          events.push(event);
+        }),
+      reportDiagnostic: (operation) =>
+        Effect.sync(() => {
+          diagnostics.push(operation);
+        }),
+      reportProjectionTrace: (_operation, trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+    });
+
+    return { store, pipeline, diagnostics, events, traces };
+  });
+
+const makeWorldProjection = () =>
+  Effect.gen(function* () {
+    const store = yield* makeStore;
+    let userIdReads = 0;
+    let locationReads = 0;
+    let worldLoaded = false;
+    const bridge = yield* makeBridge(
+      bridgeTarget({
+        "player.getCell": () => {
+          locationReads += 1;
+          return "Boss";
+        },
+        "player.getPad": () => {
+          locationReads += 1;
+          return "Right";
+        },
+        "player.getUserId": () => {
+          userIdReads += 1;
+          return 10;
+        },
+        "world.isLoaded": () => worldLoaded,
+      }),
+    );
+    const events: Event[] = [];
+    const pipeline = makePipeline(
+      store,
+      {
+        publishEvent: (event) =>
+          Effect.sync(() => {
+            events.push(event);
+          }),
+      },
+      bridge,
+    );
+
+    return {
+      store,
+      pipeline,
+      events,
+      userIdReads: () => userIdReads,
+      locationReads: () => locationReads,
+      setWorldLoaded: () => {
+        worldLoaded = true;
+      },
+    };
+  });
+
+const enterTestArea = (pipeline: ReturnType<typeof makePipeline>) =>
+  Effect.gen(function* () {
+    yield* pipeline.packet(
+      extension("moveToArea", {
+        areaId: 12,
+        areaName: "battleon-42",
+        monBranch: [
+          {
+            MonID: 5,
+            MonMapID: 1,
+            intHP: 100,
+            intHPMax: 100,
+            strMonName: "Slime",
+          },
+        ],
+        uoBranch: [
+          {
+            entID: 10,
+            intHP: 100,
+            intHPMax: 100,
+            strUsername: "Hero",
+          },
+        ],
+      }),
+    );
+  });
+
 describe("Projection", () => {
   it.effect(
-    "indexes valid item entries without rejecting a mixed container",
+    "indexes valid inventory entries and diagnoses malformed neighbors",
     () =>
       Effect.gen(function* () {
-        const store = yield* makeStore;
-        const diagnostics: string[] = [];
-        const events: Event[] = [];
-        const traces: ProjectionTrace[] = [];
-        const pipeline = makePipeline(store, {
-          publishEvent: (event) =>
-            Effect.sync(() => {
-              events.push(event);
-            }),
-          reportDiagnostic: (operation) =>
-            Effect.sync(() => {
-              diagnostics.push(operation);
-            }),
-          reportProjectionTrace: (_operation, trace) =>
-            Effect.sync(() => {
-              traces.push(trace);
-            }),
-        });
-
+        const { store, pipeline, diagnostics, traces } =
+          yield* makeItemProjection();
         yield* pipeline.packet(
           extension("loadInventoryBig", {
             items: [
@@ -92,6 +173,26 @@ describe("Projection", () => {
         ).toBe(7);
         expect(diagnostics).toEqual(["items:loadInventoryBig:entries"]);
 
+        expect(traces).toHaveLength(1);
+        expect(traces[0]).toMatchObject({
+          before: expect.any(Object),
+          diff: expect.any(Object),
+          packet: { command: "loadInventoryBig" },
+        });
+      }),
+  );
+
+  it.effect(
+    "projects bank swaps, sales, and equipment changes by item identity",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline } = yield* makeItemProjection();
+        yield* store.items.replace("inventory", [
+          toItem(
+            { CharItemID: 77, ItemID: 7, iQty: 3, sName: "Health Potion" },
+            { context: "inventory" },
+          ),
+        ]);
         yield* store.items.replace("bank", [
           toItem(
             {
@@ -123,42 +224,76 @@ describe("Projection", () => {
         expect((yield* store.items.get("inventory", 8))?.equipped).toBe(true);
         yield* pipeline.packet(extension("unequipItem", { ItemID: 8 }));
         expect((yield* store.items.get("inventory", 8))?.equipped).toBe(false);
+      }),
+  );
 
-        yield* pipeline.packet(
-          extension("dropItem", {
-            items: {
-              bad: { sName: "Invalid drop" },
-              valid: { ItemID: 9, iQty: 2, sName: "Dropped Item" },
-            },
+  it.effect("publishes valid drops alongside malformed entries", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeItemProjection();
+      yield* pipeline.packet(
+        extension("dropItem", {
+          items: {
+            bad: { sName: "Invalid drop" },
+            valid: { ItemID: 9, iQty: 2, sName: "Dropped Item" },
+          },
+        }),
+      );
+      expect((yield* store.items.get("drop", 9))?.quantity).toBe(2);
+
+      expect(events).toEqual([
+        {
+          item: expect.objectContaining({
+            context: "drop",
+            itemId: 9,
+            name: "Dropped Item",
+            quantity: 2,
           }),
-        );
-        expect((yield* store.items.get("drop", 9))?.quantity).toBe(2);
+          type: "item-drop",
+        },
+      ]);
+    }),
+  );
 
-        yield* store.items.replace(
-          "shop",
-          [
-            { ItemID: 7, ShopItemID: 70, iQty: 1, sName: "Indexed Shop Item" },
-          ].map((payload) => toItem(payload, { context: "shop" })),
+  it.effect(
+    "indexes shop entries by item ID while preserving shop item ID",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline } = yield* makeItemProjection();
+        yield* pipeline.packet(
+          extension("loadShop", {
+            ShopID: 1,
+            items: [
+              {
+                ItemID: 7,
+                ShopItemID: 70,
+                iQty: 1,
+                iStk: "99",
+                sName: "Indexed Shop Item",
+                turnin: null,
+              },
+              {
+                ItemID: 7,
+                ShopItemID: 71,
+                iQty: "5",
+                iStk: "99",
+                sName: "Indexed Shop Item",
+                turnin: [{ ItemID: "8", sName: "Bank Item", iQty: "2" }],
+              },
+            ],
+          }),
         );
         expect(
           (yield* store.items.get("shop", { itemId: 7 }))?.shopItemId,
         ).toBe(70);
-        expect(events).toEqual([
-          {
-            item: expect.objectContaining({
-              context: "drop",
-              itemId: 9,
-              name: "Dropped Item",
-              quantity: 2,
-            }),
-            type: "item-drop",
-          },
-        ]);
-        expect(traces).toHaveLength(6);
-        expect(traces[0]).toMatchObject({
-          before: expect.any(Object),
-          diff: expect.any(Object),
-          packet: { command: "loadInventoryBig" },
+        expect(
+          (yield* store.items.get("shop", { shopItemId: 70 }))?.requirements,
+        ).toEqual([]);
+        expect(
+          yield* store.items.get("shop", { shopItemId: 71 }),
+        ).toMatchObject({
+          maxStack: 99,
+          quantity: 5,
+          requirements: [{ itemId: 8, name: "Bank Item", quantity: 2 }],
         });
       }),
   );
@@ -484,42 +619,11 @@ describe("Projection", () => {
     }),
   );
 
-  it.effect("resets area state and applies combat auras and deaths", () =>
-    Effect.scoped(
+  it.effect(
+    "updates self health and accepts area changes only from extensions",
+    () =>
       Effect.gen(function* () {
-        const store = yield* makeStore;
-        let userIdReads = 0;
-        let locationReads = 0;
-        let worldLoaded = false;
-        const bridge = yield* makeBridge(
-          bridgeTarget({
-            "player.getCell": () => {
-              locationReads += 1;
-              return "Boss";
-            },
-            "player.getPad": () => {
-              locationReads += 1;
-              return "Right";
-            },
-            "player.getUserId": () => {
-              userIdReads += 1;
-              return 10;
-            },
-            "world.isLoaded": () => worldLoaded,
-          }),
-        );
-        const events: Event[] = [];
-        const pipeline = makePipeline(
-          store,
-          {
-            publishEvent: (event) =>
-              Effect.sync(() => {
-                events.push(event);
-              }),
-          },
-          bridge,
-        );
-
+        const { store, pipeline } = yield* makeWorldProjection();
         yield* pipeline.packet(
           extension("initUserDatas", {
             a: [
@@ -551,37 +655,30 @@ describe("Projection", () => {
         );
         expect((yield* store.world.getMap).id).toBe(0);
 
-        yield* pipeline.packet(
-          extension("moveToArea", {
-            areaId: 12,
-            areaName: "battleon-42",
-            monBranch: [
-              {
-                MonID: 5,
-                MonMapID: 1,
-                intHP: 100,
-                intHPMax: 100,
-                strMonName: "Slime",
-              },
-            ],
-            uoBranch: [
-              {
-                entID: 10,
-                intHP: 100,
-                intHPMax: 100,
-                strUsername: "Hero",
-              },
-            ],
-          }),
-        );
+        yield* enterTestArea(pipeline);
         expect((yield* store.world.getMap).roomNumber).toBe(42);
         expect((yield* store.world.getMe)?.username).toBe("Hero");
+      }),
+  );
 
-        yield* pipeline.packet(extension("ct", { m: { "1": { intHP: 20 } } }));
-        expect((yield* store.world.getMonster(1))?.hp).toBe(100);
-        yield* pipeline.packet(server("ct", { m: { "1": { intHP: 80 } } }));
-        expect((yield* store.world.getMonster(1))?.hp).toBe(80);
+  it.effect("projects monster combat ticks only from the server", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeWorldProjection();
+      yield* enterTestArea(pipeline);
+      yield* pipeline.packet(extension("ct", { m: { "1": { intHP: 20 } } }));
+      expect((yield* store.world.getMonster(1))?.hp).toBe(100);
+      yield* pipeline.packet(server("ct", { m: { "1": { intHP: 80 } } }));
+      expect((yield* store.world.getMonster(1))?.hp).toBe(80);
+    }),
+  );
 
+  it.effect(
+    "tracks movement and refreshes location only after the world loads",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, locationReads, setWorldLoaded } =
+          yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
         yield* pipeline.packet(
           client("moveToCell", [
             "xt",
@@ -612,9 +709,9 @@ describe("Projection", () => {
         });
         expect((yield* store.world.getMe)?.cell).toBe("Battle");
         expect((yield* store.world.getMe)?.pad).toBe("Left");
-        expect(locationReads).toBe(0);
+        expect(locationReads()).toBe(0);
 
-        worldLoaded = true;
+        setWorldLoaded();
         yield* pipeline.packet({
           command: "mtcid",
           data: ["mtcid", "4"],
@@ -624,28 +721,22 @@ describe("Projection", () => {
         });
         expect((yield* store.world.getMe)?.cell).toBe("Boss");
         expect((yield* store.world.getMe)?.pad).toBe("Right");
-        expect(locationReads).toBe(2);
+        expect(locationReads()).toBe(2);
+      }),
+  );
 
+  it.effect(
+    "publishes monster death and aura metadata, then clears auras on respawn",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
         yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              { cmd: "unsupported-aura", tInf: "p:10" },
-              {
-                auras: [{ nam: "Empowered", dur: "10" }],
-                cmd: "aura+",
-                tInf: "p:10",
-              },
-            ],
-            m: { "1": { intHP: 0, intState: 0 } },
-          }),
-        );
-        expect((yield* store.world.getPlayer(10))?.auras[0]?.name).toBe(
-          "Empowered",
+          extension("cb", { m: { "1": { intHP: 0, intState: 0 } } }),
         );
         expect(events.some((event) => event.type === "monster-death")).toBe(
           true,
         );
-
         yield* pipeline.packet(
           extension("cb", {
             a: [
@@ -686,97 +777,126 @@ describe("Projection", () => {
           extension("respawnMon", ["respawnMon", "", "1"]),
         );
         expect((yield* store.world.getMonster(1))?.auras).toEqual([]);
-
-        yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              {
-                auras: [{ nam: "Empowered", dur: 10 }],
-                cmd: "aura++",
-                tInf: "p:10",
-              },
-            ],
-          }),
-        );
-        expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(2);
-
-        yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              {
-                aura: { nam: "Empowered" },
-                cmd: "aura--",
-                tInf: "p:10",
-              },
-            ],
-          }),
-        );
-        expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
-
-        yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              {
-                aura: {
-                  isNew: true,
-                  nam: "Skill Locked",
-                  val: "Ravenous",
-                },
-                cmd: "aura+",
-                tInf: "p:10",
-              },
-            ],
-          }),
-        );
-        expect(
-          (yield* store.world.getPlayer(10))?.getAura("Skill Locked")?.value,
-        ).toBe("Ravenous");
-
-        yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              {
-                aura: {
-                  msgOff: "@Ravenous can now be used again!",
-                  nam: "Skill Locked",
-                  val: "Ravenous",
-                },
-                cmd: "aura-",
-                tInf: "p:10",
-              },
-            ],
-          }),
-        );
-        expect(events.slice(-2)).toEqual([
-          {
-            type: "aura-removed",
-            name: "Skill Locked",
-            targetId: 10,
-            targetType: "player",
-          },
-          {
-            type: "update-message",
-            message: "Ravenous can now be used again!",
-            source: "aura",
-          },
-        ]);
-        expect(
-          (yield* store.world.getPlayer(10))?.getAura("Skill Locked"),
-        ).toBeNull();
-
-        yield* pipeline.packet(
-          extension("moveToArea", {
-            areaId: 13,
-            areaName: "yulgar-1",
-            monBranch: [],
-            uoBranch: [],
-          }),
-        );
-        expect(yield* store.world.getMonsters).toEqual([]);
-        expect(yield* store.world.getPlayer(10)).toBeNull();
-        expect(userIdReads).toBe(1);
       }),
-    ),
+  );
+
+  it.effect("stacks player auras and publishes removal messages", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* enterTestArea(pipeline);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            { cmd: "unsupported-aura", tInf: "p:10" },
+            {
+              auras: [{ nam: "Empowered", dur: "10" }],
+              cmd: "aura+",
+              tInf: "p:10",
+            },
+          ],
+        }),
+      );
+      expect((yield* store.world.getPlayer(10))?.auras[0]?.name).toBe(
+        "Empowered",
+      );
+
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              auras: [{ nam: "Empowered", dur: 10 }],
+              cmd: "aura++",
+              tInf: "p:10",
+            },
+          ],
+        }),
+      );
+      expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(2);
+
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              aura: { nam: "Empowered" },
+              cmd: "aura--",
+              tInf: "p:10",
+            },
+          ],
+        }),
+      );
+      expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
+
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              aura: {
+                isNew: true,
+                nam: "Skill Locked",
+                val: "Ravenous",
+              },
+              cmd: "aura+",
+              tInf: "p:10",
+            },
+          ],
+        }),
+      );
+      expect(
+        (yield* store.world.getPlayer(10))?.getAura("Skill Locked")?.value,
+      ).toBe("Ravenous");
+
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              aura: {
+                msgOff: "@Ravenous can now be used again!",
+                nam: "Skill Locked",
+                val: "Ravenous",
+              },
+              cmd: "aura-",
+              tInf: "p:10",
+            },
+          ],
+        }),
+      );
+      expect(events.slice(-2)).toEqual([
+        {
+          type: "aura-removed",
+          name: "Skill Locked",
+          targetId: 10,
+          targetType: "player",
+        },
+        {
+          type: "update-message",
+          message: "Ravenous can now be used again!",
+          source: "aura",
+        },
+      ]);
+      expect(
+        (yield* store.world.getPlayer(10))?.getAura("Skill Locked"),
+      ).toBeNull();
+    }),
+  );
+
+  it.effect("clears players and monsters when entering another area", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, userIdReads } = yield* makeWorldProjection();
+      yield* enterTestArea(pipeline);
+      expect((yield* store.world.getMonsters).length).toBe(1);
+      expect(yield* store.world.getPlayer(10)).not.toBeNull();
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 13,
+          areaName: "yulgar-1",
+          monBranch: [],
+          uoBranch: [],
+        }),
+      );
+      expect(yield* store.world.getMonsters).toEqual([]);
+      expect(yield* store.world.getPlayer(10)).toBeNull();
+      expect(userIdReads()).toBe(1);
+    }),
   );
 
   it.effect("exposes player position and destination movement semantics", () =>

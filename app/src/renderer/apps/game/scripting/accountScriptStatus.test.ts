@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import type { ScriptRunnerStatus } from "./ScriptRunner";
 import { accountSessionScriptState } from "./accountScriptStatus";
@@ -10,48 +10,49 @@ const runningStatus: ScriptRunnerStatus = {
 };
 
 describe("account script status", () => {
-  it("projects a running script without account identity", () => {
-    expect(accountSessionScriptState(runningStatus)).toEqual({
-      name: "farm.js",
-      state: "running",
-    });
-  });
-
-  it("uses an explicit fallback name while the runner is idle", () => {
-    expect(accountSessionScriptState({ state: "idle" }, "farm.js")).toEqual({
-      name: "farm.js",
-      state: "idle",
-    });
-  });
-
-  it("preserves runner failures as script failures", () => {
-    expect(
-      accountSessionScriptState({
+  it.each([
+    {
+      status: runningStatus,
+      fallback: undefined,
+      expected: { name: "farm.js", state: "running" },
+    },
+    {
+      status: { state: "idle" },
+      fallback: "farm.js",
+      expected: { name: "farm.js", state: "idle" },
+    },
+    {
+      status: {
         failedAt: "2026-08-09T00:00:00.000Z",
         message: "boom",
         name: "farm.js",
         state: "failed",
-      }),
-    ).toEqual({
-      message: "boom",
-      name: "farm.js",
-      state: "failed",
-    });
-  });
-
-  it("keeps an idle directly opened game idle", () => {
-    expect(accountSessionScriptState({ state: "idle" })).toEqual({
-      state: "idle",
-    });
-  });
-
-  it("does not attribute a stopped runner to an old launch", () => {
-    expect(
-      accountSessionScriptState({
+      },
+      fallback: undefined,
+      expected: { message: "boom", name: "farm.js", state: "failed" },
+    },
+    {
+      status: { state: "idle" },
+      fallback: undefined,
+      expected: { state: "idle" },
+    },
+    {
+      status: {
         reason: "Stopped by user",
         state: "stopped",
         stoppedAt: "2026-08-09T00:00:00.000Z",
-      }),
-    ).toEqual({ message: "Stopped by user", state: "stopped" });
-  });
+      },
+      fallback: undefined,
+      expected: { message: "Stopped by user", state: "stopped" },
+    },
+  ] satisfies {
+    status: ScriptRunnerStatus;
+    fallback: string | undefined;
+    expected: ReturnType<typeof accountSessionScriptState>;
+  }[])(
+    "projects $status.state with fallback $fallback",
+    ({ status, fallback, expected }) => {
+      expect(accountSessionScriptState(status, fallback)).toEqual(expected);
+    },
+  );
 });

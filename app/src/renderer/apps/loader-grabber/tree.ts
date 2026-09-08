@@ -9,22 +9,7 @@ import { formatItemEnhancement } from "@lucent/game";
 export interface TreeItem {
   readonly children?: readonly TreeItem[];
   readonly name: string;
-  readonly raw?: unknown;
   readonly value?: string;
-}
-
-export interface FlattenedTreeItem extends TreeItem {
-  readonly hasChildren: boolean;
-  readonly index: number;
-  readonly isLastSibling: boolean;
-  readonly level: number;
-  readonly nodeId: string;
-}
-
-export interface VisibleTreeItems {
-  readonly autoExpandedNodeIds: ReadonlySet<string>;
-  readonly items: readonly FlattenedTreeItem[];
-  readonly matchedRootCount: number;
 }
 
 export interface FilteredTreeRoot {
@@ -79,7 +64,6 @@ const itemTree = (
       : optionalNode("Description", item.description),
   ]),
   name: itemName(item),
-  raw: item,
 });
 
 const buildShop = (shop: GrabbedDataByType["shop"]): readonly TreeItem[] =>
@@ -116,7 +100,6 @@ const buildQuests = (quests: GrabbedDataByType["quest"]): readonly TreeItem[] =>
             : node("Temporary", item.temporaryItem ? "Yes" : "No"),
         ]),
         name: item.name || "Unnamed item",
-        raw: item,
       }),
     );
     const rewards = quest.rewards.map(
@@ -129,7 +112,6 @@ const buildQuests = (quests: GrabbedDataByType["quest"]): readonly TreeItem[] =>
             : node("Drop chance", `${item.dropChance}%`),
         ]),
         name: item.name || "Unnamed item",
-        raw: item,
       }),
     );
 
@@ -145,7 +127,6 @@ const buildQuests = (quests: GrabbedDataByType["quest"]): readonly TreeItem[] =>
           : { children: rewards, name: "Rewards" },
       ]),
       name: `${quest.id} - ${quest.name}`,
-      raw: quest,
     };
   });
 
@@ -202,7 +183,6 @@ const buildMonsters = (
                 name: "Quest Objectives",
               },
         ]),
-        raw: drop,
       };
     });
 
@@ -218,7 +198,6 @@ const buildMonsters = (
         drops.length === 0 ? undefined : { children: drops, name: "Drops" },
       ]),
       name: monster.name.trim() === "" ? "Unnamed monster" : monster.name,
-      raw: monster,
     };
   });
 
@@ -259,8 +238,6 @@ export const buildGrabbedDataTree = (
   }
 };
 
-const pathId = (path: readonly number[]): string => path.join(".");
-
 const itemMatches = (item: TreeItem, query: string): boolean =>
   item.name.toLocaleLowerCase().includes(query) ||
   (item.value?.toLocaleLowerCase().includes(query) ?? false);
@@ -280,102 +257,4 @@ export const filterTreeRoots = (
       ? [{ item, nodeId: String(index) }]
       : [],
   );
-};
-
-export const buildVisibleTreeItems = (
-  data: readonly TreeItem[],
-  expandedNodeIds: ReadonlySet<string>,
-  query: string,
-): VisibleTreeItems => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const autoExpandedNodeIds = new Set<string>();
-  const matchesById = new Map<string, boolean>();
-
-  const inspect = (item: TreeItem, path: readonly number[]): boolean => {
-    let descendantMatches = false;
-    item.children?.forEach((child, index) => {
-      descendantMatches = inspect(child, [...path, index]) || descendantMatches;
-    });
-    const matches =
-      normalizedQuery === "" ||
-      itemMatches(item, normalizedQuery) ||
-      descendantMatches;
-    const id = pathId(path);
-    matchesById.set(id, matches);
-    if (normalizedQuery !== "" && descendantMatches) {
-      autoExpandedNodeIds.add(id);
-    }
-    return matches;
-  };
-
-  data.forEach((item, index) => inspect(item, [index]));
-  const visibleRoots = data
-    .map((item, index) => ({ index, item }))
-    .filter(({ index }) => matchesById.get(pathId([index])) === true);
-  const items: FlattenedTreeItem[] = [];
-
-  const append = (
-    item: TreeItem,
-    path: readonly number[],
-    level: number,
-    isLastSibling: boolean,
-  ): void => {
-    const nodeId = pathId(path);
-    const children = item.children ?? [];
-    items.push({
-      ...item,
-      hasChildren: children.length > 0,
-      index: items.length,
-      isLastSibling,
-      level,
-      nodeId,
-    });
-
-    const expanded =
-      normalizedQuery === ""
-        ? expandedNodeIds.has(nodeId)
-        : autoExpandedNodeIds.has(nodeId);
-    if (!expanded) {
-      return;
-    }
-    const visibleChildren = children
-      .map((child, index) => ({ child, index }))
-      .filter(
-        ({ index }) => matchesById.get(pathId([...path, index])) === true,
-      );
-    visibleChildren.forEach(({ child, index }, visibleIndex) => {
-      append(
-        child,
-        [...path, index],
-        level + 1,
-        visibleIndex === visibleChildren.length - 1,
-      );
-    });
-  };
-
-  visibleRoots.forEach(({ index, item }, visibleIndex) => {
-    append(item, [index], 0, visibleIndex === visibleRoots.length - 1);
-  });
-
-  return {
-    autoExpandedNodeIds,
-    items,
-    matchedRootCount: visibleRoots.length,
-  };
-};
-
-export const toTreeJson = (item: TreeItem): unknown => {
-  if (item.raw !== undefined) {
-    return item.raw;
-  }
-  if (item.children !== undefined && item.children.length > 0) {
-    return {
-      name: item.name,
-      children: item.children.map(toTreeJson),
-      ...(item.value === undefined ? {} : { value: item.value }),
-    };
-  }
-  return item.value === undefined
-    ? { name: item.name }
-    : { name: item.name, value: item.value };
 };

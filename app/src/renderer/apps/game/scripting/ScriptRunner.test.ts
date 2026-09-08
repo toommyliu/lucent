@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 
 import {
@@ -76,45 +76,34 @@ describe("ScriptRunner", () => {
     });
   });
 
-  it("classifies script failures", () => {
-    expect(classifyScriptTermination(Cause.fail(new Error("boom")))).toEqual({
-      kind: "failed",
-    });
-  });
-
-  it("classifies script.stop() with its reason", () => {
-    expect(
-      classifyScriptTermination(
-        Cause.fail(new ScriptStopSignal({ reason: "done" })),
+  it.each([
+    {
+      name: "failure",
+      cause: Cause.fail(new Error("boom")),
+      expected: { kind: "failed" },
+    },
+    {
+      name: "script stop",
+      cause: Cause.fail(new ScriptStopSignal({ reason: "done" })),
+      expected: { kind: "script-stopped", reason: "done" },
+    },
+    ...[false, true].map((actions) => ({
+      name: actions ? "exit with actions" : "plain exit",
+      cause: Cause.fail(
+        makeScriptExitSignal({ closeClient: actions, logout: actions }),
       ),
-    ).toEqual({ kind: "script-stopped", reason: "done" });
-  });
-
-  it("keeps plain script.exit() distinct from script.stop()", () => {
-    expect(
-      classifyScriptTermination(Cause.fail(makeScriptExitSignal())),
-    ).toEqual({
-      exitRequest: { closeClient: false, logout: false },
-      kind: "script-exited",
-      reason: "Requested by the script",
-    });
-  });
-
-  it("classifies action-bearing script.exit()", () => {
-    expect(
-      classifyScriptTermination(
-        Cause.fail(makeScriptExitSignal({ closeClient: true, logout: true })),
-      ),
-    ).toEqual({
-      exitRequest: { closeClient: true, logout: true },
-      kind: "script-exited",
-      reason: "Requested by the script",
-    });
-  });
-
-  it("classifies external interruption", () => {
-    expect(classifyScriptTermination(Cause.interrupt())).toEqual({
-      kind: "script-interrupted",
-    });
+      expected: {
+        kind: "script-exited",
+        exitRequest: { closeClient: actions, logout: actions },
+        reason: "Requested by the script",
+      },
+    })),
+    {
+      name: "external interruption",
+      cause: Cause.interrupt(),
+      expected: { kind: "script-interrupted" },
+    },
+  ])("classifies $name", ({ cause, expected }) => {
+    expect(classifyScriptTermination(cause)).toEqual(expected);
   });
 });

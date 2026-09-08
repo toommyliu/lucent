@@ -6,7 +6,7 @@ export const GAME_CONSOLE_OBSERVABILITY_ARGUMENT =
 export const GAME_VIEW_LAYOUT_ARGUMENT = "--lucent__gameViewLayout";
 export const TRACE_PROJECTIONS_ARGUMENT = "--lucent__traceProjections";
 
-const readArgumentValue = (
+export const readArgumentValue = (
   argv: readonly string[],
   name: string,
 ): string | null => {
@@ -15,17 +15,9 @@ const readArgumentValue = (
   return value === undefined ? null : value.slice(prefix.length);
 };
 
-export const serializeDebugModeArgument = (): string => DEBUG_MODE_ARGUMENT;
-
-export const serializeGameConsoleObservabilityArgument = (): string =>
-  GAME_CONSOLE_OBSERVABILITY_ARGUMENT;
-
 export const serializeGameViewLayoutArgument = (
   layout: GameViewLayout,
 ): string => `${GAME_VIEW_LAYOUT_ARGUMENT}=${layout}`;
-
-export const serializeTraceProjectionsArgument = (): string =>
-  TRACE_PROJECTIONS_ARGUMENT;
 
 export const readDebugModeArgument = (argv: readonly string[]): boolean =>
   argv.includes(DEBUG_MODE_ARGUMENT);

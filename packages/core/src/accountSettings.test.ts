@@ -1,29 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
-  DEFAULT_ACCOUNT_SETTINGS,
   RANDOM_PRIVATE_ROOM_POLICY,
   applyAccountSettingsPatch,
   normalizeAccountSettings,
 } from "./accountSettings";
 
 describe("account settings", () => {
-  it("normalizes fields independently", () => {
-    expect(
-      normalizeAccountSettings({
-        scripts: {
-          restartAfterReconnect: true,
-          roomPolicy: { kind: "specific", roomNumber: 42 },
-          safeStartStop: "invalid",
-        },
-      }),
-    ).toEqual({
+  it("normalizes fields independently and preserves siblings when patching", () => {
+    const normalized = normalizeAccountSettings({
+      scripts: {
+        restartAfterReconnect: true,
+        roomPolicy: { kind: "specific", roomNumber: 42 },
+        safeStartStop: "invalid",
+      },
+    });
+    expect(normalized).toEqual({
       version: 1,
       scripts: {
         restartAfterReconnect: true,
         roomPolicy: { kind: "specific", roomNumber: 42 },
         safeStartStop: true,
       },
+    });
+    expect(
+      applyAccountSettingsPatch(normalized, {
+        scripts: { restartAfterReconnect: false },
+      }),
+    ).toEqual({
+      ...normalized,
+      scripts: { ...normalized.scripts, restartAfterReconnect: false },
     });
   });
 
@@ -65,19 +71,5 @@ describe("account settings", () => {
         scripts: { roomPolicy: { kind: "unknown" } },
       }).scripts.roomPolicy,
     ).toEqual(RANDOM_PRIVATE_ROOM_POLICY);
-  });
-
-  it("patches one field without dropping siblings", () => {
-    expect(
-      applyAccountSettingsPatch(DEFAULT_ACCOUNT_SETTINGS, {
-        scripts: { restartAfterReconnect: true },
-      }),
-    ).toEqual({
-      ...DEFAULT_ACCOUNT_SETTINGS,
-      scripts: {
-        ...DEFAULT_ACCOUNT_SETTINGS.scripts,
-        restartAfterReconnect: true,
-      },
-    });
   });
 });

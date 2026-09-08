@@ -8,6 +8,7 @@ const docsRelevantFiles = new Set([
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "scripts/docgen.ts",
+  "scripts/docgen-packages.ts",
   "scripts/gen-script-types.ts",
   "scripts/vercel-docs-ignore.mjs",
   "vercel.json",
@@ -24,7 +25,9 @@ const hasRef = (ref) => run("git", ["rev-parse", "--verify", ref]).status === 0;
 const splitLines = (value) => value.trim().split(/\r?\n/).filter(Boolean);
 
 const isDocsRelevantPath = (path) =>
-  path.startsWith(docsPath) || docsRelevantFiles.has(path);
+  path.startsWith(docsPath) ||
+  path.startsWith("script-packages/") ||
+  docsRelevantFiles.has(path);
 
 const pathsFromNameStatus = (value) =>
   splitLines(value).flatMap((line) => {

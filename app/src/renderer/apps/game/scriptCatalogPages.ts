@@ -112,23 +112,6 @@ export const touchScriptCatalogPages = (
   return next;
 };
 
-export const storeScriptCatalogPage = (
-  current: ScriptCatalogPageCache,
-  offset: number,
-  entries: readonly ScriptCatalogEntry[],
-  maximumPages = SCRIPT_CATALOG_PAGE_CACHE_SIZE,
-): ScriptCatalogPageCache => {
-  const next = new Map(current);
-  next.delete(offset);
-  next.set(offset, entries);
-  while (next.size > maximumPages) {
-    const oldest = next.keys().next().value;
-    if (oldest === undefined) break;
-    next.delete(oldest);
-  }
-  return next;
-};
-
 export const storeScriptCatalogPageRange = (
   current: ScriptCatalogPageCache,
   responseOffset: number,

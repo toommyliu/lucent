@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 
 import {
   DEFAULT_ACCOUNT_SETTINGS,
-  RoomPolicySchema,
+  AccountScriptSettingsPatchSchema,
 } from "@lucent/core/accountSettings";
 import type {
   ScriptInputValue,
@@ -14,6 +14,7 @@ import type {
   RoomPolicy,
   ScriptRuntimeApi,
   ScriptRuntimeOptions,
+  ScriptRuntimeOptionsPatch,
 } from "./ScriptApi";
 import { playBeep } from "../audio/beep";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
@@ -35,7 +36,9 @@ export const snapshotRoomPolicy = (policy: RoomPolicy): RoomPolicy => ({
   ...policy,
 });
 
-const decodeRoomPolicy = Schema.decodeUnknownEffect(RoomPolicySchema);
+const decodeOptionsPatch = Schema.decodeUnknownEffect(
+  AccountScriptSettingsPatchSchema,
+);
 
 export const snapshotScriptRuntimeOptions = (
   options: ScriptRuntimeOptions,
@@ -66,7 +69,7 @@ export interface ScriptRuntimeApiOptions {
   readonly dialogs: Pick<ScriptDialogsShape, "alert" | "confirm" | "prompt">;
   readonly getOptions: () => Effect.Effect<ScriptRuntimeOptions>;
   readonly inputValues: ScriptInputValues;
-  readonly log: (message: unknown) => void;
+  readonly log: (...values: unknown[]) => void;
   readonly scope: ScriptAsyncScope;
   readonly setOptions: (
     update: ScriptRuntimeOptionsUpdate,
@@ -122,60 +125,34 @@ export const makeScriptRuntimeApi = (
       },
       getAll: () => Effect.succeed(snapshotScriptInputValues(inputValues)),
     }),
-    log: (message) => Effect.sync(() => options.log(message)),
+    log: (...values) => Effect.sync(() => options.log(...values)),
     options: Object.freeze({
-      getAll: options.getOptions,
-      getRestartAfterReconnect: () =>
+      get: options.getOptions,
+      reset: () =>
         options
-          .getOptions()
-          .pipe(
-            Effect.map(
-              (currentOptions) => currentOptions.restartAfterReconnect,
-            ),
-          ),
-      getRoomPolicy: () =>
-        options
-          .getOptions()
-          .pipe(
-            Effect.map((currentOptions) =>
-              snapshotRoomPolicy(currentOptions.roomPolicy),
-            ),
-          ),
-      getSafeStartStop: () =>
-        options
-          .getOptions()
-          .pipe(Effect.map((currentOptions) => currentOptions.safeStartStop)),
-      reset: () => options.setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS),
-      setRestartAfterReconnect: (enabled: boolean) =>
-        options.setOptions((currentOptions) => ({
-          ...currentOptions,
-          restartAfterReconnect: enabled,
-        })),
-      setRoomPolicy: (policy: RoomPolicy) =>
-        decodeRoomPolicy(policy).pipe(
+          .setOptions(() => DEFAULT_SCRIPT_RUNTIME_OPTIONS)
+          .pipe(Effect.asVoid),
+      update: Effect.fn("ScriptRuntime.options.update")(function* (
+        patch: ScriptRuntimeOptionsPatch,
+      ) {
+        const decoded = yield* decodeOptionsPatch(patch).pipe(
           Effect.mapError(
             (cause) =>
               new ScriptExecutionError({
                 cause,
-                detail:
-                  "script.options.setRoomPolicy requires a valid room policy.",
+                detail: "script.options.update requires valid runtime options.",
               }),
           ),
-          Effect.flatMap((roomPolicy) =>
-            options.setOptions((currentOptions) => ({
-              ...currentOptions,
-              roomPolicy: snapshotRoomPolicy(roomPolicy),
-            })),
-          ),
-        ),
-      setSafeStartStop: (enabled: boolean) =>
-        options.setOptions((currentOptions) => ({
+        );
+        if (Object.keys(decoded).length === 0) return;
+        yield* options.setOptions((currentOptions) => ({
           ...currentOptions,
-          safeStartStop: enabled,
-        })),
+          ...decoded,
+        }));
+      }),
     }),
-    prompt: (message, defaultValue) =>
-      options.dialogs.prompt(source, message, defaultValue),
+    prompt: (message, placeholder) =>
+      options.dialogs.prompt(source, message, placeholder),
     signal: options.scope.signal,
     sleep: (duration) =>
       Effect.try({

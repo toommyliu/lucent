@@ -61,12 +61,6 @@ export type IpcInvokeEnvelope<Result> =
       readonly ok: false;
     };
 
-export const IpcBridgeErrorSchema = Schema.Struct({
-  channel: Schema.optionalKey(Schema.String),
-  code: Schema.String,
-  message: Schema.String,
-});
-
 const ipcDecodeOptions = { onExcessProperty: "error" } as const;
 
 export const defineInvoke = <Payload, Result>(descriptor: {

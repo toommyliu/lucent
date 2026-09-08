@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "@effect/vitest";
 
 import type { ScriptFile } from "../../../../shared/ipc/scripting";
 import type { ScriptInputsDefinition } from "@lucent/core/scriptInputs";

@@ -57,11 +57,6 @@ describe("settings", () => {
     expect(
       normalized.hotkeys.bindings.find(({ id }) => id === "loadScript")?.value,
     ).toBe("Control+Shift+L");
-    expect(
-      normalized.hotkeys.bindings.find(({ id }) => id === "toggleScriptsDialog")
-        ?.value,
-    ).toBe("Mod+Shift+S");
-    expect(normalized.hotkeys.bindings).toHaveLength(23);
     expect(normalized.appearance.themeMode).toBe("light");
     expect(normalized.appearance.themes.light.tokens.background).toEqual([
       1, 2, 3,

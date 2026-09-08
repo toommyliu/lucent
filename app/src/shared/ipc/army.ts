@@ -11,7 +11,6 @@ import {
   ArmyLoopTauntTerminalResultSchema,
   ArmySessionEndedPayloadSchema,
   ArmySessionPayloadSchema,
-  type ArmyProgressResult,
 } from "@lucent/core/army";
 import { defineEvent, defineInvoke } from "./core";
 
@@ -125,5 +124,3 @@ export const ArmyIpc = {
     payload: ArmyLoopTauntCommandPayloadSchema,
   }),
 } as const;
-
-export type ArmyProgressResultPayload = ArmyProgressResult;
