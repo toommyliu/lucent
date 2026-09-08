@@ -36,6 +36,7 @@ export const ItemFields = {
   iLvl: Schema.optionalKey(NonNegativeWireInt),
   iQty: Schema.optionalKey(WireInt),
   iQtyNow: Schema.optionalKey(WireInt),
+  iStk: Schema.optionalKey(PositiveWireInt),
   sDesc: Schema.optionalKey(Schema.String),
   sES: Schema.optionalKey(Schema.String),
   sFile: Schema.optionalKey(Schema.String),
@@ -44,6 +45,17 @@ export const ItemFields = {
   sName: Schema.optionalKey(Schema.String),
   sType: Schema.optionalKey(Schema.String),
   strES: Schema.optionalKey(Schema.String),
+  turnin: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Array(
+        Schema.Struct({
+          ItemID: PositiveWireInt,
+          sName: Schema.optionalKey(Schema.String),
+          iQty: PositiveWireInt,
+        }),
+      ),
+    ),
+  ),
 };
 
 export const ItemPayload = Schema.Struct(ItemFields);
@@ -102,6 +114,15 @@ export const toItem = (
     ...(payload.EnhRty === undefined ? {} : { rarity: payload.EnhRty }),
   };
   const hasEnhancement = Object.keys(enhancement).length > 0;
+  const maxStack = payload.iStk ?? defaults.maxStack;
+  const requirements =
+    payload.turnin === undefined
+      ? defaults.requirements
+      : (payload.turnin ?? []).map((requirement) => ({
+          itemId: requirement.ItemID,
+          name: requirement.sName ?? "",
+          quantity: requirement.iQty,
+        }));
 
   return new LiveItem({
     category,
@@ -121,6 +142,7 @@ export const toItem = (
     houseItem,
     itemId: payload.ItemID,
     link: payload.sLink ?? defaults.link ?? "",
+    ...(maxStack === undefined ? {} : { maxStack }),
     memberOnly: payload.bUpg ?? defaults.memberOnly ?? false,
     meta: payload.sMeta ?? defaults.meta ?? "",
     name: payload.sName ?? defaults.name ?? `Item ${payload.ItemID}`,
@@ -128,6 +150,7 @@ export const toItem = (
       0,
       payload.iQtyNow ?? payload.iQty ?? defaults.quantity ?? 1,
     ),
+    ...(requirements === undefined ? {} : { requirements }),
     ...(payload.ShopItemID === undefined
       ? defaults.shopItemId === undefined
         ? {}

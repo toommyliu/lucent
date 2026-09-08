@@ -4,6 +4,7 @@ export interface QuestItem {
   readonly itemId: number;
   readonly name: string;
   readonly quantity: number;
+  readonly maxStack?: number;
   readonly temporaryItem?: boolean;
 }
 
