@@ -17,7 +17,7 @@
     "dist:app:linux": "tsx scripts/build-desktop-artifact.ts --platform linux",
     "dist:app:mac": "tsx scripts/build-desktop-artifact.ts --platform mac",
     "dist:app:win": "tsx scripts/build-desktop-artifact.ts --platform win",
-    "docgen": "tsx scripts/docgen.ts && tsx scripts/gen-script-types.ts",
+    "docgen": "tsx scripts/gen-script-types.ts && tsx scripts/docgen.ts",
     "icons:build": "tsx scripts/build-icons.ts",
     "lint": "pnpm polyfills:check && pnpm lint:css && oxlint --disable-nested-config",
     "lint:css": "stylelint \"packages/ui/src/**/*.css\" \"app/src/renderer/**/*.css\"",
@@ -32,7 +32,7 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "test": "pnpm test:scripts && pnpm -r --if-present test",
-    "test:scripts": "vitest run scripts/release-logic.test.ts",
+    "test:scripts": "vitest run scripts/release-logic.test.ts scripts/docgen-packages.test.ts",
     "test:watch": "pnpm -r --if-present test:watch",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r typecheck"
   },

@@ -23,3 +23,7 @@ Lucent provides focused CommonJS modules for game actions, script runtime utilit
 ## Types
 
 Browse [referenced types](/reference/scripting/types/) for data shapes and public class surfaces.
+
+## Packages
+
+Browse [vendored script packages](/reference/scripting/packages/) for shared helpers and scripts included with Lucent.

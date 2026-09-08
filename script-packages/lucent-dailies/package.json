@@ -1,7 +1,7 @@
 {
   "name": "@lucent/dailies",
   "version": "0.0.1",
-  "description": "Daily and recurring AdventureQuest Worlds activities for Lucent.",
+  "description": "Automate daily and recurring activities.",
   "main": "index.js",
   "types": "index.d.ts",
   "lucent": {

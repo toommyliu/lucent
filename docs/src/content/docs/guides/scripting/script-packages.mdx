@@ -122,18 +122,14 @@ range.
 
 ## Vendored script packages
 
-Each Lucent release bundles whatever versions of the following packages were current at that time:
-
-- `@lucent/dailies`
+Each Lucent release includes snapshots of its vendored script packages. Browse
+the [package reference](/reference/scripting/packages/) for the included packages,
+their documented versions, and their public APIs.
 
 On first launch, Lucent installs the package snapshot included with that release
-if no matching package or folder exists. This first install does not need a
-network connection. Lucent never replaces an existing package folder during
-startup. If you remove the package, it stays removed.
+if no matching package or folder exists.
 
-Use **Check for updates** and **Update** to get a newer package version from its
-GitHub source without updating Lucent. The package also includes the runnable
-`spin-wheel-of-doom.js` script in the Scripts tab.
+Script packages can be updated independently of Lucent.
 
 ## Install from GitHub
 

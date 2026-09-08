@@ -154,6 +154,7 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
       | "Type"
       | "Namespace"
       | "Module"
+      | "Package"
       | "Reference";
     type ResultFilter = "Guides" | "APIs" | "Types" | "CLI";
 
@@ -227,6 +228,9 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
       if (path.startsWith("/reference/scripting/api/")) {
         return "Namespace";
       }
+      if (path.startsWith("/reference/scripting/packages/")) {
+        return "Package";
+      }
       if (
         path === "/reference/scripting" ||
         path === "/reference/scripting/api" ||
@@ -246,7 +250,7 @@ const kbd = "rounded border border-border bg-muted px-1 py-0.5 font-mono";
       if (kind === "Guide") {
         return "Guides";
       }
-      if (kind === "Namespace" || kind === "Module") {
+      if (kind === "Namespace" || kind === "Module" || kind === "Package") {
         return "APIs";
       }
       if (kind === "Type") {

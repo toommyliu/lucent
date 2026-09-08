@@ -25,6 +25,11 @@ import {
   resolveOmitInterfaceAlias,
   type TypeReferenceInfo,
 } from "./ts-ast-utils";
+import {
+  discoverScriptPackages,
+  getScriptPackageModule,
+  type ScriptPackageReference,
+} from "./docgen-packages";
 
 const execFileAsync = promisify(execFile);
 
@@ -218,7 +223,7 @@ type ModuleOverviewSummaries = {
 
 type TypeLink = {
   readonly href: string;
-  readonly slug: string;
+  readonly slug: string | null;
 };
 
 type RenderedFile = {
@@ -500,7 +505,10 @@ const getParamDescriptions = (
   return descriptions;
 };
 
-const createProgram = (repoRoot: string): ts.Program => {
+const createProgram = (
+  repoRoot: string,
+  packages: readonly ScriptPackageReference[],
+): ts.Program => {
   const configPath = resolve(repoRoot, APP_TSCONFIG);
   const readResult = ts.readConfigFile(configPath, ts.sys.readFile);
   if (readResult.error) {
@@ -524,7 +532,13 @@ const createProgram = (repoRoot: string): ts.Program => {
   }
 
   return ts.createProgram({
-    rootNames: parsed.fileNames,
+    rootNames: [
+      ...parsed.fileNames,
+      resolve(repoRoot, "docs/public/script-api.d.ts"),
+      ...packages.flatMap((pkg) =>
+        pkg.typesFile === undefined ? [] : [pkg.typesFile],
+      ),
+    ],
     options: {
       ...parsed.options,
       baseUrl: repoRoot,
@@ -845,6 +859,12 @@ const parseEffectReturn = (
   sourceFile: ts.SourceFile,
 ): ReturnDoc => {
   const reference = parseTypeReference(node);
+  if (
+    reference?.unqualifiedName === "ScriptGenerator" &&
+    reference.args.length >= 1
+  ) {
+    return { raw, result: typeText(reference.args[0], sourceFile), error: null };
+  }
   if (reference?.unqualifiedName === "Effect" && reference.args.length >= 1) {
     return {
       raw,
@@ -2723,7 +2743,9 @@ const renderPreviewTypeAnchor = (
   link: TypeLink,
   content: string,
 ): string =>
-  `<a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="${escapeHtml(link.slug)}" data-script-type-name="${escapeHtml(name)}" href="${escapeHtml(link.href)}" title="Preview ${escapeHtml(name)}">${content}</a>`;
+  link.slug === null
+    ? `<a href="${escapeHtml(link.href)}">${content}</a>`
+    : `<a aria-controls="lucent-type-peek-dialog" aria-haspopup="dialog" data-script-type-preview data-script-type="${escapeHtml(link.slug)}" data-script-type-name="${escapeHtml(name)}" href="${escapeHtml(link.href)}" title="Preview ${escapeHtml(name)}">${content}</a>`;
 
 const renderPreviewTypeLink = (name: string, link: TypeLink): string =>
   renderPreviewTypeAnchor(name, link, renderHtmlCode(name));
@@ -2764,15 +2786,18 @@ const linkedTypeTransformer = (
       children.push({
         type: "element",
         tagName: "a",
-        properties: {
-          "aria-controls": "lucent-type-peek-dialog",
-          "aria-haspopup": "dialog",
-          "data-script-type": link.slug,
-          "data-script-type-name": name,
-          "data-script-type-preview": "",
-          href: link.href,
-          title: `Preview ${name}`,
-        },
+        properties:
+          link.slug === null
+            ? { href: link.href }
+            : {
+                "aria-controls": "lucent-type-peek-dialog",
+                "aria-haspopup": "dialog",
+                "data-script-type": link.slug,
+                "data-script-type-name": name,
+                "data-script-type-preview": "",
+                href: link.href,
+                title: `Preview ${name}`,
+              },
         children: [{ type: "text", value: name }],
       });
       renderedThrough = match.index + name.length;
@@ -2975,9 +3000,9 @@ const renderMember = (
     `**Returns:** ${renderTypeExpression(member.returnDoc.result ?? member.returnDoc.raw, typeLinks)}`,
     "",
   );
-  if (member.returnDoc.result !== null) {
+  if (member.returnDoc.error !== null) {
     lines.push(
-      `**Errors:** ${renderTypeExpression(member.returnDoc.error ?? "never", typeLinks)}`,
+      `**Errors:** ${renderTypeExpression(member.returnDoc.error, typeLinks)}`,
       "",
     );
   }
@@ -3123,6 +3148,10 @@ const renderIndex = (
     "## Types",
     "",
     `Browse [referenced types](${SCRIPTING_REFERENCE_ROUTE}/types/) for data shapes and public class surfaces.`,
+    "",
+    "## Packages",
+    "",
+    `Browse [vendored script packages](${SCRIPTING_REFERENCE_ROUTE}/packages/) for shared helpers and scripts included with Lucent.`,
   ];
   return finalizeMarkdown(lines);
 };
@@ -3554,6 +3583,155 @@ const renderTypePage = (
   return finalizeMarkdown(lines);
 };
 
+/** Package types live on their package page and never enter the global type index. */
+export const renderPackageReferences = (
+  program: ts.Program,
+  packages: readonly ScriptPackageReference[],
+  options: CliOptions,
+  git: GitSourceInfo | null,
+  builtinTypeLinks: ReadonlyMap<string, TypeLink>,
+  renderTypeCodeBlock: TypeCodeBlockRenderer,
+): readonly RenderedFile[] => {
+  const routeRoot = `${SCRIPTING_REFERENCE_ROUTE}/packages`;
+  const checker = program.getTypeChecker();
+  const index = [
+    frontmatter("Script packages", {
+      description:
+        "Reference for vendored script packages included with Lucent.",
+      label: "Packages",
+    }),
+    "",
+    GENERATED_HEADER,
+    "",
+    "| Package | Version | Description |",
+    "| --- | --- | --- |",
+    ...packages.map(
+      (pkg) =>
+        `| [${renderCode(pkg.name)}](${routeRoot}/${pkg.route}/) | ${escapeTableCell(pkg.version ?? "Unspecified")} | ${escapeTableCell(pkg.description)} |`,
+    ),
+  ];
+  return [
+    {
+      path: join(options.outputDir, "packages/index.md"),
+      content: finalizeMarkdown(index),
+    },
+    ...packages.map((pkg) => {
+      const symbol = getScriptPackageModule(program, pkg);
+      const typeLinks = new Map(builtinTypeLinks);
+      const types =
+        symbol === undefined
+          ? []
+          : checker
+              .getExportsOfModule(symbol)
+              .flatMap((exported) => {
+                const target =
+                  (exported.flags & ts.SymbolFlags.Alias) !== 0
+                    ? checker.getAliasedSymbol(exported)
+                    : exported;
+                const declaration = target.declarations?.find(
+                  (
+                    node,
+                  ): node is
+                    | ts.InterfaceDeclaration
+                    | ts.TypeAliasDeclaration =>
+                    ts.isInterfaceDeclaration(node) ||
+                    ts.isTypeAliasDeclaration(node),
+                );
+                return declaration === undefined
+                  ? []
+                  : [{ name: exported.name, declaration }];
+              })
+              .sort((left, right) => left.name.localeCompare(right.name));
+      for (const type of types) {
+        typeLinks.set(type.name, {
+          href: `#type-${kebabCase(type.name)}`,
+          slug: null,
+        });
+      }
+      // A fixed binding works for scoped and unscoped package names alike.
+      const localName = "pkg";
+      const declaration = symbol?.declarations?.[0];
+      const members =
+        symbol === undefined || declaration === undefined
+          ? []
+          : collectMembersFromType(
+              checker,
+              options,
+              git,
+              checker.getTypeOfSymbolAtLocation(symbol, declaration),
+              declaration,
+              localName,
+              new Set(),
+            );
+      const lines = [
+        frontmatter(pkg.name, {
+          description: pkg.description,
+          label: pkg.name,
+        }),
+        "",
+        GENERATED_HEADER,
+        "",
+        ...(pkg.version === undefined
+          ? []
+          : [`Documented version: ${renderCode(pkg.version)}.`, ""]),
+      ];
+      if (members.length > 0) {
+        lines.push(
+          "```js",
+          `const ${localName} = require(${JSON.stringify(pkg.name)});`,
+          "```",
+          "",
+          "## Exports",
+          "",
+        );
+        for (const member of members) {
+          renderMember(lines, member, typeLinks, renderTypeCodeBlock);
+        }
+      } else if (pkg.typesFile === undefined) {
+        lines.push(
+          "This package does not provide public API declarations. See its README for usage.",
+          "",
+        );
+      }
+      if (types.length > 0) {
+        lines.push("## Types", "");
+        for (const type of types) {
+          const links = new Map(typeLinks);
+          links.delete(type.name);
+          const source = getSourceInfo(options, git, type.declaration);
+          const sourceFile = type.declaration.getSourceFile();
+          const start = type.declaration.getStart();
+          const { line } = sourceFile.getLineAndCharacterOfPosition(start);
+          const indentation =
+            sourceFile.text
+              .slice(sourceFile.getLineStarts()[line], start)
+              .match(/^[\t ]*/u)?.[0] ?? "";
+          // Preserve authored wrapping for long unions and nested JSDoc.
+          const definition = type.declaration
+            .getText()
+            .replace(/^export\s+/, "")
+            .replaceAll(`\n${indentation}`, "\n");
+          lines.push(
+            `<a id="type-${kebabCase(type.name)}"></a>`,
+            "",
+            `### ${renderCode(type.name)}${renderHeadingSourceLink(source)}`,
+            "",
+            getSummary(type.declaration),
+            "",
+            renderLinkedTypeCodeBlock(definition, links, renderTypeCodeBlock),
+            "",
+          );
+          if (source.sourceUrl === null) lines.push(renderSource(source), "");
+        }
+      }
+      return {
+        path: join(options.outputDir, `packages/${pkg.route}/index.md`),
+        content: finalizeMarkdown(lines),
+      };
+    }),
+  ];
+};
+
 const renderFiles = (
   options: CliOptions,
   helpers: readonly MemberDoc[],
@@ -3658,7 +3836,10 @@ const writeGeneratedDocs = (
 
 const main = (options: CliOptions): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
-    const program = createProgram(options.repoRoot);
+    const packages = yield* Effect.tryPromise(() =>
+      discoverScriptPackages(options.repoRoot),
+    );
+    const program = createProgram(options.repoRoot, packages);
     const sourceFile =
       program.getSourceFile(options.sourceFile) ??
       fail(`Unable to load ${relative(options.repoRoot, options.sourceFile)}`);
@@ -3697,15 +3878,25 @@ const main = (options: CliOptions): Effect.Effect<void, unknown> =>
       expanded.declarations,
     );
     const renderTypeCodeBlock = yield* createTypeCodeBlockRenderer();
-    const renderedFiles = renderFiles(
-      options,
-      runtimeHelpers,
-      groups,
-      referencedTypes,
-      scriptEvents,
-      moduleSummaries,
-      renderTypeCodeBlock,
-    );
+    const renderedFiles = [
+      ...renderFiles(
+        options,
+        runtimeHelpers,
+        groups,
+        referencedTypes,
+        scriptEvents,
+        moduleSummaries,
+        renderTypeCodeBlock,
+      ),
+      ...renderPackageReferences(
+        program,
+        packages,
+        options,
+        options.includeSourceLinks ? git : null,
+        buildTypeLinks(referencedTypes, `${SCRIPTING_REFERENCE_ROUTE}/types/`),
+        renderTypeCodeBlock,
+      ),
+    ];
 
     yield* writeGeneratedDocs(options.outputDir, renderedFiles);
     yield* Console.log(
