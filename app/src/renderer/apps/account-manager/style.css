@@ -844,10 +844,15 @@
   background: rgba(var(--accent), 0.72);
 }
 
-.account-manager__script-attachment.button {
+.account-manager__script-attachment.button,
+.account-manager__script-attachment-main.button {
   font-size: var(--text-base);
   font-weight: 500;
   justify-content: flex-start;
+  line-height: 1.35;
+}
+
+.account-manager__script-attachment.button {
   padding-inline: 0.75rem;
 }
 
@@ -856,7 +861,6 @@
   border-top-right-radius: 0;
   flex: 1 1 auto;
   height: var(--control-height-lg);
-  justify-content: flex-start;
   min-width: 0;
   padding-inline: 0.6875rem;
 }
@@ -864,12 +868,15 @@
 .account-manager__script-attachment-main .button__content {
   justify-content: flex-start;
   min-width: 0;
-  overflow: hidden;
   width: 100%;
 }
 
 .account-manager__script-attachment-label {
+  display: block;
+  line-height: 1.35;
+  min-width: 0;
   overflow: hidden;
+  padding-block: 0.125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
