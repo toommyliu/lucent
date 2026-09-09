@@ -69,6 +69,7 @@ type ProjectionEventSelector = {
     readonly triggerText?: string;
     readonly type: "counter-attack-end";
 } | {
+    readonly animation?: string;
     readonly message?: string;
     readonly monsterMapId?: number;
     readonly source?: "animation" | "aura";
@@ -80,4 +81,4 @@ type ProjectionEventSelector = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L188" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:188" title="app/src/renderer/apps/game/flash/contract/Event.ts:188" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:188</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L190" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:190" title="app/src/renderer/apps/game/flash/contract/Event.ts:190" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:190</code></a></p>
