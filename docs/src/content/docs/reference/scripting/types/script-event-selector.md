@@ -63,6 +63,7 @@ type ScriptEventSelector = {
     readonly triggerText?: string;
     readonly type: "counter-attack-end";
 } | {
+    readonly animation?: string;
     readonly message?: string;
     readonly monsterMapId?: number;
     readonly source?: "animation" | "aura";

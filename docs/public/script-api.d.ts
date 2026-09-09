@@ -1085,6 +1085,7 @@ type ProjectionEventSelector =
       readonly type: "counter-attack-end";
     }
   | {
+      readonly animation?: string;
       readonly message?: string;
       readonly monsterMapId?: number;
       readonly source?: "animation" | "aura";
@@ -1853,6 +1854,8 @@ type ProjectionEvent =
   | {
       /** A yellow combat message appears. */
       readonly type: "update-message";
+      /** The animation's `animStr`, when present. */
+      readonly animation?: string;
       readonly message: string;
       /** The related monster's map-scoped ID, when the message names one. */
       readonly monsterMapId?: number;

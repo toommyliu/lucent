@@ -41,6 +41,7 @@ const AuraChange = Schema.Struct({
   tInf: Schema.String,
 });
 const Animation = Schema.Struct({
+  animStr: Schema.optionalKey(Schema.String),
   cInf: Schema.optionalKey(Schema.String),
   msg: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   tInf: Schema.optionalKey(Schema.String),
@@ -250,6 +251,9 @@ export const projectCombat = (
       }
       events.push({
         type: "update-message",
+        ...(animation.value.animStr === undefined
+          ? {}
+          : { animation: animation.value.animStr }),
         message: normalizedMessage,
         ...(monsterMapId === undefined ? {} : { monsterMapId }),
         source: "animation",
