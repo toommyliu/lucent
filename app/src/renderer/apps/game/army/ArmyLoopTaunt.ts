@@ -902,6 +902,7 @@ export const makeArmyLoopTauntRuntime = (
                   else if (!scrollEquipped) reason = "scroll-not-equipped";
                   else if (cooldownMs === null) reason = "cooldown-unavailable";
                   else if (cooldownMs > 0) reason = "cooldown";
+                  else if (item?.ready !== true) reason = "scroll-not-ready";
                   return {
                     alive,
                     cooldownMs,
@@ -910,7 +911,8 @@ export const makeArmyLoopTauntRuntime = (
                       assigned &&
                       alive &&
                       scrollEquipped &&
-                      cooldownMs !== null,
+                      cooldownMs !== null &&
+                      (cooldownMs > 0 || item?.ready === true),
                   };
                 }).pipe(
                   Effect.mapError(
@@ -1193,10 +1195,29 @@ export const makeArmyLoopTauntRuntime = (
                           const confirmed =
                             result?.success === true &&
                             result.monsterMapId === dispatchTarget.monsterMapId;
+                          const reason = confirmed
+                            ? undefined
+                            : result === null
+                              ? "Scroll cast was not dispatched or its confirmation timed out"
+                              : result.success === false
+                                ? "Server rejected the scroll cast"
+                                : "Scroll cast confirmed a different target";
+                          if (reason !== undefined) {
+                            yield* Effect.logWarning({
+                              commandId: payload.commandId,
+                              cooldownMs,
+                              message: reason,
+                              monsterMapId: dispatchTarget.monsterMapId,
+                              playerNumber: session.playerNumber,
+                            });
+                          }
                           yield* reportCommandResult(
                             payload.commandId,
                             confirmed ? "confirmed" : "cast-failed",
-                            { cooldownMs },
+                            {
+                              cooldownMs,
+                              ...(reason === undefined ? {} : { reason }),
+                            },
                           );
 
                           const currentTarget = yield* api.combat.target.get();

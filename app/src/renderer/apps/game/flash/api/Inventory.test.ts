@@ -1,10 +1,16 @@
 import { describe, expect, it } from "@effect/vitest";
 import { LiveItem } from "@lucent/game";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
+import * as TestClock from "effect/testing/TestClock";
 import * as Option from "effect/Option";
 
 import type { EquipEnhancementSelector } from "../../EnhancementSelectors";
 import type { BridgeService } from "../bridge/Bridge";
+import type { Event } from "../contract/Event";
+import { makeWait } from "../protocol/Wait";
 import type { Packet } from "../contract/Packet";
 import { makeStore } from "../state/Store";
 import { makeInventory } from "./Inventory";
@@ -54,6 +60,7 @@ const consumable = (
   link: string,
   equipped = false,
   category = "Item",
+  actionId = 400,
 ): LiveItem =>
   new LiveItem({
     category,
@@ -68,27 +75,66 @@ const consumable = (
     itemId,
     link,
     memberOnly: false,
-    meta: "",
+    meta: String(actionId),
     name: `Consumable ${itemId}`,
     quantity: 2,
     temporaryItem: false,
   });
 
-const makeHarness = (items: readonly LiveItem[]) =>
+const makeHarness = (items: readonly LiveItem[], autoConfirm = true) =>
   Effect.gen(function* () {
     const store = yield* makeStore;
     yield* store.items.replace("inventory", items);
 
+    const packets = yield* PubSub.unbounded<Packet>();
+    const events = yield* PubSub.unbounded<Event>();
+    const sentEquips = yield* Queue.unbounded<number>();
+    const confirmEquip = (data: unknown) =>
+      PubSub.publish(packets, {
+        command: "seia",
+        direction: "extension",
+        encoding: "json",
+        raw: "",
+        data,
+      });
+    let slotItemId: number | undefined;
     const equippedItemIds: number[] = [];
     const unequippedItemIds: number[] = [];
     const usedItemIds: number[] = [];
     const bridge = {
       invoke: (method: string, args: readonly unknown[] | undefined) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           if (method === "inventory.equip") {
             const selector = args?.[0] as { readonly itemId: number };
+            slotItemId = selector.itemId;
             equippedItemIds.push(selector.itemId);
+            yield* Queue.offer(sentEquips, selector.itemId);
+            if (
+              items.find((candidate) => candidate.itemId === selector.itemId)
+                ?.category === "Item"
+            ) {
+              if (autoConfirm)
+                yield* confirmEquip({
+                  iRes: 1,
+                  o: { id: 400, cd: 10000, tgt: "h" },
+                });
+            } else {
+              yield* PubSub.publish(packets, {
+                command: "equipItem",
+                direction: "extension",
+                encoding: "json",
+                raw: "",
+                data: { ItemID: selector.itemId, uid: 1 },
+              });
+            }
             return Option.some(true);
+          }
+          if (method === "combat.getConsumableSkillItem") {
+            return Option.some(
+              slotItemId === undefined
+                ? null
+                : { itemId: slotItemId, ready: false },
+            );
           }
           if (method === "inventory.unequipConsumable") {
             const selector = args?.[0] as { readonly itemId: number };
@@ -111,18 +157,17 @@ const makeHarness = (items: readonly LiveItem[]) =>
         }),
     } as unknown as BridgeService;
     const wait = {
+      ...makeWait({
+        subscribePackets: PubSub.subscribe(packets),
+        subscribeEvents: PubSub.subscribe(events),
+      }),
       forGameAction: () => Effect.succeed(true),
-      forPacket: (
-        _selector: unknown,
-        options: { readonly trigger: Effect.Effect<boolean> },
-      ) =>
-        Effect.gen(function* () {
-          return (yield* options.trigger) ? ({} as Packet) : null;
-        }),
-      until: <A>(effect: Effect.Effect<A>) => effect,
-    } as unknown as Wait;
+      isGameActionAvailable: () => Effect.succeed(true),
+    } satisfies Wait;
 
     return {
+      confirmEquip,
+      nextEquip: Queue.take(sentEquips),
       equippedItemIds,
       inventory: makeInventory(bridge, store, wait),
       unequippedItemIds,
@@ -260,6 +305,43 @@ describe("Inventory consumable equipment", () => {
       expect(first.equipped).toBe(false);
       expect(harness.unequippedItemIds).toEqual([first.itemId]);
     }),
+  );
+
+  it.effect(
+    "does not let a timed-out equip's late response confirm the next equip",
+    () =>
+      Effect.gen(function* () {
+        const potion = consumable(100, "potion");
+        const scroll = consumable(101, "scroll", false, "Item", 482);
+        const harness = yield* makeHarness([potion, scroll], false);
+        const first = yield* harness.inventory
+          .equip(potion.itemId)
+          .pipe(Effect.forkChild);
+        yield* harness.nextEquip;
+        yield* TestClock.adjust("5 seconds");
+        expect(yield* Fiber.join(first)).toBe(false);
+        expect(potion.equipped).toBe(false);
+        const second = yield* harness.inventory
+          .equip(scroll.itemId)
+          .pipe(Effect.forkChild);
+        expect(yield* harness.nextEquip).toBe(scroll.itemId);
+        yield* harness.confirmEquip({
+          iRes: 1,
+          o: { id: 400, cd: 60000, tgt: "s" },
+        });
+        yield* TestClock.adjust("100 millis");
+        expect(second.pollUnsafe()).toBeUndefined();
+        expect(potion.equipped).toBe(false);
+        yield* harness.confirmEquip({
+          iRes: 1,
+          o: { id: 482, cd: 20000, tgt: "h" },
+        });
+        expect(yield* Fiber.join(second)).toBe(true);
+        expect(scroll.equipped).toBe(true);
+        expect(yield* harness.inventory.unequipConsumable(scroll.itemId)).toBe(
+          true,
+        );
+      }),
   );
 
   it.effect("uses but does not equip direct-use tonics", () =>
