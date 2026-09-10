@@ -2596,6 +2596,9 @@ export function AccountManagerView(
     }
   };
 
+  const accountFormIncomplete = () =>
+    form().username.trim() === "" || form().password.trim() === "";
+
   const deleteAccountUsernames = async (usernames: readonly string[]) => {
     setBusy(true);
     try {
@@ -5010,7 +5013,7 @@ export function AccountManagerView(
                   variant="outline"
                   type="button"
                   loading={busy()}
-                  disabled={busy()}
+                  disabled={busy() || accountFormIncomplete()}
                   onClick={() => void handleSave({ closeAfterSave: false })}
                 >
                   Add another
@@ -5020,7 +5023,10 @@ export function AccountManagerView(
                 size="lg"
                 type="submit"
                 loading={busy()}
-                disabled={busy()}
+                disabled={
+                  busy() ||
+                  (dialogMode() === "create" && accountFormIncomplete())
+                }
               >
                 {dialogMode() === "edit" ? "Save changes" : "Add account"}
               </Button>
