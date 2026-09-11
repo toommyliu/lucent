@@ -1146,12 +1146,27 @@ export const layer = Layer.effect(
         updateDiscovery((current) =>
           replaceDiscoveredPackage(current, replacement, currentVersion),
         ),
-      resolveReference: (reference) =>
-        getDiscovery.pipe(
-          Effect.map((discovery) =>
-            discovery.scripts.get(referenceKey(reference)),
-          ),
-        ),
+      resolveReference: Effect.fn("ScriptPackageCatalog.resolveReference")(
+        function* (reference) {
+          if (reference.kind === "loose") {
+            const path = resolve(scriptsDir, reference.path);
+            const resolved = yield* Effect.promise(() =>
+              resolveLooseScriptReference(scriptsDir, path),
+            );
+            if (resolved === undefined || resolved.path !== reference.path) {
+              return undefined;
+            }
+            return {
+              name: basename(path),
+              path,
+              reference: resolved,
+              relativePath: resolved.path,
+            } satisfies ScriptCatalogEntry;
+          }
+          const discovery = yield* getDiscovery;
+          return discovery.scripts.get(referenceKey(reference));
+        },
+      ),
       updateManagedPackage: (managed) =>
         updateDiscovery((current) =>
           updateDiscoveredManagedPackage(current, managed),

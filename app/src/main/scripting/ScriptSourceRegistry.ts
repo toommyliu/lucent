@@ -10,6 +10,7 @@ import type {
   ScriptFileResolution,
 } from "@lucent/core/scriptInputs";
 import type {
+  ScriptCatalogEntry,
   ScriptExecutionPackage,
   ScriptExecutionSnapshot,
   ScriptModuleImport,
@@ -25,7 +26,6 @@ import {
 import { ScriptFiles } from "../internal/scripting/ScriptFiles";
 import type { ScriptFileAnalysis } from "../internal/scripting/ScriptFileWorkerProtocol";
 import {
-  type DiscoveredScriptCatalog,
   type DiscoveredScriptPackage,
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
@@ -105,20 +105,12 @@ const moduleFormat = (
     ? "unsupported-esm"
     : "commonjs";
 
-const looseTarget = (
-  discovery: DiscoveredScriptCatalog,
-  path: string,
-): ModuleTarget | undefined => {
-  const entry = discovery.scripts.get(`loose:${path}`);
-  return entry === undefined
-    ? undefined
-    : {
-        absolutePath: entry.path,
-        format: "commonjs",
-        id: looseModuleId(path),
-        path,
-      };
-};
+const looseTarget = (entry: ScriptCatalogEntry): ModuleTarget => ({
+  absolutePath: entry.path,
+  format: "commonjs",
+  id: looseModuleId(entry.relativePath),
+  path: entry.relativePath,
+});
 
 const packageTarget = (
   packageEntry: DiscoveredScriptPackage,
@@ -134,41 +126,6 @@ const packageTarget = (
         packageName: packageEntry.name,
         path,
       };
-};
-
-const entryTarget = (
-  discovery: DiscoveredScriptCatalog,
-  reference: ScriptReference,
-): ModuleTarget | undefined =>
-  reference.kind === "loose"
-    ? looseTarget(discovery, reference.path)
-    : discovery.packages.get(reference.packageName) === undefined
-      ? undefined
-      : packageTarget(
-          discovery.packages.get(reference.packageName)!,
-          reference.path,
-        );
-
-const resolveRelativeTarget = (
-  discovery: DiscoveredScriptCatalog,
-  importer: ModuleTarget,
-  specifier: string,
-): ModuleTarget | undefined => {
-  const normalized = resolveRelativeScriptModulePath(importer.path, specifier);
-  if (normalized === null) return undefined;
-  for (const candidate of scriptModulePathCandidates(normalized)) {
-    const resolved =
-      importer.packageName === undefined
-        ? looseTarget(discovery, candidate)
-        : discovery.packages.get(importer.packageName) === undefined
-          ? undefined
-          : packageTarget(
-              discovery.packages.get(importer.packageName)!,
-              candidate,
-            );
-    if (resolved !== undefined) return resolved;
-  }
-  return undefined;
 };
 
 const packageSnapshot = (
@@ -228,6 +185,38 @@ export const layer = Layer.effect(
     const scriptFiles = yield* ScriptFiles;
     const sourceCache = new Map<string, CachedSource>();
     let sourceCacheBytes = 0;
+
+    const registryError = (cause: Error) =>
+      new ScriptSourceRegistryError({ detail: cause.message, cause });
+    const getDiscovery = catalog.getDiscovery.pipe(
+      Effect.mapError(registryError),
+    );
+    const resolveEntry = (reference: ScriptReference) =>
+      catalog.resolveReference(reference).pipe(Effect.mapError(registryError));
+
+    const resolveRelativeTarget = Effect.fn(
+      "ScriptSourceRegistry.resolveRelativeTarget",
+    )(function* (
+      importer: ModuleTarget,
+      specifier: string,
+      owner: DiscoveredScriptPackage | undefined,
+    ) {
+      const normalized = resolveRelativeScriptModulePath(
+        importer.path,
+        specifier,
+      );
+      if (normalized === null) return undefined;
+      for (const candidate of scriptModulePathCandidates(normalized)) {
+        if (importer.packageName === undefined) {
+          const entry = yield* resolveEntry({ kind: "loose", path: candidate });
+          if (entry !== undefined) return looseTarget(entry);
+        } else if (owner !== undefined) {
+          const target = packageTarget(owner, candidate);
+          if (target !== undefined) return target;
+        }
+      }
+      return undefined;
+    });
 
     const readModule = Effect.fn("ScriptSourceRegistry.readModule")(function* (
       target: ModuleTarget,
@@ -299,7 +288,7 @@ export const layer = Layer.effect(
     const collectExecutionClosure = Effect.fn(
       "ScriptSourceRegistry.collectExecutionClosure",
     )(function* (
-      discovery: DiscoveredScriptCatalog,
+      getSnapshotDiscovery: typeof getDiscovery,
       selectedTarget: ModuleTarget,
       selectedAnalysis: ScriptFileAnalysis,
     ) {
@@ -364,10 +353,16 @@ export const layer = Layer.effect(
               continue;
             }
             if (isRelativeScriptModuleSpecifier(specifier)) {
-              const resolved = resolveRelativeTarget(
-                discovery,
+              const owner =
+                target.packageName === undefined
+                  ? undefined
+                  : (yield* getSnapshotDiscovery).packages.get(
+                      target.packageName,
+                    );
+              const resolved = yield* resolveRelativeTarget(
                 target,
                 specifier,
+                owner,
               );
               if (resolved === undefined) {
                 return yield* importError(
@@ -381,6 +376,7 @@ export const layer = Layer.effect(
               continue;
             }
 
+            const discovery = yield* getSnapshotDiscovery;
             if (
               target.packageName !== undefined &&
               specifier !== target.packageName &&
@@ -493,28 +489,28 @@ export const layer = Layer.effect(
     const readReference = Effect.fn("ScriptSourceRegistry.readReference")(
       function* (reference: ScriptReference) {
         for (let attempt = 0; attempt < SNAPSHOT_MAX_ATTEMPTS; attempt += 1) {
-          const discovery = yield* catalog.getDiscovery.pipe(
-            Effect.mapError(
-              (cause) =>
-                new ScriptSourceRegistryError({
-                  detail: cause.message,
-                  cause,
-                }),
-            ),
-          );
-          const entry = discovery.scripts.get(
+          // Keep package metadata consistent within an attempt, but only discover
+          // packages when the selected script or a reachable import needs them.
+          const getSnapshotDiscovery = yield* Effect.cached(getDiscovery);
+          const discovery =
+            reference.kind === "package"
+              ? yield* getSnapshotDiscovery
+              : undefined;
+          const entry =
             reference.kind === "loose"
-              ? `loose:${reference.path}`
-              : `package:${reference.packageName}:${reference.path}`,
-          );
+              ? yield* resolveEntry(reference)
+              : discovery?.scripts.get(
+                  `package:${reference.packageName}:${reference.path}`,
+                );
           if (entry === undefined) {
             return yield* new ScriptSourceRegistryError({
               detail: "The selected script is no longer available.",
             });
           }
 
+          let target: ModuleTarget | undefined;
           if (reference.kind === "package") {
-            const owner = discovery.packages.get(reference.packageName);
+            const owner = discovery?.packages.get(reference.packageName);
             if (owner?.compatibility.status === "incompatible") {
               return yield* new ScriptSourceRegistryError({
                 detail: `${owner.name} requires Lucent ${owner.compatibility.requiredVersion}; this app is ${owner.compatibility.currentVersion}.`,
@@ -527,8 +523,13 @@ export const layer = Layer.effect(
                 path: entry.path,
               });
             }
+            target =
+              owner === undefined
+                ? undefined
+                : packageTarget(owner, reference.path);
+          } else {
+            target = looseTarget(entry);
           }
-          const target = entryTarget(discovery, reference);
           if (target === undefined) continue;
           const parsedEntry = yield* scriptFiles.analyze(entry.path).pipe(
             Effect.mapError(
@@ -541,7 +542,7 @@ export const layer = Layer.effect(
             ),
           );
           const closure = yield* collectExecutionClosure(
-            discovery,
+            getSnapshotDiscovery,
             target,
             parsedEntry,
           );
