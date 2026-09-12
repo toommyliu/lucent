@@ -1,5 +1,3 @@
-import type { Aura } from "@lucent/game";
-
 interface AntiCounterTrigger {
   readonly auraNames: readonly string[];
   readonly auraPatterns: readonly RegExp[];
@@ -9,8 +7,6 @@ interface AntiCounterTrigger {
 const normalize = (value: string): string =>
   value.trim().toLowerCase().replace(/\s+/g, " ");
 
-const ANTI_COUNTER_FALLBACK_MS = 7_000;
-const ANTI_COUNTER_GRACE_MS = 750;
 const ANTI_COUNTER_TRIGGER_ID = "anti-counter";
 
 const antiCounterTriggers: readonly AntiCounterTrigger[] = [
@@ -57,20 +53,9 @@ export const matchAntiCounterAura = (
       };
 };
 
-export const isCounterAttackAura = (aura: Pick<Aura, "name">): boolean =>
-  matchAntiCounterAura(aura.name) !== undefined;
-
 export const antiCounterDurationMsFromAura = (
   duration: number | undefined,
 ): number | undefined =>
   duration === undefined || !Number.isFinite(duration) || duration <= 0
     ? undefined
     : duration * 1_000;
-
-export const antiCounterExpiresAtMs = (
-  startedAtMs: number,
-  durationMs: number | undefined,
-): number =>
-  startedAtMs +
-  (durationMs ?? ANTI_COUNTER_FALLBACK_MS) +
-  ANTI_COUNTER_GRACE_MS;
