@@ -24,6 +24,7 @@
     "plugins": [
       {
         "name": "@effect/language-service",
+        "diagnostics": false,
         "diagnosticSeverity": {
           "runEffectInsideEffect": "warning"
         },

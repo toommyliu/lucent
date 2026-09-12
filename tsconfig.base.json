@@ -26,6 +26,7 @@
     "plugins": [
       {
         "name": "@effect/language-service",
+        "diagnostics": false,
         "diagnosticSeverity": {},
         "includeSuggestionsInTsc": true,
         "ignoreEffectSuggestionsInTscExitCode": true,
