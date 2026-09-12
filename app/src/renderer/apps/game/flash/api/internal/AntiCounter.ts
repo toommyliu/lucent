@@ -7,7 +7,6 @@ import { readCombatTarget, stopCombat } from "./CombatControl";
 
 interface TrackedAntiCounter {
   readonly cancellationIssued: boolean;
-  readonly phase: "preparing" | "countering";
   readonly recoverAtMs: number;
 }
 
@@ -52,11 +51,6 @@ export const makeAntiCounter = (
     const now = yield* Clock.currentTimeMillis;
     const previous = tracked.get(event.monsterMapId);
     const wasActive = previous !== undefined && previous.recoverAtMs > now;
-    const phase = event.source === "message" ? "preparing" : "countering";
-    // A repeated warning must not replace an already confirmed counter phase.
-    if (wasActive && previous.phase === "countering" && phase === "preparing") {
-      return;
-    }
     const durationMs = event.durationMs;
     const recoverAtMs =
       now +
@@ -66,11 +60,11 @@ export const makeAntiCounter = (
       SIGNAL_TIMEOUT_MS;
     tracked.set(event.monsterMapId, {
       cancellationIssued: wasActive ? previous.cancellationIssued : false,
-      phase,
-      recoverAtMs:
-        wasActive && previous.phase === phase
-          ? Math.max(previous.recoverAtMs, recoverAtMs)
-          : recoverAtMs,
+      // A warning for the next cycle must extend protection even if the previous
+      // aura removal was missed, without shortening an existing counter window.
+      recoverAtMs: wasActive
+        ? Math.max(previous.recoverAtMs, recoverAtMs)
+        : recoverAtMs,
     });
 
     if ((wasActive && previous.cancellationIssued) || !(yield* isEnabled())) {
