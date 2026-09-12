@@ -87,6 +87,7 @@ const SUPPORT_TYPE_NAMES = new Set([
   "ScriptExecutionError",
   "ScriptDuration",
   "ScriptDurationValue",
+  "ScriptEffectPipeable",
   "ScriptInputField",
   "ScriptInputType",
   "ScriptInputValue",
@@ -171,7 +172,7 @@ interface Effect<
   Value = unknown,
   Error = never,
   Requirements = never,
-> {
+> extends ScriptEffectPipeable {
   readonly "~effect/Effect": {
     readonly _A: () => Value;
     readonly _E: () => Error;
@@ -1163,6 +1164,37 @@ const renderReferencedDeclarations = (
   return output;
 };
 
+// Use the installed Effect overloads without exposing the rest of its module.
+const renderEffectPipeable = (compilerOptions: ts.CompilerOptions): string => {
+  const resolvedModule =
+    ts.resolveModuleName(
+      "effect/Pipeable",
+      fileURLToPath(import.meta.url),
+      compilerOptions,
+      ts.sys,
+    ).resolvedModule ??
+    fail("Unable to resolve the installed effect/Pipeable module");
+  const source =
+    ts.sys.readFile(resolvedModule.resolvedFileName) ??
+    fail("Unable to read the installed effect/Pipeable module");
+  const sourceFile = ts.createSourceFile(
+    resolvedModule.resolvedFileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const declaration =
+    sourceFile.statements.find(
+      (statement): statement is ts.InterfaceDeclaration =>
+        ts.isInterfaceDeclaration(statement) &&
+        statement.name.text === "Pipeable",
+    ) ?? fail("Unable to find the installed Effect Pipeable interface");
+  const members = declaration.members.map(
+    (member) => `  ${member.getText(sourceFile)}`,
+  );
+  return `interface ScriptEffectPipeable {\n${members.join("\n")}\n}`;
+};
+
 const renderScriptTypes = (
   program: ts.Program,
   declarations: ReadonlyMap<string, Declaration>,
@@ -1211,6 +1243,8 @@ const renderScriptTypes = (
     "type ScriptMain = () => Generator<Effect<any, any, never>, unknown, any>;",
     "",
     ...interfaces,
+    "",
+    renderEffectPipeable(program.getCompilerOptions()),
     "",
     ...referencedDeclarations,
     "",
