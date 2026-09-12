@@ -5,6 +5,7 @@ export default defineMeta({
     "index",
     "api",
     "script",
+    "schema",
     "autozone",
     "autorelogin",
     "effect",

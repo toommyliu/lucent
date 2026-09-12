@@ -1,6 +1,7 @@
 // @ts-check
 
 const api = require("lucent/api");
+const { wheelRewardNames } = require("./wheel-rewards");
 
 const DAILY_QUEST_ID = 3075;
 const DAILY_XP_BOOST_ITEM_ID = 19189;
@@ -10,38 +11,6 @@ const WEEKLY_QUEST_ID = 3076;
 /** @typedef {{ readonly bankRewards?: boolean }} WheelOfDoomOptions */
 /** @typedef {{ readonly status: "unavailable" } | { readonly status: "failed" } | { readonly status: "completed", readonly banking: "not-requested" | "completed" | "failed" }} WheelOfDoomSpinOutcome */
 /** @typedef {{ readonly daily: WheelOfDoomSpinOutcome, readonly weekly: WheelOfDoomSpinOutcome }} WheelOfDoomResult */
-
-/**
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-const isRecord = (value) =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** @param {unknown} value */
-const rewardName = (value) => {
-  if (!isRecord(value)) return undefined;
-  const name = value["sName"];
-  return typeof name === "string" && name !== "" ? name : undefined;
-};
-
-/** @param {unknown} packet */
-const wheelRewardNames = (packet) => {
-  if (!isRecord(packet) || packet["direction"] !== "extension") return [];
-  const data = packet["data"];
-  if (!isRecord(data)) return [];
-
-  /** @type {Set<string>} */
-  const rewards = new Set();
-  const dropItems = data["dropItems"];
-  if (isRecord(dropItems)) {
-    const boost = rewardName(dropItems[String(DAILY_XP_BOOST_ITEM_ID)]);
-    if (boost !== undefined) rewards.add(boost);
-  }
-  const optionalReward = rewardName(data["Item"]);
-  if (optionalReward !== undefined) rewards.add(optionalReward);
-  return Array.from(rewards);
-};
 
 /**
  * @param {number} questId
@@ -74,7 +43,7 @@ function* completeWheelQuest(questId, bankRewards) {
 
   /** @type {string[]} */
   const toDeposit = [];
-  for (const reward of wheelRewardNames(packet)) {
+  for (const reward of wheelRewardNames(packet, DAILY_XP_BOOST_ITEM_ID)) {
     if ((yield* api.inventory.get(reward)) !== null) {
       toDeposit.push(reward);
     } else if (!(yield* api.bank.contains(reward))) {

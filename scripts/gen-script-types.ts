@@ -1198,6 +1198,7 @@ const renderEffectPipeable = (compilerOptions: ts.CompilerOptions): string => {
 const renderScriptTypes = (
   program: ts.Program,
   declarations: ReadonlyMap<string, Declaration>,
+  schemaDeclarations: string,
 ): string => {
   const checker = program.getTypeChecker();
   const state: RenderState = {
@@ -1239,6 +1240,7 @@ const renderScriptTypes = (
     "/* eslint-disable */",
     "",
     SUPPORT_DECLARATIONS.trimEnd(),
+    schemaDeclarations,
     "",
     "type ScriptMain = () => Generator<Effect<any, any, never>, unknown, any>;",
     "",
@@ -1270,6 +1272,32 @@ const validateScriptingFixture = (declarations: string): void => {
 import effect = require("effect");
 import api = require("lucent/api");
 import script = require("lucent/script");
+import schema = require("lucent/schema");
+
+const schemaOptions = schema.object({
+  method: schema.enum(["buy", "craft"]),
+  quantity: schema.coerce.number().int().min(1),
+  budget: schema.number().default(100),
+  label: schema.string().optionalKey(),
+});
+const schemaInput: schema.Input<typeof schemaOptions> = { method: "buy", quantity: "2" };
+const schemaOutput: schema.Infer<typeof schemaOptions> = schemaOptions.parse(schemaInput);
+const schemaQuantity: number = schemaOutput.quantity;
+const schemaBudget: number = schemaOutput.budget;
+const schemaMethod: "buy" | "craft" = schemaOutput.method;
+const schemaLabel: string | undefined = schemaOutput.label;
+// @ts-expect-error Parsed numeric strings become numbers.
+const schemaBadQuantity: string = schemaOutput.quantity;
+// @ts-expect-error Enum values remain literal types.
+schemaOptions.parse(schemaInput).method satisfies "other";
+const schemaNames = schema.string().transform(value => value.split(",")).pipe(schema.array(schema.string()));
+const schemaParsedNames: string[] = schemaNames.parse("a,b");
+const schemaChoice = schema.discriminatedUnion("kind", [
+  schema.object({ kind: schema.literal("number"), value: schema.number() }),
+  schema.object({ kind: schema.literal("text"), value: schema.string() }),
+]).parse({ kind: "number", value: 1 });
+if (schemaChoice.kind === "number") { const n: number = schemaChoice.value; void n; }
+void schemaQuantity; void schemaBudget; void schemaMethod; void schemaLabel; void schemaBadQuantity; void schemaParsedNames;
 
 const timed = effect.pipe(
   api.inventory.contains("Potion"),
@@ -1397,6 +1425,7 @@ const validateGeneratedTypes = (content: string): void => {
     "lucent/autorelogin",
     "lucent/autozone",
     "lucent/filesystem",
+    "lucent/schema",
     "lucent/script",
   ]) {
     if (!content.includes(`declare module "${specifier}"`)) {
@@ -1551,7 +1580,12 @@ const main = async (options: CliOptions): Promise<void> => {
     fail(`Unable to load ${relative(options.repoRoot, options.sourceFile)}`);
 
   const declarations = buildDeclarationMap(program, sourceFile);
-  const content = renderScriptTypes(program, declarations);
+  const schemaSource = await fs.readFile(
+    join(options.repoRoot, "app/src/renderer/apps/game/scripting/schema/public.ts"),
+    "utf8",
+  );
+  const schemaDeclarations = `declare module "lucent/schema" {\n${schemaSource.replace(/\bdeclare (const|function|class)\b/g, "$1")}\n}`;
+  const content = renderScriptTypes(program, declarations, schemaDeclarations);
   validateGeneratedTypes(content);
 
   await fs.mkdir(dirname(options.outputFile), { recursive: true });
