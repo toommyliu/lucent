@@ -167,6 +167,7 @@ export default defineConfig({
             "/cookbooks/durations",
             "/cookbooks/queries-and-selectors",
             "/cookbooks/enhancements",
+            "/cookbooks/error-handling",
           ],
           label: "Cookbooks",
           root: "/cookbooks",
