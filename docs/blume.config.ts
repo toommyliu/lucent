@@ -187,6 +187,10 @@ export default defineConfig({
                   root: "/reference/scripting/script",
                 },
                 {
+                  label: "lucent/schema",
+                  root: "/reference/scripting/schema",
+                },
+                {
                   label: "lucent/filesystem",
                   root: "/reference/scripting/filesystem",
                 },

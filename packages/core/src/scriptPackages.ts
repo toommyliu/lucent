@@ -26,6 +26,7 @@ export const SCRIPT_BUILTIN_MODULE_SPECIFIERS = [
   "lucent/autorelogin",
   "lucent/autozone",
   "lucent/filesystem",
+  "lucent/schema",
   "lucent/script",
 ] as const;
 

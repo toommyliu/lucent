@@ -8,6 +8,7 @@ const script = require("lucent/script");
 const { materials } = require("./catalog");
 const { acquire, materialSource } = require("./supplies");
 const { quantity, unbank, acceptDrop } = require("./inventory");
+const { collectRewards } = require("./rewards");
 
 /** @param {string} name
  * @param {PotionRecipe} recipe
@@ -25,23 +26,7 @@ function* craft(name, recipe, session) {
     },
     // eslint-disable-next-line require-yield -- Script callbacks must return an Effect or generator.
     function* (packet) {
-      if (
-        !packet.data ||
-        typeof packet.data !== "object" ||
-        !("items" in packet.data)
-      )
-        return;
-      const items = packet.data.items;
-      if (!items || typeof items !== "object") return;
-      for (const [key, item] of Object.entries(items)) {
-        if (!item || typeof item !== "object") continue;
-        const itemId = Number(item.ItemID ?? key);
-        if (Number.isSafeInteger(itemId) && itemId > 0 && Number(item.iQty) > 0)
-          rewards.set(
-            itemId,
-            typeof item.sName === "string" ? item.sName : null,
-          );
-      }
+      collectRewards(packet.data, rewards);
     },
   );
   try {
