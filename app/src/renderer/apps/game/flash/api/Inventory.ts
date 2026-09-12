@@ -5,8 +5,10 @@ import {
 } from "@lucent/game";
 import type { ItemQuery } from "@lucent/game";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 
 import {
   EquipEnhancementSelectorSchema,
@@ -29,6 +31,16 @@ const EquipResponse = Schema.Struct({
 });
 const decodeWearResponse = Schema.decodeUnknownOption(WearResponse);
 const decodeEquipResponse = Schema.decodeUnknownOption(EquipResponse);
+const decodeConsumableEquipResponse = Schema.decodeUnknownOption(
+  Schema.Struct({
+    iRes: WireBoolean,
+    o: Schema.optionalKey(Schema.Struct({ id: PositiveWireInt })),
+  }),
+);
+const decodeConsumableActionId = Schema.decodeUnknownOption(PositiveWireInt);
+const ConsumableSlot = Schema.NullOr(
+  Schema.Struct({ itemId: PositiveWireInt }),
+);
 const decodeEquipEnhancementSelector = Schema.decodeUnknownOption(
   EquipEnhancementSelectorSchema,
 );
@@ -56,6 +68,8 @@ export const makeInventory = (
   store: Store,
   wait: Wait,
 ) => {
+  // Consumable equips and unequips mutate the same client action slot.
+  const consumableEquipment = Semaphore.makeUnsafe(1);
   const getAll = () => store.items.getAll("inventory");
 
   const get = (selector: ItemQuery) => store.items.get("inventory", selector);
@@ -153,6 +167,57 @@ export const makeInventory = (
   });
   const wear = (selector: ItemQuery) => wearEffect(selector);
 
+  const equipConsumable = Effect.fn("Inventory.equipConsumable")(
+    function* (itemId: number, actionId: number) {
+      const response = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const disconnected = yield* wait
+            .forEvent({ type: "connection", status: "OnConnectionLost" })
+            .pipe(Effect.forkScoped({ startImmediately: true }));
+          return yield* Effect.raceFirst(
+            Fiber.join(disconnected).pipe(Effect.as(null)),
+            wait.forPacket(
+              {
+                command: "seia",
+                direction: "extension",
+                encoding: "json",
+                predicate: (candidate) => {
+                  const decoded = decodeConsumableEquipResponse(
+                    packetData(candidate),
+                  );
+                  // seia loads an action definition, shared by items with the same
+                  // sMeta. A late reply for another action must not finish this equip.
+                  return (
+                    Option.isSome(decoded) &&
+                    decoded.value.iRes &&
+                    decoded.value.o?.id === actionId
+                  );
+                },
+              },
+              {
+                trigger: bridge
+                  .invoke("inventory.equip", [{ itemId }], Schema.Boolean)
+                  .pipe(Effect.map(Option.getOrElse(() => false))),
+              },
+            ),
+          );
+        }),
+      );
+      if (response === null) return false;
+      const slot = yield* bridge.invoke(
+        "combat.getConsumableSkillItem",
+        undefined,
+        ConsumableSlot,
+      );
+      if (Option.isNone(slot) || slot.value?.itemId !== itemId) return false;
+      yield* setEquippedConsumable(itemId);
+      return true;
+    },
+    consumableEquipment.withPermit,
+    Effect.timeoutOption("5 seconds"),
+    Effect.map(Option.getOrElse(() => false)),
+  );
+
   const equipEffect = Effect.fn("Inventory.equip")(function* (
     selector: ItemQuery,
     options?: EquipOptions,
@@ -163,7 +228,9 @@ export const makeInventory = (
       return false;
     }
 
-    const needsEquip = !item.equipped;
+    // bEquip changes before seia accepts the consumable action, so it cannot
+    // establish that an already selected consumable finished equipping.
+    const needsEquip = item.category === "Item" || !item.equipped;
     const needsWear = (options?.wear ?? true) && item.wearable && !item.worn;
     if (!needsEquip && !needsWear) return true;
     if (!(yield* canUseMemberItem(item.memberOnly))) return false;
@@ -171,12 +238,10 @@ export const makeInventory = (
     if (needsEquip) {
       if (!(yield* wait.forGameAction("equipItem"))) return false;
       if (item.category === "Item") {
-        const sent = yield* bridge
-          .invoke("inventory.equip", [{ itemId: item.itemId }], Schema.Boolean)
-          .pipe(Effect.map(Option.getOrElse(() => false)));
-        if (!sent) return false;
-        yield* setEquippedConsumable(item.itemId);
-        if (!item.equipped) return false;
+        const actionId = decodeConsumableActionId(item.meta);
+        if (Option.isNone(actionId)) return false;
+        const equipped = yield* equipConsumable(item.itemId, actionId.value);
+        if (!equipped) return false;
       } else {
         const userId = yield* getLocalUserId();
         if (Option.isNone(userId)) return false;
@@ -289,24 +354,27 @@ export const makeInventory = (
       Math.max(0, slots - used),
     );
 
-  const unequipConsumable = Effect.fn("Inventory.unequipConsumable")(function* (
-    selector: ItemQuery,
-  ) {
-    const item = yield* get(selector);
-    if (item === null || item.category !== "Item") return false;
+  const unequipConsumable = Effect.fn("Inventory.unequipConsumable")(
+    function* (selector: ItemQuery) {
+      const item = yield* get(selector);
+      if (item === null || item.category !== "Item") return false;
 
-    const sent = yield* bridge
-      .invoke(
-        "inventory.unequipConsumable",
-        [{ itemId: item.itemId }],
-        Schema.Boolean,
-      )
-      .pipe(Effect.map(Option.getOrElse(() => false)));
-    if (!sent) return false;
+      const sent = yield* bridge
+        .invoke(
+          "inventory.unequipConsumable",
+          [{ itemId: item.itemId }],
+          Schema.Boolean,
+        )
+        .pipe(Effect.map(Option.getOrElse(() => false)));
+      if (!sent) return false;
 
-    yield* setEquippedConsumable(undefined);
-    return !item.equipped;
-  });
+      yield* setEquippedConsumable(undefined);
+      return !item.equipped;
+    },
+    consumableEquipment.withPermit,
+    Effect.timeoutOption("5 seconds"),
+    Effect.map(Option.getOrElse(() => false)),
+  );
 
   return {
     contains,
