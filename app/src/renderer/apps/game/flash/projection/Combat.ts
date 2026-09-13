@@ -305,7 +305,6 @@ export const projectCombat = (
             );
             const antiCounterMatch = matchAntiCounterAura(payload.nam);
             if (
-              auraOperation === "add" &&
               target.type === "monster" &&
               kind === "active" &&
               antiCounterMatch !== undefined

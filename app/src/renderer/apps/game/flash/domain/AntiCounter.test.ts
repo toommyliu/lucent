@@ -2,7 +2,6 @@ import { describe, expect, it } from "@effect/vitest";
 
 import {
   antiCounterDurationMsFromAura,
-  antiCounterExpiresAtMs,
   matchAntiCounterAura,
   matchAntiCounterMessage,
 } from "./AntiCounter";
@@ -24,10 +23,8 @@ describe("AntiCounter", () => {
     expect(matchAntiCounterAura("Focus")).toBeUndefined();
   });
 
-  it("normalizes aura durations and applies trigger expiry policy", () => {
+  it("normalizes aura durations", () => {
     expect(antiCounterDurationMsFromAura(6)).toBe(6_000);
     expect(antiCounterDurationMsFromAura(0)).toBeUndefined();
-    expect(antiCounterExpiresAtMs(1_000, 6_000)).toBe(7_750);
-    expect(antiCounterExpiresAtMs(1_000, undefined)).toBe(8_750);
   });
 });

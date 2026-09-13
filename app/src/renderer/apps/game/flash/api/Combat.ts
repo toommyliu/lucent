@@ -30,7 +30,6 @@ import {
 } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import { decodeCombatActionAcknowledgements } from "../contract/payload/Combat";
-import { isCounterAttackAura } from "../domain/AntiCounter";
 import type { Store } from "../state/Store";
 import type { AntiCounter } from "./internal/AntiCounter";
 import { makeCombatProfileConsumables } from "./internal/CombatProfileConsumables";
@@ -313,23 +312,7 @@ export const makeCombat = (
       .isAntiCounterEnabled()
       .pipe(
         Effect.flatMap((enabled) =>
-          enabled
-            ? antiCounter
-                .isActive(monsterMapId)
-                .pipe(
-                  Effect.flatMap((tracked) =>
-                    tracked
-                      ? Effect.succeed(true)
-                      : store.world
-                          .getMonsterAuras(monsterMapId, { kind: "active" })
-                          .pipe(
-                            Effect.map((auras) =>
-                              auras.some(isCounterAttackAura),
-                            ),
-                          ),
-                  ),
-                )
-            : Effect.succeed(false),
+          enabled ? antiCounter.isActive(monsterMapId) : Effect.succeed(false),
         ),
       );
 
