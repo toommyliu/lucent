@@ -6,6 +6,7 @@ export default defineMeta({
     "api",
     "script",
     "schema",
+    "http",
     "autozone",
     "autorelogin",
     "effect",

@@ -34,7 +34,7 @@ const response = (options: {
 const makeHttpClient = (
   responses: DesktopHttpResponse[],
   requestCount: { value: number },
-): DesktopHttpClientShape => ({
+): Pick<DesktopHttpClientShape, "get" | "download"> => ({
   get: (options) =>
     Effect.gen(function* () {
       requestCount.value += 1;

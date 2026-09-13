@@ -49,6 +49,7 @@ import type {
   ScriptSelectFileResult,
 } from "./ipc/scripting";
 import type { EnvironmentBoostDiscovery } from "./ipc/environment";
+import type { DesktopHttpBridge } from "./http";
 import type {
   FollowerCommand,
   FollowerCommandOutcome,
@@ -541,6 +542,7 @@ interface DesktopBridgeBase {
 }
 
 interface DesktopBridgeCapabilities {
+  readonly http: DesktopHttpBridge;
   readonly accountSettings: DesktopAccountSettingsBridge;
   readonly accounts: DesktopAccountsBridge;
   readonly army: DesktopArmyBridge;
@@ -577,6 +579,7 @@ interface DesktopBridgeViewCapabilities {
     | "combatProfiles"
     | "environment"
     | "fileSystem"
+    | "http"
     | "gameAccounts"
     | "gameFollower"
     | "gameRenderer"

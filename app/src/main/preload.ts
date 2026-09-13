@@ -46,6 +46,7 @@ import {
   EnvironmentIpc,
   FollowerIpc,
   FileSystemIpc,
+  HttpIpc,
   GameRendererIpc,
   GameViewsIpc,
   ScriptingIpc,
@@ -583,6 +584,13 @@ const bridges = {
     combatProfiles: combatProfilesBridge,
     environment: environmentBridge,
     fileSystem: fileSystemBridge,
+    http: {
+      openSession: () => invoke(HttpIpc.openSession, undefined),
+      closeSession: (sessionId) => invoke(HttpIpc.closeSession, { sessionId }),
+      request: (payload) => invoke(HttpIpc.request, payload),
+      cancel: (sessionId, requestId) =>
+        invoke(HttpIpc.cancel, { sessionId, requestId }),
+    },
     gameAccounts: gameAccountsBridge,
     gameFollower: gameFollowerBridge,
     gameRenderer: {

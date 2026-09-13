@@ -60,6 +60,13 @@ const STANDALONE_SCRIPT_API_MODULES = [
     specifier: "lucent/autozone",
   },
   {
+    id: "http",
+    interfaceName: "ScriptHttpApi",
+    label: "HTTP",
+    localName: "http",
+    specifier: "lucent/http",
+  },
+  {
     id: "filesystem",
     interfaceName: "ScriptFileSystemApi",
     label: "Filesystem",
@@ -3145,6 +3152,7 @@ const renderIndex = (
     `| [\`lucent/api\`](${SCRIPTING_REFERENCE_ROUTE}/api/) | ${summaryOr(moduleSummaries.api, "Perform in-game actions and inspect game state.")} |`,
     `| [\`lucent/script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | ${summaryOr(moduleSummaries.script, "Work with the current script and its runtime.")} |`,
     `| [\`lucent/schema\`](${SCRIPTING_REFERENCE_ROUTE}/schema/) | Validate and transform data with reusable schemas. |`,
+    `| [\`lucent/http\`](${SCRIPTING_REFERENCE_ROUTE}/http/) | ${summaryOr(standaloneSummaries.get("lucent/http"), "Sends HTTP/HTTPS requests.")} |`,
     `| [\`lucent/filesystem\`](${SCRIPTING_REFERENCE_ROUTE}/filesystem/) | ${summaryOr(standaloneSummaries.get("lucent/filesystem"), "Persist shared script data in Lucent's scoped data directory.")} |`,
     `| [\`lucent/autozone\`](${SCRIPTING_REFERENCE_ROUTE}/autozone/) | ${summaryOr(standaloneSummaries.get("lucent/autozone"), "Control automatic movement for supported encounter zones.")} |`,
     `| [\`lucent/autorelogin\`](${SCRIPTING_REFERENCE_ROUTE}/autorelogin/) | ${summaryOr(standaloneSummaries.get("lucent/autorelogin"), "Control automatic login recovery and explicit login attempts.")} |`,

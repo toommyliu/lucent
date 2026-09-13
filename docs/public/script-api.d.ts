@@ -22,6 +22,11 @@ declare module "lucent/autozone" {
   export = autoZone;
 }
 
+declare module "lucent/http" {
+  const http: ScriptHttpApi;
+  export = http;
+}
+
 declare module "lucent/filesystem" {
   const filesystem: ScriptFileSystemApi;
   export = filesystem;
@@ -687,6 +692,50 @@ interface ScriptFileSystemApi {
   /** Saves text to a file. */
     writeText(path: string, contents: string): Effect<void, FileSystemError>;
 }
+interface ScriptHttpApi {
+    readonly HttpError: HttpErrorConstructor;
+  /**
+  * Sends an HTTP request and returns its response. Requests cancel automatically when the script stops.
+  *
+  * @example
+  * ```js
+  * const http = require("lucent/http");
+  * const script = require("lucent/script");
+  *
+  * module.exports = function* () {
+  *   const response = yield* http.request("https://example.com/events", {
+  *     method: "POST",
+  *     headers: { "Content-Type": "application/json" },
+  *     body: JSON.stringify({ event: "finished" }),
+  *     timeout: "15 seconds",
+  *   });
+  *   if (!response.ok) return yield* script.stop(`HTTP ${response.status}`);
+  *   yield* script.log(yield* response.json());
+  * };
+  * ```
+  *
+  * @example
+  * Continue when an optional request times out.
+  * ```js
+  * const http = require("lucent/http");
+  * const script = require("lucent/script");
+  * const { Effect } = require("effect");
+  *
+  * module.exports = function* () {
+  *   yield* Effect.catch(
+  *     http.request("https://example.com", { timeout: "5 seconds" }),
+  *     (error) => {
+  *       if (error instanceof http.HttpError && error.reason === "timeout") {
+  *         return script.log("Request timed out. Continuing without the response.");
+  *       }
+  *       return Effect.fail(error);
+  *     },
+  *   );
+  * };
+  * ```
+  */
+    request(url: string | URL, options?: HttpRequestOptions): Effect<HttpResponse, HttpError>;
+}
 interface ScriptEffectStd {
     readonly Duration: ScriptDurationModule;
     readonly Effect: ScriptEffectModule;
@@ -695,6 +744,9 @@ interface ScriptEffectStd {
 }
 interface FileSystemErrorConstructor {
     new (fields: { readonly operation: FileSystemOperation; readonly path?: string; readonly reason: FileSystemErrorReason; }): FileSystemError;
+}
+interface HttpErrorConstructor {
+    new (fields: { readonly reason: HttpErrorReason; readonly url: string; readonly detail: string; readonly cause?: unknown; }): HttpError;
 }
 interface ScriptArmyApi {
     equipSet(setName: string, options?: ArmyEquipSetOptions): Effect<void, ArmyError>;
@@ -1313,6 +1365,57 @@ type FileSystemOperation =
   | "write-json"
   | "write-text";
 type GameAction = 'acceptQuest' | 'buyItem' | 'equipItem' | 'equipLoadout' | 'getMapItem' | 'loadEnhShop' | 'loadHairShop' | 'loadShop' | 'rest' | 'sellItem' | 'tfer' | 'tryQuestComplete' | 'unequipItem' | 'wearItem' | 'wearLoadout';
+interface HttpError extends Error {
+  readonly _tag: "HttpError";
+  readonly reason: HttpErrorReason;
+  readonly url: string;
+  readonly cause?: unknown;
+}
+/** Why a script HTTP request or body read failed. */
+type HttpErrorReason =
+  | "request"
+  | "redirect"
+  | "timeout"
+  | "aborted"
+  | "too-large"
+  | "body";
+interface HttpRequestOptions {
+  /** @defaultValue "GET" */
+  readonly method?: string;
+  readonly headers?: HeadersInit;
+  readonly body?: HttpRequestBody;
+  /**
+   * Total deadline through redirects and the response download.
+   * @defaultValue 20 seconds
+   */
+  readonly timeout?: DurationInput;
+  /** Adds request cancellation alongside script cancellation. */
+  readonly signal?: AbortSignal;
+  /**
+   * Follow redirects, return the redirect response, or fail on a redirect.
+   * Cross-origin redirects strip credential headers.
+   * @defaultValue "follow"
+   */
+  readonly redirect?: "follow" | "manual" | "error";
+  /** Maximum followed redirects. @defaultValue 5 */
+  readonly maxRedirects?: number;
+}
+interface HttpResponse {
+  readonly status: number;
+  readonly statusText: string;
+  /** True for status codes 200 through 299. */
+  readonly ok: boolean;
+  /** Final URL after redirects. */
+  readonly url: string;
+  readonly headers: Headers;
+  readonly bodyUsed: boolean;
+  /** Parses JSON locally. Empty or invalid JSON fails. */
+  readonly json: () => Effect<unknown, HttpError>;
+  /** Decodes the body as UTF-8. */
+  readonly text: () => Effect<string, HttpError>;
+  /** Returns the body bytes. */
+  readonly arrayBuffer: () => Effect<ArrayBuffer, HttpError>;
+}
 interface HuntOptions {
   /**
    * Whether to prefer the cell containing the most matches.
@@ -1850,6 +1953,11 @@ type EnvironmentQuestAutoRegisterOptions = { readonly requirements: boolean; rea
  * @scriptingExpandSchema
  */
 type EnvironmentDropPolicy = { readonly acceptAcMemberOnlyDrops: boolean; readonly acceptAcNonMemberDrops: boolean; readonly acceptNonAcMemberOnlyDrops: boolean; readonly acceptNonAcNonMemberDrops: boolean; readonly rejectUnregisteredDrops: boolean; };
+type HttpRequestBody =
+  | string
+  | URLSearchParams
+  | Uint8Array
+  | ArrayBuffer;
 type ItemSelector = ItemSelectorById | ItemSelectorByName;
 interface LiveModel<State extends object> {
 }

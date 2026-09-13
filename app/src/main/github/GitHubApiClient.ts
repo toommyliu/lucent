@@ -214,7 +214,7 @@ const rateLimitKey = (credentialId: string | undefined): string =>
   `${credentialId ?? "public"}:core`;
 
 export const makeGitHubApiClient = (
-  http: DesktopHttpClientShape,
+  http: Pick<DesktopHttpClientShape, "get" | "download">,
   userAgent: string,
 ): GitHubApiClientShape => {
   const rateLimits = new Map<string, RateLimitState>();
