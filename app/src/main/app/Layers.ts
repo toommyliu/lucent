@@ -40,6 +40,7 @@ import * as ScriptPackageState from "../scripting/ScriptPackageState";
 import * as ScriptSourceRegistry from "../scripting/ScriptSourceRegistry";
 import * as ScriptWorkspace from "../scripting/ScriptWorkspace";
 import * as ScriptFileSystem from "../scripting/ScriptFileSystem";
+import * as ScriptHttp from "../scripting/ScriptHttp";
 import * as DesktopUpdates from "../updates/DesktopUpdates";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu";
 import * as DesktopAccountGameWindows from "../window/DesktopAccountGameWindows";
@@ -350,6 +351,9 @@ export const makeDesktopLayer = (
     settingsLayer,
     scriptingLayer,
     scriptFileSystemLayer,
+    ScriptHttp.layer.pipe(
+      Layer.provideMerge(Layer.mergeAll(httpClientLayer, windowsLayer)),
+    ),
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,

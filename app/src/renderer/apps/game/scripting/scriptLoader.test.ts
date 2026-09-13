@@ -21,6 +21,7 @@ const modules = Object.freeze({
   "lucent/autorelogin": Object.freeze({ marker: "auto-relogin" }),
   "lucent/autozone": Object.freeze({ marker: "auto-zone" }),
   "lucent/filesystem": Object.freeze({ marker: "filesystem" }),
+  "lucent/http": { marker: "http" },
   "lucent/schema": scriptSchema,
   "lucent/script": Object.freeze({ marker: "script-api" }),
 }) as unknown as ScriptBuiltinModules;

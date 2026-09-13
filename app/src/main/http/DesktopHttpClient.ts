@@ -1,12 +1,17 @@
 import { createWriteStream, promises as fs } from "fs";
 import type { IncomingHttpHeaders, IncomingMessage } from "http";
-import { request } from "https";
 import { pipeline, Transform } from "stream";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schema from "effect/Schema";
+import { clientError, DesktopHttpClientError } from "./DesktopHttpError";
+import { requestFollowingRedirects } from "./DesktopHttpRequest";
+
+export {
+  DesktopHttpClientError,
+  crossOriginRedirectHeaders,
+} from "./DesktopHttpError";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_ERROR_RESPONSE_MAX_BYTES = 1024 * 1024;
@@ -27,6 +32,12 @@ export interface DesktopHttpGetOptions {
   readonly url: URL;
 }
 
+export interface DesktopHttpRequestOptions extends DesktopHttpGetOptions {
+  readonly method?: string;
+  readonly body?: Uint8Array;
+  readonly redirect?: "follow" | "manual" | "error";
+}
+
 export interface DesktopHttpDownloadOptions {
   readonly errorResponseMaxBytes?: number;
   readonly headers?: Readonly<Record<string, string>>;
@@ -37,26 +48,10 @@ export interface DesktopHttpDownloadOptions {
   readonly url: URL;
 }
 
-export class DesktopHttpClientError extends Schema.TaggedError<DesktopHttpClientError>()(
-  "DesktopHttpClientError",
-  {
-    kind: Schema.Literals([
-      "invalid-url",
-      "redirect-failed",
-      "request-failed",
-      "response-too-large",
-    ]),
-    detail: Schema.String,
-    url: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return this.detail;
-  }
-}
-
 export interface DesktopHttpClientShape {
+  readonly request: (
+    options: DesktopHttpRequestOptions,
+  ) => Effect.Effect<DesktopHttpResponse, DesktopHttpClientError>;
   readonly download: (
     options: DesktopHttpDownloadOptions,
   ) => Effect.Effect<DesktopHttpResponse, DesktopHttpClientError>;
@@ -81,46 +76,6 @@ export const firstHttpHeader = (
     : undefined;
 };
 
-const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "host",
-  "proxy-authorization",
-]);
-
-/** Prevents credentials and origin-bound headers from following a redirect. */
-export const crossOriginRedirectHeaders = (
-  headers: Readonly<Record<string, string>>,
-): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(headers).filter(
-      ([name]) => !CROSS_ORIGIN_SENSITIVE_HEADERS.has(name.toLowerCase()),
-    ),
-  );
-
-const clientError = (
-  kind: DesktopHttpClientError["kind"],
-  detail: string,
-  url: URL,
-  cause?: unknown,
-): DesktopHttpClientError =>
-  new DesktopHttpClientError({
-    kind,
-    detail,
-    url: url.href,
-    ...(cause === undefined ? {} : { cause }),
-  });
-
-const validateRequestUrl = (url: URL): void => {
-  if (url.protocol !== "https:" || url.username !== "" || url.password !== "") {
-    throw clientError(
-      "invalid-url",
-      "Desktop HTTP requests require an HTTPS URL without embedded credentials.",
-      url,
-    );
-  }
-};
-
 const responseLength = (response: IncomingMessage): number | undefined => {
   const value = Number(firstHttpHeader(response.headers, "content-length"));
   return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
@@ -130,6 +85,7 @@ const readResponse = (
   response: IncomingMessage,
   maxBytes: number | undefined,
   url: URL,
+  head = false,
 ): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     let settled = false;
@@ -141,8 +97,14 @@ const readResponse = (
     };
 
     response.on("error", fail);
+    response.on("aborted", () => fail(new Error("HTTP response was aborted.")));
+    response.on("close", () => {
+      if (!settled)
+        fail(new Error("HTTP response ended before its body was complete."));
+    });
     const contentLength = responseLength(response);
     if (
+      !head &&
       maxBytes !== undefined &&
       contentLength !== undefined &&
       contentLength > maxBytes
@@ -239,92 +201,6 @@ const streamResponse = (
   });
 };
 
-interface RequestOptions {
-  readonly headers: Readonly<Record<string, string>>;
-  readonly maxRedirects: number;
-  readonly timeoutMs: number;
-  readonly url: URL;
-}
-
-const requestFollowingRedirects = <Value>(
-  options: RequestOptions,
-  consume: (response: IncomingMessage, url: URL) => Promise<Value>,
-  redirectCount = 0,
-): Promise<Value> => {
-  try {
-    validateRequestUrl(options.url);
-  } catch (cause) {
-    return Promise.reject(cause);
-  }
-
-  return new Promise((resolve, reject) => {
-    const outgoing = request(
-      options.url,
-      { headers: { ...options.headers }, method: "GET" },
-      (response) => {
-        const statusCode = response.statusCode ?? 0;
-        const location = response.headers.location;
-        if (statusCode >= 300 && statusCode < 400 && location !== undefined) {
-          response.resume();
-          if (redirectCount >= options.maxRedirects) {
-            reject(
-              clientError(
-                "redirect-failed",
-                "HTTP request exceeded its redirect limit.",
-                options.url,
-              ),
-            );
-            return;
-          }
-
-          let nextUrl: URL;
-          try {
-            nextUrl = new URL(location, options.url);
-            validateRequestUrl(nextUrl);
-          } catch (cause) {
-            reject(
-              cause instanceof DesktopHttpClientError
-                ? cause
-                : clientError(
-                    "redirect-failed",
-                    "HTTP response contained an invalid redirect URL.",
-                    options.url,
-                    cause,
-                  ),
-            );
-            return;
-          }
-          const headers =
-            nextUrl.origin === options.url.origin
-              ? options.headers
-              : crossOriginRedirectHeaders(options.headers);
-          void requestFollowingRedirects(
-            { ...options, headers, url: nextUrl },
-            consume,
-            redirectCount + 1,
-          ).then(resolve, reject);
-          return;
-        }
-
-        void Promise.resolve()
-          .then(() => consume(response, options.url))
-          .then(resolve, reject);
-      },
-    );
-    outgoing.setTimeout(options.timeoutMs, () => {
-      outgoing.destroy(
-        clientError(
-          "request-failed",
-          `HTTP request timed out after ${options.timeoutMs} milliseconds.`,
-          options.url,
-        ),
-      );
-    });
-    outgoing.on("error", reject);
-    outgoing.end();
-  });
-};
-
 const normalizeError = (cause: unknown, url: URL): DesktopHttpClientError =>
   cause instanceof DesktopHttpClientError
     ? cause
@@ -338,14 +214,43 @@ const normalizeError = (cause: unknown, url: URL): DesktopHttpClientError =>
       );
 
 export const makeDesktopHttpClient = (): DesktopHttpClientShape => ({
+  request: (input) =>
+    Effect.tryPromise({
+      try: (signal) =>
+        requestFollowingRedirects(
+          {
+            ...input,
+            headers: input.headers ?? {},
+            method: (input.method ?? "GET").toUpperCase(),
+            maxRedirects: input.maxRedirects ?? 5,
+            httpsOnly: false,
+            signal,
+          },
+          async (response, url) => ({
+            body: await readResponse(
+              response,
+              input.maxBytes,
+              url,
+              input.method?.toUpperCase() === "HEAD",
+            ),
+            headers: response.headers,
+            statusCode: response.statusCode ?? 0,
+            statusMessage: response.statusMessage ?? "",
+            url: url.href,
+          }),
+        ),
+      catch: (cause) => normalizeError(cause, input.url),
+    }),
   get: (input) =>
     Effect.tryPromise({
-      try: () =>
+      try: (signal) =>
         requestFollowingRedirects(
           {
             headers: input.headers ?? {},
             maxRedirects: input.maxRedirects ?? 0,
-            timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            socketTimeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            signal,
+            method: "GET",
             url: input.url,
           },
           async (response, url) => ({
@@ -360,12 +265,14 @@ export const makeDesktopHttpClient = (): DesktopHttpClientShape => ({
     }),
   download: (input) =>
     Effect.tryPromise({
-      try: () =>
+      try: (signal) =>
         requestFollowingRedirects(
           {
             headers: input.headers ?? {},
             maxRedirects: input.maxRedirects ?? 0,
-            timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            socketTimeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            signal,
+            method: "GET",
             url: input.url,
           },
           async (response, url) => {
