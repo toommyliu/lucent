@@ -24,7 +24,7 @@ vi.mock("https", () => ({
 
 interface TestRequest extends EventEmitter {
   destroy: (cause?: Error) => void;
-  end: () => void;
+  end: (chunk?: Uint8Array) => void;
   setTimeout: (milliseconds: number, listener: () => void) => TestRequest;
 }
 
@@ -52,7 +52,8 @@ const makeResponse = (options: {
   return response;
 };
 
-const queueResponse = (response: IncomingMessage): void => {
+const queueResponse = (response: IncomingMessage): (Buffer | undefined)[] => {
+  const writes: (Buffer | undefined)[] = [];
   requestMock.mockImplementationOnce((...args) => {
     const callback = args.find(
       (value): value is (value: IncomingMessage) => void =>
@@ -67,11 +68,17 @@ const queueResponse = (response: IncomingMessage): void => {
     outgoing.destroy = (cause) => {
       if (cause !== undefined) outgoing.emit("error", cause);
     };
-    outgoing.end = () => {
+    outgoing.end = (chunk) => {
+      // Electron 11's HTTP writer rejects plain Uint8Array values.
+      if (chunk !== undefined && !Buffer.isBuffer(chunk)) {
+        throw new TypeError('The "chunk" argument must be a string or Buffer.');
+      }
+      writes.push(chunk);
       process.nextTick(() => callback(response));
     };
     return outgoing;
   });
+  return writes;
 };
 
 afterEach(async () => {

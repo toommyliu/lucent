@@ -73,6 +73,11 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/file-system-operation/"><code>FileSystemOperation</code></a> | type alias |  |
 | <a href="/reference/scripting/types/flash-packet/"><code>FlashPacket</code></a> | type alias |  |
 | <a href="/reference/scripting/types/game-action/"><code>GameAction</code></a> | type alias |  |
+| <a href="/reference/scripting/types/http-error/"><code>HttpError</code></a> | class |  |
+| <a href="/reference/scripting/types/http-error-reason/"><code>HttpErrorReason</code></a> | type alias | Why a script HTTP request or body read failed. |
+| <a href="/reference/scripting/types/http-request-body/"><code>HttpRequestBody</code></a> | type alias |  |
+| <a href="/reference/scripting/types/http-request-options/"><code>HttpRequestOptions</code></a> | interface |  |
+| <a href="/reference/scripting/types/http-response/"><code>HttpResponse</code></a> | interface | Fully downloaded response. Each body can be consumed once. |
 | <a href="/reference/scripting/types/hunt-options/"><code>HuntOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/item/"><code>Item</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-context/"><code>ItemContext</code></a> | type alias |  |

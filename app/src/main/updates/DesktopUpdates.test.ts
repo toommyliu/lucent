@@ -38,6 +38,7 @@ const httpRequests: DesktopHttpGetOptions[] = [];
 const httpResponses: DesktopHttpResponse[] = [];
 
 const httpClient = DesktopHttpClient.of({
+  request: () => Effect.die("Unexpected generic HTTP request"),
   get: (options) =>
     Effect.gen(function* () {
       httpRequests.push(options);

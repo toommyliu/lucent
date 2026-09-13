@@ -1379,3 +1379,124 @@ export type ScriptMain = () => ScriptGenerator<unknown>;
 export interface ScriptModuleExports extends ScriptMain {
   readonly inputs?: ScriptInputsDefinition;
 }
+
+/** Why a script HTTP request or body read failed. */
+export type HttpErrorReason =
+  | "request"
+  | "redirect"
+  | "timeout"
+  | "aborted"
+  | "too-large"
+  | "body";
+
+export interface HttpError extends Error {
+  readonly _tag: "HttpError";
+  readonly reason: HttpErrorReason;
+  readonly url: string;
+  readonly cause?: unknown;
+}
+
+export interface HttpErrorConstructor {
+  new (fields: {
+    readonly reason: HttpErrorReason;
+    readonly url: string;
+    readonly detail: string;
+    readonly cause?: unknown;
+  }): HttpError;
+}
+
+export type HttpRequestBody =
+  | string
+  | URLSearchParams
+  | Uint8Array
+  | ArrayBuffer;
+
+export interface HttpRequestOptions {
+  /** @defaultValue "GET" */
+  readonly method?: string;
+  readonly headers?: HeadersInit;
+  readonly body?: HttpRequestBody;
+  /**
+   * Total deadline through redirects and the response download.
+   */
+  readonly timeout?: Duration.Input;
+  /** Adds request cancellation alongside script cancellation. */
+  readonly signal?: AbortSignal;
+  /**
+   * Follow redirects, return the redirect response, or fail on a redirect.
+   * Cross-origin redirects strip credential headers.
+   * @defaultValue "follow"
+   */
+  readonly redirect?: "follow" | "manual" | "error";
+  /** Maximum followed redirects. @defaultValue 5 */
+  readonly maxRedirects?: number;
+}
+
+/** Fully downloaded response. Each body can be consumed once. */
+export interface HttpResponse {
+  readonly status: number;
+  readonly statusText: string;
+  /** True for status codes 200 through 299. */
+  readonly ok: boolean;
+  /** Final URL after redirects. */
+  readonly url: string;
+  readonly headers: Headers;
+  readonly bodyUsed: boolean;
+  /** Parses JSON locally. Empty or invalid JSON fails. */
+  readonly json: () => Effect.Effect<unknown, HttpError>;
+  /** Decodes the body as UTF-8. */
+  readonly text: () => Effect.Effect<string, HttpError>;
+  /** Returns the body bytes. */
+  readonly arrayBuffer: () => Effect.Effect<ArrayBuffer, HttpError>;
+}
+
+/**
+ * Sends HTTP/HTTPS requests.
+ */
+export interface ScriptHttpApi {
+  readonly HttpError: HttpErrorConstructor;
+  /**
+   * Sends an HTTP request and returns its response. Requests cancel automatically when the script stops.
+   *
+   * @example
+   * ```js
+   * const http = require("lucent/http");
+   * const script = require("lucent/script");
+   *
+   * module.exports = function* () {
+   *   const response = yield* http.request("https://example.com/events", {
+   *     method: "POST",
+   *     headers: { "Content-Type": "application/json" },
+   *     body: JSON.stringify({ event: "finished" }),
+   *     timeout: "15 seconds",
+   *   });
+   *   if (!response.ok) return yield* script.stop(`HTTP ${response.status}`);
+   *   yield* script.log(yield* response.json());
+   * };
+   * ```
+   *
+   * @example
+   * Continue when an optional request times out.
+   * ```js
+   * const http = require("lucent/http");
+   * const script = require("lucent/script");
+   * const { Effect } = require("effect");
+   *
+   * module.exports = function* () {
+   *   yield* Effect.catch(
+   *     http.request("https://example.com", { timeout: "5 seconds" }),
+   *     (error) => {
+   *       if (error instanceof http.HttpError && error.reason === "timeout") {
+   *         return script.log("Request timed out. Continuing without the response.");
+   *       }
+   *       return Effect.fail(error);
+   *     },
+   *   );
+   * };
+   * ```
+   */
+  readonly request: (
+    url: string | URL,
+    options?: HttpRequestOptions,
+  ) => Effect.Effect<HttpResponse, HttpError>;
+}
