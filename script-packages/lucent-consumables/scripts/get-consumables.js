@@ -1,32 +1,25 @@
 // @ts-check
 
 const script = require("lucent/script");
+const s = require("lucent/schema");
 const consumables = require("@lucent/consumables");
+
+const consumable = s.enum([...consumables.potionNames, ...consumables.scrollNames]);
+const positiveInt = s.number().int().min(1);
+const inputsSchema = s.object({
+  potions: s.array(consumable),
+  scrolls: s.array(consumable),
+  quantity: positiveInt,
+  potionMethod: s.enum(["Buy", "Craft"]),
+  mode: s.enum(["Buy", "Farm"]),
+  maxGold: s.number().int().min(0),
+  maxCrafts: positiveInt,
+});
 
 function* run() {
   const { potions, scrolls, quantity, potionMethod, mode, maxGold, maxCrafts } =
-    yield* script.inputs.getAll();
-  if (
-    !Array.isArray(potions) ||
-    !Array.isArray(scrolls) ||
-    typeof quantity !== "number" ||
-    (potionMethod !== "Buy" && potionMethod !== "Craft") ||
-    (mode !== "Buy" && mode !== "Farm") ||
-    typeof maxGold !== "number" ||
-    typeof maxCrafts !== "number"
-  )
-    throw new Error(
-      "Choose consumables, a target quantity, and spending limits in the script inputs.",
-    );
-  /** @type {import("@lucent/consumables").ConsumableRequest[]} */
-  const requests = [];
-  for (const item of [...potions, ...scrolls]) {
-    const name = [...consumables.potionNames, ...consumables.scrollNames].find(
-      (name) => name === item,
-    );
-    if (!name) throw new Error(`Unknown consumable: ${item}.`);
-    requests.push({ item: name, quantity });
-  }
+    inputsSchema.parse(yield* script.inputs.getAll());
+  const requests = [...potions, ...scrolls].map((item) => ({ item, quantity }));
   yield* consumables.ensure(requests, {
     potionMethod: potionMethod === "Buy" ? "buy" : "craft",
     mode: mode === "Buy" ? "buy" : "farm",
@@ -35,9 +28,7 @@ function* run() {
   });
 }
 
-module.exports = run;
-
-module.exports.inputs = {
+run.inputs = {
   id: "lucent-consumables",
   fields: [
     {
@@ -181,3 +172,5 @@ module.exports.inputs = {
     },
   ],
 };
+
+module.exports = run;

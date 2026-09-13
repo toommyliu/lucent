@@ -556,6 +556,8 @@ const isDocumentableSourceFile = (sourceFile: ts.SourceFile): boolean => {
   const fileName = sourceFile.fileName.replaceAll("\\", "/");
   return (
     !fileName.endsWith(".test.ts") &&
+    // lucent/schema owns its reference and declarations, outside the game API type index.
+    !fileName.includes("/scripting/schema/") &&
     (fileName.includes("/app/src/shared/") ||
       fileName.includes("/app/src/renderer/apps/game/") ||
       fileName.includes("/packages/core/src/") ||
@@ -1961,10 +1963,11 @@ const isDocSourceReflection = (
     "/",
   );
   return (
-    relativePath.startsWith("app/src/shared/") ||
-    relativePath.startsWith("app/src/renderer/apps/game/") ||
-    relativePath.startsWith("packages/core/src/") ||
-    relativePath.startsWith("packages/game/src/")
+    !relativePath.includes("/scripting/schema/") &&
+    (relativePath.startsWith("app/src/shared/") ||
+      relativePath.startsWith("app/src/renderer/apps/game/") ||
+      relativePath.startsWith("packages/core/src/") ||
+      relativePath.startsWith("packages/game/src/"))
   );
 };
 
@@ -2583,6 +2586,7 @@ const typedocEntryPoints = (
   const addSourceFile = (fileName: string): void => {
     if (
       fileName.includes("/node_modules/") ||
+      fileName.includes("/scripting/schema/") ||
       fileName.endsWith(".test.ts") ||
       !isInsideRepo(options.repoRoot, fileName)
     ) {
@@ -3140,6 +3144,7 @@ const renderIndex = (
     "| --- | --- |",
     `| [\`lucent/api\`](${SCRIPTING_REFERENCE_ROUTE}/api/) | ${summaryOr(moduleSummaries.api, "Perform in-game actions and inspect game state.")} |`,
     `| [\`lucent/script\`](${SCRIPTING_REFERENCE_ROUTE}/script/) | ${summaryOr(moduleSummaries.script, "Work with the current script and its runtime.")} |`,
+    `| [\`lucent/schema\`](${SCRIPTING_REFERENCE_ROUTE}/schema/) | Validate and transform data with reusable schemas. |`,
     `| [\`lucent/filesystem\`](${SCRIPTING_REFERENCE_ROUTE}/filesystem/) | ${summaryOr(standaloneSummaries.get("lucent/filesystem"), "Persist shared script data in Lucent's scoped data directory.")} |`,
     `| [\`lucent/autozone\`](${SCRIPTING_REFERENCE_ROUTE}/autozone/) | ${summaryOr(standaloneSummaries.get("lucent/autozone"), "Control automatic movement for supported encounter zones.")} |`,
     `| [\`lucent/autorelogin\`](${SCRIPTING_REFERENCE_ROUTE}/autorelogin/) | ${summaryOr(standaloneSummaries.get("lucent/autorelogin"), "Control automatic login recovery and explicit login attempts.")} |`,

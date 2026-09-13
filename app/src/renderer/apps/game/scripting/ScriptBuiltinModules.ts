@@ -23,6 +23,7 @@ import type {
 } from "./ScriptApi";
 import type { ScriptAsyncScope } from "./scriptAsyncScope";
 import { scriptEffectStd } from "./ScriptEffectStd";
+import { scriptSchema } from "./schema";
 
 export interface ScriptBuiltinModules {
   readonly effect: ScriptEffectStd;
@@ -30,6 +31,7 @@ export interface ScriptBuiltinModules {
   readonly "lucent/autorelogin": ScriptAutoReloginApi;
   readonly "lucent/autozone": ScriptAutoZoneApi;
   readonly "lucent/filesystem": ScriptFileSystemApi;
+  readonly "lucent/schema": typeof scriptSchema;
   readonly "lucent/script": ScriptRuntimeApi;
 }
 
@@ -136,6 +138,7 @@ export const makeScriptBuiltinModules = (
     "lucent/autorelogin": makeScriptAutoReloginApi(options.autoRelogin),
     "lucent/autozone": makeScriptAutoZoneApi(options.autoZone),
     "lucent/filesystem": options.fileSystem,
+    "lucent/schema": scriptSchema,
     "lucent/script": options.script,
   });
 };

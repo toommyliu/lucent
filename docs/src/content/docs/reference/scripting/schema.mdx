@@ -1,0 +1,267 @@
+---
+title: lucent/schema module
+description: Check and convert data with reusable schemas.
+sidebar:
+  label: lucent/schema
+---
+
+A schema describes the values your code expects. `lucent/schema` checks data
+against those rules and can clean it up or convert it. Define a schema once and
+reuse it whenever you need the same checks.
+
+```js
+const s = require("lucent/schema");
+
+const configSchema = s.object({
+  mode: s.enum(["auto", "manual"]).default("auto"),
+  retries: s.coerce.number().int().min(0),
+  label: s.string().trim().min(1).optional(),
+});
+
+const config = configSchema.parse({ retries: "3" });
+// { mode: "auto", retries: 3 }
+```
+
+This accepts either mode, fills in a missing mode, converts the retry count to a
+number, and allows the label to be omitted. Adding a rule creates a new schema,
+so you can build on an existing schema without changing it.
+
+## Check data
+
+| Method              | When to use it                                                      |
+| ------------------- | ------------------------------------------------------------------- |
+| `.parse(value)`     | Get the checked value, or throw `ValidationError` if it is invalid. |
+| `.safeParse(value)` | Handle valid and invalid data yourself.                             |
+| `.is(value)`        | Ask whether a value passes the schema. Returns `true` or `false`.   |
+
+These methods run synchronously. Call them directly, without `yield*` or `await`.
+
+```js
+const result = configSchema.safeParse({ retries: -1 });
+
+if (result.success) {
+  console.log(result.data);
+} else {
+  console.log(s.formatIssues(result.issues));
+  // $.retries: Use a number of 0 or more.
+}
+```
+
+An issue tells you what failed through its `message`, `path`, and `code`.
+`formatIssues` turns issues into readable text. `formatPath` formats a single path.
+
+Use `parse` or `safeParse` when you need converted values. For example,
+`s.coerce.number().is("3")` returns `true`, but the original value is still a string.
+
+By default, parsing stops at the first problem. To collect more problems, pass
+`{ errors: "all" }` as the second argument to `parse` or `safeParse`. You can also
+set `maxIssues`, `maxDepth`, or a `message(issue)` function to customize error text.
+The default limits are 100 issues per list and 256 levels of nesting.
+
+## Choose a value type
+
+| Schema                       | What it accepts                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `s.string()`                 | Text, including an empty string.                                                          |
+| `s.number()`                 | Numbers, excluding `NaN` and infinity.                                                    |
+| `s.boolean()`                | `true` or `false`.                                                                        |
+| `s.date()`                   | A valid JavaScript `Date`.                                                                |
+| `s.literal("ready")`         | Exactly the value you supply. Also works with numbers, booleans, `null`, and `undefined`. |
+| `s.enum(["small", "large"])` | Any value in a nonempty list of strings or numbers.                                       |
+| `s.null()`, `s.undefined()`  | Exactly `null` or `undefined`.                                                            |
+| `s.unknown()`                | Any value.                                                                                |
+| `s.never()`                  | No value.                                                                                 |
+
+Add checks to narrow what a schema accepts:
+
+```js
+const name = s.string().trim().min(1);
+const count = s.number().int().min(0).max(100);
+const tags = s.array(s.string()).max(10).unique();
+```
+
+| Type    | Available checks                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| Strings | `.min(n)`, `.max(n)`, `.length(n)`, `.regex(pattern)`, `.startsWith(text)`, `.endsWith(text)`, `.includes(text)` |
+| Numbers | `.int()`, `.min(n)`, `.max(n)`, `.gt(n)`, `.lt(n)`, `.multipleOf(n)`                                             |
+| Dates   | `.min(date)`, `.max(date)`, `.gt(date)`, `.lt(date)`                                                             |
+
+`min` and `max` allow the boundary value. `gt` and `lt` require a value above or
+below it. `int()` requires a whole number within JavaScript's safe integer range.
+
+Most constructors and checks accept a custom message:
+
+```js
+const name = s.string().min(1, { message: "Enter a name." });
+```
+
+## Handle missing or invalid values
+
+Fields are required by default, even when their schema is `s.unknown()`.
+
+| Method            | What it does                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `.optional()`     | Allows a missing field or `undefined`.                                                    |
+| `.optionalKey()`  | Allows a missing field, but checks the value normally when present.                       |
+| `.nullable()`     | Also allows `null`.                                                                       |
+| `.nullish()`      | Allows a missing field, `undefined`, or `null`.                                           |
+| `.required()`     | Requires a value and rejects `undefined`. On an object schema, makes its fields required. |
+| `.nonnullable()`  | Rejects `null`.                                                                           |
+| `.default(value)` | Uses a fallback for a missing field or `undefined`.                                       |
+| `.catch(value)`   | Uses a fallback when validation fails.                                                    |
+
+```js
+const retries = s.number().int().min(0).default(3);
+retries.parse(undefined); // 3
+
+const label = s.string().catch("Untitled");
+label.parse(42); // "Untitled"
+```
+
+Fallbacks go through the schema's checks and conversions too. An invalid fallback
+still fails. You can supply a function to create the fallback; a `catch` function
+receives `{ input, issues }`.
+
+Order matters. `.optional().default("x")` fills in `"x"` for `undefined`, while
+`.default("x").optional()` accepts `undefined` as it is.
+
+## Work with objects and lists
+
+Use `s.object(fields)` for named fields, `s.array(schema)` for a list, and
+`s.record(schema)` for an object whose keys can vary.
+
+```js
+const entry = s.object({
+  name: s.string().min(1),
+  enabled: s.boolean().default(true),
+});
+
+const entries = s.array(entry);
+const entriesByName = s.record(entry);
+```
+
+Objects remove extra fields by default. Choose a different behavior with:
+
+| Method              | What happens to extra fields                |
+| ------------------- | ------------------------------------------- |
+| `.strip()`          | Remove them. This is the default.           |
+| `.strict()`         | Report them as errors.                      |
+| `.passthrough()`    | Keep them as they are.                      |
+| `.catchall(schema)` | Check and convert them with another schema. |
+
+To adapt an object schema, use `.extend(fields)`, `.pick(keys)`, or `.omit(keys)`.
+Use `.partial(keys?)` or `.required(keys?)` to change which fields are required.
+Omitting the key list applies the change to every field. `.keyof()` makes an enum
+from the field names of a nonempty object schema.
+
+Arrays support `.min(n)`, `.max(n)`, `.length(n)`, and `.unique(keySelector?)`.
+For example, `.unique((entry) => entry.name)` rejects duplicate names.
+
+Records support `.min(n)`, `.max(n)`, and `.size(n)`. To check keys too, use
+`s.record(keySchema, valueSchema)`. Keys must become distinct strings. Only keys
+that are present are checked.
+
+You can reuse parts through an object's `.shape`, an array's `.element`, a
+record's `.key` and `.value`, or a tuple's `.items`. Enum schemas expose `.values`.
+
+## Convert values
+
+Normal schemas check the type you provide. Use `s.coerce` when you want to accept
+other types and convert them:
+
+| Schema               | What it converts                                                       |
+| -------------------- | ---------------------------------------------------------------------- |
+| `s.coerce.string()`  | Strings, finite numbers, and booleans to text.                         |
+| `s.coerce.number()`  | Numbers and decimal numeric strings to numbers. Empty strings fail.    |
+| `s.coerce.boolean()` | Booleans, `0`, `1`, `"0"`, `"1"`, `"false"`, and `"true"` to booleans. |
+| `s.coerce.date()`    | Valid Dates, millisecond timestamps, and ISO date strings to Dates.    |
+
+Date strings can be `YYYY-MM-DD` or timestamps with seconds and a timezone.
+Date-only strings use UTC. Invalid dates fail.
+
+Strings also support `.trim()`, `.toLowerCase()`, `.toUpperCase()`, and
+`.normalize(form?)` to clean up text.
+
+Use `.transform(callback)` for your own conversion, then `.pipe(schema)` to check
+the result:
+
+```js
+const names = s
+  .string()
+  .transform((value) => value.split(","))
+  .pipe(s.array(s.string().trim().min(1)));
+
+names.parse("First, Second"); // ["First", "Second"]
+```
+
+Checks and conversions run in the order you write them. For example,
+`.trim().min(1)` trims first, then rejects empty text.
+
+To change raw input before checking it, use `.preprocess(callback)`. A transform
+or preprocess callback can report an issue or return `s.INVALID` to reject a value.
+
+## Add your own checks
+
+Use `.refine(predicate, options?)` for a true-or-false check:
+
+```js
+const even = s.number().refine((value) => value % 2 === 0, {
+  message: "Use an even number.",
+});
+```
+
+Use `.check(callback)` when you need to check related fields or report more than
+one problem:
+
+```js
+const range = s
+  .object({ min: s.number(), max: s.number() })
+  .check((value, ctx) => {
+    if (value.max < value.min) {
+      ctx.addIssue({
+        path: ["max"],
+        message: "Set the maximum to the minimum or higher.",
+      });
+    }
+  });
+```
+
+`path` points to the field with the problem. Leave it out to report a problem with
+the whole value. Custom issues can also include a `rule` name.
+
+Callbacks must finish synchronously. Mistakes in your code still throw, including
+inside `safeParse` or `catch`. `SchemaUsageError` identifies invalid schema options
+or callback usage.
+
+## More schema tools
+
+| Tool                                 | When to use it                                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `s.tuple([first, second])`           | Each position in a list needs a different schema. Add `.rest(schema)` for extra entries; optional positions must come last.   |
+| `s.union([first, second])`           | A value can have several forms. Uses the first schema that passes.                                                            |
+| `s.discriminatedUnion(key, members)` | A field such as `type` selects the object schema. Each member needs a distinct required literal or enum value for that field. |
+| `s.lazy(() => schema)`               | A structure contains more of the same structure, such as a tree.                                                              |
+| `s.instanceOf(Class)`                | A value must be an instance of a class.                                                                                       |
+| `s.custom(predicate)`                | You need to define a type check yourself.                                                                                     |
+| `s.json(schema)`                     | Read JSON text and check the parsed value.                                                                                    |
+| `s.jsonValue()`                      | Check that a value contains only data JSON can represent.                                                                     |
+| `s.isSchema(value)`                  | Check whether a value is a Lucent schema.                                                                                     |
+| `.describe(text)`, `.meta(data)`     | Attach a description or extra information to a schema, available as `.description` and `.metadata`.                           |
+
+## Use TypeScript
+
+`Infer` gives you the type returned by a schema. `Input` gives you its input type,
+which can differ when the schema converts values or supplies defaults.
+
+```ts
+import type { Infer, Input } from "lucent/schema";
+
+type Config = Infer<typeof configSchema>;
+type ConfigInput = Input<typeof configSchema>;
+```
+
+`.brand("Name")` adds a named TypeScript brand. `.readonly()` marks the output type
+as readonly. These methods affect types; they do not change parsed values.
+
+The [editor declarations](/script-api.d.ts) contain the complete API signatures,
+options, and types.
