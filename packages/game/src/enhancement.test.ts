@@ -229,6 +229,63 @@ describe("enhancement strategy", () => {
 });
 
 describe("enhancement display", () => {
+  it("derives model names from current IDs and includes them in snapshots", () => {
+    const weapon = item("Weapon", { level: 100, patternId: 2, procId: 14 });
+    expect(weapon.enhancement).toMatchObject({
+      name: "Fighter",
+      special: "Dauntless",
+    });
+    const snapshot = weapon.toJSON();
+    expect(snapshot.enhancement).toMatchObject({
+      name: "Fighter",
+      special: "Dauntless",
+    });
+
+    weapon.update({ enhancement: { level: 100, patternId: 6, procId: 12 } });
+    expect(weapon.enhancement).toMatchObject({
+      name: "Wizard",
+      special: "Elysium",
+    });
+    expect(weapon.toJSON().enhancement).toMatchObject({
+      name: "Wizard",
+      special: "Elysium",
+    });
+    expect(snapshot.enhancement).toMatchObject({
+      name: "Fighter",
+      special: "Dauntless",
+    });
+    for (const [slot, patternId, name, special] of [
+      ["he", 25, "Vim", "Ether"],
+      ["he", 32, "Grimskull", "Hearty"],
+      ["ba", 24, "Forge", "Vainglory"],
+    ] as const) {
+      const gear = item(slot, { patternId });
+      expect(gear.enhancement).toMatchObject({ name, special });
+      const resolution = resolveEnhancementStrategy(gear, name, 100, special);
+      expect(resolution.ok).toBe(true);
+      if (resolution.ok)
+        expect(matchesAppliedEnhancement(gear, resolution.strategy)).toBe(true);
+    }
+    expect(item("ba", { patternId: 999 }).enhancement).toMatchObject({
+      name: "Pattern 999",
+      special: undefined,
+    });
+    expect(
+      item("Weapon", { patternId: 9, procId: 999 }).enhancement,
+    ).toMatchObject({ name: "Lucky", special: "Proc 999" });
+    weapon.update({ enhancement: { patternId: 9 } });
+    expect(weapon.enhancement).toMatchObject({
+      name: "Lucky",
+      special: undefined,
+    });
+    expect(item("Weapon", { level: 100 }).enhancement).toMatchObject({
+      name: undefined,
+      special: undefined,
+    });
+    weapon.replaceFrom(item("Weapon"));
+    expect(weapon.enhancement).toBeUndefined();
+  });
+
   it("formats basic and weapon-proc enhancements by their player-facing names", () => {
     expect(formatItemEnhancement({ level: 100, patternId: 9, procId: 3 })).toBe(
       "Lucky, Awe Blast, Level 100",

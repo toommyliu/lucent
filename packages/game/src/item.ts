@@ -1,3 +1,4 @@
+import { getItemEnhancementNames } from "./enhancement";
 import { LiveModel, normalizeGameText } from "./model";
 
 export type ItemContext =
@@ -85,10 +86,14 @@ export interface Enhancement {
   readonly dps?: number;
   readonly id?: number;
   readonly level?: number;
+  /** Enhancement label, such as `Fighter` or `Vim`. */
+  readonly name?: string | undefined;
   readonly patternId?: number;
   readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
+  /** Special label, such as `Dauntless` or `Ether`. */
+  readonly special?: string | undefined;
 }
 
 export interface ItemSelectorById {
@@ -242,7 +247,9 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
     return this.modelData.description;
   }
   get enhancement(): Enhancement | undefined {
-    return this.modelData.enhancement;
+    const enhancement = this.modelData.enhancement;
+    if (enhancement === undefined) return undefined;
+    return { ...enhancement, ...getItemEnhancementNames(enhancement) };
   }
   get equipped(): boolean {
     return this.modelData.equipped;
@@ -316,6 +323,7 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
   }
 
   toJSON(): ItemSnapshot {
+    const enhancement = this.enhancement;
     return {
       ...this.modelData,
       armor: this.armor,
@@ -323,9 +331,7 @@ export class LiveItem extends LiveModel<ItemData> implements Item {
       cape: this.cape,
       classItem: this.classItem,
       classRank: this.classRank,
-      ...(this.enhancement === undefined
-        ? {}
-        : { enhancement: { ...this.enhancement } }),
+      ...(enhancement === undefined ? {} : { enhancement }),
       helm: this.helm,
       pet: this.pet,
       ...(this.modelData.requirements === undefined
