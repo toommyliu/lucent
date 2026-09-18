@@ -139,6 +139,48 @@ const makeHarness = (options?: {
 };
 
 describe("CombatProfileRunner", () => {
+  it.effect.each([false, true])(
+    "runs empty rotations with triggers=%s",
+    (withTriggers) =>
+      Effect.gen(function* () {
+        const harness = makeHarness();
+        const runner = yield* makeCombatProfileRunner(harness.api, {
+          profile: {
+            ...profile,
+            steps: [],
+            ...(withTriggers
+              ? {
+                  messageTriggers: [
+                    {
+                      messageIncludes: "enrage",
+                      skill: 5,
+                      source: "any",
+                    },
+                  ],
+                }
+              : {}),
+          },
+          targetPriority: [],
+        });
+
+        expect(yield* runner.runCycle()).toEqual({
+          cast: false,
+          delayMs: COMBAT_PROFILE_RETRY_DELAY_MS,
+          kind: "attacked",
+        });
+        expect(harness.casts).toEqual([]);
+
+        yield* harness.emit({
+          message: "Boss enrage",
+          source: "animation",
+          type: "update-message",
+        });
+        yield* runner.runCycle();
+
+        expect(harness.casts).toEqual(withTriggers ? [5] : []);
+      }),
+  );
+
   it("selects by priority while retaining an equal-rank target", () => {
     const dead = makeMonster(3, "Dead", {
       hp: 0,

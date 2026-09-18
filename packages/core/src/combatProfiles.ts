@@ -391,12 +391,6 @@ const normalizeProfile = (
     normalizeMessageTrigger,
   );
   const steps = normalizeArray(record["steps"], normalizeStep);
-  const normalizedSteps =
-    steps.length === 0
-      ? (structuredCloneValue(
-          genericProfile().steps,
-        ) as readonly CombatProfileStep[])
-      : steps;
 
   return {
     id,
@@ -415,7 +409,7 @@ const normalizeProfile = (
     ...(fromOption(decodeBoolean, record["resetSkillIndexOnTargetDeath"])
       ? { resetSkillIndexOnTargetDeath: true }
       : {}),
-    steps: normalizedSteps,
+    steps,
     ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };

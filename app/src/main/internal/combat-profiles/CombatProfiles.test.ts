@@ -89,6 +89,51 @@ const testProfile: CombatProfile = {
 };
 
 describe("CombatProfiles", () => {
+  it.effect.each([false, true])(
+    "preserves empty rotations through saving and reloading with triggers=%s",
+    (withTriggers) =>
+      Effect.gen(function* () {
+        const { combatProfiles, path } = yield* makeHarness();
+        const profile: CombatProfile = {
+          ...testProfile,
+          steps: [],
+          ...(withTriggers
+            ? {
+                messageTriggers: [
+                  {
+                    messageIncludes: "enrage",
+                    skill: 5,
+                    source: "any",
+                  },
+                ],
+              }
+            : {}),
+        };
+
+        yield* combatProfiles.load;
+        const saved = yield* combatProfiles.saveProfile(profile);
+        const persisted: unknown = JSON.parse(
+          yield* Effect.promise(() => readFile(path, "utf8")),
+        );
+        const reloaded = yield* combatProfiles.load;
+
+        const expected = {
+          id: profile.id,
+          steps: [],
+          ...(withTriggers ? { messageTriggers: profile.messageTriggers } : {}),
+        };
+        expect(saved.profiles).toContainEqual(
+          expect.objectContaining(expected),
+        );
+        expect(persisted).toMatchObject({
+          profiles: expect.arrayContaining([expect.objectContaining(expected)]),
+        });
+        expect(reloaded.profiles).toContainEqual(
+          expect.objectContaining(expected),
+        );
+      }),
+  );
+
   it.effect("deletes saved profiles from the library", () =>
     Effect.gen(function* () {
       const { combatProfiles } = yield* makeHarness();
