@@ -391,12 +391,8 @@ const normalizeProfile = (
     normalizeMessageTrigger,
   );
   const steps = normalizeArray(record["steps"], normalizeStep);
-  const normalizedSteps =
-    steps.length === 0
-      ? (structuredCloneValue(
-          genericProfile().steps,
-        ) as readonly CombatProfileStep[])
-      : steps;
+  const hasExplicitEmptyRotation =
+    fromOption(decodeArray, record["steps"])?.length === 0;
 
   return {
     id,
@@ -415,7 +411,10 @@ const normalizeProfile = (
     ...(fromOption(decodeBoolean, record["resetSkillIndexOnTargetDeath"])
       ? { resetSkillIndexOnTargetDeath: true }
       : {}),
-    steps: normalizedSteps,
+    steps:
+      steps.length === 0 && !hasExplicitEmptyRotation
+        ? genericProfile().steps
+        : steps,
     ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };

@@ -64,6 +64,27 @@ const canonicalLibrary = {
 } satisfies CombatProfileLibrary;
 
 describe("combatProfiles", () => {
+  it.each([
+    { name: "missing", value: undefined, skills: [1, 2, 3, 4] },
+    { name: "null", value: null, skills: [1, 2, 3, 4] },
+    { name: "non-array", value: "1,2", skills: [1, 2, 3, 4] },
+    {
+      name: "wholly invalid",
+      value: [{ skill: "bad" }, null],
+      skills: [1, 2, 3, 4],
+    },
+    { name: "explicitly empty", value: [], skills: [] },
+    {
+      name: "partially valid",
+      value: [{ skill: "bad" }, { skill: 2 }],
+      skills: [2],
+    },
+  ])("normalizes $name rotations", ({ value, skills }) => {
+    const profile = normalizeCombatProfile({ steps: value });
+
+    expect(profile.steps.map((step) => step.skill)).toEqual(skills);
+  });
+
   it("keeps canonical libraries stable", () => {
     expect(
       Schema.decodeUnknownSync(CombatProfileLibrarySchema)(canonicalLibrary),
