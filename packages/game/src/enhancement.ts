@@ -332,6 +332,25 @@ const enhancementPatternDisplayNames = (
   return extra === undefined ? undefined : [extra];
 };
 
+export const getItemEnhancementNames = (
+  enhancement: Pick<Enhancement, "patternId" | "procId">,
+): Pick<Enhancement, "name" | "special"> => {
+  const patternId = enhancement.patternId;
+  const [name, patternSpecial] =
+    patternId !== undefined && patternId > 0
+      ? (enhancementPatternDisplayNames(patternId) ?? [`Pattern ${patternId}`])
+      : [];
+  const procId = enhancement.procId;
+  const proc = WEAPON_SPECIALS.find((entry) => entry.procId === procId);
+  const special =
+    procId !== undefined && procId > 0
+      ? proc === undefined
+        ? `Proc ${procId}`
+        : namedValueDisplayName(proc)
+      : patternSpecial;
+  return { name, special };
+};
+
 export const formatItemEnhancement = (
   enhancement: Pick<Enhancement, "level" | "patternId" | "procId"> | undefined,
 ): string | undefined => {
@@ -339,23 +358,10 @@ export const formatItemEnhancement = (
     return undefined;
   }
 
+  const { name, special } = getItemEnhancementNames(enhancement);
   const parts: string[] = [];
-  const patternId = enhancement.patternId;
-  if (patternId !== undefined && patternId > 0) {
-    parts.push(
-      ...(enhancementPatternDisplayNames(patternId) ?? [
-        `Pattern ${patternId}`,
-      ]),
-    );
-  }
-
-  const procId = enhancement.procId;
-  if (procId !== undefined && procId > 0) {
-    const proc = WEAPON_SPECIALS.find((entry) => entry.procId === procId);
-    parts.push(
-      proc === undefined ? `Proc ${procId}` : namedValueDisplayName(proc),
-    );
-  }
+  if (name !== undefined) parts.push(name);
+  if (special !== undefined) parts.push(special);
 
   const level = enhancement.level;
   if (level !== undefined && level > 0) {
