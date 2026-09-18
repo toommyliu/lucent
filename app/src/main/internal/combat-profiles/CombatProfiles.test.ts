@@ -198,6 +198,7 @@ describe("CombatProfiles", () => {
         label: "Broken",
         delayMs: 0,
         cooldownMode: "use-if-ready",
+        steps: [1, 2, 3, 4].map((skill) => ({ skill, conditions: [] })),
         messageTriggers: [
           {
             messageIncludes: "Enrage",

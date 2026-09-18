@@ -391,6 +391,8 @@ const normalizeProfile = (
     normalizeMessageTrigger,
   );
   const steps = normalizeArray(record["steps"], normalizeStep);
+  const hasExplicitEmptyRotation =
+    fromOption(decodeArray, record["steps"])?.length === 0;
 
   return {
     id,
@@ -409,7 +411,10 @@ const normalizeProfile = (
     ...(fromOption(decodeBoolean, record["resetSkillIndexOnTargetDeath"])
       ? { resetSkillIndexOnTargetDeath: true }
       : {}),
-    steps,
+    steps:
+      steps.length === 0 && !hasExplicitEmptyRotation
+        ? genericProfile().steps
+        : steps,
     ...(messageTriggers.length === 0 ? {} : { messageTriggers }),
   };
 };
