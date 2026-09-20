@@ -18,4 +18,4 @@ type ItemContext =
   | "temporary"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L3" aria-label="Open source: packages/game/src/item.ts:3" title="packages/game/src/item.ts:3" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:3</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L4" aria-label="Open source: packages/game/src/item.ts:4" title="packages/game/src/item.ts:4" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:4</code></a></p>

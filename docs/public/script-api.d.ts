@@ -1490,10 +1490,14 @@ interface Enhancement {
   readonly dps?: number;
   readonly id?: number;
   readonly level?: number;
+  /** Enhancement label, such as `Fighter` or `Vim`. */
+  readonly name?: string | undefined;
   readonly patternId?: number;
   readonly procId?: number;
   readonly range?: number;
   readonly rarity?: number;
+  /** Special label, such as `Dauntless` or `Ether`. */
+  readonly special?: string | undefined;
 }
 interface ItemRequirement {
   readonly itemId: number;
