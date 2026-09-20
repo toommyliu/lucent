@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as TestClock from "effect/testing/TestClock";
 
-import type { ArmySessionPayload } from "@lucent/core/army";
+import type { ArmyProgressResult, ArmySessionPayload } from "@lucent/core/army";
 import type { DesktopArmyBridge } from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
 import {
@@ -215,9 +215,11 @@ describe("Army API", () => {
     }),
   );
 
-  it.effect("keeps helping after the local item guard passes", () =>
+  it.effect("keeps helping while a peer holds the progress checkpoint", () =>
     Effect.gen(function* () {
       const kills = yield* Ref.make(0);
+      const stopped = yield* Deferred.make<void>();
+      const checkpoint = Promise.withResolvers<ArmyProgressResult>();
       let progressRound = 0;
       const testBridge = makeBridge({
         progress: async () => {
@@ -228,11 +230,7 @@ describe("Army API", () => {
                 completedPlayers: ["Alice"],
                 pendingPlayers: ["Bob"],
               }
-            : {
-                complete: true,
-                completedPlayers: ["Alice", "Bob"],
-                pendingPlayers: [],
-              };
+            : checkpoint.promise;
         },
       });
       yield* withArmy(
@@ -240,7 +238,17 @@ describe("Army API", () => {
           combat: {
             getConsumableSkillItem: () =>
               Effect.succeed({ itemId: 1, ready: true }),
-            kill: () => Ref.update(kills, (count) => count + 1),
+            kill: () =>
+              Effect.gen(function* () {
+                const count = yield* Ref.updateAndGet(
+                  kills,
+                  (value) => value + 1,
+                );
+                if (count === 1) return;
+                return yield* Effect.never.pipe(
+                  Effect.ensuring(Deferred.succeed(stopped, undefined)),
+                );
+              }),
             useSkill: () => Effect.succeed(true),
           },
         }),
@@ -251,13 +259,68 @@ describe("Army API", () => {
             const fiber = yield* army
               .killForItem("Boss", { item: "Drop", quantity: 1 })
               .pipe(Effect.forkScoped);
-            yield* TestClock.adjust("200 millis");
+            yield* TestClock.adjust("300 millis");
+            expect(yield* Ref.get(kills)).toBe(2);
+            expect(progressRound).toBe(2);
+            expect(fiber.pollUnsafe()).toBeUndefined();
+            checkpoint.resolve({
+              complete: true,
+              completedPlayers: ["Alice", "Bob"],
+              pendingPlayers: [],
+            });
             yield* Fiber.join(fiber);
+            expect(yield* Deferred.isDone(stopped)).toBe(true);
           }),
       );
-      expect(yield* Ref.get(kills)).toBe(1);
-      expect(progressRound).toBe(2);
     }),
+  );
+
+  it.effect(
+    "reports a newly received goal without waiting for another kill",
+    () =>
+      Effect.gen(function* () {
+        const fighting = yield* Deferred.make<void>();
+        const stopped = yield* Deferred.make<void>();
+        const owned = yield* Ref.make(false);
+        const reports: boolean[] = [];
+        const bridge = makeBridge({
+          progress: async ({ complete }) => {
+            reports.push(complete);
+            return {
+              complete,
+              completedPlayers: complete ? ["Alice"] : [],
+              pendingPlayers: complete ? [] : ["Alice"],
+            };
+          },
+        }).bridge;
+        yield* withArmy(
+          makeApi({
+            combat: {
+              kill: () =>
+                Deferred.succeed(fighting, undefined).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.ensuring(Deferred.succeed(stopped, undefined)),
+                ),
+            },
+            tempInventory: { contains: () => Ref.get(owned) },
+          }),
+          bridge,
+          (army) =>
+            Effect.gen(function* () {
+              yield* army.start("test");
+              const work = yield* army
+                .killForTempItem("Boss", { item: "Drop" })
+                .pipe(Effect.forkScoped);
+              yield* Deferred.await(fighting);
+              yield* Ref.set(owned, true);
+              yield* TestClock.adjust("100 millis");
+              expect(work.pollUnsafe()).toBeDefined();
+              yield* Fiber.join(work);
+              expect(yield* Deferred.isDone(stopped)).toBe(true);
+              expect(reports).toEqual([false, true]);
+            }),
+        );
+      }),
   );
 
   it.effect("reports map identity and full-roster visibility", () =>

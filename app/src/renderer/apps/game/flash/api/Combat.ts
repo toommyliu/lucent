@@ -584,18 +584,39 @@ export const makeCombat = (
       );
       if (monster === undefined) return false;
 
-      const death = yield* wait.forEvent(
-        {
-          monsterMapId: monster.monsterMapId,
-          type: "monster-death",
-        },
-        {
-          trigger: Effect.forkScoped(fight(selector, options, runtime)).pipe(
-            Effect.as(true),
-          ),
-        },
+      // The death can arrive between target selection and subscription. The
+      // projected object also detects a removed encounter after a map change.
+      return yield* Effect.raceFirst(
+        wait
+          .forEvent(
+            {
+              monsterMapId: monster.monsterMapId,
+              type: "monster-death",
+            },
+            {
+              trigger: Effect.forkScoped(
+                fight(selector, options, runtime),
+              ).pipe(Effect.as(true)),
+            },
+          )
+          .pipe(Effect.map((death) => death !== null)),
+        wait
+          .untilSome(
+            store.world
+              .getMonster(monster.monsterMapId)
+              .pipe(
+                Effect.map((current) =>
+                  current !== monster
+                    ? Option.some(false)
+                    : current.dead
+                      ? Option.some(true)
+                      : Option.none(),
+                ),
+              ),
+            { interval: "250 millis" },
+          )
+          .pipe(Effect.map((dead) => dead === true)),
       );
-      return death !== null;
     });
 
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>
@@ -617,19 +638,22 @@ export const makeCombat = (
     return Effect.scoped(
       Effect.gen(function* () {
         const runtime = yield* makeKillProfileRuntime(selector, options);
-        const loop = Effect.gen(function* () {
-          while (true) {
-            if (yield* source.contains(item, wanted)) return true;
-            if (yield* drops.contains(item)) {
-              yield* drops.accept(item);
-              if (yield* source.contains(item, wanted)) return true;
-            }
-            if (!(yield* killWithRuntime(selector, options, runtime))) {
-              yield* Effect.sleep("100 millis");
-            }
+        const isComplete = Effect.gen(function* () {
+          if (yield* source.contains(item, wanted)) return true;
+          if (yield* drops.contains(item)) {
+            yield* drops.accept(item);
+            return yield* source.contains(item, wanted);
           }
+          return false;
         });
-        return yield* loop;
+        if (yield* isComplete) return true;
+
+        // Item delivery is independent of the death event, including when the
+        // player dies or the drop arrives after another kill has begun.
+        return yield* Effect.raceFirst(
+          wait.until(isComplete),
+          fight(selector, options, runtime),
+        );
       }),
     ).pipe(Effect.ensuring(stopCombat));
   };

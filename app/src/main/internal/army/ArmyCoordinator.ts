@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
@@ -589,10 +590,12 @@ export const makeArmyCoordinator = (
       readonly timeoutMs: number;
     }): Effect.Effect<A, ArmyCoordinatorError> =>
       args.effect.pipe(
-        Effect.timeoutOrElse({
-          duration: args.timeoutMs,
-          orElse: args.onTimeout,
-        }),
+        // Aborting fails this same gate. Run shutdown after the race has ended
+        // so releasing the waiter cannot cancel session-end notifications.
+        Effect.timeoutOption(args.timeoutMs),
+        Effect.flatMap(
+          Option.match({ onNone: args.onTimeout, onSome: Effect.succeed }),
+        ),
         // A canceled waiter makes a roster-wide checkpoint impossible to
         // complete, so interruption releases every peer by ending the session.
         Effect.onInterrupt(() =>

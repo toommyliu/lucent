@@ -40,6 +40,58 @@ const makeObservability = (records: ObservabilityRecord[]) => ({
 });
 
 describe("ArmyCoordinator", () => {
+  it.effect(
+    "finishes timeout notifications for participants outside the checkpoint",
+    () =>
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const notificationStarted = yield* Deferred.make<void>();
+        const releaseNotification = yield* Deferred.make<void>();
+        const events: unknown[] = [];
+        yield* coordinator.onSessionEnded((event) =>
+          Effect.gen(function* () {
+            yield* Deferred.succeed(notificationStarted, undefined);
+            yield* Deferred.await(releaseNotification);
+            events.push(event);
+          }),
+        );
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
+        const [alice] = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              "Alice",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        );
+        const waiting = yield* coordinator
+          .progress(alice.sessionId, aliceWindow, {
+            complete: true,
+            label: "kill-temp:Drop",
+            step: 0,
+            timeoutMs: 1000,
+          })
+          .pipe(Effect.result, Effect.forkScoped);
+        yield* TestClock.adjust("1 second");
+        expect(yield* Deferred.isDone(notificationStarted)).toBe(true);
+        expect(waiting.pollUnsafe()).toBeUndefined();
+        yield* Deferred.succeed(releaseNotification, undefined);
+        expect(Result.isFailure(yield* Fiber.join(waiting))).toBe(true);
+        expect(events).toEqual([
+          {
+            participantIds: [aliceWindow, bobWindow],
+            reason: expect.stringContaining("missing: Bob"),
+            sessionId: alice.sessionId,
+          },
+        ]);
+        expect(yield* coordinator.getSessions()).toEqual([]);
+      }),
+  );
+
   it.effect("publishes session-ended events without an IPC dependency", () =>
     Effect.gen(function* () {
       const coordinator = yield* makeArmyCoordinator();

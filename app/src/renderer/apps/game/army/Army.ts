@@ -537,7 +537,7 @@ const makeArmyApi = (
           const step = yield* nextStep;
           const session = yield* assertStarted;
 
-          while (true) {
+          const reportProgress = Effect.gen(function* () {
             const complete = yield* args.isComplete();
             const progress = yield* waitAtProgress(
               session,
@@ -545,20 +545,31 @@ const makeArmyApi = (
               args.label,
               complete,
             );
-            if (progress.complete) {
-              return;
-            }
+            return progress.complete;
+          });
+          if (yield* reportProgress) return;
 
-            yield* args.action().pipe(
-              Effect.catchCause((cause) =>
-                failSession(session, causeMessage(cause), {
-                  label: args.label,
-                  step,
-                }).pipe(Effect.andThen(Effect.failCause(cause))),
-              ),
-            );
-            yield* Effect.sleep("100 millis");
-          }
+          const awaitCompletion = Effect.gen(function* () {
+            while (true) {
+              yield* Effect.sleep("100 millis");
+              if (yield* reportProgress) return;
+            }
+          });
+          // A peer may be fighting a different boss life. Keep helping while
+          // progress waits for that peer, and stop only when the roster is done.
+          yield* Effect.raceFirst(
+            awaitCompletion,
+            Effect.forever(
+              args.action().pipe(Effect.andThen(Effect.sleep("100 millis"))),
+            ),
+          ).pipe(
+            Effect.catchCause((cause) =>
+              failSession(session, causeMessage(cause), {
+                label: args.label,
+                step,
+              }).pipe(Effect.andThen(Effect.failCause(cause))),
+            ),
+          );
         }),
       );
 
