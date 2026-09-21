@@ -11,6 +11,7 @@ import {
   castNextCombatProfileStep,
   makeCombatProfileCursor,
   makeCombatProfileMessageTriggerState,
+  matchesCombatProfileMessageTrigger,
   resetCombatProfileCursor,
   type CombatProfileMessageTriggerEvent,
   type CombatProfileRuntimeDeps,
@@ -18,6 +19,11 @@ import {
 
 export const COMBAT_PROFILE_RETRY_DELAY_MS = 250;
 export const COMBAT_PROFILE_TARGET_ABSENCE_GRACE_MS = 500;
+
+const idleCycle = {
+  delayMs: COMBAT_PROFILE_RETRY_DELAY_MS,
+  kind: "idle",
+} as const;
 
 export type CombatProfileRunFailureStage =
   | "attack"
@@ -58,7 +64,7 @@ export class CombatProfileRunError extends Error {
 export type CombatProfileCycleResult =
   | {
       readonly delayMs: typeof COMBAT_PROFILE_RETRY_DELAY_MS;
-      readonly kind: "attack-rejected" | "no-target" | "player-dead";
+      readonly kind: "attack-rejected" | "idle" | "no-target" | "player-dead";
     }
   | {
       readonly cast: boolean;
@@ -67,9 +73,7 @@ export type CombatProfileCycleResult =
     };
 
 export interface CombatProfileSessionCycleOptions {
-  readonly allowTargetFallback?: boolean;
   readonly beforeAttack?: (target: Monster) => Effect.Effect<void>;
-  readonly targetPriority: readonly MonsterQuery[];
 }
 
 export interface CombatProfileSessionPreparation {
@@ -95,10 +99,12 @@ export interface CombatProfileSessionDependencies {
 }
 
 export interface CombatProfileSessionOptions {
+  readonly allowTargetFallback?: boolean;
   readonly onAsyncFailure?: (
     failure: CombatProfileRunError,
   ) => Effect.Effect<void>;
   readonly profile: CombatProfile;
+  readonly targetPriority: readonly MonsterQuery[];
 }
 
 export interface CombatProfileTargetSelectionOptions {
@@ -114,7 +120,7 @@ interface ActiveTarget {
 }
 
 interface SessionState {
-  /** Invalidates late attack results whenever target ownership changes. */
+  /** Invalidates in-flight actions whenever target ownership changes. */
   readonly generation: number;
   readonly resetPending: boolean;
   readonly target: ActiveTarget | undefined;
@@ -203,6 +209,15 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
     dependencies: CombatProfileSessionDependencies,
     options: CombatProfileSessionOptions,
   ) {
+    if (
+      options.profile.steps.length === 0 &&
+      (options.profile.messageTriggers?.length ?? 0) === 0
+    ) {
+      return {
+        runCycle: () => Effect.succeed(idleCycle),
+        warning: undefined,
+      };
+    }
     const cursor = yield* makeCombatProfileCursor();
     const messageState = yield* makeCombatProfileMessageTriggerState();
     const actionGate = yield* Semaphore.make(1);
@@ -259,43 +274,82 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
         withFailureStage(
           "message-trigger",
           Effect.gen(function* () {
-            const observed = yield* Ref.get(state);
-            const observedTarget = observed.target;
             if (
-              observed.resetPending ||
-              observedTarget?.confirmed !== true ||
-              (event.monsterMapId !== undefined &&
-                event.monsterMapId !== observedTarget.monsterMapId)
+              !options.profile.messageTriggers?.some((trigger) =>
+                matchesCombatProfileMessageTrigger(trigger, event),
+              )
             ) {
               return;
             }
+            const observed = yield* Ref.get(state);
+            if (observed.resetPending) return;
 
             yield* actionGate.withPermits(1)(
               Effect.gen(function* () {
                 const current = yield* Ref.get(state);
                 if (
                   current.resetPending ||
-                  current.generation !== observed.generation ||
-                  current.target?.confirmed !== true ||
-                  current.target.monsterMapId !== observedTarget.monsterMapId
+                  current.generation !== observed.generation
                 ) {
                   return;
                 }
+                if (!(yield* dependencies.isPlayerAlive())) return;
+
+                const selected =
+                  yield* prepared.dependencies.combat.target.get();
+                const selectedIsAlive =
+                  selected !== null &&
+                  selected.hp > 0 &&
+                  selected.state !== EntityState.Dead;
+                const ownedMonsterMapId = current.target?.confirmed
+                  ? current.target.monsterMapId
+                  : undefined;
                 if (
-                  yield* dependencies.isAttackBlocked(
-                    observedTarget.monsterMapId,
-                  )
+                  event.monsterMapId !== undefined &&
+                  ((ownedMonsterMapId !== undefined &&
+                    event.monsterMapId !== ownedMonsterMapId) ||
+                    (selectedIsAlive &&
+                      (selected.type !== "monster" ||
+                        selected.monsterMapId !== event.monsterMapId)))
                 ) {
                   return;
                 }
 
+                const monsterMapId =
+                  event.monsterMapId ??
+                  (selectedIsAlive && selected.type === "monster"
+                    ? selected.monsterMapId
+                    : ownedMonsterMapId);
+                if (monsterMapId !== undefined) {
+                  const monsters = yield* dependencies.getAvailableMonsters();
+                  const monster = monsters.find(
+                    (candidate) => candidate.monsterMapId === monsterMapId,
+                  );
+                  if (
+                    monster === undefined ||
+                    !isLiving(monster) ||
+                    targetRank(
+                      monster,
+                      options.targetPriority,
+                      options.allowTargetFallback ?? true,
+                    ) === undefined ||
+                    (yield* dependencies.isAttackBlocked(monsterMapId))
+                  ) {
+                    return;
+                  }
+                }
+
+                const beforeCast = yield* Ref.get(state);
+                if (
+                  beforeCast.resetPending ||
+                  beforeCast.generation !== observed.generation
+                ) {
+                  return;
+                }
                 yield* castCombatProfileMessageTriggers(
                   prepared.dependencies,
                   options.profile,
-                  {
-                    ...event,
-                    monsterMapId: observedTarget.monsterMapId,
-                  },
+                  event,
                   messageState,
                 );
               }),
@@ -318,12 +372,11 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
     const resolveTarget = Effect.fn("CombatProfileSession.resolveTarget")(
       function* (
         monsters: readonly Monster[],
-        cycleOptions: CombatProfileSessionCycleOptions,
       ): Effect.fn.Return<TargetLease | undefined> {
         const initial = yield* Ref.get(state);
         if (initial.resetPending) return undefined;
 
-        const allowFallback = cycleOptions.allowTargetFallback ?? true;
+        const allowFallback = options.allowTargetFallback ?? true;
         const active = initial.target;
         const projected =
           active === undefined
@@ -334,7 +387,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
         const projectedRank =
           projected === undefined
             ? undefined
-            : targetRank(projected, cycleOptions.targetPriority, allowFallback);
+            : targetRank(projected, options.targetPriority, allowFallback);
         const activeIsEligible =
           projected !== undefined &&
           isLiving(projected) &&
@@ -372,7 +425,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
         const eligible = monsters.filter(
           (monster) =>
             isLiving(monster) &&
-            targetRank(monster, cycleOptions.targetPriority, allowFallback) !==
+            targetRank(monster, options.targetPriority, allowFallback) !==
               undefined,
         );
         const blocked = new Set<number>();
@@ -384,7 +437,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
 
         const selected = selectCombatProfileTarget(
           eligible,
-          cycleOptions.targetPriority,
+          options.targetPriority,
           {
             allowFallback,
             blockedMonsterMapIds: blocked,
@@ -482,10 +535,13 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
       });
 
     const runCycle = Effect.fn("CombatProfileSession.runCycle")(function* (
-      cycleOptions: CombatProfileSessionCycleOptions,
+      cycleOptions: CombatProfileSessionCycleOptions = {},
     ): Effect.fn.Return<CombatProfileCycleResult, CombatProfileRunError> {
       return yield* actionGate.withPermits(1)(
         Effect.gen(function* () {
+          if (options.profile.steps.length === 0) {
+            return idleCycle;
+          }
           const alive = yield* withFailureStage(
             "target-selection",
             dependencies.isPlayerAlive(),
@@ -503,7 +559,7 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
           );
           const lease = yield* withFailureStage(
             "target-selection",
-            resolveTarget(monsters, cycleOptions),
+            resolveTarget(monsters),
           );
           if (lease === undefined) {
             return {

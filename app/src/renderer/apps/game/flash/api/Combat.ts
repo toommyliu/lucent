@@ -447,8 +447,10 @@ export const makeCombat = (
   };
 
   const makeKillProfileRuntime = (
-    definition: CombatProfileDefinition | undefined,
+    selector: MonsterQuery,
+    options: CombatKillOptions | undefined,
   ) => {
+    const definition = options?.profile;
     if (definition === undefined) {
       return Effect.succeed<CombatProfileSession | null>(null);
     }
@@ -498,7 +500,11 @@ export const makeCombat = (
               };
             }),
         },
-        { profile },
+        {
+          allowTargetFallback: false,
+          profile,
+          targetPriority: [...(options?.targetPriority ?? []), selector],
+        },
       );
       if (session.warning !== undefined) {
         yield* Effect.logWarning({
@@ -534,12 +540,7 @@ export const makeCombat = (
     return Effect.forever(
       Effect.gen(function* () {
         if (runtime !== null) {
-          const result = yield* runtime
-            .runCycle({
-              allowTargetFallback: false,
-              targetPriority: attackOrder,
-            })
-            .pipe(Effect.orDie);
+          const result = yield* runtime.runCycle().pipe(Effect.orDie);
           if (result.kind === "no-target") {
             yield* stopCombat;
           }
@@ -600,7 +601,7 @@ export const makeCombat = (
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>
     Effect.scoped(
       Effect.gen(function* () {
-        const runtime = yield* makeKillProfileRuntime(options?.profile);
+        const runtime = yield* makeKillProfileRuntime(selector, options);
         return yield* killWithRuntime(selector, options, runtime);
       }),
     ).pipe(Effect.ensuring(stopCombat));
@@ -615,7 +616,7 @@ export const makeCombat = (
     const wanted = Math.max(1, Math.trunc(requested ?? 1));
     return Effect.scoped(
       Effect.gen(function* () {
-        const runtime = yield* makeKillProfileRuntime(options?.profile);
+        const runtime = yield* makeKillProfileRuntime(selector, options);
         const loop = Effect.gen(function* () {
           while (true) {
             if (yield* source.contains(item, wanted)) return true;

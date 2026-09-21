@@ -75,19 +75,14 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
           ? {}
           : { onAsyncFailure: options.onAsyncFailure }),
         profile: options.profile,
+        targetPriority: options.targetPriority,
       },
     );
 
     const runCycle = Effect.fn("CombatProfileRunner.runCycle")(function* (
       cycleOptions: CombatProfileRunnerCycleOptions = {},
     ) {
-      return yield* session.runCycle({
-        allowTargetFallback: true,
-        ...(cycleOptions.beforeAttack === undefined
-          ? {}
-          : { beforeAttack: cycleOptions.beforeAttack }),
-        targetPriority: options.targetPriority,
-      });
+      return yield* session.runCycle(cycleOptions);
     });
 
     return {
