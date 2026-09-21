@@ -60,6 +60,13 @@ const canonicalLibrary = {
         },
       ],
     },
+    {
+      ...genericProfile,
+      id: "triggers-only",
+      steps: [],
+      messageTriggers: [{ messageIncludes: "enrage", skill: 5, source: "any" }],
+    },
+    { ...genericProfile, id: "idle", steps: [] },
   ],
 } satisfies CombatProfileLibrary;
 
@@ -207,6 +214,7 @@ describe("combatProfiles", () => {
         },
       ],
     });
+    expect(normalizeCombatProfile({ steps: [] }).steps).toEqual([]);
   });
 
   it("duplicates profiles with a fresh id and a unique label", () => {

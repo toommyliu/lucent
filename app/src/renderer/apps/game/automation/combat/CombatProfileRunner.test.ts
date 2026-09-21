@@ -1,7 +1,9 @@
 import type { CombatProfile } from "@lucent/core/combatProfiles";
 import { EntityState, LiveMonster } from "@lucent/game";
 import { describe, expect, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 
 import type { Event, EventType } from "../../flash/contract/Event";
 import type { ApiService } from "../../flash/api/Api";
@@ -46,12 +48,25 @@ const makeMonster = (
 
 const first = makeMonster(1, "First");
 const priority = makeMonster(2, "Priority");
+const triggerProfile = {
+  ...profile,
+  steps: [],
+  messageTriggers: [{ messageIncludes: "enrage", skill: 5, source: "any" }],
+} satisfies CombatProfile;
+
+const messageEvent = {
+  message: "Boss enrage",
+  source: "animation",
+  type: "update-message",
+} as const;
 
 type EventHandler = (event: Event) => Effect.Effect<void, unknown>;
 
 const makeHarness = (options?: {
   readonly alive?: boolean;
   readonly attack?: (monsterMapId: number) => Effect.Effect<boolean>;
+  readonly getAvailableMonsters?: ApiService["monsters"]["getAvailable"];
+  readonly getTarget?: ApiService["combat"]["target"]["get"];
   readonly isAttackBlocked?: (monsterMapId: number) => boolean;
   readonly monsters?: readonly LiveMonster[];
   readonly preflightWarning?: string;
@@ -59,6 +74,8 @@ const makeHarness = (options?: {
 }) => {
   const attacks: number[] = [];
   const casts: number[] = [];
+  const preparations: CombatProfile[] = [];
+  const castOptions: Parameters<ApiService["combat"]["useSkill"]>[1][] = [];
   const handlers = new Map<EventType, Set<EventHandler>>();
 
   const emit = (event: Event) =>
@@ -77,21 +94,26 @@ const makeHarness = (options?: {
       getConsumableSkillItem: () => Effect.succeed(null),
       isAttackBlocked: (monsterMapId: number) =>
         Effect.succeed(options?.isAttackBlocked?.(monsterMapId) ?? false),
-      prepareCombatProfileConsumable: () =>
-        Effect.succeed(
-          options?.preflightWarning === undefined
+      prepareCombatProfileConsumable: (preparedProfile: CombatProfile) =>
+        Effect.sync(() => {
+          preparations.push(preparedProfile);
+          return options?.preflightWarning === undefined
             ? { release: Effect.void }
             : {
                 release: Effect.void,
                 warning: options.preflightWarning,
-              },
-        ),
+              };
+        }),
       target: {
         auras: { get: () => Effect.succeed(null) },
-        get: () => Effect.succeed(null),
+        get: () => options?.getTarget?.() ?? Effect.succeed(null),
       },
-      useSkill: (skill: number) => {
+      useSkill: (
+        skill: number,
+        useOptions?: Parameters<ApiService["combat"]["useSkill"]>[1],
+      ) => {
         casts.push(skill);
+        castOptions.push(useOptions);
         return options?.useSkill?.(skill) ?? Effect.succeed(true);
       },
     },
@@ -109,6 +131,7 @@ const makeHarness = (options?: {
     },
     monsters: {
       getAvailable: () =>
+        options?.getAvailableMonsters?.() ??
         Effect.succeed(options?.monsters ?? [first, priority]),
     },
     player: {
@@ -129,7 +152,9 @@ const makeHarness = (options?: {
     api,
     attacks,
     casts,
+    castOptions,
     emit,
+    preparations,
     handlerCount: () =>
       [...handlers.values()].reduce(
         (count, current) => count + current.size,
@@ -139,6 +164,82 @@ const makeHarness = (options?: {
 };
 
 describe("CombatProfileRunner", () => {
+  it.effect.each([false, true])(
+    "keeps empty rotations idle with triggers enabled: %s",
+    (hasTriggers) =>
+      Effect.gen(function* () {
+        const harness = makeHarness();
+        const runner = yield* makeCombatProfileRunner(harness.api, {
+          profile: {
+            ...triggerProfile,
+            consumable: "Potion",
+            messageTriggers: hasTriggers ? triggerProfile.messageTriggers : [],
+          },
+          targetPriority: [],
+        });
+
+        yield* harness.emit(messageEvent);
+        yield* harness.emit({
+          ...messageEvent,
+          monsterMapId: first.monsterMapId,
+        });
+        expect(yield* runner.runCycle()).toMatchObject({ kind: "idle" });
+        expect(harness.attacks).toEqual([]);
+        expect(harness.preparations).toHaveLength(hasTriggers ? 1 : 0);
+        expect(harness.casts).toEqual(hasTriggers ? [5, 5] : []);
+        expect(harness.castOptions).toEqual(
+          hasTriggers
+            ? [
+                { force: true, waitUntilReady: true },
+                {
+                  force: true,
+                  target: first.monsterMapId,
+                  waitUntilReady: true,
+                },
+              ]
+            : [],
+        );
+      }),
+  );
+
+  it.effect("drops a trigger if its owned target dies during validation", () =>
+    Effect.gen(function* () {
+      const validationStarted = yield* Deferred.make<void>();
+      const finishValidation = yield* Deferred.make<void>();
+      let validating = false;
+      const harness = makeHarness({
+        getAvailableMonsters: () =>
+          Effect.gen(function* () {
+            if (validating) {
+              yield* Deferred.succeed(validationStarted, undefined);
+              yield* Deferred.await(finishValidation);
+            }
+            return [first, priority];
+          }),
+      });
+      const runner = yield* makeCombatProfileRunner(harness.api, {
+        profile: { ...triggerProfile, steps: profile.steps },
+        targetPriority: [],
+      });
+      yield* runner.runCycle();
+      validating = true;
+      const pending = yield* Effect.forkChild(
+        harness.emit({
+          ...messageEvent,
+          monsterMapId: first.monsterMapId,
+        }),
+      );
+      yield* Deferred.await(validationStarted);
+      yield* harness.emit({
+        type: "monster-death",
+        monsterMapId: first.monsterMapId,
+      });
+      yield* Deferred.succeed(finishValidation, undefined);
+      yield* Fiber.join(pending);
+      expect(harness.casts).toEqual([1]);
+    }),
+  );
+
   it("selects by priority while retaining an equal-rank target", () => {
     const dead = makeMonster(3, "Dead", {
       hp: 0,
@@ -332,8 +433,15 @@ describe("CombatProfileRunner", () => {
   it.effect("guards triggers and resets only on active-target death", () =>
     Effect.gen(function* () {
       const blocked = new Set<number>();
+      let selected: LiveMonster | undefined;
       const harness = makeHarness({
         isAttackBlocked: (monsterMapId) => blocked.has(monsterMapId),
+        getTarget: () =>
+          Effect.succeed(
+            selected === undefined
+              ? null
+              : { ...selected.toJSON(), type: "monster" as const },
+          ),
       });
       const eventProfile: CombatProfile = {
         ...profile,
@@ -358,6 +466,12 @@ describe("CombatProfileRunner", () => {
           yield* runner.runCycle();
           yield* harness.emit({ monsterMapId: 2, type: "monster-death" });
           yield* runner.runCycle();
+          selected = priority;
+          yield* harness.emit({
+            ...messageEvent,
+            monsterMapId: first.monsterMapId,
+          });
+          selected = undefined;
           yield* harness.emit({
             message: "Boss enrage",
             monsterMapId: priority.monsterMapId,
