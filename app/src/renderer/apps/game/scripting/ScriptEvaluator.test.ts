@@ -12,6 +12,7 @@ const modules = {
   "lucent/autorelogin": { marker: "auto-relogin" },
   "lucent/autozone": { marker: "auto-zone" },
   "lucent/filesystem": { marker: "filesystem" },
+  "lucent/http": { marker: "http" },
   "lucent/script": { marker: "script" },
 } as unknown as ScriptBuiltinModules;
 
@@ -26,12 +27,12 @@ describe("ScriptEvaluator", () => {
       } as unknown as Console;
       const result = yield* compileScriptEval(
         `console.log(script.marker, autoRelogin.marker, autoZone.marker);
-return yield* Effect.succeed([api.marker, api.environment.marker, filesystem.marker]);`,
+return yield* Effect.succeed([api.marker, api.environment.marker, filesystem.marker, http.marker]);`,
         modules,
         debugConsole,
       );
 
-      expect(result).toEqual(["api", "environment", "filesystem"]);
+      expect(result).toEqual(["api", "environment", "filesystem", "http"]);
       expect(logs).toEqual([["script", "auto-relogin", "auto-zone"]]);
     }),
   );

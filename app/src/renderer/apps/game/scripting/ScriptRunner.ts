@@ -46,6 +46,7 @@ import {
 } from "./ScriptRuntime";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptFileSystemApi } from "./ScriptFileSystem";
+import { makeScriptHttpApi } from "./ScriptHttp";
 import { ScriptDialogs } from "./ScriptDialogs";
 import { makeScriptRuntimeServices } from "./api/Services";
 import {
@@ -473,6 +474,7 @@ export const layer = Layer.effect(
     const {
       accountSettings,
       fileSystem: fileSystemBridge,
+      http: httpBridge,
       gameView,
     } = selectDesktopBridge(window.desktop, "game");
     const { auth, combat, events, house, map, packet, player, wait } = api;
@@ -1071,12 +1073,14 @@ export const layer = Layer.effect(
           fileSystemBridge,
           scriptScope,
         );
+        const http = yield* makeScriptHttpApi(httpBridge, scriptScope);
         const modules = makeScriptBuiltinModules({
           autoRelogin,
           autoZone,
           bridge,
           failCause: (cause) => failActiveCause(starting.id, cause),
           fileSystem,
+          http,
           roomPolicy: SubscriptionRef.get(optionsRef).pipe(
             Effect.map((options) => snapshotRoomPolicy(options.roomPolicy)),
           ),

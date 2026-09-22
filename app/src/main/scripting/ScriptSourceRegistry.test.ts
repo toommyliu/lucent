@@ -111,6 +111,7 @@ describe("script source dependency discovery", () => {
               require("lucent/autozone");
               require("lucent/filesystem");
               require("lucent/schema");
+              require("lucent/http");
               require("lucent/script");
               require("effect");
               require("./lib/helper");

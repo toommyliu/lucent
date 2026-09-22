@@ -22,12 +22,19 @@ const SCRIPT_API_ROOT_INTERFACES = [
   "ScriptAutoReloginApi",
   "ScriptAutoZoneApi",
   "ScriptFileSystemApi",
+  "ScriptHttpApi",
   "ScriptEffectStd",
 ] as const;
 
 const BUILTIN_TYPE_NAMES = new Set([
   "A",
   "AbortSignal",
+  "ArrayBuffer",
+  "Headers",
+  "HeadersInit",
+  "Uint8Array",
+  "URL",
+  "URLSearchParams",
   "Array",
   "Boolean",
   "Date",
@@ -117,6 +124,11 @@ declare module "lucent/autorelogin" {
 declare module "lucent/autozone" {
   const autoZone: ScriptAutoZoneApi;
   export = autoZone;
+}
+
+declare module "lucent/http" {
+  const http: ScriptHttpApi;
+  export = http;
 }
 
 declare module "lucent/filesystem" {
@@ -1273,6 +1285,24 @@ import effect = require("effect");
 import api = require("lucent/api");
 import script = require("lucent/script");
 import schema = require("lucent/schema");
+import http = require("lucent/http");
+
+const httpResult = http.request(new URL("https://example.com"), {
+  method: "POST", body: new Uint8Array([0, 255]), timeout: effect.Duration.seconds(15),
+});
+effect.Effect.gen(function* () {
+  const response = yield* httpResult;
+  const payload: unknown = yield* response.json();
+  const contentType: string | null = response.headers.get("content-type");
+  // @ts-expect-error Network JSON is unvalidated.
+  const unsafe: string = payload;
+  return [payload, contentType];
+});
+// @ts-expect-error Response limits are internal.
+http.request("https://example.com", { maxBytes: 100 });
+// @ts-expect-error JSON decoding belongs to the response.
+http.json("https://example.com");
+
 
 const schemaOptions = schema.object({
   method: schema.enum(["buy", "craft"]),
@@ -1425,6 +1455,7 @@ const validateGeneratedTypes = (content: string): void => {
     "lucent/autorelogin",
     "lucent/autozone",
     "lucent/filesystem",
+    "lucent/http",
     "lucent/schema",
     "lucent/script",
   ]) {

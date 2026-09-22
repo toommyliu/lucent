@@ -12,6 +12,7 @@ import { Bridge } from "../flash/bridge/Bridge";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { makeScriptFileSystemApi } from "./ScriptFileSystem";
+import { makeScriptHttpApi } from "./ScriptHttp";
 import { ScriptDialogs } from "./ScriptDialogs";
 import { ScriptRunner } from "./ScriptRunner";
 import {
@@ -37,6 +38,7 @@ const ScriptEvalFunction = Function as unknown as new (
   autoRelogin: ScriptBuiltinModules["lucent/autorelogin"],
   autoZone: ScriptBuiltinModules["lucent/autozone"],
   filesystem: ScriptBuiltinModules["lucent/filesystem"],
+  http: ScriptBuiltinModules["lucent/http"],
   effect: ScriptBuiltinModules["effect"]["Effect"],
   console: Console,
 ) => () => Effect.gen.Return<unknown, unknown>;
@@ -59,6 +61,7 @@ export const compileScriptEval = (
         "autoRelogin",
         "autoZone",
         "filesystem",
+        "http",
         "Effect",
         "console",
         `"use strict";
@@ -74,6 +77,7 @@ ${source}
           modules["lucent/autorelogin"],
           modules["lucent/autozone"],
           modules["lucent/filesystem"],
+          modules["lucent/http"],
           modules.effect.Effect,
           debugConsole,
         ),
@@ -88,10 +92,11 @@ ${source}
 
 export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
   function* (source: string, debugConsole: Console) {
-    const { fileSystem: fileSystemBridge, gameView } = selectDesktopBridge(
-      window.desktop,
-      "game",
-    );
+    const {
+      fileSystem: fileSystemBridge,
+      http: httpBridge,
+      gameView,
+    } = selectDesktopBridge(window.desktop, "game");
     const api = yield* Api;
     const projectionReadiness = yield* ProjectionReadiness;
     const army = yield* ArmyApi;
@@ -144,6 +149,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         fileSystemBridge,
         scope,
       );
+      const http = yield* makeScriptHttpApi(httpBridge, scope);
       const modules = makeScriptBuiltinModules({
         autoRelogin: automation.autoRelogin,
         autoZone: automation.autoZone,
@@ -151,6 +157,7 @@ export const runScriptEval = Effect.fn("ScriptEvaluator.runScriptEval")(
         failCause: (cause: Cause.Cause<unknown>) =>
           Deferred.failCause(callbackFailure, cause).pipe(Effect.asVoid),
         fileSystem,
+        http,
         roomPolicy: runner
           .getOptions()
           .pipe(

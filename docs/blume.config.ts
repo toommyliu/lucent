@@ -191,6 +191,10 @@ export default defineConfig({
                   root: "/reference/scripting/schema",
                 },
                 {
+                  label: "lucent/http",
+                  root: "/reference/scripting/http",
+                },
+                {
                   label: "lucent/filesystem",
                   root: "/reference/scripting/filesystem",
                 },
