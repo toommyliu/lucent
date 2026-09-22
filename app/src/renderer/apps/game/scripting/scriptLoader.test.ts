@@ -13,6 +13,7 @@ import {
 } from "./scriptLoader";
 import type { ScriptBuiltinModules } from "./ScriptBuiltinModules";
 import { scriptEffectStd } from "./ScriptEffectStd";
+import { scriptSchema } from "./schema";
 
 const modules = Object.freeze({
   effect: scriptEffectStd,
@@ -20,6 +21,7 @@ const modules = Object.freeze({
   "lucent/autorelogin": Object.freeze({ marker: "auto-relogin" }),
   "lucent/autozone": Object.freeze({ marker: "auto-zone" }),
   "lucent/filesystem": Object.freeze({ marker: "filesystem" }),
+  "lucent/schema": scriptSchema,
   "lucent/script": Object.freeze({ marker: "script-api" }),
 }) as unknown as ScriptBuiltinModules;
 
@@ -91,6 +93,7 @@ describe("scriptLoader", () => {
       const autoZone = require("lucent/autozone");
       const filesystem = require("lucent/filesystem");
       const script = require("lucent/script");
+      const s = require("lucent/schema");
       const { Effect } = require("effect");
       module.exports = function* run() {
         return [
@@ -100,6 +103,7 @@ describe("scriptLoader", () => {
           filesystem.marker,
           script.marker,
           typeof Effect.succeed,
+          s.object({ amount: s.coerce.number() }).parse({ amount: "2" }).amount,
         ];
       };
     `);
@@ -115,6 +119,7 @@ describe("scriptLoader", () => {
           "filesystem",
           "script-api",
           "function",
+          2,
         ],
       });
     }

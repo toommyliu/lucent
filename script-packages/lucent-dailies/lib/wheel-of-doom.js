@@ -1,6 +1,12 @@
 // @ts-check
 
 const api = require("lucent/api");
+const s = require("lucent/schema");
+const { wheelRewardNames } = require("./wheel-rewards");
+
+const optionsSchema = s.object({
+  bankRewards: s.boolean().default(false),
+});
 
 const DAILY_QUEST_ID = 3075;
 const DAILY_XP_BOOST_ITEM_ID = 19189;
@@ -10,38 +16,6 @@ const WEEKLY_QUEST_ID = 3076;
 /** @typedef {{ readonly bankRewards?: boolean }} WheelOfDoomOptions */
 /** @typedef {{ readonly status: "unavailable" } | { readonly status: "failed" } | { readonly status: "completed", readonly banking: "not-requested" | "completed" | "failed" }} WheelOfDoomSpinOutcome */
 /** @typedef {{ readonly daily: WheelOfDoomSpinOutcome, readonly weekly: WheelOfDoomSpinOutcome }} WheelOfDoomResult */
-
-/**
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-const isRecord = (value) =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** @param {unknown} value */
-const rewardName = (value) => {
-  if (!isRecord(value)) return undefined;
-  const name = value["sName"];
-  return typeof name === "string" && name !== "" ? name : undefined;
-};
-
-/** @param {unknown} packet */
-const wheelRewardNames = (packet) => {
-  if (!isRecord(packet) || packet["direction"] !== "extension") return [];
-  const data = packet["data"];
-  if (!isRecord(data)) return [];
-
-  /** @type {Set<string>} */
-  const rewards = new Set();
-  const dropItems = data["dropItems"];
-  if (isRecord(dropItems)) {
-    const boost = rewardName(dropItems[String(DAILY_XP_BOOST_ITEM_ID)]);
-    if (boost !== undefined) rewards.add(boost);
-  }
-  const optionalReward = rewardName(data["Item"]);
-  if (optionalReward !== undefined) rewards.add(optionalReward);
-  return Array.from(rewards);
-};
 
 /**
  * @param {number} questId
@@ -74,7 +48,7 @@ function* completeWheelQuest(questId, bankRewards) {
 
   /** @type {string[]} */
   const toDeposit = [];
-  for (const reward of wheelRewardNames(packet)) {
+  for (const reward of wheelRewardNames(packet, DAILY_XP_BOOST_ITEM_ID)) {
     if ((yield* api.inventory.get(reward)) !== null) {
       toDeposit.push(reward);
     } else if (!(yield* api.bank.contains(reward))) {
@@ -97,13 +71,11 @@ function* completeWheelQuest(questId, bankRewards) {
  * @returns {Generator<unknown, WheelOfDoomResult, unknown>}
  */
 function* spinWheelOfDoom(options = {}) {
+  const { bankRewards } = optionsSchema.parse(options);
   /** @type {WheelOfDoomSpinOutcome} */
   let daily = { status: "unavailable" };
   if (yield* api.player.isMember()) {
-    daily = yield* completeWheelQuest(
-      DAILY_QUEST_ID,
-      options.bankRewards === true,
-    );
+    daily = yield* completeWheelQuest(DAILY_QUEST_ID, bankRewards);
   }
 
   /** @type {WheelOfDoomSpinOutcome} */
@@ -112,10 +84,7 @@ function* spinWheelOfDoom(options = {}) {
     yield* api.bank.withdraw(GEAR_OF_DOOM_ITEM_ID);
   }
   if (yield* api.inventory.contains(GEAR_OF_DOOM_ITEM_ID, 3)) {
-    weekly = yield* completeWheelQuest(
-      WEEKLY_QUEST_ID,
-      options.bankRewards === true,
-    );
+    weekly = yield* completeWheelQuest(WEEKLY_QUEST_ID, bankRewards);
   }
 
   return { daily, weekly };

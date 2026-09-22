@@ -1,10 +1,15 @@
 // @ts-check
 
 const script = require("lucent/script");
+const s = require("lucent/schema");
 const { spinWheelOfDoom } = require("@lucent/dailies");
 
+const bankRewardsSchema = s.boolean().default(false);
+
 function* run() {
-  const bankRewards = (yield* script.inputs.get("bankRewards")) === true;
+  const bankRewards = bankRewardsSchema.parse(
+    yield* script.inputs.get("bankRewards"),
+  );
   const result = yield* spinWheelOfDoom({ bankRewards });
   // optionally:
   // yield* script.log(result);
