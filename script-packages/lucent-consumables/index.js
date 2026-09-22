@@ -2,45 +2,59 @@
 
 const api = require("lucent/api");
 const script = require("lucent/script");
+const s = require("lucent/schema");
 const { potions, scrolls } = require("./lib/catalog");
 const { preparePotion, ensurePotion } = require("./lib/potions");
 const { prepareScroll } = require("./lib/scrolls");
 const { acquire } = require("./lib/supplies");
+
+const optionsSchema = s.object({
+  potionMethod: s.enum(["buy", "craft"]).default("buy"),
+  mode: s.enum(["farm", "buy"]).default("farm"),
+  maxGold: s
+    .number()
+    .int()
+    .min(0, {
+      message: "The gold limit must be a whole number of 0 or more.",
+    })
+    .default(1_000_000),
+  maxCrafts: s
+    .number()
+    .int()
+    .min(1, {
+      message: "The alchemy attempt limit must be a positive whole number.",
+    })
+    .default(100),
+});
+const requestsSchema = s
+  .array(
+    s.object({
+      item: s
+        .string()
+        .refine(
+          (name) =>
+            Object.prototype.hasOwnProperty.call(potions, name) ||
+            Object.prototype.hasOwnProperty.call(scrolls, name),
+          { message: "Choose a supported consumable." },
+        ),
+      quantity: s
+        .number()
+        .int()
+        .min(1, { message: "Choose a positive whole quantity." }),
+    }),
+  )
+  .min(1, { message: "Select at least one consumable." });
 
 /** Gets inventory totals, sharing one spending and crafting limit across the selection.
  * @param {readonly import("@lucent/consumables").ConsumableRequest[]} requests
  * @param {import("@lucent/consumables").ConsumableOptions} [options]
  * @returns {Generator<unknown, void, unknown>} */
 function* ensure(requests, options = {}) {
-  const {
-    potionMethod = "buy",
-    mode = "farm",
-    maxGold = 1_000_000,
-    maxCrafts = 100,
-  } = options;
-  if (potionMethod !== "buy" && potionMethod !== "craft")
-    throw new Error("Choose buy or craft for the potion method.");
-  if (mode !== "farm" && mode !== "buy")
-    throw new Error("Choose farm or buy for the ingredient source.");
-  if (!Number.isSafeInteger(maxGold) || maxGold < 0)
-    throw new Error("The gold limit must be a whole number of 0 or more.");
-  if (!Number.isSafeInteger(maxCrafts) || maxCrafts < 1)
-    throw new Error(
-      "The alchemy attempt limit must be a positive whole number.",
-    );
-  if (!Array.isArray(requests) || requests.length === 0)
-    throw new Error("Select at least one consumable.");
+  const { potionMethod, mode, maxGold, maxCrafts } =
+    optionsSchema.parse(options);
   /** @type {Map<string, number>} */
   const targets = new Map();
-  for (const request of requests) {
-    if (
-      !request ||
-      (!Object.prototype.hasOwnProperty.call(potions, request.item) &&
-        !Object.prototype.hasOwnProperty.call(scrolls, request.item))
-    )
-      throw new Error(`Unknown consumable: ${request?.item}.`);
-    if (!Number.isSafeInteger(request.quantity) || request.quantity < 1)
-      throw new Error(`Choose a positive whole quantity for ${request.item}.`);
+  for (const request of requestsSchema.parse(requests)) {
     targets.set(
       request.item,
       Math.max(targets.get(request.item) ?? 0, request.quantity),
