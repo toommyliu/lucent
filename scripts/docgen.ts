@@ -3158,6 +3158,13 @@ const renderIndex = (
 
 const renderEffectModule = (): string => {
   const effectApiRoot = "https://www.effect.website/docs/v4/api/effect";
+  const memberLinks = (module: string, members: readonly string[]): string =>
+    members
+      .map(
+        (member) =>
+          "[" + "`" + member + "`](" + effectApiRoot + "/" + module + "#" + member + ")",
+      )
+      .join(", ");
   const lines = [
     frontmatter("effect module", {
       description: "Effect utilities available to scripts.",
@@ -3179,9 +3186,9 @@ const renderEffectModule = (): string => {
     "",
     "| Export | Members |",
     "| --- | --- |",
-    "| `Effect` | `all`, `as`, `asVoid`, `catch`, `fail`, `flatMap`, `forEach`, `gen`, `map`, `mapError`, `raceFirst`, `sleep`, `succeed`, `sync`, `tap`, `timeoutOption`, `try`, `tryPromise`, `void` |",
-    "| `Option` | `getOrElse`, `isNone`, `isSome`, `map`, `match`, `none`, `some` |",
-    "| `Duration` | `days`, `hours`, `millis`, `minutes`, `seconds`, `toMillis` |",
+    `| \`Effect\` | ${memberLinks("Effect", ["all", "as", "asVoid", "catch", "fail", "flatMap", "forEach", "gen", "map", "mapError", "raceFirst", "sleep", "succeed", "sync", "tap", "timeoutOption", "try", "tryPromise", "void"])} |`,
+    `| \`Option\` | ${memberLinks("Option", ["getOrElse", "isNone", "isSome", "map", "match", "none", "some"])} |`,
+    `| \`Duration\` | ${memberLinks("Duration", ["days", "hours", "millis", "minutes", "seconds", "toMillis"])} |`,
     "",
     "## Example: bound a long-running action",
     "",
