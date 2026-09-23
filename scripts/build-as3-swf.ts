@@ -278,10 +278,12 @@ const main = (input: CliInput): Effect.Effect<void, unknown> =>
 
 const command = Command.make("build-as3-swf", {
   checkBridge: Flag.boolean("check-bridge").pipe(
-    Flag.withDescription("Check if bridge artifacts are up to date")
+    Flag.withDescription("Check if bridge artifacts are up to date"),
+    Flag.withDefault(false)
   ),
   skipBridge: Flag.boolean("skip-bridge").pipe(
-    Flag.withDescription("Skip bridge artifact generation")
+    Flag.withDescription("Skip bridge artifact generation"),
+    Flag.withDefault(false)
   ),
   project: Flag.string("project").pipe(
     Flag.withAlias("p"),
