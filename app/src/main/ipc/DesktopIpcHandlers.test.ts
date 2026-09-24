@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
+  AboutIpc,
   AccountsIpc,
   AccountSettingsIpc,
   ArmyIpc,
@@ -30,6 +31,7 @@ const isInvokeDescriptor = (
 
 const expectedDescriptors = [
   ...Object.values(WindowsIpc),
+  ...Object.values(AboutIpc),
   ...Object.values(AccountsIpc),
   ...Object.values(AccountSettingsIpc),
   ...Object.values(ArmyIpc),

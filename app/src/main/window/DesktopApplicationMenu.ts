@@ -180,7 +180,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         );
     };
 
-  const openWindow = (kind: "account-manager" | "game"): void => {
+  const openWindow = (kind: "about" | "account-manager" | "game"): void => {
     void runPromise(windows.open(kind)).catch((cause) =>
       logMenuFailure(`open-${kind}`, cause),
     );
@@ -515,6 +515,10 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       accelerator: isDarwin ? "Command+," : "Control+,",
       click: openSettings,
     };
+    const aboutMenuItem: MenuItemConstructorOptions = {
+      label: `About ${app.name}`,
+      click: () => openWindow("about"),
+    };
     const checkForUpdatesMenuItem: MenuItemConstructorOptions = {
       label: "Check for Updates...",
       click: checkForUpdates,
@@ -552,6 +556,9 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const helpUpdateItems: MenuItemConstructorOptions[] = isDarwin
       ? []
       : [checkForUpdatesMenuItem, { type: "separator" }];
+    const helpAboutItems: MenuItemConstructorOptions[] = isDarwin
+      ? []
+      : [{ type: "separator" }, aboutMenuItem];
     const helpSubmenu: MenuItemConstructorOptions[] = [
       ...helpUpdateItems,
       buildPerformanceTraceMenuItem(performanceTraceState),
@@ -560,6 +567,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       ),
       { type: "separator" },
       ...dataClearMenuItems,
+      ...helpAboutItems,
     ];
     const viewSubmenu: MenuItemConstructorOptions[] = [
       {
@@ -593,7 +601,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
             {
               label: app.name,
               submenu: [
-                { role: "about" },
+                aboutMenuItem,
                 { type: "separator" },
                 settingsMenuItem,
                 checkForUpdatesMenuItem,

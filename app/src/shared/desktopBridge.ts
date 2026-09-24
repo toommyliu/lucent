@@ -73,6 +73,7 @@ import type {
   ScriptReference,
 } from "@lucent/core/scriptPackages";
 import type { UpdateCheckState } from "./updates";
+import type { AboutFolder, AboutInfo, AboutLink } from "./ipc/about";
 import type {
   AccountGameLaunchPayload,
   AccountGameServerPingsResult,
@@ -120,6 +121,7 @@ import type {
 
 export type AppPlatform = "linux" | "mac" | "windows";
 export type DesktopBridgeView =
+  | "about"
   | "account-manager"
   | "combat-profiles"
   | "environment"
@@ -131,6 +133,7 @@ export type DesktopBridgeView =
   | "packets"
   | "settings";
 export type DesktopBridgeWindowKind =
+  | "about"
   | "account-manager"
   | "combat-profiles"
   | "environment"
@@ -163,6 +166,12 @@ export interface DesktopUpdatesBridge {
     listener: (state: UpdateCheckState) => void,
   ) => () => void;
   readonly openReleasePage: () => Promise<boolean>;
+}
+
+export interface DesktopAboutBridge {
+  readonly getInfo: () => Promise<AboutInfo>;
+  readonly openFolder: (folder: AboutFolder) => Promise<boolean>;
+  readonly openLink: (link: AboutLink) => Promise<boolean>;
 }
 
 export interface DesktopScriptingBridge {
@@ -562,6 +571,9 @@ interface DesktopBridgeCapabilities {
 }
 
 interface DesktopBridgeViewCapabilities {
+  readonly about: Pick<DesktopBridgeCapabilities, "updates"> & {
+    readonly about: DesktopAboutBridge;
+  };
   readonly "account-manager": Pick<
     DesktopBridgeCapabilities,
     "accounts" | "scripting"

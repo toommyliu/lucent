@@ -421,6 +421,14 @@ const createWindowOptions = (
     ...(definition.minHeight === undefined
       ? {}
       : { minHeight: Math.min(definition.minHeight, height) }),
+    ...(definition.fixedSize === true
+      ? {
+          fullscreenable: false,
+          maximizable: false,
+          resizable: false,
+          useContentSize: true,
+        }
+      : {}),
     ...(env.platform === "linux" ? { icon: appIconPath } : {}),
     ...(definition.kind === "game"
       ? { title: activeBranding.displayName }

@@ -1,4 +1,5 @@
 export type DesktopWindowKind =
+  | "about"
   | "account-manager"
   | "combat-profiles"
   | "environment"
@@ -21,6 +22,7 @@ export interface DesktopWindowDefinition {
   readonly minHeight?: number;
   readonly minWidth?: number;
   readonly requiresFlashPlugin: boolean;
+  readonly fixedSize?: boolean;
   readonly scope: DesktopWindowScope;
   readonly singleInstance: boolean;
   readonly width: number;
@@ -50,6 +52,19 @@ const desktopWindowCatalog: ReadonlyMap<
       height: 654,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
+      scope: "application",
+      singleInstance: true,
+    },
+  ],
+  [
+    "about",
+    {
+      kind: "about",
+      width: 360,
+      height: 300,
+      closeBehavior: "destroy",
+      requiresFlashPlugin: false,
+      fixedSize: true,
       scope: "application",
       singleInstance: true,
     },

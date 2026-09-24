@@ -4,7 +4,7 @@ import { UpdatesIpc } from "../../../shared/ipc";
 import { DesktopUpdates } from "../../updates/DesktopUpdates";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 
-const updateSenders = ["settings"] as const;
+const updateSenders = ["about", "settings"] as const;
 
 export const getState = makeDesktopIpcMethod({
   descriptor: UpdatesIpc.getState,

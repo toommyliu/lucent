@@ -1,5 +1,6 @@
 const { build, context } = require("esbuild");
 const { solidPlugin } = require("esbuild-plugin-solid");
+const { execFileSync } = require("child_process");
 const { createHash } = require("crypto");
 const {
   copyFileSync,
@@ -27,6 +28,26 @@ const devRunnerOwnerPollIntervalMs = 1_000;
 const terminationSignals = ["SIGINT", "SIGTERM", "SIGHUP"];
 const noop = () => {};
 
+const readGit = (args) => {
+  try {
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+};
+
+const readBuildInfo = () => {
+  const commit = readGit(["rev-parse", "--short", "HEAD"]);
+  return {
+    builtAt: new Date().toISOString(),
+    commit,
+    dirty: commit !== null && (readGit(["status", "--porcelain"]) ?? "") !== "",
+  };
+};
+
 const baseOptions = {
   bundle: true,
   logLevel: "info",
@@ -37,6 +58,9 @@ const baseOptions = {
 
 const mainOptions = {
   ...baseOptions,
+  define: {
+    __LUCENT_BUILD_INFO__: JSON.stringify(readBuildInfo()),
+  },
   entryNames: "[name]",
   entryPoints: {
     index: "src/main/index.ts",
@@ -122,6 +146,7 @@ const rendererViews = [
     ].join("\n"),
   }),
   createRendererView("settings", "Settings", { startsPending: true }),
+  createRendererView("about", "About", { startsPending: true }),
   createRendererView("account-manager", "Account Manager", {
     startsPending: true,
   }),

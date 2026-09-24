@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 
 import { DesktopIpc } from "./DesktopIpc";
+import * as AboutIpcMethods from "./methods/about";
 import * as AccountsIpcMethods from "./methods/accounts";
 import * as AccountSettingsIpcMethods from "./methods/accountSettings";
 import * as ArmyIpcMethods from "./methods/army";
@@ -33,6 +34,9 @@ export const installDesktopIpcHandlers = Effect.fn(
   for (const method of WindowsIpcMethods.methods) {
     yield* ipc.handle(method);
   }
+  yield* ipc.handle(AboutIpcMethods.getInfo);
+  yield* ipc.handle(AboutIpcMethods.openFolder);
+  yield* ipc.handle(AboutIpcMethods.openLink);
   for (const method of AccountsIpcMethods.methods) {
     yield* ipc.handle(method);
   }
@@ -98,6 +102,7 @@ export const installDesktopIpcHandlers = Effect.fn(
 
 export const desktopIpcMethods = [
   ...WindowsIpcMethods.methods,
+  ...AboutIpcMethods.methods,
   ...AccountsIpcMethods.methods,
   ...AccountSettingsIpcMethods.methods,
   ...ArmyIpcMethods.methods,
