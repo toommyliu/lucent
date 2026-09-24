@@ -5,6 +5,7 @@ import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import {
@@ -21,7 +22,12 @@ import {
 } from "../../../../shared/desktopBridge";
 import { Api, type ApiService } from "../flash/api/Api";
 import { isDirectInventoryConsumable } from "../flash/api/Inventory";
+import { Bridge, type BridgeService } from "../flash/bridge/Bridge";
 import type { ScriptArmyApi } from "../scripting/ScriptApi";
+import {
+  makeArmyDiagnostics,
+  type ArmyDiagnosticGoal,
+} from "./ArmyDiagnostics";
 import {
   ArmyLoopTauntError,
   type ArmyLoopTauntHandle,
@@ -196,6 +202,7 @@ const armyEquipOrder = [
 const makeArmyApi = (
   api: ApiService,
   bridge: DesktopArmyBridge = selectDesktopBridge(window.desktop, "game").army,
+  flash: Option.Option<BridgeService> = Option.none(),
 ) =>
   Effect.gen(function* () {
     const {
@@ -214,6 +221,15 @@ const makeArmyApi = (
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
 
     const getState = SynchronizedRef.get(stateRef);
+    // TEMPORARY(army-stall-diagnostics): remove with the stall investigation.
+    const diagnostics = yield* makeArmyDiagnostics({
+      api,
+      desktop: bridge,
+      flash,
+      getSessionId: getState.pipe(
+        Effect.map((state) => state.session?.sessionId ?? null),
+      ),
+    });
 
     const getSession: ScriptArmyApi["getSession"] = () =>
       getState.pipe(
@@ -252,6 +268,7 @@ const makeArmyApi = (
               ),
             );
           }
+          yield* diagnostics.begin;
         }),
         () =>
           Effect.gen(function* () {
@@ -262,7 +279,10 @@ const makeArmyApi = (
                 : Effect.raceFirst(operation, Deferred.await(ended));
             return yield* guarded;
           }),
-        () => SynchronizedRef.set(coordinationRef, false),
+        () =>
+          SynchronizedRef.set(coordinationRef, false).pipe(
+            Effect.andThen(diagnostics.end),
+          ),
       );
 
     const loopTaunt: ArmyApiRuntimeShape["loopTaunt"] = (plan, onFailure) =>
@@ -300,15 +320,19 @@ const makeArmyApi = (
       label: string,
       options?: ArmyRunStepOptions,
     ) =>
-      fromDesktop("Failed to synchronize army", () => {
-        const timeoutMs = optionTimeoutMs(options);
-        return bridge.sync({
-          label,
-          sessionId: session.sessionId,
-          step,
-          ...(timeoutMs === undefined ? {} : { timeoutMs }),
-        });
-      }).pipe(
+      diagnostics.waitStarted("sync", step, label).pipe(
+        Effect.andThen(
+          fromDesktop("Failed to synchronize army", () => {
+            const timeoutMs = optionTimeoutMs(options);
+            return bridge.sync({
+              label,
+              sessionId: session.sessionId,
+              step,
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            });
+          }),
+        ),
+        Effect.ensuring(diagnostics.waitFinished()),
         Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
       );
 
@@ -319,16 +343,21 @@ const makeArmyApi = (
       complete: boolean,
       options?: ArmyRunStepOptions,
     ): Effect.Effect<ArmyProgressResult, ArmyError> =>
-      fromDesktop("Failed to synchronize army progress", () => {
-        const timeoutMs = optionTimeoutMs(options);
-        return bridge.progress({
-          complete,
-          label,
-          sessionId: session.sessionId,
-          step,
-          ...(timeoutMs === undefined ? {} : { timeoutMs }),
-        });
-      }).pipe(
+      diagnostics.waitStarted("progress", step, label, complete).pipe(
+        Effect.andThen(
+          fromDesktop("Failed to synchronize army progress", () => {
+            const timeoutMs = optionTimeoutMs(options);
+            return bridge.progress({
+              complete,
+              label,
+              sessionId: session.sessionId,
+              step,
+              ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            });
+          }),
+        ),
+        Effect.tap((result) => diagnostics.waitFinished(result)),
+        Effect.ensuring(diagnostics.waitFinished()),
         Effect.tapError(() => SynchronizedRef.set(stateRef, defaultState)),
       );
 
@@ -529,6 +558,7 @@ const makeArmyApi = (
 
     const runUntilArmyProgressComplete = <E>(args: {
       readonly action: () => Effect.Effect<void, E>;
+      readonly goal: ArmyDiagnosticGoal;
       readonly isComplete: () => Effect.Effect<boolean, E>;
       readonly label: string;
     }): Effect.Effect<void, E | ArmyError> =>
@@ -536,6 +566,7 @@ const makeArmyApi = (
         Effect.gen(function* () {
           const step = yield* nextStep;
           const session = yield* assertStarted;
+          yield* diagnostics.setGoal(args.goal);
 
           const reportProgress = Effect.gen(function* () {
             const complete = yield* args.isComplete();
@@ -560,7 +591,10 @@ const makeArmyApi = (
           yield* Effect.raceFirst(
             awaitCompletion,
             Effect.forever(
-              args.action().pipe(Effect.andThen(Effect.sleep("100 millis"))),
+              args.action().pipe(
+                Effect.tap(() => diagnostics.actionFinished),
+                Effect.andThen(Effect.sleep("100 millis")),
+              ),
             ),
           ).pipe(
             Effect.catchCause((cause) =>
@@ -576,6 +610,7 @@ const makeArmyApi = (
     const killForItem: ScriptArmyApi["killForItem"] = (target, goal, options) =>
       runUntilArmyProgressComplete({
         action: () => combat.kill(target, options).pipe(Effect.asVoid),
+        goal: { ...goal, source: "inventory" },
         isComplete: () =>
           Effect.gen(function* () {
             if (yield* drops.contains(goal.item)) {
@@ -593,6 +628,7 @@ const makeArmyApi = (
     ) =>
       runUntilArmyProgressComplete({
         action: () => combat.kill(target, options).pipe(Effect.asVoid),
+        goal: { ...goal, source: "temporary" },
         isComplete: () => tempInventory.contains(goal.item, goal.quantity),
         label: `kill-temp:${String(goal.item)}`,
       });
@@ -804,7 +840,12 @@ const makeArmyApi = (
 
 export const layer = Layer.effect(
   ArmyApi,
-  Effect.flatMap(Api, (api) => makeArmyApi(api)),
+  Effect.gen(function* () {
+    const api = yield* Api;
+    // TEMPORARY(army-stall-diagnostics): reads Flash's own temp inventory.
+    const flash = yield* Effect.serviceOption(Bridge);
+    return yield* makeArmyApi(api, undefined, flash);
+  }),
 );
 
 export { ArmyLoopTauntError } from "./ArmyLoopTaunt";

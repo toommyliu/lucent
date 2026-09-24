@@ -504,6 +504,11 @@ export interface DesktopEnvironmentBridge {
 }
 
 export interface DesktopArmyBridge {
+  /** TEMPORARY(army-stall-diagnostics): remove with the stall investigation. */
+  readonly diagnostic: (payload: {
+    readonly sessionId: string;
+    readonly snapshot: Readonly<Record<string, unknown>>;
+  }) => Promise<void>;
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
   readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
   readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;

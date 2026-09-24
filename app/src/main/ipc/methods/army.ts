@@ -81,6 +81,22 @@ export const progress = makeDesktopIpcMethod({
   }),
 });
 
+// TEMPORARY(army-stall-diagnostics): remove with the stall investigation.
+export const diagnostic = makeDesktopIpcMethod({
+  descriptor: ArmyIpc.diagnostic,
+  allowedSenders: gameSenders,
+  handler: Effect.fn("desktop.ipc.army.diagnostic")(
+    function* (payload, sender) {
+      const coordinator = yield* ArmyCoordinator;
+      return yield* coordinator.reportDiagnostic(
+        payload.sessionId,
+        sender.rendererId,
+        payload.snapshot,
+      );
+    },
+  ),
+});
+
 export const fail = makeDesktopIpcMethod({
   descriptor: ArmyIpc.fail,
   allowedSenders: gameSenders,
@@ -162,6 +178,7 @@ export const methods: readonly ArmyIpcMethod[] = [
   leave,
   sync,
   progress,
+  diagnostic,
   fail,
   loopTauntRegister,
   loopTauntReady,

@@ -565,6 +565,7 @@ const bridges = {
     ...commonBridge,
     accountSettings: accountSettingsBridge,
     army: {
+      diagnostic: (payload) => invoke(ArmyIpc.diagnostic, payload),
       fail: (payload) => invoke(ArmyIpc.fail, payload),
       leave: (payload) => invoke(ArmyIpc.leave, payload),
       loadConfig: (configName) => invoke(ArmyIpc.loadConfig, { configName }),

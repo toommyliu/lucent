@@ -41,6 +41,7 @@ const makeBridge = (overrides: Partial<DesktopArmyBridge> = {}) => {
       }) => void)
     | undefined;
   const bridge: DesktopArmyBridge = {
+    diagnostic: async () => undefined,
     fail: async () => undefined,
     leave: async () => undefined,
     loadConfig: async () => makeSession(),
@@ -321,6 +322,65 @@ describe("Army API", () => {
             }),
         );
       }),
+  );
+
+  it.effect("reports a client snapshot while an operation stalls", () =>
+    Effect.gen(function* () {
+      const snapshots: Record<string, unknown>[] = [];
+      let progressRound = 0;
+      const { bridge } = makeBridge({
+        diagnostic: async ({ snapshot }) => {
+          snapshots.push({ ...snapshot });
+        },
+        progress: async () => {
+          progressRound += 1;
+          return progressRound === 1
+            ? {
+                complete: false,
+                completedPlayers: [],
+                pendingPlayers: ["Alice"],
+              }
+            : new Promise<ArmyProgressResult>(() => undefined);
+        },
+      });
+      yield* withArmy(
+        makeApi({
+          combat: { kill: () => Effect.never },
+          tempInventory: {
+            contains: () => Effect.succeed(false),
+            get: () => Effect.succeed({ quantity: 0 }),
+            getAll: () => Effect.succeed([]),
+          },
+        }),
+        bridge,
+        (army) =>
+          Effect.gen(function* () {
+            yield* army.start("test");
+            yield* army
+              .killForTempItem("Boss", { item: "Drop" })
+              .pipe(Effect.forkScoped);
+            yield* TestClock.adjust("90 seconds");
+            yield* Effect.yieldNow;
+          }),
+      );
+      expect(snapshots).toHaveLength(1);
+      expect(snapshots[0]).toMatchObject({
+        goal: {
+          item: "Drop",
+          lucentQuantity: 0,
+          source: "temporary",
+        },
+        operation: {
+          label: "kill-temp:Drop",
+          lastLocalComplete: false,
+          lastProgress: { complete: false, pendingPlayers: ["Alice"] },
+          progressReports: 2,
+          step: 0,
+          waiting: "progress",
+        },
+        reason: "operation-running",
+      });
+    }),
   );
 
   it.effect("reports map identity and full-roster visibility", () =>
