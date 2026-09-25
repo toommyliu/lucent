@@ -26,14 +26,34 @@ declare module "@lucent/dailies" {
    * @param options Whether to bank rewards after each spin.
    * @example
    * ```js
-   * const pkg = require("@lucent/dailies");
+   * const Dailies = require("@lucent/dailies");
    *
    * module.exports = function* run() {
-   *   return yield* pkg.spinWheelOfDoom({ bankRewards: true });
+   *   return yield* Dailies.spinWheelOfDoom({ bankRewards: true });
    * };
    * ```
    */
   export function spinWheelOfDoom(
     options?: WheelOfDoomOptions,
   ): ScriptGenerator<WheelOfDoomResult>;
+
+  /** Whether the Elders' Blood daily was completed, skipped, or failed. */
+  export interface EldersBloodResult {
+    readonly status: "completed" | "maxed" | "unavailable" | "failed";
+  }
+
+  /**
+   * Completes the Elders' Blood daily in arcangrove. Skips the quest when
+   * Elders' Blood is already at its stack limit.
+   *
+   * @example
+   * ```js
+   * const Dailies = require("@lucent/dailies");
+   *
+   * module.exports = function* run() {
+   *   return yield* Dailies.farmEldersBlood();
+   * };
+   * ```
+   */
+  export function farmEldersBlood(): ScriptGenerator<EldersBloodResult>;
 }

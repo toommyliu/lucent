@@ -10,4 +10,4 @@ sidebar:
 | Package | Version | Description |
 | --- | --- | --- |
 | [`@lucent/consumables`](/reference/scripting/packages/lucent/consumables/) | 0.0.1 | Buy finished potions or craft consumables. |
-| [`@lucent/dailies`](/reference/scripting/packages/lucent/dailies/) | 0.0.1 | Automate daily and recurring activities. |
+| [`@lucent/dailies`](/reference/scripting/packages/lucent/dailies/) | 0.0.2 | Automate daily and recurring activities. |
