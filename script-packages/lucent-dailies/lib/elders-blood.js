@@ -4,15 +4,16 @@ const api = require("lucent/api");
 const script = require("lucent/script");
 
 const QUEST_ID = 802;
-const REWARD_NAME = "Elders' Blood";
+const REWARD_ITEM_ID = 5586;
 const MONSTER = "Gorillaphant";
-const REQUIREMENT = { item: "Slain Gorillaphant", quantity: 50 };
+const REQUIREMENT = { item: 5574, quantity: 50 };
 
 /** @typedef {{ readonly status: "completed" | "maxed" | "unavailable" | "failed" }} EldersBloodResult */
 
-/** @param {number} itemId */
-function* quantity(itemId) {
-  return (yield* api.inventory.get(itemId))?.quantity ?? 0;
+function* quantity() {
+  const inventory = (yield* api.inventory.get(REWARD_ITEM_ID))?.quantity ?? 0;
+  const bank = (yield* api.bank.get(REWARD_ITEM_ID))?.quantity ?? 0;
+  return inventory + bank;
 }
 
 /**
@@ -22,24 +23,27 @@ function* quantity(itemId) {
  */
 function* farmEldersBlood() {
   if (!(yield* api.quests.load(QUEST_ID, true))) return { status: "failed" };
-  const reward = (yield* api.quests.get(QUEST_ID))?.rewards.find(
-    (candidate) => candidate.name === REWARD_NAME,
-  );
-  if (reward?.maxStack === undefined) return { status: "failed" };
+  if (!(yield* api.bank.load())) return { status: "failed" };
 
   const owned =
-    (yield* api.inventory.get(reward.itemId)) ??
-    (yield* api.bank.get(reward.itemId));
-  if ((owned?.quantity ?? 0) >= reward.maxStack) return { status: "maxed" };
+    (yield* api.inventory.get(REWARD_ITEM_ID)) ??
+    (yield* api.bank.get(REWARD_ITEM_ID));
+  const maxStack =
+    (yield* api.quests.get(QUEST_ID))?.rewards.find(
+      (reward) => reward.itemId === REWARD_ITEM_ID,
+    )?.maxStack ?? owned?.maxStack;
+  if (owned && maxStack !== undefined && owned.quantity >= maxStack) {
+    return { status: "maxed" };
+  }
 
   const available = yield* api.quests.isAvailable(QUEST_ID);
   const inProgress = yield* api.quests.isInProgress(QUEST_ID);
   if (!available && !inProgress) return { status: "unavailable" };
 
-  if (owned?.banked && !(yield* api.bank.withdraw(reward.itemId))) {
+  if (owned?.banked && !(yield* api.bank.withdraw(REWARD_ITEM_ID))) {
     return { status: "failed" };
   }
-  const before = yield* quantity(reward.itemId);
+  const before = yield* quantity();
 
   if (
     !(yield* api.player.joinMap("arcangrove", {
@@ -57,12 +61,12 @@ function* farmEldersBlood() {
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     if (
-      (yield* api.drops.contains(reward.itemId)) &&
-      !(yield* api.drops.accept(reward.itemId))
+      (yield* api.drops.contains(REWARD_ITEM_ID)) &&
+      !(yield* api.drops.accept(REWARD_ITEM_ID))
     ) {
       return { status: "failed" };
     }
-    if ((yield* quantity(reward.itemId)) > before) {
+    if ((yield* quantity()) > before) {
       return { status: "completed" };
     }
     yield* script.sleep("250 millis");
