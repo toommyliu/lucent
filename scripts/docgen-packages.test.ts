@@ -79,7 +79,7 @@ describe("script package references", () => {
        * @param options Configuration for the operation.
        * @example
        * \`\`\`js
-       * yield* pkg.run({ firstOnly: "yes" });
+       * yield* first.run({ firstOnly: "yes" });
        * \`\`\`
        */
       export function run(options: Options): ScriptGenerator<Options>;
@@ -108,15 +108,18 @@ describe("script package references", () => {
     expect(first).not.toContain("secondOnly");
     expect(second).toContain("secondOnly: number");
     expect(second).not.toContain("firstOnly");
-    expect(first).toContain('data-api-copy-call="yield* pkg.run(options);"');
-    expect(first).toContain('data-api-copy-call="pkg.names"');
+    expect(first).toContain('const first = require("@test/first");');
+    expect(first).toContain("### `run()`");
+    expect(first).toContain("### `names`");
+    expect(first).toContain('data-api-copy-call="yield* first.run(options);"');
+    expect(first).toContain('data-api-copy-call="first.names"');
     expect(first).toContain(
       '**Returns:** <a href="#type-options"><code>Options</code></a>',
     );
     expect(first).not.toContain("**Errors:** `never`");
     expect(first).not.toContain("data-script-type-preview");
     expect(first).toContain("Configuration for the operation.");
-    expect(first).toContain('yield* pkg.run({ firstOnly: "yes" });');
+    expect(first).toContain('yield* first.run({ firstOnly: "yes" });');
     expect(first).toContain("1.2.3");
     await fs.rm(join(repoRoot, "script-packages/first"), { recursive: true });
     const remaining = await generate();

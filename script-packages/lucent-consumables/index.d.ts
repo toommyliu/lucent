@@ -116,10 +116,10 @@ declare module "@lucent/consumables" {
    * @param options Acquisition methods and limits shared across the entire call.
    * @example
    * ```js
-   * const pkg = require("@lucent/consumables");
+   * const consumables = require("@lucent/consumables");
    *
    * module.exports = function* run() {
-   *   yield* pkg.ensure([{ item: "Potent Honor Potion", quantity: 50 }]);
+   *   yield* consumables.ensure([{ item: "Potent Honor Potion", quantity: 50 }]);
    * };
    * ```
    */

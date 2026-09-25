@@ -395,6 +395,27 @@ const titleCase = (value: string): string =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const RESERVED_BINDINGS = new Set(
+  "await break case catch class const continue debugger default delete do else enum export extends false finally for function if import in instanceof let new null return static super switch this throw true try typeof var void while with yield".split(
+    " ",
+  ),
+);
+
+/** Binds `@scope/foo-bar` as `fooBar`, like the built-in `lucent/*` modules. */
+const packageLocalName = (name: string): string => {
+  const [first = "", ...rest] = (name.split("/").at(-1) ?? "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((part) => part !== "");
+  const candidate =
+    first.charAt(0).toLowerCase() +
+    first.slice(1) +
+    rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
+  return /^[A-Za-z_$][\w$]*$/.test(candidate) &&
+    !RESERVED_BINDINGS.has(candidate)
+    ? candidate
+    : "pkg";
+};
+
 const kebabCase = (value: string): string =>
   value
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
@@ -2973,10 +2994,11 @@ const renderMember = (
   member: MemberDoc,
   typeLinks: ReadonlyMap<string, TypeLink>,
   renderTypeCodeBlock: TypeCodeBlockRenderer,
+  headingName = member.path,
 ) => {
   lines.push(`<a id="${memberAnchor(member.path)}"></a>`, "");
   lines.push(
-    `### \`${member.path}${member.kind === "method" ? "()" : ""}\`${renderHeadingSourceLink(member)}`,
+    `### \`${headingName}${member.kind === "method" ? "()" : ""}\`${renderHeadingSourceLink(member)}`,
     "",
   );
 
@@ -3681,8 +3703,7 @@ export const renderPackageReferences = (
           slug: null,
         });
       }
-      // A fixed binding works for scoped and unscoped package names alike.
-      const localName = "pkg";
+      const localName = packageLocalName(pkg.name);
       const declaration = symbol?.declarations?.[0];
       const members =
         symbol === undefined || declaration === undefined
@@ -3718,7 +3739,14 @@ export const renderPackageReferences = (
           "",
         );
         for (const member of members) {
-          renderMember(lines, member, typeLinks, renderTypeCodeBlock);
+          // The page already names the package, so keep the ToC unqualified.
+          renderMember(
+            lines,
+            member,
+            typeLinks,
+            renderTypeCodeBlock,
+            member.path.slice(localName.length + 1),
+          );
         }
       } else if (pkg.typesFile === undefined) {
         lines.push(

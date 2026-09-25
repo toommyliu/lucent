@@ -1,11 +1,11 @@
 # `@lucent/dailies`
 
 ```js
-const Dailies = require("@lucent/dailies");
+const dailies = require("@lucent/dailies");
 
 module.exports = function* run() {
-  const eldersBlood = yield* Dailies.farmEldersBlood();
-  const wheelOfDoom = yield* Dailies.spinWheelOfDoom({ bankRewards: true });
+  const eldersBlood = yield* dailies.farmEldersBlood();
+  const wheelOfDoom = yield* dailies.spinWheelOfDoom({ bankRewards: true });
   return { eldersBlood, wheelOfDoom };
 };
 ```

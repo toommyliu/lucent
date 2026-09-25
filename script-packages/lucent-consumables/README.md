@@ -3,10 +3,10 @@
 A script package containing a loose script and library for obtaining Scrolls and Potions.
 
 ```js
-const { ensure } = require("@lucent/consumables");
+const consumables = require("@lucent/consumables");
 
 module.exports = function* run() {
-  yield* ensure(
+  yield* consumables.ensure(
     [
       { item: "Malice Potion", quantity: 25 },
       { item: "Scroll of Enrage", quantity: 100 },
