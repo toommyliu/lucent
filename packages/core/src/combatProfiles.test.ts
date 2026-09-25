@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema";
 import {
   COMBAT_PROFILE_LIBRARY_VERSION,
   CombatProfileLibrarySchema,
+  CombatProfileMessageTriggerSchema,
   CombatProfileNormalizationError,
   DEFAULT_COMBAT_PROFILE_ID,
   duplicateCombatProfile,
@@ -80,6 +81,45 @@ const canonicalLibrary = {
 } satisfies CombatProfileLibrary;
 
 describe("combatProfiles", () => {
+  it("requires a nonempty message or animation matcher", () => {
+    const decode = Schema.decodeUnknownSync(CombatProfileMessageTriggerSchema);
+    for (const matchers of [
+      {},
+      { messageIncludes: "" },
+      { animStr: "   " },
+      { messageIncludes: " ", animStr: "" },
+    ]) {
+      expect(() => decode({ ...matchers, skill: 5, source: "any" })).toThrow();
+    }
+    expect(
+      decode({ messageIncludes: "charges", skill: 5, source: "aura" }),
+    ).toEqual({
+      messageIncludes: "charges",
+      skill: 5,
+      source: "aura",
+    });
+    expect(
+      decode({ animStr: "Charge", skill: 5, source: "animation" }),
+    ).toEqual({
+      animStr: "Charge",
+      skill: 5,
+      source: "animation",
+    });
+    expect(
+      decode({
+        messageIncludes: "charges",
+        animStr: "Charge",
+        skill: 5,
+        source: "any",
+      }),
+    ).toEqual({
+      messageIncludes: "charges",
+      animStr: "Charge",
+      skill: 5,
+      source: "any",
+    });
+  });
+
   it("normalizes message trigger matchers", () => {
     expect(
       normalizeCombatProfile({

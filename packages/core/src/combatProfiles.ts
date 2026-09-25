@@ -89,12 +89,7 @@ export const CombatProfileMessageTriggerSourceSchema = Schema.Literals([
 export type CombatProfileMessageTriggerSource =
   typeof CombatProfileMessageTriggerSourceSchema.Type;
 
-/**
- * Casts `skill` when a combat message or monster animation matches. A trigger
- * sets `messageIncludes`, `animStr`, or both; every configured matcher must
- * match. `animStr`-only triggers match animations with or without a message.
- */
-export const CombatProfileMessageTriggerSchema = Schema.Struct({
+const messageTriggerFields = {
   /** Case-insensitive text the message must contain. */
   messageIncludes: Schema.optionalKey(TrimmedNonEmptyString),
   /** Exact, case-sensitive match for the animation's `animStr`. */
@@ -102,7 +97,22 @@ export const CombatProfileMessageTriggerSchema = Schema.Struct({
   skill: SkillSlotSchema,
   source: CombatProfileMessageTriggerSourceSchema,
   cooldownMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
-});
+};
+/**
+ * Casts `skill` when a combat message or monster animation matches. Every
+ * configured matcher must match. `animStr`-only triggers match animations
+ * with or without a message.
+ */
+export const CombatProfileMessageTriggerSchema = Schema.Union([
+  Schema.Struct({
+    ...messageTriggerFields,
+    messageIncludes: TrimmedNonEmptyString,
+  }),
+  Schema.Struct({
+    ...messageTriggerFields,
+    animStr: TrimmedNonEmptyString,
+  }),
+]);
 export type CombatProfileMessageTrigger =
   typeof CombatProfileMessageTriggerSchema.Type;
 
@@ -369,15 +379,21 @@ const normalizeMessageTrigger = (
   }
 
   const cooldownMs = clampInt(record["cooldownMs"], 0, 0, MAX_WAIT_MS);
-  return {
-    ...(messageIncludes === undefined ? {} : { messageIncludes }),
-    ...(animStr === undefined ? {} : { animStr }),
+  const options = {
     skill: skillSlot,
     source:
       fromOption(decodeCombatProfileMessageTriggerSource, record["source"]) ??
       "any",
     ...(cooldownMs > 0 ? { cooldownMs } : {}),
   };
+  if (messageIncludes !== undefined) {
+    return {
+      ...options,
+      messageIncludes,
+      ...(animStr === undefined ? {} : { animStr }),
+    };
+  }
+  return animStr === undefined ? undefined : { ...options, animStr };
 };
 
 const normalizeProfile = (

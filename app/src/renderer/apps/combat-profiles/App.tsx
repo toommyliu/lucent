@@ -56,7 +56,6 @@ import {
   duplicateCombatProfile,
   type CombatProfile,
   type CombatProfileMessageTrigger,
-  type CombatProfileMessageTriggerDefinition,
   type CombatProfileMessageTriggerSource,
   type CombatProfileCondition,
   type CombatProfileCooldownMode,
@@ -281,9 +280,9 @@ const toScriptProfileStep = (
   ...(step.waitMs === undefined ? {} : { waitMs: step.waitMs }),
 });
 
-const toScriptMessageTrigger = (
+const normalizeMessageTriggerDraft = (
   trigger: CombatProfileMessageTrigger,
-): CombatProfileMessageTriggerDefinition | undefined => {
+): CombatProfileMessageTrigger | undefined => {
   const messageIncludes = trigger.messageIncludes?.trim() || undefined;
   const animStr = trigger.animStr?.trim() || undefined;
   const options = {
@@ -308,7 +307,7 @@ const toScriptProfileDefinition = (
   profile: CombatProfile,
 ): CombatProfileDefinition => {
   const scriptMessageTriggers = (profile.messageTriggers ?? []).flatMap(
-    (trigger) => toScriptMessageTrigger(trigger) ?? [],
+    (trigger) => normalizeMessageTriggerDraft(trigger) ?? [],
   );
   const messageTriggers =
     scriptMessageTriggers.length === 0 ? undefined : scriptMessageTriggers;
@@ -372,6 +371,7 @@ export function CombatProfilesView(
     readonly CombatProfileMessageTrigger[]
   >(DEFAULT_COMBAT_PROFILE_LIBRARY.profiles[0]?.messageTriggers ?? []);
   const [saving, setSaving] = createSignal(false);
+  const [invalidTriggerIndex, setInvalidTriggerIndex] = createSignal<number>();
   const [groupProfiles, setGroupProfiles] = createSignal(false);
   const [selectedOptionValue, setSelectedOptionValue] = createSignal("");
   const [profileCopied, setProfileCopied] = createSignal(false);
@@ -434,6 +434,7 @@ export function CombatProfilesView(
   };
 
   const hydrateProfileDraft = (profile: CombatProfile): void => {
+    setInvalidTriggerIndex(undefined);
     hydratedProfileId = profile.id;
     setLabel(profile.label);
     setClassNames(profile.classNames ?? []);
@@ -551,6 +552,24 @@ export function CombatProfilesView(
       return null;
     }
 
+    const messageTriggers: CombatProfileMessageTrigger[] = [];
+    for (const [index, draft] of draftMessageTriggers().entries()) {
+      const trigger = normalizeMessageTriggerDraft(draft);
+      if (trigger === undefined) {
+        setInvalidTriggerIndex(index);
+        document.getElementById(`trigger-message-${index}`)?.focus();
+        return null;
+      }
+      if (trigger.source === "aura" && trigger.animStr !== undefined) {
+        setError(
+          `Trigger ${index + 1}: choose Any or Animation as the source to match an animation.`,
+        );
+        document.getElementById(`trigger-source-${index}`)?.focus();
+        return null;
+      }
+      messageTriggers.push(trigger);
+    }
+
     const parsedDelay = Number.parseInt(delayMs(), 10);
     const selectedClassNames = appendClassName(classNames(), classNameDraft());
     const trimmedConsumable = consumable().trim();
@@ -571,7 +590,7 @@ export function CombatProfilesView(
 
         return step;
       }),
-      messageTriggers: draftMessageTriggers(),
+      messageTriggers,
     } satisfies CombatProfile;
     return {
       ...profileWithoutClassNames,
@@ -845,6 +864,7 @@ export function CombatProfilesView(
       trigger: CombatProfileMessageTrigger,
     ) => CombatProfileMessageTrigger,
   ): void => {
+    setInvalidTriggerIndex(undefined);
     setDraftMessageTriggers((triggers) =>
       triggers.map((trigger, index) =>
         index === triggerIndex ? update(trigger) : trigger,
@@ -864,6 +884,7 @@ export function CombatProfilesView(
   };
 
   const removeMessageTrigger = (triggerIndex: number): void => {
+    setInvalidTriggerIndex(undefined);
     setDraftMessageTriggers((triggers) =>
       triggers.filter((_, index) => index !== triggerIndex),
     );
@@ -1277,6 +1298,15 @@ export function CombatProfilesView(
                             <Label>
                               <span>Message</span>
                               <Input
+                                id={`trigger-message-${triggerIndex}`}
+                                aria-invalid={
+                                  invalidTriggerIndex() === triggerIndex
+                                }
+                                aria-describedby={
+                                  invalidTriggerIndex() === triggerIndex
+                                    ? `trigger-error-${triggerIndex}`
+                                    : undefined
+                                }
                                 value={trigger().messageIncludes ?? ""}
                                 placeholder="message text"
                                 onInput={(event) =>
@@ -1290,6 +1320,16 @@ export function CombatProfilesView(
                                   )
                                 }
                               />
+                              <Show
+                                when={invalidTriggerIndex() === triggerIndex}
+                              >
+                                <span
+                                  id={`trigger-error-${triggerIndex}`}
+                                  role="alert"
+                                >
+                                  Enter a message or animation.
+                                </span>
+                              </Show>
                             </Label>
                             <Label>
                               <CombatProfilesLabelHelp
@@ -1297,8 +1337,13 @@ export function CombatProfilesView(
                                 tooltip="Exact animStr. Message must also match, if set."
                               />
                               <Input
+                                disabled={trigger().source === "aura"}
                                 value={trigger().animStr ?? ""}
-                                placeholder="animStr"
+                                placeholder={
+                                  trigger().source === "aura"
+                                    ? "Unavailable for auras"
+                                    : "animStr"
+                                }
                                 onInput={(event) =>
                                   updateMessageTrigger(
                                     triggerIndex,
@@ -1314,6 +1359,9 @@ export function CombatProfilesView(
                               <span>Source</span>
                               <Select
                                 class="combat-profiles-select combat-profiles-select--source"
+                                ids={{
+                                  trigger: `trigger-source-${triggerIndex}`,
+                                }}
                                 value={[trigger().source]}
                                 onValueChange={(details) =>
                                   updateMessageTrigger(
@@ -1333,7 +1381,14 @@ export function CombatProfilesView(
                                 <SelectContent class="combat-profiles-select-content--source">
                                   <For each={messageTriggerSourceOptions}>
                                     {(option) => (
-                                      <SelectItem value={option.value}>
+                                      <SelectItem
+                                        value={option.value}
+                                        disabled={
+                                          option.value === "aura" &&
+                                          (trigger().animStr?.trim() ?? "") !==
+                                            ""
+                                        }
+                                      >
                                         {option.label}
                                       </SelectItem>
                                     )}
