@@ -2941,6 +2941,14 @@ const GENERATED_MEMBER_SUMMARIES: Readonly<Record<string, string>> = {
   "api.events.once": "Waits for the next matching event.",
 };
 
+const SPEAKER_ICON =
+  '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"></path><path d="M16 9a5 5 0 0 1 0 6"></path><path d="M19.364 18.364a9 9 0 0 0 0-12.728"></path></svg>';
+
+/** Interactive previews rendered below a member's signature. */
+const GENERATED_MEMBER_PREVIEWS: Readonly<Record<string, string>> = {
+  "script.beep": `<button type="button" class="member-preview-button" data-beep-preview>${SPEAKER_ICON}Play sound</button>`,
+};
+
 const memberCopyCall = (member: MemberDoc): string => {
   const requiredArguments = member.parameters
     .filter((parameter) => parameter.required)
@@ -2993,6 +3001,11 @@ const renderMember = (
     ),
     "",
   );
+
+  const preview = GENERATED_MEMBER_PREVIEWS[member.path];
+  if (preview !== undefined) {
+    lines.push(preview, "");
+  }
 
   if (member.parameters.length > 0) {
     lines.push(
