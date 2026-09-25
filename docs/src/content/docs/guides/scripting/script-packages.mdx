@@ -81,10 +81,10 @@ module.exports = require("./lib/travel");
 A runnable script inside the package can require its own public API:
 
 ```js
-const tools = require("@your-name/farming-tools");
+const farmingTools = require("@your-name/farming-tools");
 
 module.exports = function* run() {
-  yield* tools.visitBattleon();
+  yield* farmingTools.visitBattleon();
 };
 ```
 
