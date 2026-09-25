@@ -1,0 +1,12 @@
+<script>
+  import { playBeep } from "../../app/src/renderer/apps/game/audio/beep";
+
+  document.addEventListener("click", (event) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[data-beep-preview]") !== null
+    ) {
+      playBeep(1);
+    }
+  });
+</script>
