@@ -1,12 +1,17 @@
 # `@lucent/dailies`
 
 ```js
-const { spinWheelOfDoom } = require("@lucent/dailies");
+const Dailies = require("@lucent/dailies");
 
 module.exports = function* run() {
-  return yield* spinWheelOfDoom({ bankRewards: true });
+  const eldersBlood = yield* Dailies.farmEldersBlood();
+  const wheelOfDoom = yield* Dailies.spinWheelOfDoom({ bankRewards: true });
+  return { eldersBlood, wheelOfDoom };
 };
 ```
+
+`farmEldersBlood` completes the Elders' Blood daily. It skips the quest when
+Elders' Blood is already at its stack limit.
 
 `spinWheelOfDoom` attempts the member-daily spin first, followed by the weekly
 spin when the account has three Gear of Doom. It returns a separate outcome for
