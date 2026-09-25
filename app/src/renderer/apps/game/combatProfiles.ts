@@ -395,18 +395,6 @@ export const matchesCombatProfileMessageTriggerMessage = (
   );
 };
 
-const matchesCombatProfileMessageTriggerAnimStr = (
-  configuredAnimStr: string,
-  animation: string | undefined,
-): boolean => {
-  const normalizedConfigured = normalizeMessageTriggerText(configuredAnimStr);
-  return (
-    normalizedConfigured !== "" &&
-    animation !== undefined &&
-    normalizeMessageTriggerText(animation) === normalizedConfigured
-  );
-};
-
 /** Whether the trigger matches animations regardless of their message. */
 export const isCombatProfileAnimationTrigger = (
   trigger: CombatProfileMessageTrigger,
@@ -420,12 +408,8 @@ export const matchesCombatProfileMessageTrigger = (
   if (event.type === "animation") {
     return (
       trigger.messageIncludes === undefined &&
-      trigger.animStr !== undefined &&
       trigger.source !== "aura" &&
-      matchesCombatProfileMessageTriggerAnimStr(
-        trigger.animStr,
-        event.animation,
-      )
+      trigger.animStr === event.animation
     );
   }
 
@@ -436,11 +420,7 @@ export const matchesCombatProfileMessageTrigger = (
       trigger.messageIncludes,
       event.message,
     ) &&
-    (trigger.animStr === undefined ||
-      matchesCombatProfileMessageTriggerAnimStr(
-        trigger.animStr,
-        event.animation,
-      ))
+    (trigger.animStr === undefined || trigger.animStr === event.animation)
   );
 };
 

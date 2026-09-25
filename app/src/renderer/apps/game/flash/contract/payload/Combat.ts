@@ -187,7 +187,7 @@ export const decodeCombatAnimations = (
   for (const entry of decoded.value.anims ?? []) {
     const animation = decodeAnimation(entry);
     if (Option.isNone(animation)) continue;
-    const animStr = animation.value.animStr.trim();
+    const animStr = animation.value.animStr;
     const caster = parseCombatEntityReferences(animation.value.cInf)[0];
     if (animStr === "" || caster?.type !== "monster") continue;
 

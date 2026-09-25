@@ -97,7 +97,7 @@ export type CombatProfileMessageTriggerSource =
 export const CombatProfileMessageTriggerSchema = Schema.Struct({
   /** Case-insensitive text the message must contain. */
   messageIncludes: Schema.optionalKey(TrimmedNonEmptyString),
-  /** Case-insensitive exact match for the message's animation `animStr`. */
+  /** Exact, case-sensitive match for the animation's `animStr`. */
   animStr: Schema.optionalKey(TrimmedNonEmptyString),
   skill: SkillSlotSchema,
   source: CombatProfileMessageTriggerSourceSchema,
@@ -134,10 +134,7 @@ export type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
 export type CombatProfileMessageTriggerDefinition =
   Partial<CombatProfileMessageTrigger> & {
     readonly skill: number;
-  } & (
-      | { readonly messageIncludes: string }
-      | { readonly animStr: string }
-    );
+  } & ({ readonly messageIncludes: string } | { readonly animStr: string });
 
 export interface CombatProfileDefinition extends Partial<
   Omit<CombatProfile, "steps" | "messageTriggers">

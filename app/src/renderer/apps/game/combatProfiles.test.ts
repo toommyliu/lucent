@@ -429,7 +429,7 @@ describe("combat profile runtime", () => {
     ).toBe(false);
   });
 
-  it("matches animStr-only triggers against animations only", () => {
+  it("matches animStr-only triggers exactly against animations only", () => {
     const animation = {
       type: "animation",
       animation: "ChargeAttack1",
@@ -445,10 +445,16 @@ describe("combat profile runtime", () => {
 
     expect(
       matchesCombatProfileMessageTrigger(
-        { animStr: "chargeattack1", skill: 5, source: "any" },
+        { animStr: "ChargeAttack1", skill: 5, source: "any" },
         animation,
       ),
     ).toBe(true);
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { animStr: "chargeattack1", skill: 5, source: "any" },
+        animation,
+      ),
+    ).toBe(false);
     expect(
       matchesCombatProfileMessageTrigger(
         { animStr: "ChargeAttack", skill: 5, source: "any" },
