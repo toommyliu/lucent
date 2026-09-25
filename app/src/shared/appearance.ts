@@ -15,6 +15,7 @@ export * from "@lucent/core/appearance";
 export const DESKTOP_VIEW_ARGUMENT = "--lucent__view";
 
 const DesktopBridgeViewSchema = Schema.Literals([
+  "about",
   "account-manager",
   "combat-profiles",
   "environment",

@@ -340,6 +340,7 @@ export const makeElectronDesktopIpc = (
 export const layer = Layer.succeed(DesktopIpc, makeElectronDesktopIpc());
 
 export const ALL_DESKTOP_RENDERER_KINDS = [
+  "about",
   "account-manager",
   "combat-profiles",
   "environment",

@@ -1,3 +1,4 @@
+export * from "./about";
 export * from "./army";
 export * from "./accounts";
 export * from "./accountSettings";

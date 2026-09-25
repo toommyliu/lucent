@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 
 import {
+  BrowserWindow,
   Menu,
   app,
   session,
@@ -85,6 +86,14 @@ const reloadContents = (target: WebContents, bypassCache: boolean): void => {
   } else {
     target.reload();
   }
+};
+
+const removeRendererWindowMenu = (rendererId: number): void => {
+  const contents = webContents.fromId(rendererId);
+  if (contents === undefined || contents.isDestroyed()) {
+    return;
+  }
+  BrowserWindow.fromWebContents(contents)?.setMenu(null);
 };
 
 const makeDesktopApplicationMenu = Effect.gen(function* () {
@@ -180,7 +189,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         );
     };
 
-  const openWindow = (kind: "account-manager" | "game"): void => {
+  const openWindow = (kind: "about" | "account-manager" | "game"): void => {
     void runPromise(windows.open(kind)).catch((cause) =>
       logMenuFailure(`open-${kind}`, cause),
     );
@@ -515,6 +524,10 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       accelerator: isDarwin ? "Command+," : "Control+,",
       click: openSettings,
     };
+    const aboutMenuItem: MenuItemConstructorOptions = {
+      label: `About ${app.name}`,
+      click: () => openWindow("about"),
+    };
     const checkForUpdatesMenuItem: MenuItemConstructorOptions = {
       label: "Check for Updates...",
       click: checkForUpdates,
@@ -552,6 +565,9 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const helpUpdateItems: MenuItemConstructorOptions[] = isDarwin
       ? []
       : [checkForUpdatesMenuItem, { type: "separator" }];
+    const helpAboutItems: MenuItemConstructorOptions[] = isDarwin
+      ? []
+      : [{ type: "separator" }, aboutMenuItem];
     const helpSubmenu: MenuItemConstructorOptions[] = [
       ...helpUpdateItems,
       buildPerformanceTraceMenuItem(performanceTraceState),
@@ -560,6 +576,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       ),
       { type: "separator" },
       ...dataClearMenuItems,
+      ...helpAboutItems,
     ];
     const viewSubmenu: MenuItemConstructorOptions[] = [
       {
@@ -593,7 +610,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
             {
               label: app.name,
               submenu: [
-                { role: "about" },
+                aboutMenuItem,
                 { type: "separator" },
                 settingsMenuItem,
                 checkForUpdatesMenuItem,
@@ -641,6 +658,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         ),
       ),
     );
+    if (!isDarwin) {
+      for (const rendererId of yield* windows.getRendererIds("about")) {
+        removeRendererWindowMenu(rendererId);
+      }
+    }
   }).pipe(
     Effect.catch((cause) =>
       observability.warn("menu", "Failed to rebuild application menu", {
@@ -651,6 +673,16 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
 
   const install: DesktopApplicationMenuShape["install"] = Effect.gen(
     function* () {
+      if (!isDarwin) {
+        const unsubscribeWindows = yield* windows.onCreated((event) =>
+          Effect.sync(() => {
+            if (event.kind === "about") {
+              removeRendererWindowMenu(event.rendererId);
+            }
+          }),
+        );
+        yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
+      }
       yield* rebuild;
       const unsubscribe = yield* settings.onChanged(() => {
         void runPromise(rebuild).catch((cause) =>

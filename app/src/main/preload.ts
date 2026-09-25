@@ -35,9 +35,11 @@ import type {
   DesktopScriptingBridge,
   DesktopSettingsBridge,
   DesktopSettingsManagementBridge,
+  DesktopUpdatesBridge,
   DesktopWindowsBridge,
 } from "../shared/desktopBridge";
 import {
+  AboutIpc,
   AccountSettingsIpc,
   AccountsIpc,
   ArmyIpc,
@@ -528,6 +530,13 @@ const environmentBridge: DesktopEnvironmentBridge = {
     invoke(EnvironmentIpc.withdrawBoosts, { itemIds }),
 };
 
+const updatesBridge: DesktopUpdatesBridge = {
+  checkNow: (options) => invoke(UpdatesIpc.checkNow, options ?? {}),
+  getState: () => invoke(UpdatesIpc.getState, undefined),
+  onChanged: (listener) => subscribe(UpdatesIpc.changed, listener),
+  openReleasePage: () => invoke(UpdatesIpc.openReleasePage, undefined),
+};
+
 const commonBridge = {
   debug,
   platform: {
@@ -538,6 +547,16 @@ const commonBridge = {
 };
 
 const bridges = {
+  about: {
+    ...commonBridge,
+    about: {
+      getInfo: () => invoke(AboutIpc.getInfo, undefined),
+      openFolder: (folder) => invoke(AboutIpc.openFolder, { folder }),
+      openLink: (link) => invoke(AboutIpc.openLink, { link }),
+    },
+    updates: updatesBridge,
+    view: "about",
+  },
   "account-manager": {
     ...commonBridge,
     accounts: accountsBridge,
@@ -634,12 +653,7 @@ const bridges = {
   settings: {
     ...commonBridge,
     settings: settingsManagementBridge,
-    updates: {
-      checkNow: (options) => invoke(UpdatesIpc.checkNow, options ?? {}),
-      getState: () => invoke(UpdatesIpc.getState, undefined),
-      onChanged: (listener) => subscribe(UpdatesIpc.changed, listener),
-      openReleasePage: () => invoke(UpdatesIpc.openReleasePage, undefined),
-    },
+    updates: updatesBridge,
     view: "settings",
   },
 } satisfies DesktopBridgeByView;
