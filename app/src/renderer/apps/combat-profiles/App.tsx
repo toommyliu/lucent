@@ -283,23 +283,35 @@ const toScriptProfileStep = (
 
 const toScriptMessageTrigger = (
   trigger: CombatProfileMessageTrigger,
-): CombatProfileMessageTriggerDefinition => ({
-  messageIncludes: trigger.messageIncludes,
-  skill: trigger.skill,
-  source: trigger.source,
-  ...(trigger.cooldownMs === undefined
-    ? {}
-    : { cooldownMs: trigger.cooldownMs }),
-});
+): CombatProfileMessageTriggerDefinition | undefined => {
+  const messageIncludes = trigger.messageIncludes?.trim() || undefined;
+  const animStr = trigger.animStr?.trim() || undefined;
+  const options = {
+    skill: trigger.skill,
+    source: trigger.source,
+    ...(trigger.cooldownMs === undefined
+      ? {}
+      : { cooldownMs: trigger.cooldownMs }),
+  };
+
+  if (messageIncludes !== undefined) {
+    return {
+      messageIncludes,
+      ...(animStr === undefined ? {} : { animStr }),
+      ...options,
+    };
+  }
+  return animStr === undefined ? undefined : { animStr, ...options };
+};
 
 const toScriptProfileDefinition = (
   profile: CombatProfile,
 ): CombatProfileDefinition => {
+  const scriptMessageTriggers = (profile.messageTriggers ?? []).flatMap(
+    (trigger) => toScriptMessageTrigger(trigger) ?? [],
+  );
   const messageTriggers =
-    profile.messageTriggers === undefined ||
-    profile.messageTriggers.length === 0
-      ? undefined
-      : profile.messageTriggers.map(toScriptMessageTrigger);
+    scriptMessageTriggers.length === 0 ? undefined : scriptMessageTriggers;
 
   return {
     delayMs: profile.delayMs,
@@ -1265,7 +1277,7 @@ export function CombatProfilesView(
                             <Label>
                               <span>Message</span>
                               <Input
-                                value={trigger().messageIncludes}
+                                value={trigger().messageIncludes ?? ""}
                                 placeholder="message text"
                                 onInput={(event) =>
                                   updateMessageTrigger(
@@ -1274,6 +1286,25 @@ export function CombatProfilesView(
                                       ...current,
                                       messageIncludes:
                                         event.currentTarget.value,
+                                    }),
+                                  )
+                                }
+                              />
+                            </Label>
+                            <Label>
+                              <CombatProfilesLabelHelp
+                                label="Animation"
+                                tooltip="Exact animStr. Message must also match, if set."
+                              />
+                              <Input
+                                value={trigger().animStr ?? ""}
+                                placeholder="animStr"
+                                onInput={(event) =>
+                                  updateMessageTrigger(
+                                    triggerIndex,
+                                    (current) => ({
+                                      ...current,
+                                      animStr: event.currentTarget.value,
                                     }),
                                   )
                                 }

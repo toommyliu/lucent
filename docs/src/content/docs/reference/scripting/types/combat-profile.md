@@ -35,11 +35,12 @@ type CombatProfile = {
     readonly resetSkillIndexOnTargetDeath?: boolean;
     readonly messageTriggers?: readonly {
         readonly skill: 0 | 3 | 2 | 1 | 4 | 5;
-        readonly messageIncludes: string;
         readonly source: "aura" | "animation" | "any";
+        readonly messageIncludes?: string;
+        readonly animStr?: string;
         readonly cooldownMs?: number;
     }[];
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L113" aria-label="Open source: packages/core/src/combatProfiles.ts:113" title="packages/core/src/combatProfiles.ts:113" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:113</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L122" aria-label="Open source: packages/core/src/combatProfiles.ts:122" title="packages/core/src/combatProfiles.ts:122" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:122</code></a></p>

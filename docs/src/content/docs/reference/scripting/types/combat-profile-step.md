@@ -27,4 +27,4 @@ type CombatProfileStep = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L81" aria-label="Open source: packages/core/src/combatProfiles.ts:81" title="packages/core/src/combatProfiles.ts:81" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:81</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/core/src/combatProfiles.ts#L82" aria-label="Open source: packages/core/src/combatProfiles.ts:82" title="packages/core/src/combatProfiles.ts:82" target="_blank" rel="noreferrer"><code class="source-reference__path">combatProfiles.ts:82</code></a></p>

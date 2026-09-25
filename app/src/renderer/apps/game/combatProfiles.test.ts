@@ -407,6 +407,7 @@ describe("combat profile runtime", () => {
           source: "animation",
         },
         {
+          type: "message",
           message: "Ultra Warden prepares a strike",
           source: "animation",
         },
@@ -420,11 +421,89 @@ describe("combat profile runtime", () => {
           source: "aura",
         },
         {
+          type: "message",
           message: "Ultra Warden prepares a strike",
           source: "animation",
         },
       ),
     ).toBe(false);
+  });
+
+  it("matches animStr-only triggers against animations only", () => {
+    const animation = {
+      type: "animation",
+      animation: "ChargeAttack1",
+      monsterMapId: 1,
+    } as const;
+    const message = {
+      type: "message",
+      animation: "ChargeAttack1",
+      message: "Gramiel charges",
+      monsterMapId: 1,
+      source: "animation",
+    } as const;
+
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { animStr: "chargeattack1", skill: 5, source: "any" },
+        animation,
+      ),
+    ).toBe(true);
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { animStr: "ChargeAttack", skill: 5, source: "any" },
+        animation,
+      ),
+    ).toBe(false);
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { animStr: "ChargeAttack1", skill: 5, source: "aura" },
+        animation,
+      ),
+    ).toBe(false);
+    // The animation event already covers messages with an animation.
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { animStr: "ChargeAttack1", skill: 5, source: "any" },
+        message,
+      ),
+    ).toBe(false);
+  });
+
+  it("matches messages and animStr together when both are set", () => {
+    const message = {
+      type: "message",
+      animation: "ChargeAttack1",
+      message: "Gramiel charges",
+      source: "animation",
+    } as const;
+    const trigger = {
+      animStr: "ChargeAttack1",
+      messageIncludes: "charges",
+      skill: 5,
+      source: "any",
+    } as const;
+
+    expect(matchesCombatProfileMessageTrigger(trigger, message)).toBe(true);
+    expect(
+      matchesCombatProfileMessageTrigger(trigger, {
+        ...message,
+        animation: "Attack1",
+      }),
+    ).toBe(false);
+    expect(
+      matchesCombatProfileMessageTrigger(trigger, {
+        type: "animation",
+        animation: "ChargeAttack1",
+        monsterMapId: 1,
+      }),
+    ).toBe(false);
+    expect(
+      matchesCombatProfileMessageTrigger(
+        { messageIncludes: "charges", skill: 5, source: "any" },
+        message,
+      ),
+    ).toBe(true);
   });
 
   it.effect("casts on message monsters and respects trigger cooldowns", () =>
@@ -447,6 +526,7 @@ describe("combat profile runtime", () => {
         source: "any" as const,
       };
       const event = {
+        type: "message" as const,
         message: "Boss enrage",
         monsterMapId: 7,
         source: "aura" as const,
@@ -529,6 +609,7 @@ describe("combat profile runtime", () => {
         source: "any" as const,
       };
       const event = {
+        type: "message" as const,
         message: "Boss enrage",
         source: "aura" as const,
       };

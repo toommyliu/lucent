@@ -9,6 +9,7 @@ import * as Semaphore from "effect/Semaphore";
 import {
   castCombatProfileMessageTriggers,
   castNextCombatProfileStep,
+  isCombatProfileAnimationTrigger,
   makeCombatProfileCursor,
   makeCombatProfileMessageTriggerState,
   matchesCombatProfileMessageTrigger,
@@ -87,6 +88,9 @@ export interface CombatProfileSessionDependencies {
   readonly getAvailableMonsters: () => Effect.Effect<readonly Monster[]>;
   readonly isAttackBlocked: (monsterMapId: number) => Effect.Effect<boolean>;
   readonly isPlayerAlive: () => Effect.Effect<boolean>;
+  readonly onAnimation: (
+    handler: (event: CombatProfileMessageTriggerEvent) => Effect.Effect<void>,
+  ) => Effect.Effect<() => void>;
   readonly onMessage: (
     handler: (event: CombatProfileMessageTriggerEvent) => Effect.Effect<void>,
   ) => Effect.Effect<() => void>;
@@ -269,13 +273,14 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
       yield* dependencies.onMonsterDeath(handleMonsterDeath);
     yield* Effect.addFinalizer(() => Effect.sync(disposeMonsterDeath));
 
-    if ((options.profile.messageTriggers?.length ?? 0) > 0) {
-      const disposeMessages = yield* dependencies.onMessage((event) =>
+    const messageTriggers = options.profile.messageTriggers ?? [];
+    if (messageTriggers.length > 0) {
+      const handleTriggerEvent = (event: CombatProfileMessageTriggerEvent) =>
         withFailureStage(
           "message-trigger",
           Effect.gen(function* () {
             if (
-              !options.profile.messageTriggers?.some((trigger) =>
+              !messageTriggers.some((trigger) =>
                 matchesCombatProfileMessageTrigger(trigger, event),
               )
             ) {
@@ -364,9 +369,22 @@ export const makeCombatProfileSession = Effect.fn("makeCombatProfileSession")(
                 })
               : options.onAsyncFailure(failure),
           ),
-        ),
-      );
-      yield* Effect.addFinalizer(() => Effect.sync(disposeMessages));
+        );
+
+      if (
+        messageTriggers.some(
+          (trigger) => !isCombatProfileAnimationTrigger(trigger),
+        )
+      ) {
+        const disposeMessages =
+          yield* dependencies.onMessage(handleTriggerEvent);
+        yield* Effect.addFinalizer(() => Effect.sync(disposeMessages));
+      }
+      if (messageTriggers.some(isCombatProfileAnimationTrigger)) {
+        const disposeAnimations =
+          yield* dependencies.onAnimation(handleTriggerEvent);
+        yield* Effect.addFinalizer(() => Effect.sync(disposeAnimations));
+      }
     }
 
     const resolveTarget = Effect.fn("CombatProfileSession.resolveTarget")(

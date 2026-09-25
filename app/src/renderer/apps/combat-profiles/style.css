@@ -322,7 +322,7 @@
   align-items: end;
   display: grid;
   gap: 0.5rem;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 9rem) minmax(5rem, 7rem) minmax(7rem, 9rem);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(8rem, 9rem) minmax(5rem, 7rem) minmax(7rem, 9rem);
   min-width: 0;
 }
 

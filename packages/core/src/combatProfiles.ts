@@ -16,6 +16,7 @@ const MAX_CLASS_NAME_LENGTH = 80;
 const MAX_CONSUMABLE_NAME_LENGTH = 80;
 const MAX_AURA_NAME_LENGTH = 80;
 const MAX_MESSAGE_TRIGGER_TEXT_LENGTH = 160;
+const MAX_MESSAGE_TRIGGER_ANIM_STR_LENGTH = 160;
 
 // Core omits browser and Node globals from its types.
 // Both supported runtimes provide structuredClone.
@@ -88,8 +89,16 @@ export const CombatProfileMessageTriggerSourceSchema = Schema.Literals([
 export type CombatProfileMessageTriggerSource =
   typeof CombatProfileMessageTriggerSourceSchema.Type;
 
+/**
+ * Casts `skill` when a combat message or monster animation matches. A trigger
+ * sets `messageIncludes`, `animStr`, or both; every configured matcher must
+ * match. `animStr`-only triggers match animations with or without a message.
+ */
 export const CombatProfileMessageTriggerSchema = Schema.Struct({
-  messageIncludes: TrimmedNonEmptyString,
+  /** Case-insensitive text the message must contain. */
+  messageIncludes: Schema.optionalKey(TrimmedNonEmptyString),
+  /** Case-insensitive exact match for the message's animation `animStr`. */
+  animStr: Schema.optionalKey(TrimmedNonEmptyString),
   skill: SkillSlotSchema,
   source: CombatProfileMessageTriggerSourceSchema,
   cooldownMs: Schema.optionalKey(boundedInt(0, MAX_WAIT_MS)),
@@ -124,9 +133,11 @@ export type CombatProfileStepDefinition = Partial<CombatProfileStep> & {
 
 export type CombatProfileMessageTriggerDefinition =
   Partial<CombatProfileMessageTrigger> & {
-    readonly messageIncludes: string;
     readonly skill: number;
-  };
+  } & (
+      | { readonly messageIncludes: string }
+      | { readonly animStr: string }
+    );
 
 export interface CombatProfileDefinition extends Partial<
   Omit<CombatProfile, "steps" | "messageTriggers">
@@ -347,15 +358,23 @@ const normalizeMessageTrigger = (
     record["messageIncludes"],
     MAX_MESSAGE_TRIGGER_TEXT_LENGTH,
   );
+  const animStr = trimString(
+    record["animStr"],
+    MAX_MESSAGE_TRIGGER_ANIM_STR_LENGTH,
+  );
   const skill = clampInt(record["skill"], Number.NaN, 0, 5);
   const skillSlot = fromOption(decodeSkillSlot, skill);
-  if (messageIncludes === undefined || skillSlot === undefined) {
+  if (
+    (messageIncludes === undefined && animStr === undefined) ||
+    skillSlot === undefined
+  ) {
     return undefined;
   }
 
   const cooldownMs = clampInt(record["cooldownMs"], 0, 0, MAX_WAIT_MS);
   return {
-    messageIncludes,
+    ...(messageIncludes === undefined ? {} : { messageIncludes }),
+    ...(animStr === undefined ? {} : { animStr }),
     skill: skillSlot,
     source:
       fromOption(decodeCombatProfileMessageTriggerSource, record["source"]) ??

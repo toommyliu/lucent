@@ -22,6 +22,12 @@ export interface CombatActionAcknowledgement {
   readonly targets: readonly CombatEntityReference[];
 }
 
+export interface CombatAnimation {
+  readonly animStr: string;
+  /** The map-scoped ID of the monster that played the animation. */
+  readonly monsterMapId: number;
+}
+
 const ActionDetailsPayload = Schema.Struct({
   actID: Schema.optionalKey(NonNegativeWireInt),
   cInf: Schema.optionalKey(Schema.String),
@@ -55,6 +61,17 @@ const decodeMultiActionAcknowledgement = Schema.decodeUnknownOption(
   MultiActionAcknowledgementPayload,
 );
 const decodeAppliedAction = Schema.decodeUnknownOption(AppliedActionPayload);
+const AnimationPayload = Schema.Struct({
+  animStr: Schema.String,
+  cInf: Schema.String,
+});
+const CombatAnimationsPayload = Schema.Struct({
+  anims: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.Unknown))),
+});
+const decodeAnimation = Schema.decodeUnknownOption(AnimationPayload);
+const decodeCombatAnimationsPayload = Schema.decodeUnknownOption(
+  CombatAnimationsPayload,
+);
 
 export const parseCombatEntityReferences = (
   value: string,
@@ -154,6 +171,32 @@ export const decodeCombatActionAcknowledgements = (
   append(decoded.value.sara, singleActionAcknowledgement);
   append(decoded.value.sarsa, multiActionAcknowledgement);
   return acknowledgements;
+};
+
+/**
+ * Decodes monster-cast animations once per monster and `animStr`. AQW repeats
+ * an attack's animation for each target, so one attack can span many entries.
+ */
+export const decodeCombatAnimations = (
+  value: unknown,
+): readonly CombatAnimation[] => {
+  const decoded = decodeCombatAnimationsPayload(value);
+  if (Option.isNone(decoded)) return [];
+
+  const animations = new Map<string, CombatAnimation>();
+  for (const entry of decoded.value.anims ?? []) {
+    const animation = decodeAnimation(entry);
+    if (Option.isNone(animation)) continue;
+    const animStr = animation.value.animStr.trim();
+    const caster = parseCombatEntityReferences(animation.value.cInf)[0];
+    if (animStr === "" || caster?.type !== "monster") continue;
+
+    const key = `${caster.id}:${animStr}`;
+    if (!animations.has(key)) {
+      animations.set(key, { animStr, monsterMapId: caster.id });
+    }
+  }
+  return [...animations.values()];
 };
 
 export const AuraPayload = Schema.Struct({

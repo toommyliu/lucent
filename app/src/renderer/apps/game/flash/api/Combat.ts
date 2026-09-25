@@ -21,15 +21,21 @@ import {
   makeCombatProfileSession,
   type CombatProfileSession,
 } from "../../combatProfileSession";
-import { makeCombatProfileRuntimeDeps } from "../../combatProfiles";
+import {
+  makeCombatProfileRuntimeDeps,
+  type CombatProfileMessageTriggerEvent,
+} from "../../combatProfiles";
 import type { BridgeService } from "../bridge/Bridge";
 import {
   NonNegativeWireInt,
   PositiveWireInt,
   WireInt,
 } from "../contract/Coercion";
-import { packetData } from "../contract/Packet";
-import { decodeCombatActionAcknowledgements } from "../contract/payload/Combat";
+import { packetData, type FlashPacket } from "../contract/Packet";
+import {
+  decodeCombatActionAcknowledgements,
+  decodeCombatAnimations,
+} from "../contract/payload/Combat";
 import type { Store } from "../state/Store";
 import type { AntiCounter } from "./internal/AntiCounter";
 import { makeCombatProfileConsumables } from "./internal/CombatProfileConsumables";
@@ -42,6 +48,7 @@ import type { Drops } from "./Drops";
 import type { Events } from "./Events";
 import type { Map } from "./Map";
 import type { MonsterLookup } from "./Monsters";
+import type { Packet } from "./Packet";
 import type { Player } from "./Player";
 import type { Players } from "./Players";
 import type { Settings } from "./Settings";
@@ -141,6 +148,38 @@ const normalizeSkillInterval = (
   });
 };
 
+/** Feeds monster animations to `animStr`-only combat profile triggers. */
+export const onCombatProfileAnimations = (
+  packet: Pick<Packet, "on">,
+  handler: (event: CombatProfileMessageTriggerEvent) => Effect.Effect<void>,
+): Effect.Effect<() => void> =>
+  Effect.gen(function* () {
+    const handlePacket = (value: FlashPacket) =>
+      Effect.forEach(
+        decodeCombatAnimations(packetData(value)),
+        (animation) =>
+          handler({
+            type: "animation",
+            animation: animation.animStr,
+            monsterMapId: animation.monsterMapId,
+          }),
+        { discard: true },
+      );
+
+    const disposeServer = yield* packet.on(
+      { command: "ct", direction: "server", encoding: "json" },
+      handlePacket,
+    );
+    const disposeExtension = yield* packet.on(
+      { command: "cb", direction: "extension", encoding: "json" },
+      handlePacket,
+    );
+    return () => {
+      disposeServer();
+      disposeExtension();
+    };
+  });
+
 export const makeCombat = (
   bridge: BridgeService,
   antiCounter: AntiCounter,
@@ -150,6 +189,7 @@ export const makeCombat = (
   inventory: Inventory,
   map: Map,
   monsters: MonsterLookup,
+  packet: Packet,
   player: Player,
   players: Players,
   settings: Settings,
@@ -463,9 +503,14 @@ export const makeCombat = (
           getAvailableMonsters: monsters.getAvailable,
           isAttackBlocked: antiCounterActive,
           isPlayerAlive: player.isAlive,
+          onAnimation: (handler) => onCombatProfileAnimations(packet, handler),
           onMessage: (handler) =>
             events.on({ type: "update-message" }, (event) =>
               handler({
+                type: "message",
+                ...(event.animation === undefined
+                  ? {}
+                  : { animation: event.animation }),
                 message: event.message,
                 ...(event.monsterMapId === undefined
                   ? {}

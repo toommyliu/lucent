@@ -7,6 +7,7 @@ import * as Fiber from "effect/Fiber";
 
 import type { Event, EventType } from "../../flash/contract/Event";
 import type { ApiService } from "../../flash/api/Api";
+import type { FlashPacket, PacketSelector } from "../../flash/contract/Packet";
 import {
   COMBAT_PROFILE_RETRY_DELAY_MS,
   makeCombatProfileRunner,
@@ -61,6 +62,7 @@ const messageEvent = {
 } as const;
 
 type EventHandler = (event: Event) => Effect.Effect<void, unknown>;
+type PacketHandler = (packet: FlashPacket) => Effect.Effect<void, unknown>;
 
 const makeHarness = (options?: {
   readonly alive?: boolean;
@@ -77,10 +79,19 @@ const makeHarness = (options?: {
   const preparations: CombatProfile[] = [];
   const castOptions: Parameters<ApiService["combat"]["useSkill"]>[1][] = [];
   const handlers = new Map<EventType, Set<EventHandler>>();
+  const packetHandlers = new Map<string, Set<PacketHandler>>();
 
   const emit = (event: Event) =>
     Effect.all(
       [...(handlers.get(event.type) ?? [])].map((handler) => handler(event)),
+      { discard: true },
+    );
+
+  const emitPacket = (packet: FlashPacket) =>
+    Effect.all(
+      [
+        ...(packetHandlers.get(`${packet.direction}:${packet.command}`) ?? []),
+      ].map((handler) => handler(packet)),
       { discard: true },
     );
 
@@ -129,6 +140,19 @@ const makeHarness = (options?: {
           };
         }),
     },
+    packet: {
+      on: (selector: PacketSelector, handler: PacketHandler) =>
+        Effect.sync(() => {
+          const key = `${selector.direction}:${selector.command}`;
+          const registered =
+            packetHandlers.get(key) ?? new Set<PacketHandler>();
+          registered.add(handler);
+          packetHandlers.set(key, registered);
+          return () => {
+            registered.delete(handler);
+          };
+        }),
+    },
     monsters: {
       getAvailable: () =>
         options?.getAvailableMonsters?.() ??
@@ -154,9 +178,10 @@ const makeHarness = (options?: {
     casts,
     castOptions,
     emit,
+    emitPacket,
     preparations,
     handlerCount: () =>
-      [...handlers.values()].reduce(
+      [...handlers.values(), ...packetHandlers.values()].reduce(
         (count, current) => count + current.size,
         0,
       ),
@@ -494,6 +519,58 @@ describe("CombatProfileRunner", () => {
           });
 
           expect(harness.casts).toEqual([1, 2, 1, 5]);
+        }),
+      );
+
+      expect(harness.handlerCount()).toBe(0);
+    }),
+  );
+
+  it.effect("casts animStr-only triggers once per monster animation", () =>
+    Effect.gen(function* () {
+      const harness = makeHarness({ monsters: [first] });
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          yield* makeCombatProfileRunner(harness.api, {
+            profile: {
+              ...triggerProfile,
+              messageTriggers: [
+                { animStr: "ChargeAttack1", skill: 5, source: "any" },
+              ],
+            },
+            targetPriority: [],
+          });
+          expect(harness.handlerCount()).toBe(3);
+
+          const entry = (cInf: string, tInf: string, animStr: string) => ({
+            animStr,
+            cInf,
+            tInf,
+          });
+          const data = {
+            anims: [
+              entry("m:1", "p:1", "ChargeAttack1"),
+              entry("m:1", "p:2", "ChargeAttack1"),
+              entry("p:1", "m:1", "Attack1"),
+            ],
+            cmd: "ct",
+          };
+          yield* harness.emit({
+            ...messageEvent,
+            animation: "ChargeAttack1",
+          });
+          yield* harness.emitPacket({
+            command: "ct",
+            data,
+            direction: "server",
+            encoding: "json",
+            raw: JSON.stringify(data),
+          });
+
+          expect(harness.casts).toEqual([5]);
+          expect(harness.castOptions).toEqual([
+            { force: true, target: first.monsterMapId, waitUntilReady: true },
+          ]);
         }),
       );
 

@@ -22,11 +22,24 @@ export interface CombatProfileMessageTriggerState {
   readonly state: Ref.Ref<ReadonlyMap<number, number>>;
 }
 
-export interface CombatProfileMessageTriggerEvent {
-  readonly message: string;
-  readonly monsterMapId?: number;
-  readonly source: "animation" | "aura";
-}
+/**
+ * Message events feed triggers with `messageIncludes`. Animation events come
+ * from monster animations, with or without a message, and feed `animStr`-only
+ * triggers.
+ */
+export type CombatProfileMessageTriggerEvent =
+  | {
+      readonly type: "message";
+      readonly animation?: string;
+      readonly message: string;
+      readonly monsterMapId?: number;
+      readonly source: "animation" | "aura";
+    }
+  | {
+      readonly type: "animation";
+      readonly animation: string;
+      readonly monsterMapId: number;
+    };
 
 export type CombatProfileCastTarget = Pick<Monster, "getAura" | "monsterMapId">;
 
@@ -382,15 +395,54 @@ export const matchesCombatProfileMessageTriggerMessage = (
   );
 };
 
+const matchesCombatProfileMessageTriggerAnimStr = (
+  configuredAnimStr: string,
+  animation: string | undefined,
+): boolean => {
+  const normalizedConfigured = normalizeMessageTriggerText(configuredAnimStr);
+  return (
+    normalizedConfigured !== "" &&
+    animation !== undefined &&
+    normalizeMessageTriggerText(animation) === normalizedConfigured
+  );
+};
+
+/** Whether the trigger matches animations regardless of their message. */
+export const isCombatProfileAnimationTrigger = (
+  trigger: CombatProfileMessageTrigger,
+): boolean =>
+  trigger.messageIncludes === undefined && trigger.animStr !== undefined;
+
 export const matchesCombatProfileMessageTrigger = (
   trigger: CombatProfileMessageTrigger,
   event: CombatProfileMessageTriggerEvent,
-): boolean =>
-  (trigger.source === "any" || trigger.source === event.source) &&
-  matchesCombatProfileMessageTriggerMessage(
-    trigger.messageIncludes,
-    event.message,
+): boolean => {
+  if (event.type === "animation") {
+    return (
+      trigger.messageIncludes === undefined &&
+      trigger.animStr !== undefined &&
+      trigger.source !== "aura" &&
+      matchesCombatProfileMessageTriggerAnimStr(
+        trigger.animStr,
+        event.animation,
+      )
+    );
+  }
+
+  return (
+    trigger.messageIncludes !== undefined &&
+    (trigger.source === "any" || trigger.source === event.source) &&
+    matchesCombatProfileMessageTriggerMessage(
+      trigger.messageIncludes,
+      event.message,
+    ) &&
+    (trigger.animStr === undefined ||
+      matchesCombatProfileMessageTriggerAnimStr(
+        trigger.animStr,
+        event.animation,
+      ))
   );
+};
 
 export const castCombatProfileMessageTrigger = (
   deps: CombatProfileRuntimeDeps,

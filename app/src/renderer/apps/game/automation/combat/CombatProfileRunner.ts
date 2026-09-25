@@ -8,6 +8,7 @@ import {
   type CombatProfileRunError,
 } from "../../combatProfileSession";
 import type { ApiService } from "../../flash/api/Api";
+import { onCombatProfileAnimations } from "../../flash/api/Combat";
 
 export {
   COMBAT_PROFILE_RETRY_DELAY_MS,
@@ -40,9 +41,15 @@ export const makeCombatProfileRunner = Effect.fn("makeCombatProfileRunner")(
         getAvailableMonsters: api.monsters.getAvailable,
         isAttackBlocked: api.combat.isAttackBlocked,
         isPlayerAlive: api.player.isAlive,
+        onAnimation: (handler) =>
+          onCombatProfileAnimations(api.packet, handler),
         onMessage: (handler) =>
           api.events.on({ type: "update-message" }, (event) =>
             handler({
+              type: "message",
+              ...(event.animation === undefined
+                ? {}
+                : { animation: event.animation }),
               message: event.message,
               ...(event.monsterMapId === undefined
                 ? {}

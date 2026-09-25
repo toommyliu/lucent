@@ -64,13 +64,35 @@ const canonicalLibrary = {
       ...genericProfile,
       id: "triggers-only",
       steps: [],
-      messageTriggers: [{ messageIncludes: "enrage", skill: 5, source: "any" }],
+      messageTriggers: [
+        { messageIncludes: "enrage", skill: 5, source: "any" },
+        { animStr: "Nuke", skill: 4, source: "animation" },
+        {
+          messageIncludes: "charges",
+          animStr: "Charge",
+          skill: 3,
+          source: "animation",
+        },
+      ],
     },
     { ...genericProfile, id: "idle", steps: [] },
   ],
 } satisfies CombatProfileLibrary;
 
 describe("combatProfiles", () => {
+  it("normalizes message trigger matchers", () => {
+    expect(
+      normalizeCombatProfile({
+        steps: [],
+        messageTriggers: [
+          { animStr: "  Nuke  ", messageIncludes: "   ", skill: 5 },
+          { animStr: " ", messageIncludes: "", skill: 5 },
+          { skill: 5 },
+        ],
+      }).messageTriggers,
+    ).toEqual([{ animStr: "Nuke", skill: 5, source: "any" }]);
+  });
+
   it("keeps canonical libraries stable", () => {
     expect(
       Schema.decodeUnknownSync(CombatProfileLibrarySchema)(canonicalLibrary),
