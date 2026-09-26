@@ -873,6 +873,9 @@ export function App(): JSX.Element {
           <div
             aria-label="Game views"
             class="game-view-tabs__list"
+            classList={{
+              "game-view-tabs__list--dragging": draggedIds().length > 0,
+            }}
             ref={(element) => {
               tabList = element;
             }}
@@ -1002,7 +1005,7 @@ export function App(): JSX.Element {
                     <button
                       aria-label={`Close ${session.name}`}
                       class="game-view-tab__close"
-                      disabled={closingId() !== null}
+                      disabled={closingId() !== null || draggedIds().length > 0}
                       onClick={() => void closeView(session.id)}
                       tabIndex={-1}
                       type="button"
