@@ -1005,7 +1005,7 @@ export function App(): JSX.Element {
                     <button
                       aria-label={`Close ${session.name}`}
                       class="game-view-tab__close"
-                      disabled={closingId() !== null}
+                      disabled={closingId() !== null || draggedIds().length > 0}
                       onClick={() => void closeView(session.id)}
                       tabIndex={-1}
                       type="button"
