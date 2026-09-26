@@ -873,6 +873,9 @@ export function App(): JSX.Element {
           <div
             aria-label="Game views"
             class="game-view-tabs__list"
+            classList={{
+              "game-view-tabs__list--dragging": draggedIds().length > 0,
+            }}
             ref={(element) => {
               tabList = element;
             }}

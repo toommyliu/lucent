@@ -266,6 +266,15 @@ body {
   opacity: 1;
 }
 
+.game-view-tabs__list--dragging .game-view-tab__close {
+  visibility: hidden;
+}
+
+.game-view-tabs__list.game-view-tabs__list--dragging
+  .game-view-tab__shortcut--visible {
+  inset-inline-end: 5px;
+}
+
 .game-view-tabs__actions {
   align-items: center;
   border-inline-start: 1px solid rgb(var(--border));
