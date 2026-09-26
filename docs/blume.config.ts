@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "blume";
 
+import { changelogSource } from "./changelog-source.ts";
+
 const scriptingReferenceRoot = fileURLToPath(
   new URL("./src/content/docs/reference/scripting", import.meta.url),
 );
@@ -118,12 +120,7 @@ export default defineConfig({
     root: "src/content/docs",
     sources: [
       { type: "filesystem", root: "src/content/docs" },
-      {
-        type: "github-releases",
-        prefix: "changelog",
-        owner: "toommyliu",
-        repo: "lucent",
-      },
+      { type: "custom", source: changelogSource },
     ],
   },
   description: "Guides, cookbooks, and reference for Lucent.",
