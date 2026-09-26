@@ -79,7 +79,7 @@ export const changelogSource: ContentSource = {
   },
   watch: (onChange) => {
     const watcher = watch(repoRoot, (_event, filename) => {
-      if (filename === "CHANGELOG.md") onChange();
+      if (filename === null || filename === "CHANGELOG.md") onChange();
     });
     return () => watcher.close();
   },
