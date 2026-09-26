@@ -1,3 +1,4 @@
+import type { RecentlyClosedGameSession } from "@lucent/core/accounts";
 import type {
   AppSettings,
   AppearancePatch,
@@ -341,6 +342,10 @@ export interface DesktopFileSystemBridge {
 }
 
 export interface DesktopGameViewHostBridge {
+  readonly getRecentlyClosed: () => Promise<
+    readonly RecentlyClosedGameSession[]
+  >;
+  readonly reopen: (id: number) => Promise<GameViewHostState>;
   readonly add: () => Promise<GameViewHostState>;
   readonly close: (id: string) => Promise<void>;
   readonly dispatchGroupCommand: (

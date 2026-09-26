@@ -3,7 +3,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 
 import type { AccountLaunchWindowTarget } from "@lucent/core/accounts";
@@ -29,6 +31,7 @@ afterEach(async () => {
 });
 
 interface HarnessOptions {
+  readonly beforeOpen?: () => Effect.Effect<void, unknown>;
   readonly onManagedProfileKey?: (key: string | undefined) => void;
   readonly onRetireProfile?: (key: string) => void;
   readonly onSetName?: (gameWindowId: number, name: string) => void;
@@ -86,6 +89,8 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
         }),
       open: (openOptions) =>
         Effect.gen(function* () {
+          if (harnessOptions.beforeOpen !== undefined)
+            yield* harnessOptions.beforeOpen();
           yield* Effect.sync(() => {
             harnessOptions.onManagedProfileKey?.(
               openOptions?.managedProfileKey,
@@ -133,10 +138,213 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
       Layer.succeed(AccountServers, servers),
     );
 
-    return accountsLayer.pipe(Layer.provide(dependencies));
+    return accountsLayer.pipe(Layer.provideMerge(dependencies));
   });
 
 describe("Accounts", () => {
+  it.effect(
+    "reopens with current credentials and the original server, with scripts stopped",
+    () =>
+      Effect.gen(function* () {
+        const targets: (AccountLaunchWindowTarget | undefined)[] = [];
+        const layer = yield* makeHarness({
+          onWindowTarget: (target) => targets.push(target),
+        });
+        return yield* Effect.gen(function* () {
+          const accounts = yield* Accounts;
+          const sessions = yield* AccountSessions.AccountSessions;
+          sessions.openWindow(77, 1, 1);
+          yield* accounts.createAccount({ username: "Alice", password: "old" });
+          const original = yield* accounts.launch({
+            username: "Alice",
+            server: "Artix",
+            script: { name: "farm.js", path: "/scripts/farm.js" },
+          });
+          yield* accounts.closeGameWindow(original.gameWindowId);
+          const wrongWindow = yield* Effect.flip(
+            accounts.reopenGameWindow({
+              id: original.gameWindowId,
+              gameWindowGroupId: 2,
+              windowTarget: { kind: "same-as-game", gameWindowId: 77 },
+            }),
+          );
+          expect(wrongWindow.message).toBe(
+            "This tab is no longer available to reopen.",
+          );
+          expect(yield* accounts.getRecentlyClosed(2)).toEqual([]);
+          expect(
+            (yield* accounts.getRecentlyClosed(1)).map(
+              ({ username, server }) => ({ username, server }),
+            ),
+          ).toEqual([{ username: "Alice", server: "Artix" }]);
+          yield* accounts.updateAccount("Alice", { password: "new" });
+          const reopened = yield* accounts.reopenGameWindow({
+            id: original.gameWindowId,
+            gameWindowGroupId: 1,
+            windowTarget: { kind: "same-as-game", gameWindowId: 77 },
+          });
+          const payload = yield* accounts.getGameLaunch(reopened.gameWindowId);
+          expect(payload?.account).toEqual({
+            label: "Alice",
+            username: "Alice",
+            password: "new",
+          });
+          expect(payload?.server).toBe("Artix");
+          expect(payload).not.toHaveProperty("script");
+          expect(targets).toEqual([
+            undefined,
+            { kind: "same-as-game", gameWindowId: 77 },
+          ]);
+          expect(yield* accounts.getRecentlyClosed(1)).toEqual([]);
+          const stale = yield* Effect.flip(
+            accounts.reopenGameWindow({
+              id: original.gameWindowId,
+              gameWindowGroupId: 1,
+              windowTarget: { kind: "new" },
+            }),
+          );
+          expect(stale.message).toBe(
+            "This tab is no longer available to reopen.",
+          );
+          expect(
+            (yield* accounts.getState).sessions
+              .map((session) => session.gameWindowId)
+              .toSorted((a, b) => a - b),
+          ).toEqual([2, 77]);
+        }).pipe(Effect.provide(layer));
+      }),
+  );
+
+  it.effect("keeps a closed tab available after a failed reopen", () =>
+    Effect.gen(function* () {
+      let failOpen = false;
+      const layer = yield* makeHarness({
+        beforeOpen: () =>
+          failOpen ? Effect.fail(new Error("Window unavailable")) : Effect.void,
+      });
+      return yield* Effect.gen(function* () {
+        const accounts = yield* Accounts;
+        const sessions = yield* AccountSessions.AccountSessions;
+        sessions.openWindow(77, 1, 1);
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+        const original = yield* accounts.launch({ username: "Alice" });
+        yield* accounts.closeGameWindow(original.gameWindowId);
+        failOpen = true;
+        yield* Effect.flip(
+          accounts.reopenGameWindow({
+            id: original.gameWindowId,
+            gameWindowGroupId: 1,
+            windowTarget: { kind: "new" },
+          }),
+        );
+        expect(
+          (yield* accounts.getRecentlyClosed(1)).map((entry) => entry.id),
+        ).toEqual([1]);
+        failOpen = false;
+        const reopened = yield* accounts.reopenGameWindow({
+          id: original.gameWindowId,
+          gameWindowGroupId: 1,
+          windowTarget: { kind: "new" },
+        });
+        expect(reopened).toEqual({ gameWindowId: 2 });
+        expect(yield* accounts.getRecentlyClosed(1)).toEqual([]);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect(
+    "does not reopen one history entry twice while a launch is pending",
+    () =>
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const finish = yield* Deferred.make<void>();
+        let pause = false;
+        const layer = yield* makeHarness({
+          beforeOpen: () =>
+            pause
+              ? Deferred.succeed(started, undefined).pipe(
+                  Effect.andThen(Deferred.await(finish)),
+                )
+              : Effect.void,
+        });
+        return yield* Effect.gen(function* () {
+          const accounts = yield* Accounts;
+          const sessions = yield* AccountSessions.AccountSessions;
+          sessions.openWindow(77, 1, 1);
+          yield* accounts.createAccount({
+            username: "Alice",
+            password: "secret",
+          });
+          const original = yield* accounts.launch({ username: "Alice" });
+          yield* accounts.closeGameWindow(original.gameWindowId);
+          pause = true;
+          const request = {
+            id: original.gameWindowId,
+            gameWindowGroupId: 1,
+            windowTarget: { kind: "same-as-game", gameWindowId: 77 },
+          } as const;
+          const first = yield* Effect.forkChild(
+            accounts.reopenGameWindow(request),
+          );
+          yield* Deferred.await(started);
+          const duplicate = yield* Effect.flip(
+            accounts.reopenGameWindow(request),
+          );
+          expect(duplicate.message).toBe(
+            "This tab is no longer available to reopen.",
+          );
+          yield* Deferred.succeed(finish, undefined);
+          expect(yield* Fiber.join(first)).toEqual({ gameWindowId: 2 });
+          expect(
+            (yield* accounts.getState).sessions
+              .map((session) => session.gameWindowId)
+              .toSorted((a, b) => a - b),
+          ).toEqual([2, 77]);
+          expect(yield* accounts.getRecentlyClosed(1)).toEqual([]);
+        }).pipe(Effect.provide(layer));
+      }),
+  );
+
+  it.effect("reopens deleted accounts at the login screen", () =>
+    Effect.gen(function* () {
+      const layer = yield* makeHarness();
+      return yield* Effect.gen(function* () {
+        const accounts = yield* Accounts;
+        const sessions = yield* AccountSessions.AccountSessions;
+        sessions.openWindow(77, 1, 1);
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+        const original = yield* accounts.launch({ username: "Alice" });
+        yield* accounts.closeGameWindow(original.gameWindowId);
+        yield* accounts.deleteAccount("Alice");
+        const reopened = yield* accounts.reopenGameWindow({
+          id: original.gameWindowId,
+          gameWindowGroupId: 1,
+          windowTarget: { kind: "new" },
+        });
+        expect(
+          (yield* accounts.getState).sessions.filter(
+            (session) => session.gameWindowId !== 77,
+          ),
+        ).toMatchObject([
+          {
+            gameWindowId: reopened.gameWindowId,
+            connection: { state: "offline" },
+            login: { state: "idle" },
+            script: { state: "idle" },
+          },
+        ]);
+        expect(yield* accounts.getGameLaunch(reopened.gameWindowId)).toBeNull();
+        expect(yield* accounts.getRecentlyClosed(1)).toEqual([]);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
   it.effect("persists account and group mutations", () =>
     Effect.gen(function* () {
       const layer = yield* makeHarness();

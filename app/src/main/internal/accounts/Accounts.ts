@@ -1,4 +1,5 @@
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
@@ -10,6 +11,7 @@ import {
   type AccountGameServersResult,
   type AccountLaunchRequest,
   type AccountLaunchResult,
+  type AccountLaunchWindowTarget,
   type AccountManagerState,
   type AccountManagerStorage,
   type AccountSessionReport,
@@ -19,6 +21,7 @@ import {
   type ManagedAccountGroupPatch,
   type ManagedAccountGroups,
   type ManagedAccountPatch,
+  type RecentlyClosedGameSession,
 } from "@lucent/core/accounts";
 import { makeListenerRegistry } from "../../app/ListenerRegistry";
 import {
@@ -35,6 +38,14 @@ import {
 } from "./AccountsError";
 
 export interface AccountsShape {
+  readonly getRecentlyClosed: (
+    gameWindowGroupId: number,
+  ) => Effect.Effect<readonly RecentlyClosedGameSession[]>;
+  readonly reopenGameWindow: (request: {
+    readonly id: number;
+    readonly gameWindowGroupId: number;
+    readonly windowTarget: AccountLaunchWindowTarget;
+  }) => Effect.Effect<AccountLaunchResult, AccountsError>;
   readonly closeGameWindow: (
     gameWindowId: number,
   ) => Effect.Effect<AccountManagerState, AccountsError>;
@@ -285,6 +296,9 @@ export const makeAccounts = Effect.gen(function* () {
   const servers = yield* AccountServers;
   const sessions = yield* AccountSessions;
   const stateChanges = makeListenerRegistry<AccountManagerState>();
+  const reopening = new Set<number>();
+  const getRecentlyClosed: AccountsShape["getRecentlyClosed"] = (groupId) =>
+    Effect.sync(() => sessions.recentlyClosed(groupId));
 
   const optionalGameWindowGroupId = (
     gameWindowId: number,
@@ -373,7 +387,15 @@ export const makeAccounts = Effect.gen(function* () {
     yield* gameWindows.onReloaded(reloadWindowSession);
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeReloaded));
 
-  const unsubscribeWindows = yield* gameWindows.onClosed(removeWindowSession);
+  const closeWindowSession = Effect.fn("Accounts.closeWindowSession")(
+    function* (gameWindowId: number) {
+      const now = yield* DateTime.now;
+      if (sessions.closeWindow(gameWindowId, DateTime.toEpochMillis(now))) {
+        yield* publishCurrentState;
+      }
+    },
+  );
+  const unsubscribeWindows = yield* gameWindows.onClosed(closeWindowSession);
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
 
   const closeGameWindows: AccountsShape["closeGameWindows"] = (
@@ -384,16 +406,7 @@ export const makeAccounts = Effect.gen(function* () {
       discard: true,
     }).pipe(
       Effect.andThen(
-        Effect.sync(() => {
-          let changed = false;
-          for (const gameWindowId of uniqueIds) {
-            changed = sessions.remove(gameWindowId) || changed;
-          }
-          return changed;
-        }),
-      ),
-      Effect.flatMap((changed) =>
-        changed ? publishCurrentState : Effect.void,
+        Effect.forEach(uniqueIds, closeWindowSession, { discard: true }),
       ),
       Effect.andThen(getState),
       Effect.mapError((cause) =>
@@ -587,13 +600,13 @@ export const makeAccounts = Effect.gen(function* () {
             }),
         })
         .pipe(
-          Effect.catch((cause) =>
-            gameWindowId === undefined
-              ? Effect.fail(cause)
-              : removeWindowSession(gameWindowId).pipe(
-                  Effect.andThen(Effect.fail(cause)),
-                ),
-          ),
+          Effect.catch((cause) => {
+            if (gameWindowId === undefined) return Effect.fail(cause);
+            sessions.forgetClosed(gameWindowId);
+            return removeWindowSession(gameWindowId).pipe(
+              Effect.andThen(Effect.fail(cause)),
+            );
+          }),
         );
       if (sessions.getLaunch(resolvedGameWindowId) === null) {
         const [gameWindowGroupId, rendererGeneration] = yield* Effect.all([
@@ -616,6 +629,49 @@ export const makeAccounts = Effect.gen(function* () {
           : accountError("launch", "Failed to launch account", cause),
       ),
     );
+
+  const reopenGameWindow: AccountsShape["reopenGameWindow"] = Effect.fn(
+    "Accounts.reopenGameWindow",
+  )(
+    function* ({ id, gameWindowGroupId, windowTarget }) {
+      const entry = sessions
+        .recentlyClosed(gameWindowGroupId)
+        .find((candidate) => candidate.id === id);
+      if (entry === undefined || reopening.has(id)) {
+        return yield* accountError(
+          "reopen-game-window",
+          "This tab is no longer available to reopen.",
+        );
+      }
+      reopening.add(id);
+      return yield* Effect.gen(function* () {
+        const storage = yield* repository.get;
+        const account = storage.accounts.find(
+          (candidate) =>
+            candidate.username.toLowerCase() === entry.username.toLowerCase(),
+        );
+        const result =
+          account === undefined
+            ? { gameWindowId: yield* gameWindows.open({ windowTarget }) }
+            : yield* launch({
+                username: account.username,
+                ...(entry.server === undefined ? {} : { server: entry.server }),
+                windowTarget,
+              });
+        sessions.forgetClosed(id);
+        return result;
+      }).pipe(Effect.ensuring(Effect.sync(() => reopening.delete(id))));
+    },
+    Effect.mapError((cause) =>
+      cause instanceof AccountsError
+        ? cause
+        : accountError(
+            "reopen-game-window",
+            "Unable to reopen the tab. Try again.",
+            cause,
+          ),
+    ),
+  );
 
   const load: AccountsShape["load"] = repository.load.pipe(Effect.map(toState));
 
@@ -762,6 +818,7 @@ export const makeAccounts = Effect.gen(function* () {
     deleteGroup,
     focusGameWindow,
     getGameLaunch,
+    getRecentlyClosed,
     getServerPings,
     getServers,
     getState,
@@ -770,6 +827,7 @@ export const makeAccounts = Effect.gen(function* () {
     onChanged,
     refreshServers,
     reportSession,
+    reopenGameWindow,
     suppressGameWindowLaunchScript,
     updateAccount,
     updateGroup,

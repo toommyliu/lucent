@@ -346,6 +346,19 @@ body {
   opacity: 0.34;
 }
 
+.game-view-tabs__add[data-at-capacity] .button__content,
+.game-view-tabs__add[aria-busy="true"] .button__content {
+  opacity: 0.34;
+}
+
+.game-view-tabs__menu-note {
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  margin: 0;
+  padding: 6px;
+}
+
 .game-view-tabs__layout--active {
   background: rgba(var(--primary), 0.12);
   box-shadow: inset 0 0 0 1px rgba(var(--primary), 0.35);
@@ -375,4 +388,24 @@ body {
 
 .game-view-tabs__menu-status--error {
   color: rgb(var(--destructive));
+}
+
+.game-view-tabs__recent-menu {
+  max-width: min(14rem, calc(100vw - 8px));
+  min-width: 9rem;
+}
+
+.game-view-tabs__recent-menu .menu__viewport {
+  overflow-x: hidden;
+}
+
+.game-view-tabs__recent-menu .menu__item {
+  font-size: var(--text-xs);
+  min-height: 24px;
+  padding: 4px 6px;
+}
+
+.game-view-tabs__recent-menu .menu__label {
+  font-size: var(--text-xs);
+  padding: 4px 6px;
 }

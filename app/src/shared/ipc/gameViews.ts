@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import { RecentlyClosedGameSessionSchema } from "@lucent/core/accounts";
 
 import {
   GameViewGroupCommandDispatchResultSchema,
@@ -16,6 +17,18 @@ const namespace = "desktop:game-views";
 const SessionIdPayloadSchema = Schema.Struct({ id: Schema.String });
 
 export const GameViewsIpc = {
+  getRecentlyClosed: defineInvoke({
+    channel: `${namespace}:get-recently-closed`,
+    name: "gameViews.getRecentlyClosed",
+    payload: Schema.Void,
+    result: Schema.Array(RecentlyClosedGameSessionSchema),
+  }),
+  reopen: defineInvoke({
+    channel: `${namespace}:reopen`,
+    name: "gameViews.reopen",
+    payload: Schema.Struct({ id: Schema.Int }),
+    result: GameViewHostStateSchema,
+  }),
   getState: defineInvoke({
     channel: `${namespace}:get-state`,
     name: "gameViews.getState",

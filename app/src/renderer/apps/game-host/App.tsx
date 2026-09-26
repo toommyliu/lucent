@@ -24,10 +24,11 @@ import {
   type JSX,
 } from "solid-js";
 
-import type {
-  GameViewHostState,
-  GameViewSession,
-  GameViewSelectionFocus,
+import {
+  GAME_VIEW_TAB_BAR_HEIGHT,
+  type GameViewHostState,
+  type GameViewSession,
+  type GameViewSelectionFocus,
 } from "../../../shared/gameViews";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import {
@@ -36,6 +37,10 @@ import {
   type GameViewDropEdge,
   type GameViewTabNavigationKey,
 } from "./tabOrder";
+
+import { NewTabButton } from "./NewTabButton";
+
+import { makeTabMenuController, type TabMenu } from "./tabMenu";
 
 const SHORTCUT_HINT_DELAY_MS = 300;
 const TAB_TOOLTIP_KEYBOARD_SETTLE_MS = 500;
@@ -143,7 +148,10 @@ export function App(): JSX.Element {
   );
   const [requestError, setRequestError] = createSignal<string | null>(null);
   const [shortcutHintsVisible, setShortcutHintsVisible] = createSignal(false);
-  const [tabMenuOpen, setTabMenuOpen] = createSignal(false);
+  const [tabMenu, setTabMenu] = createSignal<TabMenu>(null);
+  const [viewportHeight, setViewportHeight] = createSignal(window.innerHeight);
+  const visibleMenu = () =>
+    viewportHeight() > GAME_VIEW_TAB_BAR_HEIGHT ? tabMenu() : null;
   const [tabTooltipsKeyboardSuppressed, setTabTooltipsKeyboardSuppressed] =
     createSignal(false);
   const [visibleTabCount, setVisibleTabCount] = createSignal(1);
@@ -151,9 +159,7 @@ export function App(): JSX.Element {
     string | null
   >(null);
   let desiredGroupTargetIds: readonly string[] | null = null;
-  let desiredTabMenuOpen: boolean | null = null;
   let groupTargetRequestRunning = false;
-  let tabMenuRequestRunning = false;
   let stopPointerDrag: (() => void) | undefined;
   let selectSuppressionTimer: number | undefined;
   let shortcutHintTimer: number | undefined;
@@ -323,49 +329,28 @@ export function App(): JSX.Element {
     );
   };
 
-  const flushTabMenuOpen = async (): Promise<void> => {
-    if (tabMenuRequestRunning) return;
-    tabMenuRequestRunning = true;
-    try {
-      while (desiredTabMenuOpen !== null) {
-        const requestedOpen = desiredTabMenuOpen;
-        try {
-          const open = await gameViewHost.setTabMenuOpen(requestedOpen);
-          if (desiredTabMenuOpen === requestedOpen) {
-            desiredTabMenuOpen = null;
-            setTabMenuOpen(open);
-          }
-        } catch (cause) {
-          setRequestError(errorMessage(cause));
-          if (desiredTabMenuOpen !== requestedOpen) continue;
-
-          desiredTabMenuOpen = null;
-          setTabMenuOpen(!requestedOpen);
-        }
-      }
-    } finally {
-      tabMenuRequestRunning = false;
-    }
-  };
-
-  const requestTabMenuOpen = (open: boolean): void => {
-    if (
-      desiredTabMenuOpen === open ||
-      (tabMenuOpen() === open && desiredTabMenuOpen === null)
-    ) {
-      return;
-    }
+  const tabMenuController = makeTabMenuController({
+    setNativeOpen: gameViewHost.setTabMenuOpen,
+    onMenuChange: setTabMenu,
+    onError: (cause) => setRequestError(errorMessage(cause)),
+  });
+  const requestTabMenu = (menu: TabMenu): void => {
     setRequestError(null);
-    if (!open) setTabMenuOpen(false);
-    desiredTabMenuOpen = open;
-    void flushTabMenuOpen();
+    tabMenuController.request(menu);
   };
 
   createEffect(() => {
-    if (overflowSessions().length === 0 && tabMenuOpen()) {
-      requestTabMenuOpen(false);
+    if (overflowSessions().length === 0 && tabMenu() === "overflow") {
+      requestTabMenu(null);
     }
   });
+
+  const reopenView = async (id: number): Promise<void> => {
+    if (adding() || atCapacity()) return;
+    setAdding(true);
+    await runStateRequest(() => gameViewHost.reopen(id));
+    setAdding(false);
+  };
 
   const selectOverflowView = (id: string): void => {
     void runStateRequest(() => gameViewHost.select(id, "view"));
@@ -761,7 +746,7 @@ export function App(): JSX.Element {
   const toggleGroupControls = (): void => {
     const current = state();
     if (current === null) return;
-    if (tabMenuOpen()) requestTabMenuOpen(false);
+    if (tabMenu() !== null) requestTabMenu(null);
     const open = !current.groupControlsOpen;
     applyState({ ...current, groupControlsOpen: open });
     setRequestError(null);
@@ -802,6 +787,7 @@ export function App(): JSX.Element {
       });
     };
     const handleViewportResize = (): void => {
+      setViewportHeight(window.innerHeight);
       if (window.devicePixelRatio === rendererScale) return;
       rendererScale = window.devicePixelRatio;
       syncTabBarLayout();
@@ -823,10 +809,7 @@ export function App(): JSX.Element {
     );
     const unsubscribeTabMenu = gameViewHost.onTabMenuOpenChanged((open) => {
       if (disposed) return;
-      setTabMenuOpen(open);
-      if (desiredTabMenuOpen === open) {
-        desiredTabMenuOpen = null;
-      }
+      tabMenuController.nativeOpenChanged(open);
     });
     void gameViewHost
       .getState()
@@ -838,7 +821,7 @@ export function App(): JSX.Element {
       });
     onCleanup(() => {
       disposed = true;
-      desiredTabMenuOpen = null;
+      tabMenuController.dispose();
       unsubscribe();
       unsubscribeShortcutModifier();
       unsubscribeTabMenu();
@@ -1021,7 +1004,7 @@ export function App(): JSX.Element {
           <Show when={overflowSessions().length > 0}>
             <Menu
               aria-label="More game views"
-              open={tabMenuOpen()}
+              open={visibleMenu() === "overflow"}
               positioning={{
                 fitViewport: true,
                 overflowPadding: 4,
@@ -1029,7 +1012,7 @@ export function App(): JSX.Element {
               }}
               unmountOnExit
               onOpenChange={(details) => {
-                requestTabMenuOpen(details.open);
+                requestTabMenu(details.open ? "overflow" : null);
               }}
             >
               <MenuTrigger
@@ -1085,23 +1068,15 @@ export function App(): JSX.Element {
             </Menu>
           </Show>
 
-          <TooltipIconButton
-            aria-label={atCapacity() ? "Tab limit reached" : "Add tab"}
-            class="game-view-tabs__action game-view-tabs__add"
-            disabled={atCapacity()}
-            onClick={() => void addView()}
+          <NewTabButton
+            atCapacity={atCapacity()}
             pending={adding()}
-            positioning={actionTooltipPositioning}
-            size="icon-sm"
-            tooltip={
-              atCapacity()
-                ? `${state()?.capacity ?? 0}-tab limit reached · use another window`
-                : "Add tab"
-            }
-            variant="ghost"
-          >
-            <Icon aria-hidden="true" icon="plus" size="sm" />
-          </TooltipIconButton>
+            open={visibleMenu() === "recent"}
+            onOpenChange={(open) => requestTabMenu(open ? "recent" : null)}
+            onAdd={() => void addView()}
+            onReopen={(id) => void reopenView(id)}
+            getRecentlyClosed={gameViewHost.getRecentlyClosed}
+          />
         </div>
 
         <div class="game-view-tabs__actions">

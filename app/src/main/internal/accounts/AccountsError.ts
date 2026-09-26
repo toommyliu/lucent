@@ -13,6 +13,7 @@ export const AccountOperationSchema = Schema.Literals([
   "parse",
   "read",
   "recover-game-window",
+  "reopen-game-window",
   "report-session",
   "rename",
   "refresh-servers",
