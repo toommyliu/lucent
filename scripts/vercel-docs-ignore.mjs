@@ -41,6 +41,18 @@ const listChangedFiles = (baseRef, headRef) => {
   return result.status === 0 ? pathsFromNameStatus(result.stdout) : null;
 };
 
+const readAppVersion = (ref) => {
+  const result = run("git", ["show", `${ref}:app/package.json`]);
+  if (result.status !== 0) return null;
+
+  try {
+    const version = JSON.parse(result.stdout).version;
+    return typeof version === "string" ? version : null;
+  } catch {
+    return null;
+  }
+};
+
 const ensureCommitParent = (commitRef) => {
   const parentRef = `${commitRef}^`;
   if (hasRef(parentRef)) {
@@ -75,6 +87,20 @@ const shouldBuild = () => {
   }
 
   const changedDocsFiles = changedFiles.filter(isDocsRelevantPath);
+  if (changedFiles.includes("app/package.json")) {
+    const previousVersion = readAppVersion(parentRef);
+    const currentVersion = readAppVersion(commitRef);
+    if (previousVersion === null || currentVersion === null) {
+      console.warn(
+        "Unable to read app versions while checking docs-relevant changes; building to avoid skipping a release.",
+      );
+      return true;
+    }
+    if (previousVersion !== currentVersion) {
+      changedDocsFiles.push("app/package.json (version changed)");
+    }
+  }
+
   if (changedDocsFiles.length === 0) {
     console.log("No docs-relevant changes detected; skipping Vercel build.");
     return false;
