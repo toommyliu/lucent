@@ -9,6 +9,7 @@ import type {
   AccountSessionReport,
   AccountSessionRuntime,
   ManagedAccount,
+  RecentlyClosedGameSession,
 } from "@lucent/core/accounts";
 
 export interface PendingAccountLaunch {
@@ -63,6 +64,11 @@ const lastConnectionUsername = (
     : runtime.connection.lastUsername;
 
 export interface AccountSessionsShape {
+  readonly closeWindow: (gameWindowId: number, closedAt: number) => boolean;
+  readonly recentlyClosed: (
+    gameWindowGroupId: number,
+  ) => readonly RecentlyClosedGameSession[];
+  readonly forgetClosed: (id: number) => void;
   readonly applyReport: (
     gameWindowId: number,
     report: AccountSessionReport,
@@ -101,12 +107,74 @@ export const layer = Layer.effect(
   AccountSessions,
   Effect.sync(() => {
     const sessions = new Map<number, TrackedSession>();
+    const closedByGroup = new Map<
+      number,
+      readonly RecentlyClosedGameSession[]
+    >();
+
+    const closeWindow: AccountSessionsShape["closeWindow"] = (
+      gameWindowId,
+      closedAt,
+    ) => {
+      const session = sessions.get(gameWindowId);
+      if (session === undefined) return false;
+      const { snapshot } = session;
+      const groupId = snapshot.gameWindowGroupId;
+      const username =
+        lastConnectionUsername(snapshot) ?? snapshot.launch?.username;
+      if (groupId === undefined || username === undefined)
+        return remove(gameWindowId);
+      const server =
+        snapshot.launch?.username.toLowerCase() === username.toLowerCase()
+          ? snapshot.launch?.server
+          : undefined;
+      const entry: RecentlyClosedGameSession = {
+        id: gameWindowId,
+        closedAt,
+        username,
+        ...(server === undefined ? {} : { server }),
+      };
+      const previous = closedByGroup.get(groupId) ?? [];
+      closedByGroup.set(
+        groupId,
+        [
+          entry,
+          ...previous.filter(
+            (candidate) =>
+              candidate.username.toLowerCase() !== username.toLowerCase(),
+          ),
+        ].slice(0, 5),
+      );
+      return remove(gameWindowId);
+    };
+
+    const recentlyClosed: AccountSessionsShape["recentlyClosed"] = (groupId) =>
+      closedByGroup.get(groupId) ?? [];
+    const forgetClosed: AccountSessionsShape["forgetClosed"] = (id) => {
+      for (const [groupId, entries] of closedByGroup) {
+        const remaining = entries.filter((entry) => entry.id !== id);
+        if (remaining.length === 0) closedByGroup.delete(groupId);
+        else if (remaining.length !== entries.length)
+          closedByGroup.set(groupId, remaining);
+      }
+    };
 
     const getLaunch: AccountSessionsShape["getLaunch"] = (gameWindowId) =>
       sessions.get(gameWindowId)?.launchPayload ?? null;
 
-    const remove: AccountSessionsShape["remove"] = (gameWindowId) =>
-      sessions.delete(gameWindowId);
+    const remove: AccountSessionsShape["remove"] = (gameWindowId) => {
+      const groupId = sessions.get(gameWindowId)?.snapshot.gameWindowGroupId;
+      const removed = sessions.delete(gameWindowId);
+      if (
+        groupId !== undefined &&
+        ![...sessions.values()].some(
+          (session) => session.snapshot.gameWindowGroupId === groupId,
+        )
+      ) {
+        closedByGroup.delete(groupId);
+      }
+      return removed;
+    };
 
     const snapshot: AccountSessionsShape["snapshot"] = () =>
       [...sessions.values()]
@@ -331,6 +399,9 @@ export const layer = Layer.effect(
     };
 
     return AccountSessions.of({
+      closeWindow,
+      recentlyClosed,
+      forgetClosed,
       applyReport,
       getLaunch,
       openWindow,

@@ -201,6 +201,16 @@ export const AccountGameSessionSchema = Schema.Struct({
 
 export type AccountGameSession = typeof AccountGameSessionSchema.Type;
 
+export const RecentlyClosedGameSessionSchema = Schema.Struct({
+  id: Schema.Int,
+  closedAt: Schema.Number,
+  username: Schema.String,
+  server: Schema.optionalKey(Schema.String),
+});
+
+export type RecentlyClosedGameSession =
+  typeof RecentlyClosedGameSessionSchema.Type;
+
 export const AccountManagerStateSchema = Schema.Struct({
   accounts: Schema.Array(ManagedAccountSchema),
   groups: ManagedAccountGroupsSchema,

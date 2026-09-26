@@ -356,6 +356,8 @@ const loaderGrabberWindowBridge: DesktopLoaderGrabberWindowBridge = {
 };
 
 const gameViewHostBridge: DesktopGameViewHostBridge = {
+  getRecentlyClosed: () => invoke(GameViewsIpc.getRecentlyClosed, undefined),
+  reopen: (id) => invoke(GameViewsIpc.reopen, { id }),
   add: () => invoke(GameViewsIpc.add, undefined),
   close: (id) => invoke(GameViewsIpc.close, { id }),
   dispatchGroupCommand: (request) =>

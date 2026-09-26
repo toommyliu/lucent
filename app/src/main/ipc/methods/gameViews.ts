@@ -7,6 +7,9 @@ import {
   type GameViewGroupCommandEnvelope,
 } from "../../../shared/gameViews";
 import { GameViewsIpc } from "../../../shared/ipc";
+import { ElectronDialog } from "../../electron/ElectronDialog";
+import { Accounts } from "../../internal/accounts/Accounts";
+import { AccountSessions } from "../../internal/accounts/AccountSessions";
 import { DesktopScriptLibrary } from "../../scripting/DesktopScriptLibrary";
 import {
   DesktopWindowError,
@@ -18,6 +21,79 @@ const hostSenders = ["game-group-controls", "game-host"] as const;
 const gameHostSenders = ["game-host"] as const;
 const gameSenders = ["game"] as const;
 const GROUP_LOGIN_STAGGER_MS = 650;
+
+const confirmClose = Effect.fn("desktop.ipc.gameViews.confirmClose")(function* (
+  rendererId: number,
+) {
+  const sessions = yield* AccountSessions;
+  const session = sessions
+    .snapshot()
+    .find((entry) => entry.gameWindowId === rendererId);
+  if (
+    session?.script.state !== "running" &&
+    session?.script.state !== "starting"
+  )
+    return true;
+  const dialog = yield* ElectronDialog;
+  const windows = yield* DesktopWindows;
+  const parentWindowId = yield* windows.getNativeWindowId(rendererId);
+  const result = yield* dialog.showMessageBox(
+    {
+      type: "question",
+      title: "Close tab",
+      message: "A script is running in this tab.",
+      detail: "Closing the tab will stop the script.",
+      buttons: ["Keep open", "Stop script and close"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    },
+    parentWindowId,
+  );
+  return result.response === 1;
+});
+
+export const getRecentlyClosed = makeDesktopIpcMethod({
+  descriptor: GameViewsIpc.getRecentlyClosed,
+  allowedSenders: gameHostSenders,
+  handler: Effect.fn("desktop.ipc.gameViews.getRecentlyClosed")(
+    function* (_payload, sender) {
+      const accounts = yield* Accounts;
+      const windows = yield* DesktopWindows;
+      const groupId = yield* windows.getNativeWindowId(sender.rendererId);
+      return yield* accounts.getRecentlyClosed(groupId);
+    },
+  ),
+});
+
+export const reopen = makeDesktopIpcMethod({
+  descriptor: GameViewsIpc.reopen,
+  allowedSenders: gameHostSenders,
+  handler: Effect.fn("desktop.ipc.gameViews.reopen")(function* (
+    { id },
+    sender,
+  ) {
+    const windows = yield* DesktopWindows;
+    const accounts = yield* Accounts;
+    const state = yield* windows.getGameViewHostState(sender.rendererId);
+    if (state.sessions.length >= state.capacity) {
+      return yield* new DesktopWindowError({
+        id: String(sender.rendererId),
+        detail: "Close a tab before reopening another.",
+      });
+    }
+    const gameWindowId = yield* windows.getRendererId(state.selectedId);
+    const gameWindowGroupId = yield* windows.getNativeWindowId(
+      sender.rendererId,
+    );
+    yield* accounts.reopenGameWindow({
+      id,
+      gameWindowGroupId,
+      windowTarget: { kind: "same-as-game", gameWindowId },
+    });
+    return yield* windows.getGameViewHostState(sender.rendererId);
+  }),
+});
 
 export const getState = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.getState,
@@ -60,6 +136,15 @@ export const close = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.close")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
+      const state = yield* windows.getGameViewHostState(sender.rendererId);
+      if (!state.sessions.some((session) => session.id === payload.id)) {
+        return yield* new DesktopWindowError({
+          id: payload.id,
+          detail: "This tab no longer belongs to this window.",
+        });
+      }
+      const rendererId = yield* windows.getRendererId(payload.id);
+      if (!(yield* confirmClose(rendererId))) return;
       return yield* windows.closeGameView(sender.rendererId, payload.id);
     },
   ),
@@ -316,6 +401,7 @@ export const closeCurrent = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.closeCurrent")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
+      if (!(yield* confirmClose(sender.rendererId))) return;
       yield* windows.closeRenderer(sender.rendererId);
     },
   ),
@@ -333,6 +419,8 @@ export const activate = makeDesktopIpcMethod({
 });
 
 export const methods = [
+  getRecentlyClosed,
+  reopen,
   getState,
   add,
   select,

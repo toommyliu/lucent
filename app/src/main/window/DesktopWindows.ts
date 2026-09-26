@@ -1068,6 +1068,8 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
+        const host = gameHosts.find(rendererId);
+        if (host !== null) return host.window.id;
         const entry = findRendererEntry(rendererId);
         if (entry === null) {
           throw new Error(`Desktop renderer is not open: ${rendererId}`);
