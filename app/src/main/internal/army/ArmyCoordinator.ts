@@ -2,6 +2,8 @@ import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
@@ -16,6 +18,10 @@ import {
   DesktopObservability,
   type DesktopObservabilityShape,
 } from "../../app/observability/DesktopObservability";
+import {
+  ARMY_STALL_SCAN_INTERVAL_MS,
+  makeArmyStallTracker,
+} from "./ArmyStallDiagnostics";
 
 export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
@@ -211,6 +217,12 @@ export interface ArmyCoordinatorShape {
       readonly timeoutMs?: number;
     },
   ) => Effect.Effect<ArmyProgressResult, ArmyCoordinatorError>;
+  /** TEMPORARY(army-stall-diagnostics): remove with the stall investigation. */
+  readonly reportDiagnostic: (
+    sessionId: string,
+    participantId: ArmyParticipantId,
+    snapshot: Readonly<Record<string, unknown>>,
+  ) => Effect.Effect<void, ArmyCoordinatorError>;
   readonly requireParticipant: (
     sessionId: string,
     participantId: ArmyParticipantId,
@@ -416,6 +428,7 @@ export const makeArmyCoordinator = (
 ): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
+    const stallTracker = makeArmyStallTracker();
     const sessionEndedListeners = new Set<
       (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>
     >();
@@ -589,10 +602,12 @@ export const makeArmyCoordinator = (
       readonly timeoutMs: number;
     }): Effect.Effect<A, ArmyCoordinatorError> =>
       args.effect.pipe(
-        Effect.timeoutOrElse({
-          duration: args.timeoutMs,
-          orElse: args.onTimeout,
-        }),
+        // Aborting fails this same gate. Run shutdown after the race has ended
+        // so releasing the waiter cannot cancel session-end notifications.
+        Effect.timeoutOption(args.timeoutMs),
+        Effect.flatMap(
+          Option.match({ onNone: args.onTimeout, onSome: Effect.succeed }),
+        ),
         // A canceled waiter makes a roster-wide checkpoint impossible to
         // complete, so interruption releases every peer by ending the session.
         Effect.onInterrupt(() =>
@@ -1081,7 +1096,7 @@ export const makeArmyCoordinator = (
             payload.label,
           );
         }
-        const [, playerKey] = yield* authenticateParticipant(
+        const [session, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1103,6 +1118,13 @@ export const makeArmyCoordinator = (
           });
           return yield* outcome.error;
         }
+        yield* stallTracker.recordArrival({
+          kind: "sync",
+          label: signature.label,
+          playerName: canonicalPlayerName(session, playerKey),
+          sessionId,
+          step: payload.step,
+        });
         if (outcome.complete) yield* Deferred.succeed(outcome.gate, undefined);
         yield* awaitWithTimeout({
           effect: Deferred.await(outcome.gate),
@@ -1137,7 +1159,7 @@ export const makeArmyCoordinator = (
             payload.label,
           );
         }
-        const [, playerKey] = yield* authenticateParticipant(
+        const [session, playerKey] = yield* authenticateParticipant(
           sessionId,
           participantId,
         );
@@ -1160,6 +1182,14 @@ export const makeArmyCoordinator = (
           });
           return yield* outcome.error;
         }
+        yield* stallTracker.recordArrival({
+          complete: payload.complete,
+          kind: "progress",
+          label: signature.label,
+          playerName: canonicalPlayerName(session, playerKey),
+          sessionId,
+          step: payload.step,
+        });
         if (outcome.result !== undefined) {
           yield* Deferred.succeed(outcome.gate, outcome.result);
         }
@@ -1216,6 +1246,51 @@ export const makeArmyCoordinator = (
         Effect.map((state) => [...state.sessions.values()]),
       );
 
+    // TEMPORARY(army-stall-diagnostics): remove with the stall investigation.
+    const reportDiagnostic: ArmyCoordinatorShape["reportDiagnostic"] = (
+      sessionId,
+      participantId,
+      snapshot,
+    ) =>
+      requireParticipant(sessionId, participantId).pipe(
+        Effect.flatMap((participant) =>
+          writeLifecycleLog(
+            observability.warn("army", "Army client stall snapshot", {
+              playerName: participant.playerName,
+              playerNumber: participant.playerNumber,
+              rendererId: participantId,
+              sessionId,
+              snapshot,
+            }),
+          ),
+        ),
+      );
+
+    yield* SynchronizedRef.get(stateRef).pipe(
+      Effect.flatMap((state) =>
+        stallTracker.scan(
+          [...state.sessions.values()]
+            .filter((session) => session.status === "active")
+            .map((session) => ({
+              checkpoints: () => checkpointSnapshot(session),
+              session,
+            })),
+        ),
+      ),
+      Effect.flatMap((logs) =>
+        Effect.forEach(
+          logs,
+          (log) =>
+            writeLifecycleLog(
+              observability.warn("army", log.message, log.data),
+            ),
+          { discard: true },
+        ),
+      ),
+      Effect.repeat(Schedule.spaced(ARMY_STALL_SCAN_INTERVAL_MS)),
+      Effect.forkScoped,
+    );
+
     const service: ArmyCoordinatorShape = {
       abortParticipant,
       abortSession,
@@ -1225,6 +1300,7 @@ export const makeArmyCoordinator = (
       leave,
       onSessionEnded,
       progress,
+      reportDiagnostic,
       requireParticipant,
       sync,
     };

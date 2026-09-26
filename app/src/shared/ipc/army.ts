@@ -72,6 +72,16 @@ export const ArmyIpc = {
     }),
     result: ProgressResultSchema,
   }),
+  // TEMPORARY(army-stall-diagnostics): remove with the stall investigation.
+  diagnostic: defineInvoke({
+    channel: `${namespace}:diagnostic`,
+    name: "army.diagnostic",
+    payload: Schema.Struct({
+      sessionId: Schema.String,
+      snapshot: Schema.Record(Schema.String, Schema.Unknown),
+    }),
+    result: Schema.Void,
+  }),
   fail: defineInvoke({
     channel: `${namespace}:fail`,
     name: "army.fail",
