@@ -100,7 +100,9 @@ const desktopWindowCatalog: ReadonlyMap<
     {
       kind: "environment",
       width: 778,
-      height: 613,
+      height: 672,
+      minWidth: 360,
+      minHeight: 360,
       closeBehavior: "hide",
       requiresFlashPlugin: false,
       scope: "game-child",
