@@ -11,6 +11,7 @@ export const DEFAULT_FOLLOWER_ATTEMPTS = 3;
 export const DEFAULT_FOLLOWER_COMBAT_ENABLED = true;
 export const DEFAULT_FOLLOWER_COPY_WALK = false;
 export const DEFAULT_FOLLOWER_RETRY_ENABLED = true;
+export const MAX_FOLLOWER_ATTEMPTS = 99;
 
 export const FollowerPhaseSchema = Schema.Literals([
   "idle",
@@ -36,7 +37,7 @@ export const FollowerStartPayloadSchema = Schema.Struct({
   combatEnabled: Schema.optionalKey(Schema.Boolean),
   copyWalk: Schema.optionalKey(Schema.Boolean),
   retryEnabled: Schema.optionalKey(Schema.Boolean),
-  maxAttempts: Schema.optionalKey(Schema.Number),
+  maxAttempts: Schema.optionalKey(Schema.NullOr(Schema.Number)),
   selectedProfileId: Schema.optionalKey(Schema.String),
   attackPriority: Schema.optionalKey(AttackPriorityInputSchema),
   lockedZoneFallbacks: Schema.optionalKey(LocationFallbackInputSchema),
@@ -49,7 +50,11 @@ export const FollowerConfigSchema = Schema.Struct({
   combatEnabled: Schema.Boolean,
   copyWalk: Schema.Boolean,
   retryEnabled: Schema.Boolean,
-  maxAttempts: PositiveInt,
+  maxAttempts: Schema.NullOr(
+    PositiveInt.pipe(
+      Schema.check(Schema.isLessThanOrEqualTo(MAX_FOLLOWER_ATTEMPTS)),
+    ),
+  ),
   selectedProfileId: TrimmedNonEmptyString,
   attackPriority: Schema.Array(
     Schema.Union([PositiveInt, TrimmedNonEmptyString]),
@@ -66,16 +71,14 @@ export const FollowerStateSchema = Schema.Struct({
   profileId: Schema.optionalKey(Schema.String),
   profileLabel: Schema.optionalKey(Schema.String),
   phase: FollowerPhaseSchema,
-  attemptsRemaining: Schema.Int.pipe(
-    Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+  attemptsRemaining: Schema.NullOr(
+    Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
   ),
   lastError: Schema.optionalKey(Schema.String),
   stoppedReason: Schema.optionalKey(Schema.String),
   warning: Schema.optionalKey(Schema.String),
 });
 export type FollowerState = typeof FollowerStateSchema.Type;
-
-const numericAttackTarget = /^[0-9]+$/u;
 
 const normalizedText = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
@@ -91,15 +94,7 @@ const normalizeAttackTarget = (
   }
 
   const token = value.trim();
-  if (token === "") {
-    return undefined;
-  }
-  if (!numericAttackTarget.test(token)) {
-    return token;
-  }
-
-  const id = Number.parseInt(token, 10);
-  return id > 0 ? Math.min(Number.MAX_SAFE_INTEGER, id) : undefined;
+  return token === "" ? undefined : token;
 };
 
 export const parseFollowerAttackPriority = (
@@ -163,11 +158,14 @@ export const parseFollowerLocationFallbacks = (
 export const normalizeFollowerTargetName = (value: unknown): string =>
   normalizedText(value).toLowerCase();
 
-const normalizeAttemptCount = (value: unknown): number => {
+const normalizeAttemptCount = (value: unknown): number | null => {
+  if (value === null) {
+    return null;
+  }
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return DEFAULT_FOLLOWER_ATTEMPTS;
   }
-  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, Math.trunc(value)));
+  return Math.min(MAX_FOLLOWER_ATTEMPTS, Math.max(1, Math.trunc(value)));
 };
 
 export const normalizeFollowerConfig = (
@@ -217,9 +215,14 @@ export const normalizeFollowerState = (value: unknown): FollowerState => {
       : "idle";
   const rawAttempts = candidate["attemptsRemaining"];
   const attemptsRemaining =
-    typeof rawAttempts === "number" && Number.isFinite(rawAttempts)
-      ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(rawAttempts)))
-      : DEFAULT_FOLLOWER_ATTEMPTS;
+    rawAttempts === null
+      ? null
+      : typeof rawAttempts === "number" && Number.isFinite(rawAttempts)
+        ? Math.min(
+            Number.MAX_SAFE_INTEGER,
+            Math.max(0, Math.trunc(rawAttempts)),
+          )
+        : DEFAULT_FOLLOWER_ATTEMPTS;
   const profileId = optionalText(candidate["profileId"]);
   const profileLabel = optionalText(candidate["profileLabel"]);
   const lastError = optionalText(candidate["lastError"]);
