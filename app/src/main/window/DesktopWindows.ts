@@ -1903,7 +1903,6 @@ const makeDesktopWindows = Effect.gen(function* () {
       host.closing = true;
       host.stopObservingShortcutInput();
       gameHosts.cancelResize(host);
-      gameHosts.cancelRepaint(host);
       gameHosts.unregister(host);
 
       const closingGameViews = host.orderedIds.flatMap((gameViewId) => {

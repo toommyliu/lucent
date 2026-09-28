@@ -23,7 +23,6 @@ import { electronRendererRegistry } from "./ElectronRendererRegistry";
 export interface ElectronWindowWebContents {
   readonly focus: WebContents["focus"];
   readonly id: number;
-  readonly invalidate: WebContents["invalidate"];
   readonly isDestroyed: () => boolean;
   readonly off: WebContents["removeListener"];
   readonly on: WebContents["on"];
