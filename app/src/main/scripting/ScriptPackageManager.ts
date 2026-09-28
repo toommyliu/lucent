@@ -236,7 +236,7 @@ export const validateScriptPackageArchive = async (
   await listTar({
     file: path,
     strict: true,
-    onentry: (entry) => {
+    onReadEntry: (entry) => {
       if (validationError !== undefined) return;
       try {
         if (
