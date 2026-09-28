@@ -362,8 +362,7 @@ const createRendererWebPreferences = (
     readonly backgroundThrottling?: boolean;
     readonly gameViewLayout?: GameViewLayout;
     readonly rendererBackgroundColor?: string;
-    readonly requiresFlashPlugin: boolean;
-  },
+  } = {},
 ): DesktopRendererWebPreferences => ({
   additionalArguments: [
     // BrowserView otherwise initializes its renderer backing surface to white.
@@ -391,7 +390,6 @@ const createRendererWebPreferences = (
   nodeIntegration: false,
   preload: preloadPath,
   sandbox: false,
-  plugins: options.requiresFlashPlugin,
 });
 
 const createWindowOptions = (
@@ -403,7 +401,6 @@ const createWindowOptions = (
   renderer?: {
     readonly bridgeView: DesktopBridgeView;
     readonly partition?: string;
-    readonly requiresFlashPlugin: boolean;
   },
 ): ElectronWindowCreateOptions => {
   const width = bounds?.width ?? definition.width;
@@ -441,10 +438,6 @@ const createWindowOptions = (
         renderer?.bridgeView ?? definition.kind,
         settings,
         snapshot,
-        {
-          requiresFlashPlugin:
-            renderer?.requiresFlashPlugin ?? definition.requiresFlashPlugin,
-        },
       ),
       ...(renderer?.partition === undefined
         ? {}
@@ -474,7 +467,6 @@ const createGameViewOptions = (
       backgroundThrottling: false,
       gameViewLayout: layout,
       rendererBackgroundColor: snapshot.backgroundColor,
-      requiresFlashPlugin: true,
     }),
     partition,
   },
@@ -490,7 +482,6 @@ const createGameGroupControlsViewOptions = (
     "game-group-controls",
     settings,
     snapshot,
-    { requiresFlashPlugin: false },
   ),
 });
 
@@ -504,7 +495,6 @@ const createGameHostViewOptions = (
     "game-host",
     settings,
     snapshot,
-    { requiresFlashPlugin: false },
   ),
 });
 
@@ -1783,7 +1773,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         bootstrapSettings,
         snapshot,
         bounds,
-        { bridgeView: "game-host", requiresFlashPlugin: false },
+        { bridgeView: "game-host" },
       ),
     );
     const groupControlsView = yield* electronGameView
@@ -2453,7 +2443,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           bootstrapSettings,
           systemPrefersDark,
         );
-        if (definition.requiresFlashPlugin) {
+        if (kind === "game") {
           yield* electronSession.prepareGameNetworking;
         }
 
@@ -2520,7 +2510,6 @@ const makeDesktopWindows = Effect.gen(function* () {
                 : {
                     bridgeView: "game",
                     partition: gamePartition,
-                    requiresFlashPlugin: true,
                   },
             ),
             kind === "game" ? openAllowedGameUrl : undefined,

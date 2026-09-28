@@ -1,23 +1,15 @@
-import { isAbsolute, resolve } from "path";
-
 import type { AppLaunchMode } from "@lucent/core/settings";
 import { isAppLaunchMode } from "@lucent/core/settings";
 
 export interface CliOptions {
   readonly debug?: boolean;
-  readonly flashPluginPath?: string;
-  readonly flashVersion?: string;
   readonly launchMode?: AppLaunchMode;
   readonly traceProjections?: boolean;
 }
 
-type CliOptionName = "flashPluginPath" | "flashVersion" | "launchMode";
+type CliOptionName = "launchMode";
 
 const optionNames: Readonly<Record<string, CliOptionName>> = {
-  "flash-plugin-path": "flashPluginPath",
-  "flash-version": "flashVersion",
-  flashPath: "flashPluginPath",
-  flashVersion: "flashVersion",
   "launch-mode": "launchMode",
   launchMode: "launchMode",
 };
@@ -25,11 +17,6 @@ const optionNames: Readonly<Record<string, CliOptionName>> = {
 const normalizeOptional = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
-};
-
-const normalizeCliPath = (path: string, cwd = process.cwd()): string => {
-  const trimmed = path.trim();
-  return isAbsolute(trimmed) ? trimmed : resolve(cwd, trimmed);
 };
 
 const readFlagValue = (
@@ -60,15 +47,9 @@ const parseLaunchMode = (
   return isAppLaunchMode(normalized) ? normalized : undefined;
 };
 
-export const parseCliOptions = (
-  argv: readonly string[],
-  options: { readonly cwd?: string } = {},
-): CliOptions => {
-  const cwd = options.cwd ?? process.cwd();
+export const parseCliOptions = (argv: readonly string[]): CliOptions => {
   const output: {
     debug?: boolean;
-    flashPluginPath?: string;
-    flashVersion?: string;
     launchMode?: AppLaunchMode;
     traceProjections?: boolean;
   } = {};
@@ -104,20 +85,9 @@ export const parseCliOptions = (
     const { value, nextIndex } = readFlagValue(argv, index, rawValue);
     index = nextIndex;
 
-    if (optionName === "launchMode") {
-      const launchMode = parseLaunchMode(value);
-      if (launchMode !== undefined) {
-        output.launchMode = launchMode;
-      }
-      continue;
-    }
-
-    const normalized = normalizeOptional(value);
-    if (normalized !== undefined) {
-      output[optionName] =
-        optionName === "flashPluginPath"
-          ? normalizeCliPath(normalized, cwd)
-          : normalized;
+    const launchMode = parseLaunchMode(value);
+    if (launchMode !== undefined) {
+      output.launchMode = launchMode;
     }
   }
 

@@ -6,7 +6,6 @@ import type { AppSettings } from "@lucent/core/settings";
 import type { CliOptions } from "../cli";
 import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import { DesktopGameRendererRecovery } from "./DesktopGameRendererRecovery";
-import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import {
@@ -18,7 +17,6 @@ import { installDesktopRendererObservability } from "./observability/DesktopRend
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronTheme } from "../electron/ElectronTheme";
-import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { ScriptWorkspace } from "../scripting/ScriptWorkspace";
@@ -62,10 +60,7 @@ export const installDesktopNativeAppearanceSync = (
     yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
   });
 
-export const makeDesktopRuntime = (
-  cliOptions: CliOptions,
-  flash: FlashStartupResult,
-) =>
+export const makeDesktopRuntime = (cliOptions: CliOptions) =>
   Effect.scoped(
     Effect.gen(function* () {
       const app = yield* ElectronApp;
@@ -119,40 +114,6 @@ export const makeDesktopRuntime = (
             ),
           );
       }
-
-      if (flash.status === "missing-plugin") {
-        yield* observability.warn("startup", "Pepper Flash plugin missing", {
-          flashPluginPath: flash.flashPluginPath,
-          flashTrustRootPath: flash.flashTrustRootPath,
-        });
-        yield* dialog.showWarningAndQuit(
-          makeMissingFlashPluginWarning(flash.flashPluginPath),
-        );
-        return;
-      }
-
-      if (flash.status === "failed") {
-        yield* observability.error(
-          "startup",
-          "Pepper Flash startup setup failed",
-          flash.cause,
-          {
-            flashPluginPath: flash.flashPluginPath,
-            flashTrustRootPath: flash.flashTrustRootPath,
-          },
-        );
-        yield* dialog.showErrorBox(
-          "Lucent failed to start",
-          "Lucent could not configure Flash trust. Check the logs for details.",
-        );
-        yield* app.quit;
-        return;
-      }
-
-      yield* observability.info("startup", "Pepper Flash configured", {
-        flashPluginPath: flash.flashPluginPath,
-        flashTrustRootPath: flash.flashTrustRootPath,
-      });
 
       const requestedLaunchMode =
         cliOptions.launchMode ?? settings.preferences.launchMode;
