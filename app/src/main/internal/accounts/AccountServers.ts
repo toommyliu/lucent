@@ -1,3 +1,5 @@
+import * as Cache from "effect/Cache";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -21,7 +23,6 @@ import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import {
   ACCOUNT_SERVER_PING_CACHE_TTL_MS,
   AccountServerDataSchema,
-  accountServerPingCacheKey,
   pingAccountServers,
   type AccountServerData,
 } from "./AccountServerPing";
@@ -56,11 +57,6 @@ export const requestAccountServers = Effect.fn("requestAccountServers")(
 interface AccountServerCache {
   readonly fetchedAt: number;
   readonly servers: readonly AccountServerData[];
-}
-
-interface AccountServerPingCache {
-  readonly cacheKey: string;
-  readonly result: AccountGameServerPingsResult;
 }
 
 const serverLoadErrorMessage = (error: unknown): string => {
@@ -102,12 +98,29 @@ export const layer = Layer.effect(
     const serverLoads = yield* Semaphore.make(1);
     const pingLoads = yield* Semaphore.make(1);
     let serverCache: AccountServerCache | null = null;
-    let serverPingCache: AccountServerPingCache | null = null;
-    let lastRefreshRequestTime = 0;
+    let lastRefreshRequestTime: number | null = null;
+
+    const pingCache = yield* Cache.make({
+      lookup: Effect.fn("AccountServers.measurePings")(function* (
+        servers: readonly AccountServerData[],
+      ) {
+        const pings = yield* pingAccountServers(servers).pipe(
+          pingLoads.withPermits(1),
+        );
+        const measuredAt = yield* Clock.currentTimeMillis;
+        return {
+          expiresAt: measuredAt + ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+          measuredAt,
+          pings,
+        } satisfies AccountGameServerPingsResult;
+      }),
+      capacity: 1,
+      timeToLive: ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+    });
 
     const getCachedServers = serverLoads.withPermits(1)(
       Effect.gen(function* () {
-        const timestamp = Date.now();
+        const timestamp = yield* Clock.currentTimeMillis;
         if (
           serverCache !== null &&
           timestamp - serverCache.fetchedAt < SERVERS_CACHE_TTL_MS
@@ -146,8 +159,8 @@ export const layer = Layer.effect(
           ),
         );
 
-        serverCache = { fetchedAt: Date.now(), servers };
-        serverPingCache = null;
+        serverCache = { fetchedAt: yield* Clock.currentTimeMillis, servers };
+        yield* Cache.invalidateAll(pingCache);
         return servers;
       }),
     );
@@ -157,7 +170,7 @@ export const layer = Layer.effect(
     ): AccountGameServersResult => ({
       servers: servers.map(toAccountGameServer),
       refreshAvailableAt:
-        lastRefreshRequestTime === 0
+        lastRefreshRequestTime === null
           ? 0
           : lastRefreshRequestTime + ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
     });
@@ -166,43 +179,14 @@ export const layer = Layer.effect(
       Effect.map(toResult),
     );
 
-    const getPings: AccountServersShape["getPings"] = pingLoads.withPermits(1)(
-      Effect.gen(function* () {
-        const servers = yield* getCachedServers;
-        const cacheKey = accountServerPingCacheKey(servers);
-        const timestamp = Date.now();
-        if (
-          serverPingCache !== null &&
-          serverPingCache.cacheKey === cacheKey &&
-          timestamp < serverPingCache.result.expiresAt
-        ) {
-          return serverPingCache.result;
-        }
-
-        const pings = yield* Effect.tryPromise({
-          try: () => pingAccountServers(servers),
-          catch: (cause) =>
-            accountError(
-              "refresh-servers",
-              serverLoadErrorMessage(cause),
-              cause,
-            ),
-        });
-        const measuredAt = Date.now();
-        const result: AccountGameServerPingsResult = {
-          expiresAt: measuredAt + ACCOUNT_SERVER_PING_CACHE_TTL_MS,
-          measuredAt,
-          pings,
-        };
-        serverPingCache = { cacheKey, result };
-        return result;
-      }),
+    const getPings: AccountServersShape["getPings"] = getCachedServers.pipe(
+      Effect.flatMap((servers) => Cache.get(pingCache, servers)),
     );
 
     const refresh: AccountServersShape["refresh"] = Effect.gen(function* () {
-      const timestamp = Date.now();
+      const timestamp = yield* Clock.currentTimeMillis;
       if (
-        lastRefreshRequestTime !== 0 &&
+        lastRefreshRequestTime !== null &&
         timestamp - lastRefreshRequestTime < ACCOUNT_SERVER_REFRESH_COOLDOWN_MS
       ) {
         return yield* get;
@@ -210,7 +194,7 @@ export const layer = Layer.effect(
 
       lastRefreshRequestTime = timestamp;
       serverCache = null;
-      serverPingCache = null;
+      yield* Cache.invalidateAll(pingCache);
       return toResult(yield* getCachedServers);
     });
 
