@@ -28,9 +28,6 @@ export interface ElectronWindowWebContents {
   readonly on: WebContents["on"];
   readonly openDevTools: WebContents["openDevTools"];
   readonly send: WebContents["send"];
-  readonly setWindowOpenHandler: (
-    handler: (details: { readonly url: string }) => { readonly action: "deny" },
-  ) => void;
 }
 
 export interface ElectronNativeWindowHandle {
@@ -117,13 +114,23 @@ export class ElectronWindow extends Context.Service<
   ElectronWindowShape
 >()("lucent/desktop/electron/ElectronWindow") {}
 
-const denyRendererWindowOpen = (
-  window: ElectronWindowHandle,
+/** Keeps a renderer on its document; blocked URLs go to the open-request handler. */
+export const guardRendererNavigation = (
+  webContents: Pick<WebContents, "getURL" | "on" | "setWindowOpenHandler">,
   onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
 ): void => {
-  window.webContents.setWindowOpenHandler(({ url }) => {
+  webContents.setWindowOpenHandler(({ url }) => {
     onWindowOpenRequest?.(url);
     return { action: "deny" };
+  });
+  webContents.on("will-navigate", (event) => {
+    // Renderer-initiated reloads arrive here with the current URL.
+    if (event.url === webContents.getURL()) {
+      return;
+    }
+
+    event.preventDefault();
+    onWindowOpenRequest?.(event.url);
   });
 };
 
@@ -151,7 +158,7 @@ const create: ElectronWindowShape["create"] = (options, onWindowOpenRequest) =>
         ...makeCenteredOptions(options),
       });
       electronRendererRegistry.register(window.webContents);
-      denyRendererWindowOpen(window, onWindowOpenRequest);
+      guardRendererNavigation(window.webContents, onWindowOpenRequest);
       return window;
     },
     catch: (cause) => new ElectronWindowCreateError({ cause }),
