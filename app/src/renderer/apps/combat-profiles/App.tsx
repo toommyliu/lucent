@@ -651,8 +651,10 @@ export function CombatProfilesView(
       return;
     }
 
-    const duplicate = duplicateCombatProfile(profile, library().profiles, () =>
-      `profile-${crypto.randomUUID()}`,
+    const duplicate = duplicateCombatProfile(
+      profile,
+      library().profiles,
+      () => `profile-${crypto.randomUUID()}`,
     );
     const nextLibrary = await runUpdate(
       props.onSaveProfile?.(duplicate) ?? Promise.resolve(library()),
