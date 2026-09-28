@@ -7,7 +7,7 @@ import {
 } from "./ElectronGamePartitions";
 
 describe("Electron game partition leases", () => {
-  it("clones a managed profile for a concurrent lease", () => {
+  it("isolates concurrent clients of the same managed account", () => {
     const partitions = makeGamePartitionRegistry({
       makeRandomId: () => "a".repeat(24),
       processId: 42,
@@ -21,23 +21,18 @@ describe("Electron game partition leases", () => {
       key: "alice",
     });
 
-    expect(managed).toEqual({
-      kind: "persistent",
-      partition: managedGamePartition("ALICE"),
-    });
-    expect(duplicate).toEqual({
-      kind: "temporary",
-      partition: `persist:lucent-game-temporary-42-${"a".repeat(24)}`,
-      sourcePartition: managed.partition,
-    });
+    expect(managed).toBe(managedGamePartition("ALICE"));
+    expect(duplicate).toBe(
+      `persist:lucent-game-temporary-42-${"a".repeat(24)}`,
+    );
 
-    partitions.release(managed.partition);
+    partitions.release(managed);
     expect(
       partitions.acquire({ kind: "managed-account", key: "Alice" }),
     ).toEqual(managed);
   });
 
-  it("persists one default profile and clones concurrent leases", () => {
+  it("persists one default profile and isolates concurrent clients", () => {
     const partitions = makeGamePartitionRegistry({
       makeRandomId: () => "b".repeat(24),
       processId: 42,
@@ -45,17 +40,12 @@ describe("Electron game partition leases", () => {
     const primary = partitions.acquire({ kind: "default" });
     const concurrent = partitions.acquire({ kind: "default" });
 
-    expect(primary).toEqual({
-      kind: "persistent",
-      partition: defaultGamePartition,
-    });
-    expect(concurrent).toEqual({
-      kind: "temporary",
-      partition: `persist:lucent-game-temporary-42-${"b".repeat(24)}`,
-      sourcePartition: defaultGamePartition,
-    });
+    expect(primary).toBe(defaultGamePartition);
+    expect(concurrent).toBe(
+      `persist:lucent-game-temporary-42-${"b".repeat(24)}`,
+    );
 
-    partitions.release(primary.partition);
+    partitions.release(primary);
     expect(partitions.acquire({ kind: "default" })).toEqual(primary);
   });
 });

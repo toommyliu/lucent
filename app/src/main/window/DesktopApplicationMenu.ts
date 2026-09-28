@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-
 import {
   BrowserWindow,
   Menu,
@@ -30,7 +28,6 @@ import {
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronShell } from "../electron/ElectronShell";
-import { resolveFlashTrustRootPath } from "../flash/FlashPaths";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { DesktopUpdates } from "../updates/DesktopUpdates";
 import { DesktopWindows } from "./DesktopWindows";
@@ -53,17 +50,6 @@ const themeModes: readonly {
   { label: "Dark", mode: "dark" },
   { label: "System", mode: "system" },
 ];
-
-class DesktopFlashDataClearError extends Schema.TaggedError<DesktopFlashDataClearError>()(
-  "DesktopFlashDataClearError",
-  {
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return "Failed to clear Flash data.";
-  }
-}
 
 class DesktopAppDataClearError extends Schema.TaggedError<DesktopAppDataClearError>()(
   "DesktopAppDataClearError",
@@ -111,7 +97,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const isDarwin = env.platform === "darwin";
-  const flashTrustRootPath = resolveFlashTrustRootPath(env.appDataDir);
 
   const logMenuFailure = (operation: string, cause: unknown): void => {
     void runPromise(
@@ -356,20 +341,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     );
   };
 
-  const removeDirectory = (
-    path: string,
-  ): Effect.Effect<void, DesktopFlashDataClearError> =>
-    Effect.tryPromise({
-      try: async () => {
-        await fs.rmdir(path, { recursive: true }).catch((cause: unknown) => {
-          if ((cause as NodeJS.ErrnoException).code !== "ENOENT") {
-            throw cause;
-          }
-        });
-      },
-      catch: (cause) => new DesktopFlashDataClearError({ cause }),
-    });
-
   const clearAppData: Effect.Effect<void, DesktopAppDataClearError> =
     Effect.tryPromise({
       try: () =>
@@ -380,16 +351,13 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       catch: (cause) => new DesktopAppDataClearError({ cause }),
     });
 
-  const showDataClearResult = (
-    dataName: "App" | "Flash",
-    result: "succeeded" | "failed",
-  ) =>
+  const showDataClearResult = (result: "succeeded" | "failed") =>
     Effect.gen(function* () {
       if (result === "succeeded") {
         const response = yield* dialog.showMessageBox({
           type: "info",
-          title: `${dataName} Data Cleared`,
-          message: `${dataName} data was cleared.`,
+          title: "App Data Cleared",
+          message: "App data was cleared.",
           buttons: ["Relaunch Now", "Later"],
           defaultId: 0,
           cancelId: 1,
@@ -405,30 +373,23 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
 
       yield* dialog.showMessageBox({
         type: "warning",
-        title: `${dataName} Data Clear Failed`,
-        message: `Lucent could not clear the ${dataName.toLowerCase()} data.`,
+        title: "App Data Clear Failed",
+        message: "Lucent could not clear the app data.",
         detail: "Check the logs for details.",
       });
     }).pipe(Effect.asVoid);
 
-  const clearData = (
-    dataName: "App" | "Flash",
-    clear: Effect.Effect<void, unknown>,
-  ): void => {
+  const clearData = (): void => {
     void runPromise(
-      clear.pipe(
-        Effect.flatMap(() => showDataClearResult(dataName, "succeeded")),
+      clearAppData.pipe(
+        Effect.flatMap(() => showDataClearResult("succeeded")),
         Effect.catch((cause) =>
           observability
-            .error("menu", `Failed to clear ${dataName} data`, cause)
-            .pipe(
-              Effect.flatMap(() => showDataClearResult(dataName, "failed")),
-            ),
+            .error("menu", "Failed to clear app data", cause)
+            .pipe(Effect.flatMap(() => showDataClearResult("failed"))),
         ),
       ),
-    ).catch((cause) =>
-      logMenuFailure(`clear-${dataName.toLowerCase()}-data`, cause),
-    );
+    ).catch((cause) => logMenuFailure("clear-app-data", cause));
   };
 
   const updateTheme = (themeMode: ThemeMode): void => {
@@ -535,11 +496,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const dataClearMenuItems: MenuItemConstructorOptions[] = [
       {
         label: "Clear App Data",
-        click: () => clearData("App", clearAppData),
-      },
-      {
-        label: "Clear Flash Data",
-        click: () => clearData("Flash", removeDirectory(flashTrustRootPath)),
+        click: clearData,
       },
     ];
     const launchMenuItems: MenuItemConstructorOptions[] = [

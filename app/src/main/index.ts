@@ -9,7 +9,7 @@ import { prepareMainProcess } from "./app/Preflight";
 const bootstrap = prepareMainProcess();
 
 void Effect.runPromise(
-  makeDesktopRuntime(bootstrap.cliOptions, bootstrap.flash).pipe(
+  makeDesktopRuntime(bootstrap.cliOptions).pipe(
     Effect.provide(makeDesktopLayer(bootstrap.envConfig)),
   ),
 ).catch((cause) => {

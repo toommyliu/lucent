@@ -27,19 +27,8 @@ export type GamePartitionOwner =
   | { readonly kind: "default" }
   | { readonly kind: "managed-account"; readonly key: string };
 
-export type GamePartitionLease =
-  | {
-      readonly kind: "persistent";
-      readonly partition: string;
-    }
-  | {
-      readonly kind: "temporary";
-      readonly partition: string;
-      readonly sourcePartition: string;
-    };
-
 export interface GamePartitionRegistry {
-  readonly acquire: (owner: GamePartitionOwner) => GamePartitionLease;
+  readonly acquire: (owner: GamePartitionOwner) => string;
   readonly release: (partition: string) => void;
 }
 
@@ -93,20 +82,6 @@ const temporaryGamePartition = (
   return `${PERSISTENT_PARTITION_PREFIX}${TEMPORARY_PARTITION_PREFIX}${processId}-${randomId}`;
 };
 
-/**
- * Chromium 87 reuses a PPAPI process when the plugin path and profile data
- * directory match and the origin lock is compatible. Lucent gives every live
- * client a distinct Electron partition and profile directory, so Chromium
- * starts a separate Pepper Flash process instead of concentrating their work in
- * one.
- * This avoids the shared-process bottleneck at the cost of more memory in both
- * tabs and separate windows.
- *
- * Each owner leases its persistent profile exclusively. Concurrent clients
- * receive temporary profiles cloned by ElectronSession and never write back.
- *
- * @see https://chromium.googlesource.com/chromium/src/+/refs/tags/87.0.4280.141/content/browser/plugin_service_impl.cc#132
- */
 export const makeGamePartitionRegistry = (
   options: {
     readonly makeRandomId?: () => string;
@@ -134,16 +109,12 @@ export const makeGamePartitionRegistry = (
           : defaultGamePartition;
       if (!inUse.has(persistentPartition)) {
         inUse.add(persistentPartition);
-        return { kind: "persistent", partition: persistentPartition };
+        return persistentPartition;
       }
 
       const partition = acquireTemporary();
       inUse.add(partition);
-      return {
-        kind: "temporary",
-        partition,
-        sourcePartition: persistentPartition,
-      };
+      return partition;
     },
     release: (partition) => {
       inUse.delete(partition);
