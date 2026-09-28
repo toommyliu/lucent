@@ -52,7 +52,7 @@ import {
   type ElectronWindowCreateOptions,
   type ElectronWindowHandle,
 } from "../electron/ElectronWindow";
-import { ruffleSocketProxyUrl } from "../ruffle/RuffleSocketProxy";
+import { RuffleSocketProxy } from "../ruffle/RuffleSocketProxy";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import {
   getDesktopWindowDefinition,
@@ -273,12 +273,6 @@ interface DesktopWindowBounds {
 
 const rendererRoot = join(__dirname, "../renderer");
 const preloadPath = join(rendererRoot, "preload.js");
-
-const gameSocketRelayUrl = Effect.tryPromise({
-  try: ruffleSocketProxyUrl,
-  catch: (cause) =>
-    new Error(`Failed to start the game's socket relay: ${cause}`),
-});
 
 const viewHtmlPath = (kind: DesktopBridgeView): string =>
   join(rendererRoot, kind, "index.html");
@@ -641,6 +635,8 @@ const publishStandaloneGameViewPresentation = (
 };
 
 const makeDesktopWindows = Effect.gen(function* () {
+  const socketProxy = yield* RuffleSocketProxy;
+  const gameSocketRelayUrl = socketProxy.getUrl;
   const app = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
   const electronGameView = yield* ElectronGameView;
