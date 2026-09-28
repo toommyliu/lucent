@@ -1,4 +1,4 @@
-import { mountRenderer } from "../../RendererBootstrap";
+import { mountDesktopRenderer } from "../../RendererBootstrap";
 import { App } from "./App";
 
-mountRenderer({ app: () => <App /> });
+mountDesktopRenderer((props) => <App {...props} />);
