@@ -18,24 +18,14 @@ import { DesktopObservability } from "./observability/DesktopObservability";
 
 const RECOVERY_MESSAGE =
   "The client was reloaded because the script stopped responding.";
-const PLUGIN_RECOVERY_MESSAGE =
-  "The client was reloaded because its Flash plugin crashed.";
 const RENDERER_RECOVERY_MESSAGE = "The client was reloaded after it crashed.";
 const CLIENT_RELOAD_DETAIL =
   "Only that client will reload. Any running script will stop and won't run automatically.";
 
-type RecoverableGameCrash =
-  | {
-      readonly name: string;
-      readonly scriptWasRunning: boolean;
-      readonly type: "plugin";
-      readonly version: string;
-    }
-  | {
-      readonly reason: RenderProcessGoneDetails["reason"];
-      readonly scriptWasRunning: boolean;
-      readonly type: "renderer";
-    };
+interface RecoverableGameCrash {
+  readonly reason: RenderProcessGoneDetails["reason"];
+  readonly scriptWasRunning: boolean;
+}
 
 const isRecoverableRendererCrash = (
   reason: RenderProcessGoneDetails["reason"],
@@ -70,9 +60,6 @@ export interface DesktopGameRendererRecoveryDependencies {
   ) => () => void;
   readonly onBeforeQuit: (listener: () => void) => () => void;
   readonly showRecoveryPrompt: (
-    parentWindowId: number | undefined,
-  ) => Effect.Effect<number, unknown>;
-  readonly showPluginRecoveryPrompt: (
     parentWindowId: number | undefined,
   ) => Effect.Effect<number, unknown>;
   readonly showRendererRecoveryPrompt: (
@@ -240,18 +227,10 @@ export const makeDesktopGameRendererRecovery = (
         .pipe(Effect.catch(() => Effect.succeed(null)));
       if (kind !== "game") return;
 
-      if (crash.type === "plugin") {
-        yield* dependencies.warn("Flash plugin crashed", {
-          name: crash.name,
-          rendererId,
-          version: crash.version,
-        });
-      } else {
-        yield* dependencies.warn("Game renderer crashed", {
-          reason: crash.reason,
-          rendererId,
-        });
-      }
+      yield* dependencies.warn("Game renderer crashed", {
+        reason: crash.reason,
+        rendererId,
+      });
 
       const parentWindowId = yield* dependencies
         .getNativeWindowId(rendererId)
@@ -263,9 +242,8 @@ export const makeDesktopGameRendererRecovery = (
         );
       if (appIsQuitting) return;
 
-      const response = yield* crash.type === "plugin"
-        ? dependencies.showPluginRecoveryPrompt(parentWindowId)
-        : dependencies.showRendererRecoveryPrompt(parentWindowId);
+      const response =
+        yield* dependencies.showRendererRecoveryPrompt(parentWindowId);
       if (response !== 0) return;
       if (
         appIsQuitting ||
@@ -277,18 +255,11 @@ export const makeDesktopGameRendererRecovery = (
 
       if (crash.scriptWasRunning) {
         yield* dependencies
-          .suppressLaunchScript(
-            rendererId,
-            crash.type === "plugin"
-              ? PLUGIN_RECOVERY_MESSAGE
-              : RENDERER_RECOVERY_MESSAGE,
-          )
+          .suppressLaunchScript(rendererId, RENDERER_RECOVERY_MESSAGE)
           .pipe(
             Effect.catch((cause) =>
               dependencies.error(
-                crash.type === "plugin"
-                  ? "Failed to suppress a script before Flash plugin recovery"
-                  : "Failed to suppress a script before renderer crash recovery",
+                "Failed to suppress a script before renderer crash recovery",
                 cause,
                 { rendererId },
               ),
@@ -297,18 +268,10 @@ export const makeDesktopGameRendererRecovery = (
       }
       clearRenderer(rendererId);
       yield* Effect.sync(() => target.reload());
-      yield* dependencies.info(
-        crash.type === "plugin"
-          ? "Recovered a crashed Flash plugin"
-          : "Recovered a crashed game renderer",
-        crash.type === "plugin"
-          ? {
-              name: crash.name,
-              rendererId,
-              version: crash.version,
-            }
-          : { reason: crash.reason, rendererId },
-      );
+      yield* dependencies.info("Recovered a crashed game renderer", {
+        reason: crash.reason,
+        rendererId,
+      });
     });
 
   const install = Effect.gen(function* () {
@@ -337,9 +300,7 @@ export const makeDesktopGameRendererRecovery = (
           offerCrashRecovery(contents, crash).pipe(
             Effect.catchCause((cause) =>
               dependencies.error(
-                crash.type === "plugin"
-                  ? "Failed to offer Flash plugin recovery"
-                  : "Failed to offer renderer crash recovery",
+                "Failed to offer renderer crash recovery",
                 cause,
                 { rendererId: contents.id },
               ),
@@ -405,14 +366,10 @@ export const makeDesktopGameRendererRecovery = (
         const current = recoverableCrashes.get(contents.id);
         recoverableCrashes.set(
           contents.id,
-          current?.type === "renderer"
-            ? current
-            : {
-                reason: details.reason,
-                scriptWasRunning:
-                  current?.scriptWasRunning ?? hasActiveExecution(contents.id),
-                type: "renderer",
-              },
+          current ?? {
+            reason: details.reason,
+            scriptWasRunning: hasActiveExecution(contents.id),
+          },
         );
         startCrashRecovery();
       };
@@ -492,21 +449,6 @@ const makeLiveDesktopGameRendererRecovery = Effect.gen(function* () {
             detail: CLIENT_RELOAD_DETAIL,
             message: "A client stopped responding while a script was running.",
             title: "Client Not Responding",
-            type: "warning",
-          },
-          parentWindowId,
-        )
-        .pipe(Effect.map((result) => result.response)),
-    showPluginRecoveryPrompt: (parentWindowId) =>
-      dialog
-        .showMessageBox(
-          {
-            buttons: ["Reload", "Not Now"],
-            cancelId: 1,
-            defaultId: 0,
-            detail: CLIENT_RELOAD_DETAIL,
-            message: "The Flash plugin for a client crashed.",
-            title: "Flash Plugin Crashed",
             type: "warning",
           },
           parentWindowId,

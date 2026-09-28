@@ -223,9 +223,7 @@ export const makeGamePackets = Effect.gen(function* () {
     event.kind === "game"
       ? invalidateGame(
           event,
-          event.failure.type === "plugin-crashed"
-            ? "Packet activity stopped because the Flash plugin crashed"
-            : "Packet activity stopped because the game renderer is unavailable",
+          "Packet activity stopped because the game renderer is unavailable",
         )
       : Effect.void,
   );
