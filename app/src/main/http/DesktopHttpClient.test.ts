@@ -52,8 +52,10 @@ const makeResponse = (options: {
   return response;
 };
 
-const queueResponse = (response: IncomingMessage): (Buffer | undefined)[] => {
-  const writes: (Buffer | undefined)[] = [];
+const queueResponse = (
+  response: IncomingMessage,
+): (Uint8Array | undefined)[] => {
+  const writes: (Uint8Array | undefined)[] = [];
   requestMock.mockImplementationOnce((...args) => {
     const callback = args.find(
       (value): value is (value: IncomingMessage) => void =>
@@ -69,10 +71,6 @@ const queueResponse = (response: IncomingMessage): (Buffer | undefined)[] => {
       if (cause !== undefined) outgoing.emit("error", cause);
     };
     outgoing.end = (chunk) => {
-      // Electron 11's HTTP writer rejects plain Uint8Array values.
-      if (chunk !== undefined && !Buffer.isBuffer(chunk)) {
-        throw new TypeError('The "chunk" argument must be a string or Buffer.');
-      }
       writes.push(chunk);
       process.nextTick(() => callback(response));
     };

@@ -16,4 +16,3 @@ import "core-js/modules/es.weak-map.get-or-insert.js";
 import "core-js/modules/es.weak-map.get-or-insert-computed.js";
 import "core-js/modules/web.self.js";
 import "core-js/modules/web.structured-clone.js";
-import "abort-controller/polyfill.js";

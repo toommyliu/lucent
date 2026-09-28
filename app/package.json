@@ -28,7 +28,6 @@
     "@lucent/ui": "workspace:*",
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-virtual": "3.13.24",
-    "abort-controller": "^3.0.0",
     "acorn": "8.16.0",
     "core-js": "3.49.0",
     "effect": "4.0.0-rc.112",

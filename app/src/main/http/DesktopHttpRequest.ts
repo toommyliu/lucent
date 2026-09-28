@@ -200,12 +200,7 @@ export const requestFollowingRedirects = <Value>(
               );
           });
         }
-        // Electron 11 requires a Buffer. Keep the IPC view's bounds without copying.
-        active.end(
-          body === undefined
-            ? undefined
-            : Buffer.from(body.buffer, body.byteOffset, body.byteLength),
-        );
+        active.end(body);
       } catch (cause) {
         fail(cause);
       }

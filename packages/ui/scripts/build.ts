@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 import { solidPlugin } from "esbuild-plugin-solid";
+import runtimeTargets from "../../../app/runtime-targets.json";
 
 const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
@@ -61,7 +62,7 @@ async function main(): Promise<void> {
     platform: "browser",
     plugins: [solidPlugin()],
     sourcemap: true,
-    target: "chrome87",
+    target: `chrome${runtimeTargets.chrome}`,
   });
 
   await run("tsc", ["-p", "tsconfig.build.json"]);

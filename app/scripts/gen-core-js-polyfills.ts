@@ -39,10 +39,7 @@ const runtimeTargets = JSON.parse(
   readFileSync(RUNTIME_TARGETS_PATH, "utf8"),
 ) as RuntimeTargets;
 
-const generatedSource = (
-  target: Record<string, string>,
-  additionalImports: ReadonlyArray<string> = [],
-): string => {
+const generatedSource = (target: Record<string, string>): string => {
   // Import only stable APIs missing from the target runtime, so esbuild does
   // not bundle and source-map every module pulled in by core-js/stable.
   const modules = compat({
@@ -56,7 +53,6 @@ const generatedSource = (
     ...modules.map(
       (moduleName) => `import "core-js/modules/${moduleName}.js";`,
     ),
-    ...additionalImports.map((moduleName) => `import "${moduleName}";`),
     "",
   ].join("\n");
 };
@@ -64,10 +60,7 @@ const generatedSource = (
 const generatedFiles = new Map([
   [
     join(GENERATED_DIR, "polyfills.node.ts"),
-    generatedSource(
-      { node: runtimeTargets.node },
-      ["abort-controller/polyfill.js"],
-    ),
+    generatedSource({ node: runtimeTargets.node }),
   ],
   [
     join(GENERATED_DIR, "polyfills.renderer.ts"),
