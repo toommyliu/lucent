@@ -30,6 +30,8 @@ import {
   CHROMIUM_RENDERER_HEAP_SAMPLE_TIMEOUT_MS,
   CHROMIUM_RESOURCE_SAMPLE_INTERVAL_MS,
   CHROMIUM_TRACE_BUFFER_SIZE_KIB,
+  CHROMIUM_TRACE_BUFFER_USAGE_THRESHOLD,
+  CHROMIUM_TRACE_BUFFER_USAGE_TIMEOUT_MS,
   CHROMIUM_TRACE_SEGMENT_CHECK_INTERVAL_MS,
   CHROMIUM_TRACE_SEGMENT_MAX_DURATION_MS,
   chromiumHeapCheckpointDirectoryName,
@@ -245,6 +247,7 @@ interface ChromiumPerformanceManifest {
   readonly status: "complete" | "recording";
   readonly trace: {
     readonly bufferSizeKiB: number;
+    readonly bufferUsageThreshold: number;
     readonly categories: readonly string[];
     readonly excludedCategories: readonly string[];
     readonly recordingMode: "record-until-full";
@@ -382,6 +385,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     status,
     trace: {
       bufferSizeKiB: CHROMIUM_TRACE_BUFFER_SIZE_KIB,
+      bufferUsageThreshold: CHROMIUM_TRACE_BUFFER_USAGE_THRESHOLD,
       categories: CHROMIUM_PERFORMANCE_TRACE_CATEGORIES,
       excludedCategories: CHROMIUM_PERFORMANCE_TRACE_EXCLUDED_CATEGORIES,
       recordingMode: "record-until-full",
@@ -611,7 +615,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     }
 
     if (!current.traceActive) {
-      yield* startTraceSegment(current);
+      yield* startTraceSegment(current).pipe(Effect.uninterruptible);
       return;
     }
 
@@ -619,9 +623,23 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       0,
       (yield* Clock.currentTimeMillis) - current.segmentStartedAtMs,
     );
-    const reason = chromiumTraceRotationReason(durationMs);
+    const usage =
+      durationMs >= CHROMIUM_TRACE_SEGMENT_MAX_DURATION_MS
+        ? undefined
+        : yield* chromium.getTraceBufferUsage.pipe(
+            Effect.timeout(CHROMIUM_TRACE_BUFFER_USAGE_TIMEOUT_MS),
+            Effect.catch((cause) =>
+              recordWarning(
+                current,
+                "trace-buffer-usage",
+                "Failed to read Chromium trace buffer usage; using duration limit",
+                cause,
+              ).pipe(Effect.as(undefined)),
+            ),
+          );
+    const reason = chromiumTraceRotationReason(durationMs, usage?.percentage);
     if (reason !== null) {
-      yield* rotateTraceSegment(current, reason);
+      yield* rotateTraceSegment(current, reason).pipe(Effect.uninterruptible);
     }
   });
 
@@ -653,9 +671,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
         Effect.forkIn(current.scope),
       );
     yield* operationGate
-      .withPermitsIfAvailable(1)(
-        Effect.uninterruptible(rotateExpiredTraceSegment()),
-      )
+      .withPermitsIfAvailable(1)(rotateExpiredTraceSegment())
       .pipe(
         Effect.catchCause((cause) =>
           Cause.hasInterrupts(cause)
