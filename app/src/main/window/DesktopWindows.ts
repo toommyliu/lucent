@@ -91,9 +91,6 @@ export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()
 }
 
 export interface DesktopWindowsShape {
-  readonly activateGameView: (
-    gameRendererId: number,
-  ) => Effect.Effect<GameViewPresentation, DesktopWindowError>;
   readonly closeRenderer: (
     rendererId: number,
   ) => Effect.Effect<boolean, DesktopWindowError>;
@@ -2314,34 +2311,6 @@ const makeDesktopWindows = Effect.gen(function* () {
         return gameHosts.state(host);
       });
 
-  const activateGameView: DesktopWindowsShape["activateGameView"] = (
-    gameRendererId,
-  ) =>
-    Effect.try({
-      try: () => {
-        const entry = findRendererEntry(gameRendererId);
-        if (entry === null || entry[1].kind !== "game") {
-          throw new Error(`Game renderer is not open: ${gameRendererId}`);
-        }
-        const [id, record] = entry;
-        if (!isGameViewRecord(record)) {
-          return standaloneGameViewPresentation(record.window);
-        }
-        const host = gameHosts.find(record.gameHostRendererId);
-        if (host === null) {
-          throw new Error(`Game view host is not open: ${gameRendererId}`);
-        }
-        gameHosts.activate(host, id);
-        return gameHosts.presentation(host, id);
-      },
-      catch: (cause) =>
-        new DesktopWindowError({
-          cause,
-          detail: `Failed to activate game view: ${gameRendererId}`,
-          id: String(gameRendererId),
-        }),
-    });
-
   const getGameViewPresentation: DesktopWindowsShape["getGameViewPresentation"] =
     (gameRendererId) =>
       Effect.try({
@@ -2790,7 +2759,6 @@ const makeDesktopWindows = Effect.gen(function* () {
   }
 
   return DesktopWindows.of({
-    activateGameView,
     addGameView,
     closeRenderer,
     closeGameView,
