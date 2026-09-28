@@ -10,7 +10,7 @@ import {
   makeScriptFiles,
   ScriptFiles,
 } from "../internal/scripting/ScriptFiles";
-import { processScriptFile } from "../internal/scripting/ScriptFileWorker";
+import { processScriptFile } from "../internal/scripting/ScriptFileAnalysis";
 import {
   discoverScriptCatalog,
   type DiscoveredScriptCatalog,
