@@ -35,9 +35,8 @@ describe("GameEnvironments", () => {
               unavailable = () =>
                 listener({
                   failure: {
-                    name: "Shockwave Flash",
-                    type: "plugin-crashed",
-                    version: "32.0.0.344",
+                    type: "render-process-gone",
+                    reason: "crashed",
                   },
                   rendererId: 42,
                   id: "game-42",

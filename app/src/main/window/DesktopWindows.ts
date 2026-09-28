@@ -547,16 +547,10 @@ export interface DesktopWindowRendererDestroyedEvent {
   readonly kind: DesktopWindowKind;
 }
 
-export type DesktopWindowRendererUnavailableFailure =
-  | {
-      readonly name: string;
-      readonly type: "plugin-crashed";
-      readonly version: string;
-    }
-  | {
-      readonly reason: RenderProcessGoneDetails["reason"];
-      readonly type: "render-process-gone";
-    };
+export interface DesktopWindowRendererUnavailableFailure {
+  readonly reason: RenderProcessGoneDetails["reason"];
+  readonly type: "render-process-gone";
+}
 
 export interface DesktopWindowRendererUnavailableEvent {
   readonly failure: DesktopWindowRendererUnavailableFailure;
@@ -1637,9 +1631,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           updateGameViewPhase(
             id,
             "error",
-            failure.type === "plugin-crashed"
-              ? "Flash plugin crashed."
-              : `Game renderer stopped (${failure.reason}).`,
+            `Game renderer stopped (${failure.reason}).`,
           );
         },
       );

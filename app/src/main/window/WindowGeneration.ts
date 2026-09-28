@@ -1,12 +1,12 @@
+import type { WebContentsDidStartNavigationEventParams } from "electron";
+
 export const INITIAL_WINDOW_GENERATION = 1;
 
 type RendererNavigationListener = (
-  event: unknown,
-  url: string,
-  isInPlace: boolean,
-  isMainFrame: boolean,
-  frameProcessId: number,
-  frameRoutingId: number,
+  details: Pick<
+    WebContentsDidStartNavigationEventParams,
+    "isSameDocument" | "isMainFrame"
+  >,
 ) => void;
 
 interface WindowGenerationWebContents {
@@ -28,13 +28,11 @@ export const observeWindowReloads = (
   let generation = INITIAL_WINDOW_GENERATION;
   let initialNavigationStarted = false;
   let observing = true;
-  const handleNavigationStarted: RendererNavigationListener = (
-    _event,
-    _url,
-    isInPlace,
+  const handleNavigationStarted: RendererNavigationListener = ({
+    isSameDocument,
     isMainFrame,
-  ): void => {
-    if (!isMainFrame || isInPlace) {
+  }): void => {
+    if (!isMainFrame || isSameDocument) {
       return;
     }
     if (!initialNavigationStarted) {
