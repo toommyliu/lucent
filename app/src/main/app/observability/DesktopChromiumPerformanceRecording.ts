@@ -35,7 +35,6 @@ import {
 } from "./ChromiumPerformanceRecordingModel";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import { makeListenerRegistry } from "../ListenerRegistry";
-import { DesktopObservability } from "./DesktopObservability";
 import {
   normalizePerformanceTraceMetric,
   type PerformanceTraceProcessSample,
@@ -350,7 +349,6 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   const chromium = yield* ElectronChromiumPerformance;
   const electronApp = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
-  const observability = yield* DesktopObservability;
   const windows = yield* DesktopWindows;
   const operationGate = yield* Semaphore.make(1);
   const stateChanges =
@@ -437,10 +435,11 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
         cause === undefined ? message : `${message}: ${errorMessage(cause)}`,
       );
     }
-    yield* observability.warn(
-      "chromium-performance-recording",
-      message,
-      cause === undefined ? undefined : { cause },
+    yield* Effect.logWarning(message).pipe(
+      Effect.annotateLogs({
+        component: "chromium-performance-recording",
+        data: cause === undefined ? undefined : { cause },
+      }),
     );
   });
 
@@ -769,15 +768,16 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     installTimers(current);
     captureResourceSample();
     startRendererHeapSample();
-    yield* observability.info(
-      "chromium-performance-recording",
-      "Chromium performance recording started",
-      {
-        bufferSizeKiB: CHROMIUM_TRACE_BUFFER_SIZE_KIB,
-        categoryCount: CHROMIUM_PERFORMANCE_TRACE_CATEGORIES.length,
-        sessionPath,
-        startedAt,
-      },
+    yield* Effect.logInfo("Chromium performance recording started").pipe(
+      Effect.annotateLogs({
+        component: "chromium-performance-recording",
+        data: {
+          bufferSizeKiB: CHROMIUM_TRACE_BUFFER_SIZE_KIB,
+          categoryCount: CHROMIUM_PERFORMANCE_TRACE_CATEGORIES.length,
+          sessionPath,
+          startedAt,
+        },
+      }),
     );
   }).pipe(
     Effect.mapError(
@@ -923,10 +923,11 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       ).length,
       snapshotCount: snapshots.length,
     };
-    yield* observability.info(
-      "chromium-performance-recording",
-      "Chromium heap checkpoint captured",
-      result,
+    yield* Effect.logInfo("Chromium heap checkpoint captured").pipe(
+      Effect.annotateLogs({
+        component: "chromium-performance-recording",
+        data: result,
+      }),
     );
     return result;
   }).pipe(
@@ -1017,10 +1018,11 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     };
     activeRecording = undefined;
     yield* setState({ status: "idle" });
-    yield* observability.info(
-      "chromium-performance-recording",
-      "Chromium performance recording saved",
-      result,
+    yield* Effect.logInfo("Chromium performance recording saved").pipe(
+      Effect.annotateLogs({
+        component: "chromium-performance-recording",
+        data: result,
+      }),
     );
     return result;
   }).pipe(
@@ -1059,17 +1061,18 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
           current.sessionPath,
           chromiumTraceSegmentFileName(current.segments.length),
         );
-        yield* chromium
-          .stopRecording(filePath)
-          .pipe(
-            Effect.catch((cause) =>
-              observability.warn(
-                "chromium-performance-recording",
-                "Failed to flush Chromium tracing during shutdown",
-                { cause },
-              ),
+        yield* chromium.stopRecording(filePath).pipe(
+          Effect.catch((cause) =>
+            Effect.logWarning(
+              "Failed to flush Chromium tracing during shutdown",
+            ).pipe(
+              Effect.annotateLogs({
+                component: "chromium-performance-recording",
+                data: { cause },
+              }),
             ),
-          );
+          ),
+        );
       }
       yield* chromium.releaseRendererDebuggers;
       activeRecording = undefined;

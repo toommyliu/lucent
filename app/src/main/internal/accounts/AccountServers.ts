@@ -18,7 +18,6 @@ import type {
   AccountGameServersResult,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopObservability } from "../../app/observability/DesktopObservability";
 import {
   ACCOUNT_SERVER_PING_CACHE_TTL_MS,
   AccountServerDataSchema,
@@ -99,7 +98,6 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
     const client = yield* HttpClient.HttpClient;
-    const observability = yield* DesktopObservability;
     const requestHeaders = getGameRequestHeaders(env.platform);
     const serverLoads = yield* Semaphore.make(1);
     const pingLoads = yield* Semaphore.make(1);
@@ -134,11 +132,16 @@ export const layer = Layer.effect(
           Effect.catch((error: AccountsError) =>
             serverCache === null
               ? Effect.fail(error)
-              : observability
-                  .warn("accounts", "Failed to fetch servers; using cache", {
-                    error,
-                    cachedServerCount: serverCache.servers.length,
-                  })
+              : Effect.logWarning("Failed to fetch servers; using cache")
+                  .pipe(
+                    Effect.annotateLogs({
+                      component: "accounts",
+                      data: {
+                        error,
+                        cachedServerCount: serverCache.servers.length,
+                      },
+                    }),
+                  )
                   .pipe(Effect.as(serverCache.servers)),
           ),
         );

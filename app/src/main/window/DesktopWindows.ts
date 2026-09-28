@@ -41,7 +41,6 @@ import {
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronGameView } from "../electron/ElectronGameView";
 import { ElectronSession } from "../electron/ElectronSession";
@@ -648,7 +647,6 @@ const makeDesktopWindows = Effect.gen(function* () {
   const electronWindow = yield* ElectronWindow;
   const electronSession = yield* ElectronSession;
   const electronShell = yield* ElectronShell;
-  const observability = yield* DesktopObservability;
   const settings = yield* DesktopSettings;
   const theme = yield* ElectronTheme;
   const context = yield* Effect.context<never>();
@@ -656,12 +654,8 @@ const makeDesktopWindows = Effect.gen(function* () {
   const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
   const getBootstrapSettings = settings.get.pipe(
     Effect.catch((cause) =>
-      observability
-        .warn(
-          "window",
-          "Falling back to default settings for window bootstrap",
-          { cause },
-        )
+      Effect.logWarning("Falling back to default settings for window bootstrap")
+        .pipe(Effect.annotateLogs({ component: "window", data: { cause } }))
         .pipe(Effect.as(DEFAULT_APP_SETTINGS)),
     ),
   );
@@ -706,11 +700,16 @@ const makeDesktopWindows = Effect.gen(function* () {
     },
     onShortcutError: ({ cause, hostRendererId, id }) => {
       void runPromise(
-        observability.warn("window", "Failed to use game view shortcut", {
-          cause,
-          hostRendererId,
-          id,
-        }),
+        Effect.logWarning("Failed to use game view shortcut").pipe(
+          Effect.annotateLogs({
+            component: "window",
+            data: {
+              cause,
+              hostRendererId,
+              id,
+            },
+          }),
+        ),
       ).catch(() => undefined);
     },
     onStateChanged: refreshGameHostWindowTitle,
@@ -815,9 +814,14 @@ const makeDesktopWindows = Effect.gen(function* () {
         Effect.flatMap((opened) =>
           opened
             ? Effect.void
-            : observability.warn("window", "Failed to open game URL", {
-                url,
-              }),
+            : Effect.logWarning("Failed to open game URL").pipe(
+                Effect.annotateLogs({
+                  component: "window",
+                  data: {
+                    url,
+                  },
+                }),
+              ),
         ),
       ),
     ).catch(() => undefined);
@@ -887,10 +891,11 @@ const makeDesktopWindows = Effect.gen(function* () {
         },
       }).pipe(
         Effect.catch((cause) =>
-          observability.warn(
-            "window",
-            "Failed to destroy incomplete desktop window",
-            { cause, id, kind },
+          Effect.logWarning("Failed to destroy incomplete desktop window").pipe(
+            Effect.annotateLogs({
+              component: "window",
+              data: { cause, id, kind },
+            }),
           ),
         ),
       );
@@ -1464,10 +1469,10 @@ const makeDesktopWindows = Effect.gen(function* () {
             }),
         }).pipe(
           Effect.catch((cause) =>
-            observability.warn(
-              "window",
+            Effect.logWarning(
               "Failed to update desktop window background",
-              { cause, id },
+            ).pipe(
+              Effect.annotateLogs({ component: "window", data: { cause, id } }),
             ),
           ),
         );
@@ -1740,10 +1745,15 @@ const makeDesktopWindows = Effect.gen(function* () {
             }),
         }).pipe(
           Effect.catch((cause) =>
-            observability.warn("window", "Failed to open game view DevTools", {
-              cause,
-              id,
-            }),
+            Effect.logWarning("Failed to open game view DevTools").pipe(
+              Effect.annotateLogs({
+                component: "window",
+                data: {
+                  cause,
+                  id,
+                },
+              }),
+            ),
           ),
         );
       }
@@ -1920,11 +1930,16 @@ const makeDesktopWindows = Effect.gen(function* () {
           electronGameView.destroy(record.gameView);
         } catch (cause) {
           void runPromise(
-            observability.warn("window", "Failed to clean up game view", {
-              cause,
-              gameViewId,
-              hostRendererId: host.rendererId,
-            }),
+            Effect.logWarning("Failed to clean up game view").pipe(
+              Effect.annotateLogs({
+                component: "window",
+                data: {
+                  cause,
+                  gameViewId,
+                  hostRendererId: host.rendererId,
+                },
+              }),
+            ),
           ).catch(() => undefined);
         } finally {
           electronSession.releaseGamePartition(record.gamePartition);
@@ -1935,20 +1950,30 @@ const makeDesktopWindows = Effect.gen(function* () {
         electronGameView.destroy(groupControlsView);
       } catch (cause) {
         void runPromise(
-          observability.warn("window", "Failed to clean up group controls", {
-            cause,
-            hostRendererId: host.rendererId,
-          }),
+          Effect.logWarning("Failed to clean up group controls").pipe(
+            Effect.annotateLogs({
+              component: "window",
+              data: {
+                cause,
+                hostRendererId: host.rendererId,
+              },
+            }),
+          ),
         ).catch(() => undefined);
       }
       try {
         electronGameView.destroy(hostView);
       } catch (cause) {
         void runPromise(
-          observability.warn("window", "Failed to clean up game host", {
-            cause,
-            hostRendererId: host.rendererId,
-          }),
+          Effect.logWarning("Failed to clean up game host").pipe(
+            Effect.annotateLogs({
+              component: "window",
+              data: {
+                cause,
+                hostRendererId: host.rendererId,
+              },
+            }),
+          ),
         ).catch(() => undefined);
       }
 
@@ -1985,10 +2010,15 @@ const makeDesktopWindows = Effect.gen(function* () {
         initialGameView.gameView.webContents.focus();
       }
       hasOpenedTopLevelWindow = true;
-      yield* observability.info("window", "Multi-game window opened", {
-        hostRendererId: host.rendererId,
-        id,
-      });
+      yield* Effect.logInfo("Multi-game window opened").pipe(
+        Effect.annotateLogs({
+          component: "window",
+          data: {
+            hostRendererId: host.rendererId,
+            id,
+          },
+        }),
+      );
       return id;
     }).pipe(
       Effect.tapError(() =>
@@ -2664,11 +2694,16 @@ const makeDesktopWindows = Effect.gen(function* () {
               }),
           }).pipe(
             Effect.catch((cause) =>
-              observability.warn("window", "Failed to open DevTools", {
-                cause,
-                id,
-                kind,
-              }),
+              Effect.logWarning("Failed to open DevTools").pipe(
+                Effect.annotateLogs({
+                  component: "window",
+                  data: {
+                    cause,
+                    id,
+                    kind,
+                  },
+                }),
+              ),
             ),
           );
         }
@@ -2677,10 +2712,15 @@ const makeDesktopWindows = Effect.gen(function* () {
           hiddenTopLevelWindowIds.delete(id);
           hasOpenedTopLevelWindow = true;
         }
-        yield* observability.info("window", "Desktop window opened", {
-          id,
-          kind,
-        });
+        yield* Effect.logInfo("Desktop window opened").pipe(
+          Effect.annotateLogs({
+            component: "window",
+            data: {
+              id,
+              kind,
+            },
+          }),
+        );
         return id;
       }).pipe(
         Effect.mapError(
@@ -2740,10 +2780,10 @@ const makeDesktopWindows = Effect.gen(function* () {
       void runPromise(
         restorePrimaryWindow().pipe(
           Effect.catch((cause) =>
-            observability.warn(
-              "window",
+            Effect.logWarning(
               "Failed to restore a primary window after macOS activation",
-              { cause },
+            ).pipe(
+              Effect.annotateLogs({ component: "window", data: { cause } }),
             ),
           ),
         ),

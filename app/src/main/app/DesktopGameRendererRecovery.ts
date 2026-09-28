@@ -1,3 +1,4 @@
+import * as Cause from "effect/Cause";
 import {
   app,
   webContents,
@@ -14,7 +15,6 @@ import * as Scope from "effect/Scope";
 import { Accounts } from "../internal/accounts/Accounts";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { DesktopWindows } from "../window/DesktopWindows";
-import { DesktopObservability } from "./observability/DesktopObservability";
 
 const RECOVERY_MESSAGE =
   "The client was reloaded because the script stopped responding.";
@@ -419,7 +419,6 @@ export const makeDesktopGameRendererRecovery = (
 const makeLiveDesktopGameRendererRecovery = Effect.gen(function* () {
   const accounts = yield* Accounts;
   const dialog = yield* ElectronDialog;
-  const observability = yield* DesktopObservability;
   const windows = yield* DesktopWindows;
 
   return makeDesktopGameRendererRecovery({
@@ -471,11 +470,26 @@ const makeLiveDesktopGameRendererRecovery = Effect.gen(function* () {
         .pipe(Effect.map((result) => result.response)),
     suppressLaunchScript: accounts.suppressGameWindowLaunchScript,
     warn: (message, data) =>
-      observability.warn("game-renderer-recovery", message, data),
+      Effect.logWarning(message).pipe(
+        Effect.annotateLogs({
+          component: "game-renderer-recovery",
+          data: data,
+        }),
+      ),
     error: (message, cause, data) =>
-      observability.error("game-renderer-recovery", message, cause, data),
+      Effect.logError(message, Cause.fail(cause)).pipe(
+        Effect.annotateLogs({
+          component: "game-renderer-recovery",
+          data: data,
+        }),
+      ),
     info: (message, data) =>
-      observability.info("game-renderer-recovery", message, data),
+      Effect.logInfo(message).pipe(
+        Effect.annotateLogs({
+          component: "game-renderer-recovery",
+          data: data,
+        }),
+      ),
   });
 });
 

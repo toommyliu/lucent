@@ -4,7 +4,6 @@ import { webContents } from "electron";
 
 import * as Effect from "effect/Effect";
 
-import { DesktopObservability } from "./observability/DesktopObservability";
 import { reloadUsableRendererContents } from "./DesktopDevRendererReloadContents";
 
 const RELOAD_WATCH_INTERVAL_MS = 100;
@@ -27,7 +26,6 @@ export const installDesktopDevRendererReload = Effect.gen(function* () {
     return;
   }
 
-  const observability = yield* DesktopObservability;
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const listener = (current: Stats, previous: Stats): void => {
@@ -37,10 +35,15 @@ export const installDesktopDevRendererReload = Effect.gen(function* () {
 
     const rendererCount = reloadOpenRendererContents();
     void runPromise(
-      observability.info("dev", "Renderer reload requested", {
-        reloadPath,
-        rendererCount,
-      }),
+      Effect.logInfo("Renderer reload requested").pipe(
+        Effect.annotateLogs({
+          component: "dev",
+          data: {
+            reloadPath,
+            rendererCount,
+          },
+        }),
+      ),
     ).catch(() => undefined);
   };
 

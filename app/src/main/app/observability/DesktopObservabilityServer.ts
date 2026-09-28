@@ -605,13 +605,14 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
     console.info(
       `[observability] Desktop observability server listening on ${installed.url}`,
     );
-    yield* observability.info(
-      "observability-server",
-      "Desktop observability server listening",
-      {
-        port: installed.port,
-        url: installed.url,
-      },
+    yield* Effect.logInfo("Desktop observability server listening").pipe(
+      Effect.annotateLogs({
+        component: "observability-server",
+        data: {
+          port: installed.port,
+          url: installed.url,
+        },
+      }),
     );
 
     yield* Effect.addFinalizer(() => Effect.sync(cleanup));

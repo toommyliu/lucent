@@ -30,7 +30,6 @@ export const installDesktopNativeAppearanceSync = (
   initialSettings: AppSettings,
 ) =>
   Effect.gen(function* () {
-    const observability = yield* DesktopObservability;
     const settingsService = yield* DesktopSettings;
     const theme = yield* ElectronTheme;
     const windows = yield* DesktopWindows;
@@ -45,10 +44,8 @@ export const installDesktopNativeAppearanceSync = (
         yield* windows.setBackgroundColor(snapshot.backgroundColor);
       }).pipe(
         Effect.catch((cause) =>
-          observability.warn(
-            "appearance",
-            "Failed to update Electron native appearance",
-            { cause },
+          Effect.logWarning("Failed to update Electron native appearance").pipe(
+            Effect.annotateLogs({ component: "appearance", data: { cause } }),
           ),
         ),
       );
@@ -81,11 +78,16 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
         yield* installDesktopRendererObservability;
       }
       yield* lifecycle.register;
-      yield* observability.info("startup", "Lucent desktop runtime starting", {
-        appDataDir: env.appDataDir,
-        logFilePath: observability.logFilePath,
-        workspaceDir: env.workspaceDir,
-      });
+      yield* Effect.logInfo("Lucent desktop runtime starting").pipe(
+        Effect.annotateLogs({
+          component: "startup",
+          data: {
+            appDataDir: env.appDataDir,
+            logFilePath: observability.logFilePath,
+            workspaceDir: env.workspaceDir,
+          },
+        }),
+      );
 
       const settings = yield* settingsService.load;
 
@@ -103,13 +105,16 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
           })
           .pipe(
             Effect.catch((cause) =>
-              observability.error(
-                "observability-server",
+              Effect.logError(
                 "Failed to start the desktop observability server",
-                cause,
-                {
-                  port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
-                },
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({
+                  component: "observability-server",
+                  data: {
+                    port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
+                  },
+                }),
               ),
             ),
           );
@@ -124,19 +129,22 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
 
       if (settings.preferences.checkForUpdates) {
         const updateState = yield* updates.checkNow();
-        yield* observability.info("updates", "Startup update check completed", {
-          status: updateState.status,
-        });
+        yield* Effect.logInfo("Startup update check completed").pipe(
+          Effect.annotateLogs({
+            component: "updates",
+            data: {
+              status: updateState.status,
+            },
+          }),
+        );
         yield* showUpdateCheckDialog(updateState, {
           mode: "automatic",
           dialog,
           updates,
         }).pipe(
           Effect.catch((cause) =>
-            observability.warn(
-              "updates",
-              "Failed to show startup update dialog",
-              { cause },
+            Effect.logWarning("Failed to show startup update dialog").pipe(
+              Effect.annotateLogs({ component: "updates", data: { cause } }),
             ),
           ),
         );
@@ -147,11 +155,8 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
   ).pipe(
     Effect.catchCause((cause) =>
       Effect.gen(function* () {
-        const observability = yield* DesktopObservability;
-        yield* observability.error(
-          "startup",
-          "Lucent desktop runtime failed",
-          Cause.pretty(cause),
+        yield* Effect.logError("Lucent desktop runtime failed", cause).pipe(
+          Effect.annotateLogs({ component: "startup" }),
         );
         return yield* Effect.failCause(cause);
       }),

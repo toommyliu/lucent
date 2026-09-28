@@ -11,7 +11,6 @@ import * as Schema from "effect/Schema";
 import { ElectronApp } from "../../electron/ElectronApp";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import { makeListenerRegistry } from "../ListenerRegistry";
-import { DesktopObservability } from "./DesktopObservability";
 
 export const PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS = 1_000;
 
@@ -437,7 +436,6 @@ const traceFileName = (startedAt: string): string =>
 const makeDesktopPerformanceTrace = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
-  const observability = yield* DesktopObservability;
   const stateChanges = makeListenerRegistry<DesktopPerformanceTraceState>();
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
@@ -467,10 +465,11 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       });
     } catch (cause) {
       void runPromise(
-        observability.warn(
-          "performance-trace",
-          "Failed to capture performance trace sample",
-          { cause },
+        Effect.logWarning("Failed to capture performance trace sample").pipe(
+          Effect.annotateLogs({
+            component: "performance-trace",
+            data: { cause },
+          }),
         ),
       );
     }
@@ -501,10 +500,14 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       timer,
     };
     yield* setState({ startedAt, status: "recording" });
-    yield* observability.info(
-      "performance-trace",
-      "Performance trace recording started",
-      { sampleIntervalMs: PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS, startedAt },
+    yield* Effect.logInfo("Performance trace recording started").pipe(
+      Effect.annotateLogs({
+        component: "performance-trace",
+        data: {
+          sampleIntervalMs: PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS,
+          startedAt,
+        },
+      }),
     );
   });
 
@@ -577,10 +580,8 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       filePath,
       sampleCount: document.lucent.summary.sampleCount,
     };
-    yield* observability.info(
-      "performance-trace",
-      "Performance trace saved",
-      result,
+    yield* Effect.logInfo("Performance trace saved").pipe(
+      Effect.annotateLogs({ component: "performance-trace", data: result }),
     );
     return result;
   });
