@@ -1,4 +1,3 @@
-import "../../../shared/generated/polyfills.node";
 import * as NodeWorkerRunner from "@effect/platform-node/NodeWorkerRunner";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";

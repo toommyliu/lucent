@@ -119,9 +119,6 @@ importers:
       acorn:
         specifier: 8.16.0
         version: 8.16.0
-      core-js:
-        specifier: 3.49.0
-        version: 3.49.0
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
@@ -150,9 +147,6 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
-      core-js-compat:
-        specifier: 3.49.0
-        version: 3.49.0
       cross-env:
         specifier: ^10.0.0
         version: 10.1.0
@@ -4473,12 +4467,6 @@ packages:
   cookie@2.0.1:
     resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
     engines: {node: '>=22'}
-
-  core-js-compat@3.49.0:
-    resolution: {integrity: sha512-VQXt1jr9cBz03b331DFDCCP90b3fanciLkgiOoy8SBHy06gNf+vQ1A3WFLqG7I8TipYIKeYK9wxd0tUrvHcOZA==}
-
-  core-js@3.49.0:
-    resolution: {integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==}
 
   core-util-is@1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
@@ -12760,12 +12748,6 @@ snapshots:
   cookie@0.7.2: {}
 
   cookie@2.0.1: {}
-
-  core-js-compat@3.49.0:
-    dependencies:
-      browserslist: 4.28.2
-
-  core-js@3.49.0: {}
 
   core-util-is@1.0.2: {}
 

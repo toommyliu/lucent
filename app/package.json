@@ -8,9 +8,6 @@
     "url": "https://github.com/toommyliu/lucent.git"
   },
   "scripts": {
-    "polyfills:check": "tsx scripts/gen-core-js-polyfills.ts --check",
-    "polyfills:generate": "tsx scripts/gen-core-js-polyfills.ts",
-    "prepare": "pnpm polyfills:generate",
     "typecheck": "tsc --noEmit && tsc -p src/main/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -30,7 +27,6 @@
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-virtual": "3.13.24",
     "acorn": "8.16.0",
-    "core-js": "3.49.0",
     "effect": "4.0.0-rc.112",
     "semver": "7.7.4",
     "solid-js": "^1.9.12",
@@ -42,7 +38,6 @@
     "@types/node": "24.12.2",
     "@types/semver": "7.7.1",
     "@types/ws": "^8.18.1",
-    "core-js-compat": "3.49.0",
     "cross-env": "^10.0.0",
     "electron": "44.4.5",
     "electron-builder": "^26.15.0",
