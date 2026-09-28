@@ -6,7 +6,9 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
+import { allowArtixCors, handleRuffleAssets } from "../ruffle/RuffleAssets";
 import {
+  applyLauncherHeaders,
   getGameRequestHeaders,
   getGameUserAgent,
 } from "../internal/GameRequestHeaders";
@@ -74,9 +76,12 @@ export const layer = Layer.effect(
         for (const [name, value] of Object.entries(gameRequestHeaders)) {
           requestHeaders[name] = value;
         }
+        applyLauncherHeaders(requestHeaders, details.method, details.url);
 
         callback({ cancel: false, requestHeaders });
       });
+      handleRuffleAssets(targetSession, env.assetsDir);
+      allowArtixCors(targetSession);
     };
 
     const prepareGameNetworking = Effect.sync(() => {
@@ -139,6 +144,7 @@ export const layer = Layer.effect(
         }
         for (const configuredSession of configuredSessions) {
           configuredSession.webRequest.onBeforeSendHeaders(null);
+          configuredSession.webRequest.onHeadersReceived(null);
         }
         configuredSessions.clear();
       }),

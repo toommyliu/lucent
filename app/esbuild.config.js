@@ -56,6 +56,8 @@ const baseOptions = {
   sourcesContent: false,
 };
 
+const wsOptionalNativeAddons = ["bufferutil", "utf-8-validate"];
+
 const mainOptions = {
   ...baseOptions,
   define: {
@@ -66,7 +68,7 @@ const mainOptions = {
     index: "src/main/index.ts",
     "script-file-worker": "src/main/internal/scripting/ScriptFileWorker.ts",
   },
-  external: ["electron"],
+  external: ["electron", ...wsOptionalNativeAddons],
   format: "cjs",
   outdir: "dist/main",
   platform: "node",
@@ -133,16 +135,26 @@ const rendererViews = [
   createRendererView("game-host", "Lucent"),
   createRendererView("game", "Lucent", {
     contentSecurityPolicy: {
-      "default-src": ["'self'", "https://game.aq.com"],
-      "script-src": [...rendererScriptSources, "'unsafe-eval'"],
-      "plugin-types": ["application/x-shockwave-flash"],
+      "default-src": [
+        "'self'",
+        "lucent-asset:",
+        "https://*.aq.com",
+        "https://*.aqworlds.com",
+        "https://*.artix.com",
+        "ws://127.0.0.1:*",
+        "data:",
+        "blob:",
+      ],
+      "script-src": [
+        ...rendererScriptSources,
+        "'unsafe-eval'",
+        "lucent-asset:",
+        "blob:",
+      ],
     },
     bodyHtml: [
-      "    <embed",
-      '      id="swf"',
-      '      src="../../../../assets/loader.swf"',
-      '      type="application/x-shockwave-flash"',
-      "    />",
+      '    <div id="swf"></div>',
+      '    <script src="lucent-asset://assets/ruffle/ruffle.js"></script>',
     ].join("\n"),
   }),
   createRendererView("settings", "Settings", { startsPending: true }),

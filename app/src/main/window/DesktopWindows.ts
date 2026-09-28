@@ -53,6 +53,7 @@ import {
   type ElectronWindowCreateOptions,
   type ElectronWindowHandle,
 } from "../electron/ElectronWindow";
+import { ruffleSocketProxyUrl } from "../ruffle/RuffleSocketProxy";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import {
   getDesktopWindowDefinition,
@@ -274,6 +275,12 @@ interface DesktopWindowBounds {
 const rendererRoot = join(__dirname, "../renderer");
 const preloadPath = join(rendererRoot, "preload.js");
 
+const gameSocketRelayUrl = Effect.tryPromise({
+  try: ruffleSocketProxyUrl,
+  catch: (cause) =>
+    new Error(`Failed to start the game's socket relay: ${cause}`),
+});
+
 const viewHtmlPath = (kind: DesktopBridgeView): string =>
   join(rendererRoot, kind, "index.html");
 
@@ -438,6 +445,7 @@ const createWindowOptions = (
         renderer?.bridgeView ?? definition.kind,
         settings,
         snapshot,
+        definition.kind === "game" ? { backgroundThrottling: false } : {},
       ),
       ...(renderer?.partition === undefined
         ? {}
@@ -1715,7 +1723,12 @@ const makeDesktopWindows = Effect.gen(function* () {
 
       gameHosts.refresh(host);
       void runPromise(
-        electronGameView.loadFile(view, viewHtmlPath("game")).pipe(
+        gameSocketRelayUrl.pipe(
+          Effect.flatMap((socketProxy) =>
+            electronGameView.loadFile(view, viewHtmlPath("game"), {
+              query: { socketProxy },
+            }),
+          ),
           Effect.catch((cause) =>
             Effect.sync(() => {
               updateGameViewPhase(id, "error", cause.message);
@@ -2641,7 +2654,13 @@ const makeDesktopWindows = Effect.gen(function* () {
           yield* options.onCreated(createdEvent);
         }
 
-        yield* electronWindow.loadFile(window, viewHtmlPath(definition.kind));
+        const socketProxy =
+          kind === "game" ? yield* gameSocketRelayUrl : undefined;
+        yield* electronWindow.loadFile(
+          window,
+          viewHtmlPath(definition.kind),
+          socketProxy === undefined ? undefined : { query: { socketProxy } },
+        );
         if (env.debug === true) {
           yield* Effect.try({
             try: () => webContents.openDevTools({ mode: "detach" }),

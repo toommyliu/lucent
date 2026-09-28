@@ -1,6 +1,7 @@
 import {
   BrowserWindow,
   type BrowserView,
+  type LoadFileOptions,
   screen,
   type BrowserWindowConstructorOptions,
   type WebContents,
@@ -44,7 +45,7 @@ export interface ElectronWindowHandle {
   readonly isMinimized: () => boolean;
   readonly isVisible: () => boolean;
   readonly getContentBounds: BrowserWindow["getContentBounds"];
-  readonly loadFile: (path: string) => Promise<void>;
+  readonly loadFile: BrowserWindow["loadFile"];
   readonly on: BrowserWindow["on"];
   readonly once: BrowserWindow["once"];
   readonly restore: () => void;
@@ -94,6 +95,7 @@ export interface ElectronWindowShape {
   readonly loadFile: (
     window: ElectronWindowHandle,
     path: string,
+    options?: LoadFileOptions,
   ) => Effect.Effect<void, ElectronWindowLoadError>;
   readonly reveal: (window: ElectronWindowHandle) => Effect.Effect<void>;
 }
@@ -142,9 +144,9 @@ const create: ElectronWindowShape["create"] = (options, onWindowOpenRequest) =>
     catch: (cause) => new ElectronWindowCreateError({ cause }),
   });
 
-const loadFile: ElectronWindowShape["loadFile"] = (window, path) =>
+const loadFile: ElectronWindowShape["loadFile"] = (window, path, options) =>
   Effect.tryPromise({
-    try: () => window.loadFile(path),
+    try: () => window.loadFile(path, options),
     catch: (cause) => new ElectronWindowLoadError({ cause, path }),
   });
 
