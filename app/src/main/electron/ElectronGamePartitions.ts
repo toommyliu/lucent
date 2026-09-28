@@ -1,11 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import {
-  existsSync,
-  readdirSync,
-  rmdirSync,
-  unlinkSync,
-  writeFileSync,
-} from "fs";
+import { existsSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const PERSISTENT_PARTITION_PREFIX = "persist:";
@@ -37,21 +31,6 @@ export interface GamePartitionCleanupResult {
   readonly removedPaths: readonly string[];
 }
 
-const partitionName = (partition: string): string => {
-  if (!partition.startsWith(PERSISTENT_PARTITION_PREFIX)) {
-    throw new Error(`Invalid game partition: ${partition}`);
-  }
-  const name = partition.slice(PERSISTENT_PARTITION_PREFIX.length);
-  if (
-    name !== DEFAULT_PARTITION_NAME &&
-    !MANAGED_PARTITION_PATTERN.test(name) &&
-    !TEMPORARY_PARTITION_PATTERN.test(name)
-  ) {
-    throw new Error(`Invalid game partition: ${partition}`);
-  }
-  return name;
-};
-
 const normalizeManagedAccountKey = (key: string): string => {
   const normalized = key.trim().toLowerCase();
   if (normalized === "") {
@@ -79,7 +58,7 @@ const temporaryGamePartition = (
   if (!/^[a-f0-9]{24}$/.test(randomId)) {
     throw new Error(`Invalid game partition random ID: ${randomId}`);
   }
-  return `${PERSISTENT_PARTITION_PREFIX}${TEMPORARY_PARTITION_PREFIX}${processId}-${randomId}`;
+  return `${TEMPORARY_PARTITION_PREFIX}${processId}-${randomId}`;
 };
 
 export const makeGamePartitionRegistry = (
@@ -122,13 +101,8 @@ export const makeGamePartitionRegistry = (
   };
 };
 
-export const resolveGamePartitionProfilePath = (
-  appDataDir: string,
-  partition: string,
-): string => join(appDataDir, "Partitions", partitionName(partition));
-
-const partitionsDirectory = (appDataDir: string): string =>
-  join(appDataDir, "Partitions");
+const partitionsDirectory = (sessionDataDir: string): string =>
+  join(sessionDataDir, "Partitions");
 
 const isMissing = (cause: unknown): boolean =>
   cause instanceof Error &&
@@ -146,18 +120,6 @@ const directoryNames = (path: string): readonly string[] => {
   }
 };
 
-const removeDirectoryTree = (path: string): void => {
-  for (const entry of readdirSync(path, { withFileTypes: true })) {
-    const childPath = join(path, entry.name);
-    if (entry.isDirectory()) {
-      removeDirectoryTree(childPath);
-    } else {
-      unlinkSync(childPath);
-    }
-  }
-  rmdirSync(path);
-};
-
 const defaultProcessIsAlive = (processId: number): boolean => {
   try {
     process.kill(processId, 0);
@@ -173,12 +135,12 @@ const defaultProcessIsAlive = (processId: number): boolean => {
 
 /** Removes only profiles that cannot belong to a live game session. */
 export const cleanupStaleGamePartitionProfiles = (
-  appDataDir: string,
+  sessionDataDir: string,
   options: {
     readonly isProcessAlive?: (processId: number) => boolean;
   } = {},
 ): GamePartitionCleanupResult => {
-  const directory = partitionsDirectory(appDataDir);
+  const directory = partitionsDirectory(sessionDataDir);
   const isProcessAlive = options.isProcessAlive ?? defaultProcessIsAlive;
   const failedPaths: string[] = [];
   const removedPaths: string[] = [];
@@ -193,7 +155,7 @@ export const cleanupStaleGamePartitionProfiles = (
     if (!removable) continue;
 
     try {
-      removeDirectoryTree(path);
+      rmSync(path, { recursive: true, force: true });
       removedPaths.push(path);
     } catch {
       failedPaths.push(path);
@@ -215,14 +177,22 @@ export const activateManagedGamePartitionProfile = (
 };
 
 export const retireManagedGamePartitionProfile = (
-  appDataDir: string,
-  key: string,
+  profilePath: string,
 ): boolean => {
-  const profilePath = resolveGamePartitionProfilePath(
-    appDataDir,
-    managedGamePartition(key),
-  );
   if (!existsSync(profilePath)) return false;
   writeFileSync(join(profilePath, RETIRED_PROFILE_MARKER), "1\n", "utf8");
   return true;
 };
+
+/** Discovers inactive Lucent profiles so clearing data also covers unopened accounts. */
+export const listPersistentGamePartitions = (
+  sessionDataDir: string,
+): readonly string[] =>
+  directoryNames(partitionsDirectory(sessionDataDir))
+    .filter(
+      (name) =>
+        name === DEFAULT_PARTITION_NAME ||
+        MANAGED_PARTITION_PATTERN.test(name) ||
+        TEMPORARY_PARTITION_PATTERN.test(name),
+    )
+    .map((name) => `${PERSISTENT_PARTITION_PREFIX}${name}`);

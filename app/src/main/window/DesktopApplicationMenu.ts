@@ -3,7 +3,6 @@ import {
   BaseWindow,
   Menu,
   app,
-  session,
   webContents,
   type MenuItemConstructorOptions,
   type WebContents,
@@ -25,6 +24,7 @@ import {
   DesktopPerformanceTrace,
   type DesktopPerformanceTraceState,
 } from "../app/observability/DesktopPerformanceTrace";
+import { ElectronSession } from "../electron/ElectronSession";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronShell } from "../electron/ElectronShell";
@@ -76,6 +76,7 @@ const reloadContents = (target: WebContents, bypassCache: boolean): void => {
 
 const makeDesktopApplicationMenu = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
+  const electronSession = yield* ElectronSession;
   const chromiumPerformanceRecording =
     yield* DesktopChromiumPerformanceRecording;
   const dialog = yield* ElectronDialog;
@@ -337,15 +338,9 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     );
   };
 
-  const clearAppData: Effect.Effect<void, DesktopAppDataClearError> =
-    Effect.tryPromise({
-      try: () =>
-        Promise.all([
-          session.defaultSession.clearCache(),
-          session.defaultSession.clearStorageData(),
-        ]).then(() => undefined),
-      catch: (cause) => new DesktopAppDataClearError({ cause }),
-    });
+  const clearAppData = electronSession.clearAppData.pipe(
+    Effect.mapError((cause) => new DesktopAppDataClearError({ cause })),
+  );
 
   const showDataClearResult = (result: "succeeded" | "failed") =>
     Effect.gen(function* () {

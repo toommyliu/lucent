@@ -2,6 +2,7 @@ import { app, session, type Session } from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
@@ -18,7 +19,7 @@ import {
   type GamePartitionOwner,
   makeGamePartitionRegistry,
   managedGamePartition,
-  resolveGamePartitionProfilePath,
+  listPersistentGamePartitions,
   retireManagedGamePartitionProfile,
 } from "./ElectronGamePartitions";
 
@@ -34,7 +35,28 @@ export class ElectronGamePartitionError extends Schema.TaggedError<ElectronGameP
   }
 }
 
+export class ElectronSessionDataClearError extends Schema.TaggedError<ElectronSessionDataClearError>()(
+  "ElectronSessionDataClearError",
+  { cause: Schema.Defect() },
+) {}
+
+export const clearSessionData = (
+  sessions: Iterable<Pick<Session, "clearData">>,
+) =>
+  Effect.validate(
+    new Set(sessions),
+    (target) =>
+      Effect.tryPromise({
+        try: () => target.clearData(),
+        catch: (cause) => cause,
+      }),
+    { concurrency: 4, discard: true },
+  ).pipe(
+    Effect.mapError((cause) => new ElectronSessionDataClearError({ cause })),
+  );
+
 export interface ElectronSessionShape {
+  readonly clearAppData: Effect.Effect<void, ElectronSessionDataClearError>;
   readonly acquireGamePartition: (
     owner: GamePartitionOwner,
   ) => Effect.Effect<string, ElectronGamePartitionError>;
@@ -57,11 +79,13 @@ export const layer = Layer.effect(
     const gameRequestHeaders = getGameRequestHeaders(env.platform);
     const gameUserAgent = getGameUserAgent(env.platform);
     const configuredSessions = new Set<Session>();
+    const gameSessions = new Map<string, Session>();
+    const runCleanup = yield* FiberSet.makeRuntime<never, void>();
     const gamePartitions = makeGamePartitionRegistry();
     let sessionCreatedHookInstalled = false;
 
     yield* Effect.sync(() => {
-      cleanupStaleGamePartitionProfiles(env.appDataDir);
+      cleanupStaleGamePartitionProfiles(app.getPath("sessionData"));
     }).pipe(Effect.catchCause(() => Effect.void));
 
     const configureSession = (targetSession: Session): void => {
@@ -102,14 +126,15 @@ export const layer = Layer.effect(
         return Effect.try({
           try: () => {
             if (owner.kind === "managed-account") {
-              activateManagedGamePartitionProfile(
-                resolveGamePartitionProfilePath(
-                  env.appDataDir,
-                  managedGamePartition(owner.key),
-                ),
-              );
+              const profilePath = session.fromPartition(
+                managedGamePartition(owner.key),
+              ).storagePath;
+              if (profilePath !== null)
+                activateManagedGamePartitionProfile(profilePath);
             }
-            configureSession(session.fromPartition(partition));
+            const target = session.fromPartition(partition);
+            configureSession(target);
+            gameSessions.set(partition, target);
             return partition;
           },
           catch: (cause) =>
@@ -126,15 +151,54 @@ export const layer = Layer.effect(
         const partition = managedGamePartition(key);
         return Effect.try({
           try: () => {
-            retireManagedGamePartitionProfile(env.appDataDir, key);
+            const profilePath = session.fromPartition(partition).storagePath;
+            if (profilePath !== null)
+              retireManagedGamePartitionProfile(profilePath);
           },
           catch: (cause) =>
             new ElectronGamePartitionError({ cause, partition }),
         }).pipe(Effect.asVoid);
       };
 
-    const releaseGamePartition = (partition: string): void =>
+    const clearAppData = Effect.gen(function* () {
+      const targets = yield* Effect.try({
+        try: () =>
+          new Set([
+            session.defaultSession,
+            ...gameSessions.values(),
+            ...listPersistentGamePartitions(app.getPath("sessionData")).map(
+              (partition) => session.fromPartition(partition),
+            ),
+          ]),
+        catch: (cause) => new ElectronSessionDataClearError({ cause }),
+      });
+      yield* clearSessionData(targets);
+    });
+
+    const releaseGamePartition = (partition: string): void => {
       gamePartitions.release(partition);
+      const target = gameSessions.get(partition);
+      if (target === undefined || target.storagePath !== null) return;
+      gameSessions.delete(partition);
+      runCleanup(
+        clearSessionData([target]).pipe(
+          Effect.catch((cause) =>
+            Effect.logWarning(
+              "Failed to clear a temporary game session",
+              cause,
+            ),
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              target.webRequest.onBeforeSendHeaders(null);
+              target.webRequest.onHeadersReceived(null);
+              target.protocol.unhandle("lucent-asset");
+              configuredSessions.delete(target);
+            }),
+          ),
+        ),
+      );
+    };
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
@@ -152,6 +216,7 @@ export const layer = Layer.effect(
 
     return ElectronSession.of({
       acquireGamePartition,
+      clearAppData,
       prepareGameNetworking,
       releaseGamePartition,
       retireManagedGameProfile,
