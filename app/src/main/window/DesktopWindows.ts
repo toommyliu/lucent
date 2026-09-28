@@ -775,11 +775,6 @@ const makeDesktopWindows = Effect.gen(function* () {
         void runPromise(listener(unavailableEvent)).catch(() => undefined);
       }
     };
-    const handlePluginCrashed = (
-      _event: ElectronEvent,
-      name: string,
-      version: string,
-    ): void => publish({ name, type: "plugin-crashed", version });
     const handleRenderProcessGone = (
       _event: ElectronEvent,
       details: RenderProcessGoneDetails,
@@ -789,10 +784,8 @@ const makeDesktopWindows = Effect.gen(function* () {
         type: "render-process-gone",
       });
 
-    contents.on("plugin-crashed", handlePluginCrashed);
     contents.on("render-process-gone", handleRenderProcessGone);
     return () => {
-      contents.off("plugin-crashed", handlePluginCrashed);
       contents.off("render-process-gone", handleRenderProcessGone);
     };
   };

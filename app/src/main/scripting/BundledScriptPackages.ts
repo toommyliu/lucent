@@ -143,8 +143,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
         const cleanup = (directory: string) =>
           Effect.tryPromise(async () => {
             const path = join(env.workspaceDir, directory);
-            if (await pathExists(path))
-              await fs.rmdir(path, { recursive: true });
+            if (await pathExists(path)) await fs.rm(path, { recursive: true });
           }).pipe(
             Effect.catch((cause) =>
               Effect.logWarning({
