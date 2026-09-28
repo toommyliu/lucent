@@ -23,7 +23,7 @@ import {
   type GitHubApiClientShape,
 } from "../github/GitHubApiClient";
 import { firstHttpHeader } from "../http/DesktopHttpClient";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
@@ -439,7 +439,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const app = yield* ElectronApp;
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const observability = yield* DesktopObservability;
     const shell = yield* ElectronShell;
     const settings = yield* DesktopSettings;

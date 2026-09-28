@@ -32,7 +32,7 @@ import {
 } from "@lucent/core/hotkeys";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../filesystem/JsonFile";
 
 const settingsOperationSchema = Schema.Literals([
@@ -231,7 +231,7 @@ const applyHotkeysPatch = (
 
 const makeDesktopSettings = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+  const jsonFile = makeJsonFile(yield* FileSystem);
   const settingsPath = join(env.appDataDir, "settings.json");
   const settingsRef = yield* SynchronizedRef.make<AppSettings | null>(null);
   const settingsChanges = makeListenerRegistry<AppSettings>();

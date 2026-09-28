@@ -11,7 +11,7 @@ import {
 } from "@lucent/core/scriptPackages";
 import appPackage from "../../../package.json";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 import { acquireBundledScriptPackageLock } from "./BundledScriptPackageLock";
 import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
@@ -78,7 +78,7 @@ class BundledScriptPackageSetupError extends Schema.TaggedError<BundledScriptPac
 /** Installs bundled copies once, preserving user removals and unfinished setup. */
 export const initializeBundledScriptPackages = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+  const jsonFile = makeJsonFile(yield* FileSystem);
   const state = yield* ScriptPackageState;
   const catalog = yield* ScriptPackageCatalog;
   const sourceRoot = join(env.assetsDir, "..", "script-packages");

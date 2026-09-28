@@ -13,7 +13,7 @@ import {
   type ScriptInputValues,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const inputRepositoryOperationSchema = Schema.Literals(["read", "write"]);
@@ -81,7 +81,7 @@ export const layer = Layer.effect(
   ScriptInputRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const path = join(env.appDataDir, "script-inputs.json");
     const writes = yield* Semaphore.make(1);
 

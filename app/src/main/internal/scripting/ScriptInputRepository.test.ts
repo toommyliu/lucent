@@ -11,7 +11,7 @@ import {
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   ScriptInputRepository,
   layer as scriptInputRepositoryLayer,

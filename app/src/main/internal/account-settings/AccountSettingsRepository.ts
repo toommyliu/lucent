@@ -15,7 +15,7 @@ import {
   type AccountSettingsPatch,
 } from "@lucent/core/accountSettings";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const ACCOUNT_SETTINGS_DIRECTORY = "account-settings";
@@ -90,7 +90,7 @@ export const layer = Layer.effect(
   AccountSettingsRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const writes = yield* Semaphore.make(1);
 
     const pathFor = Effect.fn("AccountSettingsRepository.pathFor")(function* (

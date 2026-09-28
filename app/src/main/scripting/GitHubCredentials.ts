@@ -11,7 +11,7 @@ import * as Semaphore from "effect/Semaphore";
 
 import type { GitHubCredentialSummary } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 
 const NonEmptyStringSchema = Schema.String.check(
@@ -120,7 +120,7 @@ export const layer = Layer.effect(
   GitHubCredentials,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const credentialsPath = join(env.appDataDir, "github-credentials.json");
     const loaded = yield* jsonFile.read(credentialsPath).pipe(
       Effect.match({
