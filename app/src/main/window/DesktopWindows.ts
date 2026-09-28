@@ -1631,13 +1631,9 @@ const makeDesktopWindows = Effect.gen(function* () {
       const stopObservingAvailability = observeRendererAvailability(
         view.webContents,
         rendererDestroyedEvent,
-        (failure) => {
+        () => {
           markRendererUnavailable(record);
-          updateGameViewPhase(
-            id,
-            "error",
-            `Game renderer stopped (${failure.reason}).`,
-          );
+          updateGameViewPhase(id, "error", "The game stopped unexpectedly.");
         },
       );
       record.stopObservingReloads = observeWindowReloads(

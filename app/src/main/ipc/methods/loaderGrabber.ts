@@ -21,7 +21,7 @@ export class LoaderGrabberOwnerError extends Schema.TaggedError<LoaderGrabberOwn
   },
 ) {
   override get message(): string {
-    return `The Loader grabber has no owning game: ${this.rendererId}`;
+    return "This window is no longer linked to a game. Reopen it from the game.";
   }
 }
 

@@ -40,9 +40,7 @@ export const makeGamePackets = Effect.gen(function* () {
           ? (statuses.get(gameRendererId) ?? stoppedStatus())
           : stoppedStatus(),
       ),
-      Effect.orElseSucceed(() =>
-        stoppedStatus("The game renderer is unavailable"),
-      ),
+      Effect.orElseSucceed(() => stoppedStatus("The game is unavailable")),
     );
 
   const publishStatus: GamePacketsShape["publishStatus"] = Effect.fn(
@@ -64,7 +62,7 @@ export const makeGamePackets = Effect.gen(function* () {
       ? publishStatus(event.rendererId, stoppedStatus(stoppedReason))
       : Effect.void;
   const unavailableReason =
-    "Packet activity stopped because the game renderer is unavailable";
+    "Packet activity stopped because the game closed or crashed";
   const unsubscribers = yield* Effect.all([
     windows.onClosed((event) =>
       event.kind === "game"

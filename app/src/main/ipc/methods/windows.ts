@@ -30,7 +30,8 @@ export const open = makeDesktopIpcMethod({
               Effect.flatMap((ownerRendererId) =>
                 ownerRendererId === null
                   ? new DesktopWindowError({
-                      detail: "Game child window has no owning game.",
+                      detail:
+                        "This window is no longer linked to a game. Reopen it from the game.",
                       id: String(sender.rendererId),
                     })
                   : Effect.succeed(ownerRendererId),
