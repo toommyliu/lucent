@@ -376,7 +376,6 @@ export interface DesktopGameViewHostBridge {
 }
 
 export interface DesktopGameViewBridge {
-  readonly activate: () => Promise<GameViewPresentation>;
   readonly close: () => void;
   readonly dispatchGroupOptionHotkey: (
     commandId: GameViewGroupOptionHotkeyCommandId,
