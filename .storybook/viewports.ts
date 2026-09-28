@@ -15,8 +15,8 @@ export const rendererViewports = {
     type: "desktop",
   },
   follower: {
-    name: "Follower (648 × 496)",
-    styles: { height: "496px", width: "648px" },
+    name: "Follower (735 × 626)",
+    styles: { height: "626px", width: "735px" },
     type: "desktop",
   },
   game: {
