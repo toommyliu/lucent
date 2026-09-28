@@ -1,4 +1,4 @@
-import "../shared/generated/polyfills.renderer";
+import "../shared/immediate";
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 

@@ -1,4 +1,3 @@
-import "../shared/generated/polyfills.node";
 import { app } from "electron";
 import * as Effect from "effect/Effect";
 
