@@ -269,21 +269,6 @@ export const fetchBoosts = makeDesktopIpcMethod({
   ),
 });
 
-export const fetchBoostsResponse = makeDesktopIpcMethod({
-  descriptor: EnvironmentIpc.fetchBoostsResponse,
-  allowedSenders: ["game"],
-  handler: Effect.fn("desktop.ipc.environment.fetchBoostsResponse")(
-    function* (payload, sender) {
-      const environments = yield* GameEnvironments;
-      yield* environments.respondToBoostFetch(
-        sender.rendererId,
-        payload.requestId,
-        payload.discovery,
-      );
-    },
-  ),
-});
-
 export const withdrawBoosts = makeDesktopIpcMethod({
   descriptor: EnvironmentIpc.withdrawBoosts,
   allowedSenders,
@@ -293,21 +278,6 @@ export const withdrawBoosts = makeDesktopIpcMethod({
       const gameRendererId = yield* resolveGameRendererId(sender);
       return yield* environments.withdrawBoosts(
         gameRendererId,
-        payload.itemIds,
-      );
-    },
-  ),
-});
-
-export const withdrawBoostsResponse = makeDesktopIpcMethod({
-  descriptor: EnvironmentIpc.withdrawBoostsResponse,
-  allowedSenders: ["game"],
-  handler: Effect.fn("desktop.ipc.environment.withdrawBoostsResponse")(
-    function* (payload, sender) {
-      const environments = yield* GameEnvironments;
-      yield* environments.respondToBoostWithdrawal(
-        sender.rendererId,
-        payload.requestId,
         payload.itemIds,
       );
     },
@@ -357,8 +327,6 @@ export const methods = [
   removeBoost,
   clearBoosts,
   fetchBoosts,
-  fetchBoostsResponse,
   withdrawBoosts,
-  withdrawBoostsResponse,
   syncToAll,
 ] as const;

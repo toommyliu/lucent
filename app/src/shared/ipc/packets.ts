@@ -10,57 +10,6 @@ import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:packets";
 
-export const PacketsRequestSchema = Schema.Union([
-  Schema.Struct({
-    kind: Schema.Literal("start-capture"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("stop-capture"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("send"),
-    payload: PacketSendPayloadSchema,
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("start-queue"),
-    payload: PacketQueuePayloadSchema,
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("stop-queue"),
-    requestId: Schema.String,
-  }),
-]);
-export type PacketsRequest = typeof PacketsRequestSchema.Type;
-
-export const PacketsOutcomeSchema = Schema.Struct({
-  kind: Schema.Literals([
-    "start-capture",
-    "stop-capture",
-    "send",
-    "start-queue",
-    "stop-queue",
-  ]),
-});
-export type PacketsOutcome = typeof PacketsOutcomeSchema.Type;
-
-export const PacketsResponseSchema = Schema.Union([
-  Schema.Struct({
-    ok: Schema.Literal(true),
-    outcome: PacketsOutcomeSchema,
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    error: Schema.String,
-    ok: Schema.Literal(false),
-    requestId: Schema.String,
-  }),
-]);
-export type PacketsResponse = typeof PacketsResponseSchema.Type;
-
 export const PacketsIpc = {
   getStatus: defineInvoke({
     channel: `${namespace}:get-status`,
@@ -118,17 +67,6 @@ export const PacketsIpc = {
     channel: `${namespace}:publish-status`,
     name: "packets.publishStatus",
     payload: PacketsStatusPayloadSchema,
-    result: Schema.Void,
-  }),
-  request: defineEvent({
-    channel: `${namespace}:request`,
-    name: "packets.request",
-    payload: PacketsRequestSchema,
-  }),
-  respond: defineInvoke({
-    channel: `${namespace}:respond`,
-    name: "packets.respond",
-    payload: PacketsResponseSchema,
     result: Schema.Void,
   }),
 } as const;
