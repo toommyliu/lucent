@@ -30,7 +30,7 @@
     "asar": false,
     "target": {
       "target": "dmg",
-      "arch": ["x64"]
+      "arch": ["universal"]
     },
     "icon": "../assets/icons/lucent.icon",
     "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
