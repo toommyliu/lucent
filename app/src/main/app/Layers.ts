@@ -259,7 +259,9 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
   const accountServersLayer = AccountServers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(environmentLayer, observabilityLayer)),
+    Layer.provideMerge(
+      Layer.mergeAll(environmentLayer, observabilityLayer, httpClientLayer),
+    ),
   );
   const accountGameWindowsLayer = DesktopAccountGameWindows.layer.pipe(
     Layer.provideMerge(windowsLayer),

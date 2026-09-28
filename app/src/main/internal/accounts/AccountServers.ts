@@ -1,10 +1,15 @@
-import { get } from "https";
-
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
+import * as FileSystem from "effect/FileSystem";
+import {
+  HttpClient,
+  HttpClientError,
+  HttpClientResponse,
+  HttpIncomingMessage,
+} from "effect/unstable/http";
 
 import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../../shared/accountPolicy";
 import type {
@@ -28,8 +33,25 @@ const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
 const SERVER_REQUEST_TIMEOUT_MS = 10_000;
 
-const decodeAccountServerDataList = Schema.decodeUnknownEffect(
-  Schema.Array(AccountServerDataSchema),
+export const requestAccountServers = Effect.fn("requestAccountServers")(
+  function* (
+    client: HttpClient.HttpClient,
+    url: string,
+    headers: Record<string, string>,
+  ) {
+    const response = yield* HttpClient.withScope(
+      HttpClient.filterStatusOk(client),
+    ).get(url, { headers: { Accept: "application/json", ...headers } });
+    return yield* HttpClientResponse.schemaBodyJson(
+      Schema.Array(AccountServerDataSchema),
+    )(response);
+  },
+  Effect.provideService(
+    HttpIncomingMessage.MaxBodySize,
+    FileSystem.Size(1024 * 1024),
+  ),
+  Effect.timeout(SERVER_REQUEST_TIMEOUT_MS),
+  Effect.scoped,
 );
 
 interface AccountServerCache {
@@ -42,53 +64,14 @@ interface AccountServerPingCache {
   readonly result: AccountGameServerPingsResult;
 }
 
-const fetchJson = (
-  url: string,
-  headers: Record<string, string>,
-): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    const request = get(
-      url,
-      { headers: { Accept: "application/json", ...headers } },
-      (response) => {
-        const statusCode = response.statusCode ?? 0;
-        const chunks: Buffer[] = [];
-        response.on("error", reject);
-        response.on("data", (chunk: Buffer | string) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        response.on("end", () => {
-          const source = Buffer.concat(chunks).toString("utf8");
-          if (statusCode < 200 || statusCode >= 300) {
-            reject(
-              new Error(
-                `Failed to fetch servers: ${statusCode} ${
-                  response.statusMessage ?? ""
-                }`.trim(),
-              ),
-            );
-            return;
-          }
-          try {
-            resolve(JSON.parse(source));
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-    );
-    request.setTimeout(SERVER_REQUEST_TIMEOUT_MS, () => {
-      request.destroy(new Error("Timed out while fetching servers"));
-    });
-    request.on("error", reject);
-  });
-
 const serverLoadErrorMessage = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : "";
-  const statusCode = /Failed to fetch servers: (\d{3})/.exec(message)?.[1];
-  return statusCode === undefined
-    ? message || "Unable to load servers"
-    : `Unable to load login servers (HTTP ${statusCode})`;
+  if (
+    HttpClientError.isHttpClientError(error) &&
+    error.reason._tag === "StatusCodeError"
+  ) {
+    return `Unable to load login servers (HTTP ${error.reason.response.status})`;
+  }
+  return error instanceof Error ? error.message : "Unable to load servers";
 };
 
 const toAccountGameServer = (server: AccountServerData): AccountGameServer => ({
@@ -115,6 +98,7 @@ export const layer = Layer.effect(
   AccountServers,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
+    const client = yield* HttpClient.HttpClient;
     const observability = yield* DesktopObservability;
     const requestHeaders = getGameRequestHeaders(env.platform);
     const serverLoads = yield* Semaphore.make(1);
@@ -133,24 +117,19 @@ export const layer = Layer.effect(
           return serverCache.servers;
         }
 
-        const servers = yield* Effect.tryPromise({
-          try: () => fetchJson(SERVERS_API_URL, requestHeaders),
-          catch: (cause) =>
+        const servers = yield* requestAccountServers(
+          client,
+          SERVERS_API_URL,
+          requestHeaders,
+        ).pipe(
+          Effect.mapError((cause) =>
             accountError(
               "refresh-servers",
-              serverLoadErrorMessage(cause),
+              cause._tag === "SchemaError"
+                ? "Invalid login servers payload"
+                : serverLoadErrorMessage(cause),
               cause,
             ),
-        }).pipe(
-          Effect.flatMap(decodeAccountServerDataList),
-          Effect.mapError((cause) =>
-            cause instanceof AccountsError
-              ? cause
-              : accountError(
-                  "refresh-servers",
-                  "Invalid login servers payload",
-                  cause,
-                ),
           ),
           Effect.catch((error: AccountsError) =>
             serverCache === null
