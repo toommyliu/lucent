@@ -50,6 +50,7 @@ import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
 import * as ElectronWindow from "../electron/ElectronWindow";
+import * as RuffleSocketProxy from "../ruffle/RuffleSocketProxy";
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 
 export const makeDesktopLayer = (
@@ -182,6 +183,7 @@ export const makeDesktopLayer = (
   const windowsLayer = DesktopWindows.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
+        RuffleSocketProxy.layer,
         ElectronApp.layer,
         ElectronGameView.layer,
         electronSessionLayer,
