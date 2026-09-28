@@ -11,7 +11,10 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { electronRendererRegistry } from "./ElectronRendererRegistry";
-import type { ElectronWindowOpenRequestHandler } from "./ElectronWindow";
+import {
+  guardRendererNavigation,
+  type ElectronWindowOpenRequestHandler,
+} from "./ElectronWindow";
 
 export interface ElectronGameViewHandle {
   readonly native: WebContentsView;
@@ -64,16 +67,6 @@ export class ElectronGameView extends Context.Service<
   ElectronGameViewShape
 >()("lucent/desktop/electron/ElectronGameView") {}
 
-const denyRendererWindowOpen = (
-  webContents: WebContents,
-  onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
-): void => {
-  webContents.setWindowOpenHandler(({ url }) => {
-    onWindowOpenRequest?.(url);
-    return { action: "deny" };
-  });
-};
-
 const create: ElectronGameViewShape["create"] = (
   options,
   onWindowOpenRequest,
@@ -81,9 +74,9 @@ const create: ElectronGameViewShape["create"] = (
   Effect.try({
     try: () => {
       const view = new WebContentsView(options);
-      denyRendererWindowOpen(view.webContents, onWindowOpenRequest);
       const webContents = view.webContents;
       electronRendererRegistry.register(webContents);
+      guardRendererNavigation(webContents, onWindowOpenRequest);
       return {
         native: view,
         // The native view clears its accessor after close; retain the contents for cleanup observers.

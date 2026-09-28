@@ -68,6 +68,24 @@ import {
   type IpcInvokeObservation,
 } from "./preloadIpcClient";
 
+// Cancel cross-document navigations before Chromium emits the loading events
+// that reset renderer state; reopening routes the URL through the main
+// process window-open policy.
+navigation.addEventListener("navigate", (event) => {
+  const { sameDocument, url } = event.destination;
+  if (
+    !event.cancelable ||
+    sameDocument ||
+    event.downloadRequest !== null ||
+    url === location.href
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  window.open(url, "_blank");
+});
+
 const applyBootstrapAppearance = (): void => {
   try {
     const snapshot = readAppearanceSnapshotArgument(process.argv);
